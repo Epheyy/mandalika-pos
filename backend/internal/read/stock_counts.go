@@ -2,7 +2,10 @@ package read
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/mandalika/pos-backend/internal/api"
 )
@@ -54,4 +57,47 @@ func StockCountOn(ctx context.Context, q RowQuerier, s Scope, id string) (api.St
 	}
 	return oneJSON[api.StockCount](ctx, q,
 		`SELECT `+stockCountObj+` FROM stock_counts sc WHERE sc.id=$1`+cond, args...)
+}
+
+// CountSheetRow is one line of a count's scanner sheet.
+type CountSheetRow struct {
+	SKU, Barcode, Product, Size string
+	Expected                    int
+}
+
+// StockCountSheet returns a count's status and its lines for the CSV export (the count-start
+// quantity as expected). The SKU and barcode are the variant's current ones, the keys the
+// import resolves scanned codes by. The scope check is the one StockCountOn applies.
+func (r *Repo) StockCountSheet(ctx context.Context, s Scope, id string) (string, []CountSheetRow, error) {
+	args := []any{id}
+	cond := ""
+	if !s.CrossAll {
+		args = append(args, s.OutletID)
+		cond = " AND (sc.outlet_id=$2 OR sc.warehouse_id IS NOT NULL)"
+	}
+	var status string
+	if err := r.Pool.QueryRow(ctx, `SELECT sc.status FROM stock_counts sc WHERE sc.id=$1`+cond, args...).Scan(&status); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", nil, ErrNotFound
+		}
+		return "", nil, err
+	}
+	rows, err := r.Pool.Query(ctx, `
+		SELECT COALESCE(NULLIF(v.sku,''), i.sku), COALESCE(v.barcode,''), i.product_name, i.variant_size, i.frozen_qty
+		  FROM stock_count_items i
+		  LEFT JOIN product_variants v ON v.product_id=i.product_id AND v.size=i.variant_size
+		 WHERE i.stock_count_id=$1 ORDER BY i.product_name, i.variant_size`, id)
+	if err != nil {
+		return "", nil, err
+	}
+	defer rows.Close()
+	var out []CountSheetRow
+	for rows.Next() {
+		var l CountSheetRow
+		if err := rows.Scan(&l.SKU, &l.Barcode, &l.Product, &l.Size, &l.Expected); err != nil {
+			return "", nil, err
+		}
+		out = append(out, l)
+	}
+	return status, out, rows.Err()
 }

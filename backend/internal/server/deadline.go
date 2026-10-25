@@ -40,7 +40,7 @@ type deadlineRule struct {
 //     outlives the 25 s default, and a middleware context shorter than the handler's own
 //     55 s context and 60 s write deadline would cut the stream first (the handler aborts the
 //     response on a mid-stream failure). It is bounded by those instead.
-//   - POST */import (products, customers, ingredients, admin/erp/sku-mapping): EXEMPT.
+//   - POST */import (products, customers, ingredients, admin/erp/sku-mapping, stock-counts/{id}): EXEMPT.
 //     These routes extend their own deadlines (read 60 s, write 150 s, imports.go) for a
 //     16 MiB upload plus a 50k-row plan, which a 28 s context would cut mid-transaction.
 //     They are bounded by those windows and the two-slot concurrency cap instead.
@@ -56,6 +56,7 @@ var deadlineExceptions = []deadlineRule{
 	{http.MethodPost, "/api/v1/customers/import", 0},
 	{http.MethodPost, "/api/v1/ingredients/import", 0},
 	{http.MethodPost, "/api/v1/admin/erp/sku-mapping/import", 0},
+	{http.MethodPost, "/api/v1/stock-counts/{id}/import", 0},
 }
 
 func deadlineFor(r *http.Request) time.Duration {

@@ -201,10 +201,16 @@ type countRow struct {
 // authorizes it: outlet counts must belong to the caller's outlet; warehouse
 // counts are permission-gated (existence check only — no outlet binding).
 func lockCount(ctx context.Context, t pgx.Tx, id, outletID string) (countRow, error) {
+	return readCountRow(ctx, t, id, outletID, "FOR UPDATE")
+}
+
+// readCountRow is lockCount with a caller-chosen lock clause: "" for a read-only snapshot (the
+// stock count CSV preview), "FOR UPDATE" to serialize.
+func readCountRow(ctx context.Context, t pgx.Tx, id, outletID, lock string) (countRow, error) {
 	var c countRow
 	var oid, wid *string
 	e := t.QueryRow(ctx,
-		`SELECT status, outlet_id, warehouse_id FROM stock_counts WHERE id=$1 FOR UPDATE`, id).Scan(&c.status, &oid, &wid)
+		`SELECT status, outlet_id, warehouse_id FROM stock_counts WHERE id=$1 `+lock, id).Scan(&c.status, &oid, &wid)
 	if errors.Is(e, pgx.ErrNoRows) {
 		return c, ErrNotFound
 	}
@@ -312,8 +318,9 @@ func refreezeCount(ctx context.Context, t pgx.Tx, id string, loc countLoc) error
 // captureBaseline is true for per-line saves: a changed value records the live
 // stock at that moment as the line's baseline and stamps counted_at. A line whose
 // value is unchanged keeps its baseline; a cleared line drops all three. Lines
-// first set at completion get no baseline and fall back to frozen_qty.
-func saveCountLines(ctx context.Context, t pgx.Tx, id string, loc countLoc, items []StockCountItem, captureBaseline bool) error {
+// first set at completion get no baseline and fall back to frozen_qty. Callers pass the saving actor; the
+// 'updated' event is written here so no save path can skip it.
+func saveCountLines(ctx context.Context, t pgx.Tx, id string, loc countLoc, items []StockCountItem, captureBaseline bool, actor string) error {
 	_, _, lid := loc.stock()
 	q := `UPDATE stock_count_items SET
 		baseline_qty = CASE WHEN $4::int IS NULL THEN NULL
@@ -334,7 +341,9 @@ func saveCountLines(ctx context.Context, t pgx.Tx, id string, loc countLoc, item
 			return fmt.Errorf("produk %s (%s) tidak ada di stock count ini", i.ProductName, i.VariantSize)
 		}
 	}
-	return nil
+	// The lines store no actor: every save records who made it, for the strict four-eyes check
+	// (touchedBy). Exactly one 'updated' row per save; actor "" (legacy unattributed path) is NULL.
+	return insertDocEvent(ctx, t, docTypeStockCount, id, "updated", actor, "", map[string]any{"lines": len(items)})
 }
 
 // UpdateStockCount handles start, cancel, notes and line edits, all against the
@@ -397,14 +406,8 @@ func (r *Repo) updateStockCount(ctx context.Context, id, outletID, actor string,
 				return e
 			}
 		} else {
-			if e := saveCountLines(ctx, t, id, c.loc, u.Items, true); e != nil {
+			if e := saveCountLines(ctx, t, id, c.loc, u.Items, true, actor); e != nil {
 				return e
-			}
-			// The lines store no actor: record who saved counted lines, for the strict four-eyes check.
-			if actor != "" {
-				if e := insertDocEvent(ctx, t, docTypeStockCount, id, "updated", actor, "", map[string]any{"lines": len(u.Items)}); e != nil {
-					return e
-				}
 			}
 		}
 	}
@@ -459,7 +462,7 @@ func (r *Repo) completeStockCount(ctx context.Context, t pgx.Tx, id, outletID, a
 		return fmt.Errorf("%w (status: %s)", ErrCountState, c.status)
 	}
 	if items != nil {
-		if e := saveCountLines(ctx, t, id, c.loc, items, false); e != nil {
+		if e := saveCountLines(ctx, t, id, c.loc, items, false, actor); e != nil {
 			return e
 		}
 	}

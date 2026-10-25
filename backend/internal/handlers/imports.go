@@ -69,18 +69,20 @@ func answerImportBusy(w http.ResponseWriter, err error) bool {
 	return true
 }
 
-func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string) {
+// beginImport takes an import slot, extends the route's deadlines and caps the body. The returned
+// release must be deferred; ok=false means the response was already written.
+func (h *Handlers) beginImport(w http.ResponseWriter, r *http.Request) (release func(), ok bool) {
 	slots := h.importSlots
 	if slots == nil { // a Handlers built without New still gets the default limit
 		slots = defaultImportSlots
 	}
 	select {
 	case slots <- struct{}{}:
-		defer func() { <-slots }()
+		release = func() { <-slots }
 	default:
 		w.Header().Set("Retry-After", strconv.Itoa(importSlotRetryAfterSeconds))
 		httpx.Err(w, http.StatusTooManyRequests, "sibuk, coba lagi sebentar (impor lain sedang berjalan)")
-		return
+		return nil, false
 	}
 	rc := http.NewResponseController(w)
 	for name, set := range map[string]func(time.Time) error{"read": rc.SetReadDeadline, "write": rc.SetWriteDeadline} {
@@ -94,14 +96,41 @@ func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string
 		}
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, importBodyCap)
-	var body api.CsvImportRequest
+	return release, true
+}
+
+// decodeImportBody reads the JSON request; a refused body is answered here (ok=false).
+func decodeImportBody[T any](w http.ResponseWriter, r *http.Request) (body T, ok bool) {
 	if err := httpx.Decode(r, &body); err != nil {
 		var tooBig *http.MaxBytesError
 		if errors.As(err, &tooBig) {
 			httpx.Err(w, http.StatusRequestEntityTooLarge, "file terlalu besar (maksimum 20 MiB)")
-			return
+			return body, false
 		}
 		httpx.Err(w, http.StatusBadRequest, "permintaan impor tidak valid")
+		return body, false
+	}
+	return body, true
+}
+
+// commitKey reads the Idempotency-Key a commit requires (answers 400 itself).
+func commitKey(w http.ResponseWriter, r *http.Request) (string, bool) {
+	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if key == "" || len(key) > maxIdempotencyKey {
+		httpx.Err(w, http.StatusBadRequest, "header Idempotency-Key wajib untuk menerapkan impor")
+		return "", false
+	}
+	return key, true
+}
+
+func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string) {
+	release, ok := h.beginImport(w, r)
+	if !ok {
+		return
+	}
+	defer release()
+	body, ok := decodeImportBody[api.CsvImportRequest](w, r)
+	if !ok {
 		return
 	}
 	req := write.ImportRequest{Kind: kind, CSV: body.Csv, DryRun: body.DryRun}
@@ -109,9 +138,8 @@ func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string
 		req.FileName = *body.FileName
 	}
 	if !body.DryRun {
-		key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
-		if key == "" || len(key) > maxIdempotencyKey {
-			httpx.Err(w, http.StatusBadRequest, "header Idempotency-Key wajib untuk menerapkan impor")
+		key, ok := commitKey(w, r)
+		if !ok {
 			return
 		}
 		if body.FileSha256 == nil || *body.FileSha256 == "" || body.ExpectedSummary == nil {
@@ -125,6 +153,12 @@ func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string
 			Warning: body.ExpectedSummary.Warning, NewCategories: body.ExpectedSummary.NewCategories,
 		}
 	}
+	h.finishImport(w, r, req)
+}
+
+// finishImport runs a built request and answers every outcome.
+func (h *Handlers) finishImport(w http.ResponseWriter, r *http.Request, req write.ImportRequest) {
+	kind := req.Kind
 	req.UserID, _ = r.Context().Value(auth.CtxUserID).(string)
 
 	run := h.Write.RunImport
@@ -140,6 +174,15 @@ func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string
 		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 		return
 	}
+	if kind == csvimport.KindStockCount {
+		if errors.Is(err, write.ErrNotFound) {
+			writeErr(w, r, http.StatusNotFound, err)
+			return
+		}
+		if countConflict(w, r, err) { // the count is not in progress
+			return
+		}
+	}
 	if err != nil {
 		slog.Error("csv import failed", "kind", kind, "err", err)
 		httpx.Err(w, http.StatusInternalServerError, "impor gagal; tidak ada data yang diubah")
@@ -147,12 +190,12 @@ func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string
 	}
 	switch res.Outcome {
 	case write.ImportPreview, write.ImportReplay:
-		httpx.JSON(w, http.StatusOK, res.Report)
+		httpx.JSON(w, http.StatusOK, reportOf(res))
 	case write.ImportApplied:
 		h.invalidate(r)
-		httpx.JSON(w, http.StatusOK, res.Report)
+		httpx.JSON(w, http.StatusOK, reportOf(res))
 	case write.ImportRejected:
-		writeJSON(w, http.StatusUnprocessableEntity, httpx.Envelope{Data: res.Report,
+		writeJSON(w, http.StatusUnprocessableEntity, httpx.Envelope{Data: reportOf(res),
 			Error: "impor ditolak: perbaiki baris yang salah; tidak ada data yang diubah"})
 	case write.ImportStale:
 		writeJSON(w, http.StatusConflict, httpx.Envelope{Data: map[string]string{"code": "import_stale"},
@@ -161,4 +204,12 @@ func (h *Handlers) runImport(w http.ResponseWriter, r *http.Request, kind string
 		writeJSON(w, http.StatusConflict, httpx.Envelope{Data: map[string]string{"code": "idempotency_conflict"},
 			Error: "kunci idempotensi ini sudah dipakai untuk file lain"})
 	}
+}
+
+// reportOf is the report a response carries: the count report for a stock count import.
+func reportOf(res write.ImportResult) any {
+	if res.Count != nil {
+		return res.Count
+	}
+	return res.Report
 }

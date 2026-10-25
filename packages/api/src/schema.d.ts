@@ -2639,7 +2639,7 @@ export interface paths {
         };
         /**
          * Count sheet as CSV for a scanner app (manage_stock_count)
-         * @description Columns sku, barcode, product, size, expected_qty and an empty counted_qty. Cells starting with = + - @ are guarded with a leading apostrophe. Read-only.
+         * @description Columns sku, barcode, product, size, expected_qty and an empty counted_qty, with a UTF-8 BOM. Cells starting with = + - @ are guarded with a leading apostrophe. Read-only.
          */
         get: operations["exportStockCount"];
         put?: never;
@@ -5389,7 +5389,7 @@ export interface components {
             lines?: components["schemas"]["StockCountSubmitLineInput"][];
         };
         /** @enum {string} */
-        StockCountImportWarning: "unknown_code" | "ambiguous_sku" | "not_on_count" | "stock_moved_since_start";
+        StockCountImportWarning: "unknown_code" | "ambiguous_sku" | "not_on_count" | "stock_moved_since_start" | "baseline_replaced" | "sku_narrowed";
         StockCountImportLineRef: {
             /** Format: uuid */
             productId: string;
@@ -5412,7 +5412,7 @@ export interface components {
             difference?: number;
             warnings: components["schemas"]["StockCountImportWarning"][];
         };
-        /** @description Counters of one count import. All are exact (not capped like rows). The commit's expectedSummary is this object from the preview; the server recomputes it and answers 409 import_stale when any counter differs (stock moved, lines were counted, or the count changed since the preview). */
+        /** @description Counters of one count import. All are exact (not capped like rows). The commit's expectedSummary is this object from the preview; the server recomputes it and answers 409 import_stale when any counter or the digest differs. The digest is a server-computed sha256 over every matched line's stored counted value, whether it carries a manual baseline, and whether stock moved since the count started, so a manual save or a new stock movement between preview and commit is stale even when the counters are equal. */
         StockCountImportSummary: {
             /** @description Distinct scanned codes matched to exactly one line of the count. */
             matched: number;
@@ -5422,10 +5422,12 @@ export interface components {
             ambiguous: number;
             /** @description Distinct scanned codes that resolve to a SKU that is not a line of this count. */
             notOnCount: number;
-            /** @description Count lines absent from the file; they stay uncounted. */
+            /** @description Count lines absent from the file and never counted; they stay uncounted. */
             uncounted: number;
-            /** @description Matched lines whose counted value this upload would overwrite with a different value. */
+            /** @description Matched lines whose stored counted value this upload would change (a never-counted line counts as changed). */
             changed: number;
+            /** @description Server-computed sha256 of the matched lines' state (see above). Send the preview's value back unchanged. */
+            digest: string;
         };
         /** @description Same shape as CsvImportRequest, with the count-specific expectedSummary. */
         StockCountImportRequest: {
@@ -5449,7 +5451,7 @@ export interface components {
             issues: components["schemas"]["ImportIssue"][];
             /** @description first 500 rows only (counts are exact) */
             rows: components["schemas"]["StockCountImportRow"][];
-            /** @description Count lines missing from the file; they stay uncounted. */
+            /** @description Count lines absent from the file and never counted; they stay uncounted. */
             uncounted: components["schemas"]["StockCountImportLineRef"][];
             runId?: string;
             appliedAt?: string;
@@ -11474,6 +11476,15 @@ export interface operations {
             };
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            /** @description count is not in progress */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     importStockCount: {

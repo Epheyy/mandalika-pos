@@ -369,6 +369,9 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.With(mw.RateLimit(c, "invapprove", 20, time.Minute)).
 					Post("/stock-counts/{id}/approve", h.ApproveStockCount)
 				r.Post("/stock-counts/{id}/reject", h.RejectStockCount)
+				// S4 scanner CSV: export the sheet, import counted quantities (no stock change)
+				r.Get("/stock-counts/{id}/export", h.ExportStockCount)
+				r.Post("/stock-counts/{id}/import", h.ImportStockCount)
 				r.Post("/oversell-records/acknowledge", h.AcknowledgeOversell)
 			})
 
