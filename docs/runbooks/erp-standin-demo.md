@@ -271,6 +271,58 @@ parameter because the relay still does not invalidate.
    (`/_stub/documents` empty) or to refresh the evidence. Then follow `erp-standin-demo-checklist.md`.
 3. After the demo: `--min-instances 0`.
 
+## Cutover to the real ERP (erp-flamboyan)
+
+Source: the ERP developer's reply of 2026-10-24 ("Integrasi Stok ERP–POS", answer to the 2026-10-21
+handoff) and the owner's decisions of 2026-10-25. The relay accepts the ERP's `status: "success"` envelope
+and its array `details[].path` (both stub forms still work). Each step needs its own owner go-ahead; do
+them per outlet, in this order.
+
+1. **ERP:** the ERP admin creates client `pos_<brand>` with scopes "Katalog (baca)", "Stok outlet (baca)"
+   and "Dokumen stok (tulis)"; the key comes over a secret channel and becomes a new `ERP_API_KEY`
+   version. Point `ERP_BASE_URL` at `https://<erp-host>/api/integration/v1`. Keep `ERP_RELAY_ENABLED=false`
+   until step 6. Pause the `erp-relay` job and the pull job while switching (§7).
+2. **POS, clear the demo mapping:** unset the demo warehouse slug. The ERP refuses warehouse documents
+   with 422 this phase; with the slug empty they stay `held` in the outbox and burn no attempts.
+   ```sql
+   SELECT id, name, erp_slug FROM warehouses WHERE erp_slug IS NOT NULL;
+   UPDATE warehouses SET erp_slug = NULL WHERE erp_slug = 'gudang-pusat';  -- "Gudang Pusat (contoh)"
+   ```
+   Also unlink or delete the demo variants and the demo outlet mapping (§7, data left behind).
+3. **POS, map outlets by slug before the first pull.** The pull links an existing outlet only when its
+   code equals the ERP outlet code exactly; otherwise it creates a duplicate inactive outlet and the real
+   outlet's documents stay `held` for ever. There is no UI for `outlets.erp_slug`: make the codes equal in
+   the ERP, or set the slug once by SQL (check first, one row):
+   ```sql
+   SELECT id, name, code, erp_slug FROM outlets WHERE id = '<OUTLET_ID>';
+   UPDATE outlets SET erp_slug = '<erp-outlet-slug>' WHERE id = '<OUTLET_ID>' AND erp_slug IS NULL;
+   ```
+4. **POS, SKU mapping from a full catalog sync.** Take `code` and `slug` of every FG from a full
+   `GET /catalog/finished-goods` (ERP answer Q6) and import the SKU-mapping CSV (`fg_code`, `fg_slug`,
+   optional `erp_group_key` in the `pos:<name minus size>` form) before the first pull, so existing
+   variants link instead of being duplicated (runbook `erp-catalog-sync.md` §2). Then run a full pull.
+   The ERP demo seed holds only 24 FGs: documents for any other product stay `held` (unmapped) until the
+   full FG master is imported in the ERP.
+5. **POS, every outlet movement has an outbox row**, including those recorded before the outbox existed
+   (migrations 0064 → 0065). The `opening` line is live stock minus all earlier ledger movements, so one
+   missing movement leaves the ERP balance off by exactly that movement.
+   ```sql
+   SELECT count(*) FROM stock_movements m WHERE m.location_type = 'outlet' AND m.location_id = '<OUTLET_ID>'
+      AND NOT EXISTS (SELECT 1 FROM erp_outbox o WHERE o.document_id = m.document_id);  -- must be 0
+   ```
+6. **ERP:** imports FG stock QTY 0 for that outlet in the current month, and from then on stops its own
+   import, adjust and reject of FG stock at that outlet (single writer; plan 1 relies on this rule only).
+7. **POS:** `ERP_RELAY_ENABLED=true`, resume the `erp-relay` job. The backlog (`opening` and every
+   document) may arrive in any order: the ERP posts each line as a delta, so the sum is the POS live stock.
+8. **Verify** once the backlog is drained (no `pending`/`sending` rows for the outlet): the ERP's
+   `GET /outlets/{code}/stock` equals POS live stock (`outlet_variant_stock`) per FG. A difference means a
+   missing or dead document: check `dead` rows first (`last_error` names the field, e.g. `lines.2.fg_code`).
+
+Not rewritten by the pull: size labels and `erp_group_key` of products created by pulls before the
+2026-10-25 mapping rule was deployed (the stand-in demo products here). Those pulls labelled sizes from the
+stock unit (`"50pcs"`) and keyed products `pos:<category>|<name>`; a new sibling FG of such a product creates
+a new product. Delete or unlink the demo products in step 2; see `erp-catalog-sync.md` §1 for the queries.
+
 ## 7. Rollback (each line is independent)
 
 - Stop sending at once: `gcloud scheduler jobs pause erp-relay --project $P --location $R` (and the pull).

@@ -81,10 +81,15 @@ gcloud scheduler jobs delete erp-relay --project mandalika-pos --location asia-s
 
 Response handling:
 
-- A 2xx counts as delivered/replayed only when the body is `{success: true, data.document_id
-  = this document's id, data.status = applied|replayed}`. Any other 2xx body is retried and
-  counts an attempt.
-- 400/409/422 → dead at once.
+- A 2xx counts as delivered/replayed only when the body carries a success marker, the ERP's
+  `status: "success"` or the stub's legacy `success: true` (no contrary one: `success: false` or
+  another `status`), with `data.document_id` = this document's id and `data.status` =
+  applied|replayed. Any other 2xx body is retried and counts an attempt.
+- 400/409/422 → dead at once. `last_error` is `<code>: <message>` plus up to three
+  `details` as `[<path>: <message>; ...]`; the ERP's array path `["lines", 2, "fg_code"]` reads
+  `lines.2.fg_code`. A 409 always ends with the frozen `payload_sha256`.
+- Warehouse documents: the ERP refuses them with 422 this phase. Keep `warehouses.erp_slug` empty
+  for the real ERP so they stay `held` instead of dead.
 - 401/403 → the run stops and the document stays pending (5 min back-off, no attempt
   counted: a bad key would otherwise dead-letter everything).
 - 429 → no attempt counted; the document waits `max(Retry-After, 1 min)` and the run stops.

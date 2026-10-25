@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: ERP Integration API v1 — stock documents (proposed by POS Mandalika)
-  version: 1.0.0-draft.1
+  version: 1.0.0-draft.2
   description: |
     Proposed write endpoint for the ERP (erp-flamboyan) Integration API v1, written by the POS team from the
     handoff `docs/integration/2026-10-21-serah-terima-erp-pos.md` §4.3, §4.4, §4.6 and §10. It is a fragment:
@@ -10,8 +10,15 @@ info:
     The POS backend (never a tablet or browser) posts one document per stock event. The ERP splits each
     document into `stock_movements` rows in one transaction and updates a live balance per (FG, location).
 
-    Idempotency: the document key is (`idempotency_scope = "pos:" + source.brand`, `document_id`). The ERP
-    stores a hash of the request body. Same key and same body → 200 `replayed`, nothing written again. Same key
+    Draft.2 (2026-10-25) records the ERP's reply of 2026-10-24 ("Integrasi Stok ERP–POS", answer to the
+    handoff): success envelope `status: "success"`, `details[].path` as an array, 413 above 512 KB, warehouse
+    documents refused with 422 this phase, idempotency scoped by the API client. The POS relay accepts both
+    success envelopes and both `path` forms.
+
+    Idempotency: the document key is (idempotency scope, `document_id`). The ERP scopes it by the API
+    client of the bearer key (one client per POS brand); `source.brand` is still sent, as information only.
+    The ERP checks for a replay before validating the body (handoff Q11). The ERP stores a hash of the
+    request body. Same key and same body → 200 `replayed`, nothing written again. Same key
     and a different body → 409 `IDEMPOTENCY_CONFLICT`. The POS relay retries until it receives a 2xx, and it
     resends the exact stored body (including `recorded_at`), so a retry is always byte-for-byte equivalent.
     Key order and whitespace must not affect the hash.
@@ -32,9 +39,16 @@ paths:
       description: |
         Requires scope `integration:stock:write`.
 
-        The ERP validates the whole document first. If any check fails (unknown `fg_code`, unknown
-        `location.slug`, bad `kind`, more than 200 lines, a `movement_id` already used in this scope, …)
-        it answers 422 and writes nothing.
+        After the replay check, the ERP validates the whole document. If any check fails (unknown `fg_code`,
+        unknown `location.slug`, a `warehouse` location, bad `kind`, more than 200 lines, a `movement_id`
+        already used in this scope, …) it answers 422 and writes nothing.
+
+        This phase accepts `location.type: outlet` only: a `warehouse` document is refused with 422. The POS
+        never sends one while `warehouses.erp_slug` is empty (the document is held in the outbox instead).
+
+        Required fields: `document_id`, `kind`, `location`, `occurred_at`, `lines[].movement_id`,
+        `lines[].fg_code`, `lines[].qty`. Every other field is stored as information and never changes a
+        balance. Unknown fields are ignored. A line with `qty` 0 is accepted without a movement.
       parameters:
         - name: Idempotency-Key
           in: header
@@ -56,7 +70,11 @@ paths:
                 $ref: '#/components/examples/CountPart'
       responses:
         '200':
-          description: Applied now (`applied`) or already applied with the same body (`replayed`).
+          description: |
+            Applied now (`applied`) or already applied with the same body (`replayed`). The ERP's envelope is
+            `{"status": "success", "data": {...}}`. The POS stub's legacy form `{"success": true, "data": {...}}`
+            is still accepted by the POS relay. Either way the relay requires `data.document_id` to equal the
+            document sent and `data.status` to be `applied` or `replayed`; any other 2xx body is retried.
           content:
             application/json:
               schema:
@@ -64,20 +82,20 @@ paths:
               examples:
                 applied:
                   value:
-                    success: true
+                    status: success
                     data:
                       document_id: d0000000-0000-4000-8000-000000000002
                       status: applied
                       movement_ids: [b0000000-0000-4000-8000-000000000002]
                 replayed:
                   value:
-                    success: true
+                    status: success
                     data:
                       document_id: d0000000-0000-4000-8000-000000000002
                       status: replayed
                       movement_ids: [b0000000-0000-4000-8000-000000000002]
         '400':
-          description: Malformed JSON or body too large (`INVALID_INPUT`).
+          description: Malformed JSON (`INVALID_INPUT`).
           content:
             application/json:
               schema:
@@ -90,6 +108,15 @@ paths:
                 $ref: '#/components/schemas/Error'
         '403':
           description: Client suspended (`INTEGRATION_CLIENT_SUSPENDED`) or no `stock:write` scope (`INTEGRATION_FORBIDDEN_SCOPE`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: |
+            Body larger than 512 KB (`PAYLOAD_TOO_LARGE`). Nothing written. The POS splits documents at 200
+            lines, so it does not expect this. The relay has no special case for 413: it retries with backoff
+            and dead-letters the document at the attempt limit.
           content:
             application/json:
               schema:
@@ -113,7 +140,7 @@ paths:
                 code: VALIDATION_ERROR
                 requestId: 9f2c1a7e
                 details:
-                  - path: lines[2].fg_code
+                  - path: [lines, 2, fg_code]
                     message: unknown fg_code "FG-999"
         '429':
           description: Rate limited (`RATE_LIMIT_EXCEEDED` / `RATE_LIMIT_BLOCKED`). Retry after `Retry-After` seconds.
@@ -210,7 +237,7 @@ components:
           description: Always `pos` from the POS backend.
         brand:
           type: string
-          description: POS deployment name. The ERP uses `idempotency_scope = "pos:" + brand`.
+          description: POS deployment name. Information only; the ERP scopes idempotency by API client.
           example: mandalika
         device_id:
           type: string
@@ -227,7 +254,7 @@ components:
           enum: [outlet, warehouse]
         slug:
           type: string
-          description: ERP slug of the outlet or warehouse. Unknown or deleted → 422.
+          description: ERP slug of the outlet or warehouse. Unknown or deleted → 422. A warehouse → 422 this phase.
     DocumentRef:
       type: object
       required: [type, id]
@@ -303,11 +330,18 @@ components:
           description: Rupiah. Negative on a refund.
     StockDocumentResult:
       type: object
-      required: [success, data]
+      description: |
+        The ERP sends `status: "success"`. `success: true` is the POS stub's legacy form; the relay accepts a
+        body with either marker and no contrary one (`success: false`, or a `status` other than `success`).
+      required: [data]
       properties:
+        status:
+          type: string
+          enum: [success]
         success:
           type: boolean
           enum: [true]
+          description: Legacy (POS stub) form of the success marker.
         data:
           type: object
           required: [document_id, status, movement_ids]
@@ -320,13 +354,16 @@ components:
               enum: [applied, replayed]
             movement_ids:
               type: array
-              description: In line order. On `replayed`, the ids stored with the original document.
+              description: In line order, including `qty` 0 lines. On `replayed`, the ids stored with the original document.
               items:
                 type: string
                 format: uuid
     Error:
       type: object
-      required: [success, error, message, code, requestId]
+      description: |
+        The POS stub's error envelope. The ERP's exact error envelope is not confirmed yet; the POS relay
+        reads only `code` (falling back to `error`), `message` and `details`, and stores the whole body.
+      required: [message, code]
       properties:
         success:
           type: boolean
@@ -337,7 +374,7 @@ components:
           type: string
         code:
           type: string
-          description: INVALID_INPUT, INTEGRATION_UNAUTHORIZED, INTEGRATION_CLIENT_SUSPENDED, INTEGRATION_FORBIDDEN_SCOPE, IDEMPOTENCY_CONFLICT, VALIDATION_ERROR, RATE_LIMIT_EXCEEDED, RATE_LIMIT_BLOCKED, INTEGRATION_BUSY.
+          description: INVALID_INPUT, INTEGRATION_UNAUTHORIZED, INTEGRATION_CLIENT_SUSPENDED, INTEGRATION_FORBIDDEN_SCOPE, IDEMPOTENCY_CONFLICT, PAYLOAD_TOO_LARGE, VALIDATION_ERROR, RATE_LIMIT_EXCEEDED, RATE_LIMIT_BLOCKED, INTEGRATION_BUSY.
         requestId:
           type: string
         details:
@@ -348,8 +385,18 @@ components:
             required: [path, message]
             properties:
               path:
-                type: string
-                example: lines[2].fg_code
+                description: |
+                  The ERP sends an array of keys and indexes (`["lines", 2, "fg_code"]`); the POS stub sends a
+                  string (`lines[2].fg_code`). The relay accepts both and writes `lines.2.fg_code` into the
+                  dead-letter `last_error`.
+                oneOf:
+                  - type: array
+                    items:
+                      oneOf:
+                        - type: string
+                        - type: integer
+                  - type: string
+                example: [lines, 2, fg_code]
               message:
                 type: string
   examples:
