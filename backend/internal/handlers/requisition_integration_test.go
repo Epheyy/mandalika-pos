@@ -289,6 +289,7 @@ func (f *rqFixture) run(t *testing.T) {
 	t.Run("four-eyes", f.fourEyes)
 	t.Run("four-eyes-fulfil", f.fourEyesFulfil)
 	t.Run("four-eyes-editor", f.fourEyesEditor)
+	t.Run("four-eyes-creator-only", f.fourEyesCreatorOnly)
 	t.Run("history", f.history)
 }
 
@@ -687,20 +688,24 @@ func (f *rqFixture) deletesAndInactive(t *testing.T) {
 	f.want(t, code, body, 200, "approve from gudang 2")
 
 	f.exec(t, `ALTER TABLE stock_requisition_items DROP CONSTRAINT stock_requisition_items_product_id_fkey`)
+	t.Cleanup(func() {
+		f.exec(t, `ALTER TABLE stock_requisition_items ADD CONSTRAINT stock_requisition_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id)`)
+	})
 	code, body = f.call("wh", "DELETE", "/products/"+p, nil, "")
 	f.want(t, code, body, 409, "delete a product named only by a PB (guard, FK dropped)")
 	if f.count(t, `SELECT count(*) FROM products WHERE id=$1`, p) != 1 {
 		t.Error("the product was deleted although a PB names it")
 	}
-	f.exec(t, `ALTER TABLE stock_requisition_items ADD CONSTRAINT stock_requisition_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id)`)
 
 	f.exec(t, `ALTER TABLE stock_requisitions DROP CONSTRAINT stock_requisitions_warehouse_id_fkey`)
+	t.Cleanup(func() {
+		f.exec(t, `ALTER TABLE stock_requisitions ADD CONSTRAINT stock_requisitions_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)`)
+	})
 	code, body = f.call("wh", "DELETE", "/warehouses/"+wh2, nil, "")
 	f.want(t, code, body, 409, "delete a warehouse named only by a PB (guard, FK dropped)")
 	if f.count(t, `SELECT count(*) FROM warehouses WHERE id=$1`, wh2) != 1 {
 		t.Error("the warehouse was deleted although a PB names it")
 	}
-	f.exec(t, `ALTER TABLE stock_requisitions ADD CONSTRAINT stock_requisitions_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)`)
 
 	f.exec(t, `UPDATE warehouses SET is_active=false WHERE id=$1`, wh2)
 	n := f.transfers(t)
@@ -881,6 +886,21 @@ func (f *rqFixture) fourEyesEditor(t *testing.T) {
 	f.want(t, code, body, 409, "editor approves")
 	code, body = f.call("mgr", "POST", "/requisitions/"+id+"/reject", map[string]any{"note": "x"}, f.key())
 	f.want(t, code, body, 409, "editor rejects")
+	code, body = f.call("wh", "POST", "/requisitions/"+id+"/approve", approval, f.key())
+	f.want(t, code, body, 200, "a non-participant approves")
+}
+
+// The creator rule on its own: the manager creates, a third user (admin) submits, and the manager
+// never edits or submits, yet may not approve their own request.
+func (f *rqFixture) fourEyesCreatorOnly(t *testing.T) {
+	p := f.product(t)
+	id := f.create(t, "mgr", rqLine(p, 1))
+	code, body := f.call("admin", "POST", "/requisitions/"+id+"/submit", nil, f.key(), "X-Outlet-Id", rqOutletA)
+	f.want(t, code, body, 200, "a third user submits")
+	pb := f.get(t, "wh", id)
+	approval := map[string]any{"warehouseId": rqWarehouse, "items": []map[string]any{{"itemId": pb.Data.Items[0].ID, "approvedQty": 1}}}
+	code, body = f.call("mgr", "POST", "/requisitions/"+id+"/approve", approval, f.key())
+	f.want(t, code, body, 409, "creator approves")
 	code, body = f.call("wh", "POST", "/requisitions/"+id+"/approve", approval, f.key())
 	f.want(t, code, body, 200, "a non-participant approves")
 }
