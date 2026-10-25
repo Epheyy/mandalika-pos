@@ -9,7 +9,8 @@ Path references are relative to the repo root. "unverified" means I did not conf
 - **D-A, canvas bag.** The bag is both sold as an item and given away. The giveaway is one unit per completed sale, from a configurable item per outlet (product + variant_size).
   - It is recorded as a ledger movement that carries the order ref.
   - It is not restored on refund.
-  - It goes to the ERP inside the sale document as a zero-price line flagged `giveaway`. No new ERP document kind.
+  - It goes to the ERP inside the sale document as an ordinary zero-price sale line. **No `giveaway` flag is sent** (owner answer to Q1, 2026-10-25). No new ERP document kind, and the ERP contract is unchanged in wire format and in its documentation.
+  - Inside the POS the line stays recognisable through its ledger key `giveaway:<order_id>`, so the kartu stok can label it "Hadiah" without sending anything extra to the ERP.
   - Sold bags stay ordinary sale lines.
 - **D-B, approvals.** Approvals reuse the A08 approver roles and PIN step-up: `receive_approver_roles`, the receive PIN lockouts, and `internal/write/receive_approval.go`.
 - **D-C, requisitions.** A "Permintaan Barang" (PB) document lives in the backoffice.
@@ -30,7 +31,7 @@ Path references are relative to the repo root. "unverified" means I did not conf
 
 | They pick | They get |
 |---|---|
-| A location (outlet or gudang) and a SKU (search by SKU, barcode or name; Canvas Bag included) plus a date range | One row per movement. Columns: waktu kejadian, waktu tercatat, jenis, dokumen (order, transfer, opname, penyesuaian, penerimaan, link), masuk, keluar, **saldo**, oleh, alasan, penyetuju, tanda (Minus, Hadiah), status ERP |
+| A location (outlet or gudang) and a SKU (search by SKU, barcode or name; Canvas Bag included) plus a date range | One row per movement. Columns: waktu kejadian, waktu tercatat, jenis, dokumen (order, transfer, opname, penyesuaian, penerimaan, link), masuk, keluar, **saldo**, oleh, alasan, penyetuju, tanda (Minus from the `shortage` flag; Hadiah from the `giveaway:` ledger key), status ERP |
 | The same filters | A header with saldo awal, total masuk, total keluar, saldo akhir |
 | "Unduh CSV" | The same rows as a file |
 | "Ringkasan" | One line per SKU for a location: saldo awal, masuk by kind, keluar by kind, saldo akhir |
@@ -97,11 +98,11 @@ Path references are relative to the repo root. "unverified" means I did not conf
   - `POST /inventory/adjust` and `POST /stock-counts/{id}/complete` answer **409 `approval_required`** for everyone.
 - Approver = the logged-in backoffice user, who re-enters their own receive PIN.
   - Eligibility: admin, or a role listed in `receive_approver_roles` (`backend/internal/write/receive_fingerprint.go:47-57`).
-  - Location scope (new helper): an outlet document needs admin or a user of that outlet. A warehouse document needs admin. `ReceiveScope` refuses warehouses (`receive_fingerprint.go:62-65`), so it is not reused.
+  - Location scope (new helper): an outlet document needs admin or an approver-role user of that outlet. A warehouse document needs admin or any approver-role user (§8 answer 2). `ReceiveScope` refuses warehouses (`receive_fingerprint.go:62-65`), so it is not reused.
   - Approver ≠ requester.
 - An approved adjustment applies the **requested delta** (`requested_new_qty − qty_at_request`), not the absolute value (see Q3).
 
-**Question:** Q2 (policy), Q3 (delta).
+**Decided:** approval policy and delta apply per §8 answers 2 and 3.
 
 ### 1.3 Transfer Stock with "Permintaan Barang"
 
@@ -279,7 +280,7 @@ CREATE TABLE stock_requisition_items (
 );
 ```
 
-**Giveaway movement kind: reuse `sale`, add flag `giveaway`. No new kind.** Reasons:
+**Giveaway movement kind: reuse `sale`, with no flag. No new kind.** Reasons:
 
 | Reason | Evidence |
 |---|---|
@@ -290,7 +291,7 @@ CREATE TABLE stock_requisition_items (
 | The relay dead-letters an unknown kind | `backend/internal/integration/erp/relay.go:258-260` |
 | A new kind is exactly the "new document kind" the owner ruled out | D-A |
 
-The flag needs no migration: `flags text[]` already exists (`0064_stock_movements.sql:27`).
+**No flag, by owner decision.** The builder copies every stored flag into the ERP line except internal `sent:` ones (`payload.go:158-166`), so a stored `giveaway` flag would reach the ERP. The POS marker is therefore the existing unique `dedupe_key` (`0064_stock_movements.sql:12`): `giveaway:<order_id>`. Reads derive `isGiveaway = dedupe_key LIKE 'giveaway:%'`. No migration is needed for the marker.
 
 ---
 
@@ -310,7 +311,7 @@ All write endpoints take an `Idempotency-Key` through `keyedMutated` (pattern: `
 
 | Slice | Method + path (`/api/v1`) | Perm | Request → response |
 |---|---|---|---|
-| S1 | GET `/inventory/movements` | manage_inventory | Query: `locationType, locationId` (required); `productId, variantSize, kind[]` (sale, refund, …), `flag` (shortage\|giveaway), `from, to` (occurred_at, RFC3339 or date in outlet tz), `cursor` (opaque: seq), `limit` ≤ 200. Response `{data: StockMovementRow[], nextCursor, summary?}`; `summary` {opening, totalIn, totalOut, closing} only when one SKU is filtered. Order: `seq DESC`. |
+| S1 | GET `/inventory/movements` | manage_inventory | Query: `locationType, locationId` (required); `productId, variantSize, kind[]` (sale, refund, …), `flag` (shortage), `giveaway` (bool, from the dedupe key), `from, to` (occurred_at, RFC3339 or date in outlet tz), `cursor` (opaque: seq), `limit` ≤ 200. Response `{data: StockMovementRow[], nextCursor, summary?}`; `summary` {opening, totalIn, totalOut, closing} only when one SKU is filtered. Order: `seq DESC`. |
 | S1 | GET `/inventory/movements/export` | manage_inventory | Same filters; `text/csv`; range ≤ 93 days, ≤ 100k rows (413 above); `csvimport.GuardCell` (`backend/internal/handlers/erp_admin.go:27-30`) |
 | S1 | GET `/inventory/movements/summary` | manage_inventory | Query: `locationType, locationId, from, to, q, page, limit`. Rows: `{productId, productName, variantSize, sku, barcode, opening, inByKind{}, outByKind{}, closing}` |
 | S2 | GET / PUT `/outlets/{id}/giveaway` | manage_outlets (`server.go:262`) | `{productId, variantSize, enabled}` → `OutletGiveaway{…, productName, sku, erpMapped, valid}`. PUT answers 409 if the variant does not exist, or if ERP integration is on and the variant has no `erp_slug`+sku (see §4 Q-unmapped). Writes an `inventory_doc_events` row. |
@@ -333,7 +334,7 @@ All write endpoints take an `Idempotency-Key` through `keyedMutated` (pattern: `
 | S5 | POST `/requisitions/{id}/fulfil` | manage_inventory | Creates the transfer draft → `{transferId, transferNo}`; allowed again only when the linked transfer is `cancelled` |
 
 **`StockMovementRow`:**
-- From the ledger: `id, seq, occurredAt, recordedAt, kind, locationType, locationId, productId, variantSize, qty, qtyBefore, qtyAfter, refType, refId, refNumber, flags[]`.
+- From the ledger: `id, seq, occurredAt, recordedAt, kind, locationType, locationId, productId, variantSize, qty, qtyBefore, qtyAfter, refType, refId, refNumber, flags[]`, plus derived `isGiveaway` (`dedupe_key LIKE 'giveaway:%'`).
 - Joined: `locationName, productName, sku, barcode` (LEFT JOIN `product_variants` on (product_id, size), as in `payload.go:213-214`); `actorId, actorName`.
 - `reasonCode, reasonText, approvedBy` from the adjustment request or count, by `ref_type/ref_id`.
 - `erpStatus` from `erp_outbox` by `document_id`.
@@ -376,7 +377,7 @@ Frozen functions `createOrderCore`, `RefundTx` and `processOneWithSeq` are **not
 2. **Decrement and record**, inside `recordSaleMovements` (`backend/internal/service/ledger_hooks.go:88-165`), the D10 seam called once at `order.go:632`:
    - Read the sale lines first, as today (`:99-106`).
    - Then run `UPDATE outlet_variant_stock SET stock=stock-1 … RETURNING stock` for the giveaway key. The row is already locked.
-   - Append one line **last**: `Qty -1, QtyBefore after+1, QtyAfter after, DedupeKey "giveaway:"+orderID, RefLine "", Flags ["giveaway"]` (+`"shortage"` if after < 0).
+   - Append one line **last**: `Qty -1, QtyBefore after+1, QtyAfter after, DedupeKey "giveaway:"+orderID, RefLine "", Flags []` (+`"shortage"` if after < 0). No `giveaway` flag (owner decision).
    - Pass it in the **same** `ledger.Record` call (`:154-160`).
    - Appending last keeps the per-key chain correct when a sold or reward bag shares the key: `Record` keeps caller order within a key (`ledger.go:253-264`).
    - The `len(ms)==0` early return (`:125-127`) must no longer skip the giveaway.
@@ -389,8 +390,8 @@ Frozen functions `createOrderCore`, `RefundTx` and `processOneWithSeq` are **not
 
 | # | Question | Answer from code |
 |---|---|---|
-| 1 | Can a sale line mark a giveaway without a contract change? | **Yes on the wire; no on meaning.** (a) Schema: `flags` is an open string array documented with one known value, `shortage` (`stock-documents.v1.yaml:280-284`); `reason` is free text, "usually equals kind" (`:277-279`); `unit_price` is optional (`:269-272`); `StockLine` sets no `additionalProperties: false` (`:246-292`). (b) The ERP reply says unknown fields are ignored and POS may add fields (`C:\Users\MyBook Hype AMD\Downloads\Integrasi Stok ERP–POS.md:76`), flags are stored as information (`:80`, Q19 `:125`), `unit_price` is optional (Q21 `:127`). (c) **But:** the ERP books the −1 as a sale OUT and treats `flags` as information only. Whether the ERP's accounting accepts a Rp0 sale line for the bag, or must read the flag, is a **semantic contract change** to confirm with the ERP developer → **Q1**. Also update the YAML "Known value" text to list `giveaway` (docs-only). |
-| 1b | Does the builder emit `unit_price: 0`? | **No, today it omits it.** The price comes from `order.LinePrice[m.RefLine]` (`payload.go:174-178`), and a giveaway has no order item. Fix in `buildLine` (`payload.go:151-180`): a `sale` line flagged `giveaway` gets `unit_price` 0, `reason` stays `sale`. Payloads are frozen at first build (`0065_erp_outbox.sql:3-6`), so earlier documents are unaffected. |
+| 1 | Can a sale line mark a giveaway without a contract change? | **Yes on the wire; no on meaning.** (a) Schema: `flags` is an open string array documented with one known value, `shortage` (`stock-documents.v1.yaml:280-284`); `reason` is free text, "usually equals kind" (`:277-279`); `unit_price` is optional (`:269-272`); `StockLine` sets no `additionalProperties: false` (`:246-292`). (b) The ERP reply says unknown fields are ignored and POS may add fields (`C:\Users\MyBook Hype AMD\Downloads\Integrasi Stok ERP–POS.md:76`), flags are stored as information (`:80`, Q19 `:125`), `unit_price` is optional (Q21 `:127`). (c) **But:** the ERP books the −1 as a sale OUT and treats `flags` as information only. **Owner decision (2026-10-25): send no flag.** The ERP receives a plain Rp0 sale line for the bag and books it as a sale OUT. Wire format and contract text are both unchanged; the YAML is not edited. |
+| 1b | Does the builder emit `unit_price: 0`? | **No, today it omits it.** The price comes from `order.LinePrice[m.RefLine]` (`payload.go:174-178`), and a giveaway has no order item. Fix in `buildLine` (`payload.go:151-180`): the movement query adds `dedupe_key` to `MovementRow`, and a `sale` line whose key starts with `giveaway:` gets `unit_price` 0; `reason` stays `sale`, flags stay as stored (only `shortage`, if any). Payloads are frozen at first build (`0065_erp_outbox.sql:3-6`), so earlier documents are unaffected. |
 | 2 | One outbox row per movement? Kind → document mapping? Kind CHECK? | **One outbox row per document part**, not per movement (`ledger.go:276-293`, `backend/internal/ledger/outbox.go:21-32`, `:38-43`). The relay builds the payload from all movements of that `document_id` (`payload.go:209-215`). Kind passes through as the document kind (`payload.go:90-93`); unknown kinds are dead-lettered (`relay.go:258-260`). CHECKs exist on both tables (`0064_stock_movements.sql:13-14`, `0065_erp_outbox.sql:21-22`). Adding to an already-queued document **fails** (`ledger.go:334-340`), so the giveaway must ride the sale's single `Record` call. → reuse `sale` + flag (§2). |
 | 3 | Is consumption replay-safe? | Sale movements are idempotent because a replay never reaches them: the `processed_keys` guard returns first (`order.go:241-247`). A lost same-key race rolls the whole transaction back (`order.go:592`, `:749-756`, `:796-809`; constraints `:779-786`). The sync path enters the same core (`backend/internal/sync/sync.go:184` → `CreateOrderSeq`). The giveaway UPDATE runs inside that transaction, so the **guard, not the dedupe key, protects the stock**. `dedupe_key` `ON CONFLICT DO NOTHING` (`ledger.go:295-300`) is only a backstop. `orderID` is new per committed order, so `giveaway:<orderID>` is one per order. |
 | 4 | Does the refund leak the giveaway? | **No leak.** `recordRefundMovements` selects only `order_items` (`ledger_hooks.go:30-39`). Frozen `RefundTx` restocks only order lines. The ERP refund document is built only from the `refund:<order>` document's movements (`payload.go:209-215`). The giveaway is not an `order_items` row, so it is neither restocked nor present in the ERP refund. (The inverse matters: modelling the bag as an order item **would** restock it.) No fix needed; S2 adds a test that proves it. |
@@ -404,7 +405,7 @@ Frozen functions `createOrderCore`, `RefundTx` and `processOneWithSeq` are **not
 
 **Unmapped bag (new risk).** If the bag variant has no ERP mapping, the builder **holds the whole sale document** (`payload.go:82-88`, `:110-136`, mapping SQL `:213-214`). So the S2 PUT refuses an unmapped variant while ERP integration is on, and the setting screen shows "belum dipetakan ke ERP".
 
-**ERP document shape after S2** (sale part 0): sale lines unchanged, then `{movement_id, fg_code: <bag FG>, qty: -1, qty_before, qty_after, unit_price: 0, reason: "sale", flags: ["giveaway"]}`.
+**ERP document shape after S2** (sale part 0): sale lines unchanged, then `{movement_id, fg_code: <bag FG>, qty: -1, qty_before, qty_after, unit_price: 0, reason: "sale", flags: []}` (`["shortage"]` if the bag went negative). To the ERP it is indistinguishable from any other Rp0 sale line.
 - `tenders` unchanged (`payload.go:184-195`).
 - A sale whose lines all lacked a variant used to queue no document (`outbox.go:38-43`). It now sends one containing only the giveaway line plus the tender. That is correct, but new behaviour; it is covered by a test.
 
@@ -467,7 +468,7 @@ Ports 56469 and 56471-56474 are unused today (`postgres_gate.py:33-62`). `script
 |---|---|---|
 | S0 | `backend/api/openapi.yaml`; generated `internal/api/api.gen.go`; `db/migrations/0068_*.sql` + append-only guard test | `packages/api/src/schema.d.ts`, `packages/api/src/client.ts`, `packages/types/src/index.ts` (`request_stock`) |
 | S1 | new `read/movements.go`, `handlers/inventory_movements.go`; `server.go` (manage_inventory group `:266-286`) | `StockCard.tsx`, `MovementSummary.tsx`; test `handlers/stock_movements_read_integration_test.go` |
-| S2 | `service/lockorder.go`, `service/ledger_hooks.go`, `integration/erp/payload.go` (+`payload_test.go`), new `write/outlet_giveaway.go`, `read/outlet_giveaway.go`, `handlers/outlet_giveaway.go`, guard maps (§4.1); `server.go`; `docs/integration/stock-documents.v1.yaml` (flag text only) | `OutletGiveawaySection.tsx`; test `handlers/giveaway_integration_test.go` |
+| S2 | `service/lockorder.go`, `service/ledger_hooks.go`, `integration/erp/payload.go` (+`payload_test.go`), new `write/outlet_giveaway.go`, `read/outlet_giveaway.go`, `handlers/outlet_giveaway.go`, guard maps (§4.1); `server.go`. The ERP contract YAML is not touched. | `OutletGiveawaySection.tsx`; test `handlers/giveaway_integration_test.go` |
 | S3 | `write/receive_approval.go` (extract the lockout + argon2 core of `mintReceiveApproval` `:207-292` into a shared `checkApproverPIN`, with the transfer path behaviour byte-equivalent; `insertAttempt` `:125-134` gains doc_type/doc_id); new `write/inventory_approval.go` (scope helper, adjustment requests, delta apply); `write/stockcount.go` (submit / approve / reject; `complete` 409 under the flag; `runningCountConflict` `:244-251` learns the new index names); `write/warehouse.go` (adjust 409 under the flag); `write/settings.go` + `read/settings.go`; `handlers/inventory_approvals.go`, `handlers/stock_counts.go`, `handlers/inventory.go`; `server.go` | `ApprovalQueue.tsx`, `StockCount.tsx`, `AdjustModal.tsx`, `SettingsScreen.tsx`, `navAccess.ts` |
 | S4 | new `csvimport/stockcount.go` (Spec: barcode\|sku, counted_qty; sum duplicates); new `write/import_stockcount.go` (planner + apply via `saveCountLines(..., false)` under `lockCount`, `in_progress` only); `write/import.go` (`ImportRequest` `:29-39` gains `TargetID`; `specFor` / `planKind` `:54-82`; replay `:198+` also compares `target_id`); new `handlers/stock_count_csv.go`; `server.go`, `server/bodylimit.go`, `server/deadline.go` | `CountCsvPanel.tsx` |
 | S5 | new `write/requisition.go`; `write/transfer.go` (extract `createTransferTx` from `CreateTransfer` `:219-243`, wrapper unchanged); `read/requisition.go`; `handlers/requisitions.go`; `server.go` (`request_stock` group) | `screens/requisitions/*`, `navAccess.ts` |
@@ -498,6 +499,7 @@ Ports 56469 and 56471-56474 are unused today (`postgres_gate.py:33-62`). `script
   - one bag per sale;
   - replay and same-key race leave the bag untouched;
   - refund leaves the bag unrestocked and the ERP refund payload has no giveaway line;
+  - the ERP sale payload carries the bag as a Rp0 `sale` line with no `giveaway` flag;
   - sold bag + reward bag + giveaway chain correctly;
   - zero stock goes negative with the `shortage` flag;
   - no setting means no movement;
@@ -512,7 +514,7 @@ Ports 56469 and 56471-56474 are unused today (`postgres_gate.py:33-62`). `script
 | After | Auditor test |
 |---|---|
 | S1 | Open the Canvas Bag kartu stok at an outlet: opening, receipts, transfers, sales, counts and adjustments with running saldo; closing = live stock; export and re-sum the CSV |
-| S2 | Ring up a sale without a bag: the bag goes −1 with order number and badge "Hadiah". Refund it: the bag stays. ERP outbox payload: Rp0 line flagged `giveaway` |
+| S2 | Ring up a sale without a bag: the bag goes −1 with order number and badge "Hadiah". Refund it: the bag stays. ERP outbox payload: a plain Rp0 sale line for the bag, no extra flag |
 | S3 | Request an adjustment, try the old path (refused), try self-approval (refused), approve with PIN (applied, history), reject one; submit a count → approve → kind `count` rows |
 | S4 | Export a count CSV, scan with a phone app, upload, review the diff, apply, then submit for approval |
 | S5 | Outlet raises PB → warehouse approves partial → "Buat Transfer" → send → outlet receives (A08) → PB shows the full chain |
@@ -524,7 +526,7 @@ Ports 56469 and 56471-56474 are unused today (`postgres_gate.py:33-62`). `script
 | # | Risk | Mitigation |
 |---|---|---|
 | R1 | **Nov 2 ERP demo** (`HANDOFF.md:47`) destabilised | No deploy before the demo unless the owner says so; build and merge locally only. S2 touches the sale path and the ERP payload: deploy it after the demo, with tablets at 0 pending (HANDOFF owner decision 2026-10-10). Every slice is inert on deploy: no giveaway row, approval flag false, new tables unused. |
-| R2 | **ERP contract** | The wire is unchanged: no new kind, field types or required fields (§4.2 Q1). The **meaning changes**: the ERP will book a Rp0 sale line unless it reads `flags`. Flagged as Q1. The YAML "known value" text gets `giveaway`. |
+| R2 | **ERP contract** | Unchanged in wire format and documentation: no new kind, field, flag or required field (§4.2 Q1). The ERP books the bag as a Rp0 sale; the owner accepted this (2026-10-25). The ERP cannot tell giveaways from Rp0 reward lines; the POS kartu stok can. |
 | R3 | **Frozen functions** | `createOrderCore`, `RefundTx`, `processOneWithSeq`: no edits. S2 changes only `lockorder.go` and `ledger_hooks.go`, behind the D10 call (`order.go:632`). Reviewer checks that `git diff` shows no hunks inside those function ranges (declhash as in the reorg plan). |
 | R4 | Lock-order deadlock from the giveaway row | Sorted pre-lock in `lockStockRowsSorted` + `FOR SHARE` on the setting (§4.1); GW reversed-cart test; LO gate. |
 | R5 | **Unmapped bag holds every sale document** (`payload.go:82-88`) | PUT refuses unmapped variants while ERP is on; the screen shows the mapping state; demo ERP seed has only 24 FGs (ERP reply `:140`). |
@@ -533,7 +535,7 @@ Ports 56469 and 56471-56474 are unused today (`postgres_gate.py:33-62`). `script
 | R8 | Replay / double bag | `processed_keys` guard + full rollback on race (§4.2 Q3); GW asserts it. |
 | R9 | Zero or negative bag stock | Never blocks; `shortage` flag; visible on kartu stok, not "Stok Minus" (Q5). |
 | R10 | Variant rename/delete or ERP tombstone orphans the setting | Hook skips with a warn; setting screen shows "tidak valid"; event row on change. |
-| R11 | Approval stalls | Migration 0063 wiped every receive PIN and admins must set new ones (`HANDOFF.md:270`). Who holds a PIN today is unverified (likely only the admin). A single PIN holder cannot satisfy four-eyes (Q2). |
+| R11 | Approval stalls | Migration 0063 wiped every receive PIN and admins must set new ones (`HANDOFF.md:270`). Owner answer (Q2): a second approver exists and the admin sets that user's PIN through the existing `PUT /users/{id}/receive-pin` (`backend/internal/server/server.go:362`). Remaining risk: if either PIN holder is locked out, the admin unlock route (`server.go:363`) clears it. |
 | R12 | Absolute adjustment applied late overwrites sales | Delta apply + drift shown (Q3). |
 | R13 | Two open counts at one location double-apply | Wider unique index (0071); `runningCountConflict` updated. |
 | R14 | CSV SKU ambiguity until 0067 ships | Barcode first; ambiguous SKU = row error. |
@@ -543,23 +545,20 @@ Ports 56469 and 56471-56474 are unused today (`postgres_gate.py:33-62`). `script
 
 ---
 
-## 8. Open questions for the owner
+## 8. Owner answers (2026-10-25)
 
-1. **ERP booking of the giveaway line.** It is wire-compatible, but the ERP will post it as a sale OUT at Rp0 unless it reads `flags`. Is that what the ERP's accounting wants?
-   *Recommended default:* ship `reason: "sale"`, `flags: ["giveaway"]`, `unit_price: 0`; send the ERP developer a one-paragraph note before S2 is deployed. If they need a distinct marker, switch `reason` to `"giveaway"`: still kind `sale`, no schema change.
-2. **Approval policy.**
-   *Recommended default:* when the flag is on, every manual adjustment and every count with at least one non-zero difference needs approval; approver ≠ requester always, admin included; outlet documents are approved by admin or an approver-role user of that outlet; warehouse documents by admin only; PIN re-entry on every approval. Also: should admins set PINs for approver roles so a second person exists?
-3. **An approved adjustment after stock moved.**
-   *Recommended default:* apply the requested *delta* and show drift on the approval card. The alternative is to refuse as stale and require a new request.
-4. **Scanner CSV baseline and blind counting.**
-   *Recommended default:*
-   - the upload measures against the count-start snapshot, and the preview flags SKUs that moved since start;
-   - pause sales during opname, or count by section;
-   - the export includes expected qty as decided.
-   An optional "tanpa qty sistem" (blind) export can follow if the auditor asks.
-5. **Giveaway edge policy.**
-   *Recommended default:*
+All five questions are answered; nothing is open.
+
+1. **ERP giveaway line: no flag.** The bag goes to the ERP as a plain Rp0 sale line (`reason: "sale"`, `unit_price: 0`, no `giveaway` flag). The POS identifies it by the `giveaway:<order_id>` ledger key only. The ERP contract and its YAML stay untouched.
+2. **Approval policy: four-eyes with a second approver.** A second approver exists, and the admin sets that user's PIN via the existing `PUT /users/{id}/receive-pin` (`backend/internal/server/server.go:362`).
+   - When `inventoryApprovalRequired` is on, every manual adjustment and every count with at least one non-zero difference needs approval.
+   - Approver ≠ requester, always, admin included.
+   - Eligible approvers: admin or a `receive_approver_roles` user. Outlet documents additionally need the approver's outlet scope. Warehouse documents accept admin or any approver-role user, so the second approver can cover an admin's own warehouse request.
+   - PIN re-entry on every approval.
+3. **Adjustment approved after stock moved:** apply the requested *delta* and show the drift on the approval card.
+4. **Scanner CSV:** the upload measures against the count-start snapshot, and the preview flags SKUs that moved since the start. Sales pause during opname, or the count goes by section. The export includes expected qty. A blind ("tanpa qty sistem") export is deferred until the auditor asks.
+5. **Giveaway edge policy:**
    - one bag per completed order, always, including Rp0 / reward-only orders and orders that also buy bags;
-   - at zero stock, still decrement (negative + flag) rather than skip;
+   - at zero stock, still decrement (negative + `shortage` flag) rather than skip;
    - the bag shortage shows on the kartu stok and a giveaway low-stock badge, not in "Stok Minus";
    - no tablet bag counter in v1.
