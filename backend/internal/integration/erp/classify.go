@@ -83,14 +83,20 @@ func classify(resp Response, err error, attempts int, sha, documentID string, cf
 	return retry(attempts, cfg, resp, &code, truncate(errorText(resp), maxErrorLen))
 }
 
-// classifySuccess accepts a 2xx only when it is the ERP's answer for this document.
+// classifySuccess accepts a 2xx only when it is the ERP's answer for this document. Two
+// envelopes are accepted (owner decision 2026-10-25): the ERP's {"status":"success"} and
+// the stub's legacy {"success":true}.
 func classifySuccess(resp Response, attempts int, documentID string, cfg Config) outcome {
 	code := resp.Status
 	var env struct {
-		Success bool   `json:"success"`
-		Data    Result `json:"data"`
+		Success *bool    `json:"success"`
+		Status  string   `json:"status"`
+		Data    struct { // movement_ids is not read: a malformed one must not reject an applied document
+			DocumentID string `json:"document_id"`
+			Status     string `json:"status"`
+		} `json:"data"`
 	}
-	ok := json.Unmarshal(resp.Body, &env) == nil && env.Success &&
+	ok := json.Unmarshal(resp.Body, &env) == nil && successEnvelope(env.Success, env.Status) &&
 		strings.EqualFold(env.Data.DocumentID, documentID) &&
 		(env.Data.Status == "applied" || env.Data.Status == "replayed")
 	if !ok {
@@ -101,6 +107,15 @@ func classifySuccess(resp Response, attempts int, documentID string, cfg Config)
 		status = statusReplayed
 	}
 	return outcome{status: status, attempts: attempts + 1, httpStatus: &code, response: rawJSON(resp.Body)}
+}
+
+// successEnvelope needs at least one success marker and no contrary one: "success":false
+// or a "status" other than "success" (exact case) rejects the body.
+func successEnvelope(success *bool, status string) bool {
+	if success != nil && !*success || status != "" && status != "success" {
+		return false
+	}
+	return success != nil || status != ""
 }
 
 // retry schedules another try, or dead-letters the row at MaxAttempts.

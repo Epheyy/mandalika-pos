@@ -47,9 +47,9 @@ type obeStub struct {
 	base, key string
 }
 
-// obeStartStub builds ./cmd/erpstub, starts it on a free loopback port and waits until
-// it answers. Any failure fails the test.
-func obeStartStub(t *testing.T) *obeStub {
+// obeStartStub builds ./cmd/erpstub, starts it on a free loopback port with the extra
+// flags and waits until it answers. Any failure fails the test.
+func obeStartStub(t *testing.T, flags ...string) *obeStub {
 	t.Helper()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
@@ -76,7 +76,7 @@ func obeStartStub(t *testing.T) *obeStub {
 	key := fmt.Sprintf("e2e-key-%d", time.Now().UnixNano())
 
 	var logs bytes.Buffer
-	cmd := exec.Command(bin, "-addr", addr, "-key", key)
+	cmd := exec.Command(bin, append([]string{"-addr", addr, "-key", key}, flags...)...)
 	cmd.Stdout, cmd.Stderr = &logs, &logs
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start erpstub: %v", err)
@@ -591,6 +591,32 @@ func obrE2ECases(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 			t.Fatalf("retry pending: %d, want 409", code)
 		}
 		e.exec(`UPDATE erp_outbox SET status='replayed' WHERE id=$1`, row.id)
+	})
+
+	// The real ERP answers {"status":"success",...}, not the stub's {"success":true,...}:
+	// a second stub process serves that envelope to a relay of its own.
+	t.Run("e2e-erp-envelope", func(t *testing.T) {
+		e.t = t
+		stub := obeStartStub(t, "-envelope", "erp")
+		relay := erp.NewRelay(pool, erp.NewStockDocClient(stub.base+"/api/integration/v1", stub.key, 5*time.Second),
+			erp.Config{Enabled: true, Brand: "mandalika", BatchSize: 50}, slog.Default())
+		p := e.product("FG-001", 5)
+		e.open()
+		row := e.outbox("sale", e.sale([2]any{p, 1}))
+		rep := obrRun(t, ctx, relay)
+		e.want(rep.Delivered == 1 && e.status(row.docID) == "delivered", "run %+v, status %s", rep, e.status(row.docID))
+		stored := e.str(`SELECT erp_response::text FROM erp_outbox WHERE id=$1`, row.id)
+		e.want(strings.Contains(stored, `"status": "success"`) && !strings.Contains(stored, `"success": true`),
+			"stored response %s is not the ERP envelope", stored)
+		_, n := stub.docByID(t, row.docID)
+		e.want(n == 1, "ERP-envelope stub holds %d copies, want 1", n)
+
+		e.park()
+		if _, err := erp.Retry(ctx, pool, row.id); err != nil {
+			t.Fatal(err)
+		}
+		rep = obrRun(t, ctx, relay)
+		e.want(rep.Replayed == 1 && e.status(row.docID) == "replayed", "replay run %+v, status %s", rep, e.status(row.docID))
 	})
 
 	t.Run("e2e-invariant", func(t *testing.T) {

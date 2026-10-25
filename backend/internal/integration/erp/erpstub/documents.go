@@ -175,7 +175,7 @@ func (s *Server) postStockDocument(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusConflict, "IDEMPOTENCY_CONFLICT", "document_id was already used with a different body", nil)
 			return
 		}
-		writeOK(w, http.StatusOK, docResult{doc.DocumentID, "replayed", prev.MovementIDs})
+		s.writeDocOK(w, docResult{doc.DocumentID, "replayed", prev.MovementIDs})
 		return
 	}
 	if ds := validateDoc(doc, scope, s.st); len(ds) > 0 {
@@ -187,7 +187,7 @@ func (s *Server) postStockDocument(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusServiceUnavailable, "INTEGRATION_BUSY", "could not persist state, retry", nil)
 		return
 	}
-	writeOK(w, http.StatusOK, docResult{doc.DocumentID, "applied", rec.MovementIDs})
+	s.writeDocOK(w, docResult{doc.DocumentID, "applied", rec.MovementIDs})
 }
 
 func buildRecord(doc *document, scope, hash string, canon []byte, now time.Time) docRecord {

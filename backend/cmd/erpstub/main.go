@@ -22,6 +22,8 @@ func main() {
 	key := flag.String("key", os.Getenv("ERP_STUB_KEY"), "bearer API key (env ERP_STUB_KEY)")
 	seedPath := flag.String("seed", "", "seed JSON path (default: embedded seed)")
 	statePath := flag.String("state", "", "state file; loaded at start if present, saved after every mutation")
+	envelope := flag.String("envelope", os.Getenv("ERP_STUB_ENVELOPE"),
+		`stock-document success envelope: "legacy" ({"success":true}, default) or "erp" ({"status":"success"}) (env ERP_STUB_ENVELOPE)`)
 	flag.Parse()
 
 	if *key == "" {
@@ -35,7 +37,7 @@ func main() {
 		}
 		seed = b
 	}
-	s, err := erpstub.New(erpstub.Config{Key: *key, StatePath: *statePath, Seed: seed})
+	s, err := erpstub.New(erpstub.Config{Key: *key, StatePath: *statePath, Seed: seed, Envelope: *envelope})
 	if err != nil {
 		log.Fatalf("init: %v", err)
 	}

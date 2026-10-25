@@ -6,6 +6,7 @@ package erpstub
 
 import (
 	_ "embed"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -17,13 +18,22 @@ var embeddedSeed []byte
 // Config configures a Server. Key is the bearer API key (callers must supply a
 // non-empty one; the stub has no default key). Seed nil means the embedded
 // seed. StatePath, when set, is loaded at start if present and saved after
-// every mutation. Now nil means the wall clock.
+// every mutation. Now nil means the wall clock. Envelope picks the success envelope of
+// the stock-document answers: EnvelopeLegacy ("", the default) or EnvelopeERP.
 type Config struct {
 	Key       string
 	StatePath string
 	Seed      []byte
 	Now       func() time.Time
+	Envelope  string
 }
+
+// Success envelopes of POST stock-documents. The real ERP answers {"status":"success",...}
+// (its reply of 2026-10-24); the stub's original form is {"success":true,...}.
+const (
+	EnvelopeLegacy = "legacy"
+	EnvelopeERP    = "erp"
+)
 
 // Server is the stub HTTP handler.
 type Server struct {
@@ -32,6 +42,7 @@ type Server struct {
 	key       string
 	statePath string
 	now       func() time.Time
+	erpEnv    bool // stock-document answers use the ERP envelope
 
 	fmu         sync.Mutex // guards fault state (not persisted)
 	faultStatus int
@@ -48,11 +59,14 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Seed == nil {
 		cfg.Seed = embeddedSeed
 	}
+	if cfg.Envelope != "" && cfg.Envelope != EnvelopeLegacy && cfg.Envelope != EnvelopeERP {
+		return nil, fmt.Errorf("erpstub: unknown envelope %q (want %q or %q)", cfg.Envelope, EnvelopeLegacy, EnvelopeERP)
+	}
 	st, err := initialState(cfg)
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{st: st, key: cfg.Key, statePath: cfg.StatePath, now: cfg.Now}
+	s := &Server{st: st, key: cfg.Key, statePath: cfg.StatePath, now: cfg.Now, erpEnv: cfg.Envelope == EnvelopeERP}
 	s.mux = http.NewServeMux()
 	s.routes()
 	return s, nil

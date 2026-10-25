@@ -16,6 +16,9 @@ var testCfg = Config{MaxAttempts: 10, AuthBackoff: 5 * time.Minute}
 const (
 	appliedBody  = `{"success":true,"data":{"document_id":"d1","status":"applied","movement_ids":["m1"]}}`
 	replayedBody = `{"success":true,"data":{"document_id":"d1","status":"replayed","movement_ids":["m1"]}}`
+	// The real ERP's success envelope (its reply of 2026-10-24).
+	erpAppliedBody  = `{"status":"success","data":{"document_id":"d1","status":"applied","movement_ids":["m1"]}}`
+	erpReplayedBody = `{"status":"success","data":{"document_id":"d1","status":"replayed","movement_ids":["m1"]}}`
 )
 
 func errBody(code, msg string) []byte {
@@ -43,6 +46,29 @@ func TestClassify(t *testing.T) {
 		{name: "200 success false", resp: Response{Status: 200, Body: []byte(`{"success":false,"data":{"document_id":"d1","status":"applied"}}`)},
 			status: statusPending, wantAtt: 1, errContain: "unexpected 2xx body"},
 		{name: "200 unknown status", resp: Response{Status: 200, Body: []byte(`{"success":true,"data":{"document_id":"d1","status":"queued"}}`)},
+			status: statusPending, wantAtt: 1, errContain: "unexpected 2xx body"},
+		{name: "200 ERP envelope applied", resp: Response{Status: 200, Body: []byte(erpAppliedBody)}, status: statusDelivered, wantAtt: 1},
+		{name: "200 ERP envelope replayed", resp: Response{Status: 200, Body: []byte(erpReplayedBody)}, status: statusReplayed, wantAtt: 1},
+		{name: "201 ERP envelope applied", resp: Response{Status: 201, Body: []byte(erpAppliedBody)}, status: statusDelivered, wantAtt: 1},
+		{name: "200 ERP envelope without document_id", resp: Response{Status: 200, Body: []byte(`{"status":"success","data":{"status":"applied"}}`)},
+			status: statusPending, wantAtt: 1, errContain: "unexpected 2xx body"},
+		{name: "200 ERP envelope other document", resp: Response{Status: 200, Body: []byte(`{"status":"success","data":{"document_id":"zz","status":"applied"}}`)},
+			status: statusPending, wantAtt: 1, errContain: "unexpected 2xx body"},
+		{name: "200 ERP envelope unknown data status", resp: Response{Status: 200, Body: []byte(`{"status":"success","data":{"document_id":"d1","status":"queued"}}`)},
+			status: statusPending, wantAtt: 1, errContain: "unexpected 2xx body"},
+		{name: "200 status error", resp: Response{Status: 200, Body: []byte(`{"status":"error","data":{"document_id":"d1","status":"applied"}}`)},
+			status: statusPending, wantAtt: 1, errContain: "unexpected 2xx body"},
+		{name: "200 status SUCCESS is not success", resp: Response{Status: 200, Body: []byte(`{"status":"SUCCESS","data":{"document_id":"d1","status":"applied"}}`)},
+			status: statusPending, wantAtt: 1, errContain: "unexpected 2xx body"},
+		{name: "200 status success but success false", resp: Response{Status: 200, Body: []byte(`{"status":"success","success":false,"data":{"document_id":"d1","status":"applied"}}`)},
+			status: statusPending, wantAtt: 1, errContain: "unexpected 2xx body"},
+		{name: "200 success true but status error", resp: Response{Status: 200, Body: []byte(`{"success":true,"status":"error","data":{"document_id":"d1","status":"applied"}}`)},
+			status: statusPending, wantAtt: 1, errContain: "unexpected 2xx body"},
+		{name: "200 both markers agree", resp: Response{Status: 200, Body: []byte(`{"success":true,"status":"success","data":{"document_id":"d1","status":"applied"}}`)},
+			status: statusDelivered, wantAtt: 1},
+		{name: "200 malformed movement_ids still delivered", resp: Response{Status: 200, Body: []byte(`{"status":"success","data":{"document_id":"d1","status":"applied","movement_ids":[1,2]}}`)},
+			status: statusDelivered, wantAtt: 1},
+		{name: "200 no envelope marker", resp: Response{Status: 200, Body: []byte(`{"data":{"document_id":"d1","status":"applied"}}`)},
 			status: statusPending, wantAtt: 1, errContain: "unexpected 2xx body"},
 		{name: "200 document id case-insensitive", resp: Response{Status: 200, Body: []byte(`{"success":true,"data":{"document_id":"D1","status":"applied"}}`)},
 			status: statusDelivered, wantAtt: 1},
@@ -133,6 +159,8 @@ func TestClientAndClassifyAgainstFakeServer(t *testing.T) {
 	}{
 		{200, "", appliedBody, statusDelivered},
 		{200, "", replayedBody, statusReplayed},
+		{200, "", erpAppliedBody, statusDelivered},
+		{200, "", erpReplayedBody, statusReplayed},
 		{400, "", string(errBody("BAD", "m")), statusDead},
 		{409, "", string(errBody("C", "m")), statusDead},
 		{422, "", string(errBody("U", "m")), statusDead},

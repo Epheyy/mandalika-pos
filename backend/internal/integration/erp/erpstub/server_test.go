@@ -279,6 +279,30 @@ func TestReplayReturnsSameMovementIDs(t *testing.T) {
 	}
 }
 
+func TestERPEnvelopeOnStockDocuments(t *testing.T) {
+	clock := &testClock{t: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)}
+	s, err := New(Config{Key: testKey, Now: clock.Now, Envelope: EnvelopeERP})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := &env{t: t, s: s, clock: clock}
+	body := fixture(t, "doc_opening.json")
+	for _, want := range []string{"applied", "replayed"} {
+		rec := e.post(body)
+		expectStatus(t, rec, http.StatusOK)
+		r := decode(t, rec)
+		if r.Status != "success" || r.Success || strings.Contains(rec.Body.String(), `"success":`) {
+			t.Fatalf("%s: want the ERP envelope, got %s", want, rec.Body.String())
+		}
+		if res := decodeResult(t, rec); res.Status != want {
+			t.Fatalf("result status = %q, want %q", res.Status, want)
+		}
+	}
+	if _, err := New(Config{Key: testKey, Envelope: "bogus"}); err == nil {
+		t.Fatal("unknown envelope must be rejected")
+	}
+}
+
 func TestConflictOnChangedBody(t *testing.T) {
 	e := newEnv(t, "")
 	applyChain(t, e)

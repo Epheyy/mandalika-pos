@@ -56,6 +56,15 @@ func writeOK(w http.ResponseWriter, status int, data any) {
 	writeJSON(w, status, map[string]any{"success": true, "data": data})
 }
 
+// writeDocOK answers a stock document in the configured success envelope.
+func (s *Server) writeDocOK(w http.ResponseWriter, data any) {
+	if s.erpEnv {
+		writeJSON(w, http.StatusOK, map[string]any{"status": "success", "data": data})
+		return
+	}
+	writeOK(w, http.StatusOK, data)
+}
+
 // writeCatalog writes the {"status":"success","data":...} envelope used by GET catalog/stock.
 func writeCatalog(w http.ResponseWriter, data any) {
 	writeJSON(w, http.StatusOK, map[string]any{"status": "success", "data": data})
