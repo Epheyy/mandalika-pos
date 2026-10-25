@@ -327,8 +327,18 @@ func (f *rqFixture) createAndVisibility(t *testing.T) {
 			t.Errorf("%s list leaks another outlet's draft", who)
 		}
 	}
+	// A draft cancelled before submit stays private to its outlet.
+	cd := f.create(t, "staffA", rqLine(p, 1))
+	code, body := f.call("staffA", "POST", "/requisitions/"+cd+"/cancel", nil, f.key())
+	f.want(t, code, body, 200, "cancel draft")
+	code, body = f.call("wh", "GET", "/requisitions/"+cd, nil, "")
+	f.want(t, code, body, 404, "wh reads a draft-cancelled PB")
+	code, body = f.call("wh", "GET", "/requisitions", nil, "")
+	if strings.Contains(body, cd) {
+		t.Errorf("wh list leaks a draft-cancelled PB")
+	}
 	f.submit(t, id)
-	code, body := f.call("wh", "GET", "/requisitions?status=submitted", nil, "")
+	code, body = f.call("wh", "GET", "/requisitions?status=submitted", nil, "")
 	f.want(t, code, body, 200, "wh list")
 	if !strings.Contains(body, id) {
 		t.Errorf("the warehouse list lacks the submitted PB")

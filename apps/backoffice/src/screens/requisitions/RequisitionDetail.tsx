@@ -79,7 +79,9 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
   }
 
   const items = pb.items ?? []
-  const ownOutlet = canRequest && outletId === pb.outletId
+  // A non-admin's active outlet is their own (the context outletId stays null for them).
+  const activeOutlet = isAdmin ? outletId : (user?.outletId ?? null)
+  const ownOutlet = canRequest && activeOutlet === pb.outletId
   const approvedFor = (itemId: string, requested: number) => approved[itemId] ?? String(requested)
 
   const act = async (name: string, fn: (key: string) => Promise<unknown>) => {

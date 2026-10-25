@@ -28,6 +28,7 @@ func (r *Repo) WithTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
 
 type reqRow struct {
 	status, number, outletID string
+	submitted                bool // ever submitted (a draft cancelled before submit never was)
 	warehouseID, transferID  *string
 }
 
@@ -35,9 +36,9 @@ type reqRow struct {
 func lockRequisition(ctx context.Context, tx pgx.Tx, id string) (reqRow, error) {
 	var q reqRow
 	e := tx.QueryRow(ctx,
-		`SELECT status, number, outlet_id, warehouse_id, transfer_id
+		`SELECT status, number, outlet_id, warehouse_id, transfer_id, submitted_at IS NOT NULL
 		   FROM stock_requisitions WHERE id=$1 FOR UPDATE`, id).Scan(
-		&q.status, &q.number, &q.outletID, &q.warehouseID, &q.transferID)
+		&q.status, &q.number, &q.outletID, &q.warehouseID, &q.transferID, &q.submitted)
 	if errors.Is(e, pgx.ErrNoRows) {
 		return q, ErrNotFound
 	}
@@ -56,14 +57,14 @@ func lockOwnRequisition(ctx context.Context, tx pgx.Tx, id, outletID string) (re
 	return q, nil
 }
 
-// lockVisibleRequisition is lockRequisition for the warehouse side: a draft is private to
-// its outlet, so another outlet's draft is a 404 (not a state refusal that would leak it).
+// lockVisibleRequisition is lockRequisition for the warehouse side: a PB never submitted is
+// private to its outlet (a draft, or one cancelled as a draft), so another outlet's is a 404 (not a state refusal that would leak it).
 func lockVisibleRequisition(ctx context.Context, tx pgx.Tx, id, viewerOutlet string) (reqRow, error) {
 	q, e := lockRequisition(ctx, tx, id)
 	if e != nil {
 		return q, e
 	}
-	if q.status == "draft" && (viewerOutlet == "" || !sameUUID(q.outletID, viewerOutlet)) {
+	if !q.submitted && (viewerOutlet == "" || !sameUUID(q.outletID, viewerOutlet)) {
 		return q, ErrNotFound
 	}
 	return q, nil

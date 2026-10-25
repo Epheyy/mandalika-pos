@@ -63,7 +63,7 @@ func (a RequisitionAccess) visibleWhere(args []any) (string, []any) {
 	args = append(args, a.Scope.OutletID)
 	own := fmt.Sprintf("r.outlet_id = NULLIF($%d,'')::uuid", len(args))
 	if a.Warehouse {
-		return "(r.status <> 'draft' OR " + own + ")", args
+		return "(r.submitted_at IS NOT NULL OR " + own + ")", args
 	}
 	return own, args
 }
