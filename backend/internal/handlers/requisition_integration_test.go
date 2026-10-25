@@ -134,6 +134,8 @@ func newRqFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *rqFixt
 		r.Post("/requisitions/{id}/reject", h.RejectRequisition)
 		r.Post("/requisitions/{id}/fulfil", h.FulfilRequisition)
 	})
+	r.With(authWrap).Delete("/products/{id}", h.DeleteProduct)
+	r.With(authWrap).Delete("/warehouses/{id}", h.DeleteWarehouse)
 	f.router = r
 	return f
 }
@@ -216,6 +218,7 @@ type rqPB struct {
 		} `json:"transfer"`
 		Items []struct {
 			ID           string `json:"id"`
+			TransferQty  *int   `json:"transferQty"`
 			ProductID    string `json:"productId"`
 			RequestedQty int    `json:"requestedQty"`
 			ApprovedQty  *int   `json:"approvedQty"`
@@ -278,6 +281,8 @@ func (f *rqFixture) run(t *testing.T) {
 	t.Run("reject", f.reject)
 	t.Run("fulfil-and-refulfil", f.fulfil)
 	t.Run("fulfil-concurrent", f.fulfilConcurrent)
+	t.Run("transfer-qty", f.transferQty)
+	t.Run("delete-guards-and-inactive-warehouse", f.deletesAndInactive)
 	t.Run("history", f.history)
 }
 
@@ -620,16 +625,66 @@ func (f *rqFixture) fulfil(t *testing.T) {
 		t.Error("no 'refulfilled' event")
 	}
 
-	// Nothing approved (all zero) leaves nothing to transfer: 409, no transfer.
+	// Approving with every line 0 would strand the PB: refused, the PB stays submitted.
 	zid := f.create(t, "staffA", rqLine(f.product(t), 1))
 	f.submit(t, zid)
 	code, body = f.approve(t, zid, 0)
-	f.want(t, code, body, 200, "approve all zero")
+	f.want(t, code, body, 400, "approve all zero")
+	if f.get(t, "wh", zid).Data.Status != "submitted" {
+		t.Error("a refused all-zero approval changed the PB")
+	}
+	// Defence in depth: a PB whose approved qty ended up all zero still cannot fulfil.
+	code, body = f.approve(t, zid, 1)
+	f.want(t, code, body, 200, "approve")
+	f.exec(t, `UPDATE stock_requisition_items SET approved_qty=0 WHERE requisition_id=$1`, zid)
 	n := f.transfers(t)
 	code, body = f.call("wh", "POST", "/requisitions/"+zid+"/fulfil", nil, f.key())
 	f.want(t, code, body, 409, "fulfil with nothing approved")
 	if f.transfers(t) != n || f.get(t, "wh", zid).Data.Status != "approved" {
 		t.Error("an empty fulfil changed state")
+	}
+}
+
+// transferQty shows the linked draft's real line quantity, which the warehouse may edit there.
+func (f *rqFixture) transferQty(t *testing.T) {
+	p := f.product(t)
+	id := f.create(t, "staffA", rqLine(p, 5))
+	f.submit(t, id)
+	if code, body := f.approve(t, id, 4); code != 200 {
+		t.Fatalf("approve: %d %s", code, body)
+	}
+	if got := f.get(t, "staffA", id).Data.Items[0].TransferQty; got != nil {
+		t.Errorf("transferQty %v before a transfer exists", *got)
+	}
+	code, body := f.call("wh", "POST", "/requisitions/"+id+"/fulfil", nil, f.key())
+	f.want(t, code, body, 201, "fulfil")
+	f.exec(t, `UPDATE transfer_items SET sent_qty=3 WHERE transfer_id=(SELECT transfer_id FROM stock_requisitions WHERE id=$1)`, id)
+	it := f.get(t, "staffA", id).Data.Items[0]
+	if it.TransferQty == nil || *it.TransferQty != 3 || *it.ApprovedQty != 4 {
+		t.Errorf("approved %v transfer %v, want 4 and 3", it.ApprovedQty, it.TransferQty)
+	}
+}
+
+// A product or warehouse named by a PB cannot be deleted (history 409, not a raw FK error);
+// a source gudang deactivated after approval blocks the fulfil.
+func (f *rqFixture) deletesAndInactive(t *testing.T) {
+	p := f.product(t)
+	id := f.create(t, "staffA", rqLine(p, 1))
+	code, body := f.call("wh", "DELETE", "/products/"+p, nil, "")
+	f.want(t, code, body, 409, "delete a product named by a PB")
+	f.submit(t, id)
+	if code, body := f.approve(t, id, 1); code != 200 {
+		t.Fatalf("approve: %d %s", code, body)
+	}
+	code, body = f.call("wh", "DELETE", "/warehouses/"+rqWarehouse, nil, "")
+	f.want(t, code, body, 409, "delete a warehouse named by a PB")
+	f.exec(t, `UPDATE warehouses SET is_active=false WHERE id=$1`, rqWarehouse)
+	defer f.exec(t, `UPDATE warehouses SET is_active=true WHERE id=$1`, rqWarehouse)
+	n := f.transfers(t)
+	code, body = f.call("wh", "POST", "/requisitions/"+id+"/fulfil", nil, f.key())
+	f.want(t, code, body, 409, "fulfil from an inactive gudang")
+	if f.transfers(t) != n {
+		t.Error("a refused fulfil created a transfer")
 	}
 }
 

@@ -178,7 +178,7 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50">
-              {['Produk', 'Ukuran', 'Diminta', 'Disetujui'].map((h) => (
+              {['Produk', 'Ukuran', 'Diminta', 'Disetujui', ...(pb.transfer ? ['Di transfer'] : [])].map((h) => (
                 <th key={h} className="text-left px-4 py-2 text-xs font-black text-gray-400 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -199,6 +199,14 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
                     />
                   ) : (it.approvedQty ?? '—')}
                 </td>
+                {pb.transfer && (
+                  <td className="px-4 py-2 text-sm">
+                    <span className={it.transferQty != null && it.transferQty !== it.approvedQty ? 'font-bold text-amber-700' : 'text-gray-500'}
+                      title={it.transferQty != null && it.transferQty !== it.approvedQty ? 'Berbeda dari qty disetujui: draf transfer diubah' : undefined}>
+                      {it.transferQty ?? 0}
+                    </span>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

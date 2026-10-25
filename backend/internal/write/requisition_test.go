@@ -93,6 +93,7 @@ func TestResolveApproval(t *testing.T) {
 	}{
 		{"full", []RequisitionApproveItem{{l1, 5}, {l2, 3}}, false},
 		{"partial and zero", []RequisitionApproveItem{{l1, 2}, {l2, 0}}, false},
+		{"all zero", []RequisitionApproveItem{{l1, 0}, {l2, 0}}, true},
 		{"above requested", []RequisitionApproveItem{{l1, 6}, {l2, 3}}, true},
 		{"negative", []RequisitionApproveItem{{l1, -1}, {l2, 3}}, true},
 		{"missing line", []RequisitionApproveItem{{l1, 5}}, true},

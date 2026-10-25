@@ -42,7 +42,8 @@ func guardProductHistory(ctx context.Context, tx pgx.Tx, id string) error {
 	if err := tx.QueryRow(ctx, `
 		SELECT EXISTS (SELECT 1 FROM goods_receipt_items WHERE product_id = $1::uuid)
 		    OR EXISTS (SELECT 1 FROM warehouse_stock_adjustments WHERE product_id = $1::uuid)
-		    OR EXISTS (SELECT 1 FROM transfer_items WHERE product_id = $1::uuid)`, id).Scan(&has); err != nil {
+		    OR EXISTS (SELECT 1 FROM transfer_items WHERE product_id = $1::uuid)
+		    OR EXISTS (SELECT 1 FROM stock_requisition_items WHERE product_id = $1::uuid)`, id).Scan(&has); err != nil {
 		return err
 	}
 	if has {
@@ -74,6 +75,7 @@ func guardWarehouseHistory(ctx context.Context, tx pgx.Tx, id string) error {
 		    OR EXISTS (SELECT 1 FROM warehouse_stock_adjustments WHERE warehouse_id = $1::uuid)
 		    OR EXISTS (SELECT 1 FROM stock_counts WHERE warehouse_id = $1::uuid)
 		    OR EXISTS (SELECT 1 FROM transfers WHERE source_warehouse_id = $1::uuid OR dest_warehouse_id = $1::uuid)
+		    OR EXISTS (SELECT 1 FROM stock_requisitions WHERE warehouse_id = $1::uuid)
 		    OR EXISTS (SELECT 1 FROM ingredient_goods_receipts WHERE warehouse_id = $1::uuid)
 		    OR EXISTS (SELECT 1 FROM ingredient_stock_adjustments WHERE warehouse_id = $1::uuid)
 		    OR EXISTS (SELECT 1 FROM ingredient_stock_counts WHERE warehouse_id = $1::uuid)

@@ -36,12 +36,15 @@ const requisitionBase = `json_build_object(
 
 const requisitionDetailExtra = `,
   'items', COALESCE((SELECT json_agg(json_build_object(
-     'id', i.id, 'productId', i.product_id, 'productName', p.name,
+     'id', i.id, 'productId', i.product_id, 'productName', COALESCE(p.name, '(produk dihapus)'),
      'variantSize', i.variant_size, 'sku', v.sku,
-     'requestedQty', i.requested_qty, 'approvedQty', i.approved_qty, 'note', i.note)
+     'requestedQty', i.requested_qty, 'approvedQty', i.approved_qty, 'note', i.note,
+     'transferQty', (SELECT ti.sent_qty FROM transfer_items ti
+                      WHERE ti.transfer_id = r.transfer_id AND ti.product_id = i.product_id
+                        AND ti.variant_size = i.variant_size LIMIT 1))
      ORDER BY p.name, i.variant_size)
      FROM stock_requisition_items i
-     JOIN products p ON p.id = i.product_id
+     LEFT JOIN products p ON p.id = i.product_id
      LEFT JOIN product_variants v ON v.product_id = i.product_id AND v.size = i.variant_size
      WHERE i.requisition_id = r.id), '[]'::json),
   'events', COALESCE((SELECT json_agg(json_build_object(

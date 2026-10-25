@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { fetchAllPages, type Product, type StockRequisition, type StockRequisitionInput } from '@mandalika/api'
 import { variantLabel } from '@mandalika/types'
 import { ArrowLeft, Plus, Save, Trash2 } from 'lucide-react'
@@ -44,8 +44,13 @@ export function RequisitionForm({ draft, onCancel, onSaved }: RequisitionFormPro
   const [pickKey, setPickKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  // One key per save attempt: a double click or retry of the same attempt is one write.
-  const [attemptKey, setAttemptKey] = useState(() => crypto.randomUUID())
+  // One Idempotency-Key per form content: a retry after a lost response replays the same write.
+  // Only an edit (a different content signature) mints a new key.
+  const attempt = useRef<{ sig: string; key: string } | null>(null)
+  const keyFor = (sig: string): string => {
+    if (attempt.current?.sig !== sig) attempt.current = { sig, key: crypto.randomUUID() }
+    return attempt.current.key
+  }
 
   const options = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -78,16 +83,16 @@ export function RequisitionForm({ draft, onCancel, onSaved }: RequisitionFormPro
     if (items.length === 0) return setErr('Tambahkan minimal satu barang.')
     if (items.some((i) => !Number.isInteger(i.requestedQty) || i.requestedQty <= 0)) return setErr('Qty harus bilangan bulat lebih dari 0.')
     const input: StockRequisitionInput = { items, note: note.trim() || undefined, neededBy: neededBy || undefined }
+    const key = keyFor(JSON.stringify(input))
     setBusy(true)
     setErr(null)
     try {
       const saved = draft
-        ? await api.updateRequisition(draft.id, input, attemptKey)
-        : await api.createRequisition(input, attemptKey)
+        ? await api.updateRequisition(draft.id, input, key)
+        : await api.createRequisition(input, key)
       onSaved(saved.id)
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'Gagal menyimpan permintaan.')
-      setAttemptKey(crypto.randomUUID())
     } finally {
       setBusy(false)
     }

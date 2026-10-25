@@ -26,7 +26,7 @@ CREATE INDEX stock_requisitions_outlet ON stock_requisitions (outlet_id, created
 CREATE TABLE stock_requisition_items (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   requisition_id uuid NOT NULL REFERENCES stock_requisitions(id) ON DELETE CASCADE,
-  product_id     uuid NOT NULL, variant_size text NOT NULL,
+  product_id     uuid NOT NULL REFERENCES products(id), variant_size text NOT NULL,
   requested_qty  integer NOT NULL CHECK (requested_qty > 0),
   approved_qty   integer CHECK (approved_qty >= 0),
   note           text,

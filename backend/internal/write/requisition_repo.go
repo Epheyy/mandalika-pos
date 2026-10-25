@@ -303,6 +303,12 @@ func (r *Repo) FulfilRequisitionTx(ctx context.Context, tx pgx.Tx, id, viewerOut
 	if q.warehouseID == nil {
 		return "", "", errRequisitionDenied(q.status)
 	}
+	var active bool
+	if e := tx.QueryRow(ctx, `SELECT is_active FROM warehouses WHERE id=$1`, *q.warehouseID).Scan(&active); e != nil && !errors.Is(e, pgx.ErrNoRows) {
+		return "", "", e
+	} else if e != nil || !active {
+		return "", "", apperr.Wrap(apperr.Conflict, errors.New("gudang sumber tidak aktif; tidak bisa membuat transfer"))
+	}
 	tid, e := createTransferTx(ctx, tx, actor, TransferCreate{
 		Source: TransferLoc{Kind: "warehouse", ID: *q.warehouseID},
 		Dest:   TransferLoc{Kind: "outlet", ID: q.outletID},

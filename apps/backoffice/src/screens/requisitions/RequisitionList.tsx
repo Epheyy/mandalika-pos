@@ -3,6 +3,7 @@ import type { StockRequisition } from '@mandalika/api'
 import { ClipboardList, Plus } from 'lucide-react'
 import { api } from '../../api'
 import { useAuth } from '../../auth'
+import { useOutlet } from '../../outlet'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { Badge } from '../../ui/Badge'
@@ -45,7 +46,11 @@ interface RequisitionListProps {
 
 function RequisitionList({ onCreate, onOpen }: RequisitionListProps) {
   const { user } = useAuth()
-  const canRequest = user?.role === 'admin' || (user?.permissions ?? []).includes('request_stock')
+  const { outletId } = useOutlet()
+  const isAdmin = user?.role === 'admin'
+  const canRequest = isAdmin || (user?.permissions ?? []).includes('request_stock')
+  // An admin raises a PB for one outlet at a time (X-Outlet-Id); without one the server answers 400.
+  const needsOutlet = isAdmin && !outletId
   const [status, setStatus] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
@@ -62,8 +67,13 @@ function RequisitionList({ onCreate, onOpen }: RequisitionListProps) {
       <PageHeader
         title="Permintaan Barang"
         subtitle={`${total} permintaan`}
-        actions={canRequest ? <Button onClick={onCreate} icon={<Plus className="w-4 h-4" />}>Permintaan Baru</Button> : undefined}
+        actions={canRequest ? (
+          <Button onClick={onCreate} disabled={needsOutlet} title={needsOutlet ? 'Pilih outlet dulu' : undefined} icon={<Plus className="w-4 h-4" />}>
+            Permintaan Baru
+          </Button>
+        ) : undefined}
       />
+      {canRequest && needsOutlet && <p className="text-sm text-gray-500">Pilih outlet dulu (menu di kanan atas) untuk membuat permintaan baru.</p>}
       <div className="min-w-[180px] max-w-xs">
         <Select label="Status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}>
           <option value="">Semua status</option>

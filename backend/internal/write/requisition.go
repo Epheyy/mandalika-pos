@@ -146,6 +146,14 @@ func resolveApproval(lines []reqLine, items []RequisitionApproveItem) (map[strin
 	if len(out) != len(lines) {
 		return nil, errRequisitionRejected("setiap baris harus punya qty disetujui")
 	}
+	total := 0
+	for _, q := range out {
+		total += q
+	}
+	if total == 0 {
+		// Nothing to transfer would strand the PB (fulfil refuses it): rejecting is the way out.
+		return nil, errRequisitionRejected("Semua jumlah 0 — gunakan Tolak")
+	}
 	return out, nil
 }
 
