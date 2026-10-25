@@ -405,12 +405,12 @@ export interface Api {
   rejectAdjustmentRequest: (id: string, input: InventoryRejectInput, idempotencyKey: string) => Promise<AdjustmentRequest>
   cancelAdjustmentRequest: (id: string, idempotencyKey: string, input?: InventoryCancelInput) => Promise<AdjustmentRequest>
   listInventoryApprovals: (page?: number, limit?: number) => Promise<ApprovalQueueResponse>
-  listRequisitions: (params?: ListRequisitionsParams) => Promise<ListResult<StockRequisition>>
-  getRequisition: (id: string) => Promise<StockRequisition>
-  createRequisition: (input: StockRequisitionInput, idempotencyKey: string) => Promise<StockRequisition>
-  updateRequisition: (id: string, input: StockRequisitionInput, idempotencyKey: string) => Promise<StockRequisition>
-  submitRequisition: (id: string, idempotencyKey: string) => Promise<StockRequisition>
-  cancelRequisition: (id: string, idempotencyKey: string) => Promise<StockRequisition>
+  listRequisitions: (params?: ListRequisitionsParams, opts?: RequestOptions) => Promise<ListResult<StockRequisition>>
+  getRequisition: (id: string, opts?: RequestOptions) => Promise<StockRequisition>
+  createRequisition: (input: StockRequisitionInput, idempotencyKey: string, opts?: RequestOptions) => Promise<StockRequisition>
+  updateRequisition: (id: string, input: StockRequisitionInput, idempotencyKey: string, opts?: RequestOptions) => Promise<StockRequisition>
+  submitRequisition: (id: string, idempotencyKey: string, opts?: RequestOptions) => Promise<StockRequisition>
+  cancelRequisition: (id: string, idempotencyKey: string, opts?: RequestOptions) => Promise<StockRequisition>
   approveRequisition: (id: string, input: StockRequisitionApproveInput, idempotencyKey: string) => Promise<StockRequisition>
   rejectRequisition: (id: string, input: InventoryRejectInput, idempotencyKey: string) => Promise<StockRequisition>
   fulfilRequisition: (id: string, idempotencyKey: string) => Promise<StockRequisitionFulfilResult>
@@ -680,6 +680,11 @@ export function createClient(opts: ClientOptions): Api {
     key ? { headers: { 'Idempotency-Key': key } } : undefined
   /** Idempotency-Key request option for a write whose double-submit would create or apply a second document. */
   const idemRequired = (key: string): RequestOptions => ({ headers: { 'Idempotency-Key': key } })
+  /** idemRequired merged with caller options (e.g. a timeout); the required key always wins over a caller header. */
+  const idemWith = (key: string, extra?: RequestOptions): RequestOptions => ({
+    ...extra,
+    headers: { ...extra?.headers, 'Idempotency-Key': key },
+  })
 
   /** Query string that allows an array value (repeated key) next to scalars; undefined, null and empty strings are dropped (false is kept: giveaway=false excludes giveaway rows). */
   const qsMulti = (params: object): string => {
@@ -937,17 +942,17 @@ export function createClient(opts: ClientOptions): Api {
       data<AdjustmentRequest>('POST', `${API}/inventory/adjustment-requests/${id}/cancel`, input ?? {}, idemRequired(idempotencyKey)),
     listInventoryApprovals: (page, limit) =>
       request<ApprovalQueueResponse>('GET', `${API}/inventory/approvals?status=pending${page ? `&page=${page}` : ''}${limit ? `&limit=${limit}` : ''}`),
-    listRequisitions: (params) =>
-      request<ListResult<StockRequisition>>('GET', `${API}/requisitions${qsMulti(params ?? {})}`),
-    getRequisition: (id) => data<StockRequisition>('GET', `${API}/requisitions/${id}`),
-    createRequisition: (input, idempotencyKey) =>
-      data<StockRequisition>('POST', `${API}/requisitions`, input, idemRequired(idempotencyKey)),
-    updateRequisition: (id, input, idempotencyKey) =>
-      data<StockRequisition>('PUT', `${API}/requisitions/${id}`, input, idemRequired(idempotencyKey)),
-    submitRequisition: (id, idempotencyKey) =>
-      data<StockRequisition>('POST', `${API}/requisitions/${id}/submit`, undefined, idemRequired(idempotencyKey)),
-    cancelRequisition: (id, idempotencyKey) =>
-      data<StockRequisition>('POST', `${API}/requisitions/${id}/cancel`, undefined, idemRequired(idempotencyKey)),
+    listRequisitions: (params, reqOpts) =>
+      request<ListResult<StockRequisition>>('GET', `${API}/requisitions${qsMulti(params ?? {})}`, undefined, reqOpts),
+    getRequisition: (id, reqOpts) => data<StockRequisition>('GET', `${API}/requisitions/${id}`, undefined, reqOpts),
+    createRequisition: (input, idempotencyKey, reqOpts) =>
+      data<StockRequisition>('POST', `${API}/requisitions`, input, idemWith(idempotencyKey, reqOpts)),
+    updateRequisition: (id, input, idempotencyKey, reqOpts) =>
+      data<StockRequisition>('PUT', `${API}/requisitions/${id}`, input, idemWith(idempotencyKey, reqOpts)),
+    submitRequisition: (id, idempotencyKey, reqOpts) =>
+      data<StockRequisition>('POST', `${API}/requisitions/${id}/submit`, undefined, idemWith(idempotencyKey, reqOpts)),
+    cancelRequisition: (id, idempotencyKey, reqOpts) =>
+      data<StockRequisition>('POST', `${API}/requisitions/${id}/cancel`, undefined, idemWith(idempotencyKey, reqOpts)),
     approveRequisition: (id, input, idempotencyKey) =>
       data<StockRequisition>('POST', `${API}/requisitions/${id}/approve`, input, idemRequired(idempotencyKey)),
     rejectRequisition: (id, input, idempotencyKey) =>

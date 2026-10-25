@@ -273,3 +273,34 @@ describe('qsMulti query encoding', () => {
     expect(u).toBe('http://x/api/v1/inventory/movements?locationType=outlet&locationId=L1&kind=sale&kind=refund&giveaway=false')
   })
 })
+
+describe('requisition outlet methods take request options (S6-0)', () => {
+  it('a hung create is aborted at timeoutMs as kind=timeout and the Idempotency-Key header is kept', async () => {
+    vi.useFakeTimers()
+    vi.mocked(fetch).mockImplementation((_u, init) => new Promise((_res, rej) => {
+      init?.signal?.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError')))
+    }))
+    const p = failure(client().api.createRequisition({ items: [] } as never, 'key-1', { timeoutMs: 20_000 }))
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(await p).toMatchObject({ kind: 'timeout', status: 0 })
+    const headers = vi.mocked(fetch).mock.calls[0][1]?.headers as Record<string, string>
+    expect(headers['Idempotency-Key']).toBe('key-1')
+  })
+
+  it('the required key wins over a caller-supplied Idempotency-Key header', async () => {
+    vi.mocked(fetch).mockResolvedValue(json(200, { data: { id: 'r1' } }))
+    await client().api.submitRequisition('r1', 'real-key', { headers: { 'Idempotency-Key': 'other', 'X-Extra': '1' } })
+    const headers = vi.mocked(fetch).mock.calls[0][1]?.headers as Record<string, string>
+    expect(headers['Idempotency-Key']).toBe('real-key')
+    expect(headers['X-Extra']).toBe('1')
+  })
+
+  it('list and get honour timeoutMs; without opts no signal is used', async () => {
+    vi.mocked(fetch).mockResolvedValue(json(200, { data: [] }))
+    await client().api.listRequisitions({}, { timeoutMs: 5_000 })
+    expect(vi.mocked(fetch).mock.calls[0][1]?.signal).toBeDefined()
+    vi.mocked(fetch).mockResolvedValue(json(200, { data: { id: 'r1' } }))
+    await client().api.getRequisition('r1')
+    expect(vi.mocked(fetch).mock.calls[1][1]?.signal).toBeUndefined()
+  })
+})
