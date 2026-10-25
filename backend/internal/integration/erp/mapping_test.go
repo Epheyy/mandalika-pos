@@ -46,6 +46,14 @@ func TestSizeLabel(t *testing.T) {
 		{"nil size", nil, nil, "Satuan"},
 		{"nil size with unit", nil, str("PCS"), "Satuan"},
 		{"integer nil unit", f64(50), nil, "50ml"},
+		{"stock unit Pcs is not the size unit (ERP pull 2026-10-23)", f64(110), str("Pcs"), "110ml"},
+		{"stock unit PCS upper", f64(50), str("PCS"), "50ml"},
+		{"stock unit Botol", f64(30), str("Botol"), "30ml"},
+		{"unknown unit falls back to ml", f64(100), str("set"), "100ml"},
+		{"ml unit", f64(50), str("ml"), "50ml"},
+		{"litre unit", f64(1), str("L"), "1l"},
+		{"kg unit", f64(0.5), str("kg"), "0.5kg"},
+		{"g unit", f64(15), str("g"), "15g"},
 		{"integer empty unit", f64(30), str(""), "30ml"},
 		{"integer ML upper", f64(100), str("ML"), "100ml"},
 		{"fraction", f64(7.5), nil, "7.5ml"},
@@ -85,22 +93,43 @@ func TestProductNameFromFG(t *testing.T) {
 }
 
 func TestGroupKey(t *testing.T) {
-	edp, oil := str("Eau de Parfum"), str("Oil")
-	k30 := GroupKey("Mandalika Oud 30ml", edp, f64(30))
-	k50 := GroupKey("Mandalika Oud 50ml", edp, f64(50))
+	k30 := GroupKey("Mandalika Oud 30ml", f64(30))
+	k50 := GroupKey("Mandalika Oud 50ml", f64(50))
 	if k30 != k50 {
 		t.Fatalf("siblings must share a key: %q vs %q", k30, k50)
 	}
-	if want := "pos:eau de parfum|mandalika oud"; k30 != want {
+	if want := "pos:mandalika oud"; k30 != want {
 		t.Fatalf("key = %q, want %q", k30, want)
 	}
-	if other := GroupKey("Mandalika Oud 50ml", oil, f64(50)); other == k50 {
-		t.Fatalf("different category must change key, both %q", other)
-	}
-	if norm := GroupKey("  MANDALIKA   oud 50 ml ", str(" eau  DE parfum "), f64(50)); norm != k50 {
+	if norm := GroupKey("  MANDALIKA   oud 50 ml ", f64(50)); norm != k50 {
 		t.Fatalf("normalisation: %q vs %q", norm, k50)
 	}
-	if none := GroupKey("Mandalika Oud 50ml", nil, f64(50)); none != "pos:|mandalika oud" {
+	if other := GroupKey("Mandalika Rose 50ml", f64(50)); other == k50 {
+		t.Fatalf("different fragrance must change key, both %q", other)
+	}
+}
+
+// Regression (ERP local pull 2026-10-23): one fragrance whose sizes sit in different
+// ERP categories must group into one POS product, not one product per category.
+func TestGroupKeyIgnoresCategory(t *testing.T) {
+	if a, b := GroupKey("Santal Noir 30ml", f64(30)), GroupKey("Santal Noir 100ml", f64(100)); a != b {
+		t.Fatalf("one fragrance split across categories: %q vs %q", a, b)
+	}
+}
+
+func TestCategoryGroupKey(t *testing.T) {
+	edp, mist := str("Eau de Parfum"), str("Body Mist")
+	a, b := CategoryGroupKey("Santal Noir 100ml", edp, f64(100)), CategoryGroupKey("Santal Noir 100ml", mist, f64(100))
+	if a == b {
+		t.Fatalf("tie-breaker must separate categories, both %q", a)
+	}
+	if want := "pos:santal noir|eau de parfum"; a != want {
+		t.Fatalf("key = %q, want %q", a, want)
+	}
+	if a == GroupKey("Santal Noir 100ml", f64(100)) {
+		t.Fatal("tie-breaker key must differ from the plain key")
+	}
+	if none := CategoryGroupKey("Santal Noir 100ml", nil, f64(100)); none != "pos:santal noir|" {
 		t.Fatalf("nil category key = %q", none)
 	}
 }

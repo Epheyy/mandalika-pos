@@ -25,22 +25,28 @@ func FGActive(fg erpapi.IntegrationFG) bool {
 	return fg.DeletedAt == nil && fg.Status != erpapi.DISCONTINUE && fg.Status != erpapi.PENDING
 }
 
-// SizeLabel builds the variant size label. A missing size is "Satuan"; an
-// integer 50 with unit nil/empty/"ml" is "50ml"; other units are lower-cased
-// ("50gr"); non-integers keep their decimals ("7.5ml"). Derived once, when the
-// variant is created, and never rewritten afterwards.
+// SizeLabel builds the variant size label. A missing size is "Satuan". The FG unit
+// is the ERP's stock unit (Pcs, Botol, ...), not the unit of size: for liquids the
+// size is in ml (ERP reply 2026-10-24, K2/Q2). So size 110 with unit "Pcs" is
+// "110ml", never "110pcs". Only an explicit measurement unit (measureUnits) replaces
+// the ml default ("50gr"). Non-integers keep their decimals ("7.5ml"). Derived once,
+// when the variant is created, and never rewritten afterwards.
 func SizeLabel(size *float64, unit *string) string {
 	if size == nil {
 		return sizeUnitless
 	}
 	suffix := "ml"
 	if unit != nil {
-		if u := strings.ToLower(strings.TrimSpace(*unit)); u != "" {
+		if u := strings.ToLower(strings.TrimSpace(*unit)); measureUnits[u] {
 			suffix = u
 		}
 	}
 	return strconv.FormatFloat(*size, 'f', -1, 64) + suffix
 }
+
+// measureUnits are FG units that say what the size measures; any other unit is a
+// stock/count unit and leaves the size in ml.
+var measureUnits = map[string]bool{"ml": true, "l": true, "g": true, "gr": true, "kg": true}
 
 // ProductNameFromFG strips the "<n> ml" size token from an FG name so sibling
 // sizes share one POS product name ("Mandalika Oud 50ml" -> "Mandalika Oud").
@@ -56,14 +62,23 @@ func ProductNameFromFG(name string, size *float64) string {
 	return out
 }
 
-// GroupKey is the POS-side product grouping rule (D19): normalised category plus
-// normalised stripped name. Siblings of one product in one category share it.
-func GroupKey(name string, category *string, size *float64) string {
+// GroupKey is the POS-side product grouping rule: the normalised name minus its size
+// token. Siblings of one fragrance share it whatever their ERP category (the ERP may
+// file sizes of one fragrance under different categories). Category only breaks a
+// tie, see CategoryGroupKey.
+func GroupKey(name string, size *float64) string {
+	return groupKeyPrefix + normKey(ProductNameFromFG(name, size))
+}
+
+// CategoryGroupKey is the tie-breaker key: the catalog pull uses it for a new FG only
+// when the GroupKey product already holds the FG's size label under another category
+// (two products with one name, for example an EDP and a body mist).
+func CategoryGroupKey(name string, category *string, size *float64) string {
 	cat := ""
 	if category != nil {
 		cat = *category
 	}
-	return groupKeyPrefix + normKey(cat) + "|" + normKey(ProductNameFromFG(name, size))
+	return GroupKey(name, size) + "|" + normKey(cat)
 }
 
 func normKey(s string) string { return strings.ToLower(collapseSpaces(s)) }

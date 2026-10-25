@@ -555,7 +555,7 @@ func TestOverCapAllowsSmallGapsAndTwentyPercent(t *testing.T) {
 
 func TestUnchangedFGMirrorsTheItemApply(t *testing.T) {
 	cat := "edp"
-	base := fgSnap{sku: "A", productName: "a", active: true, productActive: true, hasActive: true, category: &cat}
+	base := fgSnap{sku: "A", productName: "a", active: true, productActive: true, hasActive: true, category: &cat, owner: true}
 	f := fg("a")
 	f.Code, f.Name = "A", "a"
 	if !unchangedFG(f, base) {
@@ -571,6 +571,21 @@ func TestUnchangedFGMirrorsTheItemApply(t *testing.T) {
 	if unchangedFG(f, base) {
 		t.Fatal("category change must not be skipped")
 	}
+	sibling := base
+	sibling.owner = false
+	if !unchangedFG(f, sibling) {
+		t.Fatal("a non-owner sibling never writes category, so its category change is skipped")
+	}
+	f.Name = "a prime"
+	if !unchangedFG(f, sibling) || unchangedFG(f, base) {
+		t.Fatal("a name change matters for the owner only")
+	}
+	uncategorised := sibling
+	uncategorised.category = nil
+	if unchangedFG(f, uncategorised) {
+		t.Fatal("a non-owner fills a missing product category, so it must not be skipped")
+	}
+	f.Name = "a"
 	f.Category = nil
 	f.Status = erpapi.DISCONTINUE
 	if unchangedFG(f, base) {
@@ -581,6 +596,14 @@ func TestUnchangedFGMirrorsTheItemApply(t *testing.T) {
 	stale.hasActive = false
 	if unchangedFG(f, stale) {
 		t.Fatal("an active product without an active variant must be cleared, not skipped")
+	}
+	stale.owner = false
+	if unchangedFG(f, stale) {
+		t.Fatal("a non-owner still clears an active product without an active variant")
+	}
+	sibling.active = false
+	if unchangedFG(f, sibling) {
+		t.Fatal("a non-owner's own variant status change must not be skipped")
 	}
 	f.Name = ""
 	if unchangedFG(f, base) {

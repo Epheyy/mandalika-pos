@@ -369,18 +369,26 @@ type fgSnap struct {
 	active, productActive       bool
 	hasActive                   bool    // the product has at least one active variant
 	category                    *string // lower(category name), nil when none
+	owner                       bool    // this FG writes the product's name and category
 }
 
 // unchangedFG reports whether applying fg would write nothing. It mirrors applyFGItem:
-// sku, variant is_active, product name, category and the clear-only product is_active.
+// sku, variant is_active, the clear-only product is_active and, for the owner FG only,
+// product name and category.
 func unchangedFG(fg erpapi.IntegrationFG, sn fgSnap) bool {
 	if strings.TrimSpace(fg.Slug) == "" || strings.TrimSpace(fg.Code) == "" || strings.TrimSpace(fg.Name) == "" {
 		return false // let the item path report the error
 	}
-	if sn.sku != fg.Code || sn.active != FGActive(fg) || sn.productName != ProductNameFromFG(fg.Name, fg.Size) {
+	if sn.sku != fg.Code || sn.active != FGActive(fg) {
 		return false
 	}
 	if sn.productActive && !sn.hasActive {
+		return false
+	}
+	if !sn.owner { // a non-owner only fills a missing category
+		return sn.category != nil || fg.Category == nil || strings.TrimSpace(*fg.Category) == ""
+	}
+	if sn.productName != ProductNameFromFG(fg.Name, fg.Size) {
 		return false
 	}
 	if fg.Category != nil {
@@ -395,7 +403,7 @@ func unchangedFG(fg erpapi.IntegrationFG, sn fgSnap) bool {
 // that would write nothing are skipped (no savepoint); their erp_synced_at is bulk-updated by
 // the returned after step, which applyPage runs after the item loop (lock order).
 // An item is never skipped when an earlier written item of the page touches the same product
-// (sibling FGs can disagree on the stripped name; the written order must then win).
+// (a written sibling can change which FG owns the product's name and category).
 func skipUnchangedFG(ctx context.Context, q pgx.Tx, items []erpapi.IntegrationFG) ([]erpapi.IntegrationFG, []itemOutcome, func(context.Context, pgx.Tx) error, error) {
 	slugs := make([]string, 0, len(items))
 	for _, it := range items {
@@ -404,7 +412,7 @@ func skipUnchangedFG(ctx context.Context, q pgx.Tx, items []erpapi.IntegrationFG
 	rows, err := q.Query(ctx, `
 		SELECT v.erp_slug, v.sku, v.is_active, p.id::text, p.name, p.is_active,
 		       EXISTS (SELECT 1 FROM product_variants v2 WHERE v2.product_id=p.id AND v2.is_active),
-		       lower(c.name)
+		       lower(c.name), `+ownerSQL("p.id", "v.erp_slug", "v.sku", "v.is_active")+`
 		  FROM product_variants v
 		  JOIN products p ON p.id=v.product_id
 		  LEFT JOIN categories c ON c.id=p.category_id
@@ -416,7 +424,7 @@ func skipUnchangedFG(ctx context.Context, q pgx.Tx, items []erpapi.IntegrationFG
 	for rows.Next() {
 		var slug string
 		var sn fgSnap
-		if err := rows.Scan(&slug, &sn.sku, &sn.active, &sn.productID, &sn.productName, &sn.productActive, &sn.hasActive, &sn.category); err != nil {
+		if err := rows.Scan(&slug, &sn.sku, &sn.active, &sn.productID, &sn.productName, &sn.productActive, &sn.hasActive, &sn.category, &sn.owner); err != nil {
 			rows.Close()
 			return nil, nil, nil, err
 		}
@@ -476,21 +484,41 @@ func upsertCategory(ctx context.Context, q pgx.Tx, name *string) (id *string, cr
 	return &cid, true, nil
 }
 
-// syncProduct sets name/category and CLEARS is_active when no variant is active (R2:
-// products.is_active is admin-owned; the pull never sets it true). Last write wins if
-// sibling FGs disagree on the stripped name (flagged). A nil category leaves the
-// product's category unchanged. Reports whether it wrote.
-func syncProduct(ctx context.Context, q pgx.Tx, productID, name string, categoryID *string) (bool, error) {
+// syncProduct writes the owner FG's name and category onto the product (a nil category
+// never clears one; a non-owner only fills a missing one) and CLEARS is_active once no variant is active (R2: products.is_active
+// is admin-owned; the pull never sets it true). Only the owner
+// writes name and category, so siblings that disagree cannot flip them on every pull.
+func syncProduct(ctx context.Context, q pgx.Tx, productID, name string, categoryID *string, owner bool) (bool, error) {
 	ct, err := q.Exec(ctx, `
-		UPDATE products SET name=$2,
-		       category_id = COALESCE($3::text::uuid, category_id),
+		UPDATE products SET name = CASE WHEN $4 THEN $2 ELSE name END,
+		       category_id = CASE WHEN $4 THEN COALESCE($3::text::uuid, category_id) ELSE COALESCE(category_id, $3::text::uuid) END,
 		       is_active = is_active AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id=products.id AND v.is_active)
 		 WHERE id=$1
-		   AND (name IS DISTINCT FROM $2
-		     OR category_id IS DISTINCT FROM COALESCE($3::text::uuid, category_id)
+		   AND (($4 AND (name IS DISTINCT FROM $2
+		              OR category_id IS DISTINCT FROM COALESCE($3::text::uuid, category_id)))
+		     OR (NOT $4 AND category_id IS NULL AND $3::text IS NOT NULL)
 		     OR (is_active AND NOT EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id=products.id AND v.is_active)))`,
-		productID, name, categoryID)
+		productID, name, categoryID, owner)
 	return ct.RowsAffected() > 0, err
+}
+
+// ownerSQL is the boolean "this linked FG owns the product's name and category": no other
+// ERP-linked variant of the product ranks before it, where active variants rank before
+// inactive ones and then the smaller FG code (byte order) wins. Deterministic, so siblings
+// in different categories or with different stripped names settle on one value, and a
+// discontinued or deleted owner hands over to the next live sibling.
+func ownerSQL(productID, slug, sku, active string) string {
+	return `NOT EXISTS (SELECT 1 FROM product_variants o WHERE o.product_id=` + productID +
+		` AND o.erp_slug IS NOT NULL AND o.erp_slug<>` + slug +
+		` AND ((o.is_active AND NOT ` + active + `) OR (o.is_active = ` + active +
+		` AND o.sku COLLATE "C" < ` + sku + ` COLLATE "C")))`
+}
+
+func isOwner(ctx context.Context, q pgx.Tx, productID, slug, code string, active bool) (bool, error) {
+	var owner bool
+	err := q.QueryRow(ctx, `SELECT `+ownerSQL("$1::text::uuid", "$2::text", "$3::text", "$4::boolean"),
+		productID, slug, code, active).Scan(&owner)
+	return owner, err
 }
 
 func lockProduct(ctx context.Context, q pgx.Tx, productID string) error {
@@ -564,23 +592,13 @@ func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG) (itemOu
 			return out, err
 		}
 	} else {
-		key := GroupKey(fg.Name, fg.Category, fg.Size)
-		err := q.QueryRow(ctx, `SELECT id::text FROM products WHERE erp_group_key=$1 FOR UPDATE`, key).Scan(&productID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			// D20: new ERP products are not sellable until the owner prices and enables them.
-			if err := q.QueryRow(ctx, `
-				INSERT INTO products (name, brand, category_id, sellable, is_active, erp_group_key)
-				VALUES ($1,'',$2::text::uuid,false,$3,$4) RETURNING id::text`,
-				name, catID, active, key).Scan(&productID); err != nil {
-				return out, err
-			}
-			changed = true
-		} else if err != nil {
+		label := SizeLabel(fg.Size, fg.Unit)
+		var created, clash bool
+		if productID, created, err = groupProduct(ctx, q, fg, name, label, catID, active); err != nil {
 			return out, err
 		}
-		label := SizeLabel(fg.Size, fg.Unit)
-		var clash bool
-		if err := q.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM product_variants WHERE product_id=$1 AND size=$2)`, productID, label).Scan(&clash); err != nil {
+		changed = created
+		if clash, err = hasSize(ctx, q, productID, label); err != nil {
 			return out, err
 		}
 		if clash {
@@ -595,7 +613,11 @@ func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG) (itemOu
 		changed = true
 	}
 
-	pchanged, err := syncProduct(ctx, q, productID, name, catID)
+	owner, err := isOwner(ctx, q, productID, fg.Slug, fg.Code, active)
+	if err != nil {
+		return out, err
+	}
+	pchanged, err := syncProduct(ctx, q, productID, name, catID, owner)
 	if err != nil {
 		return out, err
 	}
@@ -606,6 +628,68 @@ func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG) (itemOu
 		out.bump = append(out.bump, "categories")
 	}
 	return out, nil
+}
+
+// groupProduct finds (locking) or creates the product a new FG joins: the GroupKey product
+// (name minus size). Category only breaks a tie: when that product is filed under another
+// category (or none, or the FG has none), the FG goes to its CategoryGroupKey product if one exists, or to a new one if
+// the GroupKey product already holds the FG's size label. created reports a new row.
+func groupProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, name, label string, catID *string, active bool) (string, bool, error) {
+	key := GroupKey(fg.Name, fg.Size)
+	id, cat, found, err := productByGroupKey(ctx, q, key)
+	if err != nil {
+		return "", false, err
+	}
+	if found && !sameCategory(cat, catID) {
+		tieKey := CategoryGroupKey(fg.Name, fg.Category, fg.Size)
+		tieID, _, tieFound, err := productByGroupKey(ctx, q, tieKey)
+		if err != nil {
+			return "", false, err
+		}
+		if tieFound {
+			return tieID, false, nil
+		}
+		clash, err := hasSize(ctx, q, id, label)
+		if err != nil {
+			return "", false, err
+		}
+		if clash {
+			key, found = tieKey, false
+		}
+	}
+	if found {
+		return id, false, nil
+	}
+	// D20: new ERP products are not sellable until the owner prices and enables them.
+	if err := q.QueryRow(ctx, `
+		INSERT INTO products (name, brand, category_id, sellable, is_active, erp_group_key)
+		VALUES ($1,'',$2::text::uuid,false,$3,$4) RETURNING id::text`,
+		name, catID, active, key).Scan(&id); err != nil {
+		return "", false, err
+	}
+	return id, true, nil
+}
+
+func sameCategory(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+
+// productByGroupKey locks the product whose erp_group_key is key; cat is its category id.
+func productByGroupKey(ctx context.Context, q pgx.Tx, key string) (id string, cat *string, found bool, err error) {
+	err = q.QueryRow(ctx, `SELECT id::text, category_id::text FROM products WHERE erp_group_key=$1 FOR UPDATE`, key).Scan(&id, &cat)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil, false, nil
+	}
+	return id, cat, err == nil, err
+}
+
+func hasSize(ctx context.Context, q pgx.Tx, productID, label string) (bool, error) {
+	var clash bool
+	err := q.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM product_variants WHERE product_id=$1 AND size=$2)`, productID, label).Scan(&clash)
+	return clash, err
 }
 
 // applyOutletItem upserts one outlet by outlets.erp_slug. It never writes

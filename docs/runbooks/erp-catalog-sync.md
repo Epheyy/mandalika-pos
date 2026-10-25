@@ -12,9 +12,9 @@ Nothing in this runbook runs by itself. Every step below is an owner action on d
 |---|---|
 | FG `slug` | `product_variants.erp_slug` (the key) |
 | FG `code` | `product_variants.sku` (immutable in the ERP); also the barcode of a NEW variant |
-| FG `name` | product name, size token removed ("Oud 50ml" → "Oud") |
-| FG `category` | category, matched by name (case-insensitive), created if missing |
-| FG `size` (ml) | size label `"<n>ml"` (`"Satuan"` when null), set ONCE at creation, never renamed |
+| FG `name` | product name, size token removed ("Oud 50ml" → "Oud"); written by the product's owner FG only (below) |
+| FG `category` | category, matched by name (case-insensitive), created if missing; written by the owner FG only |
+| FG `size` + `unit` | size label `"<n>ml"` (`"Satuan"` when size is null), set ONCE at creation, never renamed. `unit` is the ERP stock unit (Pcs, Botol): it never becomes the suffix (110 + Pcs = `"110ml"`). Only a measurement unit (ml, l, g, gr, kg) replaces `ml` |
 | FG `status` DISCONTINUE, or `deleted_at` | variant `is_active = false` (never deleted) |
 | outlet `slug` / `code` | `outlets.erp_slug` / `outlets.erp_code`. `outlets.code` (receipt numbers) is NEVER written |
 | outlet name / address / phone | copied |
@@ -22,9 +22,30 @@ Nothing in this runbook runs by itself. Every step below is an owner action on d
 
 Never touched by the pull: price, images, barcode of an existing variant, bundles, recipes, loyalty, stock.
 
-- A new FG joins the product with the same `erp_group_key` (`pos:<category>|<name minus size>`, plan D19),
-  else it creates a new product that is **not sellable** until priced (D20). An ERP variant whose resolved
-  outlet price is 0 never reaches a tablet.
+- A new FG joins the product with the same `erp_group_key` = `pos:<name minus size>` (normalised), whatever
+  its ERP category: the ERP may file sizes of one fragrance under different categories (local pull of
+  2026-10-23). Category only breaks a tie: when that product is filed under another category, the FG goes to
+  the `pos:<name minus size>|<category>` product if one exists, or to a new one if the name product already
+  has the FG's size label (for example an EDP and a body mist both called "Dune 100ml"). Otherwise it creates
+  a new product that is **not sellable** until priced (D20). An ERP variant whose resolved outlet price is 0
+  never reaches a tablet.
+- Grouping depends on arrival order and is permanent: two product lines with one name ("Dune" EDP and
+  "Dune" body mist) share the name product until a size collides, and only later FGs go to the tie product.
+  Rename such lines in the ERP if they must stay apart.
+- The product's name and category follow its **owner FG**: among its linked FGs, active ones first, then
+  the smallest `code` (byte order). A discontinued or deleted owner hands over to the next live sibling.
+  Siblings that disagree never flip them, so a rerun full pull bumps no content version. A non-owner only
+  fills a missing category.
+- Existing keys and labels are never rewritten. Products created by a pull before this rule was deployed
+  keep `pos:<category>|<name>` keys and any `"<n>pcs"` labels (the stand-in demo on the test environment
+  has some), and a new sibling FG of such a product creates a new product. List them first:
+  `SELECT id, name, erp_group_key FROM products WHERE erp_group_key LIKE 'pos:%|%';` (new tie keys match
+  too: `pos:<name>|<category>`) and
+  `SELECT product_id, size, sku FROM product_variants WHERE erp_slug IS NOT NULL AND size ~ '[0-9]pcs$';`.
+  Re-key through the SKU-mapping CSV `erp_group_key` column (new format) only BEFORE the first pull on the
+  new rule (afterwards the new key is taken and the CSV answers `group_key_in_use`). A size label has no
+  supported fix path (the CSV never changes size, the backoffice answers 409): it needs a reviewed SQL change
+  that also renames `outlet_variant_stock.variant_size`, so prefer deleting demo rows before cutover.
 - `products.is_active` is only ever switched OFF by the pull (all its variants inactive); an admin switches
   it back on.
 - A new ERP outlet is linked to the one unlinked POS outlet with the same code (case-insensitive), else
