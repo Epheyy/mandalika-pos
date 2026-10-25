@@ -33,7 +33,7 @@ func TestReplaySafe(t *testing.T) {
 		{"POST", "/shifts", nil, false},
 		{"POST", "/inventory/adjust?kind=outlet&id=o", nil, false},
 		{"POST", "/admin/erp/outbox/x/retry", nil, false},
-		{"DELETE", "/products/p1", nil, false},
+		{"DELETE", "/products/p1", nil, true},
 	}
 	for _, c := range cases {
 		if got := replaySafe(c.method, c.path, c.h); got != c.want {

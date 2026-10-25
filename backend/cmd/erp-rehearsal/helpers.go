@@ -267,7 +267,4 @@ func (r *rt) stubDocByID(docID string) ([]obj, error) {
 	return out, nil
 }
 
-func (r *rt) retry(id string) error {
-	_, err := r.beMust("POST", "/admin/erp/outbox/"+id+"/retry", nil, nil)
-	return err
-}
+func (r *rt) retry(id string) error { return r.retryOutbox(id) }

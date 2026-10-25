@@ -88,18 +88,21 @@ var retryBackoff = []time.Duration{2 * time.Second, 4 * time.Second, 8 * time.Se
 // the stub's FG/outlet upserts and fault switch converge on the same state; /sync/batch
 // dedupes every order by its idempotencyKey. Not here, so sent exactly once: POST
 // /products, /transfers, /transfers/{id}/receive (no key), /shifts, /shifts/{id}/close,
-// /inventory/adjust, a goods receipt without an Idempotency-Key, the outbox retry, and
-// every DELETE. A lost response on those fails the step instead of risking a second apply.
+// /inventory/adjust, a goods receipt without an Idempotency-Key and the outbox retry; the
+// steps send those through onceRecover (recover.go), which checks whether a write with a
+// lost reply had landed before sending it again.
 var idempotentPOSTs = map[string]bool{
 	"/api/v1/auth/login": true, "/internal/erp/relay": true, "/internal/erp/catalog-pull": true,
 	"/_stub/fg": true, "/_stub/outlet": true, "/_stub/fault": true, "/sync/batch": true,
 }
 
-// replaySafe: GET and PUT (full replacement), any request with an Idempotency-Key (the
-// server answers a replay with the first result), and the idempotentPOSTs.
+// replaySafe: GET, PUT (full replacement) and DELETE (a second delete cannot remove
+// anything more; it may answer 404 or the same refusal), any request with an
+// Idempotency-Key (the server answers a replay with the first result), and the
+// idempotentPOSTs.
 func replaySafe(method, path string, h map[string]string) bool {
 	switch {
-	case method == http.MethodGet, method == http.MethodPut:
+	case method == http.MethodGet, method == http.MethodPut, method == http.MethodDelete:
 		return true
 	case h["Idempotency-Key"] != "":
 		return true

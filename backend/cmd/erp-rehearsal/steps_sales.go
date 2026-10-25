@@ -100,11 +100,11 @@ func (r *rt) ensureShift() error {
 		r.note("reusing open shift %s", id)
 		return nil
 	}
-	out, err = r.beMust("POST", "/shifts", nil, obj{"startingCash": 0})
+	id, err := r.onceRecover("POST", "/shifts", nil, obj{"startingCash": 0}, dataID, r.currentShiftID)
 	if err != nil {
 		return err
 	}
-	r.shiftID, r.shiftOpen = str(out.Body, "data", "id"), true
+	r.shiftID, r.shiftOpen = id, true
 	r.note("opened shift %s", r.shiftID)
 	return nil
 }
