@@ -681,7 +681,9 @@ export function createClient(opts: ClientOptions): Api {
     const p = new URLSearchParams()
     for (const [k, v] of Object.entries(params)) {
       if (v === undefined || v === null || v === '') continue
-      if (Array.isArray(v)) for (const x of v) p.append(k, String(x))
+      if (Array.isArray(v)) {
+        for (const x of v) if (x !== undefined && x !== null && x !== '') p.append(k, String(x))
+      }
       else p.set(k, String(v))
     }
     const s = p.toString()

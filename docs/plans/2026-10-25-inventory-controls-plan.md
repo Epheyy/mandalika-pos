@@ -531,6 +531,9 @@ Must-dos found while reviewing the S0 contract; the slice named on each line owe
 - **S3, approvals queue.** Page the queue, and filter its items by the caller's permissions (a `manage_stock_count`-only user does not see adjustment requests).
 - **S1 and S3, location scope.** Scope-check a body or query `locationId` explicitly: outlet users reach only their own outlet.
 - **S5, outlet source.** Read the outlet from the request context via `scope(r)`, never from the raw `X-Outlet-Id` header or `?outletId`.
+- **S1 and S4, CSV content type.** The client accepts a CSV 200 only with `text/csv` or `application/octet-stream` (`packages/api/src/client.ts:623-629`); Go sniffs a CSV body as `text/plain`. Each export handler sets `Content-Type: text/csv; charset=utf-8` explicitly and has a test asserting it.
+- **S1–S5, required Idempotency-Key.** `RequiredWriteIdempotencyKey` is documentation only (nothing validates requests against the spec). Every one of the 15 new write handlers returns 400 when the key is missing or empty, with a test.
+- **S3, 409 body.** `InventoryConflictError` makes `data` optional (fixed in S0): only the `approval_required` refusal sends `data.code`; lock, state and idempotency 409s send `{error}` alone.
 
 ---
 

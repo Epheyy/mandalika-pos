@@ -5334,10 +5334,10 @@ export interface components {
             /** @description Number of pending items, for the nav badge. */
             pendingCount: number;
         };
-        /** @description 409 body. When inventoryApprovalRequired is on and the direct endpoint was used, data.code is approval_required (same machine-code convention as ImportConflictResponse); other 409s may omit data. */
+        /** @description 409 body. When inventoryApprovalRequired is on and the direct endpoint was used, data.code is approval_required (same machine-code convention as ImportConflictResponse). Other 409s (lock conflict, invalid state, idempotency key reuse) send `{error}` with no data. */
         InventoryConflictError: {
             error: string;
-            data: {
+            data?: {
                 /** @enum {string} */
                 code: "approval_required";
             };
