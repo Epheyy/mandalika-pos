@@ -2366,7 +2366,7 @@ export interface paths {
         };
         /**
          * Kartu stok. Ledger movements of one location, optionally one SKU, newest first by seq (manage_inventory)
-         * @description Reads the append-only stock ledger. The saldo is qtyAfter in seq order; occurredAt is shown but never used for ordering. from/to filter occurredAt (RFC 3339, or a date read in the outlet timezone). `summary` is returned only when one SKU (productId and variantSize) is filtered.
+         * @description Reads the append-only stock ledger. The saldo is qtyAfter in seq order; occurredAt is shown but never used for ordering. from/to select by recordedAt (RFC 3339, or a date read in the outlet timezone), so a sale rung offline and synced late belongs to the day it was recorded; occurredAt is still returned. `summary` is returned only when one SKU (productId and variantSize) is filtered.
          */
         get: operations["listStockMovements"];
         put?: never;
@@ -10703,7 +10703,9 @@ export interface operations {
                 flag?: "shortage";
                 /** @description true returns only giveaway movements (derived from the ledger key), false excludes giveaway movements, absent returns all. */
                 giveaway?: boolean;
+                /** @description First day (YYYY-MM-DD, read in the location timezone) or instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range selects the run of rows by seq from the first row recorded at or after it, so the balance chain stays unbroken. */
                 from?: string;
+                /** @description Last day (inclusive, YYYY-MM-DD, read in the location timezone) or exclusive instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range ends at the last row recorded before it. */
                 to?: string;
                 /** @description Opaque; the nextCursor of the previous page. */
                 cursor?: string;
@@ -10746,7 +10748,9 @@ export interface operations {
                 kind?: ("sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off")[];
                 flag?: "shortage";
                 giveaway?: boolean;
+                /** @description First day (YYYY-MM-DD, read in the location timezone) or instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range selects the run of rows by seq from the first row recorded at or after it, so the balance chain stays unbroken. */
                 from?: string;
+                /** @description Last day (inclusive, YYYY-MM-DD, read in the location timezone) or exclusive instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range ends at the last row recorded before it. */
                 to?: string;
             };
             header?: never;
@@ -10790,7 +10794,9 @@ export interface operations {
             query: {
                 locationType: components["schemas"]["InventoryLocationType"];
                 locationId: string;
+                /** @description First day (YYYY-MM-DD, read in the location timezone) or instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range selects the run of rows by seq from the first row recorded at or after it, so the balance chain stays unbroken. */
                 from?: string;
+                /** @description Last day (inclusive, YYYY-MM-DD, read in the location timezone) or exclusive instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range ends at the last row recorded before it. */
                 to?: string;
                 /** @description Substring match on product name, SKU or barcode. */
                 q?: string;
