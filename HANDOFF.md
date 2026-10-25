@@ -12,8 +12,9 @@ Last updated: 2026-10-23 by Claude (Opus 5.5) - ERP stand-in LIVE (backend `0012
 > merged LOCALLY on branch `inv-integration` (77c7279; migrations 0069–0074; 0067 reserved, 0068 = ERP). All gates green:
 > common Go + archtest, codegen gate (docker 1.26.10), all 36 Postgres gates (docker), quality:ci, browser:ci; every slice and
 > the merge Opus-reviewed. NOT pushed or deployed (Nov 2 ERP demo; owner go-ahead needed; all features inert until configured).
-> Next: follow-ups F1 approver+ADJ no. on Kartu Stok, F2 'imported' event for scanner imports, F3 PB no. on transfer rows;
-> S6 cashier Permintaan Barang screen on the POS tablet (needs OTA/APK).
+> F1–F3 (approver + ADJ no. on Kartu Stok, scanner imports logged as 'imported', PB no. on transfer rows; mig 0075 index)
+> also on `inv-integration` (398c15b), Opus-reviewed, all gates green. S6 (cashier PB on the POS tablet) planned in
+> `docs/plans/2026-10-26-s6-pos-requisitions-plan.md`, waiting on owner Q1–Q4; ships as OTA 2.1.6 after the backend deploy.
 >
 > 2026-10-22: A29 parent SERVER half + ERP developer review R-1/E-1/D-1/S-1 LIVE (backend `00126-seh`, commit a2fddd7).
 > A29 stays Parent-open for the CLIENT half only (POS: honour Retry-After, default deadline on non-batch calls; OTA).
