@@ -6,13 +6,14 @@
 import { use, useReducer, useRef, useState, useEffect, useMemo } from 'react'
 import type { components } from '@mandalika/api'
 import { normalizePhone, type LocalReceipt } from '@mandalika/sync'
-import { canRefund, isCashMethod, variantLabel } from '@mandalika/types'
+import { canRefund, canRequestStock, isCashMethod, variantLabel } from '@mandalika/types'
 import type { ReceiptData } from '@mandalika/printer'
 import { SyncContext, SyncReceiveRejectedRefContext, SyncReceiveAcceptedRefContext } from './SyncProvider'
 import { useAutoPullGate } from './autoPullGate'
 import { TandaTerimaPrompt } from './transfers/TandaTerimaPrompt'
 import { buildTandaTerimaData } from './transfers/buildTandaTerimaData'
 import { TransferHistoryPanel } from './TransferHistoryPanel'
+import { RequisitionPanel } from './requisitions/RequisitionPanel'
 import { usePrinter } from '../printer'
 import { setBackHandler } from '../native'
 import { useAuth } from '../auth'
@@ -190,6 +191,7 @@ export default function CashierScreen() {
   const [showMenu, setShowMenu] = useState(false)
   const [showReceive, setShowReceive] = useState(false)
   const [showTransferHistory, setShowTransferHistory] = useState(false)
+  const [showRequisitions, setShowRequisitions] = useState(false)
   const [pendingReceive, setPendingReceive] = useState<null | { transferId: string; items: { productId: string; variantSize: string; receivedQty: number }[]; reason: string; orderUuid: string; receiptKey: string }>(null)
   // Raised when the cashier tries to sell with no open shift → forces the
   // ShiftBar open-shift modal (selling without a shift is not allowed).
@@ -278,7 +280,7 @@ export default function CashierScreen() {
     isSuccessOpen: state.isSuccessOpen, hasRefundOrder: !!refundOrder, hasRefundSale: !!refundSale, isRefunding,
     showReceive, hasPendingReceive: !!pendingReceive, hasPendingTT: !!pendingTT, hasPendingFulfillment: !!pendingFulfillment,
     isAddingCustomer, isSavingCustomer, hasActiveAdjustment: !!state.activeAdjustment, showHistory, showLocalReceipts,
-    showRecap, showTransferHistory, showSettings, showMenu, shiftPrompt, closeIntent,
+    showRecap, showTransferHistory, showRequisitions, showSettings, showMenu, shiftPrompt, closeIntent,
     hasSelectedCustomer: !!state.selectedCustomer, hasSelectedSalesman: !!state.selectedSalesman,
     appliedPromotionCount: state.appliedPromotions.length, appliedPromoCodeCount: state.appliedPromoCodes.length,
     pointsToRedeem: state.pointsToRedeem,
@@ -948,6 +950,7 @@ export default function CashierScreen() {
       if (showHistory) { setShowHistory(false); return true }
       if (showLocalReceipts) { setShowLocalReceipts(false); return true }
       if (showTransferHistory) { setShowTransferHistory(false); return true }
+      if (showRequisitions) { setShowRequisitions(false); return true }
       if (showRecap) { setShowRecap(false); return true }
       if (refundOrder) { setRefundOrder(null); setRefundSale(null); return true }
       if (state.isSuccessOpen) { dispatch({ type: 'CLOSE_SUCCESS' }); return true }
@@ -960,7 +963,7 @@ export default function CashierScreen() {
     })
     return () => setBackHandler(null)
   }, [
-    showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRecap, refundOrder,
+    showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRequisitions, showRecap, refundOrder,
     state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment,
     state.activeTab,
   ])
@@ -1204,6 +1207,8 @@ export default function CashierScreen() {
         onTerminal={() => openSettings('terminal')}
         onReceiveTransfer={() => setShowReceive(true)}
         onOpenTransferHistory={() => setShowTransferHistory(true)}
+        canRequestStock={canRequestStock(user)}
+        onRequisitions={() => setShowRequisitions(true)}
         inboundCount={inbound.length}
       />
 
@@ -1245,6 +1250,13 @@ export default function CashierScreen() {
           }}
           onReprintTandaTerima={(t) => { setShowReceive(false); setPendingTT(t) }}
         />
+      )}
+
+      {showRequisitions && (
+        <RequisitionPanel
+          onClose={() => setShowRequisitions(false)}
+          onOpenReceive={() => { setShowRequisitions(false); setShowReceive(true) }}
+          isOnline={offlineData.isOnline} products={displayProducts} userId={user.id} outletId={authStore.outletId ?? ''} />
       )}
 
       {showTransferHistory && (

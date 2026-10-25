@@ -32,6 +32,9 @@ interface MenuDrawerProps {
   onTerminal: () => void
   onReceiveTransfer: () => void
   onOpenTransferHistory: () => void
+  /** Permintaan Barang: shown only when the signed-in user may request stock. */
+  canRequestStock: boolean
+  onRequisitions: () => void
   inboundCount: number
 }
 
@@ -112,6 +115,8 @@ export const MenuDrawer = memo(function MenuDrawer({
   onTerminal,
   onReceiveTransfer,
   onOpenTransferHistory,
+  canRequestStock,
+  onRequisitions,
   inboundCount,
 }: MenuDrawerProps) {
   if (!open) return null
@@ -126,6 +131,7 @@ export const MenuDrawer = memo(function MenuDrawer({
     { Icon: CashIcon, label: 'Uang Masuk/Keluar', onClick: () => { onClose(); onCashFlow() } },
     { Icon: InboxIcon, label: 'Terima Transfer', badge: inboundCount > 0, onClick: () => { onClose(); onReceiveTransfer() } },
     { Icon: TransferHistoryIcon, label: 'Riwayat Transfer', onClick: () => { onClose(); onOpenTransferHistory() } },
+    ...(canRequestStock ? [{ Icon: InboxIcon, label: 'Permintaan Barang', onClick: () => { onClose(); onRequisitions() } }] : []),
     { Icon: SyncIcon, label: isSyncing ? 'Menyinkronkan…' : 'Sinkronkan', badge: pendingSync, onClick: () => onSync() },
   ]
 

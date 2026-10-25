@@ -24,6 +24,7 @@ export interface AutoPullFlags {
   showLocalReceipts: boolean
   showRecap: boolean
   showTransferHistory: boolean
+  showRequisitions: boolean
   showSettings: boolean
   showMenu: boolean
   shiftPrompt: boolean
@@ -55,6 +56,7 @@ export const AUTO_PULL_IDLE: AutoPullFlags = {
   showLocalReceipts: false,
   showRecap: false,
   showTransferHistory: false,
+  showRequisitions: false,
   showSettings: false,
   showMenu: false,
   shiftPrompt: false,

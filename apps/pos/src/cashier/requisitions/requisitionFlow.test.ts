@@ -90,6 +90,12 @@ describe('requisitionFlow outcomes', () => {
     expect(await createDraft(d, input, 'k')).toEqual({ kind: 'invalid', message: 'qty harus lebih dari 0' })
   })
 
+  it('a list without an outlet is refused before any call (it would otherwise be unpinned)', async () => {
+    const { d, api } = deps()
+    expect(await loadRequisitions(d, '')).toMatchObject({ kind: 'invalid' })
+    expect(api.listRequisitions).not.toHaveBeenCalled()
+  })
+
   it('the list call always carries the outletId, even when a filter is given', async () => {
     const { d, api } = deps()
     await loadRequisitions(d, 'outlet-1', { status: 'draft' })

@@ -11,6 +11,7 @@ const REQ_OPTS: RequestOptions = { timeoutMs: REQUEST_TIMEOUT_MS }
 export const OFFLINE_MESSAGE = 'Permintaan Barang butuh koneksi internet.'
 export const RETRY_MESSAGE = 'Server belum menjawab. Tekan Coba Lagi — permintaan tidak akan tercatat dua kali.'
 export const FORBIDDEN_MESSAGE = 'Akun ini belum punya izin Permintaan Barang. Minta admin menambahkan izin.'
+export const NO_OUTLET_MESSAGE = 'Outlet belum dipilih di tablet ini.'
 export const NOT_FOUND_MESSAGE = 'Permintaan tidak ditemukan.'
 export const FEATURE_OFF_MESSAGE = 'Fitur Permintaan Barang belum aktif di server.'
 export const STALE_MESSAGE = 'Status permintaan sudah berubah. Menampilkan data terbaru.'
@@ -61,6 +62,8 @@ export function loadRequisitions(
   outletId: string,
   filter: Omit<ListRequisitionsParams, 'outletId'> = {},
 ): Promise<FlowResult<ListResult<StockRequisition>>> {
+  // An empty outletId would be dropped from the query and unpin the list: refuse instead.
+  if (!outletId) return Promise.resolve({ kind: 'invalid', message: NO_OUTLET_MESSAGE })
   return run(deps, 'list', () => deps.api.listRequisitions({ ...filter, outletId }, REQ_OPTS))
 }
 

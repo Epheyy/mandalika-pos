@@ -80,3 +80,10 @@ describe('CashierScreen wiring', () => {
     }
   })
 })
+
+describe('Permintaan Barang panel', () => {
+  it('showRequisitions blocks the pull, so the catalog is not swapped under an open form', () => {
+    expect(Object.keys(AUTO_PULL_IDLE)).toContain('showRequisitions')
+    expect(isSafeToAutoPull({ ...AUTO_PULL_IDLE, showRequisitions: true })).toBe(false)
+  })
+})
