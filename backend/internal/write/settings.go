@@ -35,6 +35,12 @@ func validatePaymentMethods(raw json.RawMessage) error {
 }
 
 func (r *Repo) UpdateAppSettings(ctx context.Context, raw json.RawMessage) error {
+	return r.UpdateAppSettingsBy(ctx, "", raw)
+}
+
+// UpdateAppSettingsBy is UpdateAppSettings recording actor ("" allowed) on the history row of an
+// approval-switch change.
+func (r *Repo) UpdateAppSettingsBy(ctx context.Context, actor string, raw json.RawMessage) error {
 	var s struct {
 		TaxEnabled           bool            `json:"taxEnabled"`
 		TaxRate              float64         `json:"taxRate"`
@@ -121,9 +127,7 @@ func (r *Repo) UpdateAppSettings(ctx context.Context, raw json.RawMessage) error
 			}
 		}
 		if s.InventoryApprovalRequired != nil {
-			if _, e := t.Exec(ctx,
-				`UPDATE app_settings SET inventory_approval_required=$1 WHERE id=1`,
-				*s.InventoryApprovalRequired); e != nil {
+			if e := setApprovalSwitch(ctx, t, actor, *s.InventoryApprovalRequired); e != nil {
 				return fmt.Errorf("update inventory_approval_required: %w", e)
 			}
 		}

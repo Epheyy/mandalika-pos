@@ -3,6 +3,7 @@ import { ApiError } from '@mandalika/api'
 import {
   adjustmentDelta,
   adjustmentDrift,
+  adjustmentResultQty,
   approveErrorMessage,
   buildSubmitLines,
   varianceLines,
@@ -88,5 +89,11 @@ describe('inventoryApproval helpers', () => {
       { ...base, variantSize: 'd', frozenQty: 10, baselineQty: null, actualQty: null },
     ])
     expect(rows.map((r) => [r.item.variantSize, r.reference, r.diff])).toEqual([['a', 12, 3], ['b', 10, -3]])
+  })
+
+  it('adjustmentResultQty is live plus delta, null when live is unknown', () => {
+    expect(adjustmentResultQty(4, -10)).toBe(-6)
+    expect(adjustmentResultQty(12, -3)).toBe(9)
+    expect(adjustmentResultQty(undefined, -3)).toBeNull()
   })
 })

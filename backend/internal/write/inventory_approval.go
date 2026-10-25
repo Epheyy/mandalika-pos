@@ -34,8 +34,8 @@ const (
 var (
 	// ErrApprovalRequired answers the direct adjust / complete endpoints while approval is on.
 	ErrApprovalRequired = apperr.New(apperr.Conflict, "persetujuan diperlukan untuk perubahan stok ini")
-	// ErrApprovalSelf: four-eyes, the approver is the one who asked.
-	ErrApprovalSelf = apperr.New(apperr.Conflict, "penyetuju tidak boleh sama dengan pengaju")
+	// ErrApprovalSelf: strict four-eyes, the approver took part in the document (see touchedBy).
+	ErrApprovalSelf = apperr.New(apperr.Conflict, "penyetuju tidak boleh orang yang membuat, menghitung, atau mengajukan dokumen ini")
 	// ErrApprovalNotPending: the document is not waiting for a decision (decided or cancelled).
 	ErrApprovalNotPending = apperr.New(apperr.Conflict, "dokumen tidak sedang menunggu persetujuan")
 	// ErrAdjustmentPending: one pending request per location and SKU.
@@ -146,26 +146,42 @@ type ApprovalProof struct {
 
 // docLocation is the part of a document an approval needs before the PIN is checked.
 type docLocation struct {
-	outletID    string // "" for a warehouse document
-	submittedBy string // "" while nobody submitted yet
+	outletID string // "" for a warehouse document
 }
 
 func readDocLocation(ctx context.Context, t pgx.Tx, ref DocRef) (docLocation, error) {
 	var sql string
 	switch ref.Type {
 	case docTypeAdjustment:
-		sql = `SELECT COALESCE(outlet_id::text,''), requested_by::text FROM stock_adjustment_requests WHERE id=$1`
+		sql = `SELECT COALESCE(outlet_id::text,'') FROM stock_adjustment_requests WHERE id=$1`
 	case docTypeStockCount:
-		sql = `SELECT COALESCE(outlet_id::text,''), COALESCE(submitted_by::text,'') FROM stock_counts WHERE id=$1`
+		sql = `SELECT COALESCE(outlet_id::text,'') FROM stock_counts WHERE id=$1`
 	default:
 		return docLocation{}, ErrNotFound
 	}
 	var l docLocation
-	err := t.QueryRow(ctx, sql, ref.ID).Scan(&l.outletID, &l.submittedBy)
+	err := t.QueryRow(ctx, sql, ref.ID).Scan(&l.outletID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return l, ErrNotFound
 	}
 	return l, err
+}
+
+// touchedBy reports whether the user took part in the document: created it, saved counted lines
+// on it, or submitted it (the document's own columns, plus every 'created', 'submitted' and
+// 'updated' event, so a submission that was rejected and resubmitted by someone else still
+// counts). Strict four-eyes: such a user can never approve it. A line save is recorded as an
+// 'updated' event because the count lines themselves store no actor.
+func touchedBy(ctx context.Context, t pgx.Tx, ref DocRef, userID string) (bool, error) {
+	var touched bool
+	err := t.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM stock_counts WHERE id=$1 AND (created_by=$2::uuid OR submitted_by=$2::uuid))
+		    OR EXISTS (SELECT 1 FROM stock_adjustment_requests WHERE id=$1 AND requested_by=$2::uuid)
+		    OR EXISTS (SELECT 1 FROM inventory_doc_events
+		                WHERE doc_type=$3 AND doc_id=$1 AND actor_id=$2::uuid
+		                  AND action IN ('created','submitted','updated'))`,
+		ref.ID, userID, ref.Type).Scan(&touched)
+	return touched, err
 }
 
 // insertDocAttempt audits one approval attempt (no PIN). transfer_id stays NULL.
@@ -219,7 +235,9 @@ func (r *Repo) verifyInventoryApprover(ctx context.Context, ref DocRef, approver
 	if !crossAll && loc.outletID != "" && !strings.EqualFold(loc.outletID, visibleOutlet) {
 		return zero, ErrNotFound
 	}
-	if loc.submittedBy != "" && strings.EqualFold(loc.submittedBy, approverID) {
+	if took, err := touchedBy(ctx, tx, ref, approverID); err != nil {
+		return zero, err
+	} else if took {
 		return zero, ErrApprovalSelf
 	}
 
@@ -448,7 +466,9 @@ func (r *Repo) ApproveAdjustmentRequestTx(ctx context.Context, t pgx.Tx, id stri
 	if req.status != "pending_approval" {
 		return zero, ErrApprovalNotPending
 	}
-	if strings.EqualFold(req.requestedBy, p.ApproverID) {
+	if took, err := touchedBy(ctx, t, DocRef{Type: docTypeAdjustment, ID: id}, p.ApproverID); err != nil {
+		return zero, err
+	} else if took {
 		return zero, ErrApprovalSelf
 	}
 	if err := recheckApprover(ctx, t, p, req.outletID); err != nil {
@@ -524,4 +544,30 @@ func (r *Repo) CancelAdjustmentRequestTx(ctx context.Context, t pgx.Tx, id, user
 		return err
 	}
 	return insertDocEvent(ctx, t, docTypeAdjustment, id, "cancelled", userID, note, nil)
+}
+
+// InventorySettingDocID is the fixed doc_id of the inventory_doc_events rows that log a change of
+// app_settings.inventory_approval_required (doc_type 'app_setting'). The setting is a singleton, so
+// one constant id keeps its whole history on one timeline. Never change it.
+const InventorySettingDocID = "00000000-0000-4000-8000-000000000072"
+
+// setApprovalSwitch writes the approval switch and, when its value really changes, appends an
+// 'updated' history row with the actor and from/to. The old value is read under the row lock, so
+// two racing saves log a consistent chain.
+func setApprovalSwitch(ctx context.Context, t pgx.Tx, actor string, to bool) error {
+	var from bool
+	if err := t.QueryRow(ctx, `SELECT inventory_approval_required FROM app_settings WHERE id=1 FOR UPDATE`).Scan(&from); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil // no settings row: nothing to switch
+		}
+		return err
+	}
+	if from == to {
+		return nil
+	}
+	if _, err := t.Exec(ctx, `UPDATE app_settings SET inventory_approval_required=$1 WHERE id=1`, to); err != nil {
+		return err
+	}
+	return insertDocEvent(ctx, t, "app_setting", InventorySettingDocID, "updated", actor, "",
+		map[string]any{"setting": "inventoryApprovalRequired", "from": from, "to": to})
 }

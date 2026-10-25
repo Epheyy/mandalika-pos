@@ -379,14 +379,20 @@ func TestInventoryApprovalPostgres(t *testing.T) {
 		ledgerOK()
 	})
 
-	t.Run("approve would drive stock negative: refused, request stays pending", func(t *testing.T) {
-		id := newReq(tokMgrA, "outlet", outA, "L", 0) // 10 -> 0, delta -10
+	t.Run("approve into negative stock succeeds (the delta applies, as a count approval does)", func(t *testing.T) {
+		neg := newReq(tokMgrA, "outlet", outA, "L", 0) // 10 -> 0, delta -10
 		exec(`UPDATE outlet_variant_stock SET stock=4 WHERE outlet_id=$1 AND variant_size='L'`, outA)
-		code, _, body := approve(tokAdmin, id, nextKey(), pin)
-		mustCode("negative", 409, code, body)
-		if status("stock_adjustment_requests", id) != "pending_approval" || stockA("L") != 4 {
-			t.Fatal("state changed on a refused apply")
+		code, _, body := approve(tokAdmin, neg, nextKey(), pin)
+		mustCode("negative approve", 200, code, body)
+		if status("stock_adjustment_requests", neg) != "approved" || stockA("L") != -6 {
+			t.Fatalf("status=%s L=%d want approved and -6", status("stock_adjustment_requests", neg), stockA("L"))
 		}
+		if num(`SELECT count(*) FROM stock_movements WHERE kind='adjust' AND qty=-10 AND qty_before=4 AND qty_after=-6 AND cardinality(flags)=0`) != 1 {
+			t.Fatal("ledger row for the negative apply missing (adjust writes no flag today)")
+		}
+		ledgerOK()
+		exec(`UPDATE outlet_variant_stock SET stock=10 WHERE outlet_id=$1 AND variant_size='L'`, outA)
+		id := newReq(tokMgrA, "outlet", outA, "L", 9)
 		code, _, body = call("POST", "/inventory/adjustment-requests/"+id+"/reject", tokMgrA, nextKey(), map[string]any{"note": "  "})
 		mustCode("reject needs a note", 400, code, body)
 		code, _, body = call("POST", "/inventory/adjustment-requests/"+id+"/reject", tokMgrA2, nextKey(), map[string]any{"note": "stok berubah"})
@@ -394,7 +400,6 @@ func TestInventoryApprovalPostgres(t *testing.T) {
 		if status("stock_adjustment_requests", id) != "rejected" || events("adjustment_request", id) != "submitted,rejected" {
 			t.Fatal("reject not recorded")
 		}
-		exec(`UPDATE outlet_variant_stock SET stock=10 WHERE outlet_id=$1 AND variant_size='L'`, outA)
 		// the SKU is free again
 		cancel := newReq(tokMgrA, "outlet", outA, "L", 9)
 		code, _, body = call("POST", "/inventory/adjustment-requests/"+cancel+"/cancel", tokMgrA2, nextKey(), nil)
@@ -447,25 +452,26 @@ func TestInventoryApprovalPostgres(t *testing.T) {
 	})
 
 	// counts -------------------------------------------------------------------
-	newCount := func(name string, qty map[string]int) string {
+	newCountBy := func(creator, counter, name string, qty map[string]int) string {
 		t.Helper()
 		var items []map[string]any
 		for _, sz := range []string{"M", "L", "S"} {
 			items = append(items, map[string]any{"productId": product, "productName": "AP product", "variantSize": sz, "sku": "AP-" + sz})
 		}
-		code, _, body := call("POST", "/stock-counts", tokMgrA, nextKey(), map[string]any{"name": name, "items": items})
+		code, _, body := call("POST", "/stock-counts", creator, nextKey(), map[string]any{"name": name, "items": items})
 		mustCode("create count", 201, code, body)
 		id := dataID(body)
-		code, _, body = call("PUT", "/stock-counts/"+id, tokMgrA, "", map[string]any{"status": "in_progress"})
+		code, _, body = call("PUT", "/stock-counts/"+id, creator, "", map[string]any{"status": "in_progress"})
 		mustCode("start count", 200, code, body)
 		var lines []map[string]any
 		for sz, q := range qty {
 			lines = append(lines, map[string]any{"productId": product, "variantSize": sz, "actualQty": q})
 		}
-		code, _, body = call("PUT", "/stock-counts/"+id, tokMgrA, "", map[string]any{"items": lines})
+		code, _, body = call("PUT", "/stock-counts/"+id, counter, "", map[string]any{"items": lines})
 		mustCode("count lines", 200, code, body)
 		return id
 	}
+	newCount := func(name string, qty map[string]int) string { return newCountBy(tokMgrA, tokMgrA, name, qty) }
 	exec(`UPDATE outlet_variant_stock SET stock=10 WHERE outlet_id=$1`, outA)
 
 	t.Run("count: complete under the flag needs approval only when there is a difference", func(t *testing.T) {
@@ -532,7 +538,7 @@ func TestInventoryApprovalPostgres(t *testing.T) {
 		if num(`SELECT count(*) FROM stock_movements WHERE kind='count' AND ref_id=$1 AND qty=4`, diff) != 1 {
 			t.Fatal("count ledger row missing")
 		}
-		if ev := events("stock_count", diff); ev != "submitted,approved,applied" {
+		if ev := events("stock_count", diff); ev != "updated,submitted,approved,applied" {
 			t.Fatalf("events=%s", ev)
 		}
 		code, _, again := call("POST", "/stock-counts/"+diff+"/approve", tokAdmin, key, map[string]any{"pin": pin, "note": "ok"})
@@ -566,8 +572,60 @@ func TestInventoryApprovalPostgres(t *testing.T) {
 		clearLocks()
 	})
 
+	t.Run("strict four-eyes: anyone who created, counted or submitted a count can never approve it", func(t *testing.T) {
+		refused := func(label, id, token string) {
+			t.Helper()
+			code, _, body := call("POST", "/stock-counts/"+id+"/approve", token, nextKey(), map[string]any{"pin": pin})
+			mustCode(label, 409, code, body)
+			if !strings.Contains(body, "tidak boleh") {
+				t.Fatalf("%s: message is not the Indonesian four-eyes text: %s", label, body)
+			}
+		}
+		attempts := func(id string) int {
+			return num(`SELECT count(*) FROM receive_pin_attempts WHERE doc_id=$1 AND doc_type='stock_count'`, id)
+		}
+		// A counts (creates and saves the lines), B submits: A may not approve.
+		c1 := newCountBy(tokMgrA, tokMgrA, "fe1", map[string]int{"M": stockA("M") + 2})
+		code, _, body := call("POST", "/stock-counts/"+c1+"/submit", tokMgrA2, nextKey(), map[string]any{"reasonCode": "count_variance"})
+		mustCode("B submits", 200, code, body)
+		refused("A approves a count A counted", c1, tokMgrA)
+		refused("B approves the count B submitted", c1, tokMgrA2)
+		if attempts(c1) != 0 {
+			t.Fatalf("a four-eyes refusal must not spend a PIN attempt (%d)", attempts(c1))
+		}
+		if !strings.Contains(events("stock_count", c1), "updated") {
+			t.Fatalf("line saves are not recorded: %s", events("stock_count", c1))
+		}
+		code, _, body = call("POST", "/stock-counts/"+c1+"/approve", tokAdmin, nextKey(), map[string]any{"pin": pin})
+		mustCode("a third person approves", 200, code, body)
+		clearLocks()
+
+		// A submits, A rejects their own, B resubmits: A still may not approve.
+		c2 := newCountBy(tokMgrA, tokMgrA, "fe2", map[string]int{"M": stockA("M") + 3})
+		code, _, body = call("POST", "/stock-counts/"+c2+"/submit", tokMgrA, nextKey(), map[string]any{"reasonCode": "count_variance"})
+		mustCode("A submits", 200, code, body)
+		code, _, body = call("POST", "/stock-counts/"+c2+"/reject", tokMgrA, nextKey(), map[string]any{"note": "salah hitung"})
+		mustCode("A rejects their own submission", 200, code, body)
+		code, _, body = call("POST", "/stock-counts/"+c2+"/submit", tokMgrA2, nextKey(), map[string]any{"reasonCode": "count_variance"})
+		mustCode("B resubmits", 200, code, body)
+		refused("A approves after B's resubmission", c2, tokMgrA)
+		code, _, body = call("POST", "/stock-counts/"+c2+"/approve", tokAdmin, nextKey(), map[string]any{"pin": pin})
+		mustCode("a third person approves the resubmission", 200, code, body)
+		clearLocks()
+
+		// C (here mgrA2) only saved the counted lines; the creator submits. C may not approve.
+		c3 := newCountBy(tokMgrA, tokMgrA2, "fe3", map[string]int{"M": stockA("M") + 1})
+		code, _, body = call("POST", "/stock-counts/"+c3+"/submit", tokMgrA, nextKey(), map[string]any{"reasonCode": "count_variance"})
+		mustCode("creator submits", 200, code, body)
+		refused("the person who only saved the lines approves", c3, tokMgrA2)
+		code, _, body = call("POST", "/stock-counts/"+c3+"/approve", tokAdmin, nextKey(), map[string]any{"pin": pin})
+		mustCode("a person who took no part approves", 200, code, body)
+		clearLocks()
+		ledgerOK()
+	})
+
 	t.Run("queue: filtered by permission, paged, with the pending count", func(t *testing.T) {
-		a1 := newReq(tokMgrA, "outlet", outA, "M", 20)
+		a1 := newReq(tokMgrA, "outlet", outA, "M", stockA("M")+5)
 		cnt := newCount("queue", map[string]int{"S": 30})
 		code, _, body := call("POST", "/stock-counts/"+cnt+"/submit", tokMgrA, nextKey(), map[string]any{"reasonCode": "count_variance"})
 		mustCode("submit", 200, code, body)
@@ -642,11 +700,33 @@ func TestInventoryApprovalPostgres(t *testing.T) {
 		if num(`SELECT inventory_approval_required::int FROM app_settings WHERE id=1`) != 1 {
 			t.Fatal("an update without the field switched approval off")
 		}
-		if err := wr.UpdateAppSettings(ctx, raw(`,"inventoryApprovalRequired":false`)); err != nil {
+		logRows := func() int {
+			return num(`SELECT count(*) FROM inventory_doc_events WHERE doc_type='app_setting' AND doc_id=$1`, write.InventorySettingDocID)
+		}
+		if logRows() != 0 {
+			t.Fatalf("a save without a change logged %d rows", logRows())
+		}
+		if err := wr.UpdateAppSettingsBy(ctx, adminU, raw(`,"inventoryApprovalRequired":false`)); err != nil {
 			t.Fatal(err)
 		}
 		if num(`SELECT inventory_approval_required::int FROM app_settings WHERE id=1`) != 0 {
 			t.Fatal("explicit false ignored")
+		}
+		last := func(col string) string {
+			return str(`SELECT ` + col + ` FROM inventory_doc_events WHERE doc_type='app_setting' ORDER BY id DESC LIMIT 1`)
+		}
+		if logRows() != 1 || last(`actor_id::text`) != adminU || last(`data->>'from'`) != "true" || last(`data->>'to'`) != "false" {
+			t.Fatal("switch-off not logged with actor and from/to")
+		}
+		if err := wr.UpdateAppSettingsBy(ctx, adminU, raw(`,"inventoryApprovalRequired":false`)); err != nil || logRows() != 1 {
+			t.Fatalf("saving the same value again must not log (rows=%d, err=%v)", logRows(), err)
+		}
+		if err := wr.UpdateAppSettingsBy(ctx, admin2, raw(`,"inventoryApprovalRequired":true`)); err != nil || logRows() != 2 ||
+			last(`actor_id::text`) != admin2 || last(`data->>'to'`) != "true" {
+			t.Fatalf("switch-on not logged (rows=%d, err=%v)", logRows(), err)
+		}
+		if err := wr.UpdateAppSettingsBy(ctx, adminU, raw(`,"inventoryApprovalRequired":false`)); err != nil {
+			t.Fatal(err)
 		}
 		code, _, body := call("POST", "/inventory/adjust?kind=outlet&id="+outA, tokAdmin, nextKey(),
 			map[string]any{"productId": product, "variantSize": "S", "newQty": 6, "reason": "again direct"})

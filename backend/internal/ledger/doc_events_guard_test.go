@@ -73,7 +73,7 @@ func TestInventoryDocEventsIsAppendOnly(t *testing.T) {
 		srcs["internal/db/migrations/"+filepath.Base(m)] = string(raw)
 	}
 	for _, n := range sortedKeys(srcs) {
-		if v := docEventViolation(srcs[n], n == "internal/db/migrations/0069_inventory_doc_events.sql"); v != "" {
+		if v := docEventViolation(srcs[n], docEventDDLAllowed[n]); v != "" {
 			t.Errorf("%s changes or removes inventory_doc_events rows (%q): the history is append-only, insert a new event instead", n, v)
 		}
 	}
@@ -116,4 +116,12 @@ func TestDocEventsAppendOnlyGuardRejectsBadShapes(t *testing.T) {
 			t.Errorf("%s: flagged=%v want %v", c.name, got, c.bad)
 		}
 	}
+}
+
+// docEventDDLAllowed lists the only migrations that may run DDL on inventory_doc_events: 0069
+// creates it, 0072 widens its doc_type CHECK (adds 'app_setting') with the drop/add pattern.
+// Neither touches a row.
+var docEventDDLAllowed = map[string]bool{
+	"internal/db/migrations/0069_inventory_doc_events.sql": true,
+	"internal/db/migrations/0072_inventory_approvals.sql":  true,
 }

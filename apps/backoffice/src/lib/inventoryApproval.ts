@@ -162,3 +162,8 @@ export interface CountDetailRow {
 export function countDetailRows(items: StockCountItem[]): CountDetailRow[] {
   return varianceLines(items).map(({ item, diff }) => ({ item, diff, reference: item.baselineQty ?? item.frozenQty }))
 }
+
+/** Stock the location would hold after the delta is applied to live stock; null when live is unknown. */
+export function adjustmentResultQty(liveQty: number | undefined, delta: number): number | null {
+  return liveQty === undefined ? null : liveQty + delta
+}

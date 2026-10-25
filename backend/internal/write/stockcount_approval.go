@@ -180,7 +180,9 @@ func (r *Repo) ApproveStockCountTx(ctx context.Context, t pgx.Tx, id string, p A
 	if c.status != "pending_approval" {
 		return ErrApprovalNotPending
 	}
-	if c.submittedBy != "" && strings.EqualFold(c.submittedBy, p.ApproverID) {
+	if took, err := touchedBy(ctx, t, DocRef{Type: docTypeStockCount, ID: id}, p.ApproverID); err != nil {
+		return err
+	} else if took {
 		return ErrApprovalSelf
 	}
 	if err := recheckApprover(ctx, t, p, c.loc.outletID); err != nil {

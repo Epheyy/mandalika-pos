@@ -12,7 +12,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/ledger"
 )
 
@@ -363,7 +362,7 @@ func adjustWork(ctx context.Context, kind, locID, createdBy string, a WarehouseA
 }
 
 // adjustMeta turns the absolute adjust into the apply step of an approved request: delta
-// replaces the absolute new qty (new = live + delta, never negative), and the request id and
+// replaces the absolute new qty (new = live + delta, which may be negative), and the request id and
 // reason code ride on the adjustment row. result, when set, receives what was applied.
 type adjustMeta struct {
 	delta      *int
@@ -376,10 +375,6 @@ type adjustResult struct {
 	ID            string
 	Before, After int
 }
-
-// ErrAdjustWouldGoNegative: an approved delta would take live stock below zero.
-var ErrAdjustWouldGoNegative = apperr.New(apperr.Conflict,
-	"stok saat ini sudah berubah; penyesuaian akan membuat stok negatif. Tolak dan ajukan ulang")
 
 // ApplyAdjustmentDeltaTx applies an approved adjustment request's delta to live stock inside
 // the caller's transaction (ledger kind adjust, same writer as the direct adjust). It neither
@@ -399,9 +394,7 @@ func adjustWorkCore(ctx context.Context, kind, locID, createdBy string, a Wareho
 			return e
 		}
 		if m.delta != nil {
-			if old+*m.delta < 0 {
-				return ErrAdjustWouldGoNegative
-			}
+			// the approved delta may take stock negative, as a count approval does (owner, 2026-10-25)
 			a.NewQty = old + *m.delta
 		}
 		if e := setAdjustStock(ctx, t, kind, locID, a); e != nil {

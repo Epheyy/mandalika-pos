@@ -340,10 +340,15 @@ func saveCountLines(ctx context.Context, t pgx.Tx, id string, loc countLoc, item
 // UpdateStockCount handles start, cancel, notes and line edits, all against the
 // lifecycle table above and under the count's row lock.
 func (r *Repo) UpdateStockCount(ctx context.Context, id, outletID string, u StockCountUpdate) error {
-	return retryBusy(ctx, func() error { return r.updateStockCount(ctx, id, outletID, u) })
+	return r.UpdateStockCountBy(ctx, id, outletID, "", u)
 }
 
-func (r *Repo) updateStockCount(ctx context.Context, id, outletID string, u StockCountUpdate) error {
+// UpdateStockCountBy is UpdateStockCount recording actor ("" allowed) as the saver of counted lines.
+func (r *Repo) UpdateStockCountBy(ctx context.Context, id, outletID, actor string, u StockCountUpdate) error {
+	return retryBusy(ctx, func() error { return r.updateStockCount(ctx, id, outletID, actor, u) })
+}
+
+func (r *Repo) updateStockCount(ctx context.Context, id, outletID, actor string, u StockCountUpdate) error {
 	if e := validateCountItems(u.Items); e != nil {
 		return e
 	}
@@ -391,8 +396,16 @@ func (r *Repo) updateStockCount(ctx context.Context, id, outletID string, u Stoc
 			if e := insertStockItems(ctx, t, id, c.loc, u.Items); e != nil {
 				return e
 			}
-		} else if e := saveCountLines(ctx, t, id, c.loc, u.Items, true); e != nil {
-			return e
+		} else {
+			if e := saveCountLines(ctx, t, id, c.loc, u.Items, true); e != nil {
+				return e
+			}
+			// The lines store no actor: record who saved counted lines, for the strict four-eyes check.
+			if actor != "" {
+				if e := insertDocEvent(ctx, t, docTypeStockCount, id, "updated", actor, "", map[string]any{"lines": len(u.Items)}); e != nil {
+					return e
+				}
+			}
 		}
 	}
 	if u.Notes != "" {

@@ -7,6 +7,7 @@ import { usePolledQuery } from '../../hooks/usePolledQuery'
 import {
   adjustmentDelta,
   adjustmentDrift,
+  adjustmentResultQty,
   countDetailRows,
   newIdempotencyKey,
   reasonLabel,
@@ -39,6 +40,7 @@ function Row({ k, v }: { k: string; v: string | number }) {
 function AdjustmentBody({ r }: { r: AdjustmentRequest }) {
   const delta = adjustmentDelta(r.qtyAtRequest, r.requestedNewQty)
   const drift = adjustmentDrift(r.qtyAtRequest, r.liveQty)
+  const resulting = adjustmentResultQty(r.liveQty, delta)
   return (
     <div className="space-y-2">
       <Row k="Produk" v={`${r.productName ?? r.productId} · ${r.variantSize}`} />
@@ -49,6 +51,9 @@ function AdjustmentBody({ r }: { r: AdjustmentRequest }) {
       <Row k="Selisih yang akan diterapkan" v={signed(delta)} />
       <Row k="Alasan" v={reasonLabel(r.reasonCode)} />
       {r.reasonText && <Row k="Keterangan" v={r.reasonText} />}
+      {resulting !== null && resulting < 0 && (
+        <p role="alert" className="text-xs font-bold text-red-700 bg-red-50 rounded-xl p-3">Stok akan menjadi minus: {resulting}</p>
+      )}
       {drift !== 0 && (
         <p className="text-xs text-amber-700 bg-amber-50 rounded-xl p-3">
           Stok berubah sejak pengajuan. Yang diterapkan adalah selisih ({signed(delta)}), bukan jumlah baru.

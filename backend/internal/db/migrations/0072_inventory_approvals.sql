@@ -66,3 +66,10 @@ ALTER TABLE app_settings ADD COLUMN inventory_approval_required boolean NOT NULL
 
 -- The PIN lockout audit also records inventory approvals (transfer_id stays NULL for those).
 ALTER TABLE receive_pin_attempts ADD COLUMN doc_type text, ADD COLUMN doc_id uuid;
+
+-- A change of app_settings.inventory_approval_required is logged as an inventory_doc_events row
+-- (doc_type 'app_setting', doc_id the fixed id write.InventorySettingDocID). Widen the 0069 CHECK
+-- with the drop/add pattern of 0066; the doc-events guard allows DDL on the table in 0069 and here.
+ALTER TABLE inventory_doc_events DROP CONSTRAINT inventory_doc_events_doc_type_check;
+ALTER TABLE inventory_doc_events ADD CONSTRAINT inventory_doc_events_doc_type_check
+  CHECK (doc_type IN ('stock_count','adjustment_request','requisition','outlet_giveaway','app_setting'));

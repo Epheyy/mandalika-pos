@@ -40,7 +40,7 @@ func (h *Handlers) UpdateStockCount(w http.ResponseWriter, r *http.Request) {
 	c, _ := h.caller(r)
 	// No outlet guard — the repo (lockCount) authorizes: outlet counts must match
 	// the caller's outlet; warehouse counts are permission-gated by the route.
-	err := h.Write.UpdateStockCount(r.Context(), chi.URLParam(r, "id"), c.outletID, body)
+	err := h.Write.UpdateStockCountBy(r.Context(), chi.URLParam(r, "id"), c.outletID, callerUserID(r), body)
 	if countConflict(w, r, err) {
 		return
 	}
