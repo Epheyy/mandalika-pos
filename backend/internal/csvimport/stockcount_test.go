@@ -96,6 +96,9 @@ func TestPlanStockCountSkuNarrowsToTheCountsOwnLines(t *testing.T) {
 	if p.Report.HasErrors() || p.Report.Summary.Matched != 1 || p.Report.Summary.Ambiguous != 0 {
 		t.Fatalf("shared SKU with one variant on the count must resolve: %+v", p.Report.Summary)
 	}
+	if w := p.Report.Rows[0].Warnings; len(w) != 1 || w[0] != WarnSKUNarrowed {
+		t.Fatalf("a narrowed SKU must be shown: %v", w)
+	}
 }
 
 func TestPlanStockCountFlagsAManualBaselineThatTheCsvWillClear(t *testing.T) {
@@ -135,5 +138,19 @@ func TestPlanStockCountBarcodeAndSkuWithSameTextAreDifferentCodes(t *testing.T) 
 	p := PlanStockCount(Read([]byte("barcode,sku,counted_qty\nA-M,,1\n,A-M,2\n"), StockCountSpec), cat)
 	if p.Report.HasErrors() || p.Report.Summary.Matched != 2 || len(p.Report.Rows) != 2 {
 		t.Fatalf("barcode A-M and sku A-M are two codes: %+v %+v", p.Report.Summary, p.Report.Issues)
+	}
+}
+
+func TestPlanStockCountDigestChangesWhenBarcodesAreSwapped(t *testing.T) {
+	file := "barcode,counted_qty\n111,1\n222,2\n"
+	a := PlanStockCount(Read([]byte(file), StockCountSpec), countCatalog())
+	cat := countCatalog()
+	cat.Variants[0].Barcode, cat.Variants[2].Barcode = cat.Variants[2].Barcode, cat.Variants[0].Barcode
+	b := PlanStockCount(Read([]byte(file), StockCountSpec), cat)
+	if a.Report.Summary.Matched != b.Report.Summary.Matched || a.Report.Summary.Changed != b.Report.Summary.Changed {
+		t.Fatal("the swap must keep the counters equal for this test to mean anything")
+	}
+	if a.Report.Summary.Digest == b.Report.Summary.Digest {
+		t.Fatal("a barcode swap puts the quantities on other lines: the digest must change")
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -436,6 +437,36 @@ func TestStockCountCsvPostgres(t *testing.T) {
 			t.Fatalf("stock M = %d, want live %d + (counted 8 - frozen %d) = %d (a baseline would have given %d)",
 				stockM(), live, frozen, want, live+(8-(live-0)))
 		}
+	})
+
+	t.Run("round trip: the exported sheet, counted_qty filled, uploads unchanged and matches every line", func(t *testing.T) {
+		count9 := newCount("cv9")
+		start(count9)
+		code, _, sheet := call("GET", "/stock-counts/"+count9+"/export", tokCre, "", nil)
+		mustCode("export", 200, code, sheet)
+		recs, err := csv.NewReader(strings.NewReader(strings.TrimPrefix(sheet, "\ufeff"))).ReadAll()
+		if err != nil || len(recs) != 4 {
+			t.Fatalf("sheet %v %v", recs, err)
+		}
+		for i := 1; i < len(recs); i++ {
+			recs[i][5] = strconv.Itoa(i) // only counted_qty is filled in
+		}
+		var sb strings.Builder
+		sb.WriteString("\ufeff")
+		if err := csv.NewWriter(&sb).WriteAll(recs); err != nil {
+			t.Fatal(err)
+		}
+		rep, out := preview(tokImp, count9, sb.String())
+		s := rep.Data.Summary
+		if s.Matched != 3 || s.Unknown != 0 || s.Ambiguous != 0 || s.NotOnCount != 0 || s.Uncounted != 0 || s.Changed != 3 {
+			t.Fatalf("round trip summary %+v: %s", s, out)
+		}
+		code, out = imp(tokImp, count9, sb.String(), false, nextKey(), &rep, &s)
+		mustCode("commit", 200, code, out)
+		if num(`SELECT count(*) FROM stock_count_items WHERE stock_count_id=$1 AND actual_qty IS NOT NULL`, count9) != 3 {
+			t.Fatal("not every line was stored")
+		}
+		exec(`UPDATE stock_counts SET status='cancelled' WHERE id=$1`, count9)
 	})
 
 	t.Run("a count that is not in progress refuses preview and commit", func(t *testing.T) {

@@ -41,6 +41,7 @@ const (
 	WarnNotOnCount           = "not_on_count"
 	WarnStockMovedSinceStart = "stock_moved_since_start"
 	WarnBaselineReplaced     = "baseline_replaced"
+	WarnSKUNarrowed          = "sku_narrowed"
 )
 
 // StockCountSummary holds the exact counters of one count import. The commit must send the
@@ -199,6 +200,7 @@ const (
 	resolved = iota
 	unknownCode
 	ambiguousCode
+	resolvedNarrowed // a shared SKU matched to the one line that is on this count
 )
 
 // resolve maps a scanned code to one variant. A barcode (the column wins when the row has
@@ -229,6 +231,9 @@ func (ix *countIndex) bySKUCode(sku string) (*StockCountVariant, int) {
 	}
 	switch {
 	case len(onCount) == 1:
+		if len(vs) > 1 {
+			return onCount[0], resolvedNarrowed
+		}
 		return onCount[0], resolved
 	case len(onCount) > 1:
 		return nil, ambiguousCode
@@ -257,7 +262,7 @@ func PlanStockCount(t *Table, cat StockCountCatalog) *StockCountPlan {
 	}
 	groups, order := groupScans(b, t, &rep)
 	ix := newCountIndex(cat)
-	matched := map[lineKey]bool{}
+	matched := map[lineKey]int{} // matched line -> its planned quantity
 	for _, gk := range order {
 		g := groups[gk]
 		if g.qtyBad {
@@ -340,7 +345,7 @@ func parseCountedQty(s string) (int, error) {
 
 // planGroup resolves one summed code and records its row, counters and (when it matched a
 // line of the count) the save.
-func planGroup(b *Builder, rep *StockCountReport, plan *StockCountPlan, ix *countIndex, matched map[lineKey]bool, g *scanGroup) {
+func planGroup(b *Builder, rep *StockCountReport, plan *StockCountPlan, ix *countIndex, matched map[lineKey]int, g *scanGroup) {
 	row := StockCountRow{Row: g.row.Index, Code: g.code, Counted: g.qty, Warnings: []string{}}
 	v, status := ix.resolve(g)
 	switch status {
@@ -353,6 +358,10 @@ func planGroup(b *Builder, rep *StockCountReport, plan *StockCountPlan, ix *coun
 		row.Warnings = append(row.Warnings, WarnAmbiguousSKU)
 		b.Issue(g.row, "sku", SevError, WarnAmbiguousSKU, "SKU dipakai lebih dari satu varian; pakai barcode", g.code)
 	default:
+		if status == resolvedNarrowed {
+			row.Warnings = append(row.Warnings, WarnSKUNarrowed)
+			b.Issue(g.row, "sku", SevWarning, WarnSKUNarrowed, "SKU dipakai beberapa produk; dicocokkan ke baris di opname ini", g.code)
+		}
 		planMatched(b, rep, plan, ix, matched, g, v, &row)
 	}
 	if len(rep.Rows) < MaxReportRows {
@@ -360,7 +369,7 @@ func planGroup(b *Builder, rep *StockCountReport, plan *StockCountPlan, ix *coun
 	}
 }
 
-func planMatched(b *Builder, rep *StockCountReport, plan *StockCountPlan, ix *countIndex, matched map[lineKey]bool,
+func planMatched(b *Builder, rep *StockCountReport, plan *StockCountPlan, ix *countIndex, matched map[lineKey]int,
 	g *scanGroup, v *StockCountVariant, row *StockCountRow) {
 	k := lineKey{v.ProductID, v.Size}
 	line := ix.lines[k]
@@ -370,13 +379,13 @@ func planMatched(b *Builder, rep *StockCountReport, plan *StockCountPlan, ix *co
 		b.Issue(g.row, "barcode", SevWarning, WarnNotOnCount, "kode bukan bagian dari stock count ini; tidak disimpan", g.code)
 		return
 	}
-	if matched[k] {
+	if _, dup := matched[k]; dup {
 		rep.errorRows++
 		b.Issue(g.row, "barcode", SevError, "duplicate_line",
 			"dua kode berbeda menunjuk ke varian yang sama; gabungkan jumlahnya di file", g.code)
 		return
 	}
-	matched[k] = true
+	matched[k] = g.qty
 	rep.Summary.Matched++
 	expected, diff := line.Frozen, g.qty-line.Frozen
 	row.MatchedLine = &StockCountLineRef{ProductID: line.ProductID, VariantSize: line.VariantSize,
@@ -398,9 +407,9 @@ func planMatched(b *Builder, rep *StockCountReport, plan *StockCountPlan, ix *co
 
 // listUncounted lists the count lines absent from the file that are still not counted. The
 // counter is exact; the list is capped.
-func listUncounted(rep *StockCountReport, cat StockCountCatalog, matched map[lineKey]bool) {
+func listUncounted(rep *StockCountReport, cat StockCountCatalog, matched map[lineKey]int) {
 	for _, l := range cat.Lines {
-		if matched[lineKey{l.ProductID, l.VariantSize}] || l.Actual != nil {
+		if _, ok := matched[lineKey{l.ProductID, l.VariantSize}]; ok || l.Actual != nil {
 			continue
 		}
 		rep.Summary.Uncounted++
@@ -412,20 +421,22 @@ func listUncounted(rep *StockCountReport, cat StockCountCatalog, matched map[lin
 }
 
 // planDigest hashes what a preview saw of every matched line: its stored counted value, whether it
-// carries a manual baseline, and whether stock moved since the count started. The commit recomputes
+// carries a manual baseline, the quantity planned for it (so a catalog barcode swap changes the
+// digest), and whether stock moved since the count started. The commit recomputes
 // it, so a manual save or a new movement between preview and commit is a stale preview even when the
 // counters are unchanged. Sorted by line, so the file's row order does not matter.
-func planDigest(cat StockCountCatalog, matched map[lineKey]bool) string {
+func planDigest(cat StockCountCatalog, matched map[lineKey]int) string {
 	var parts []string
 	for _, l := range cat.Lines {
-		if !matched[lineKey{l.ProductID, l.VariantSize}] {
+		qty, ok := matched[lineKey{l.ProductID, l.VariantSize}]
+		if !ok {
 			continue
 		}
 		prev := "-"
 		if l.Actual != nil {
 			prev = strconv.Itoa(*l.Actual)
 		}
-		parts = append(parts, fmt.Sprintf("%s|%s|%s|%t|%t", l.ProductID, l.VariantSize, prev, l.HasBaseline, l.Moved))
+		parts = append(parts, fmt.Sprintf("%s|%s|%s|%d|%t|%t", l.ProductID, l.VariantSize, prev, qty, l.HasBaseline, l.Moved))
 	}
 	sort.Strings(parts)
 	sum := sha256.Sum256([]byte(strings.Join(parts, "\n")))

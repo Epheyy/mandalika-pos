@@ -1,11 +1,15 @@
 import type { StockCountImportReport, StockCountImportRow } from '@mandalika/api'
 
+type RowWarning = StockCountImportRow['warnings'][number]
+
 /** Row warning codes (the contract's StockCountImportWarning) in Indonesian. */
-export const WARNING_LABEL: Record<string, string> = {
+export const WARNING_LABEL: Record<RowWarning, string> = {
   unknown_code: 'Kode tidak dikenal',
   ambiguous_sku: 'SKU ganda, pakai barcode',
   not_on_count: 'Bukan bagian dari opname ini (tidak disimpan)',
   stock_moved_since_start: 'Stok bergerak sejak opname dimulai',
+  baseline_replaced: 'Baseline input manual akan diganti snapshot awal opname',
+  sku_narrowed: 'SKU dipakai beberapa produk; dicocokkan ke baris di opname ini',
 }
 
 /** Unknown or ambiguous codes, bad rows and file errors block "Terapkan" (the server refuses them too). */
