@@ -35,6 +35,7 @@ func TestDeadlineForTable(t *testing.T) {
 		{"POST", "/api/v1/customers/import", 0},
 		{"POST", "/api/v1/ingredients/import", 0},
 		{"POST", "/api/v1/admin/erp/sku-mapping/import", 0},
+		{"POST", "/api/v1/stock-counts/abc/import", 0},
 		// chi falls back from the POST-only import route to /products/{id}: stays default.
 		{"PUT", "/api/v1/products/import", DefaultDeadline},
 	}

@@ -36,7 +36,7 @@ type deadlineRule struct {
 //   - POST /internal/erp/catalog-pull, /admin/erp/catalog-pull: LongDeadline. The HTTP
 //     pull budget is 20 s plus a 5 s run grace (25 s) and the lock release uses its own
 //     context, so 28 s does not cut a legitimate run.
-//   - POST */import (products, customers, ingredients, admin/erp/sku-mapping): EXEMPT.
+//   - POST */import (products, customers, ingredients, admin/erp/sku-mapping, stock-counts/{id}): EXEMPT.
 //     These routes extend their own deadlines (read 60 s, write 150 s, imports.go) for a
 //     16 MiB upload plus a 50k-row plan, which a 28 s context would cut mid-transaction.
 //     They are bounded by those windows and the two-slot concurrency cap instead.
@@ -51,6 +51,7 @@ var deadlineExceptions = []deadlineRule{
 	{http.MethodPost, "/api/v1/customers/import", 0},
 	{http.MethodPost, "/api/v1/ingredients/import", 0},
 	{http.MethodPost, "/api/v1/admin/erp/sku-mapping/import", 0},
+	{http.MethodPost, "/api/v1/stock-counts/{id}/import", 0},
 }
 
 func deadlineFor(r *http.Request) time.Duration {

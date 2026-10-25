@@ -24,6 +24,7 @@ import { Pagination } from '../ui/Pagination'
 import { countStatusLabel, countStatusTone, isApprovalRequired, varianceLines } from '../lib/inventoryApproval'
 import { SubmitCountModal } from './approvals/SubmitCountModal'
 import { notifyApprovalsChanged } from './approvals/useApprovalCount'
+import { CountCsvPanel } from './stockcount/CountCsvPanel'
 
 
 const tone = countStatusTone
@@ -348,6 +349,7 @@ export default function StockCount() {
                     )}
                     {sc.status === 'in_progress' && (
                       <>
+                        <CountCsvPanel count={sc} onApplied={() => { dropEdits(sc.id); void scq.refetch() }} />
                         <Button variant="secondary" size="sm" loading={activeId === sc.id} onClick={() => saveProgress(sc)}>
                           Simpan
                         </Button>

@@ -26,7 +26,7 @@ type bodyLimitRule struct {
 // default cap. The handlers below enforce their own (same-sized) cap too; the outer
 // cap must not be smaller or it would silently win.
 //   - POST /sync/batch, /sync/review-items: tablet queue/check-in batches (8 MiB).
-//   - POST */import (products, customers, ingredients, admin/erp/sku-mapping): CSV text
+//   - POST */import (products, customers, ingredients, admin/erp/sku-mapping, stock-counts/{id}): CSV text
 //     inside a JSON body (20 MiB).
 //   - POST /stock-counts (backoffice StockCount.tsx sends every product x variant) and
 //     PUT /ingredient-stock-counts/{id}/save (OpnameTab.tsx sends every item): full line
@@ -44,6 +44,7 @@ var bodyLimitExceptions = []bodyLimitRule{
 	{http.MethodPost, "/api/v1/customers/import", handlers.ImportBodyCap},
 	{http.MethodPost, "/api/v1/ingredients/import", handlers.ImportBodyCap},
 	{http.MethodPost, "/api/v1/admin/erp/sku-mapping/import", handlers.ImportBodyCap},
+	{http.MethodPost, "/api/v1/stock-counts/{id}/import", handlers.ImportBodyCap},
 	{http.MethodPost, "/api/v1/stock-counts", stockCountBodyLimit},
 	{http.MethodPut, "/api/v1/ingredient-stock-counts/{id}/save", stockCountBodyLimit},
 }

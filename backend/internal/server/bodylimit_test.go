@@ -81,6 +81,8 @@ func TestBodyLimitForTable(t *testing.T) {
 		{"POST", "/api/v1/customers/import", handlers.ImportBodyCap},
 		{"POST", "/api/v1/ingredients/import", handlers.ImportBodyCap},
 		{"POST", "/api/v1/admin/erp/sku-mapping/import", handlers.ImportBodyCap},
+		{"POST", "/api/v1/stock-counts/abc/import", handlers.ImportBodyCap},
+		{"PUT", "/api/v1/stock-counts/abc/import", oneMiB},
 		{"POST", "/api/v1/stock-counts", stockCountBodyLimit},
 		{"PUT", "/api/v1/stock-counts/abc", oneMiB},
 		{"POST", "/api/v1/ingredient-stock-counts", oneMiB},
