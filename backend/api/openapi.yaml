@@ -2728,7 +2728,7 @@ components:
         actorName: { type: string }
         reasonCode: { $ref: '#/components/schemas/InventoryReasonCode' }
         reasonText: { type: string }
-        approvedBy: { type: string, description: "Display name of the approver of the adjustment request or stock count behind this row; absent for rows without an approval." }
+        approvedByName: { type: string, description: "Display name of the approver of the adjustment request or stock count behind this row; absent for rows without an approval." }
         docNumber: { type: string, description: "Number (ADJ) of the approved adjustment request behind this row." }
         requisitionNumber: { type: string, description: "Number (PB) of the Permintaan Barang the transfer of this row was created from." }
         erpStatus: { type: string, description: "Status of the ERP outbox document that carries this movement, when there is one." }
