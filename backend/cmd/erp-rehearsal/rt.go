@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -29,13 +30,23 @@ type rt struct {
 	db        *pgxpool.Pool
 	notes     []string
 	vars      map[string]string // facts later steps need (order ids, outbox ids ...)
+	stepName  string            // the running step, named in transport-retry logs
 }
 
 func newRT(c config) *rt {
-	return &rt{
-		cfg: c, start: time.Now(), fgs: fixtures(c.runID), items: map[string]*item{}, vars: map[string]string{},
-		stub: newHTTP(c.stubURL, map[string]string{"Authorization": "Bearer " + c.stubKey}),
+	r := &rt{cfg: c, start: time.Now(), fgs: fixtures(c.runID), items: map[string]*item{}, vars: map[string]string{}}
+	r.stub = r.client(c.stubURL, map[string]string{"Authorization": "Bearer " + c.stubKey})
+	return r
+}
+
+// client builds an HTTP client whose transport retries are logged under the running step.
+func (r *rt) client(base string, hdr map[string]string) *httpc {
+	c := newHTTP(base, hdr)
+	c.onRetry = func(msg string) {
+		fmt.Fprintf(os.Stderr, "[retry] step %s: %s\n", r.stepName, msg)
+		r.note("%s", msg)
 	}
+	return c
 }
 
 func (r *rt) close() {
@@ -65,6 +76,7 @@ func (r *rt) runAll(steps []step) []result {
 			continue
 		}
 		r.notes = nil
+		r.stepName = s.n + " " + s.name
 		t0 := time.Now()
 		err := s.fn(r)
 		res := result{n: s.n, name: s.name, status: "PASS", notes: r.notes, err: err, took: time.Since(t0)}

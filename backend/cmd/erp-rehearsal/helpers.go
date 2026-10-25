@@ -19,7 +19,7 @@ func (r *rt) sched() map[string]string { return map[string]string{schedHeader: r
 
 // login signs in as the admin and builds the backend client (token never printed).
 func (r *rt) login() error {
-	anon := newHTTP(r.cfg.backendURL, nil)
+	anon := r.client(r.cfg.backendURL, nil)
 	out, err := anon.call("POST", "/api/v1/auth/login", nil, obj{"email": r.cfg.adminEmail, "password": r.cfg.adminPass})
 	if err != nil {
 		return fmt.Errorf("backend unreachable at %s: %w", hostOf(r.cfg.backendURL), err)
@@ -34,7 +34,7 @@ func (r *rt) login() error {
 	if tok == "" {
 		return fmt.Errorf("admin login answered without an access token")
 	}
-	r.be = newHTTP(r.cfg.backendURL+"/api/v1", map[string]string{"Authorization": "Bearer " + tok})
+	r.be = r.client(r.cfg.backendURL+"/api/v1", map[string]string{"Authorization": "Bearer " + tok})
 	r.be.noCache = true
 	return nil
 }
