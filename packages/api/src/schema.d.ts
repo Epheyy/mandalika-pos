@@ -5331,8 +5331,9 @@ export interface components {
         };
         ApprovalQueueResponse: {
             data: components["schemas"]["ApprovalQueueItem"][];
-            /** @description Number of pending items, for the nav badge. */
+            /** @description Number of pending items the caller may see, for the nav badge. */
             pendingCount: number;
+            meta?: components["schemas"]["Meta"];
         };
         /** @description 409 body. When inventoryApprovalRequired is on and the direct endpoint was used, data.code is approval_required (same machine-code convention as ImportConflictResponse). Other 409s (lock conflict, invalid state, idempotency key reuse) send `{error}` with no data. */
         InventoryConflictError: {
@@ -11172,6 +11173,8 @@ export interface operations {
         parameters: {
             query?: {
                 status?: "pending";
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
             };
             header?: never;
             path?: never;
