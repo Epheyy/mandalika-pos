@@ -144,6 +144,121 @@ func approverRoles(ctx context.Context, q interface {
 	return roles, nil // no row means no extra roles (admins still pass)
 }
 
+// pinSubject is one approver PIN check. authorized says the approver may approve at this
+// document's location (role and scope), so only then does the approver's own lockout counter
+// exist and move; hash and setAt are the approver's stored PIN (nil when none). attempt writes
+// the audit row (never the PIN) for the caller's kind of document.
+type pinSubject struct {
+	approverID, requesterID string
+	exists, authorized      bool
+	hash                    *string
+	setAt                   *time.Time
+	pin                     string
+	attempt                 func(approverKnown bool, outcome string) error
+}
+
+// pinCheck carries a passed check to its success bookkeeping.
+type pinCheck struct {
+	s                 pinSubject
+	now               time.Time
+	apprLock, reqLock lockRow
+}
+
+// checkApproverPIN is the lockout + argon2 core shared by the transfer-receive mint and the
+// inventory approvals. Lock order is fixed (approver row, then requester row). A locked
+// subject is never verified, correct PIN or not. On a lockout or a refused PIN it COMMITS the
+// counters and the audit row on tx itself and returns *LockedError / ErrApprovalRefused:
+// returning the refusal into the caller's deferred rollback would make the lockout never fire.
+// On success nothing is written yet; the caller does its own work and then calls succeed.
+func checkApproverPIN(ctx context.Context, tx pgx.Tx, s pinSubject) (*pinCheck, error) {
+	// Lockout rows exist only for real users (FK). Lock order: approver, then requester.
+	if s.authorized {
+		if err := ensureLockout(ctx, tx, "approver", s.approverID); err != nil {
+			return nil, err
+		}
+	}
+	if err := ensureLockout(ctx, tx, "requester", s.requesterID); err != nil {
+		return nil, err
+	}
+	var apprLock, reqLock lockRow
+	var err error
+	if s.authorized {
+		if apprLock, err = loadLockout(ctx, tx, "approver", s.approverID); err != nil {
+			return nil, err
+		}
+	}
+	if reqLock, err = loadLockout(ctx, tx, "requester", s.requesterID); err != nil {
+		return nil, err
+	}
+	var now time.Time
+	if err := tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&now); err != nil {
+		return nil, err
+	}
+	if locked := (apprLock.have && rules.IsLocked(apprLock.state, now)) || (reqLock.have && rules.IsLocked(reqLock.state, now)); locked {
+		le := &LockedError{
+			Hard: (apprLock.have && apprLock.state.HardLocked) || (reqLock.have && reqLock.state.HardLocked),
+		}
+		le.RetryAfter = max(rules.RetryAfter(apprLock.state, now), rules.RetryAfter(reqLock.state, now))
+		// Checked BEFORE argon2: a locked subject is never verified, correct PIN or not.
+		if err := s.attempt(s.exists, "locked"); err != nil {
+			return nil, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
+		return nil, le
+	}
+
+	eligible := s.authorized && s.hash != nil && *s.hash != "" && s.setAt != nil
+	toCheck := dummyPinHash()
+	if eligible {
+		toCheck = *s.hash
+	}
+	pinOK, _ := rules.VerifyPassword(s.pin, toCheck)
+
+	if !(eligible && pinOK) {
+		outcome := "wrong_pin"
+		if !eligible {
+			outcome = "ineligible"
+		}
+		if apprLock.have {
+			if err := saveLockout(ctx, tx, "approver", s.approverID, rules.NextLockout(apprLock.state, now, rules.LockoutFail, rules.ApproverLockout)); err != nil {
+				return nil, err
+			}
+		}
+		if reqLock.have {
+			if err := saveLockout(ctx, tx, "requester", s.requesterID, rules.NextLockout(reqLock.state, now, rules.LockoutFail, rules.RequesterLockout)); err != nil {
+				return nil, err
+			}
+		}
+		if err := s.attempt(s.exists, outcome); err != nil {
+			return nil, err
+		}
+		// Commit the counters: returning the refusal into the deferred rollback would
+		// make the lockout never fire.
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
+		return nil, ErrApprovalRefused
+	}
+	return &pinCheck{s: s, now: now, apprLock: apprLock, reqLock: reqLock}, nil
+}
+
+// succeed resets both counters and writes the "granted" audit row.
+func (c *pinCheck) succeed(ctx context.Context, tx pgx.Tx) error {
+	if c.apprLock.have {
+		if err := saveLockout(ctx, tx, "approver", c.s.approverID, rules.NextLockout(c.apprLock.state, c.now, rules.LockoutSuccess, rules.ApproverLockout)); err != nil {
+			return err
+		}
+	}
+	if c.reqLock.have {
+		if err := saveLockout(ctx, tx, "requester", c.s.requesterID, rules.NextLockout(c.reqLock.state, c.now, rules.LockoutSuccess, rules.RequesterLockout)); err != nil {
+			return err
+		}
+	}
+	return c.s.attempt(true, "granted")
+}
+
 // MintReceiveApproval verifies the approver's PIN under the server-side lockout and
 // stores a single-use grant. Refusals: ErrApprovalRefused (uniform), *LockedError,
 // ErrNotFound, apperr.Forbidden (transfer not for this outlet), apperr.Conflict.
@@ -225,74 +340,15 @@ func (r *Repo) mintReceiveApproval(ctx context.Context, in MintInput) (MintResul
 	// so a cashier elsewhere cannot lock another outlet's approver, and an approver's lock
 	// state never shows to someone who could not use that approver anyway.
 	authorized := exists && ApproverAllowed(role, roles) && ReceiveScope(in.OutletID, dest, role, apprOutlet) == ""
-	// Lockout rows exist only for real users (FK). Lock order: approver, then requester.
-	if authorized {
-		if err := ensureLockout(ctx, tx, "approver", in.ApproverID); err != nil {
-			return zero, err
-		}
-	}
-	if err := ensureLockout(ctx, tx, "requester", in.RequesterID); err != nil {
+	chk, err := checkApproverPIN(ctx, tx, pinSubject{
+		approverID: in.ApproverID, requesterID: in.RequesterID,
+		exists: exists, authorized: authorized, hash: hash, setAt: setAt, pin: in.PIN,
+		attempt: func(approverKnown bool, outcome string) error {
+			return insertAttempt(ctx, tx, in, approverKnown, outcome)
+		},
+	})
+	if err != nil {
 		return zero, err
-	}
-	var apprLock, reqLock lockRow
-	if authorized {
-		if apprLock, err = loadLockout(ctx, tx, "approver", in.ApproverID); err != nil {
-			return zero, err
-		}
-	}
-	if reqLock, err = loadLockout(ctx, tx, "requester", in.RequesterID); err != nil {
-		return zero, err
-	}
-	var now time.Time
-	if err := tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&now); err != nil {
-		return zero, err
-	}
-	if locked := (apprLock.have && rules.IsLocked(apprLock.state, now)) || (reqLock.have && rules.IsLocked(reqLock.state, now)); locked {
-		le := &LockedError{
-			Hard: (apprLock.have && apprLock.state.HardLocked) || (reqLock.have && reqLock.state.HardLocked),
-		}
-		le.RetryAfter = max(rules.RetryAfter(apprLock.state, now), rules.RetryAfter(reqLock.state, now))
-		// Checked BEFORE argon2: a locked subject is never verified, correct PIN or not.
-		if err := insertAttempt(ctx, tx, in, exists, "locked"); err != nil {
-			return zero, err
-		}
-		if err := tx.Commit(ctx); err != nil {
-			return zero, err
-		}
-		return zero, le
-	}
-
-	eligible := authorized && hash != nil && *hash != "" && setAt != nil
-	toCheck := dummyPinHash()
-	if eligible {
-		toCheck = *hash
-	}
-	pinOK, _ := rules.VerifyPassword(in.PIN, toCheck)
-
-	if !(eligible && pinOK) {
-		outcome := "wrong_pin"
-		if !eligible {
-			outcome = "ineligible"
-		}
-		if apprLock.have {
-			if err := saveLockout(ctx, tx, "approver", in.ApproverID, rules.NextLockout(apprLock.state, now, rules.LockoutFail, rules.ApproverLockout)); err != nil {
-				return zero, err
-			}
-		}
-		if reqLock.have {
-			if err := saveLockout(ctx, tx, "requester", in.RequesterID, rules.NextLockout(reqLock.state, now, rules.LockoutFail, rules.RequesterLockout)); err != nil {
-				return zero, err
-			}
-		}
-		if err := insertAttempt(ctx, tx, in, exists, outcome); err != nil {
-			return zero, err
-		}
-		// Commit the counters: returning the refusal into the deferred rollback would
-		// make the lockout never fire.
-		if err := tx.Commit(ctx); err != nil {
-			return zero, err
-		}
-		return zero, ErrApprovalRefused
 	}
 
 	var out MintResult
@@ -318,17 +374,7 @@ func (r *Repo) mintReceiveApproval(ctx context.Context, in MintInput) (MintResul
 		return zero, err
 	}
 	out.ApproverName = apprName
-	if apprLock.have {
-		if err := saveLockout(ctx, tx, "approver", in.ApproverID, rules.NextLockout(apprLock.state, now, rules.LockoutSuccess, rules.ApproverLockout)); err != nil {
-			return zero, err
-		}
-	}
-	if reqLock.have {
-		if err := saveLockout(ctx, tx, "requester", in.RequesterID, rules.NextLockout(reqLock.state, now, rules.LockoutSuccess, rules.RequesterLockout)); err != nil {
-			return zero, err
-		}
-	}
-	if err := insertAttempt(ctx, tx, in, true, "granted"); err != nil {
+	if err := chk.succeed(ctx, tx); err != nil {
 		return zero, err
 	}
 	return out, tx.Commit(ctx)

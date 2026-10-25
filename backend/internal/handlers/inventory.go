@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/jackc/pgx/v5"
@@ -55,6 +56,14 @@ func (h *Handlers) AdjustLocationStock(w http.ResponseWriter, r *http.Request) {
 		Unkeyed: func() error { return h.Write.AdjustLocationStock(r.Context(), kind, id, uid, a) },
 		Effect: func(ctx context.Context, tx pgx.Tx) error {
 			return h.Write.AdjustLocationStockTx(ctx, tx, kind, id, uid, a)
+		},
+		// 409 {error, data:{code:"approval_required"}} while inventoryApprovalRequired is on.
+		OnErr: func(w http.ResponseWriter, err error) bool {
+			if errors.Is(err, write.ErrApprovalRequired) {
+				writeApprovalRequired(w, err)
+				return true
+			}
+			return false
 		},
 	})
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/ledger"
 )
 
@@ -350,21 +351,72 @@ func (r *Repo) AdjustLocationStockTx(ctx context.Context, tx pgx.Tx, kind, locID
 // adjustWork locks the row and reads the old qty, applies the absolute set, logs the
 // correction and records the ledger movement (new - old; a no-op records nothing).
 func adjustWork(ctx context.Context, kind, locID, createdBy string, a WarehouseAdjust) func(pgx.Tx) error {
+	core := adjustWorkCore(ctx, kind, locID, createdBy, a, adjustMeta{})
+	return func(t pgx.Tx) error {
+		// The direct, absolute adjust is closed while approval is on (inventory_approval_required):
+		// read inside this transaction, before any stock is touched.
+		if e := requireNoApproval(ctx, t); e != nil {
+			return e
+		}
+		return core(t)
+	}
+}
+
+// adjustMeta turns the absolute adjust into the apply step of an approved request: delta
+// replaces the absolute new qty (new = live + delta, never negative), and the request id and
+// reason code ride on the adjustment row. result, when set, receives what was applied.
+type adjustMeta struct {
+	delta      *int
+	requestID  string
+	reasonCode string
+	result     *adjustResult
+}
+
+type adjustResult struct {
+	ID            string
+	Before, After int
+}
+
+// ErrAdjustWouldGoNegative: an approved delta would take live stock below zero.
+var ErrAdjustWouldGoNegative = apperr.New(apperr.Conflict,
+	"stok saat ini sudah berubah; penyesuaian akan membuat stok negatif. Tolak dan ajukan ulang")
+
+// ApplyAdjustmentDeltaTx applies an approved adjustment request's delta to live stock inside
+// the caller's transaction (ledger kind adjust, same writer as the direct adjust). It neither
+// begins, commits nor retries.
+func ApplyAdjustmentDeltaTx(ctx context.Context, tx pgx.Tx, kind, locID, actor string, a WarehouseAdjust, delta int, requestID, reasonCode string) (adjustResult, error) {
+	var res adjustResult
+	m := adjustMeta{delta: &delta, requestID: requestID, reasonCode: reasonCode, result: &res}
+	err := locationWorkTx(ctx, tx, kind, locID, adjustWorkCore(ctx, kind, locID, actor, a, m))
+	return res, err
+}
+
+func adjustWorkCore(ctx context.Context, kind, locID, createdBy string, a WarehouseAdjust, m adjustMeta) func(pgx.Tx) error {
 	whID, outID := locationIDs(kind, locID)
 	return func(t pgx.Tx) error {
 		old, e := lockAdjustStock(ctx, t, kind, locID, a)
 		if e != nil {
 			return e
 		}
+		if m.delta != nil {
+			if old+*m.delta < 0 {
+				return ErrAdjustWouldGoNegative
+			}
+			a.NewQty = old + *m.delta
+		}
 		if e := setAdjustStock(ctx, t, kind, locID, a); e != nil {
 			return e
 		}
 		var adjID string
 		if e := t.QueryRow(ctx,
-			`INSERT INTO warehouse_stock_adjustments (warehouse_id, outlet_id, product_id, variant_size, new_qty, reason, created_by)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-			whID, outID, a.ProductID, a.VariantSize, a.NewQty, a.Reason, nullUUID(createdBy)).Scan(&adjID); e != nil {
+			`INSERT INTO warehouse_stock_adjustments (warehouse_id, outlet_id, product_id, variant_size, new_qty, reason, created_by, request_id, reason_code)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+			whID, outID, a.ProductID, a.VariantSize, a.NewQty, a.Reason, nullUUID(createdBy),
+			nullUUID(m.requestID), nullStr(m.reasonCode)).Scan(&adjID); e != nil {
 			return e
+		}
+		if m.result != nil {
+			*m.result = adjustResult{ID: adjID, Before: old, After: a.NewQty}
 		}
 		_, e = ledger.Record(ctx, t, ledger.Document{
 			Key: "adjust:" + adjID, Kind: ledger.KindAdjust,
@@ -436,4 +488,16 @@ func (r *Repo) SetOutletPar(ctx context.Context, outletID, productID, variantSiz
 			outletID, productID, variantSize, par)
 		return e
 	})
+}
+
+// liveLocationStock reads the live on-hand qty of a variant at an outlet or warehouse (no row
+// counts as 0) without locking it: what a requester sees when they ask for an adjustment.
+func liveLocationStock(ctx context.Context, t pgx.Tx, kind, locID, productID, size string) (int, error) {
+	q := `SELECT COALESCE((SELECT stock FROM outlet_variant_stock WHERE outlet_id=$1 AND product_id=$2 AND variant_size=$3),0)`
+	if kind == "warehouse" {
+		q = `SELECT COALESCE((SELECT stock FROM warehouse_variant_stock WHERE warehouse_id=$1 AND product_id=$2 AND variant_size=$3),0)`
+	}
+	var live int
+	err := t.QueryRow(ctx, q, locID, productID, size).Scan(&live)
+	return live, err
 }

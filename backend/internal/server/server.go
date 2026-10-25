@@ -165,6 +165,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Get("/shifts/{id}", h.Shift)
 			r.Get("/stock-counts", h.StockCounts)
 			r.Get("/stock-counts/{id}", h.StockCount)
+			// S3 Persetujuan Stok queue; the handler shows each kind only to its permission holder.
+			r.Get("/inventory/approvals", h.ListInventoryApprovals)
 			r.Get("/cash-flows", h.CashFlows)
 
 			// ── Sales writes (POS; cashier authenticated, outlet from JWT) ──
@@ -271,6 +273,14 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				// inventory location stock ops (polymorphic: outlet OR warehouse)
 				r.Post("/inventory/goods-receipt", h.CreateLocationGoodsReceipt)
 				r.Post("/inventory/adjust", h.AdjustLocationStock)
+				// S3 adjustment requests (approval flow). Approve costs an argon2 hash: own bucket.
+				r.Get("/inventory/adjustment-requests", h.ListAdjustmentRequests)
+				r.Post("/inventory/adjustment-requests", h.CreateAdjustmentRequest)
+				r.Get("/inventory/adjustment-requests/{id}", h.GetAdjustmentRequest)
+				r.With(mw.RateLimit(c, "invapprove", 20, time.Minute)).
+					Post("/inventory/adjustment-requests/{id}/approve", h.ApproveAdjustmentRequest)
+				r.Post("/inventory/adjustment-requests/{id}/reject", h.RejectAdjustmentRequest)
+				r.Post("/inventory/adjustment-requests/{id}/cancel", h.CancelAdjustmentRequest)
 				r.Put("/inventory/outlet-par", h.SetOutletPar)
 				r.Get("/inventory/overview", h.InventoryOverview)
 				r.Get("/inventory/ingredient-overview", h.IngredientOverview)
@@ -338,6 +348,11 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Post("/stock-counts", h.CreateStockCount)
 				r.Put("/stock-counts/{id}", h.UpdateStockCount)
 				r.Post("/stock-counts/{id}/complete", h.CompleteStockCount)
+				// S3 count approval flow
+				r.Post("/stock-counts/{id}/submit", h.SubmitStockCount)
+				r.With(mw.RateLimit(c, "invapprove", 20, time.Minute)).
+					Post("/stock-counts/{id}/approve", h.ApproveStockCount)
+				r.Post("/stock-counts/{id}/reject", h.RejectStockCount)
 				r.Post("/oversell-records/acknowledge", h.AcknowledgeOversell)
 			})
 
