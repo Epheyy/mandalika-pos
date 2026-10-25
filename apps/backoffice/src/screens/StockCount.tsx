@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
-import { fetchAllPages, type StockCount, type StockCountItem, type Product, type Outlet, type Warehouse, type ListResult } from '@mandalika/api'
+import { fetchAllPages, type AppSettings, type StockCountSubmitInput, type StockCount, type StockCountItem, type Product, type Outlet, type Warehouse, type ListResult } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
-import { Plus, Play, CheckCircle, XCircle, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
+import { Plus, Play, CheckCircle, Send, XCircle, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
 import { api, authStore } from '../api'
 import { loadAllProducts } from '../lib/loadAll'
 import { localDay } from '../lib/businessDay'
@@ -21,12 +21,13 @@ import { IconButton } from '../ui/IconButton'
 import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/PageHeader'
 import { Pagination } from '../ui/Pagination'
+import { countStatusLabel, countStatusTone, isApprovalRequired, varianceLines } from '../lib/inventoryApproval'
+import { SubmitCountModal } from './approvals/SubmitCountModal'
+import { notifyApprovalsChanged } from './approvals/useApprovalCount'
 
 
-const tone = (s: string): 'gold' | 'success' | 'danger' | 'neutral' =>
-  s === 'in_progress' ? 'gold' : s === 'completed' ? 'success' : s === 'cancelled' ? 'danger' : 'neutral'
-const label = (s: string) =>
-  s === 'planned' ? 'Direncanakan' : s === 'in_progress' ? 'Sedang Berjalan' : s === 'completed' ? 'Selesai' : 'Dibatalkan'
+const tone = countStatusTone
+const label = countStatusLabel
 const locKind = (sc: StockCount) => (sc.warehouseId ? 'Gudang' : 'Outlet')
 
 const lineKey = (it: StockCountItem) => `${it.productId}|${it.variantSize}`
@@ -39,6 +40,9 @@ export default function StockCount() {
   const pq = usePolledQuery<Product[]>(() => loadAllProducts((p, l) => api.listProducts(p, l)).then((r) => r.filter((p) => p.isActive)), [outletId])
   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
+  const setq = usePolledQuery<AppSettings>(() => api.getAppSettings(), [], 300000)
+  const approvalOn = setq.data?.inventoryApprovalRequired === true
+  const [submitFor, setSubmitFor] = useState<StockCount | null>(null)
   const stockCounts = scq.data?.data ?? []
   const scTotal = scq.data?.meta?.total ?? 0
   const scTotalPages = Math.max(1, Math.ceil(scTotal / pageSize))
@@ -229,11 +233,37 @@ export default function StockCount() {
       )
       if (!done) setPageErr((m) => m ?? 'Ada hitungan yang belum tersimpan. Periksa lalu coba lagi.')
     } catch (e) {
-      fail(e, 'Gagal menyelesaikan stock count.')
+      if (isApprovalRequired(e)) {
+        setPageErr('Persetujuan stok wajib. Gunakan "Ajukan Persetujuan".')
+        await setq.refetch()
+      } else fail(e, 'Gagal menyelesaikan stock count.')
       await scq.refetch()
     } finally {
       setActiveId(null)
     }
+  }
+
+  // Opens the approval form after saving pending lines; a count with no variance is completed by the server.
+  const openSubmit = async (sc: StockCount) => {
+    setActiveId(sc.id)
+    setPageErr(null)
+    try {
+      const ok = await flushPending(sc)
+      if (!ok) return setPageErr((m) => m ?? 'Ada hitungan yang belum tersimpan. Periksa lalu coba lagi.')
+      setSubmitFor(await api.getStockCount(sc.id))
+    } catch (e) {
+      fail(e, 'Gagal memuat stock count.')
+    } finally {
+      setActiveId(null)
+    }
+  }
+  const submitCount = async (input: StockCountSubmitInput, key: string) => {
+    if (!submitFor) return
+    await api.submitStockCount(submitFor.id, input, key)
+    dropEdits(submitFor.id)
+    setSubmitFor(null)
+    await Promise.all([scq.refetch(), pq.refetch()])
+    notifyApprovalsChanged()
   }
 
   const exportStockCounts = async (fmt: 'csv' | 'xlsx') => {
@@ -242,11 +272,7 @@ export default function StockCount() {
       Nama: sc.name,
       Lokasi: locName(sc),
       'Tipe Lokasi': locKind(sc),
-      Status:
-        sc.status === 'planned' ? 'Direncanakan'
-        : sc.status === 'in_progress' ? 'Sedang Berjalan'
-        : sc.status === 'completed' ? 'Selesai'
-        : 'Dibatalkan',
+      Status: label(sc.status),
       'Tanggal Rencana': sc.plannedDate ?? '',
       Selesai: sc.completedAt ? sc.completedAt.slice(0, 10) : '',
       'Jumlah Item': sc.items.length,
@@ -325,9 +351,15 @@ export default function StockCount() {
                         <Button variant="secondary" size="sm" loading={activeId === sc.id} onClick={() => saveProgress(sc)}>
                           Simpan
                         </Button>
-                        <Button size="sm" icon={<CheckCircle className="w-3 h-3" />} disabled={activeId === sc.id} onClick={() => complete(sc)}>
-                          Selesai
-                        </Button>
+                        {approvalOn ? (
+                          <Button size="sm" icon={<Send className="w-3 h-3" />} disabled={activeId === sc.id} onClick={() => openSubmit(sc)}>
+                            Ajukan Persetujuan
+                          </Button>
+                        ) : (
+                          <Button size="sm" icon={<CheckCircle className="w-3 h-3" />} disabled={activeId === sc.id} onClick={() => complete(sc)}>
+                            Selesai
+                          </Button>
+                        )}
                       </>
                     )}
                     {['planned', 'in_progress'].includes(sc.status) && (
@@ -340,6 +372,21 @@ export default function StockCount() {
                     </IconButton>
                   </div>
                 </div>
+                {sc.rejectedNote && sc.status === 'in_progress' && (
+                  <p role="alert" className="mx-5 mb-3 rounded-xl bg-red-50 px-4 py-2 text-sm font-bold text-red-700">
+                    Ditolak: {sc.rejectedNote}
+                  </p>
+                )}
+                {sc.status === 'pending_approval' && (
+                  <p className="mx-5 mb-3 text-xs text-amber-700">
+                    Diajukan {sc.submittedAt ? format(parseISO(sc.submittedAt), 'dd MMM yyyy HH:mm') : ''} oleh {sc.submittedBy?.slice(0, 8) ?? '-'}. Menunggu persetujuan, tidak bisa diubah.
+                  </p>
+                )}
+                {sc.status === 'completed' && sc.approvedBy && (
+                  <p className="mx-5 mb-3 text-xs text-gray-500">
+                    Disetujui {sc.approvedAt ? format(parseISO(sc.approvedAt), 'dd MMM yyyy HH:mm') : ''} oleh {sc.approvedBy.slice(0, 8)}.
+                  </p>
+                )}
                 {expanded === sc.id && (
                   <div className="border-t border-gray-100 overflow-x-auto max-h-96 overflow-y-auto">
                     <table className="w-full">
@@ -404,6 +451,15 @@ export default function StockCount() {
         pageSize={pageSize}
         onPageSizeChange={(s) => { setPageSize(s); setPage(1) }}
       />
+
+      {submitFor && (
+        <SubmitCountModal
+          countName={submitFor.name}
+          lines={varianceLines(submitFor.items)}
+          onSubmit={submitCount}
+          onClose={() => setSubmitFor(null)}
+        />
+      )}
 
       <Modal
         open={open}

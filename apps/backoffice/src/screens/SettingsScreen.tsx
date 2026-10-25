@@ -162,6 +162,18 @@ export default function SettingsScreen() {
             </div>
           </Card>
 
+          {/* Sub-section: Persetujuan Stok */}
+          <Card className="p-6 space-y-5">
+            <h3 className="font-black text-gray-900">Persetujuan Stok</h3>
+            <div className="flex items-center justify-between py-3">
+              <div>
+                <p className="font-bold text-gray-900">Wajib persetujuan stok</p>
+                <p className="text-xs text-gray-400">Koreksi stok dan opname harus disetujui peran penyetuju (di bawah) dengan PIN, penyetuju bukan pengaju (four-eyes).</p>
+              </div>
+              <Toggle label="Wajib persetujuan stok" checked={s.inventoryApprovalRequired ?? false} onClick={() => setS((p) => ({ ...p, inventoryApprovalRequired: !p.inventoryApprovalRequired }))} />
+            </div>
+          </Card>
+
           {/* Sub-section: Persetujuan Transfer */}
           <Card className="p-6 space-y-5">
             <h3 className="font-black text-gray-900">Persetujuan Penerimaan Transfer</h3>

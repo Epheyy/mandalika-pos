@@ -313,6 +313,7 @@ export interface Shift {
 export const StockCountStatus = {
   PLANNED: 'planned',
   IN_PROGRESS: 'in_progress',
+  PENDING_APPROVAL: 'pending_approval',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled',
 } as const
