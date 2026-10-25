@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// inventory_doc_events (migration 0068) is the append-only history of counts, adjustment
+// inventory_doc_events (migration 0069) is the append-only history of counts, adjustment
 // requests, requisitions and giveaway settings. Like stock_movements it is guarded here, not by a
 // REVOKE (single DB role). The guard lives beside the ledger guard because it reuses its source
 // walker, and it scans every non-test Go file under internal/ and cmd/ plus the migrations, so it
@@ -22,7 +22,7 @@ var docEventMutation = regexp.MustCompile(
 var docEventUpsert = regexp.MustCompile(
 	`(?is)\bINSERT\s+INTO\s+("?public"?\.)?"?inventory_doc_events\b[^;` + "`" + `]*?\bON\s+CONFLICT\b[^;` + "`" + `]*?\bDO\s+UPDATE\b`)
 
-// DROP TABLE and ALTER TABLE are structural changes to the history; only migration 0068 (which
+// DROP TABLE and ALTER TABLE are structural changes to the history; only migration 0069 (which
 // creates the table) may name it in DDL, so docEventViolation takes a flag for that file.
 var docEventDDL = regexp.MustCompile(
 	`(?is)\b(DROP\s+TABLE(\s+IF\s+EXISTS)?|ALTER\s+TABLE(\s+IF\s+EXISTS)?(\s+ONLY)?)\s+("?public"?\.)?"?inventory_doc_events\b`)
@@ -36,7 +36,7 @@ var docEventDynamic = regexp.MustCompile(
 const docEventNearby = 300
 
 // docEventViolation returns what in src would change or remove history rows, or "". isCreateMigration
-// is true only for 0068, the one file allowed to run DDL on the table.
+// is true only for 0069, the one file allowed to run DDL on the table.
 func docEventViolation(src string, isCreateMigration bool) string {
 	if loc := docEventMutation.FindStringIndex(src); loc != nil {
 		return src[loc[0]:loc[1]]
@@ -73,7 +73,7 @@ func TestInventoryDocEventsIsAppendOnly(t *testing.T) {
 		srcs["internal/db/migrations/"+filepath.Base(m)] = string(raw)
 	}
 	for _, n := range sortedKeys(srcs) {
-		if v := docEventViolation(srcs[n], n == "internal/db/migrations/0068_inventory_doc_events.sql"); v != "" {
+		if v := docEventViolation(srcs[n], n == "internal/db/migrations/0069_inventory_doc_events.sql"); v != "" {
 			t.Errorf("%s changes or removes inventory_doc_events rows (%q): the history is append-only, insert a new event instead", n, v)
 		}
 	}
@@ -83,7 +83,7 @@ func TestDocEventsAppendOnlyGuardRejectsBadShapes(t *testing.T) {
 	cases := []struct {
 		name, src string
 		bad       bool
-		create    bool // pretend the source is migration 0068
+		create    bool // pretend the source is migration 0069
 	}{
 		{"update", "UPDATE inventory_doc_events SET note='x'", true, false},
 		{"update lower case", "update   inventory_doc_events set note='x'", true, false},
@@ -101,7 +101,7 @@ func TestDocEventsAppendOnlyGuardRejectsBadShapes(t *testing.T) {
 		{"drop table if exists public", "drop table if exists public.inventory_doc_events cascade", true, false},
 		{"alter table", "ALTER TABLE inventory_doc_events ADD COLUMN x int", true, false},
 		{"alter table only quoted", `ALTER TABLE ONLY "public"."inventory_doc_events" DROP COLUMN x`, true, false},
-		{"alter table in 0068 is allowed", "ALTER TABLE inventory_doc_events ADD COLUMN x int", false, true},
+		{"alter table in 0069 is allowed", "ALTER TABLE inventory_doc_events ADD COLUMN x int", false, true},
 		{"update built by concatenation", `q := "UPDATE " + "inventory_doc_events" + " SET note = $1"`, true, false},
 		{"delete built with Sprintf", "q := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, \"inventory_doc_events\")", true, false},
 		{"concatenated update of another table is fine", `q := "UPDATE " + tbl + " SET a = 1"`, false, false},

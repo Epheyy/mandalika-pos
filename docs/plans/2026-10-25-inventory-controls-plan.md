@@ -158,22 +158,23 @@ Path references are relative to the repo root. "unverified" means I did not conf
 
 ## 2. Data model and migrations
 
-The migration runner records applied file *names* (`backend/internal/db/db.go:79-125`). So 0068+ can ship before the reserved 0067 without skipping it. Each file runs in one transaction (`db.go:134-141`), so `CREATE INDEX CONCURRENTLY` is not available.
+The migration runner records applied file *names* (`backend/internal/db/db.go:79-125`). So 0069+ can ship before the reserved 0067 without skipping it. Each file runs in one transaction (`db.go:134-141`), so `CREATE INDEX CONCURRENTLY` is not available.
 
 All migrations are additive. A widened CHECK uses the drop/add pattern of `0066_erp_external_ids.sql:78-80`.
 
 | Mig | Slice | Content |
 |---|---|---|
 | 0067 | — | RESERVED (global SKU uniqueness). Not used here. |
-| 0068 | S0 | `inventory_doc_events` (shared, append-only history) |
-| 0069 | S1 | Ledger read index |
-| 0070 | S2 | `outlet_giveaways` |
-| 0071 | S3 | Approval columns and tables; settings flag; PIN-attempt doc refs |
-| 0072 | S4 | `import_runs` kind `stock_count` + `target_id` |
-| 0073 | S5 | `stock_requisitions`, `stock_requisition_items` |
+| 0068 | — | Taken by `0068_erp_variant_source.sql` (ERP-reply work, prod-hardening f211ca1). Not used here. |
+| 0069 | S0 | `inventory_doc_events` (shared, append-only history) |
+| 0070 | S1 | Ledger read index |
+| 0071 | S2 | `outlet_giveaways` |
+| 0072 | S3 | Approval columns and tables; settings flag; PIN-attempt doc refs |
+| 0073 | S4 | `import_runs` kind `stock_count` + `target_id` |
+| 0074 | S5 | `stock_requisitions`, `stock_requisition_items` |
 
 ```sql
--- 0068_inventory_doc_events.sql (S0)
+-- 0069_inventory_doc_events.sql (S0)
 SET LOCAL lock_timeout = '5s';
 CREATE TABLE inventory_doc_events (
   id        bigserial PRIMARY KEY,
@@ -189,11 +190,11 @@ CREATE TABLE inventory_doc_events (
 CREATE INDEX inventory_doc_events_doc ON inventory_doc_events (doc_type, doc_id, id);
 -- Guard test (like ledger_guard_test.go) forbids UPDATE/DELETE on it.
 
--- 0069_stock_movements_loc_seq.sql (S1): location-wide keyset by seq
+-- 0070_stock_movements_loc_seq.sql (S1): location-wide keyset by seq
 CREATE INDEX stock_movements_loc_seq ON stock_movements (location_type, location_id, seq);
 -- per-SKU history already has stock_movements_loc_variant (0064:30)
 
--- 0070_outlet_giveaways.sql (S2)
+-- 0071_outlet_giveaways.sql (S2)
 CREATE TABLE outlet_giveaways (
   outlet_id    uuid PRIMARY KEY REFERENCES outlets(id) ON DELETE CASCADE,
   product_id   uuid NOT NULL,              -- no FK: a product delete must not hit a raw 23503
@@ -203,7 +204,7 @@ CREATE TABLE outlet_giveaways (
   updated_at   timestamptz NOT NULL DEFAULT now()
 );  -- no row = no giveaway (inert on deploy)
 
--- 0071_inventory_approvals.sql (S3)
+-- 0072_inventory_approvals.sql (S3)
 ALTER TABLE stock_counts DROP CONSTRAINT stock_counts_status_check;
 ALTER TABLE stock_counts ADD CONSTRAINT stock_counts_status_check
   CHECK (status IN ('planned','in_progress','pending_approval','completed','cancelled'));
@@ -243,14 +244,14 @@ ALTER TABLE app_settings ADD COLUMN inventory_approval_required boolean NOT NULL
 ALTER TABLE receive_pin_attempts ADD COLUMN doc_type text, ADD COLUMN doc_id uuid;  -- transfer_id stays NULL
 -- same reason_code CHECK on stock_counts/stock_count_items (nullable)
 
--- 0072_import_runs_stock_count.sql (S4)
+-- 0073_import_runs_stock_count.sql (S4)
 ALTER TABLE import_runs DROP CONSTRAINT import_runs_kind_check;
 ALTER TABLE import_runs ADD CONSTRAINT import_runs_kind_check
   CHECK (kind IN ('customers','products','ingredients','sku_mapping','stock_count'));
 ALTER TABLE import_runs ADD COLUMN target_id uuid;      -- the stock_count id for kind stock_count
 CREATE INDEX import_runs_target ON import_runs (target_id) WHERE target_id IS NOT NULL;
 
--- 0073_stock_requisitions.sql (S5)
+-- 0074_stock_requisitions.sql (S5)
 CREATE TABLE stock_requisitions (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   number        text NOT NULL UNIQUE,                     -- doc_sequences kind 'PB'
@@ -286,8 +287,8 @@ CREATE TABLE stock_requisition_items (
 |---|---|
 | A new kind needs both CHECKs widened, or the INSERT fails and **rolls back the sale** | `0064_stock_movements.sql:13-14`, `0065_erp_outbox.sql:21-22` |
 | It also needs `validKinds` and `knownKinds` | `ledger.go:47-51`, `backend/internal/integration/erp/payload.go:26-29` |
-| The ERP enum would change | `docs/integration/stock-documents.v1.yaml:186-188` |
-| The ERP answers 422 on a bad kind | `stock-documents.v1.yaml:36` |
+| The ERP enum would change | `docs/integration/stock-documents.v1.yaml:212-215` |
+| The ERP answers 422 on a bad kind | `stock-documents.v1.yaml:130-131` (validation 422) |
 | The relay dead-letters an unknown kind | `backend/internal/integration/erp/relay.go:258-260` |
 | A new kind is exactly the "new document kind" the owner ruled out | D-A |
 
@@ -390,7 +391,7 @@ Frozen functions `createOrderCore`, `RefundTx` and `processOneWithSeq` are **not
 
 | # | Question | Answer from code |
 |---|---|---|
-| 1 | Can a sale line mark a giveaway without a contract change? | **Yes on the wire; no on meaning.** (a) Schema: `flags` is an open string array documented with one known value, `shortage` (`stock-documents.v1.yaml:280-284`); `reason` is free text, "usually equals kind" (`:277-279`); `unit_price` is optional (`:269-272`); `StockLine` sets no `additionalProperties: false` (`:246-292`). (b) The ERP reply says unknown fields are ignored and POS may add fields (`C:\Users\MyBook Hype AMD\Downloads\Integrasi Stok ERP–POS.md:76`), flags are stored as information (`:80`, Q19 `:125`), `unit_price` is optional (Q21 `:127`). (c) **But:** the ERP books the −1 as a sale OUT and treats `flags` as information only. **Owner decision (2026-10-25): send no flag.** The ERP receives a plain Rp0 sale line for the bag and books it as a sale OUT. Wire format and contract text are both unchanged; the YAML is not edited. |
+| 1 | Can a sale line mark a giveaway without a contract change? | **Yes on the wire; no on meaning.** (a) Schema: `flags` is an open string array documented with one known value, `shortage` (`stock-documents.v1.yaml:307-311`); `reason` is free text, "usually equals kind" (`:304-306`); `unit_price` is optional (`:296-299`); `StockLine` sets no `additionalProperties: false` (`:273-319`). (b) The ERP reply says unknown fields are ignored and POS may add fields (`C:\Users\MyBook Hype AMD\Downloads\Integrasi Stok ERP–POS.md:76`), flags are stored as information (`:80`, Q19 `:125`), `unit_price` is optional (Q21 `:127`). (c) **But:** the ERP books the −1 as a sale OUT and treats `flags` as information only. **Owner decision (2026-10-25): send no flag.** The ERP receives a plain Rp0 sale line for the bag and books it as a sale OUT. Wire format and contract text are both unchanged; the YAML is not edited. |
 | 1b | Does the builder emit `unit_price: 0`? | **No, today it omits it.** The price comes from `order.LinePrice[m.RefLine]` (`payload.go:174-178`), and a giveaway has no order item. Fix in `buildLine` (`payload.go:151-180`): the movement query adds `dedupe_key` to `MovementRow`, and a `sale` line whose key starts with `giveaway:` gets `unit_price` 0; `reason` stays `sale`, flags stay as stored (only `shortage`, if any). Payloads are frozen at first build (`0065_erp_outbox.sql:3-6`), so earlier documents are unaffected. |
 | 2 | One outbox row per movement? Kind → document mapping? Kind CHECK? | **One outbox row per document part**, not per movement (`ledger.go:276-293`, `backend/internal/ledger/outbox.go:21-32`, `:38-43`). The relay builds the payload from all movements of that `document_id` (`payload.go:209-215`). Kind passes through as the document kind (`payload.go:90-93`); unknown kinds are dead-lettered (`relay.go:258-260`). CHECKs exist on both tables (`0064_stock_movements.sql:13-14`, `0065_erp_outbox.sql:21-22`). Adding to an already-queued document **fails** (`ledger.go:334-340`), so the giveaway must ride the sale's single `Record` call. → reuse `sale` + flag (§2). |
 | 3 | Is consumption replay-safe? | Sale movements are idempotent because a replay never reaches them: the `processed_keys` guard returns first (`order.go:241-247`). A lost same-key race rolls the whole transaction back (`order.go:592`, `:749-756`, `:796-809`; constraints `:779-786`). The sync path enters the same core (`backend/internal/sync/sync.go:184` → `CreateOrderSeq`). The giveaway UPDATE runs inside that transaction, so the **guard, not the dedupe key, protects the stock**. `dedupe_key` `ON CONFLICT DO NOTHING` (`ledger.go:295-300`) is only a backstop. `orderID` is new per committed order, so `giveaway:<orderID>` is one per order. |
@@ -451,12 +452,12 @@ Frozen functions `createOrderCore`, `RefundTx` and `processOneWithSeq` are **not
 
 | Slice | Size | Mig | New PG gate (prefix, test, port) | Depends | Parallel with |
 |---|---|---|---|---|---|
-| S0 contract | M | 0068 | — | — | — |
-| S1 movements read + screen | M | 0069 | MV `TestStockMovementsReadPostgres` 56469 | S0 | S2, S3, S5 |
-| S2 giveaway | M (small diff, high risk) | 0070 | GW `TestGiveawayPostgres` 56471 | S0 | S1, S3, S5 |
-| S3 approvals | L | 0071 | AP `TestInventoryApprovalPostgres` 56472 | S0 | S1, S2, S5 |
-| S4 stock-count CSV | M | 0072 | CV `TestStockCountCsvPostgres` 56473 | S0, **after S3** (both touch `StockCount.tsx`; S3 owns `write/stockcount.go`) | S5 |
-| S5 requisitions | L | 0073 | RQ `TestRequisitionPostgres` 56474 | S0 | S1, S2, S3 |
+| S0 contract | M | 0069 | — | — | — |
+| S1 movements read + screen | M | 0070 | MV `TestStockMovementsReadPostgres` 56469 | S0 | S2, S3, S5 |
+| S2 giveaway | M (small diff, high risk) | 0071 | GW `TestGiveawayPostgres` 56471 | S0 | S1, S3, S5 |
+| S3 approvals | L | 0072 | AP `TestInventoryApprovalPostgres` 56472 | S0 | S1, S2, S5 |
+| S4 stock-count CSV | M | 0073 | CV `TestStockCountCsvPostgres` 56473 | S0, **after S3** (both touch `StockCount.tsx`; S3 owns `write/stockcount.go`) | S5 |
+| S5 requisitions | L | 0074 | RQ `TestRequisitionPostgres` 56474 | S0 | S1, S2, S3 |
 
 Ports 56469 and 56471-56474 are unused today (`postgres_gate.py:33-62`). `scripts/ci/test_postgres_gate.py` does not assert a gate count (it only uses `GATES[0]`, `:120-141`).
 
@@ -466,7 +467,7 @@ Ports 56469 and 56471-56474 are unused today (`postgres_gate.py:33-62`). `script
 
 | Slice | Backend | Frontend / other |
 |---|---|---|
-| S0 | `backend/api/openapi.yaml`; generated `internal/api/api.gen.go`; `db/migrations/0068_*.sql` + append-only guard test | `packages/api/src/schema.d.ts`, `packages/api/src/client.ts`, `packages/types/src/index.ts` (`request_stock`) |
+| S0 | `backend/api/openapi.yaml`; generated `internal/api/api.gen.go`; `db/migrations/0069_*.sql` + append-only guard test | `packages/api/src/schema.d.ts`, `packages/api/src/client.ts`, `packages/types/src/index.ts` (`request_stock`) |
 | S1 | new `read/movements.go`, `handlers/inventory_movements.go`; `server.go` (manage_inventory group `:266-286`) | `StockCard.tsx`, `MovementSummary.tsx`; test `handlers/stock_movements_read_integration_test.go` |
 | S2 | `service/lockorder.go`, `service/ledger_hooks.go`, `integration/erp/payload.go` (+`payload_test.go`), new `write/outlet_giveaway.go`, `read/outlet_giveaway.go`, `handlers/outlet_giveaway.go`, guard maps (§4.1); `server.go`. The ERP contract YAML is not touched. | `OutletGiveawaySection.tsx`; test `handlers/giveaway_integration_test.go` |
 | S3 | `write/receive_approval.go` (extract the lockout + argon2 core of `mintReceiveApproval` `:207-292` into a shared `checkApproverPIN`, with the transfer path behaviour byte-equivalent; `insertAttempt` `:125-134` gains doc_type/doc_id); new `write/inventory_approval.go` (scope helper, adjustment requests, delta apply); `write/stockcount.go` (submit / approve / reject; `complete` 409 under the flag; `runningCountConflict` `:244-251` learns the new index names); `write/warehouse.go` (adjust 409 under the flag); `write/settings.go` + `read/settings.go`; `handlers/inventory_approvals.go`, `handlers/stock_counts.go`, `handlers/inventory.go`; `server.go` | `ApprovalQueue.tsx`, `StockCount.tsx`, `AdjustModal.tsx`, `SettingsScreen.tsx`, `navAccess.ts` |
@@ -549,7 +550,7 @@ Must-dos found while reviewing the S0 contract; the slice named on each line owe
 | R10 | Variant rename/delete or ERP tombstone orphans the setting | Hook skips with a warn; setting screen shows "tidak valid"; event row on change. |
 | R11 | Approval stalls | Migration 0063 wiped every receive PIN and admins must set new ones (`HANDOFF.md:270`). Owner answer (Q2): a second approver exists and the admin sets that user's PIN through the existing `PUT /users/{id}/receive-pin` (`backend/internal/server/server.go:362`). Remaining risk: if either PIN holder is locked out, the admin unlock route (`server.go:363`) clears it. |
 | R12 | Absolute adjustment applied late overwrites sales | Delta apply + drift shown (Q3). |
-| R13 | Two open counts at one location double-apply | Wider unique index (0071); `runningCountConflict` updated. |
+| R13 | Two open counts at one location double-apply | Wider unique index (0072); `runningCountConflict` updated. |
 | R14 | CSV SKU ambiguity until 0067 ships | Barcode first; ambiguous SKU = row error. |
 | R15 | Old "Ringkasan Pergerakan" disagrees with the ledger once the giveaway exists | S1 rebases it on the ledger; S1 merges before S2 is deployed. |
 | R16 | Warehouse-side documents (PB transfers, warehouse adjustments) | Held in the ERP outbox by design (ERP reply `:60`, `:72`); expected, not a bug. |
