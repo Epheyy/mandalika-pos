@@ -563,9 +563,117 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 			t.Fatalf("q miss: %s", w.Body.String())
 		}
 	})
+
+	t.Run("audit trail: approved adjustment and count rows show approver, reason and ADJ number; PB transfers show the PB number", func(t *testing.T) {
+		const (
+			outC     = "00000000-0000-4000-8f69-0000000000a7"
+			approver = "00000000-0000-4000-8f69-0000000000d7"
+			adjReq   = "00000000-0000-4000-8f69-0000000000e7"
+			adjDoc   = "00000000-0000-4000-8f69-0000000000e8"
+			countID  = "00000000-0000-4000-8f69-0000000000e9"
+			pbOld    = "00000000-0000-4000-8f69-0000000000ea"
+			pbID     = "00000000-0000-4000-8f69-0000000000eb"
+			trfOld   = "00000000-0000-4000-8f69-0000000000ec"
+			trfNew   = "00000000-0000-4000-8f69-0000000000ed"
+			trfPlain = "00000000-0000-4000-8f69-0000000000ee"
+		)
+		must := func(sql string, args ...any) {
+			t.Helper()
+			if _, err := pool.Exec(ctx, sql, args...); err != nil {
+				t.Fatalf("%v: %s", err, sql)
+			}
+		}
+		must(`INSERT INTO outlets(id,name) VALUES($1,'MV outlet C')`, outC)
+		must(`INSERT INTO users(id,email,password_hash,display_name,role) VALUES($1,'mv-appr@example.test','x','MV Penyetuju','manager')`, approver)
+		must(`INSERT INTO stock_adjustment_requests(id,number,status,outlet_id,product_id,variant_size,qty_at_request,requested_new_qty,
+		        reason_code,reason_text,requested_by,approved_by,approved_at)
+		      VALUES($1,'ADJ-MV-1','approved',$2,$3,'M',5,3,'damaged','kena air',$4,$4,now())`, adjReq, outC, mvProductP, mvUser)
+		must(`INSERT INTO warehouse_stock_adjustments(id,outlet_id,product_id,variant_size,new_qty,reason,request_id,reason_code)
+		      VALUES($1,$2,$3,'M',3,'kena air',$4,'damaged')`, adjDoc, outC, mvProductP, adjReq)
+		must(`UPDATE stock_adjustment_requests SET approved_by=$2 WHERE id=$1`, adjReq, approver)
+		must(`INSERT INTO stock_counts(id,name,status,outlet_id,approved_by,reason_code,reason_text)
+		      VALUES($1,'MV opname','completed',$2,$3,'count_variance','selisih opname')`, countID, outC, approver)
+		must(`INSERT INTO transfers(id,transfer_no,source_warehouse_id,dest_outlet_id) VALUES($1,'TRF-MV-1',$3,$4),($2,'TRF-MV-2',$3,$4),($5,'TRF-MV-3',$3,$4)`,
+			trfOld, trfNew, mvWarehouse, outC, trfPlain)
+		must(`INSERT INTO stock_requisitions(id,number,status,outlet_id,warehouse_id,requested_by,transfer_id)
+		      VALUES($1,'PB-MV-1','fulfilled',$2,$3,$4,$5)`, pbID, outC, mvWarehouse, mvUser, trfNew)
+		// a re-fulfilment: the PB links the latest transfer, the older cancelled one is in the event data
+		must(`INSERT INTO inventory_doc_events(doc_type,doc_id,action,data) VALUES
+		      ('requisition',$1,'fulfilled',jsonb_build_object('transferId',$2::text)),
+		      ('requisition',$1,'refulfilled',jsonb_build_object('transferId',$3::text,'previousTransferId',$2::text))`, pbID, trfOld, trfNew)
+		n := 0
+		row := func(kind string, qty int, refType, refID, refNumber string) {
+			t.Helper()
+			n++
+			must(`INSERT INTO stock_movements(document_id,dedupe_key,kind,location_type,location_id,product_id,variant_size,
+			        qty,qty_before,qty_after,ref_type,ref_id,ref_number,occurred_at,recorded_at,flags)
+			      VALUES(gen_random_uuid(),$1,$2,'outlet',$3,$4,'M',$5,0,$5,$6,$7::uuid,NULLIF($8,''),'2026-02-01T00:00:00Z','2026-02-01T00:00:00Z','{}')`,
+				fmt.Sprintf("mv-audit:%d", n), kind, outC, mvProductP, qty, refType, refID, refNumber)
+		}
+		row("adjust", -2, "stock_adjustment", adjDoc, "")
+		row("count", 1, "stock_count", countID, "")
+		row("transfer_in", 4, "transfer", trfOld, "TRF-MV-1")
+		row("transfer_in", 4, "transfer", trfNew, "TRF-MV-2")
+		row("transfer_in", 4, "transfer", trfPlain, "TRF-MV-3")
+		row("receipt", 1, "goods_receipt", "00000000-0000-4000-8f69-0000000000ef", "")
+
+		p := list(t, "locationType=outlet&locationId="+outC+"&limit=50")
+		byRef := map[string]api.StockMovementRow{}
+		for _, m := range p.Data {
+			if m.RefId != nil {
+				byRef[m.RefId.String()] = m
+			}
+		}
+		str := func(v *string) string {
+			if v == nil {
+				return ""
+			}
+			return *v
+		}
+		adj := byRef[adjDoc]
+		if str(adj.DocNumber) != "ADJ-MV-1" || str(adj.ApprovedBy) != "MV Penyetuju" || adj.ReasonCode == nil || *adj.ReasonCode != "damaged" || str(adj.ReasonText) != "kena air" {
+			t.Fatalf("adjustment row = doc %q approver %q reason %v/%q", str(adj.DocNumber), str(adj.ApprovedBy), adj.ReasonCode, str(adj.ReasonText))
+		}
+		cnt := byRef[countID]
+		if str(cnt.ApprovedBy) != "MV Penyetuju" || cnt.ReasonCode == nil || *cnt.ReasonCode != "count_variance" || str(cnt.ReasonText) != "selisih opname" || cnt.DocNumber != nil {
+			t.Fatalf("count row = approver %q reason %v/%q doc %v", str(cnt.ApprovedBy), cnt.ReasonCode, str(cnt.ReasonText), cnt.DocNumber)
+		}
+		// F3: every transfer ever linked by a fulfil/refulfil event shows the PB number (not only the latest one)
+		for _, id := range []string{trfOld, trfNew} {
+			if got := str(byRef[id].RequisitionNumber); got != "PB-MV-1" {
+				t.Fatalf("transfer %s requisitionNumber = %q, want PB-MV-1", id, got)
+			}
+		}
+		if plain := byRef[trfPlain]; plain.RequisitionNumber != nil || plain.ApprovedBy != nil || plain.DocNumber != nil || plain.ReasonCode != nil {
+			t.Fatalf("a plain transfer row gained audit fields: %+v", plain)
+		}
+		if rc := byRef["00000000-0000-4000-8f69-0000000000ef"]; rc.RequisitionNumber != nil || rc.ApprovedBy != nil || rc.DocNumber != nil {
+			t.Fatalf("a receipt row gained audit fields: %+v", rc)
+		}
+		w := admin("/inventory/movements/export?locationType=outlet&locationId=" + outC + "&from=2026-01-31&to=2026-02-02")
+		if w.Code != 200 {
+			t.Fatalf("export: %d %s", w.Code, w.Body.String())
+		}
+		recs, err := csv.NewReader(strings.NewReader(w.Body.String())).ReadAll()
+		if err != nil {
+			t.Fatal(err)
+		}
+		col := map[string]int{}
+		for i, h := range recs[0] {
+			col[h] = i
+		}
+		var sawAdj, sawPB bool
+		for _, rec := range recs[1:] {
+			sawAdj = sawAdj || (rec[col["no_adj"]] == "ADJ-MV-1" && rec[col["penyetuju"]] == "MV Penyetuju" && rec[col["kode_alasan"]] == "damaged")
+			sawPB = sawPB || (rec[col["no_pb"]] == "PB-MV-1" && rec[col["no_dokumen"]] == "TRF-MV-2")
+		}
+		if !sawAdj || !sawPB {
+			t.Fatalf("export lacks the audit columns (adj %v, pb %v): %s", sawAdj, sawPB, w.Body.String())
+		}
+	})
 }
 
-const mvCSVColumns = "id,waktu_kejadian,waktu_tercatat,jenis,dokumen,no_dokumen,lokasi,sku,barcode,produk,ukuran,masuk,keluar,saldo,oleh,alasan,penyetuju,tanda,status_erp"
+const mvCSVColumns = "id,waktu_kejadian,waktu_tercatat,jenis,dokumen,no_dokumen,lokasi,sku,barcode,produk,ukuran,masuk,keluar,saldo,oleh,alasan,kode_alasan,penyetuju,no_adj,no_pb,tanda,status_erp"
 
 func cursorAfter(t *testing.T, p api.StockMovementPage) string {
 	t.Helper()

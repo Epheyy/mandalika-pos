@@ -117,7 +117,8 @@ const movementSelect = `
 SELECT m.id, m.seq, m.occurred_at, m.recorded_at, m.kind, m.location_type, m.location_id,
   COALESCE(lo.name, lw.name), p.name, m.product_id, m.variant_size, NULLIF(v.sku,''), v.barcode,
   m.qty, m.qty_before, m.qty_after, m.ref_type, m.ref_id, m.ref_number, m.flags,
-  (m.dedupe_key LIKE 'giveaway:%'), m.actor, u.display_name, wsa.reason, eo.status
+  (m.dedupe_key LIKE 'giveaway:%'), m.actor, u.display_name, COALESCE(wsa.reason, sc.reason_text), eo.status,
+  COALESCE(wsa.reason_code, sc.reason_code), au.display_name, sar.number, pb.number
 FROM stock_movements m
 LEFT JOIN outlets lo ON m.location_type='outlet' AND lo.id=m.location_id
 LEFT JOIN warehouses lw ON m.location_type='warehouse' AND lw.id=m.location_id
@@ -126,6 +127,14 @@ LEFT JOIN LATERAL (SELECT sku, barcode FROM product_variants pv
                    WHERE pv.product_id=m.product_id AND pv.size=m.variant_size LIMIT 1) v ON true
 LEFT JOIN users u ON u.id::text = m.actor
 LEFT JOIN warehouse_stock_adjustments wsa ON m.ref_type='stock_adjustment' AND wsa.id=m.ref_id
+LEFT JOIN stock_adjustment_requests sar ON wsa.request_id = sar.id
+LEFT JOIN stock_counts sc ON m.ref_type='stock_count' AND sc.id=m.ref_id
+LEFT JOIN users au ON au.id = COALESCE(sar.approved_by, sc.approved_by)
+LEFT JOIN LATERAL (SELECT sr.number FROM inventory_doc_events e
+                   JOIN stock_requisitions sr ON sr.id = e.doc_id
+                   WHERE m.ref_type='transfer' AND e.doc_type='requisition'
+                     AND e.action IN ('fulfilled','refulfilled') AND e.data->>'transferId' = m.ref_id::text
+                   ORDER BY e.at DESC LIMIT 1) pb ON true
 LEFT JOIN erp_outbox eo ON eo.document_id=m.document_id`
 
 // ForEachMovement streams the filtered rows newest first by seq (seq DESC), at most limit
@@ -160,17 +169,18 @@ func (r *Repo) ForEachMovement(ctx context.Context, f MovementFilter, afterSeq i
 
 func scanMovement(rows pgx.Rows) (api.StockMovementRow, error) {
 	var (
-		m                                   api.StockMovementRow
-		kind, locType                       string
-		locName, prodName, sku, barcode     *string
-		refID                               *openapi_types.UUID
-		refNumber, actor, actorName, reason *string
-		erpStatus                           *string
+		m                                         api.StockMovementRow
+		kind, locType                             string
+		locName, prodName, sku, barcode           *string
+		refID                                     *openapi_types.UUID
+		refNumber, actor, actorName, reason       *string
+		erpStatus                                 *string
+		reasonCode, approver, docNumber, pbNumber *string
 	)
 	err := rows.Scan(&m.Id, &m.Seq, &m.OccurredAt, &m.RecordedAt, &kind, &locType, &m.LocationId,
 		&locName, &prodName, &m.ProductId, &m.VariantSize, &sku, &barcode,
 		&m.Qty, &m.QtyBefore, &m.QtyAfter, &m.RefType, &refID, &refNumber, &m.Flags,
-		&m.IsGiveaway, &actor, &actorName, &reason, &erpStatus)
+		&m.IsGiveaway, &actor, &actorName, &reason, &erpStatus, &reasonCode, &approver, &docNumber, &pbNumber)
 	if err != nil {
 		return m, fmt.Errorf("movement scan: %w", err)
 	}
@@ -178,6 +188,11 @@ func scanMovement(rows pgx.Rows) (api.StockMovementRow, error) {
 	m.LocationType = api.InventoryLocationType(locType)
 	m.LocationName, m.ProductName, m.Sku, m.Barcode = locName, prodName, sku, barcode
 	m.RefId, m.RefNumber, m.ActorId, m.ActorName, m.ReasonText, m.ErpStatus = refID, refNumber, actor, actorName, reason, erpStatus
+	if reasonCode != nil {
+		rc := api.InventoryReasonCode(*reasonCode)
+		m.ReasonCode = &rc
+	}
+	m.ApprovedBy, m.DocNumber, m.RequisitionNumber = approver, docNumber, pbNumber
 	if m.Flags == nil {
 		m.Flags = []string{}
 	}

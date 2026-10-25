@@ -271,13 +271,19 @@ function MovementTableRow({ m, zone, showProduct }: { m: StockMovementRow; zone:
       {showProduct && (
         <td className={cell}>{m.productName ?? '—'} · {m.variantSize}{m.sku ? ` (${m.sku})` : ''}</td>
       )}
-      <td className={`${cell} font-mono`}>{m.refNumber ?? m.refType}</td>
+      <td className={`${cell} font-mono`}>
+        {m.refNumber ?? m.refType}
+        {m.requisitionNumber && <span className="block text-xs text-gray-400">dari {m.requisitionNumber}</span>}
+      </td>
       <td className={`${cell} text-green-700 font-bold`}>{m.qty > 0 ? m.qty : ''}</td>
       <td className={`${cell} text-red-600 font-bold`}>{m.qty < 0 ? -m.qty : ''}</td>
       <td className={`${cell} font-black text-gray-900`}>{m.qtyAfter}</td>
       <td className={cell}>{m.actorName ?? ''}</td>
       <td className={cell}>{m.reasonText ?? ''}</td>
-      <td className={cell}>{m.approvedBy ?? ''}</td>
+      <td className={cell}>
+        {m.approvedBy ? `Disetujui oleh ${m.approvedBy}` : ''}
+        {m.docNumber && <span className="block font-mono text-xs text-gray-400">{m.docNumber}</span>}
+      </td>
       <td className={cell}>
         <span className="flex gap-1">
           {m.isGiveaway && <Badge tone="gold">Hadiah</Badge>}

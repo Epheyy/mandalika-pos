@@ -208,7 +208,7 @@ func (h *Handlers) ListStockMovements(w http.ResponseWriter, r *http.Request) {
 
 // movementCSVHeader is the export header; the row order is the same as the list (seq DESC).
 var movementCSVHeader = []string{"id", "waktu_kejadian", "waktu_tercatat", "jenis", "dokumen", "no_dokumen",
-	"lokasi", "sku", "barcode", "produk", "ukuran", "masuk", "keluar", "saldo", "oleh", "alasan", "penyetuju", "tanda", "status_erp"}
+	"lokasi", "sku", "barcode", "produk", "ukuran", "masuk", "keluar", "saldo", "oleh", "alasan", "kode_alasan", "penyetuju", "no_adj", "no_pb", "tanda", "status_erp"}
 
 func deref(s *string) string {
 	if s == nil {
@@ -244,10 +244,15 @@ func movementCSVRow(m api.StockMovementRow, zone *time.Location) []string {
 		marks = append(marks, "Tercatat terlambat")
 	}
 	g := csvimport.GuardCell
+	var reasonCode string
+	if m.ReasonCode != nil {
+		reasonCode = string(*m.ReasonCode)
+	}
 	return []string{m.Id.String(), m.OccurredAt.In(zone).Format(time.RFC3339), m.RecordedAt.In(zone).Format(time.RFC3339),
 		string(m.Kind), m.RefType, g(deref(m.RefNumber)), g(deref(m.LocationName)), g(deref(m.Sku)), g(deref(m.Barcode)),
 		g(deref(m.ProductName)), g(m.VariantSize), in, out, strconv.Itoa(m.QtyAfter),
-		g(deref(m.ActorName)), g(deref(m.ReasonText)), g(deref(m.ApprovedBy)), strings.Join(marks, ";"), deref(m.ErpStatus)}
+		g(deref(m.ActorName)), g(deref(m.ReasonText)), reasonCode, g(deref(m.ApprovedBy)),
+		g(deref(m.DocNumber)), g(deref(m.RequisitionNumber)), strings.Join(marks, ";"), deref(m.ErpStatus)}
 }
 
 // ExportStockMovements is the kartu stok as CSV: same filters as the list, from and to required,
