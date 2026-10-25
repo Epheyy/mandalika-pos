@@ -10,7 +10,7 @@ const CASHIER = { role: 'cashier', permissions: ['create_order'] };
 const NOW = '2026-10-26T01:00:00.000Z';
 
 const requisitionServer = () => {
-  const state: any = { rows: [] as any[], posts: [] as any[], submits: [] as any[], lists: [] as any[], forbidden: [] as string[], submitFailsLeft: 1, seq: 0 };
+  const state: any = { rows: [] as any[], posts: [] as any[], submits: [] as any[], lists: [] as any[], forbidden: [] as string[], puts: [] as any[], byKey: new Map<string, any>(), submitFailsLeft: 1, loseCreateOnce: false, seq: 0 };
   state.rows.push({
     id: 'req-seed', number: 'PB-2026-00099', status: 'fulfilled', outletId: OUTLET, requestedBy: 'u', requestedByName: 'Synthetic Cashier',
     transfer: { id: 'tr-1', transferNo: 'TR-2026-00007', status: 'in_transit' },
@@ -42,6 +42,11 @@ const requisitionServer = () => {
     if (method === 'POST' && !id) {
       const body = req.postDataJSON();
       state.posts.push({ key: headers['idempotency-key'], outlet: headers['x-outlet-id'], body });
+      const replay = state.byKey.get(headers['idempotency-key']);
+      if (replay) { // the real server replays the PB a key already created
+        await route.fulfill({ status: 201, json: { data: replay } });
+        return true;
+      }
       const n = ++state.seq;
       const row = {
         id: `req-${n}`, number: `PB-2026-${String(n).padStart(5, '0')}`, status: 'draft', outletId: OUTLET, requestedBy: 'u',
@@ -50,10 +55,24 @@ const requisitionServer = () => {
         events: [{ id: 1, action: 'created', actorName: 'Synthetic Cashier', at: NOW }], createdAt: NOW, updatedAt: NOW,
       };
       state.rows.unshift(row);
+      state.byKey.set(headers['idempotency-key'], row);
+      if (state.loseCreateOnce) { // created, but the answer never reaches the tablet
+        state.loseCreateOnce = false;
+        await route.fulfill({ status: 503, json: { error: 'Synthetic lost response' } });
+        return true;
+      }
       await route.fulfill({ status: 201, json: { data: row } });
       return true;
     }
     const row = state.rows.find((r: any) => r.id === id);
+    if (method === 'PUT' && row && !action) {
+      const body = req.postDataJSON();
+      state.puts.push({ id, key: headers['idempotency-key'], body });
+      row.items = body.items.map((i: any, k: number) => ({ ...row.items[k], ...i }));
+      row.note = body.note;
+      await route.fulfill({ status: 200, json: { data: row } });
+      return true;
+    }
     if (method === 'POST' && row && action === 'submit') {
       state.submits.push({ key: headers['idempotency-key'] });
       if (state.submitFailsLeft > 0) {
@@ -127,7 +146,7 @@ export const posRequisition = async (page: ScenarioPage) => {
   // (c) submit answers a synthetic 503, then "Coba Lagi"-style retry sends the SAME key
   await page.getByRole('button', { name: 'Ajukan', exact: true }).click();
   await page.getByText(/Server belum menjawab/).waitFor();
-  await page.getByRole('button', { name: 'Ajukan', exact: true }).click();
+  await page.getByRole('button', { name: 'Coba Lagi', exact: true }).click();
   await page.getByRole('button', { name: 'Batalkan Permintaan', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Ajukan', exact: true }).waitFor({ state: 'detached' });
   assert(srv.state.submits.length === 2, '(c) two submit calls');
@@ -157,21 +176,43 @@ export const posRequisition = async (page: ScenarioPage) => {
   assert(srv.state.rows.find((r: any) => r.id === 'req-2')?.status === 'cancelled', '(e) the draft was cancelled on the server');
   result.push({ assert: 'e', cancelled: true });
 
+  // (h) a create whose answer is lost, then an edit: the OLD key is replayed (one PB), then the edit is a PUT
+  await page.getByRole('button', { name: 'Kembali', exact: true }).click();
+  await page.getByRole('button', { name: 'Buat Permintaan', exact: true }).click();
+  await page.getByLabel('Cari barang').fill('SYN-M');
+  await page.getByRole('button', { name: /Synthetic Scent · M \(SYN-M\)/ }).click();
+  const rowsBefore = srv.state.rows.length, postsBeforeH = srv.state.posts.length;
+  srv.state.loseCreateOnce = true;
+  await page.getByRole('button', { name: 'Simpan Draf', exact: true }).click();
+  await page.getByText(/Server belum menjawab/).waitFor();
+  await page.getByRole('button', { name: 'Coba Lagi', exact: true }).waitFor();
+  await page.getByLabel('Qty Synthetic Scent M').fill('4');
+  await page.getByRole('button', { name: 'Simpan Draf', exact: true }).click();
+  await page.getByRole('button', { name: 'Ajukan', exact: true }).waitFor();
+  const hPosts = srv.state.posts.slice(postsBeforeH);
+  assert(hPosts.length === 2 && hPosts[0].key === hPosts[1].key, '(h) the edit re-sent the old create key');
+  assert(hPosts[1].body.items[0].requestedQty === 1, '(h) the replay carried the OLD body');
+  assert(srv.state.rows.length === rowsBefore + 1, '(h) exactly one PB was created');
+  assert(srv.state.puts.length === 1 && srv.state.puts[0].body.items[0].requestedQty === 4, '(h) the edit was applied as one update');
+  result.push({ assert: 'h', createKeys: new Set(hPosts.map((p: any) => p.key)).size, pbs: srv.state.rows.length - rowsBefore, updates: srv.state.puts.length });
+
   // (f) offline: the save is refused with "butuh koneksi" and no write call leaves the tablet
   await page.getByRole('button', { name: 'Kembali', exact: true }).click();
   await page.getByRole('button', { name: 'Buat Permintaan', exact: true }).click();
   await page.getByLabel('Cari barang').fill('SYN-M');
   await page.getByRole('button', { name: /Synthetic Scent · M \(SYN-M\)/ }).click();
-  const postsBefore = srv.state.posts.length;
+  // Count the raw call log: a netDown request is aborted before the synthetic server sees it, so srv.state.posts cannot show it.
+  const rawCreates = () => page.__a24.calls.filter((c: any) => c.method === 'POST' && c.path.endsWith('/requisitions')).length;
+  const postsBefore = rawCreates();
   page.__a24.netDown = true;
   await page.evaluate(() => { window.dispatchEvent(new Event('offline')); });
   await page.getByTitle('Offline', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Simpan Draf', exact: true }).click();
   await page.getByText('Permintaan Barang butuh koneksi internet.').waitFor();
-  assert(srv.state.posts.length === postsBefore, '(f) no create call while offline');
+  assert(rawCreates() === postsBefore, '(f) no create request left the tablet while offline');
   assert(await page.getByLabel('Qty Synthetic Scent M').inputValue() === '1', '(f) the form content is kept');
   page.__a24.netDown = false;
-  result.push({ assert: 'f', writesWhileOffline: srv.state.posts.length - postsBefore });
+  result.push({ assert: 'f', writesWhileOffline: rawCreates() - postsBefore });
 
   // (g) zero warehouse calls across the whole run, in the synthetic server and in the raw call log
   noteWarehouse(srv);

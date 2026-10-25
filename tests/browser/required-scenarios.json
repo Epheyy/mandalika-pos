@@ -196,7 +196,7 @@
     {
       "id": "POS-REQUISITION",
       "finding": "inventory-controls-S6",
-      "description": "Cashier Permintaan Barang: menu hidden without request_stock; create sends Idempotency-Key and outlet; a failed submit retries with the same key; transfer chain shows Dikirim and Buka Terima Transfer opens the receive panel; cancel a draft; offline refuses the save with no write; zero approve/reject/fulfil requests across the run",
+      "description": "Cashier Permintaan Barang: menu hidden without request_stock; create sends Idempotency-Key and outlet; a failed submit retries with the same key; transfer chain shows Dikirim and Buka Terima Transfer opens the receive panel; cancel a draft; a lost create answer then an edit replays the old key (one PB, then one update); offline refuses the save with no request leaving the tablet; zero approve/reject/fulfil requests across the run",
       "source": "tests/browser/pos-requisition-scenarios.ts"
     }
   ],

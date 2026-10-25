@@ -281,6 +281,6 @@ test('POS-OFFLINE-RETURN a sale made offline is found after a reload, reprinted 
 
 test('POS-REQUISITION cashier raises, submits with a stable key, tracks and cancels a requisition and never reaches the warehouse actions', async ({ page }, info) => {
   const result = await posRequisition(page as ScenarioPage)
-  expect(result).toHaveLength(7)
+  expect(result).toHaveLength(8)
   await evidence(info, result)
 })
