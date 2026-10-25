@@ -4,6 +4,7 @@ import { setupBackoffice, backofficeChecks, transactionsChecks, qualifyBackoffic
 import { reviewResolveFlow } from './backoffice-review-scenarios'
 import { csvImportFlow } from './backoffice-import-scenarios'
 import { stockCardFlow } from './backoffice-stockcard-scenarios'
+import { posRequisition } from './pos-requisition-scenarios'
 
 test('BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate toggle', async ({ page }, info) => {
   const p = page as ScenarioPage
@@ -277,3 +278,9 @@ test('POS-OFFLINE-RETURN a sale made offline is found after a reload, reprinted 
   await evidence(info, { afterReload, printed, queued, synced })
 })
 
+
+test('POS-REQUISITION cashier raises, submits with a stable key, tracks and cancels a requisition and never reaches the warehouse actions', async ({ page }, info) => {
+  const result = await posRequisition(page as ScenarioPage)
+  expect(result).toHaveLength(7)
+  await evidence(info, result)
+})

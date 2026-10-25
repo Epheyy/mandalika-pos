@@ -192,6 +192,12 @@
       "finding": "inventory-controls-S1",
       "description": "Ringkasan row opens the Kartu Stok on that SKU, saldo header and Hadiah/Minus badges, cursor paging, Hadiah chip sends giveaway=true, Unduh CSV saves the server file",
       "source": "tests/browser/backoffice-stockcard-scenarios.ts"
+    },
+    {
+      "id": "POS-REQUISITION",
+      "finding": "inventory-controls-S6",
+      "description": "Cashier Permintaan Barang: menu hidden without request_stock; create sends Idempotency-Key and outlet; a failed submit retries with the same key; transfer chain shows Dikirim and Buka Terima Transfer opens the receive panel; cancel a draft; offline refuses the save with no write; zero approve/reject/fulfil requests across the run",
+      "source": "tests/browser/pos-requisition-scenarios.ts"
     }
   ],
   "redundant": [

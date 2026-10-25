@@ -13,7 +13,14 @@ export const passTerminalPicker = async (page: ScenarioPage, outletName = 'Synth
   }
 };
 
-export const setupPos = async (page: ScenarioPage) => {
+// Optional variants of the fixture: `user` overrides fields of the signed-in user (e.g. a cashier), `extraRoute`
+// answers API calls first (return true when it fulfilled the route), `netDown` on page.__a24 aborts every API call.
+export interface PosSetupOpts {
+  user?: Record<string, unknown>;
+  extraRoute?: (route: any, path: string, method: string, req: any) => Promise<boolean>;
+}
+
+export const setupPos = async (page: ScenarioPage, opts: PosSetupOpts = {}) => {
   const P = '00000000-0000-4000-8300-000000000001';
   const R = '00000000-0000-4000-8300-000000000002';
   const products: any[] = [{id:P,name:'Synthetic Scent',isActive:true,variants:[{size:'M',sku:'SYN-M',price:100000,stock:100},{size:'L',sku:'SYN-L',price:120000,stock:100}]},{id:R,name:'Synthetic Tester',isActive:true,variants:[{size:'M',sku:'TEST-M',price:20000,stock:100},{size:'L',sku:'TEST-L',price:25000,stock:100}]}];
@@ -23,13 +30,15 @@ export const setupPos = async (page: ScenarioPage) => {
   const customer={id:'00000000-0000-4000-8300-000000000081',name:'Synthetic Customer',phone:'+62000000000',points:100,totalSpent:0,visitCount:0};
   const codes=[{id:'code-bundle',code:'Raw-Bundle',promotionId:'bundle'},{id:'code-bxgy',code:'Raw-BXGY',promotionId:'bxgy'},{id:'code-generic',code:'Raw-Generic',promotionId:'generic'},{id:'code-cap',code:'CUSTOMER-CAP',perCustomerLimit:1},{id:'code-assigned',code:'ASSIGNED',customerId:customer.id}].map(c=>({...base,type:'percentage',value:10,usageCount:0,...c}));
   const settings={taxEnabled:false,taxRate:0,roundingEnabled:false,roundingType:'none',allowNegativeStock:true,autoOpenShift:false,paymentMethods:[{id:'cash',label:'Tunai',isEnabled:true},{id:'qris',label:'QRIS',isEnabled:true}],receipt:{headerText:'Synthetic receipt',footerText:'Test only',showTax:false,showCashier:true}};
-  const user={id:'00000000-0000-4000-8300-000000000091',displayName:'Synthetic Cashier',role:'admin',outletId:'00000000-0000-4000-8300-000000000090',permissions:['create_order','manage_promotions']};
+  const user={id:'00000000-0000-4000-8300-000000000091',displayName:'Synthetic Cashier',role:'admin',outletId:'00000000-0000-4000-8300-000000000090',permissions:['create_order','manage_promotions'],...opts.user};
   const snapshot={version:1,products,categories:[],bundles:[],customers:[customer],promotions,discountCodes:codes,loyaltyConditions:[],loyaltySettings:{enabled:true,tierEnabled:false,pointsPerThousand:1,redemptionRate:100},appSettings:settings,outletName:'Synthetic Outlet',outletCode:'SYN',salesmen:[]};
   page.__a24={products,promotions,codes,customer,snapshot,version:1,calls:[],writes:[],unexpected:[]};
   await page.unrouteAll({behavior:'wait'});
   await page.route('http://127.0.0.1:59999/api/v1/**',async route=>{
     const req=route.request(), path=req.url().replace(/^https?:\/\/[^/]+/, '').split('?')[0], method=req.method();
     page.__a24.calls.push({path,method});
+    if(page.__a24.netDown) return route.abort('failed');
+    if(opts.extraRoute&&await opts.extraRoute(route,path,method,req)) return;
     let data: any=[];
     if(path.includes('/auth/')) data={access:'SYNTHETIC-NON-TOKEN',refresh:'SYNTHETIC-NON-TOKEN',user};
     else if(path.endsWith('/sync/pull')) data={...snapshot,version:page.__a24.version,...(page.__a24.stockSeq===undefined?{}:{stockSeq:page.__a24.stockSeq})};
