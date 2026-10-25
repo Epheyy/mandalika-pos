@@ -78,6 +78,7 @@ type RunReport struct {
 const (
 	storeTimeout   = 5 * time.Second
 	maxErrorLen    = 500
+	maxDetails     = 3 // ERP error details named in last_error
 	maxRawBodyLen  = 2000
 	maxBackoffMins = 60
 	rateLimitPause = time.Minute // minimum pause after a 429

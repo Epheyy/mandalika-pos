@@ -4,6 +4,8 @@ package erp
 // docs/integration/stock-documents.v1.yaml). Only what the POS emits: the
 // optional discount and customer_ref fields are left out on purpose.
 
+import "encoding/json"
+
 // StockDocument is one stock document (or one part of a split document).
 type StockDocument struct {
 	DocumentID string           `json:"document_id"`
@@ -83,8 +85,10 @@ type ErrorBody struct {
 	Details   []ErrorDetail `json:"details"`
 }
 
-// ErrorDetail points at one invalid field.
+// ErrorDetail points at one invalid field. The ERP sends path as an array
+// (["lines", 2, "fg_code"]); the stub sends a string ("lines[2].fg_code"). Path is
+// kept raw so either form decodes; dottedPath renders it.
 type ErrorDetail struct {
-	Path    string `json:"path"`
-	Message string `json:"message"`
+	Path    json.RawMessage `json:"path"`
+	Message string          `json:"message"`
 }

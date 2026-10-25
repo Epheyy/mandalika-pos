@@ -2,6 +2,7 @@ package erp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -112,10 +113,63 @@ func TestClassify(t *testing.T) {
 	}
 }
 
+func TestDottedPath(t *testing.T) {
+	cases := map[string]string{
+		`["lines", 2, "fg_code"]`: "lines.2.fg_code",
+		`["lines", 1000000]`:      "lines.1000000",
+		`["a", 1.5, true, null]`:  "a.1.5.true.null",
+		`[]`:                      "",
+		`"lines[2].fg_code"`:      "lines[2].fg_code",
+		`null`:                    "",
+		``:                        "",
+		`{"x":1}`:                 `{"x":1}`,
+		`7`:                       "7",
+		`not json`:                "",
+	}
+	for in, want := range cases {
+		if got := dottedPath(json.RawMessage(in)); got != want {
+			t.Errorf("dottedPath(%s) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestErrorTextNamesDetails(t *testing.T) {
+	cases := []struct{ name, body, want string }{
+		{"ERP array path", `{"status":"error","code":"VALIDATION_ERROR","message":"validation failed",
+			"details":[{"path":["lines",2,"fg_code"],"message":"unknown fg_code"}]}`,
+			"VALIDATION_ERROR: validation failed [lines.2.fg_code: unknown fg_code]"},
+		{"stub string path", `{"success":false,"code":"VALIDATION_ERROR","message":"validation failed",
+			"details":[{"path":"lines[0].qty","message":"must not be 0"}]}`,
+			"VALIDATION_ERROR: validation failed [lines[0].qty: must not be 0]"},
+		{"no path, no message", `{"code":"X","message":"m","details":[{"message":"only message"},{"path":["a"]}]}`,
+			"X: m [only message; a]"},
+		{"capped", `{"code":"V","message":"m","details":[{"path":["a"],"message":"1"},{"path":["b"],"message":"2"},
+			{"path":["c"],"message":"3"},{"path":["d"],"message":"4"},{"path":["e"],"message":"5"}]}`,
+			"V: m [a: 1; b: 2; c: 3; +2 more]"},
+		{"no details", `{"code":"V","message":"m","details":[]}`, "V: m"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			o := classify(Response{Status: 422, Body: []byte(c.body)}, nil, 0, "", "d1", testCfg)
+			if o.status != statusDead || o.lastError != c.want {
+				t.Errorf("status %s lastError %q, want dead %q", o.status, o.lastError, c.want)
+			}
+		})
+	}
+}
+
 func TestClassifyConflictMessageSaysErpHoldsDifferentBody(t *testing.T) {
 	o := classify(Response{Status: 409, Body: errBody("C", "m")}, nil, 0, "sha", "d1", testCfg)
 	if !strings.Contains(o.lastError, "already holds a different body") {
 		t.Errorf("lastError = %q", o.lastError)
+	}
+}
+
+func TestClassifyConflictKeepsShaPastLongDetails(t *testing.T) {
+	body := `{"code":"IDEMPOTENCY_CONFLICT","message":"m","details":[{"path":["` + strings.Repeat("é", 400) + `"],"message":"x"}]}`
+	o := classify(Response{Status: 409, Body: []byte(body)}, nil, 0, "sha123", "d1", testCfg)
+	if !strings.HasSuffix(o.lastError, "payload_sha256=sha123)") || len(o.lastError) > maxErrorLen || !utf8.ValidString(o.lastError) {
+		t.Errorf("lastError (%d bytes) = %q", len(o.lastError), o.lastError)
 	}
 }
 

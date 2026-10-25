@@ -3,6 +3,7 @@ package erp
 // Pure decision logic of the relay: what one ERP answer means for the outbox row.
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -68,12 +69,13 @@ func classify(resp Response, err error, attempts int, sha, documentID string, cf
 		return outcome{status: statusPending, attempts: attempts, delay: cfg.AuthBackoff, stop: stop,
 			httpStatus: &code, lastError: truncate(errorText(resp), maxErrorLen), response: rawJSON(resp.Body)}
 	case st == http.StatusBadRequest, st == http.StatusConflict, st == http.StatusUnprocessableEntity:
-		msg := errorText(resp)
+		suffix := ""
 		if st == http.StatusConflict {
-			msg += fmt.Sprintf(" (the ERP already holds a different body for this document_id; payload_sha256=%s)", sha)
+			suffix = fmt.Sprintf(" (the ERP already holds a different body for this document_id; payload_sha256=%s)", sha)
 		}
+		// Cut the ERP text, never the suffix: the 409 must keep naming the payload hash.
 		return outcome{status: statusDead, attempts: attempts + 1, httpStatus: &code,
-			lastError: truncate(msg, maxErrorLen), response: rawJSON(resp.Body)}
+			lastError: truncate(errorText(resp), maxErrorLen-len(suffix)) + suffix, response: rawJSON(resp.Body)}
 	case st == http.StatusTooManyRequests:
 		// Like 401/403, a 429 is not the document's fault: no attempt is burned.
 		return outcome{status: statusPending, attempts: attempts, delay: max(resp.RetryAfter, rateLimitPause),
@@ -140,8 +142,8 @@ func backoff(n int) time.Duration {
 	return time.Duration(1<<n) * time.Minute
 }
 
-// errorText renders "<code>: <message>" from the ERP error envelope, falling back to
-// the HTTP status when the body is not one.
+// errorText renders "<code>: <message> [<path>: <message>; ...]" from the ERP error
+// envelope, falling back to the HTTP status when the body is not one.
 func errorText(resp Response) string {
 	var eb ErrorBody
 	if json.Unmarshal(resp.Body, &eb) == nil && (eb.Code != "" || eb.Message != "") {
@@ -149,9 +151,66 @@ func errorText(resp Response) string {
 		if code == "" {
 			code = eb.Error
 		}
-		return cleanText(code + ": " + eb.Message)
+		return cleanText(code + ": " + eb.Message + detailsText(eb.Details))
 	}
 	return fmt.Sprintf("HTTP %d", resp.Status)
+}
+
+// detailsText lists the first maxDetails details so the dead-letter message names the
+// offending fields; "" when there are none.
+func detailsText(ds []ErrorDetail) string {
+	if len(ds) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, min(len(ds), maxDetails)+1)
+	for _, d := range ds[:min(len(ds), maxDetails)] {
+		switch p := dottedPath(d.Path); {
+		case p == "":
+			parts = append(parts, d.Message)
+		case d.Message == "":
+			parts = append(parts, p)
+		default:
+			parts = append(parts, p+": "+d.Message)
+		}
+	}
+	if n := len(ds) - maxDetails; n > 0 {
+		parts = append(parts, fmt.Sprintf("+%d more", n))
+	}
+	return " [" + strings.Join(parts, "; ") + "]"
+}
+
+// dottedPath renders a detail path: an array (["lines", 2, "fg_code"]) as
+// "lines.2.fg_code", a string as is, null or absent as "". Anything else is kept as
+// its compact JSON text.
+func dottedPath(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber() // a large index must not print as 1e+06
+	var v any
+	if dec.Decode(&v) != nil {
+		return ""
+	}
+	switch x := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return x
+	case []any:
+		segs := make([]string, len(x))
+		for i, e := range x {
+			if s, ok := e.(string); ok {
+				segs[i] = s
+				continue
+			}
+			b, _ := json.Marshal(e)
+			segs[i] = string(b)
+		}
+		return strings.Join(segs, ".")
+	}
+	b, _ := json.Marshal(v)
+	return string(b)
 }
 
 // rawJSON returns the body as jsonb text: the cleaned body when it is a JSON object, else
