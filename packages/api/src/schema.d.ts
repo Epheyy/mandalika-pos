@@ -2414,6 +2414,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inventory/movements/skus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * SKU picker of the kartu stok. Variants with a ledger row at the location matching a search (manage_inventory)
+         * @description Up to 8 variants whose product name, SKU or barcode contains q and that have at least one stock ledger row at the location. An empty q returns an empty list.
+         */
+        get: operations["listMovementSkus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outlets/{id}/giveaway": {
         parameters: {
             query?: never;
@@ -5200,6 +5220,17 @@ export interface components {
         MovementLedgerSummaryResponse: {
             data: components["schemas"]["MovementLedgerSummaryRow"][];
             meta: components["schemas"]["Meta"];
+        };
+        MovementSku: {
+            /** Format: uuid */
+            productId: string;
+            productName: string;
+            variantSize: string;
+            sku: string;
+            barcode?: string;
+        };
+        MovementSkuResponse: {
+            data: components["schemas"]["MovementSku"][];
         };
         /** @description The per-sale giveaway item of an outlet. `configured` is false (and enabled false) when the outlet has no giveaway row. */
         OutletGiveaway: {
@@ -10816,6 +10847,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MovementLedgerSummaryResponse"];
+                };
+            };
+            /** @description invalid filter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listMovementSkus: {
+        parameters: {
+            query: {
+                locationType: components["schemas"]["InventoryLocationType"];
+                locationId: string;
+                /** @description Substring match on product name, SKU or barcode. */
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description matching variants */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MovementSkuResponse"];
                 };
             };
             /** @description invalid filter */

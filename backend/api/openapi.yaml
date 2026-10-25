@@ -2763,6 +2763,20 @@ components:
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/MovementLedgerSummaryRow' } }
         meta: { $ref: '#/components/schemas/Meta' }
+    MovementSku:
+      type: object
+      required: [productId, productName, variantSize, sku]
+      properties:
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        variantSize: { type: string }
+        sku: { type: string }
+        barcode: { type: string }
+    MovementSkuResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/MovementSku' } }
     OutletGiveaway:
       type: object
       required: [outletId, configured, enabled]
@@ -6097,6 +6111,26 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/MovementLedgerSummaryResponse' }
+        '400': { description: invalid filter, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/inventory/movements/skus:
+    get:
+      operationId: listMovementSkus
+      tags: [catalog]
+      summary: SKU picker of the kartu stok. Variants with a ledger row at the location matching a search (manage_inventory)
+      description: >
+        Up to 8 variants whose product name, SKU or barcode contains q and that have at least one
+        stock ledger row at the location. An empty q returns an empty list.
+      parameters:
+        - { name: locationType, in: query, required: true, schema: { $ref: '#/components/schemas/InventoryLocationType' } }
+        - { name: locationId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: q, in: query, required: true, description: "Substring match on product name, SKU or barcode.", schema: { type: string } }
+      responses:
+        '200':
+          description: matching variants
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MovementSkuResponse' }
         '400': { description: invalid filter, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { $ref: '#/components/responses/Forbidden' }
   /api/v1/outlets/{id}/giveaway:
