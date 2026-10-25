@@ -163,6 +163,7 @@ Note: the RQ test builds its own router mirroring `server.go` (`requisition_inte
 | R7 | Shared account hides who asked (audit) | Q2. |
 | R8 | Permission change lag of about 15 min | Release note; the server is authoritative. |
 | R9 | `CashierScreen.tsx` growth and react-doctor "giant component" | All logic lives in the new folder; about 15 lines of wiring. |
+| R10 | "Buang isian" on an unconfirmed create replays the old key, refetches the PB (must still be an unchanged draft), then cancels. In the few milliseconds between that check and the cancel another device could submit the PB, and the server allows cancelling a submitted PB (no compare-and-set on status). | Accepted: the window is tiny and a shared terminal account makes a concurrent actor unlikely; the cancel is visible in the PB history. Documented in `discardPending`. |
 
 ## 8. Slices (order: S6-0 → S6-1 → S6-2 → S6-3 → S6-4; S6-B any time before the backend deploy)
 

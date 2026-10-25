@@ -24,7 +24,7 @@ export type SaveOutcome =
   | { kind: 'saved'; pb: StockRequisition }
   /** The draft exists but a later step (applying the edit, or "Ajukan") did not go through. */
   | { kind: 'draftOnly'; pb: StockRequisition; step: 'update' | 'submit'; failure: FlowKind; message: string }
-  /** The PB from an earlier attempt exists but was submitted or changed meanwhile: nothing was overwritten. */
+  /** The PB from an earlier attempt exists but was submitted, changed, or could not be re-checked: nothing was overwritten. */
   | { kind: 'foundChanged'; pb: StockRequisition; message: string }
   /** Nothing new was saved; the form keeps its content. */
   | { kind: 'failed'; failure: FlowKind; message: string }
@@ -138,7 +138,9 @@ async function applyChange(req: SaveRequest, pb: StockRequisition, old: StockReq
   const v = await verifyDraft(req.deps, pb)
   if (!v.ok && v.why === 'changed') return { kind: 'foundChanged', pb: v.pb, message: changedMessage(v.pb, 'Perubahan Anda belum diterapkan.') }
   if (!v.ok) {
-    return { kind: 'draftOnly', pb, step: 'update', failure: v.failure, message: `Draf ${pb.number} tersimpan, tetapi belum bisa diperiksa. ${v.message}` }
+    // Unverified: do NOT hand the cashier an edit form on this PB (a later save would overwrite without a check).
+    // Open it as it is; they can press Ubah once it loads.
+    return { kind: 'foundChanged', pb, message: `Draf ${pb.number} tersimpan dari percobaan sebelumnya, tetapi belum bisa diperiksa; perubahan Anda belum diterapkan. ${v.message}` }
   }
   if (sameInput(old, now)) return finish(req, v.pb)
   const sig = JSON.stringify({ draftId: pb.id, input: now })
@@ -195,7 +197,18 @@ export async function discardPending(deps: FlowDeps, keys: RequisitionKeys): Pro
   const v = await verifyDraft(deps, res.pb)
   if (!v.ok && v.why === 'changed') return { kind: 'draftExists', pb: v.pb, message: changedMessage(v.pb, 'Tidak dibatalkan.') }
   if (!v.ok) return { kind: 'draftExists', pb: res.pb, message: `Draf ${res.pb.number} sudah tersimpan di server dan belum dibatalkan. ${v.message}` }
+  // Known, accepted window (a few ms): another device could submit this PB between the check above and this
+  // cancel, and the server allows cancelling a submitted PB. The server has no compare-and-set on status here.
   const c = await cancelRequisitionById(deps, keys, res.pb.id)
   if (c.kind === 'ok') return { kind: 'cancelled', pb: c.value }
   return { kind: 'draftExists', pb: res.pb, message: `Draf ${res.pb.number} sudah tersimpan di server dan belum dibatalkan. ${c.message}` }
+}
+
+/**
+ * "Buang tanpa cek": the way out of a pending create stuck on a permanent cause (403, 404 feature off, 413, a
+ * non-JSON 4xx, a non-key 409). It only forgets the record; it does NOT cancel anything the server may hold, so
+ * the panel warns the cashier to check the list first.
+ */
+export async function forceDiscardPending(keys: RequisitionKeys): Promise<void> {
+  await keys.clearPendingCreate()
 }

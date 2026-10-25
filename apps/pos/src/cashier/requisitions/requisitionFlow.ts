@@ -24,6 +24,9 @@ export const KEY_CONFLICT_MESSAGE = 'Permintaan ini berubah saat dikirim. Simpan
  * whether an earlier request committed, so callers must not clear a pending create on them.
  */
 export type FlowKind = 'offline' | 'retry' | 'stale' | 'gone' | 'forbidden' | 'invalid' | 'keyConflict' | 'unauthorized' | 'unconfirmed'
+/** Failures that will not go away by retrying: a pending create stuck on one needs a forced way out. */
+export const PERMANENT_FAILURES: ReadonlySet<FlowKind> = new Set<FlowKind>(['forbidden', 'gone', 'unconfirmed', 'stale'])
+
 export type FlowResult<T> = { kind: 'ok'; value: T } | { kind: FlowKind; message: string }
 
 export type RequisitionApi = Pick<

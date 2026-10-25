@@ -13,12 +13,13 @@ import { RequisitionList } from './RequisitionList'
 import { RequisitionDetail } from './RequisitionDetail'
 import { RequisitionForm } from './RequisitionForm'
 import {
-  EMPTY_FORM, formFromRequisition, loadRequisition, loadRequisitions,
+  EMPTY_FORM, PERMANENT_FAILURES, formFromRequisition, loadRequisition, loadRequisitions,
+  type FlowKind,
   type FlowDeps, type RequisitionFormState,
 } from './requisitionFlow'
 import { createRequisitionKeys } from './requisitionKeys'
 import {
-  cancelRequisitionById, discardPending, resolvePendingCreate, saveRequisition, submitRequisitionById,
+  cancelRequisitionById, discardPending, forceDiscardPending, resolvePendingCreate, saveRequisition, submitRequisitionById,
 } from './requisitionSave'
 import type { RequisitionStatus } from './requisitionLabels'
 
@@ -51,7 +52,7 @@ export function RequisitionPanel({ onClose, onOpenReceive, isOnline, products, u
   }), [userId, outletId])
 
   // An unconfirmed create left by an earlier session is resolved as soon as the panel opens online (M2a),
-  // before the cashier can touch anything: taps are ignored (busy) until it is settled.
+  // before the cashier can touch anything: busy is passed to the list and the form, so taps wait until it is settled.
   const [resolvingAtOpen] = useState(() => isOnline && keys.loadPendingCreate()?.sent === true)
 
   const [view, setView] = useState<View>({ name: 'list' })
@@ -65,6 +66,8 @@ export function RequisitionPanel({ onClose, onOpenReceive, isOnline, products, u
   const [busy, setBusy] = useState(resolvingAtOpen)
   const [form, setForm] = useState<RequisitionFormState>(EMPTY_FORM)
   const [confirm, setConfirm] = useState<Confirm | null>(null)
+  /** A pending create is stuck on a permanent cause (403, 404, 413 ...): offer the forced discard. */
+  const [stuck, setStuck] = useState(false)
   const inFlight = useRef(resolvingAtOpen)
   /** The PB whose detail is on screen; a response for any other id is dropped (L5). */
   const detailId = useRef<string | null>(null)
@@ -95,7 +98,9 @@ export function RequisitionPanel({ onClose, onOpenReceive, isOnline, products, u
   const listError = loading ? null : listed?.error ?? null
   const reloadList = () => setReload((n) => n + 1)
 
-  const resetForm = () => { formBaseline.current = JSON.stringify(EMPTY_FORM); setForm(EMPTY_FORM) }
+  const resetForm = () => { formBaseline.current = JSON.stringify(EMPTY_FORM); setForm(EMPTY_FORM); setStuck(false) }
+  /** Offer the forced discard only for a permanent failure while an unconfirmed create is actually pending. */
+  const noteFailure = (failure: FlowKind) => setStuck(PERMANENT_FAILURES.has(failure) && keys.loadPendingCreate()?.sent === true)
   const toList = (notice: string | null = null) => {
     detailId.current = null
     setView({ name: 'list' })
@@ -125,6 +130,8 @@ export function RequisitionPanel({ onClose, onOpenReceive, isOnline, products, u
       if (!alive) return
       if (res.kind === 'resolved') void showDetail(res.pb.id, `Draf ${res.pb.number} tersimpan dari percobaan sebelumnya.`)
       else if (res.kind === 'maybeSaved') toList(res.message)
+      else if (res.kind === 'refused') toList(`Permintaan sebelumnya ditolak server dan dibuang: ${res.message}`)
+      else if (res.kind === 'blocked') noteFailure(res.failure)
     }).finally(() => { inFlight.current = false; setBusy(false) })
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once at open; showDetail/toList only set state
@@ -159,7 +166,9 @@ export function RequisitionPanel({ onClose, onOpenReceive, isOnline, products, u
     const out = await saveRequisition({ deps, keys, editing: editingRef.current, form: formRef.current, andSubmit })
     const storage = keys.storageFailed() ? ` ${STORAGE_NOTICE}` : ''
     if (out.kind === 'failed') {
-      if (out.failure === 'keyConflict') { resetForm(); return toList(out.message) } // a PB may already exist: look at the list
+      if (out.failure === 'keyConflict' && !editingRef.current) { resetForm(); return toList(out.message) } // a create: a PB may already exist, look at the list
+      noteFailure(out.failure)
+      // (an edit that hit a key conflict stays open: the message says "Simpan lagi" and the next save uses a new key)
       setMessage(out.message + storage)
       setRetry(() => (out.failure === 'retry' ? () => void save(andSubmit) : null))
       return
@@ -195,6 +204,7 @@ export function RequisitionPanel({ onClose, onOpenReceive, isOnline, products, u
   const discard = (): Promise<void> => guarded(async () => {
     const out = await discardPending(deps, keys)
     if (out.kind === 'unresolved') {
+      noteFailure(out.failure)
       setMessage(`${out.message} Isian belum dibuang.`)
       setRetry(() => (out.failure === 'retry' ? () => void discard() : null))
       return
@@ -210,6 +220,18 @@ export function RequisitionPanel({ onClose, onOpenReceive, isOnline, products, u
     body: 'Jika permintaan ini sempat terkirim ke server, permintaan itu akan dibatalkan.',
     label: 'Buang',
     action: () => void discard(),
+  })
+
+  const forceDiscard = (): Promise<void> => guarded(async () => {
+    await forceDiscardPending(keys)
+    resetForm()
+    toList('Isian dibuang tanpa dicek. Permintaan itu mungkin sudah tersimpan di server: periksa daftar permintaan.')
+  })
+  const askForceDiscard = () => setConfirm({
+    title: 'Buang tanpa cek?',
+    body: 'Permintaan ini mungkin sudah tersimpan di server. Membuang di sini TIDAK membatalkannya. Periksa daftar permintaan dulu.',
+    label: 'Buang tanpa cek',
+    action: () => void forceDiscard(),
   })
 
   // Leaving a form with unsaved changes asks first; while a request is in flight navigation is ignored.
@@ -246,7 +268,7 @@ export function RequisitionPanel({ onClose, onOpenReceive, isOnline, products, u
         </div>
         <div className="flex-1 overflow-auto min-h-0">
           {view.name === 'list' && (
-            <RequisitionList rows={rows} loading={loading} error={listError} notice={listNotice} filter={filter}
+            <RequisitionList rows={rows} loading={loading} error={listError} notice={listNotice} busy={busy} filter={filter}
               onFilter={setFilter} onOpen={(id) => { setListNotice(null); void showDetail(id) }} onNew={openNew} onReload={reloadList} />
           )}
           {view.name === 'detail' && (pb ? (
@@ -262,7 +284,7 @@ export function RequisitionPanel({ onClose, onOpenReceive, isOnline, products, u
             </div>
           ))}
           {view.name === 'form' && (
-            <RequisitionForm form={form} onChange={setForm} products={products} busy={busy} message={message} onRetry={retry} onMessage={setMessage}
+            <RequisitionForm form={form} onChange={setForm} products={products} busy={busy} message={message} onRetry={retry} onMessage={setMessage} onForceDiscard={stuck ? askForceDiscard : null}
               isEdit={view.editing !== null} onSave={(s) => void save(s)} onDiscard={askDiscard} />
           )}
         </div>

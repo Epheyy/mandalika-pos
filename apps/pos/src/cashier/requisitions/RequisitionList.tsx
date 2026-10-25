@@ -21,6 +21,8 @@ interface Props {
   error: string | null
   /** A notice from an earlier action (e.g. a requisition that may already be saved). */
   notice?: string | null
+  /** An action is in flight (e.g. the open-time resolve): new requests and row taps wait. */
+  busy?: boolean
   filter: RequisitionStatus | ''
   onFilter: (f: RequisitionStatus | '') => void
   onOpen: (id: string) => void
@@ -28,7 +30,7 @@ interface Props {
   onReload: () => void
 }
 
-export function RequisitionList({ rows, loading, error, notice, filter, onFilter, onOpen, onNew, onReload }: Props) {
+export function RequisitionList({ rows, loading, error, notice, busy = false, filter, onFilter, onOpen, onNew, onReload }: Props) {
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="px-4 py-2 border-b flex gap-2 overflow-x-auto">
@@ -43,8 +45,8 @@ export function RequisitionList({ rows, loading, error, notice, filter, onFilter
       </div>
       {notice && <p role="status" className="px-4 py-2 text-sm text-amber-800 bg-amber-50 border-b border-amber-100">{notice}</p>}
       <div className="px-4 py-2 flex gap-2 border-b">
-        <button type="button" onClick={onNew} className="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-bold">Buat Permintaan</button>
-        <button type="button" onClick={onReload} disabled={loading} className="px-3 text-sm text-indigo-600 font-bold disabled:text-gray-300">Muat ulang</button>
+        <button type="button" onClick={onNew} disabled={busy} className="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-bold disabled:opacity-50">Buat Permintaan</button>
+        <button type="button" onClick={onReload} disabled={loading || busy} className="px-3 text-sm text-indigo-600 font-bold disabled:text-gray-300">Muat ulang</button>
       </div>
       <div className="flex-1 overflow-auto">
         {error ? (
@@ -55,7 +57,7 @@ export function RequisitionList({ rows, loading, error, notice, filter, onFilter
         ) : loading && rows.length === 0 ? <p className="p-4 text-sm text-gray-400">Memuat…</p>
           : rows.length === 0 ? <p className="p-4 text-sm text-gray-400">Belum ada permintaan barang dari outlet ini.</p>
           : rows.map((r) => (
-            <button type="button" key={r.id} onClick={() => onOpen(r.id)} className="w-full text-left px-4 py-3 border-b hover:bg-gray-50">
+            <button type="button" key={r.id} onClick={() => onOpen(r.id)} disabled={busy} className="w-full text-left px-4 py-3 border-b hover:bg-gray-50 disabled:opacity-60">
               <div className="flex justify-between items-center">
                 <span className="font-bold text-gray-800 text-sm">{r.number}</span>
                 <StatusBadge status={r.status} />

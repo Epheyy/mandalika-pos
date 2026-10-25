@@ -182,3 +182,11 @@ describe("what counts as a proven refusal (M1)", () => {
     expect(await run(err(413, "too large"))).toBe("unconfirmed")
   })
 })
+
+describe('permanent failures (L3)', () => {
+  it('lists exactly the causes a retry cannot fix', async () => {
+    const { PERMANENT_FAILURES } = await import('./requisitionFlow')
+    expect([...PERMANENT_FAILURES].sort()).toEqual(['forbidden', 'gone', 'stale', 'unconfirmed'])
+    for (const k of ['retry', 'offline', 'unauthorized', 'invalid', 'keyConflict']) expect(PERMANENT_FAILURES.has(k as never)).toBe(false)
+  })
+})

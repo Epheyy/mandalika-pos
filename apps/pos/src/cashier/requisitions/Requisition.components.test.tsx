@@ -131,3 +131,19 @@ describe('RequisitionForm and variant picker', () => {
     expect(variantOptions([product({ variants: [{ size: 'M', price: 1, stock: 1, sku: 'a' }, { size: 'S', price: 1, stock: 1, sku: 'b' }] })], '', 1)).toHaveLength(1)
   })
 })
+
+describe('busy list and forced discard (re-review L2, L3)', () => {
+  it('busy disables Buat Permintaan and the row taps (the open-time resolve)', () => {
+    const busy = renderToStaticMarkup(createElement(RequisitionList, { ...listProps, rows: [pb()], busy: true }))
+    expect(busy).toMatch(/<button[^>]*disabled=""[^>]*>Buat Permintaan/)
+    expect(busy).toMatch(/<button[^>]*disabled=""[^>]*><div[^>]*><span[^>]*>PB-2026-00001/)
+    const idle = renderToStaticMarkup(createElement(RequisitionList, { ...listProps, rows: [pb()] }))
+    expect(idle).not.toMatch(/<button[^>]*disabled=""[^>]*>Buat Permintaan/)
+  })
+
+  it('offers "Buang tanpa cek" only when a stuck pending create asks for it', () => {
+    expect(renderToStaticMarkup(createElement(RequisitionForm, formProps))).not.toContain('Buang tanpa cek')
+    const html = renderToStaticMarkup(createElement(RequisitionForm, { ...formProps, onForceDiscard: noop }))
+    expect(html).toContain('Buang tanpa cek — periksa daftar permintaan dulu')
+  })
+})

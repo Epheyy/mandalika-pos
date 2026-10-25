@@ -12,13 +12,15 @@ interface Props {
   onMessage: (m: string | null) => void
   /** Set when the last failure was "server belum menjawab": re-sends the same save (same key). */
   onRetry?: (() => void) | null
+  /** Set when a pending create is stuck on a permanent cause: offers a forced discard without any check. */
+  onForceDiscard?: (() => void) | null
   /** True when editing an existing draft (no "Simpan & Ajukan" needed to create). */
   isEdit: boolean
   onSave: (andSubmit: boolean) => void
   onDiscard: () => void
 }
 
-export function RequisitionForm({ form, onChange, products, busy, message, onMessage, onRetry, isEdit, onSave, onDiscard }: Props) {
+export function RequisitionForm({ form, onChange, products, busy, message, onMessage, onRetry, onForceDiscard, isEdit, onSave, onDiscard }: Props) {
   const taken = new Set(form.lines.map(lineKey))
   const add = (o: { productId: string; productName: string; variantSize: string; sku: string }) => {
     if (taken.has(lineKey(o))) { onMessage(MSG_DUPLICATE); return }
@@ -71,6 +73,9 @@ export function RequisitionForm({ form, onChange, products, busy, message, onMes
         <button type="button" disabled={busy} onClick={() => onSave(false)} className="flex-1 border rounded-lg py-2.5 text-sm font-bold text-gray-700 disabled:opacity-50">Simpan Draf</button>
         <button type="button" disabled={busy} onClick={() => onSave(true)} className="flex-1 bg-indigo-600 text-white rounded-lg py-2.5 text-sm font-bold disabled:opacity-50">Simpan &amp; Ajukan</button>
       </div>
+      {onForceDiscard && (
+        <button type="button" disabled={busy} onClick={onForceDiscard} className="w-full border border-red-300 text-red-600 rounded-lg py-2 text-xs font-bold">Buang tanpa cek — periksa daftar permintaan dulu</button>
+      )}
       {!isEdit && form.lines.length > 0 && (
         <button type="button" disabled={busy} onClick={onDiscard} className="w-full text-xs text-gray-400">Buang isian</button>
       )}

@@ -49,7 +49,12 @@ export function newKey(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`
 }
 
-export const pendingCreateStorageKey = (s: KeyScope): string => `pos.requisition.pendingCreate.${s.userId}.${s.outletId}`
+/**
+ * MUST start with `mandalika.`: on Android CapacitorPreferencesKV.hydrate only loads keys with that prefix (the rest
+ * of the POS uses `mandalika.pos.`), so any other key silently vanishes at the next app start. Pinned by a test
+ * that round-trips this key through a hydrated CapacitorPreferencesKV.
+ */
+export const pendingCreateStorageKey = (s: KeyScope): string => `mandalika.pos.requisition.pendingCreate.${s.userId}.${s.outletId}`
 
 /** A resolved record whose removal failed is overwritten with this, so it is never resurrected after a restart. */
 const RESOLVED_MARKER = JSON.stringify({ resolved: true })

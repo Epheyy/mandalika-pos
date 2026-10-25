@@ -4,7 +4,7 @@ import type { StockRequisition, StockRequisitionInput } from '@mandalika/api'
 import { controllableKV } from '../../../../../packages/sync/src/testFixtures/controllableKV'
 import type { FlowDeps, RequisitionApi, RequisitionFormState } from './requisitionFlow'
 import { createRequisitionKeys } from './requisitionKeys'
-import { MAYBE_SAVED_MESSAGE, discardPending, resolvePendingCreate, saveRequisition, submitRequisitionById } from './requisitionSave'
+import { MAYBE_SAVED_MESSAGE, discardPending, forceDiscardPending, resolvePendingCreate, saveRequisition, submitRequisitionById } from './requisitionSave'
 
 const line = (qty: string) => ({ productId: 'p1', productName: 'A', variantSize: 'M', qty })
 const form = (qty = '2'): RequisitionFormState => ({ lines: [line(qty)], neededBy: '', note: '', requestedBy: 'Sari' })
@@ -353,12 +353,20 @@ describe('M2: a stale record cannot take over a PB the cashier already knows', (
     expect(s.log.updates).toEqual([])
   })
 
-  it('save: when the replayed PB cannot be re-read nothing is overwritten (draftOnly update, retry)', async () => {
+  it('save: when the replayed PB cannot be re-read it is opened as it is, never as an edit form (M1 prime); nothing is overwritten', async () => {
     const s = await lost()
     s.ctl.getError = timeout()
     const out = await saveRequisition({ ...s, form: form('9'), andSubmit: false })
-    expect(out).toMatchObject({ kind: 'draftOnly', step: 'update', failure: 'retry', pb: { id: 'r1' } })
+    expect(out).toMatchObject({ kind: 'foundChanged', pb: { id: 'r1' } })
+    expect(out.kind === 'foundChanged' && out.message).toContain('belum bisa diperiksa')
     expect(s.log.updates).toEqual([])
+    expect(s.keys.loadPendingCreate()).toBeNull()
+  })
+
+  it('save: only when verify PASSED and the update itself failed is it draftOnly(update), which reopens the form', async () => {
+    const s = await lost()
+    s.api.updateRequisition = vi.fn().mockRejectedValue(timeout()) as never
+    expect(await saveRequisition({ ...s, form: form('9'), andSubmit: false })).toMatchObject({ kind: 'draftOnly', step: 'update', pb: { id: 'r1' } })
   })
 
   it('discard: the replayed PB was already submitted: it is NOT cancelled', async () => {
@@ -399,5 +407,27 @@ describe('M2: a stale record cannot take over a PB the cashier already knows', (
     l.ctl.createError = keyConflict()
     expect(await resolvePendingCreate(l.deps, l.keys)).toEqual({ kind: 'maybeSaved', message: MAYBE_SAVED_MESSAGE })
     expect(l.keys.loadPendingCreate()).toBeNull()
+  })
+})
+
+describe('L3: a way out of a pending create stuck on a permanent cause', () => {
+  it.each([
+    ['forbidden', new ApiError(403, 'forbidden')],
+    ['gone', new ApiError(404, 'not found')],
+    ['unconfirmed', new ApiError(413, 'too large')],
+    ['stale', new ApiError(409, 'aksi tidak diizinkan dari status x')],
+  ])('%s keeps the record on every resolve, and forceDiscardPending clears it without any call', async (_kind, err) => {
+    const s = setup()
+    s.ctl.loseCreateResponses = 1
+    await saveRequisition({ ...s, form: form('2'), andSubmit: false })
+    s.ctl.createError = err
+    expect(await saveRequisition({ ...s, form: form('2'), andSubmit: false })).toMatchObject({ kind: 'failed' })
+    expect(await discardPending(s.deps, s.keys)).toMatchObject({ kind: 'unresolved' })
+    expect(s.keys.loadPendingCreate()).toMatchObject({ sent: true })
+    const calls = s.log.creates.length
+    await forceDiscardPending(s.keys)
+    expect(s.keys.loadPendingCreate()).toBeNull()
+    expect(s.log.creates).toHaveLength(calls)
+    expect(s.log.cancels).toEqual([])
   })
 })
