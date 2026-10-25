@@ -5358,7 +5358,7 @@ export interface components {
             lines?: components["schemas"]["StockCountSubmitLineInput"][];
         };
         /** @enum {string} */
-        StockCountImportWarning: "unknown_code" | "ambiguous_sku" | "not_on_count" | "stock_moved_since_start" | "baseline_replaced";
+        StockCountImportWarning: "unknown_code" | "ambiguous_sku" | "not_on_count" | "stock_moved_since_start" | "baseline_replaced" | "sku_narrowed";
         StockCountImportLineRef: {
             /** Format: uuid */
             productId: string;

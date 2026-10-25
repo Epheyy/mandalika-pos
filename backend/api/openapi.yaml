@@ -2929,7 +2929,7 @@ components:
         lines: { type: array, items: { $ref: '#/components/schemas/StockCountSubmitLineInput' } }
     StockCountImportWarning:
       type: string
-      enum: [unknown_code, ambiguous_sku, not_on_count, stock_moved_since_start, baseline_replaced]
+      enum: [unknown_code, ambiguous_sku, not_on_count, stock_moved_since_start, baseline_replaced, sku_narrowed]
     StockCountImportLineRef:
       type: object
       required: [productId, variantSize]
