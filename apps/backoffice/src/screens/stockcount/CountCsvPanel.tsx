@@ -10,6 +10,8 @@ interface CountCsvPanelProps {
   count: StockCount
   /** Called once after a successful apply so the screen can drop unsaved edits and refetch. */
   onApplied: () => void
+  /** Unsaved line edits exist: an upload would replace them silently, so it waits for "Simpan". */
+  blocked?: boolean
 }
 
 type Phase = 'idle' | 'previewing' | 'ready' | 'applying' | 'applied'
@@ -27,7 +29,7 @@ function downloadText(text: string, fileName: string) {
   a.href = URL.createObjectURL(blob)
   a.download = fileName
   a.click()
-  URL.revokeObjectURL(a.href)
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
 /**
@@ -35,7 +37,7 @@ function downloadText(text: string, fileName: string) {
  * diff, then apply. Applying stores counted quantities only (never stock); the normal
  * "Ajukan Persetujuan" / "Selesai" step follows.
  */
-export function CountCsvPanel({ count, onApplied }: CountCsvPanelProps) {
+export function CountCsvPanel({ count, onApplied, blocked = false }: CountCsvPanelProps) {
   const fileInput = useRef<HTMLInputElement>(null)
   const [phase, setPhase] = useState<Phase>('idle')
   const [file, setFile] = useState<{ name: string; csv: string } | null>(null)
@@ -79,7 +81,7 @@ export function CountCsvPanel({ count, onApplied }: CountCsvPanelProps) {
   }
 
   const apply = async () => {
-    if (!file || !report || !canApplyCount(report, busy)) return
+    if (!file || !report || blocked || !canApplyCount(report, busy)) return
     setPhase('applying')
     setMessage(null)
     try {
@@ -94,8 +96,15 @@ export function CountCsvPanel({ count, onApplied }: CountCsvPanelProps) {
     } catch (e) {
       setPhase('ready')
       if (e instanceof ApiError && e.status === 409) {
-        setMessage('Data berubah sejak pratinjau. Pratinjau ulang sebelum menerapkan.')
-        key.current = crypto.randomUUID() // the old key belongs to the old preview
+        const code = (e.body as { data?: { code?: string } } | null)?.data?.code
+        if (code === 'import_stale') {
+          setMessage('Data berubah sejak pratinjau (hitungan atau stok bergerak). Pratinjau ulang sebelum menerapkan.')
+          key.current = crypto.randomUUID() // the old key belongs to the old preview
+        } else if (code === 'idempotency_conflict') {
+          setMessage('Kunci unggahan ini sudah dipakai untuk file lain. Pilih file lagi.')
+        } else {
+          setMessage(errorMessage(e)) // e.g. the count is no longer in progress
+        }
       } else if (e instanceof ApiError && e.status === 422 && reportFromErrorBody(e.body)) {
         setReport(reportFromErrorBody(e.body))
         setMessage('Impor ditolak: tidak ada data yang diubah.')
@@ -120,9 +129,10 @@ export function CountCsvPanel({ count, onApplied }: CountCsvPanelProps) {
       <Button variant="secondary" size="sm" icon={<Download className="w-3 h-3" />} onClick={() => void download()}>
         Unduh CSV
       </Button>
-      <Button variant="secondary" size="sm" icon={<FileUp className="w-3 h-3" />} onClick={() => fileInput.current?.click()}>
+      <Button variant="secondary" size="sm" icon={<FileUp className="w-3 h-3" />} disabled={blocked} onClick={() => fileInput.current?.click()}>
         Unggah Hasil Scan
       </Button>
+      {blocked && <span className="text-xs text-amber-700">Simpan dulu hitungan yang belum tersimpan.</span>}
       {message && phase === 'idle' && (
         <span role="alert" className="text-xs font-bold text-red-700">{message}</span>
       )}
@@ -148,7 +158,7 @@ export function CountCsvPanel({ count, onApplied }: CountCsvPanelProps) {
                       Pratinjau ulang
                     </Button>
                   )}
-                  <Button className="ml-auto" onClick={() => void apply()} disabled={!canApplyCount(report, busy)} loading={phase === 'applying'}>
+                  <Button className="ml-auto" onClick={() => void apply()} disabled={blocked || !canApplyCount(report, busy)} loading={phase === 'applying'}>
                     Terapkan
                   </Button>
                 </>

@@ -37,6 +37,7 @@ func (h *Handlers) ExportStockCount(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="stock-count-`+id+`.csv"`)
+	_, _ = w.Write([]byte("\ufeff")) // BOM, like the backoffice exports, so Excel reads UTF-8
 	cw := csv.NewWriter(w)
 	_ = cw.Write(stockCountSheetColumns)
 	for _, l := range rows {
@@ -85,7 +86,7 @@ func (h *Handlers) ImportStockCount(w http.ResponseWriter, r *http.Request) {
 		e := body.ExpectedSummary
 		req.Key, req.FileSHA256 = key, *body.FileSha256
 		req.ExpectedCount = &csvimport.StockCountSummary{Matched: e.Matched, Unknown: e.Unknown,
-			Ambiguous: e.Ambiguous, NotOnCount: e.NotOnCount, Uncounted: e.Uncounted, Changed: e.Changed}
+			Ambiguous: e.Ambiguous, NotOnCount: e.NotOnCount, Uncounted: e.Uncounted, Changed: e.Changed, Digest: e.Digest}
 	}
 	h.finishImport(w, r, req)
 }

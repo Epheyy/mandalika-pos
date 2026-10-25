@@ -44,6 +44,8 @@ func loadCountCatalog(ctx context.Context, q pgx.Tx, countID string, loc countLo
 	if loc.isWarehouse() {
 		locType = ledger.LocWarehouse
 	}
+	// Scans the location's movements since the count started (S1 adds a (location, recorded_at, seq)
+	// index that serves this after the merge; none here).
 	moved := map[[2]string]bool{}
 	rows, err := q.Query(ctx, `
 		SELECT DISTINCT m.product_id::text, m.variant_size
@@ -67,14 +69,14 @@ func loadCountCatalog(ctx context.Context, q pgx.Tx, countID string, loc countLo
 	}
 
 	rows, err = q.Query(ctx, `
-		SELECT product_id::text, variant_size, product_name, sku, frozen_qty, actual_qty
+		SELECT product_id::text, variant_size, product_name, sku, frozen_qty, actual_qty, baseline_qty IS NOT NULL
 		  FROM stock_count_items WHERE stock_count_id=$1 ORDER BY product_name, variant_size`, countID)
 	if err != nil {
 		return cat, err
 	}
 	for rows.Next() {
 		var l csvimport.StockCountLine
-		if err = rows.Scan(&l.ProductID, &l.VariantSize, &l.ProductName, &l.SKU, &l.Frozen, &l.Actual); err != nil {
+		if err = rows.Scan(&l.ProductID, &l.VariantSize, &l.ProductName, &l.SKU, &l.Frozen, &l.Actual, &l.HasBaseline); err != nil {
 			rows.Close()
 			return cat, err
 		}
@@ -102,7 +104,8 @@ func loadCountCatalog(ctx context.Context, q pgx.Tx, countID string, loc countLo
 }
 
 // applyStockCountSaves stores the counted quantities only: no stock change, no per-line
-// baseline (the delta stays against the count-start snapshot). The upload is a line save, so
+// baseline kept: a CSV save that changes a line's value clears that line's manual baseline, so the
+// delta stays against the count-start snapshot (the preview flags such lines, baseline_replaced). The upload is a line save, so
 // saveCountLines writes the importer's 'updated' event (as for PUT /stock-counts/{id}); the strict four-eyes
 // rule then keeps them from approving the count.
 func applyStockCountSaves(ctx context.Context, tx pgx.Tx, req ImportRequest, loc countLoc, saves []csvimport.StockCountSave) error {

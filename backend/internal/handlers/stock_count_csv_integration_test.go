@@ -75,6 +75,7 @@ func TestStockCountCsvPostgres(t *testing.T) {
 	variants := []struct{ prod, size, sku, barcode string }{
 		{prodA, "M", "CV-A-M", "9001"}, {prodA, "L", "DUP", "9002"}, {prodA, "S", "CV-A-S", "9003"},
 		{prodB, "M", "DUP", "9004"}, {prodOff, "M", "CV-OFF", "9005"},
+		{prodB, "L", "DUP2", "9006"}, {prodOff, "L", "DUP2", "9007"}, // ambiguous even when narrowed to the count
 	}
 	for _, v := range variants {
 		exec(`INSERT INTO product_variants(product_id,size,price,sku,barcode) VALUES($1,$2,1000,$3,$4)`, v.prod, v.size, v.sku, v.barcode)
@@ -98,6 +99,7 @@ func TestStockCountCsvPostgres(t *testing.T) {
 	router.Use(mw.RequireAuth(&config.Config{AccessSecret: secret}))
 	router.Post("/stock-counts", h.CreateStockCount)
 	router.Put("/stock-counts/{id}", h.UpdateStockCount)
+	router.Post("/stock-counts/{id}/complete", h.CompleteStockCount)
 	router.Post("/stock-counts/{id}/submit", h.SubmitStockCount)
 	router.Post("/stock-counts/{id}/approve", h.ApproveStockCount)
 	router.Get("/stock-counts/{id}/export", h.ExportStockCount)
@@ -147,6 +149,7 @@ func TestStockCountCsvPostgres(t *testing.T) {
 	}
 	type summary struct {
 		Matched, Unknown, Ambiguous, NotOnCount, Uncounted, Changed int
+		Digest                                                      string
 	}
 	type report struct {
 		Data struct {
@@ -169,8 +172,8 @@ func TestStockCountCsvPostgres(t *testing.T) {
 		body := map[string]any{"csv": csvText, "dryRun": dry, "fileName": "scan.csv"}
 		if !dry {
 			body["fileSha256"] = rep.Data.FileSha256
-			body["expectedSummary"] = map[string]int{"matched": sum.Matched, "unknown": sum.Unknown, "ambiguous": sum.Ambiguous,
-				"notOnCount": sum.NotOnCount, "uncounted": sum.Uncounted, "changed": sum.Changed}
+			body["expectedSummary"] = map[string]any{"matched": sum.Matched, "unknown": sum.Unknown, "ambiguous": sum.Ambiguous,
+				"notOnCount": sum.NotOnCount, "uncounted": sum.Uncounted, "changed": sum.Changed, "digest": sum.Digest}
 		}
 		code, _, out := call("POST", "/stock-counts/"+id+"/import", token, key, body)
 		return code, out
@@ -203,7 +206,10 @@ func TestStockCountCsvPostgres(t *testing.T) {
 		if ct := hdr.Get("Content-Type"); ct != "text/csv; charset=utf-8" {
 			t.Fatalf("content type %q", ct)
 		}
-		recs, err := csv.NewReader(strings.NewReader(body)).ReadAll()
+		if !strings.HasPrefix(body, "\ufeff") {
+			t.Fatal("export has no UTF-8 BOM")
+		}
+		recs, err := csv.NewReader(strings.NewReader(strings.TrimPrefix(body, "\ufeff"))).ReadAll()
 		if err != nil || len(recs) != 4 {
 			t.Fatalf("sheet %v %v", recs, err)
 		}
@@ -218,12 +224,15 @@ func TestStockCountCsvPostgres(t *testing.T) {
 	})
 
 	t.Run("import: errors are reported and never committed", func(t *testing.T) {
-		rep, _ := preview(tokImp, count1, "barcode,sku,counted_qty\n9999,,1\n,DUP,2\n9001,,3\n,CV-OFF,4\n")
+		rep, _ := preview(tokImp, count1, "barcode,sku,counted_qty\n9999,,1\n,DUP2,2\n9001,,3\n,CV-OFF,4\n")
 		s := rep.Data.Summary
 		if rep.Data.Kind != "stock_count" || s.Unknown != 1 || s.Ambiguous != 1 || s.Matched != 1 || s.NotOnCount != 1 || s.Uncounted != 2 {
 			t.Fatalf("summary %+v", s)
 		}
-		csvBad := "barcode,sku,counted_qty\n9999,,1\n,DUP,2\n9001,,3\n,CV-OFF,4\n"
+		if narrowed, _ := preview(tokImp, count1, "sku,counted_qty\nDUP,1\n"); narrowed.Data.Summary.Matched != 1 || narrowed.Data.Summary.Ambiguous != 0 {
+			t.Fatalf("a shared SKU narrows to the count's own line: %+v", narrowed.Data.Summary)
+		}
+		csvBad := "barcode,sku,counted_qty\n9999,,1\n,DUP2,2\n9001,,3\n,CV-OFF,4\n"
 		code, out := imp(tokImp, count1, csvBad, false, nextKey(), &rep, &s)
 		mustCode("commit with unknown and ambiguous codes", 422, code, out)
 		if actual(count1, "M") != "null" || num(`SELECT count(*) FROM import_runs WHERE kind='stock_count'`) != 0 {
@@ -353,6 +362,80 @@ func TestStockCountCsvPostgres(t *testing.T) {
 		}
 		code, _, body = call("POST", "/stock-counts/"+count4+"/approve", tokAdmin, nextKey(), map[string]any{"pin": pin})
 		mustCode("a third person approves", 200, code, body)
+	})
+
+	t.Run("stale digest: a manual save with a different value between preview and commit is a 409", func(t *testing.T) {
+		count6 := newCount("cv6")
+		start(count6)
+		const csvText = "barcode,counted_qty\n9001,5\n"
+		rep, _ := preview(tokImp, count6, csvText)
+		// The counters stay equal (the line is "changed" either way); only the stored value differs.
+		code, _, body := call("PUT", "/stock-counts/"+count6, tokCre, "", map[string]any{
+			"items": []map[string]any{{"productId": prodA, "variantSize": "M", "actualQty": 9}}})
+		mustCode("manual save", 200, code, body)
+		code, out := imp(tokImp, count6, csvText, false, nextKey(), &rep, &rep.Data.Summary)
+		mustCode("commit after a different manual value", 409, code, out)
+		if !strings.Contains(out, "import_stale") || actual(count6, "M") != "9" {
+			t.Fatalf("body %s, M=%s", out, actual(count6, "M"))
+		}
+		// A new stock movement after the preview is stale too.
+		rep2, _ := preview(tokImp, count6, csvText)
+		exec(`INSERT INTO stock_movements(document_id,dedupe_key,kind,location_type,location_id,product_id,variant_size,qty,qty_before,qty_after,ref_type,occurred_at)
+		      VALUES(gen_random_uuid(),'cv-moved-2','adjust','outlet',$1,$2,'M',1,10,11,'test',now())`, outC, prodA)
+		code, out = imp(tokImp, count6, csvText, false, nextKey(), &rep2, &rep2.Data.Summary)
+		mustCode("commit after a movement", 409, code, out)
+		exec(`UPDATE stock_counts SET status='cancelled' WHERE id=$1`, count6)
+	})
+
+	t.Run("a blank counted_qty skips the row with a warning (partly filled sheet)", func(t *testing.T) {
+		count7 := newCount("cv7")
+		start(count7)
+		const csvText = "barcode,counted_qty\n9001,\n9003,4\n"
+		rep, out := preview(tokImp, count7, csvText)
+		if rep.Data.Summary.Matched != 1 || rep.Data.Summary.Uncounted != 2 || !strings.Contains(out, "blank_qty") {
+			t.Fatalf("report %s", out)
+		}
+		code, out := imp(tokImp, count7, csvText, false, nextKey(), &rep, &rep.Data.Summary)
+		mustCode("commit", 200, code, out)
+		if actual(count7, "M") != "null" || actual(count7, "S") != "4" {
+			t.Fatalf("M=%s S=%s", actual(count7, "M"), actual(count7, "S"))
+		}
+		exec(`UPDATE stock_counts SET status='cancelled' WHERE id=$1`, count7)
+	})
+
+	t.Run("a manual baseline is flagged and cleared: the delta stays against the count-start snapshot", func(t *testing.T) {
+		stockM := func() int {
+			return num(`SELECT stock FROM outlet_variant_stock WHERE outlet_id=$1 AND product_id=$2 AND variant_size='M'`, outC, prodA)
+		}
+		count8 := newCount("cv8")
+		start(count8)
+		frozen := num(`SELECT frozen_qty FROM stock_count_items WHERE stock_count_id=$1 AND variant_size='M'`, count8)
+		exec(`UPDATE outlet_variant_stock SET stock=stock+2 WHERE outlet_id=$1 AND product_id=$2 AND variant_size='M'`, outC, prodA)
+		code, _, body := call("PUT", "/stock-counts/"+count8, tokCre, "", map[string]any{
+			"items": []map[string]any{{"productId": prodA, "variantSize": "M", "actualQty": 3}}})
+		mustCode("manual save captures a baseline", 200, code, body)
+		if num(`SELECT count(*) FROM stock_count_items WHERE stock_count_id=$1 AND baseline_qty IS NOT NULL`, count8) != 1 {
+			t.Fatal("manual save did not capture a baseline")
+		}
+		live := stockM()
+		const csvText = "barcode,counted_qty\n9001,8\n"
+		rep, out := preview(tokImp, count8, csvText)
+		if !strings.Contains(out, "baseline_replaced") || !strings.Contains(out, "baseline input manual") {
+			t.Fatalf("preview does not flag the manual baseline: %s", out)
+		}
+		code, out = imp(tokImp, count8, csvText, false, nextKey(), &rep, &rep.Data.Summary)
+		mustCode("commit", 200, code, out)
+		if num(`SELECT count(*) FROM stock_count_items WHERE stock_count_id=$1 AND baseline_qty IS NOT NULL`, count8) != 0 || actual(count8, "M") != "8" {
+			t.Fatal("the CSV save must clear the line's baseline and store the value")
+		}
+		exec(`UPDATE app_settings SET inventory_approval_required=false WHERE id=1`)
+		code, _, body = call("POST", "/stock-counts/"+count8+"/complete", tokCre, nextKey(), nil)
+		exec(`UPDATE app_settings SET inventory_approval_required=true WHERE id=1`)
+		mustCode("complete", 200, code, body)
+		if want := live + (8 - frozen); stockM() != want {
+			t.Fatalf("stock M = %d, want live %d + (counted 8 - frozen %d) = %d (a baseline would have given %d)",
+				stockM(), live, frozen, want, live+(8-(live-0)))
+		}
 	})
 
 	t.Run("a count that is not in progress refuses preview and commit", func(t *testing.T) {

@@ -349,7 +349,7 @@ export default function StockCount() {
                     )}
                     {sc.status === 'in_progress' && (
                       <>
-                        <CountCsvPanel count={sc} onApplied={() => { dropEdits(sc.id); void scq.refetch() }} />
+                        <CountCsvPanel count={sc} blocked={pendingLines(sc).length > 0} onApplied={() => { dropEdits(sc.id); void scq.refetch() }} />
                         <Button variant="secondary" size="sm" loading={activeId === sc.id} onClick={() => saveProgress(sc)}>
                           Simpan
                         </Button>

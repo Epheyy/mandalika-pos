@@ -7,7 +7,7 @@ const report = (over: Partial<StockCountImportReport['summary']> = {}, extra: Pa
   delimiter: ',',
   fileSha256: 'abc',
   totalRows: 2,
-  summary: { matched: 2, unknown: 0, ambiguous: 0, notOnCount: 0, uncounted: 1, changed: 2, ...over },
+  summary: { matched: 2, unknown: 0, ambiguous: 0, notOnCount: 0, uncounted: 1, changed: 2, digest: 'd', ...over },
   fileIssues: [],
   issues: [],
   rows: [],

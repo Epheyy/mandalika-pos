@@ -190,7 +190,10 @@ func (r *Repo) commitImport(ctx context.Context, req ImportRequest, table *csvim
 	// One import of a kind at a time; the key re-check below runs AFTER the lock so a
 	// concurrent retry of the same key replays instead of double-writing.
 	// A stock count import locks per count (the count's own row lock then serialises its saves).
-	lockName := "csv-import:" + req.Kind + ":" + req.TargetID
+	lockName := "csv-import:" + req.Kind // unchanged for the old kinds, so mixed revisions still serialize
+	if req.TargetID != "" {
+		lockName += ":" + req.TargetID
+	}
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, lockName); err != nil {
 		return ImportResult{}, err
 	}
@@ -248,9 +251,15 @@ func (r *Repo) commitImport(ctx context.Context, req ImportRequest, table *csvim
 		return ImportResult{}, err
 	}
 	p.stamp(appliedAt, runID)
-	slog.Info("csv import applied", "kind", req.Kind, "runId", runID, "user", req.UserID, "rows", totalRows,
-		"create", p.report.Summary.Create, "update", p.report.Summary.Update,
-		"skip", p.report.Summary.Skip, "warnings", p.report.Summary.Warning)
+	if p.count != nil {
+		cs := p.count.Summary
+		slog.Info("csv import applied", "kind", req.Kind, "runId", runID, "user", req.UserID, "rows", totalRows,
+			"count", req.TargetID, "matched", cs.Matched, "changed", cs.Changed, "notOnCount", cs.NotOnCount, "uncounted", cs.Uncounted)
+	} else {
+		slog.Info("csv import applied", "kind", req.Kind, "runId", runID, "user", req.UserID, "rows", totalRows,
+			"create", p.report.Summary.Create, "update", p.report.Summary.Update,
+			"skip", p.report.Summary.Skip, "warnings", p.report.Summary.Warning)
+	}
 	return p.result(ImportApplied), nil
 }
 

@@ -1,8 +1,11 @@
 package csvimport
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -37,6 +40,7 @@ const (
 	WarnAmbiguousSKU         = "ambiguous_sku"
 	WarnNotOnCount           = "not_on_count"
 	WarnStockMovedSinceStart = "stock_moved_since_start"
+	WarnBaselineReplaced     = "baseline_replaced"
 )
 
 // StockCountSummary holds the exact counters of one count import. The commit must send the
@@ -48,6 +52,9 @@ type StockCountSummary struct {
 	NotOnCount int `json:"notOnCount"`
 	Uncounted  int `json:"uncounted"`
 	Changed    int `json:"changed"`
+	// Digest is server-computed over the matched lines (see planDigest). A commit must send the
+	// preview's value back: a manual save or a stock movement in between changes it (409).
+	Digest string `json:"digest"`
 }
 
 // StockCountLineRef names one line of the count.
@@ -122,6 +129,9 @@ type StockCountLine struct {
 	Frozen                                   int
 	Actual                                   *int
 	Moved                                    bool
+	// HasBaseline: the line carries a per-line baseline from a manual save. A CSV save that changes
+	// the value clears it (the CSV measures against the count-start snapshot), so the preview flags it.
+	HasBaseline bool
 }
 
 // StockCountVariant is one catalog variant a scanned code can resolve to.
@@ -207,12 +217,25 @@ func (ix *countIndex) resolve(g *scanGroup) (*StockCountVariant, int) {
 	return ix.bySKUCode(g.code)
 }
 
+// bySKUCode resolves a SKU. A SKU shared by several variants is first narrowed to the count's
+// own lines: only if that still leaves several (or none, with several elsewhere) is it ambiguous.
 func (ix *countIndex) bySKUCode(sku string) (*StockCountVariant, int) {
-	switch vs := ix.bySKU[sku]; len(vs) {
-	case 0:
+	vs := ix.bySKU[sku]
+	var onCount []*StockCountVariant
+	for _, v := range vs {
+		if ix.lines[lineKey{v.ProductID, v.Size}] != nil {
+			onCount = append(onCount, v)
+		}
+	}
+	switch {
+	case len(onCount) == 1:
+		return onCount[0], resolved
+	case len(onCount) > 1:
+		return nil, ambiguousCode
+	case len(vs) == 0:
 		return nil, unknownCode
-	case 1:
-		return vs[0], resolved
+	case len(vs) == 1:
+		return vs[0], resolved // a real variant that is not on this count
 	}
 	return nil, ambiguousCode
 }
@@ -235,14 +258,15 @@ func PlanStockCount(t *Table, cat StockCountCatalog) *StockCountPlan {
 	groups, order := groupScans(b, t, &rep)
 	ix := newCountIndex(cat)
 	matched := map[lineKey]bool{}
-	for _, code := range order {
-		g := groups[code]
+	for _, gk := range order {
+		g := groups[gk]
 		if g.qtyBad {
 			continue // its row already carries the quantity error
 		}
 		planGroup(b, &rep, plan, ix, matched, g)
 	}
 	listUncounted(&rep, cat, matched)
+	rep.Summary.Digest = planDigest(cat, matched)
 	fin := b.Report()
 	rep.FileIssues, rep.Issues = fin.FileIssues, fin.Issues
 	plan.Report = rep
@@ -260,6 +284,11 @@ func groupScans(b *Builder, t *Table, rep *StockCountReport) (map[string]*scanGr
 		if barcode != "" {
 			code, viaBarcode = barcode, true
 		}
+		if code != "" && strings.TrimSpace(row.Cells["counted_qty"]) == "" {
+			// A partly filled sheet: counting by section leaves the other rows blank.
+			b.Issue(row, "counted_qty", SevWarning, "blank_qty", "qty kosong, baris dilewati", code)
+			continue
+		}
 		qty, qerr := parseCountedQty(row.Cells["counted_qty"])
 		switch {
 		case code == "":
@@ -274,13 +303,17 @@ func groupScans(b *Builder, t *Table, rep *StockCountReport) (map[string]*scanGr
 			rep.errorRows++
 			continue
 		}
-		g := groups[code]
+		gk := "s:" + code // a barcode and a SKU with the same text are different keys
+		if viaBarcode {
+			gk = "b:" + code
+		}
+		g := groups[gk]
 		if g == nil {
 			g = &scanGroup{row: row, code: code, viaBarcode: viaBarcode, fallback: sku}
 			if !viaBarcode {
 				g.fallback = ""
 			}
-			groups[code], order = g, append(order, code)
+			groups[gk], order = g, append(order, gk)
 		}
 		g.qty += qty
 		if g.qty > MaxCountedQty {
@@ -351,6 +384,10 @@ func planMatched(b *Builder, rep *StockCountReport, plan *StockCountPlan, ix *co
 	row.Expected, row.Difference, row.Previous = &expected, &diff, line.Actual
 	if line.Actual == nil || *line.Actual != g.qty {
 		rep.Summary.Changed++
+		if line.HasBaseline && line.Actual != nil {
+			row.Warnings = append(row.Warnings, WarnBaselineReplaced)
+			b.Issue(g.row, "barcode", SevWarning, WarnBaselineReplaced, "baseline input manual akan diganti snapshot awal opname", g.code)
+		}
 	}
 	if line.Moved {
 		row.Warnings = append(row.Warnings, WarnStockMovedSinceStart)
@@ -372,4 +409,25 @@ func listUncounted(rep *StockCountReport, cat StockCountCatalog, matched map[lin
 				ProductName: l.ProductName, SKU: l.SKU})
 		}
 	}
+}
+
+// planDigest hashes what a preview saw of every matched line: its stored counted value, whether it
+// carries a manual baseline, and whether stock moved since the count started. The commit recomputes
+// it, so a manual save or a new movement between preview and commit is a stale preview even when the
+// counters are unchanged. Sorted by line, so the file's row order does not matter.
+func planDigest(cat StockCountCatalog, matched map[lineKey]bool) string {
+	var parts []string
+	for _, l := range cat.Lines {
+		if !matched[lineKey{l.ProductID, l.VariantSize}] {
+			continue
+		}
+		prev := "-"
+		if l.Actual != nil {
+			prev = strconv.Itoa(*l.Actual)
+		}
+		parts = append(parts, fmt.Sprintf("%s|%s|%s|%t|%t", l.ProductID, l.VariantSize, prev, l.HasBaseline, l.Moved))
+	}
+	sort.Strings(parts)
+	sum := sha256.Sum256([]byte(strings.Join(parts, "\n")))
+	return hex.EncodeToString(sum[:])
 }

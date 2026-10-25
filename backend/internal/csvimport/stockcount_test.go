@@ -68,3 +68,72 @@ func TestPlanStockCountTwoCodesSameLineAndFileErrors(t *testing.T) {
 		t.Fatal("missing counted_qty column must be a file error")
 	}
 }
+
+func TestPlanStockCountBlankQtySkipsTheRowAndKeepsTheRest(t *testing.T) {
+	p := plan("barcode,counted_qty\n111,\n112,4\n222, \n")
+	if p.Report.HasErrors() {
+		t.Fatalf("a blank qty must not block the upload: %+v", p.Report.Issues)
+	}
+	if p.Report.Summary.Matched != 1 || len(p.Saves) != 1 || p.Saves[0].Qty != 4 {
+		t.Fatalf("summary %+v saves %+v", p.Report.Summary, p.Saves)
+	}
+	var skipped int
+	for _, is := range p.Report.Issues {
+		if is.Code == "blank_qty" && is.Severity == SevWarning {
+			skipped++
+		}
+	}
+	if skipped != 2 || p.Report.Summary.Uncounted != 2 {
+		t.Fatalf("skipped %d uncounted %d", skipped, p.Report.Summary.Uncounted)
+	}
+}
+
+func TestPlanStockCountSkuNarrowsToTheCountsOwnLines(t *testing.T) {
+	cat := countCatalog()
+	cat.Variants = append(cat.Variants, StockCountVariant{ProductID: "p1", Size: "M", SKU: "SHARED", Barcode: "1"},
+		StockCountVariant{ProductID: "p9", Size: "M", SKU: "SHARED", Barcode: "2"})
+	p := PlanStockCount(Read([]byte("sku,counted_qty\nSHARED,2\n"), StockCountSpec), cat)
+	if p.Report.HasErrors() || p.Report.Summary.Matched != 1 || p.Report.Summary.Ambiguous != 0 {
+		t.Fatalf("shared SKU with one variant on the count must resolve: %+v", p.Report.Summary)
+	}
+}
+
+func TestPlanStockCountFlagsAManualBaselineThatTheCsvWillClear(t *testing.T) {
+	cat := countCatalog()
+	cat.Lines[0].Actual, cat.Lines[0].HasBaseline = iptr(3), true
+	p := PlanStockCount(Read([]byte("barcode,counted_qty\n111,8\n"), StockCountSpec), cat)
+	if w := p.Report.Rows[0].Warnings; len(w) != 1 || w[0] != WarnBaselineReplaced {
+		t.Fatalf("warnings %v", w)
+	}
+	same := PlanStockCount(Read([]byte("barcode,counted_qty\n111,3\n"), StockCountSpec), cat)
+	if len(same.Report.Rows[0].Warnings) != 0 {
+		t.Fatalf("an unchanged value keeps its baseline, no warning: %v", same.Report.Rows[0].Warnings)
+	}
+}
+
+func TestPlanStockCountDigestTracksLineStateNotFileOrder(t *testing.T) {
+	a := plan("barcode,counted_qty\n111,1\n222,2\n").Report.Summary.Digest
+	b := plan("barcode,counted_qty\n222,2\n111,1\n").Report.Summary.Digest
+	if a == "" || a != b {
+		t.Fatalf("digest must ignore row order: %q %q", a, b)
+	}
+	cat := countCatalog()
+	cat.Lines[0].Actual = iptr(99) // a manual save between preview and commit
+	if c := PlanStockCount(Read([]byte("barcode,counted_qty\n111,1\n222,2\n"), StockCountSpec), cat).Report.Summary.Digest; c == a {
+		t.Fatal("digest must change when a matched line's stored value changes")
+	}
+	cat = countCatalog()
+	cat.Lines[0].Moved = true // a new movement
+	if c := PlanStockCount(Read([]byte("barcode,counted_qty\n111,1\n222,2\n"), StockCountSpec), cat).Report.Summary.Digest; c == a {
+		t.Fatal("digest must change when stock moved")
+	}
+}
+
+func TestPlanStockCountBarcodeAndSkuWithSameTextAreDifferentCodes(t *testing.T) {
+	cat := countCatalog()
+	cat.Variants[2].Barcode = "A-M" // p2/M's barcode equals p1/M's SKU text
+	p := PlanStockCount(Read([]byte("barcode,sku,counted_qty\nA-M,,1\n,A-M,2\n"), StockCountSpec), cat)
+	if p.Report.HasErrors() || p.Report.Summary.Matched != 2 || len(p.Report.Rows) != 2 {
+		t.Fatalf("barcode A-M and sku A-M are two codes: %+v %+v", p.Report.Summary, p.Report.Issues)
+	}
+}
