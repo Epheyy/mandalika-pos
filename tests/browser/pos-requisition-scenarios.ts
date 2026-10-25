@@ -194,7 +194,28 @@ export const posRequisition = async (page: ScenarioPage) => {
   assert(hPosts[1].body.items[0].requestedQty === 1, '(h) the replay carried the OLD body');
   assert(srv.state.rows.length === rowsBefore + 1, '(h) exactly one PB was created');
   assert(srv.state.puts.length === 1 && srv.state.puts[0].body.items[0].requestedQty === 4, '(h) the edit was applied as one update');
+  assert(srv.state.puts[0].id === srv.state.byKey.get(hPosts[0].key).id, '(h) the update targets the PB the replay returned');
+  assert(srv.state.puts[0].key && srv.state.puts[0].key !== hPosts[0].key, '(h) the update has its own Idempotency-Key');
   result.push({ assert: 'h', createKeys: new Set(hPosts.map((p: any) => p.key)).size, pbs: srv.state.rows.length - rowsBefore, updates: srv.state.puts.length });
+
+  // (i) an unconfirmed create is resolved when the panel next opens online: the PB it made is shown, not orphaned
+  await page.getByRole('button', { name: 'Kembali', exact: true }).click();
+  await page.getByRole('button', { name: 'Buat Permintaan', exact: true }).click();
+  await page.getByLabel('Cari barang').fill('SYN-M');
+  await page.getByRole('button', { name: /Synthetic Scent · M \(SYN-M\)/ }).click();
+  const rowsBeforeI = srv.state.rows.length, postsBeforeI = srv.state.posts.length;
+  srv.state.loseCreateOnce = true;
+  await page.getByRole('button', { name: 'Simpan Draf', exact: true }).click();
+  await page.getByText(/Server belum menjawab/).waitFor();
+  await page.getByRole('button', { name: 'Tutup panel', exact: true }).click();
+  await page.getByRole('button', { name: 'Buang', exact: true }).click();
+  await page.getByRole('heading', { name: 'Permintaan Barang', exact: true }).waitFor({ state: 'detached' });
+  await openPanel();
+  await page.getByText(/tersimpan dari percobaan sebelumnya/).waitFor();
+  const iPosts = srv.state.posts.slice(postsBeforeI);
+  assert(iPosts.length >= 2 && iPosts.every((p: any) => p.key === iPosts[0].key), '(i) opening the panel replayed the old create key (a dev StrictMode double effect may send it twice; same key either way)');
+  assert(srv.state.rows.length === rowsBeforeI + 1, '(i) exactly one PB exists for the lost create');
+  result.push({ assert: 'i', replayedKey: true, pbs: srv.state.rows.length - rowsBeforeI });
 
   // (f) offline: the save is refused with "butuh koneksi" and no write call leaves the tablet
   await page.getByRole('button', { name: 'Kembali', exact: true }).click();
