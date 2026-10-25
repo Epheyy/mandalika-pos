@@ -101,7 +101,7 @@ export function MovementSummary({ onOpenCard }: MovementSummaryProps) {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="movement-summary-from-date" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Dari</label>
+          <label htmlFor="movement-summary-from-date" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Tanggal tercatat dari</label>
           <input
             id="movement-summary-from-date"
             type="date"
@@ -116,7 +116,7 @@ export function MovementSummary({ onOpenCard }: MovementSummaryProps) {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="movement-summary-to-date" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sampai</label>
+          <label htmlFor="movement-summary-to-date" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Tanggal tercatat sampai</label>
           <input
             id="movement-summary-to-date"
             type="date"

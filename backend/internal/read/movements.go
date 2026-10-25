@@ -17,7 +17,8 @@ import (
 )
 
 // MovementFilter selects ledger rows of ONE location (kartu stok). From/To are resolved
-// instants over occurred_at, [From, To). Kinds, Shortage and Giveaway narrow the row list
+// instants over TIME RECORDED (recorded_at), [From, To); the repo turns them into a seq Window
+// (see SeqWindow, ResolveWindow) that every query uses. Kinds, Shortage and Giveaway narrow the row list
 // only; the saldo header always describes the SKU's whole chain in the date range.
 type MovementFilter struct {
 	LocationType string
@@ -28,6 +29,8 @@ type MovementFilter struct {
 	Shortage     bool
 	Giveaway     *bool
 	From, To     *time.Time
+	// Window is the seq window of From/To; call Repo.ResolveWindow before querying.
+	Window SeqWindow
 }
 
 // SingleSKU reports whether the filter names one SKU (the saldo header needs both parts).
@@ -90,12 +93,7 @@ func movementWhere(f MovementFilter, withChips bool) (string, []any) {
 	if f.VariantSize != "" {
 		where += fmt.Sprintf(" AND m.variant_size=$%d", add(f.VariantSize))
 	}
-	if f.From != nil {
-		where += fmt.Sprintf(" AND m.occurred_at >= $%d", add(*f.From))
-	}
-	if f.To != nil {
-		where += fmt.Sprintf(" AND m.occurred_at < $%d", add(*f.To))
-	}
+	where, args = windowSQL(f.Window, where, args)
 	if !withChips {
 		return where, args
 	}
@@ -198,12 +196,10 @@ func (r *Repo) CountMovements(ctx context.Context, f MovementFilter, max int) (i
 	return n, nil
 }
 
-// MovementSaldo is the saldo header of one SKU over the date range, ignoring the kind, flag and
+// MovementSaldo is the saldo header of one SKU over the window, ignoring the kind, flag and
 // giveaway chips so that opening + in - out = closing always holds:
-//   - opening = qty_before of the first in-range row (lowest seq), closing = qty_after of the last;
-//   - with no row in range, both are the balance at the last earlier row (highest seq among rows
-//     before From). A SKU whose history only starts after the range falls back to the first later
-//     row's qty_before; a SKU with no history reads 0.
+//   - opening = qty_before of the first row in the window (lowest seq), closing = qty_after of the last;
+//   - with an empty window, both are qty_after of the last row with seq below the window (0 if none).
 func (r *Repo) MovementSaldo(ctx context.Context, f MovementFilter) (api.StockMovementSummary, error) {
 	where, args := movementWhere(f, false)
 	var (
@@ -224,56 +220,27 @@ FROM stock_movements m WHERE `+where, args...).Scan(&n, &out.TotalIn, &out.Total
 		out.Opening, out.Closing = *opening, *closing
 		return out, nil
 	}
-	bal, err := r.balanceOutsideRange(ctx, f)
-	if err != nil {
-		return out, err
+	var bal int
+	err = r.Pool.QueryRow(ctx, `SELECT m.qty_after FROM stock_movements m
+WHERE m.location_type=$1 AND m.location_id=$2 AND m.product_id=$3 AND m.variant_size=$4 AND m.seq < $5
+ORDER BY m.seq DESC LIMIT 1`, f.LocationType, f.LocationID, f.ProductID, f.VariantSize, f.Window.Before).Scan(&bal)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return out, fmt.Errorf("balance before window: %w", err)
 	}
 	out.Opening, out.Closing = bal, bal
 	return out, nil
 }
 
-// balanceOutsideRange reads the SKU balance when no row falls in the range (see MovementSaldo).
-func (r *Repo) balanceOutsideRange(ctx context.Context, f MovementFilter) (int, error) {
-	base := `FROM stock_movements m WHERE m.location_type=$1 AND m.location_id=$2 AND m.product_id=$3 AND m.variant_size=$4`
-	args := []any{f.LocationType, f.LocationID, f.ProductID, f.VariantSize}
-	var bal int
-	if f.From != nil {
-		err := r.Pool.QueryRow(ctx, `SELECT m.qty_after `+base+` AND m.occurred_at < $5 ORDER BY m.seq DESC LIMIT 1`,
-			append(args, *f.From)...).Scan(&bal)
-		if err == nil {
-			return bal, nil
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return 0, fmt.Errorf("balance before range: %w", err)
-		}
-	}
-	err := r.Pool.QueryRow(ctx, `SELECT m.qty_before `+base+` ORDER BY m.seq ASC LIMIT 1`, args...).Scan(&bal)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, nil
-	}
-	if err != nil {
-		return 0, fmt.Errorf("balance first row: %w", err)
-	}
-	return bal, nil
-}
-
 // MovementLedgerSummary returns one line per SKU of the location: opening, incoming and outgoing
-// quantity by kind over [from, to), and closing, all from the ledger. A SKU with history but no
-// movement in range still shows, with opening = closing = its balance at the last earlier row.
-func (r *Repo) MovementLedgerSummary(ctx context.Context, locType, locID string, from, to *time.Time, q string, page, limit int) ([]api.MovementLedgerSummaryRow, int, error) {
-	inRange := "m.location_type=$1 AND m.location_id=$2"
-	args := []any{locType, locID}
-	if from != nil {
-		args = append(args, *from)
-		inRange += fmt.Sprintf(" AND m.occurred_at >= $%d", len(args))
-	}
-	if to != nil {
-		args = append(args, *to)
-		inRange += fmt.Sprintf(" AND m.occurred_at < $%d", len(args))
-	}
-	prevCond := "false"
-	if from != nil {
-		prevCond = "m.occurred_at < $3"
+// quantity by kind over the location-wide seq window of the range (time recorded), and closing,
+// all from the ledger. A SKU with history but no movement in the window still shows, with
+// opening = closing = its balance at its last earlier row (seq below the window).
+func (r *Repo) MovementLedgerSummary(ctx context.Context, w SeqWindow, locType, locID, q string, page, limit int) ([]api.MovementLedgerSummaryRow, int, error) {
+	inRange, args := windowSQL(w, "m.location_type=$1 AND m.location_id=$2", []any{locType, locID})
+	args = append(args, w.Before)
+	prevCond := fmt.Sprintf("m.seq < $%d", len(args))
+	if !w.Resolved {
+		prevCond = "false"
 	}
 	args = append(args, "%"+likeEscape(strings.TrimSpace(q))+"%", off(page, limit), limit)
 	qArg, offArg, limArg := len(args)-2, len(args)-1, len(args)

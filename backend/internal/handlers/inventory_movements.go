@@ -105,6 +105,10 @@ func (h *Handlers) movementFilter(w http.ResponseWriter, r *http.Request) (f rea
 	if !ok || !fillMovementOptions(w, r.URL.Query(), zone, &f) {
 		return f, nil, false
 	}
+	if err := h.Repo.ResolveWindow(r.Context(), &f); err != nil {
+		writeErr(w, r, http.StatusInternalServerError, err)
+		return f, nil, false
+	}
 	return f, zone, true
 }
 
@@ -211,6 +215,13 @@ func deref(s *string) string {
 	return *s
 }
 
+// movementIsLate reports a movement recorded on a later business day than it occurred (an offline
+// sale synced days after it was rung), reading both instants in the location zone.
+func movementIsLate(m api.StockMovementRow, zone *time.Location) bool {
+	const day = "2006-01-02"
+	return m.OccurredAt.In(zone).Format(day) < m.RecordedAt.In(zone).Format(day)
+}
+
 func movementCSVRow(m api.StockMovementRow, zone *time.Location) []string {
 	var in, out string
 	if m.Qty > 0 {
@@ -226,6 +237,9 @@ func movementCSVRow(m api.StockMovementRow, zone *time.Location) []string {
 		if fl == "shortage" {
 			marks = append(marks, "Minus")
 		}
+	}
+	if movementIsLate(m, zone) {
+		marks = append(marks, "Tercatat terlambat")
 	}
 	g := csvimport.GuardCell
 	return []string{m.Id.String(), m.OccurredAt.In(zone).Format(time.RFC3339), m.RecordedAt.In(zone).Format(time.RFC3339),
@@ -288,7 +302,7 @@ func (h *Handlers) LedgerMovementSummary(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	p, l := pageLimit(r)
-	rows, total, err := h.Repo.MovementLedgerSummary(r.Context(), f.LocationType, f.LocationID, f.From, f.To,
+	rows, total, err := h.Repo.MovementLedgerSummary(r.Context(), f.Window, f.LocationType, f.LocationID,
 		r.URL.Query().Get("q"), p, l)
 	if err != nil {
 		writeErr(w, r, http.StatusInternalServerError, err)

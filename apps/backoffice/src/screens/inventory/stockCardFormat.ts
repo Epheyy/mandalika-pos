@@ -31,6 +31,16 @@ export function formatMovementTime(iso: string, zone: string): string {
   })
 }
 
+/** A day as YYYY-MM-DD in the location timezone. */
+function dayInZone(iso: string, zone: string): string {
+  return new Date(iso).toLocaleDateString('sv-SE', { timeZone: zone })
+}
+
+/** Recorded on a later business day than it occurred (an offline sale synced days later). */
+export function isRecordedLate(occurredAt: string, recordedAt: string, zone: string): boolean {
+  return dayInZone(occurredAt, zone) < dayInZone(recordedAt, zone)
+}
+
 export function daysAgoDay(n: number): string {
   const d = new Date()
   d.setDate(d.getDate() - n)

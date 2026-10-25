@@ -217,8 +217,7 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 	})
 
 	t.Run("date range: opening and closing in the outlet timezone", func(t *testing.T) {
-		// 2026-01-03 in WIB (+7) is 2026-01-02T17:00Z..2026-01-03T17:00Z: four rows (the last by
-		// seq has the earliest occurred_at, an offline sale).
+		// 2026-01-03 in WIB (+7) is 2026-01-02T17:00Z..2026-01-03T17:00Z of TIME RECORDED: four rows.
 		p := list(t, sku+"&from=2026-01-03&to=2026-01-03&limit=200")
 		if len(p.Data) != 4 { // sale, giveaway, adjust, shortage sale
 			t.Fatalf("range rows = %d, want 4", len(p.Data))
@@ -238,6 +237,57 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 		}
 		if w := admin("/inventory/movements?" + sku + "&from=yesterday"); w.Code != 400 {
 			t.Fatalf("bad date: %d", w.Code)
+		}
+	})
+
+	t.Run("range selects by time recorded, the chain stays unbroken, late rows are badged", func(t *testing.T) {
+		xl := "locationType=outlet&locationId=" + mvOutletA + "&productId=" + mvProductP + "&variantSize=XL"
+		// Jan 3 (WIB): the offline sale occurred on Jan 2 but was recorded here; the sale that
+		// occurred inside Jan 3 was recorded on Jan 4 and must not appear.
+		day3 := list(t, xl+"&from=2026-01-03&to=2026-01-03&limit=200")
+		if len(day3.Data) != 1 || day3.Data[0].Qty != -1 || day3.Data[0].QtyBefore != 4 {
+			t.Fatalf("Jan 3 rows = %+v", day3.Data)
+		}
+		if s := day3.Summary; s.Opening != 4 || s.Closing != 3 || s.TotalIn != 0 || s.TotalOut != 1 {
+			t.Fatalf("Jan 3 summary = %+v", s)
+		}
+		day4 := list(t, xl+"&from=2026-01-04&to=2026-01-04&limit=200")
+		if len(day4.Data) != 1 || day4.Data[0].QtyBefore != 3 || day4.Summary.Opening != 3 || day4.Summary.Closing != 2 {
+			t.Fatalf("Jan 4 = %+v / %+v", day4.Data, day4.Summary)
+		}
+		for _, r := range []string{"from=2026-01-03&to=2026-01-03", "from=2026-01-03&to=2026-01-04", "from=2026-01-05", "to=2026-01-02", "from=2026-01-10&to=2026-01-12", "from=2025-12-01&to=2025-12-31"} {
+			p := list(t, xl+"&"+r+"&limit=200")
+			s := p.Summary
+			if s.Opening+s.TotalIn-s.TotalOut != s.Closing {
+				t.Fatalf("%s: opening %d + in %d - out %d != closing %d", r, s.Opening, s.TotalIn, s.TotalOut, s.Closing)
+			}
+			if len(p.Data) > 0 && (p.Data[len(p.Data)-1].QtyBefore != s.Opening || p.Data[0].QtyAfter != s.Closing) {
+				t.Fatalf("%s: header does not match the rows", r)
+			}
+		}
+		if s := list(t, xl+"&from=2026-01-10&to=2026-01-12&limit=200").Summary; s.Opening != 2 || s.Closing != 2 {
+			t.Fatalf("empty later range = %+v, want the balance 2", s)
+		}
+		if s := list(t, xl+"&from=2025-12-01&to=2025-12-31&limit=200").Summary; s.Opening != 0 || s.Closing != 0 {
+			t.Fatalf("range before any row = %+v, want 0", s)
+		}
+		// the late badge is derived from the business days of occurredAt and recordedAt
+		w := admin("/inventory/movements/export?" + xl + "&from=2026-01-03&to=2026-01-04")
+		if w.Code != 200 || strings.Count(w.Body.String(), "Tercatat terlambat") != 2 {
+			t.Fatalf("export late marks: %d %s", w.Code, w.Body.String())
+		}
+		// the ledger summary uses the same window and reconciles for every SKU
+		for _, r := range []string{"from=2026-01-03&to=2026-01-03", "from=2026-01-04&to=2026-01-04", "from=2026-01-10", "to=2026-01-02"} {
+			resp := admin("/inventory/movements/summary?locationType=outlet&locationId=" + mvOutletA + "&" + r)
+			var sum api.MovementLedgerSummaryResponse
+			if err := json.Unmarshal(resp.Body.Bytes(), &sum); err != nil || resp.Code != 200 {
+				t.Fatalf("%s: %d %s", r, resp.Code, resp.Body.String())
+			}
+			for _, row := range sum.Data {
+				if row.Opening+sumMap(row.InByKind)-sumMap(row.OutByKind) != row.Closing {
+					t.Fatalf("%s: %s %s does not reconcile: %+v", r, row.ProductName, row.VariantSize, row)
+				}
+			}
 		}
 	})
 
@@ -330,13 +380,13 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 			return w.Code, out
 		}
 		base := "locationType=outlet&locationId=" + mvOutletA
-		if code, r := call("admin", "", base+"&q=mv-p"); code != 200 || len(r.Data) != 2 {
-			t.Fatalf("q=mv-p: %d %+v (want sizes M and L)", code, r.Data)
+		if code, r := call("admin", "", base+"&q=mv-p"); code != 200 || len(r.Data) != 3 {
+			t.Fatalf("q=mv-p: %d %+v (want sizes M, L and XL)", code, r.Data)
 		}
 		if _, r := call("admin", "", base+"&q=8990001"); len(r.Data) != 1 || r.Data[0].VariantSize != "M" {
 			t.Fatalf("barcode search = %+v", r.Data)
 		}
-		if _, r := call("admin", "", base+"&q=kartu"); len(r.Data) != 2 {
+		if _, r := call("admin", "", base+"&q=kartu"); len(r.Data) != 3 {
 			t.Fatalf("name search = %+v", r.Data)
 		}
 		// outlet B only has product P/M in its ledger
@@ -379,7 +429,7 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 		if m.Opening+sumMap(m.InByKind)-sumMap(m.OutByKind) != m.Closing {
 			t.Fatalf("summary M does not reconcile: %+v", m)
 		}
-		if resp.Meta.Total != 3 {
+		if resp.Meta.Total != 4 {
 			t.Fatalf("total SKUs = %d, want 3", resp.Meta.Total)
 		}
 		// a range with no movement still lists the SKU with its carried balance
@@ -455,7 +505,8 @@ func mvSeed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) []int64 {
 	exec(`INSERT INTO warehouses(id,name) VALUES($1,'MV gudang')`, mvWarehouse)
 	exec(`INSERT INTO products(id,name) VALUES($1,'MV kartu P'),($2,'=SUM(A1)')`, mvProductP, mvProductQ)
 	exec(`INSERT INTO product_variants(product_id,size,price,sku,barcode) VALUES
-	      ($1,'M',100000,'MV-P-M','8990001'),($1,'L',100000,'MV-P-L','8990002'),($2,'M',100000,'MV-Q-M','8990003')`, mvProductP, mvProductQ)
+	      ($1,'M',100000,'MV-P-M','8990001'),($1,'L',100000,'MV-P-L','8990002'),($1,'XL',100000,'MV-P-XL','8990004'),
+	      ($2,'M',100000,'MV-Q-M','8990003')`, mvProductP, mvProductQ)
 	exec(`INSERT INTO users(id,email,password_hash,display_name,role) VALUES($1,'mv@example.test','x','MV Petugas','manager')`, mvUser)
 	exec(`INSERT INTO warehouse_stock_adjustments(id,outlet_id,product_id,variant_size,new_qty,reason) VALUES($1,$2,$3,'M',12,'rusak kena air')`,
 		mvAdjust, mvOutletA, mvProductP)
@@ -491,14 +542,18 @@ func mvSeed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) []int64 {
 		if flags == nil {
 			flags = []string{}
 		}
+		var recorded any // nil: recorded when it occurred
+		if opts.recorded != "" {
+			recorded = opts.recorded
+		}
 		var actor any
 		if opts.actor != "" {
 			actor = opts.actor
 		}
 		err := pool.QueryRow(ctx, `INSERT INTO stock_movements(document_id,dedupe_key,kind,location_type,location_id,product_id,variant_size,
-		  qty,qty_before,qty_after,ref_type,ref_id,ref_number,actor,occurred_at,flags)
-		  VALUES(COALESCE($1::uuid,gen_random_uuid()),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING seq`,
-			doc, dedupe, kind, locType, loc, product, size, qty, before, before+qty, refType, refID, refNumber, actor, occurred, flags).Scan(&s)
+		  qty,qty_before,qty_after,ref_type,ref_id,ref_number,actor,occurred_at,flags,recorded_at)
+		  VALUES(COALESCE($1::uuid,gen_random_uuid()),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,COALESCE($17::timestamptz,$15::timestamptz)) RETURNING seq`,
+			doc, dedupe, kind, locType, loc, product, size, qty, before, before+qty, refType, refID, refNumber, actor, occurred, flags, recorded).Scan(&s)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -507,27 +562,32 @@ func mvSeed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) []int64 {
 	rec := func(kind string, qty int, at string, o mvOpts) {
 		seqs = append(seqs, add(mvOutletA, "outlet", mvProductP, "M", kind, qty, at, o))
 	}
+	// Rows are inserted in recorded order, like production (seq follows the transaction start).
+	// P/XL: an offline sale that occurred on Jan 2 but was recorded inside Jan 3 (WIB), and a sale
+	// that occurred inside Jan 3 but was recorded after it (Jan 4). Recorded time decides.
 	rec("opening", 10, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
+	add(mvOutletA, "outlet", mvProductP, "L", "opening", 4, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
+	add(mvOutletA, "outlet", mvProductP, "XL", "opening", 4, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
+	add(mvOutletB, "outlet", mvProductP, "M", "opening", 9, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
+	add(mvWarehouse, "warehouse", mvProductP, "M", "opening", 50, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
 	rec("receipt", 5, "2026-01-02T02:00:00Z", mvOpts{refType: "goods_receipt", actor: mvUser})
+	add(mvOutletA, "outlet", mvProductQ, "M", "receipt", 2, "2026-01-02T10:00:00Z", mvOpts{refType: "goods_receipt"})
 	rec("sale", -2, "2026-01-02T18:00:00Z", mvOpts{doc: mvSaleDoc, refID: mvSaleDoc, refNumber: "INV-1", dedupe: "sale:mv-1"})
+	add(mvOutletA, "outlet", mvProductP, "XL", "sale", -1, "2026-01-02T10:00:00Z", mvOpts{recorded: "2026-01-03T03:00:00Z", dedupe: "sale:mv-xl-late-a"})
 	rec("sale", -1, "2026-01-03T05:00:00Z", mvOpts{dedupe: "giveaway:00000000-0000-4000-8f69-0000000000aa", refNumber: "INV-1"})
 	rec("adjust", -3, "2026-01-03T06:00:00Z", mvOpts{refType: "stock_adjustment", refID: mvAdjust, dedupe: "adjust:" + mvAdjust})
 	// the shortage sale was rung offline: earlier occurred_at than the giveaway and adjust before it in seq
-	rec("sale", -10, "2026-01-03T04:00:00Z", mvOpts{dedupe: "sale:mv-shortage", flags: []string{"shortage"}})
+	rec("sale", -10, "2026-01-03T04:00:00Z", mvOpts{dedupe: "sale:mv-shortage", flags: []string{"shortage"}, recorded: "2026-01-03T07:00:00Z"})
+	add(mvOutletA, "outlet", mvProductP, "XL", "sale", -1, "2026-01-03T12:00:00Z", mvOpts{recorded: "2026-01-04T02:00:00Z", dedupe: "sale:mv-xl-late-b"})
 	for i := 0; i < 24; i++ {
 		rec("receipt", 1, fmt.Sprintf("2026-01-05T%02d:00:00Z", i), mvOpts{refType: "goods_receipt"})
 	}
-	// other SKUs and locations
-	add(mvOutletA, "outlet", mvProductP, "L", "opening", 4, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
-	add(mvOutletA, "outlet", mvProductQ, "M", "receipt", 2, "2026-01-02T10:00:00Z", mvOpts{refType: "goods_receipt"})
-	add(mvOutletB, "outlet", mvProductP, "M", "opening", 9, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
-	add(mvWarehouse, "warehouse", mvProductP, "M", "opening", 50, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
 	exec(`INSERT INTO erp_outbox(document_id,doc_key,kind,location_type,location_id,ref_type,ref_id,status)
 	      VALUES($1,'sale:mv-1','sale','outlet',$2,'order',$1,'delivered')`, mvSaleDoc, mvOutletA)
 	return seqs
 }
 
 type mvOpts struct {
-	doc, dedupe, refType, refID, refNumber, actor string
-	flags                                         []string
+	doc, dedupe, refType, refID, refNumber, actor, recorded string
+	flags                                                   []string
 }

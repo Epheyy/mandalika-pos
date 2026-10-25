@@ -16,7 +16,8 @@ const row = (seq: number, kind: string, qty: number, after: number, over: Record
 })
 
 const RECEIPT = row(1, 'receipt', 5, 5, { refType: 'goods_receipt', refNumber: undefined })
-const SHORTAGE = row(2, 'sale', -7, -2, { flags: ['shortage'] })
+// an offline sale: occurred on Jan 3, recorded on Jan 5 (the late badge)
+const SHORTAGE = row(2, 'sale', -7, -2, { flags: ['shortage'], recordedAt: '2026-01-05T02:00:00Z' })
 const GIVEAWAY = row(3, 'sale', -1, -3, { isGiveaway: true, refNumber: 'INV-3' })
 const SUMMARY = { opening: 0, totalIn: 5, totalOut: 8, closing: -3 }
 
@@ -90,6 +91,7 @@ export const stockCardFlow = async (page: ScenarioPage) => {
   await page.getByText('Saldo Akhir').first().waitFor()
   await page.getByText('Hadiah', { exact: true }).nth(1).waitFor() // the row badge, next to the chip
   await page.getByText('Minus', { exact: true }).nth(1).waitFor()
+  await page.getByText('Tercatat terlambat', { exact: true }).waitFor()
   const first = listCalls.find((q) => !q.get('cursor') && !q.get('giveaway'))
   check(!!first && first.get('productId') === PRODUCT && first.get('variantSize') === 'Std' && first.get('locationId') === OUTLET, 'card query')
   results.push({ step: 'card-opens-on-sku', query: first?.toString() })

@@ -9,7 +9,7 @@ import { Button } from '../../ui/Button'
 import { Card } from '../../ui/Card'
 import { EmptyState } from '../../ui/EmptyState'
 import { Select, fieldClass } from '../../ui/Field'
-import { MOVEMENT_KIND_LABEL, MOVEMENT_KINDS, formatMovementTime, daysAgoDay, type MovementKind } from './stockCardFormat'
+import { MOVEMENT_KIND_LABEL, MOVEMENT_KINDS, formatMovementTime, daysAgoDay, isRecordedLate, type MovementKind } from './stockCardFormat'
 import { useLocations, type LocationType } from './useLocations'
 
 /** A SKU picked elsewhere (the summary tab) to open straight on its kartu stok. */
@@ -155,8 +155,8 @@ export function StockCard({ target }: StockCardProps) {
           </Select>
         </div>
         <SkuSearch locationType={loc.location?.type} locationId={loc.location?.id} picked={sku} onPick={setSku} />
-        <DayInput id="kartu-from" label="Dari" value={fromDay} max={toDay} onChange={setFromDay} />
-        <DayInput id="kartu-to" label="Sampai" value={toDay} min={fromDay} onChange={setToDay} />
+        <DayInput id="kartu-from" label="Tanggal tercatat dari" value={fromDay} max={toDay} onChange={setFromDay} />
+        <DayInput id="kartu-to" label="Tanggal tercatat sampai" value={toDay} min={fromDay} onChange={setToDay} />
         <Button variant="secondary" icon={<Download className="h-4 w-4" />} loading={exporting} onClick={exportCsv} disabled={!loc.location}>
           Unduh CSV
         </Button>
@@ -291,6 +291,7 @@ function MovementTableRow({ m, zone, showProduct }: { m: StockMovementRow; zone:
         <span className="flex gap-1">
           {m.isGiveaway && <Badge tone="gold">Hadiah</Badge>}
           {m.flags.includes('shortage') && <Badge tone="danger">Minus</Badge>}
+          {isRecordedLate(m.occurredAt, m.recordedAt, zone) && <Badge tone="warning">Tercatat terlambat</Badge>}
         </span>
       </td>
       <td className={cell}>{m.erpStatus ?? ''}</td>
