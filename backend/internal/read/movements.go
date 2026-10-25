@@ -199,7 +199,8 @@ func (r *Repo) CountMovements(ctx context.Context, f MovementFilter, max int) (i
 // MovementSaldo is the saldo header of one SKU over the window, ignoring the kind, flag and
 // giveaway chips so that opening + in - out = closing always holds:
 //   - opening = qty_before of the first row in the window (lowest seq), closing = qty_after of the last;
-//   - with an empty window, both are qty_after of the last row with seq below the window (0 if none).
+//   - with no row of the SKU in the window, both are qty_after of the SKU's last row with seq
+//     below the window (0 if none).
 func (r *Repo) MovementSaldo(ctx context.Context, f MovementFilter) (api.StockMovementSummary, error) {
 	where, args := movementWhere(f, false)
 	var (
@@ -232,7 +233,7 @@ ORDER BY m.seq DESC LIMIT 1`, f.LocationType, f.LocationID, f.ProductID, f.Varia
 }
 
 // MovementLedgerSummary returns one line per SKU of the location: opening, incoming and outgoing
-// quantity by kind over the location-wide seq window of the range (time recorded), and closing,
+// quantity by kind over the seq window of the range (time recorded), and closing,
 // all from the ledger. A SKU with history but no movement in the window still shows, with
 // opening = closing = its balance at its last earlier row (seq below the window).
 func (r *Repo) MovementLedgerSummary(ctx context.Context, w SeqWindow, locType, locID, q string, page, limit int) ([]api.MovementLedgerSummaryRow, int, error) {
@@ -289,23 +290,14 @@ func likeEscape(s string) string {
 	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }
 
-// MovementSku is one picker entry of MovementSkus.
-type MovementSku struct {
-	ProductID   string  `json:"productId"`
-	ProductName string  `json:"productName"`
-	VariantSize string  `json:"variantSize"`
-	SKU         string  `json:"sku"`
-	Barcode     *string `json:"barcode,omitempty"`
-}
-
 // MovementSkus lists up to limit variants matching q that have a ledger row at the location.
-func (r *Repo) MovementSkus(ctx context.Context, locType, locID, q string, limit int) ([]MovementSku, error) {
+func (r *Repo) MovementSkus(ctx context.Context, locType, locID, q string, limit int) ([]api.MovementSku, error) {
 	q = strings.TrimSpace(q)
 	if q == "" {
-		return []MovementSku{}, nil
+		return []api.MovementSku{}, nil
 	}
 	rows, err := r.Pool.Query(ctx, `
-SELECT v.product_id::text, p.name, v.size, v.sku, v.barcode
+SELECT v.product_id, p.name, v.size, v.sku, v.barcode
 FROM product_variants v JOIN products p ON p.id = v.product_id
 WHERE (p.name ILIKE $3 OR v.sku ILIKE $3 OR v.barcode ILIKE $3)
   AND EXISTS (SELECT 1 FROM stock_movements m WHERE m.location_type=$1 AND m.location_id=$2
@@ -315,10 +307,10 @@ ORDER BY p.name, v.size LIMIT $4`, locType, locID, "%"+likeEscape(q)+"%", limit)
 		return nil, fmt.Errorf("sku search: %w", err)
 	}
 	defer rows.Close()
-	out := []MovementSku{}
+	out := []api.MovementSku{}
 	for rows.Next() {
-		var m MovementSku
-		if err := rows.Scan(&m.ProductID, &m.ProductName, &m.VariantSize, &m.SKU, &m.Barcode); err != nil {
+		var m api.MovementSku
+		if err := rows.Scan(&m.ProductId, &m.ProductName, &m.VariantSize, &m.Sku, &m.Barcode); err != nil {
 			return nil, fmt.Errorf("sku search scan: %w", err)
 		}
 		out = append(out, m)

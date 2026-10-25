@@ -35,6 +35,8 @@ func TestDeadlineForTable(t *testing.T) {
 		{"POST", "/api/v1/customers/import", 0},
 		{"POST", "/api/v1/ingredients/import", 0},
 		{"POST", "/api/v1/admin/erp/sku-mapping/import", 0},
+		// the kartu stok export bounds itself (55 s context, 60 s write deadline): exempt.
+		{"GET", "/api/v1/inventory/movements/export", 0},
 		// chi falls back from the POST-only import route to /products/{id}: stays default.
 		{"PUT", "/api/v1/products/import", DefaultDeadline},
 	}

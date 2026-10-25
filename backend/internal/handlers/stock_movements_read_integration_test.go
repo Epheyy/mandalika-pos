@@ -31,6 +31,7 @@ const (
 	mvUser      = "00000000-0000-4000-8f69-0000000000d1"
 	mvAdjust    = "00000000-0000-4000-8f69-0000000000e1"
 	mvSaleDoc   = "00000000-0000-4000-8f69-0000000000f3"
+	mvBigOutlet = "00000000-0000-4000-8f69-0000000000a9"
 )
 
 // TestStockMovementsReadPostgres is the S1 (kartu stok) gate: the saldo chain, keyset paging,
@@ -291,6 +292,48 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("consecutive days partition the ledger across midnight", func(t *testing.T) {
+		s := "locationType=outlet&locationId=" + mvOutletA + "&productId=" + mvProductP + "&variantSize=S"
+		summaryRow := func(r string) api.MovementLedgerSummaryRow {
+			t.Helper()
+			resp := admin("/inventory/movements/summary?locationType=outlet&locationId=" + mvOutletA + "&" + r + "&q=MV-P-S")
+			var sum api.MovementLedgerSummaryResponse
+			if err := json.Unmarshal(resp.Body.Bytes(), &sum); err != nil || resp.Code != 200 || len(sum.Data) > 1 {
+				t.Fatalf("%s: %d %s", r, resp.Code, resp.Body.String())
+			}
+			if len(sum.Data) == 0 { // a SKU with no history yet has no line: balance 0
+				return api.MovementLedgerSummaryRow{}
+			}
+			return sum.Data[0]
+		}
+		// Jan 3 holds no row of this SKU (both were taken after the boundary by seq), so its
+		// closing is the carried balance; Jan 4 holds both, so its opening is that same balance.
+		day3 := list(t, s+"&from=2026-01-03&to=2026-01-03&limit=200")
+		day4 := list(t, s+"&from=2026-01-04&to=2026-01-04&limit=200")
+		if len(day3.Data) != 0 || day3.Summary.Opening != 5 || day3.Summary.Closing != 5 {
+			t.Fatalf("Jan 3 = %+v / %+v, want no rows and the carried balance 5", day3.Data, day3.Summary)
+		}
+		if len(day4.Data) != 2 || day4.Summary.Opening != 5 || day4.Summary.Closing != 3 || day4.Summary.TotalOut != 2 {
+			t.Fatalf("Jan 4 = %d rows / %+v, want both rows, 5 -> 3", len(day4.Data), day4.Summary)
+		}
+		if day3.Summary.Closing != day4.Summary.Opening {
+			t.Fatal("Jan 3 closing must equal Jan 4 opening")
+		}
+		both := list(t, s+"&from=2026-01-03&to=2026-01-04&limit=200")
+		if len(both.Data) != len(day3.Data)+len(day4.Data) || both.Summary.Opening != 5 || both.Summary.Closing != 3 {
+			t.Fatalf("Jan 3-4 = %d rows / %+v: the two days must add up with no row twice", len(both.Data), both.Summary)
+		}
+		// the card equals its summary row, on a busy day and on an empty window
+		for _, r := range []string{"from=2026-01-03&to=2026-01-03", "from=2026-01-04&to=2026-01-04", "from=2026-01-10&to=2026-01-12", "from=2025-12-01&to=2025-12-31"} {
+			card := list(t, s+"&"+r+"&limit=200").Summary
+			row := summaryRow(r)
+			if card.Opening != row.Opening || card.Closing != row.Closing ||
+				card.TotalIn != sumMap(row.InByKind) || card.TotalOut != sumMap(row.OutByKind) {
+				t.Fatalf("%s: card %+v != summary row %+v", r, card, row)
+			}
+		}
+	})
+
 	t.Run("csv export equals the JSON rows", func(t *testing.T) {
 		q := "from=2026-01-01&to=2026-02-01&" + sku
 		w := admin("/inventory/movements/export?" + q)
@@ -362,7 +405,7 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 
 	t.Run("sku picker is scoped, cheap and limited to ledger variants", func(t *testing.T) {
 		type skuResp struct {
-			Data []read.MovementSku `json:"data"`
+			Data []api.MovementSku `json:"data"`
 		}
 		call := func(role, outlet, q string) (int, skuResp) {
 			router := chi.NewRouter()
@@ -380,13 +423,13 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 			return w.Code, out
 		}
 		base := "locationType=outlet&locationId=" + mvOutletA
-		if code, r := call("admin", "", base+"&q=mv-p"); code != 200 || len(r.Data) != 3 {
-			t.Fatalf("q=mv-p: %d %+v (want sizes M, L and XL)", code, r.Data)
+		if code, r := call("admin", "", base+"&q=mv-p"); code != 200 || len(r.Data) != 4 {
+			t.Fatalf("q=mv-p: %d %+v (want sizes M, L, XL and S)", code, r.Data)
 		}
 		if _, r := call("admin", "", base+"&q=8990001"); len(r.Data) != 1 || r.Data[0].VariantSize != "M" {
 			t.Fatalf("barcode search = %+v", r.Data)
 		}
-		if _, r := call("admin", "", base+"&q=kartu"); len(r.Data) != 3 {
+		if _, r := call("admin", "", base+"&q=kartu"); len(r.Data) != 4 {
 			t.Fatalf("name search = %+v", r.Data)
 		}
 		// outlet B only has product P/M in its ledger
@@ -398,6 +441,49 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 		}
 		if code, _ := call("manager", mvOutletB, base+"&q=mv"); code != 403 {
 			t.Fatalf("other outlet: %d, want 403", code)
+		}
+	})
+
+	t.Run("window boundary lookups stay bounded on a 200k-row location", func(t *testing.T) {
+		if _, err := pool.Exec(ctx, `INSERT INTO outlets(id,name) VALUES($1,'MV big outlet')`, mvBigOutlet); err != nil {
+			t.Fatal(err)
+		}
+		// one row a minute from 2025-01-01: about 139 days of a very busy location
+		if _, err := pool.Exec(ctx, `INSERT INTO stock_movements(document_id,dedupe_key,kind,location_type,location_id,product_id,variant_size,
+		  qty,qty_before,qty_after,ref_type,occurred_at,recorded_at)
+		  SELECT gen_random_uuid(),'mvbig:'||g,'receipt','outlet',$1::uuid,$2::uuid,'BIG',1,g-1,g,'goods_receipt',ts,ts
+		  FROM (SELECT g, timestamptz '2025-01-01 00:00:00+00' + g * interval '1 minute' AS ts FROM generate_series(1,200000) g) x`,
+			mvBigOutlet, mvProductP); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, `ANALYZE stock_movements`); err != nil {
+			t.Fatal(err)
+		}
+		mid := time.Date(2025, 3, 10, 0, 0, 0, 0, time.UTC)
+		for name, probe := range map[string]struct {
+			sql  string
+			args []any
+		}{
+			"slice": {read.BoundarySliceSQL, []any{"outlet", mvBigOutlet, mid, mid.Add(read.WindowSkew)}},
+			"next":  {read.BoundaryNextSQL, []any{"outlet", mvBigOutlet, mid.Add(read.WindowSkew)}},
+			"end":   {read.BoundaryEndSQL, []any{"outlet", mvBigOutlet}},
+		} {
+			plan := explain(t, ctx, pool, probe.sql, probe.args...)
+			t.Logf("EXPLAIN %s probe:\n%s", name, plan)
+			if strings.Contains(plan, "Seq Scan") {
+				t.Fatalf("%s probe walks the table:\n%s", name, plan)
+			}
+		}
+		started := time.Now()
+		page := list(t, "locationType=outlet&locationId="+mvBigOutlet+"&from=2025-03-10&to=2025-03-10&limit=50")
+		t.Logf("one-day page of a 200k-row location: %d rows in %s", len(page.Data), time.Since(started))
+		if len(page.Data) != 50 {
+			t.Fatalf("one-day page = %d rows, want 50", len(page.Data))
+		}
+		day := list(t, "locationType=outlet&locationId="+mvBigOutlet+"&productId="+mvProductP+"&variantSize=BIG&from=2025-03-10&to=2025-03-10&limit=1")
+		// 2025-03-10 in WIB: 1440 minutes, one row each
+		if s := day.Summary; s == nil || s.TotalIn != 1440 || s.Opening+s.TotalIn-s.TotalOut != s.Closing {
+			t.Fatalf("one-day saldo = %+v, want 1440 in", s)
 		}
 	})
 
@@ -429,8 +515,8 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 		if m.Opening+sumMap(m.InByKind)-sumMap(m.OutByKind) != m.Closing {
 			t.Fatalf("summary M does not reconcile: %+v", m)
 		}
-		if resp.Meta.Total != 4 {
-			t.Fatalf("total SKUs = %d, want 3", resp.Meta.Total)
+		if resp.Meta.Total != 5 {
+			t.Fatalf("total SKUs = %d, want 5", resp.Meta.Total)
 		}
 		// a range with no movement still lists the SKU with its carried balance
 		w = admin("/inventory/movements/summary?locationType=outlet&locationId=" + mvOutletA + "&from=2026-01-04&to=2026-01-04&q=MV-P-M")
@@ -470,6 +556,28 @@ func (f *failAfterFirstWrite) Write(b []byte) (int, error) {
 	return f.ResponseWriter.Write(b)
 }
 
+// explain runs EXPLAIN (ANALYZE, BUFFERS) and returns the plan text.
+func explain(t *testing.T, ctx context.Context, pool *pgxpool.Pool, sql string, args ...any) string {
+	t.Helper()
+	rows, err := pool.Query(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+sql, args...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var plan []string
+	for rows.Next() {
+		var line string
+		if err := rows.Scan(&line); err != nil {
+			t.Fatal(err)
+		}
+		plan = append(plan, line)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return strings.Join(plan, "\n")
+}
+
 func countGiveaway(rows []api.StockMovementRow) int {
 	n := 0
 	for _, r := range rows {
@@ -505,7 +613,7 @@ func mvSeed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) []int64 {
 	exec(`INSERT INTO warehouses(id,name) VALUES($1,'MV gudang')`, mvWarehouse)
 	exec(`INSERT INTO products(id,name) VALUES($1,'MV kartu P'),($2,'=SUM(A1)')`, mvProductP, mvProductQ)
 	exec(`INSERT INTO product_variants(product_id,size,price,sku,barcode) VALUES
-	      ($1,'M',100000,'MV-P-M','8990001'),($1,'L',100000,'MV-P-L','8990002'),($1,'XL',100000,'MV-P-XL','8990004'),
+	      ($1,'M',100000,'MV-P-M','8990001'),($1,'L',100000,'MV-P-L','8990002'),($1,'XL',100000,'MV-P-XL','8990004'),($1,'S',100000,'MV-P-S','8990005'),
 	      ($2,'M',100000,'MV-Q-M','8990003')`, mvProductP, mvProductQ)
 	exec(`INSERT INTO users(id,email,password_hash,display_name,role) VALUES($1,'mv@example.test','x','MV Petugas','manager')`, mvUser)
 	exec(`INSERT INTO warehouse_stock_adjustments(id,outlet_id,product_id,variant_size,new_qty,reason) VALUES($1,$2,$3,'M',12,'rusak kena air')`,
@@ -568,6 +676,7 @@ func mvSeed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) []int64 {
 	rec("opening", 10, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
 	add(mvOutletA, "outlet", mvProductP, "L", "opening", 4, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
 	add(mvOutletA, "outlet", mvProductP, "XL", "opening", 4, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
+	add(mvOutletA, "outlet", mvProductP, "S", "opening", 5, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
 	add(mvOutletB, "outlet", mvProductP, "M", "opening", 9, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
 	add(mvWarehouse, "warehouse", mvProductP, "M", "opening", 50, "2026-01-01T10:00:00Z", mvOpts{refType: "backfill"})
 	rec("receipt", 5, "2026-01-02T02:00:00Z", mvOpts{refType: "goods_receipt", actor: mvUser})
@@ -578,6 +687,10 @@ func mvSeed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) []int64 {
 	rec("adjust", -3, "2026-01-03T06:00:00Z", mvOpts{refType: "stock_adjustment", refID: mvAdjust, dedupe: "adjust:" + mvAdjust})
 	// the shortage sale was rung offline: earlier occurred_at than the giveaway and adjust before it in seq
 	rec("sale", -10, "2026-01-03T04:00:00Z", mvOpts{dedupe: "sale:mv-shortage", flags: []string{"shortage"}, recorded: "2026-01-03T07:00:00Z"})
+	// P/S straddles midnight (WIB): B was recorded 00:00:01 on Jan 4 and took its seq first; A was
+	// recorded 23:59:58 on Jan 3 but took its seq after B (it waited on a lock). Seq decides.
+	add(mvOutletA, "outlet", mvProductP, "S", "sale", -1, "2026-01-03T16:59:00Z", mvOpts{recorded: "2026-01-03T17:00:01Z", dedupe: "sale:mv-mid-b"})
+	add(mvOutletA, "outlet", mvProductP, "S", "sale", -1, "2026-01-03T16:59:00Z", mvOpts{recorded: "2026-01-03T16:59:58Z", dedupe: "sale:mv-mid-a"})
 	add(mvOutletA, "outlet", mvProductP, "XL", "sale", -1, "2026-01-03T12:00:00Z", mvOpts{recorded: "2026-01-04T02:00:00Z", dedupe: "sale:mv-xl-late-b"})
 	for i := 0; i < 24; i++ {
 		rec("receipt", 1, fmt.Sprintf("2026-01-05T%02d:00:00Z", i), mvOpts{refType: "goods_receipt"})

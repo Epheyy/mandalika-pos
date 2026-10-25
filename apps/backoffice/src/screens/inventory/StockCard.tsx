@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { StockMovementPage, StockMovementParams, StockMovementRow } from '@mandalika/api'
+import type { MovementSku, StockMovementPage, StockMovementParams, StockMovementRow } from '@mandalika/api'
 import { Download, Search, X } from 'lucide-react'
 import { api } from '../../api'
 import { localDay } from '../../lib/businessDay'
@@ -34,16 +34,7 @@ interface StockCardProps {
 
 const PAGE = 50
 
-/** One entry of GET /inventory/movements/skus (the cheap SKU picker; not in the OpenAPI contract). */
-interface MovementSkuOption {
-  productId: string
-  productName: string
-  variantSize: string
-  sku: string
-  barcode?: string
-}
-
-function skuLabel(r: Pick<MovementSkuOption, 'productName' | 'variantSize' | 'sku'>): string {
+function skuLabel(r: Pick<MovementSku, 'productName' | 'variantSize' | 'sku'>): string {
   return `${r.productName} · ${r.variantSize}${r.sku ? ` (${r.sku})` : ''}`
 }
 
@@ -309,7 +300,7 @@ interface SkuSearchProps {
 /** Search by SKU, barcode or name over the SKUs that have ledger history at the location. */
 function SkuSearch({ locationType, locationId, picked, onPick }: SkuSearchProps) {
   const [text, setText] = useState('')
-  const [results, setResults] = useState<MovementSkuOption[]>([])
+  const [results, setResults] = useState<MovementSku[]>([])
 
   useEffect(() => {
     const q = text.trim()
@@ -319,9 +310,8 @@ function SkuSearch({ locationType, locationId, picked, onPick }: SkuSearchProps)
     }
     let stale = false
     const t = setTimeout(() => {
-      const query = new URLSearchParams({ locationType, locationId, q })
       api
-        .request<{ data: MovementSkuOption[] }>('GET', `/api/v1/inventory/movements/skus?${query}`)
+        .listMovementSkus({ locationType, locationId, q })
         .then((r) => !stale && setResults(r.data))
         .catch(() => !stale && setResults([]))
     }, 300)

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/csv"
 	"fmt"
 	"log/slog"
@@ -25,7 +26,8 @@ const (
 	// Kartu stok export caps (plan §3): the range and the row count.
 	movementExportMaxDays = 93
 	movementExportMaxRows = 100000
-	// A 100k-row export can outlive the server's write timeout (see ExportStockMovements).
+	// A 100k-row export outlives the server's defaults (see ExportStockMovements).
+	movementExportTimeout       = 55 * time.Second
 	movementExportWriteDeadline = 60 * time.Second
 	movementSkuLimit            = 8
 )
@@ -272,14 +274,17 @@ func (h *Handlers) ExportStockMovements(w http.ResponseWriter, r *http.Request) 
 		httpx.Err(w, http.StatusRequestEntityTooLarge, "ekspor melebihi 100000 baris; persempit filter")
 		return
 	}
-	// A big export outlives the server's 30 s write timeout; extend this response (best effort,
-	// ignored where unsupported), like the ERP relay does.
+	// A big export outlives the server's 30 s write timeout and the default request deadline (the
+	// route is exempt from the deadline middleware): bound it here with its own context and extend
+	// the write deadline slightly beyond it (best effort, ignored where unsupported).
+	ctx, cancel := context.WithTimeout(r.Context(), movementExportTimeout)
+	defer cancel()
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(movementExportWriteDeadline))
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="kartu-stok.csv"`)
 	cw := csv.NewWriter(w)
 	_ = cw.Write(movementCSVHeader)
-	err = h.Repo.ForEachMovement(r.Context(), f, 0, 0, func(m api.StockMovementRow) error {
+	err = h.Repo.ForEachMovement(ctx, f, 0, 0, func(m api.StockMovementRow) error {
 		return cw.Write(movementCSVRow(m, zone))
 	})
 	cw.Flush()
@@ -324,5 +329,5 @@ func (h *Handlers) MovementSkus(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": rows})
+	writeJSON(w, http.StatusOK, api.MovementSkuResponse{Data: rows})
 }

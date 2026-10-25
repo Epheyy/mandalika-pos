@@ -407,7 +407,14 @@ func sentryRecoverer(s *observability.Sentry, wr errorLogSink) func(http.Handler
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
-				if rec := recover(); rec != nil && rec != http.ErrAbortHandler {
+				rec := recover()
+				// A deliberate abort (a stream that failed after its headers went out, like the kartu
+				// stok export) must reach net/http, which then drops the connection. Swallowing it
+				// would end the chunked body cleanly and hand the client a silently truncated 200.
+				if rec == http.ErrAbortHandler {
+					panic(rec)
+				}
+				if rec != nil {
 					err, ok := rec.(error)
 					if !ok {
 						err = fmt.Errorf("panic: %v", rec)
