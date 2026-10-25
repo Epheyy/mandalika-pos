@@ -34,6 +34,10 @@ type slCountEnv struct {
 	complete slCompleteFn
 }
 
+// slCountUser is the acting user. Count-line saves record it in inventory_doc_events.actor_id,
+// a uuid column, so it must be a uuid (production actors are always user uuids).
+const slCountUser = "5100000a-0000-4000-8000-00000000051a"
+
 func (e *slCountEnv) one(sql string, args ...any) int {
 	e.t.Helper()
 	var n int
@@ -82,7 +86,7 @@ func newSLCountEnv(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *slCou
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			c := context.WithValue(r.Context(), auth.CtxUserID, "u-sl")
+			c := context.WithValue(r.Context(), auth.CtxUserID, slCountUser)
 			next.ServeHTTP(w, r.WithContext(context.WithValue(c, auth.CtxOutletID, slOutletC)))
 		})
 	})
@@ -156,7 +160,7 @@ func slOutletAndWarehouseCounts(e *slCountEnv) {
 		t.Fatalf("count rows = %+v, want %+v", got, want)
 	}
 	cols := e.one(`SELECT count(*)::int FROM stock_movements WHERE kind='count' AND ref_id=$1 AND ref_type='stock_count'
-	     AND actor='u-sl' AND ref_line IS NOT NULL AND document_id=$2`, c1, ledger.DocumentID("count:"+c1, 0))
+	     AND actor='5100000a-0000-4000-8000-00000000051a' AND ref_line IS NOT NULL AND document_id=$2`, c1, ledger.DocumentID("count:"+c1, 0))
 	if e.outletSeq() != seq0+1 || cols != 2 {
 		t.Fatalf("seq %d -> %d, ref/actor/document columns ok for %d of 2 rows", seq0, e.outletSeq(), cols)
 	}
