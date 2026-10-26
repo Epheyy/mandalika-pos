@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: ERP Integration API v1 — stock documents (proposed by POS Mandalika)
-  version: 1.0.0-draft.2
+  version: 1.0.0-draft.3
   description: |
     Proposed write endpoint for the ERP (erp-flamboyan) Integration API v1, written by the POS team from the
     handoff `docs/integration/2026-10-21-serah-terima-erp-pos.md` §4.3, §4.4, §4.6 and §10. It is a fragment:
@@ -14,6 +14,11 @@ info:
     handoff): success envelope `status: "success"`, `details[].path` as an array, 413 above 512 KB, warehouse
     documents refused with 422 this phase, idempotency scoped by the API client. The POS relay accepts both
     success envelopes and both `path` forms.
+
+    Draft.3 (2026-10-26) follows the ERP code merged on its main on 2026-10-26: the outlet is named by its ERP
+    `code` (`location.code`), not its slug; the client must hold the outlet; each kind has a qty sign; the period
+    window is 6 months back (Asia/Jakarta month) to 24 hours ahead. The POS still sends `location.slug` for one
+    release as an ignored extra.
 
     Idempotency: the document key is (idempotency scope, `document_id`). The ERP scopes it by the API
     client of the bearer key (one client per POS brand); `source.brand` is still sent, as information only.
@@ -40,11 +45,19 @@ paths:
         Requires scope `integration:stock:write`.
 
         After the replay check, the ERP validates the whole document. If any check fails (unknown `fg_code`,
-        unknown `location.slug`, a `warehouse` location, bad `kind`, more than 200 lines, a `movement_id`
-        already used in this scope, …) it answers 422 and writes nothing.
+        unknown `location.code` or an outlet not set on the calling client, a `warehouse` location, bad `kind`,
+        more than 200 lines, a nonzero line's `movement_id` already used in this scope, a qty with the wrong sign
+        for its kind, an `occurred_at` more than 24 hours ahead or older than 6 months, …) it answers 422 and
+        writes nothing.
+
+        Qty sign per kind (zero always allowed): `sale`, `transfer_out`, `write_off` ≤ 0; `refund`, `transfer_in`,
+        `transfer_cancel`, `receipt` ≥ 0; `adjust`, `count`, `opening` any.
+
+        Period: `period_month` is the Asia/Jakarta month of `occurred_at` (of the server time when `occurred_at`
+        is up to 24 hours ahead). It must not be earlier than the first day of the current month minus 6 months.
 
         This phase accepts `location.type: outlet` only: a `warehouse` document is refused with 422. The POS
-        never sends one while `warehouses.erp_slug` is empty (the document is held in the outbox instead).
+        never sends one (warehouse documents are held in the outbox).
 
         Required fields: `document_id`, `kind`, `location`, `occurred_at`, `lines[].movement_id`,
         `lines[].fg_code`, `lines[].qty`. Every other field is stored as information and never changes a
@@ -247,14 +260,20 @@ components:
           description: Cashier uuid or name.
     DocumentLocation:
       type: object
-      required: [type, slug]
+      required: [type, code]
       properties:
         type:
           type: string
-          enum: [outlet, warehouse]
+          enum: [outlet]
+          description: Only `outlet` this phase; `warehouse` → 422.
+        code:
+          type: string
+          maxLength: 50
+          description: ERP outlet code (the POS sends `outlets.erp_code`, captured when the catalog pull linked the outlet). Unknown, in trash, or not set on the calling client → 422.
         slug:
           type: string
-          description: ERP slug of the outlet or warehouse. Unknown or deleted → 422. A warehouse → 422 this phase.
+          deprecated: true
+          description: ERP outlet slug. Ignored by the ERP (unknown keys are stripped); the POS sends it for one release so older readers still resolve the outlet.
     DocumentRef:
       type: object
       required: [type, id]
@@ -406,7 +425,7 @@ components:
         document_id: d0000000-0000-4000-8000-000000000002
         kind: sale
         source: { system: pos, brand: mandalika, device_id: tab-07, actor: kasir-01 }
-        location: { type: outlet, slug: kemang }
+        location: { type: outlet, code: KMG, slug: kemang }
         occurred_at: '2026-11-02T03:15:20+07:00'
         recorded_at: '2026-11-01T20:15:41Z'
         ref: { type: order, id: 5b1f0c2e-9a77-4d3e-8f10-2c6a1e9b0a01, number: KMG-AB0004 }
@@ -430,7 +449,7 @@ components:
         kind: count
         part: { index: 2, count: 3 }
         source: { system: pos, brand: mandalika }
-        location: { type: outlet, slug: kemang }
+        location: { type: outlet, code: KMG, slug: kemang }
         occurred_at: '2026-11-01T21:00:00+07:00'
         ref: { type: stock_count, id: 7c3a9e10-2b44-4f6d-9e21-0d5b8a6f3c02, number: SO-2026-11-01 }
         lines:

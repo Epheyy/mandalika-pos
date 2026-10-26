@@ -26,6 +26,9 @@ type Config struct {
 	Seed      []byte
 	Now       func() time.Time
 	Envelope  string
+	// AssignedOutlets are the outlet codes assigned to the calling client. nil means
+	// every live outlet; a non-nil slice (even empty) means only those codes.
+	AssignedOutlets []string
 }
 
 // Success envelopes of POST stock-documents. The real ERP answers {"status":"success",...}
@@ -42,7 +45,8 @@ type Server struct {
 	key       string
 	statePath string
 	now       func() time.Time
-	erpEnv    bool // stock-document answers use the ERP envelope
+	erpEnv    bool            // stock-document answers use the ERP envelope
+	assigned  map[string]bool // nil = every outlet; guarded by mu, in memory only
 
 	fmu         sync.Mutex // guards fault state (not persisted)
 	faultStatus int
@@ -66,7 +70,7 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{st: st, key: cfg.Key, statePath: cfg.StatePath, now: cfg.Now, erpEnv: cfg.Envelope == EnvelopeERP}
+	s := &Server{st: st, key: cfg.Key, statePath: cfg.StatePath, now: cfg.Now, erpEnv: cfg.Envelope == EnvelopeERP, assigned: assignedSet(cfg.AssignedOutlets)}
 	s.mux = http.NewServeMux()
 	s.routes()
 	return s, nil
@@ -98,5 +102,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /_stub/balances", s.hook(s.hookBalances))
 	s.mux.HandleFunc("POST /_stub/fg", s.hook(s.hookUpsertFG))
 	s.mux.HandleFunc("POST /_stub/outlet", s.hook(s.hookUpsertOutlet))
+	s.mux.HandleFunc("POST /_stub/assigned-outlets", s.hook(s.hookAssignedOutlets))
 	s.mux.HandleFunc("POST /_stub/fault", s.hook(s.hookFault))
 }

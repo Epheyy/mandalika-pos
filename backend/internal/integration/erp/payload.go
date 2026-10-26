@@ -65,7 +65,8 @@ type OrderInfo struct {
 // BuildInput is everything BuildDocument needs; it holds no connection.
 type BuildInput struct {
 	Header       OutboxHeader
-	LocationSlug string // "" = not mapped
+	LocationCode string // outlets.erp_code; "" = outlet not linked to the ERP
+	LocationSlug string // outlets.erp_slug, sent as a deprecated extra; may be ""
 	Movements    []MovementRow
 	Order        *OrderInfo
 	Brand        string
@@ -82,9 +83,8 @@ func BuildDocument(in BuildInput) (doc StockDocument, holdReason string, err err
 	if len(in.Movements) == 0 {
 		return StockDocument{}, "", ErrNoMovements
 	}
-	if in.LocationSlug == "" {
-		return StockDocument{}, fmt.Sprintf("lokasi %s %s belum dipetakan ke ERP (erp_slug kosong)",
-			h.LocationType, h.LocationID), nil
+	if reason := locationHold(h, in.LocationCode); reason != "" {
+		return StockDocument{}, reason, nil
 	}
 	if reason := unmappedVariants(in.Movements); reason != "" {
 		return StockDocument{}, reason, nil
@@ -94,7 +94,7 @@ func BuildDocument(in BuildInput) (doc StockDocument, holdReason string, err err
 		DocumentID: h.DocumentID,
 		Kind:       h.Kind,
 		Source:     buildSource(in),
-		Location:   DocumentLocation{Type: h.LocationType, Slug: in.LocationSlug},
+		Location:   DocumentLocation{Type: h.LocationType, Code: in.LocationCode, Slug: in.LocationSlug},
 		OccurredAt: in.Movements[0].OccurredAt.UTC().Format(time.RFC3339),
 		RecordedAt: h.CreatedAt.UTC().Format(time.RFC3339),
 		Ref:        DocumentRef{Type: h.RefType, ID: h.RefID, Number: h.RefNumber},
@@ -108,6 +108,20 @@ func BuildDocument(in BuildInput) (doc StockDocument, holdReason string, err err
 	}
 	doc.Tenders = buildTenders(h, in.Order)
 	return doc, "", nil
+}
+
+// locationHold returns the hold reason for a location the ERP cannot take, or "". The
+// merged ERP endpoint accepts outlets only (its BR4; warehouse documents are out of its
+// scope), so a warehouse document is held even when the warehouse has an erp_slug: it
+// would only dead-letter on a 422. An outlet needs the ERP code captured at link time.
+func locationHold(h OutboxHeader, code string) string {
+	if h.LocationType != "outlet" {
+		return fmt.Sprintf("gudang %s: ERP belum menerima dokumen gudang (hanya outlet)", h.LocationID)
+	}
+	if code == "" {
+		return fmt.Sprintf("outlet %s belum terhubung ke ERP (erp_code kosong)", h.LocationID)
+	}
+	return ""
 }
 
 // unmappedVariants returns the hold reason for movements without an fg_code, or "".
@@ -209,11 +223,12 @@ type Querier interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
-// The erp_slug columns arrive with migration 0066; reading them through to_jsonb keeps
-// the same SQL valid before and after it (NULL while the column does not exist).
+// The erp_code/erp_slug columns arrive with migration 0066; reading them through to_jsonb
+// keeps the same SQL valid before and after it (NULL while the column does not exist).
+// erp_code is written when the catalog pull links the outlet and follows later ERP code
+// changes; outlets.code is POS-owned and is never assumed to equal it.
 const (
-	outletSlugSQL    = `SELECT to_jsonb(o)->>'erp_slug' FROM outlets o WHERE o.id=$1`
-	warehouseSlugSQL = `SELECT to_jsonb(w)->>'erp_slug' FROM warehouses w WHERE w.id=$1`
+	outletLocationSQL = `SELECT to_jsonb(o)->>'erp_code', to_jsonb(o)->>'erp_slug' FROM outlets o WHERE o.id=$1`
 
 	movementsSQL = `
 SELECT m.id::text, m.product_id::text, m.variant_size, m.qty, m.qty_before, m.qty_after, m.flags,
@@ -231,16 +246,17 @@ FROM stock_movements m WHERE m.document_id=$1 ORDER BY m.seq`
 // (autocommit pool queries), no transaction.
 func LoadBuildInput(ctx context.Context, q Querier, h OutboxHeader, brand string) (BuildInput, error) {
 	in := BuildInput{Header: h, Brand: brand}
-	slugSQL := outletSlugSQL
-	if h.LocationType == "warehouse" {
-		slugSQL = warehouseSlugSQL
-	}
-	var slug *string
-	if err := q.QueryRow(ctx, slugSQL, h.LocationID).Scan(&slug); err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return in, fmt.Errorf("erp: load location slug: %w", err)
-	}
-	if slug != nil {
-		in.LocationSlug = *slug
+	if h.LocationType == "outlet" { // a warehouse document is held whatever its mapping
+		var code, slug *string
+		if err := q.QueryRow(ctx, outletLocationSQL, h.LocationID).Scan(&code, &slug); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return in, fmt.Errorf("erp: load outlet location: %w", err)
+		}
+		if code != nil {
+			in.LocationCode = strings.TrimSpace(*code)
+		}
+		if slug != nil {
+			in.LocationSlug = *slug
+		}
 	}
 	ms, err := loadMovements(ctx, q, h.DocumentID)
 	if err != nil {

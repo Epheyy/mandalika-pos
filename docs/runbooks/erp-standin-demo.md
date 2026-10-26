@@ -58,6 +58,20 @@ the local Postgres 18 (`erp_rehearsal_<timestamp>`, dropped at exit), starts the
 the integration on, and runs every demo step with assertions (see the checklist for the step list).
 Must end with every step `PASS` before any Phase B step.
 
+On the Windows laptop, Defender may quarantine the freshly built `server.exe` ("contains a virus or potentially
+unwanted software", a false positive on Go binaries in temp folders). Then run the same script in Linux
+containers, like the Postgres gates (Git Bash, repo root, Docker Desktop running):
+```bash
+docker run -d --name rh-pg -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_USER=rehearsal postgres:18.3 \
+  -c listen_addresses=127.0.0.1 && sleep 6
+MSYS_NO_PATHCONV=1 docker run --rm --network container:rh-pg --mount "type=bind,source=$(pwd -W),target=/src" \
+  --mount type=volume,source=mandalika-ci-gomod,target=/go/pkg/mod \
+  --mount type=volume,source=mandalika-ci-gocache,target=/root/.cache/go-build --workdir /src golang:1.26.10 \
+  bash -c 'apt-get update -qq && apt-get install -y -qq postgresql-client >/dev/null &&
+    LOCAL_PG_URL="postgres://rehearsal@127.0.0.1:5432/postgres?sslmode=disable" bash scripts/erp-rehearsal-local.sh'
+docker rm -f rh-pg
+```
+
 ## 2. Build the demo catalog for the stub (local file, then baked into the image)
 
 The stub must not start from its embedded test seed in the test environment: that seed has outlets
@@ -118,6 +132,11 @@ rm -rf "$TMP"
 STUB=$(gcloud run services describe mandalika-erpstub --region $R --project $P --format 'value(status.url)')
 echo "$STUB"
 ```
+The stub assigns every outlet to the client by default. To rehearse the ERP's outlet assignment as well, add
+`--set-env-vars ERP_STUB_ASSIGNED_OUTLETS=<OUTLET_CODE>` (comma-separated ERP outlet codes); a redeploy of an
+already running stub (state persistence on) needs its state file reset, because balances are now keyed by the
+outlet code instead of the slug.
+
 Smoke (expect 401 then 200 with the demo FGs):
 ```bash
 export CLOUDSDK_CORE_DISABLE_FILE_LOGGING=1
@@ -126,9 +145,11 @@ KEY=$(gcloud secrets versions access latest --secret ERP_API_KEY --project manda
 curl -s -H "Authorization: Bearer $KEY" "$STUB/api/integration/v1/catalog/finished-goods?take=5"; unset KEY
 ```
 
-### B3. Map the demo warehouse (go-ahead: one-row Neon write)
-`warehouses.erp_slug` has no API writer (migration 0066: mapped by hand). Without it every transfer
-document stays `held`. The outlet is linked and the variants are created by the catalog pull (B6).
+### B3. Map the demo warehouse (no longer needed)
+Since the relay matches the merged ERP (2026-10-26), every warehouse document is `held` whatever
+`warehouses.erp_slug` says, and the stub refuses warehouse documents with 422 like the ERP. The demo shows a
+warehouse → outlet transfer as a held `transfer_out` plus a delivered `transfer_in`. The SQL below is kept only
+for reference; skip it. The outlet is linked and the variants are created by the catalog pull (B6).
 ```sql
 -- DSN from Secret Manager (DATABASE_URL), never pasted. Check first:
 SELECT id, name, erp_slug FROM warehouses WHERE id = '<WAREHOUSE_ID>';
@@ -197,6 +218,10 @@ For the live rehearsal (B6) pause both jobs first, so the harness controls every
 `... resume ...` afterwards.
 
 ### B6. Rehearsal against the live test environment (go-ahead: test-data writes on Neon)
+**Ordering (since 2026-10-26):** the harness reads the stub's code-keyed balances (`location_code`) and calls
+`POST /_stub/assigned-outlets`, so a live B6 needs the stub redeployed from the same commit as the harness (B2),
+with its state file reset. The backend alone does not need the new stub: it still sends `location.slug`, which an
+older stub image keys on.
 Creates demo products (FG codes from `-run-id`), goods receipts, a sale, a refund, a transfer and one
 dead-lettered then fixed document in the test DB. Run from `backend/`:
 ```bash
@@ -278,12 +303,31 @@ handoff) and the owner's decisions of 2026-10-25 and 2026-10-26 (catalog mapping
 and its array `details[].path` (both stub forms still work). Each step needs its own owner go-ahead; do
 them per outlet, in this order.
 
+**Endpoint merged (2026-10-26).** The ERP's `POST /stock-documents` is on erp-flamboyan `main` (its module README
+still says "not merged"; stale). The POS relay matches it since commit `3410ea3c` (2026-10-26):
+- it sends `location: {type: "outlet", code: <outlets.erp_code>, slug: <erp_slug>}`. The ERP keys on the
+  **code**; the slug is an ignored extra kept for one release;
+- an outlet without `erp_code` is `held` until the pull links it;
+- every warehouse document is `held` (the ERP refuses warehouses, K4), whatever `warehouses.erp_slug` says;
+- a 422 on `location.code` (outlet not assigned to the client, or a body frozen before this change without a
+  code) is `held` and rebuilt at the next look, no attempt burned;
+- 409 `IDEMPOTENCY_CONFLICT`, 413, and 422 on sign or period (`occurred_at` more than 24 h ahead, or older than
+  6 months in Asia/Jakarta months) are `dead` with the ERP message;
+- 403 `INTEGRATION_FORBIDDEN_SCOPE` / `INTEGRATION_CLIENT_SUSPENDED` pause the whole run (rows stay `pending`).
+
 1. **ERP:** the ERP admin creates client `pos_<brand>` with scopes "Katalog (baca)", "Stok outlet (baca)"
    and "Dokumen stok (tulis)"; the key comes over a secret channel and becomes a new `ERP_API_KEY`
    version. Point `ERP_BASE_URL` at `https://<erp-host>/api/integration/v1`. Keep `ERP_RELAY_ENABLED=false`
    until step 9. Pause the `erp-relay` job and the pull job while switching (§7).
+   **Before step 9** the ERP admin must also, in the client dialog of `pos_<brand>` (handoff Q24):
+   - tick "Dokumen stok (tulis)" (`integration:stock:write`): without it every send answers 403 and the relay
+     pauses;
+   - set every POS outlet that will send on the client's outlets (`stock_outlet_codes`, by ERP outlet code;
+     today BSD, LWB, MKS, PMS): an unset outlet answers 422 on `location.code` and its documents stay `held`.
+   Confirm with the ERP developer that the merged code is deployed on that host first (handoff Q23).
 2. **POS, clear the demo mapping:** unset the demo warehouse slug. The ERP refuses warehouse documents
-   with 422 this phase; with the slug empty they stay `held` in the outbox and burn no attempts.
+   with 422 this phase; the relay holds every warehouse document whatever the slug says, so this is only
+   hygiene (it keeps the demo slug from reaching anything else).
    ```sql
    SELECT id, name, erp_slug FROM warehouses WHERE erp_slug IS NOT NULL;
    UPDATE warehouses SET erp_slug = NULL WHERE erp_slug = 'gudang-pusat';  -- "Gudang Pusat (contoh)"
@@ -402,6 +446,21 @@ them per outlet, in this order.
    SELECT count(*) FROM stock_movements m WHERE m.location_type = 'outlet' AND m.location_id = '<OUTLET_ID>'
       AND NOT EXISTS (SELECT 1 FROM erp_outbox o WHERE o.document_id = m.document_id);  -- must be 0
    ```
+   **Requeue the outlet's stub-era rows** (owner go-ahead: Neon write, relay paused). Rows `delivered` or
+   `replayed` to the stand-in never reach the real ERP, and the ERP needs the outlet's full ledger (its BR10). Rows
+   frozen before the code change carry a slug-only body; the relay would hold and rebuild them, but requeueing
+   rebuilds them at once. The real ERP has never seen these `document_id`s, so a rebuilt body cannot conflict.
+   Check the counts first, then requeue (never touch `sending` rows):
+   ```sql
+   SELECT status, count(*) FROM erp_outbox
+    WHERE location_type = 'outlet' AND location_id = '<OUTLET_ID>' GROUP BY status;
+   UPDATE erp_outbox SET status = 'pending', attempts = 0, next_attempt_at = now(), payload = NULL,
+          payload_sha256 = NULL, hold_reason = NULL, last_error = NULL, last_http_status = NULL,
+          erp_response = NULL, delivered_at = NULL, lease_token = NULL, lease_until = NULL, updated_at = now()
+    WHERE location_type = 'outlet' AND location_id = '<OUTLET_ID>' AND status <> 'sending';
+   ```
+   Do this only once per outlet, before the first send to the real ERP: after that, a resend of a delivered row is
+   the admin Retry (it keeps the frozen body, so the ERP answers `replayed`).
 8. **ERP:** imports FG stock QTY 0 for that outlet in the current month. From then on the ERP stops its own
    import, adjust and reject of FG stock at that outlet. This is the single-writer rule, and plan 1 relies on it
    alone.
@@ -409,7 +468,14 @@ them per outlet, in this order.
    document) may arrive in any order: the ERP posts each line as a delta, so the sum is the POS live stock.
 10. **Verify** once the backlog is drained (no `pending` or `sending` rows for the outlet). The ERP's
     `GET /outlets/{code}/stock` must equal the POS live stock (`outlet_variant_stock`) per FG. A difference means a
-    missing or dead document. Check `dead` rows first: `last_error` names the field, for example `lines.2.fg_code`.
+    missing, held or dead document. Check `held` and `dead` rows first:
+    - `held` with "tidak diatur untuk client ini" in `hold_reason`: the outlet is not set on the client (step 1);
+      once it is, the next look sends it;
+    - `held` with "erp_code kosong": the pull has not linked the outlet (step 6);
+    - `held` with "dokumen gudang": expected, warehouses stay in the POS this phase;
+    - `dead`: `last_error` names the field, for example `lines.2.fg_code`, `lines.0.qty` (sign) or `occurred_at`
+      (period window). An `occurred_at` older than 6 months cannot be posted as is (handoff Q25): record the gap and
+      ask the owner before compensating with an adjust.
 
 **What the pull never rewrites (mapping v3):**
 - size labels;

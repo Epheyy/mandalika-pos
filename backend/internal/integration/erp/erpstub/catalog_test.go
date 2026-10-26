@@ -205,7 +205,8 @@ func TestStubFGUpsertFeedsCatalogAndDocuments(t *testing.T) {
 
 	tomb := e.postHook("/_stub/fg", []byte(`{"slug":"fg-new","code":"FG-NEW","name":"Brand New","deleted_at":"2026-06-02T00:00:00Z"}`))
 	expectStatus(t, tomb, http.StatusOK)
-	expectValidation(t, e.post(mustJSON(t, docBody(2, "receipt", ln(2, "FG-NEW", 1)))))
+	// Like the ERP (BR7), a stock document may still name an FG in trash.
+	expectStatus(t, e.post(mustJSON(t, docBody(2, "receipt", ln(2, "FG-NEW", 1)))), http.StatusOK)
 }
 
 func TestStubOutletUpsertTombstoneAndCodeRules(t *testing.T) {

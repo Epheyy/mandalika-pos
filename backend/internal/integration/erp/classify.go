@@ -29,6 +29,11 @@ type outcome struct {
 	httpStatus *int
 	lastError  string
 	response   *string // erp_response as JSON text; nil keeps the stored one
+	holdReason string  // erp_outbox.hold_reason; set only with statusHeld
+	// clearPayload drops the frozen body so the next look rebuilds it. Only safe after an
+	// answer that proves nothing was applied (a 422 writes nothing, and the ERP checks for
+	// a replay before it validates the outlet).
+	clearPayload bool
 }
 
 func (o outcome) count(rep *RunReport) {
@@ -39,6 +44,8 @@ func (o outcome) count(rep *RunReport) {
 		rep.Replayed++
 	case o.status == statusDead:
 		rep.Dead++
+	case o.status == statusHeld:
+		rep.Held++
 	case o.stop == stopUnauthorized || o.stop == stopForbidden || o.stop == stopRateLimited:
 		rep.Released++ // put back untouched: not the document's fault
 	default:
@@ -68,7 +75,16 @@ func classify(resp Response, err error, attempts int, sha, documentID string, cf
 		}
 		return outcome{status: statusPending, attempts: attempts, delay: cfg.AuthBackoff, stop: stop,
 			httpStatus: &code, lastError: truncate(errorText(resp), maxErrorLen), response: rawJSON(resp.Body)}
-	case st == http.StatusBadRequest, st == http.StatusConflict, st == http.StatusUnprocessableEntity:
+	case st == http.StatusUnprocessableEntity && onlyLocationDetails(resp.Body):
+		// The outlet is unknown to the ERP or not yet set on this client (its BR4/BR5), or an
+		// old body names the outlet by slug only: an ERP admin task, not a broken document.
+		// Hold it without burning an attempt, and rebuild the body at the next look so a
+		// corrected outlets.erp_code is picked up.
+		msg := truncate(errorText(resp), maxErrorLen)
+		return outcome{status: statusHeld, attempts: attempts, delay: cfg.HoldDelay, httpStatus: &code,
+			lastError: msg, holdReason: msg, response: rawJSON(resp.Body), clearPayload: true}
+	case st == http.StatusBadRequest, st == http.StatusConflict, st == http.StatusUnprocessableEntity,
+		st == http.StatusRequestEntityTooLarge:
 		suffix := ""
 		if st == http.StatusConflict {
 			suffix = fmt.Sprintf(" (the ERP already holds a different body for this document_id; payload_sha256=%s)", sha)
@@ -109,6 +125,20 @@ func classifySuccess(resp Response, attempts int, documentID string, cfg Config)
 		status = statusReplayed
 	}
 	return outcome{status: status, attempts: attempts + 1, httpStatus: &code, response: rawJSON(resp.Body)}
+}
+
+// onlyLocationDetails reports whether a 422 body names location fields and nothing else.
+func onlyLocationDetails(body []byte) bool {
+	var eb ErrorBody
+	if json.Unmarshal(body, &eb) != nil || len(eb.Details) == 0 {
+		return false
+	}
+	for _, d := range eb.Details {
+		if p := dottedPath(d.Path); p != "location" && !strings.HasPrefix(p, "location.") {
+			return false
+		}
+	}
+	return true
 }
 
 // successEnvelope needs at least one success marker and no contrary one: "success":false

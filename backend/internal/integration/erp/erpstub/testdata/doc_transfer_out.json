@@ -1,8 +1,8 @@
 {
   "document_id": "d0000000-0000-4000-8000-000000000004",
   "kind": "transfer_out",
-  "source": {"system": "pos", "brand": "mandalika", "device_id": "tablet-01", "actor": "warehouse-1"},
-  "location": {"type": "warehouse", "slug": "gudang-pusat"},
+  "source": {"system": "pos", "brand": "mandalika", "device_id": "tablet-01", "actor": "cashier-2"},
+  "location": {"type": "outlet", "code": "BSD"},
   "occurred_at": "2026-04-02T09:00:00Z",
   "recorded_at": "2026-04-02T09:00:01Z",
   "ref": {"type": "transfer", "id": "TRF-000123", "number": "TRF-000123"},

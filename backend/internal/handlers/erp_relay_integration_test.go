@@ -26,6 +26,7 @@ import (
 const (
 	obrOutlet = "00000000-0000-4000-8f71-00000000000a"
 	obrSlug   = "obr-outlet"
+	obrCode   = "OBR-1" // outlets.erp_code: the ERP's key for the outlet
 )
 
 var obrN int // sequence for every seeded fixture (subtests run sequentially)
@@ -109,10 +110,11 @@ func obrPrepare(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
 	for _, q := range []string{
 		`ALTER TABLE outlets ADD COLUMN IF NOT EXISTS erp_slug text`,
+		`ALTER TABLE outlets ADD COLUMN IF NOT EXISTS erp_code text`,
 		`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS erp_slug text`,
 		`ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS erp_slug text`,
 		fmt.Sprintf(`INSERT INTO outlets(id,name) VALUES('%s','OBR outlet') ON CONFLICT DO NOTHING`, obrOutlet),
-		fmt.Sprintf(`UPDATE outlets SET erp_slug='%s' WHERE id='%s'`, obrSlug, obrOutlet),
+		fmt.Sprintf(`UPDATE outlets SET erp_slug='%s', erp_code='%s' WHERE id='%s'`, obrSlug, obrCode, obrOutlet),
 		`UPDATE erp_outbox SET next_attempt_at = now() + interval '1 day' WHERE status IN ('pending','held')`,
 	} {
 		if _, err := pool.Exec(ctx, q); err != nil {
@@ -258,7 +260,7 @@ func obrRelayCases(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		if err := pool.QueryRow(ctx, `SELECT id::text FROM stock_movements WHERE document_id=$1`, d.docID).Scan(&movementID); err != nil {
 			t.Fatal(err)
 		}
-		if doc.DocumentID != d.docID || doc.Kind != "sale" || doc.Location.Slug != obrSlug || doc.Location.Type != "outlet" ||
+		if doc.DocumentID != d.docID || doc.Kind != "sale" || doc.Location.Code != obrCode || doc.Location.Slug != obrSlug || doc.Location.Type != "outlet" ||
 			doc.RecordedAt != row.createdAt.UTC().Format(time.RFC3339) || doc.Source.Brand != "mandalika" ||
 			len(doc.Lines) != 1 || doc.Lines[0].FgCode != d.sku || doc.Lines[0].MovementID != movementID ||
 			doc.Lines[0].Qty != -1 || doc.Lines[0].UnitPrice == nil || *doc.Lines[0].UnitPrice != 150000 ||
@@ -395,6 +397,52 @@ func obrRelayCases(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		}
 		if first, second := obrParse(t, calls[0].body), obrParse(t, calls[1].body); first.Lines[0].FgCode != d.sku || second.Lines[0].FgCode != newSKU {
 			t.Fatalf("fg_codes = %s then %s, want %s then %s", first.Lines[0].FgCode, second.Lines[0].FgCode, d.sku, newSKU)
+		}
+	})
+
+	// The merged ERP answers 422 on location.code when the outlet is not set on the client
+	// (an ERP admin task) or when an old body names it by slug only: the row is held, no
+	// attempt is burned, and the next look rebuilds the body with the current erp_code.
+	t.Run("relay-held-422-location-rebuilds", func(t *testing.T) {
+		obrPrepare(t, ctx, pool)
+		d := obrSeed(t, ctx, pool, true, false)
+		const locBody = `{"success":false,"error":"ValidationError","message":"Validasi gagal","code":"VALIDATION_ERROR",` +
+			`"details":[{"code":"custom","path":["location","code"],"message":"Outlet tidak dikenal atau tidak diatur untuk client ini"}],"requestId":"r1"}`
+		p := &obrPoster{reply: obrAnswer(422, locBody)}
+		r := obrRelay(pool, p, erp.Config{})
+		if rep := obrRun(t, ctx, r); rep.Held != 1 || rep.Dead != 0 {
+			t.Fatalf("report = %+v", rep)
+		}
+		row := obrGet(t, ctx, pool, d.docID)
+		obrWant(t, row, "held", 0)
+		if row.hold == nil || !strings.Contains(*row.hold, "tidak diatur untuk client ini") || row.payload != nil || row.sha != nil ||
+			row.httpStatus == nil || *row.httpStatus != 422 || row.nextInSecs < 240 || !row.leaseClear {
+			t.Fatalf("held row = %+v hold=%v", row, row.hold)
+		}
+
+		const fixed = "OBR-2" // the ERP admin assigned the outlet under its corrected code
+		if _, err := pool.Exec(ctx, `UPDATE outlets SET erp_code=$2 WHERE id=$1`, obrOutlet, fixed); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _, _ = pool.Exec(ctx, `UPDATE outlets SET erp_code=$2 WHERE id=$1`, obrOutlet, obrCode) })
+		p.mu.Lock()
+		p.reply = obrOK("applied")
+		p.mu.Unlock()
+		obrDue(t, ctx, pool, d.docID)
+		if rep := obrRun(t, ctx, r); rep.Delivered != 1 {
+			t.Fatalf("report after assignment = %+v", rep)
+		}
+		row = obrGet(t, ctx, pool, d.docID)
+		obrWant(t, row, "delivered", 1)
+		if row.hold != nil {
+			t.Fatalf("hold_reason kept after delivery: %v", *row.hold)
+		}
+		calls := p.callsFor(d.docID)
+		if len(calls) != 2 {
+			t.Fatalf("calls = %d, want 2", len(calls))
+		}
+		if first, second := obrParse(t, calls[0].body), obrParse(t, calls[1].body); first.Location.Code != obrCode || second.Location.Code != fixed {
+			t.Fatalf("location codes = %s then %s, want %s then %s", first.Location.Code, second.Location.Code, obrCode, fixed)
 		}
 	})
 

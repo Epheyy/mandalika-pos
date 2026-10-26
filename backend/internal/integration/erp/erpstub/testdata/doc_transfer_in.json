@@ -2,7 +2,7 @@
   "document_id": "d0000000-0000-4000-8000-000000000005",
   "kind": "transfer_in",
   "source": {"system": "pos", "brand": "mandalika", "device_id": "tablet-01", "actor": "cashier-1"},
-  "location": {"type": "outlet", "slug": "kemang"},
+  "location": {"type": "outlet", "code": "KMG"},
   "occurred_at": "2026-04-03T09:00:00Z",
   "recorded_at": "2026-04-03T09:00:01Z",
   "ref": {"type": "transfer", "id": "TRF-000123", "number": "TRF-000123"},

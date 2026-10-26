@@ -53,11 +53,11 @@ func stepOpeningStock(r *rt) error {
 	}
 	f := r.fgByLetter
 	for l, q := range map[string]int{"A": 10, "B": 1, "D": 10} {
-		if err := r.wantBal("outlet", r.outletSlg, f(l), q); err != nil {
+		if err := r.wantBal("outlet", r.cfg.outletCode, f(l), q); err != nil {
 			return err
 		}
 	}
-	return r.wantBal("warehouse", warehouseSlug, f("C"), 20)
+	return r.wantWarehouseHeld("receipt", "")
 }
 
 func (r *rt) fgByLetter(l string) fg { return r.items[l].fg }
@@ -70,7 +70,7 @@ func (r *rt) wantReceiptDocs() error {
 	}
 	n := 0
 	for _, d := range docs {
-		if str(d, "kind") != "receipt" || str(d, "location", "slug") != r.outletSlg {
+		if str(d, "kind") != "receipt" || str(d, "location", "code") != r.cfg.outletCode {
 			continue
 		}
 		for _, l := range list(d, "body", "lines") {
@@ -79,7 +79,7 @@ func (r *rt) wantReceiptDocs() error {
 			}
 		}
 	}
-	r.note("stub receipt documents at %s carrying %s: %d (want 1)", r.outletSlg, r.items["A"].fg.Code, n)
+	r.note("stub receipt documents at %s carrying %s: %d (want 1)", r.cfg.outletCode, r.items["A"].fg.Code, n)
 	if n != 1 {
 		return fmt.Errorf("%d receipt documents for the double-submitted receipt, want 1", n)
 	}
@@ -227,10 +227,10 @@ func stepRelaySale(r *rt) error {
 	if len(codes) != 2 || short != r.items["B"].fg.Code {
 		return fmt.Errorf("stub lines %v, shortage on %q; want 2 lines and shortage only on %s", codes, short, r.items["B"].fg.Code)
 	}
-	if err := r.wantBal("outlet", r.outletSlg, r.items["A"].fg, 8); err != nil {
+	if err := r.wantBal("outlet", r.cfg.outletCode, r.items["A"].fg, 8); err != nil {
 		return err
 	}
-	return r.wantBal("outlet", r.outletSlg, r.items["B"].fg, -2)
+	return r.wantBal("outlet", r.cfg.outletCode, r.items["B"].fg, -2)
 }
 
 func stepReplay(r *rt) error {
@@ -251,10 +251,10 @@ func stepReplay(r *rt) error {
 	if len(docs) != 1 {
 		return fmt.Errorf("stub holds %d copies after the replay, want 1", len(docs))
 	}
-	if err := r.wantBal("outlet", r.outletSlg, r.items["A"].fg, 8); err != nil {
+	if err := r.wantBal("outlet", r.cfg.outletCode, r.items["A"].fg, 8); err != nil {
 		return err
 	}
-	return r.wantBal("outlet", r.outletSlg, r.items["B"].fg, -2)
+	return r.wantBal("outlet", r.cfg.outletCode, r.items["B"].fg, -2)
 }
 
 func stepRefund(r *rt) error {
@@ -279,8 +279,8 @@ func stepRefund(r *rt) error {
 	if _, err := r.wantStatus(str(row, "id"), "delivered"); err != nil {
 		return err
 	}
-	if err := r.wantBal("outlet", r.outletSlg, r.items["A"].fg, 10); err != nil {
+	if err := r.wantBal("outlet", r.cfg.outletCode, r.items["A"].fg, 10); err != nil {
 		return err
 	}
-	return r.wantBal("outlet", r.outletSlg, r.items["B"].fg, 1)
+	return r.wantBal("outlet", r.cfg.outletCode, r.items["B"].fg, 1)
 }

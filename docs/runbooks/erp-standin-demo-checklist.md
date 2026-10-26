@@ -38,10 +38,10 @@ in `erp-standin-demo.md`. Each row: what to do, what must happen, and where to s
 | 3 | Sell 2 items on the tablet, one line more than its stock | `/sync/batch` ok; 2 `sale` movements, one flagged shortage; outbox document `pending` → **Kirim sekarang** → `delivered` | Integrasi ERP → outbox: the sale document `delivered`; sale stock exceptions show the shortage | `_stub/documents`: kind `sale`, lines with the FG codes; `_stub/balances`: outlet −qty |
 | 4 | Replay: on the delivered sale document click **Kirim ulang**, then **Kirim sekarang** | ERP answers `replayed`; balance unchanged. (The tablet replaying its own batch item is covered by the rehearsal: 0 new movements) | Document status `replayed` | `_stub/balances` unchanged; still one sale document |
 | 5 | Refund the sale on the tablet, then **Kirim sekarang** | `refund` movements +qty; document `delivered` | Outbox: refund document `delivered` | `_stub/balances` back to the pre-sale value |
-| 6 | Transfer gudang → outlet, 10 units: **Kirim** (double-click), then receive 9 on the tablet; **Kirim sekarang** | One `transfer_out` (−10 warehouse) despite the double click; `transfer_in` +9 with a variance; two documents with the same `ref.id` | Transfer detail (one transfer, variance 1); outbox: two transfer documents `delivered` | `_stub/documents`: `transfer_out` at `warehouse/gudang-pusat`, `transfer_in` at the outlet, same `ref.id`; balances −10 / +9 |
+| 6 | Transfer gudang → outlet, 10 units: **Kirim** (double-click), then receive 9 on the tablet; **Kirim sekarang** | One `transfer_out` (−10 warehouse) despite the double click; `transfer_in` +9 with a variance; two outbox documents with the same `ref.id` | Transfer detail (one transfer, variance 1); outbox: `transfer_out` `held` ("ERP belum menerima dokumen gudang"), `transfer_in` `delivered` | `_stub/documents`: only the `transfer_in`, at the outlet code; outlet balance +9 (the ERP, like the stub, takes outlets only) |
 | 7 | Goods receipt at the outlet, submitted twice with the same key (the rehearsal does the double submit) | One receipt, one `receipt` document | Outbox: one receipt document | One `receipt` document |
 | 8 | Fault: `h -X POST "$STUB/_stub/fault?status=503&count=1"`, sell 1, **Kirim sekarang** | Document `pending`, attempts 1, last error 503; next run after the backoff (≈2 min) → `delivered` | Outbox row: attempts and error, then `delivered` | Document appears only after the retry |
-| 9 | Dead-letter: tombstone one demo FG `h -X POST "$STUB/_stub/fg" -d '{...same FG..., "deleted_at":"2026-11-02T00:00:00Z"}'`, sell it, **Kirim sekarang**; then restore the FG (same body without `deleted_at`) and **Kirim ulang** + **Kirim sekarang** | 422 → `dead`, list shows `VALIDATION_ERROR: validation failed` (the detail view holds the ERP body: `fg_code` unknown finished good); after the fix → `delivered`. Do NOT pull the catalog between tombstone and restore (the pull would deactivate the variant) | Integrasi ERP → dead-letter list shows the reason; then `delivered` | Document present only after the fix |
+| 9 | Dead-letter: change one demo FG's code on the stub as the ERP would `h -X POST "$STUB/_stub/fg" -d '{...same FG..., "code":"<code>-X"}'`, sell it, **Kirim sekarang**; then restore the code (same body, original code) and **Kirim ulang** + **Kirim sekarang**. (A tombstone no longer works: like the ERP, the stub accepts an FG in trash) | 422 → `dead`, list shows `VALIDATION_ERROR: validation failed [lines[0].fg_code: unknown finished good]`; after the fix → `delivered`. Do NOT pull the catalog between the change and the restore | Integrasi ERP → dead-letter list shows the reason; then `delivered` | Document present only after the fix |
 | 10 | Try to delete a demo variant that has stock | 409 "varian masih punya stok di <lokasi>; nolkan lewat penyesuaian dulu" | Product edit → delete variant → error toast. A zeroed variant can then be removed, but the product itself stays undeletable once it has stock history: 409 "produk punya riwayat stok …; nonaktifkan produk saja (matikan Produk Aktif)". Deactivating the product is the supported path | — |
 | 11 | Agreement | POS stock per location = stub balance per FG; §2.4 invariant query returns 0 rows | Warehouse stock / outlet stock screens | `_stub/balances` side by side; `h "$STUB/api/integration/v1/outlets/<CODE>/stock?fg_codes=<codes>"` |
 
@@ -53,19 +53,20 @@ Local reference run 2026-10-23 (`scripts/erp-rehearsal-local.sh`, 15/15 PASS, ~2
 |---|---|---|
 | 0 preflight | — | admin login ok; relay enabled; stub key accepted; outlet + warehouse found; run id fresh |
 | 1 seed stub | 1 | 3 FGs + outlet upserted |
-| 2 first pull | 1 | sync-run `completed`; variants sku = FG code, price 0; outlet linked (`erpSlug`) |
+| 2 first pull | 1 | sync-run `completed`; variants sku = FG code, price 0; outlet linked (`erpSlug`, `erpCode` = the stub code) |
 | 3 new FG + incremental | 2 | FG D created by hook; incremental run `completed`; variant D price 0 |
 | 4 price | 2 | 4 variants priced 100000 and visible at the outlet |
-| 5 opening stock | 7 | outlet receipt twice, same key → 200 then 200 (replay); 1 `receipt` document per FG; stub balances = receipts |
+| 5 opening stock | 7 | outlet receipt twice, same key → 200 then 200 (replay); 1 `receipt` document per FG; stub balances = receipts; the warehouse receipt is `held` and never sent |
 | 6 sale | 3, 4 | 2 sale movements, 1 shortage; batch replay → `duplicate`, still 1 outbox document |
 | 7 relay | 3 | sale document `delivered`; stub balances A 8, B −2 (B oversold) |
 | 8 retry | 4 | `replayed=1`; balances unchanged |
 | 9 refund | 5 | refund document `delivered`; balances back to A 10, B 1 |
-| 10 transfer | 6 | send twice, same key → one transfer; `transfer_out@gudang-pusat` + `transfer_in@<outlet>` share `ref.id`; `qty=9 expected_qty=10 flags=[variance]` |
+| 10 transfer | 6 | send twice, same key → one transfer; `transfer_out` held at the warehouse, `transfer_in` delivered at the outlet code; `qty=9 expected_qty=10 flags=[variance]` |
 | 11 fault | 8 | `pending attempts=1 lastHttpStatus=503`; `delivered` after ~2 min, attempts 2 |
-| 12 dead-letter | 9 | `dead http=422`, visible in `/admin/erp/outbox?status=dead`; after restore + retry `delivered` |
+| 12 dead-letter | 9 | stub FG code changed → `dead http=422` (`lines[0].fg_code`), visible in `/admin/erp/outbox?status=dead`; after the code is restored + retry `delivered` |
+| 12b outlet not assigned | — | stub assigns no outlet → sale `held http=422 attempts=0` ("tidak diatur untuk client ini"), stub balance unchanged; every outlet assigned again (the step resets the stub to "all") → retry → `delivered` |
 | 13 delete guard | 10 | PUT → 409 "varian masih punya stok di outlet …; nolkan lewat penyesuaian dulu"; DELETE → 409 "produk masih punya stok di outlet … sehingga tidak bisa dihapus; nonaktifkan produk saja (matikan Produk Aktif)" |
-| 14 agreement | 11 | per FG: outlet/warehouse POS stock = stub balance = stub stock API; all run documents on the stub; with a DSN: invariant 0 rows, ledger sums = stub |
+| 14 agreement | 11 | per FG: outlet POS stock = stub balance = stub stock API (warehouse POS stock shown, not sent); all delivered run documents on the stub; with a DSN: invariant 0 rows, outlet ledger sums = stub |
 
 ## Talking points / known stand-in behaviour
 
@@ -81,6 +82,7 @@ Local reference run 2026-10-23 (`scripts/erp-rehearsal-local.sh`, 15/15 PASS, ~2
 | Symptom | Cause | Fix |
 |---|---|---|
 | `Kirim ulang` gives `delivered` instead of `replayed`; stub balances look reset | Stub cold-started (state lost) | Explain; re-run the rehearsal with a new `-run-id` after the demo, check `--min-instances 1` |
-| Every document `held` | Outlet/variant/warehouse has no `erp_slug` | Pull the catalog; warehouse needs runbook B3 |
+| Every document `held` | Outlet has no `erp_code` or variant no `erp_slug` (warehouse documents are always held) | Pull the catalog |
+| Outlet documents `held` with "tidak diatur untuk client ini" | The outlet is not assigned on the stub/ERP client | Stub: `-assigned-outlets` or `POST /_stub/assigned-outlets {"codes":null}`; ERP: client dialog; then retry |
 | Relay or pull answers 503 | Integration flags off on the serving revision | Check the env of the 100% revision (runbook B4) |
 | Documents stay `pending` with a 401 error | Stub and POS keys differ | Both read `ERP_API_KEY:latest`; roll the stub (`gcloud run services update mandalika-erpstub ... --update-secrets ERP_STUB_KEY=ERP_API_KEY:latest`) |

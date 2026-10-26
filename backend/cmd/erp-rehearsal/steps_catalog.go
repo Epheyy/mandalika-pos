@@ -21,6 +21,7 @@ func allSteps() []step {
 		{"10", "transfer warehouse -> outlet (variance)", stepTransfer},
 		{"11", "fault 503 then recover", stepFault},
 		{"12", "dead-letter 422 then fix", stepDeadLetter},
+		{"12b", "outlet not assigned -> held, assigned -> delivered", stepUnassignedOutlet},
 		{"13", "variant with stock cannot be deleted", stepDeleteGuard},
 		{"14", "POS / stub agreement + ledger invariant", stepAgreement},
 	}
@@ -222,6 +223,10 @@ func stepFullPull(r *rt) error {
 		if str(o, "id") == r.outletID {
 			if str(o, "erpSlug") != r.outletSlg {
 				return fmt.Errorf("outlet %s erp_slug = %q after the pull, want %q", r.cfg.outletCode, str(o, "erpSlug"), r.outletSlg)
+			}
+			// The relay names the outlet by erp_code, the code the stub (like the ERP) keys on.
+			if str(o, "erpCode") != r.cfg.outletCode {
+				return fmt.Errorf("outlet %s erp_code = %q after the pull, want %q", r.cfg.outletCode, str(o, "erpCode"), r.cfg.outletCode)
 			}
 			r.note("outlet %s linked: erpSlug=%s erpCode=%s", r.cfg.outletCode, str(o, "erpSlug"), str(o, "erpCode"))
 		}

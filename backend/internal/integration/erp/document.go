@@ -34,10 +34,13 @@ type DocumentSource struct {
 	Actor    string `json:"actor,omitempty"`
 }
 
-// DocumentLocation is the ERP slug of the outlet or warehouse.
+// DocumentLocation names the ERP outlet by its code (outlets.erp_code), the key of the
+// merged ERP endpoint. Slug is a deprecated extra kept for one release so the stub and
+// older readers still resolve it; the ERP strips unknown keys before hashing the body.
 type DocumentLocation struct {
 	Type string `json:"type"`
-	Slug string `json:"slug"`
+	Code string `json:"code"`
+	Slug string `json:"slug,omitempty"`
 }
 
 // DocumentRef is the business document the movements belong to.

@@ -29,7 +29,7 @@ func movement(id string, qty int) MovementRow {
 }
 
 func input(kind string, ms ...MovementRow) BuildInput {
-	return BuildInput{Header: header(kind), LocationSlug: "kemang", Movements: ms, Brand: "mandalika"}
+	return BuildInput{Header: header(kind), LocationCode: "KMG", LocationSlug: "kemang", Movements: ms, Brand: "mandalika"}
 }
 
 func mustBuild(t *testing.T, in BuildInput) StockDocument {
@@ -55,7 +55,8 @@ func TestBuildDocumentEveryKind(t *testing.T) {
 			if doc.OccurredAt != "2026-11-01T20:15:20Z" || doc.RecordedAt != "2026-11-01T20:15:41Z" {
 				t.Errorf("timestamps = %s / %s", doc.OccurredAt, doc.RecordedAt)
 			}
-			if doc.Location.Slug != "kemang" || doc.Ref.ID != "ref1" || doc.Ref.Number != "KMG-1" {
+			if doc.Location != (DocumentLocation{Type: "outlet", Code: "KMG", Slug: "kemang"}) ||
+				doc.Ref.ID != "ref1" || doc.Ref.Number != "KMG-1" {
 				t.Errorf("location/ref = %+v / %+v", doc.Location, doc.Ref)
 			}
 			if doc.Lines[0].Flags == nil {
@@ -97,7 +98,7 @@ func TestBuildDocumentRefundLinksOriginalAndNegatesTender(t *testing.T) {
 func TestBuildDocumentTransferPairing(t *testing.T) {
 	out := input("transfer_out", movement("a", -10))
 	out.Header.RefType, out.Header.RefID, out.Header.DocumentID = "transfer", "tr-1", "d-out"
-	out.Header.LocationType, out.Header.LocationID, out.LocationSlug = "warehouse", "w1", "gudang"
+	out.Header.LocationID, out.LocationCode, out.LocationSlug = "loc2", "SNY", "senayan"
 
 	m := movement("b", 9)
 	m.Flags = []string{"variance", "sent:10"}
@@ -105,7 +106,7 @@ func TestBuildDocumentTransferPairing(t *testing.T) {
 	in.Header.RefType, in.Header.RefID, in.Header.DocumentID = "transfer", "tr-1", "d-in"
 
 	a, b := mustBuild(t, out), mustBuild(t, in)
-	if a.Ref.ID != b.Ref.ID || a.DocumentID == b.DocumentID || a.Location.Slug == b.Location.Slug {
+	if a.Ref.ID != b.Ref.ID || a.DocumentID == b.DocumentID || a.Location.Code == b.Location.Code {
 		t.Errorf("pairing broken: %+v / %+v", a, b)
 	}
 	if got := b.Lines[0].ExpectedQty; got == nil || *got != 10 {
@@ -169,20 +170,30 @@ func TestBuildDocumentCustomPaymentMethodHasNoTender(t *testing.T) {
 }
 
 func TestBuildDocumentHoldReasons(t *testing.T) {
-	t.Run("location", func(t *testing.T) {
+	t.Run("outlet without an ERP code", func(t *testing.T) {
 		in := input("sale", movement("a", -1))
-		in.LocationSlug = ""
+		in.LocationCode = "" // a linked slug alone is not enough: the ERP keys on the code
 		_, hold, err := BuildDocument(in)
-		if err != nil || hold != "lokasi outlet loc1 belum dipetakan ke ERP (erp_slug kosong)" {
+		if err != nil || hold != "outlet loc1 belum terhubung ke ERP (erp_code kosong)" {
 			t.Errorf("hold=%q err=%v", hold, err)
+		}
+	})
+	t.Run("warehouse is held even when mapped", func(t *testing.T) {
+		for _, kind := range []string{"receipt", "transfer_out", "adjust"} {
+			in := input(kind, movement("a", -1))
+			in.Header.LocationType, in.Header.LocationID = "warehouse", "w1"
+			_, hold, err := BuildDocument(in)
+			if err != nil || hold != "gudang w1: ERP belum menerima dokumen gudang (hanya outlet)" {
+				t.Errorf("%s: hold=%q err=%v", kind, hold, err)
+			}
 		}
 	})
 	t.Run("location is checked before variants", func(t *testing.T) {
 		m := movement("a", -1)
 		m.FgCode = ""
 		in := input("sale", m)
-		in.LocationSlug = ""
-		if _, hold, _ := BuildDocument(in); !strings.HasPrefix(hold, "lokasi ") {
+		in.LocationCode = ""
+		if _, hold, _ := BuildDocument(in); !strings.HasPrefix(hold, "outlet loc1 ") {
 			t.Errorf("hold = %q", hold)
 		}
 	})
@@ -206,6 +217,22 @@ func TestBuildDocumentHoldReasons(t *testing.T) {
 			t.Errorf("hold = %q", hold)
 		}
 	})
+}
+
+func TestBuildDocumentLocationCarriesCodeAndOptionalSlug(t *testing.T) {
+	in := input("sale", movement("a", -1))
+	in.LocationSlug = "" // the slug is a deprecated extra: a missing one never holds the document
+	body, err := json.Marshal(mustBuild(t, in))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), `"location":{"type":"outlet","code":"KMG"}`) {
+		t.Errorf("location = %s, want code only", body)
+	}
+	body, _ = json.Marshal(mustBuild(t, input("sale", movement("a", -1))))
+	if !strings.Contains(string(body), `"location":{"type":"outlet","code":"KMG","slug":"kemang"}`) {
+		t.Errorf("location = %s, want code and slug", body)
+	}
 }
 
 func TestBuildDocumentErrors(t *testing.T) {

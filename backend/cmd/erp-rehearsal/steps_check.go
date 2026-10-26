@@ -65,11 +65,11 @@ func (r *rt) agreeBalances() error {
 		if err != nil {
 			return err
 		}
-		stO, _ := r.stubBal("outlet", r.outletSlg, f.Code)
-		stW, _ := r.stubBal("warehouse", warehouseSlug, f.Code)
-		r.note("%s outlet POS=%d stub=%d stock-API=%d | warehouse POS=%d stub=%d", f.Code, posO, stO, apiQty[f.Code], posW, stW)
-		if posO != stO || posO != apiQty[f.Code] || posW != stW {
-			return fmt.Errorf("%s disagrees: outlet POS=%d stub=%d stock-API=%d, warehouse POS=%d stub=%d", f.Code, posO, stO, apiQty[f.Code], posW, stW)
+		stO, _ := r.stubBal("outlet", r.cfg.outletCode, f.Code)
+		// Warehouse stock stays in the POS this phase (the ERP takes outlets only): shown, not compared.
+		r.note("%s outlet POS=%d stub=%d stock-API=%d | warehouse POS=%d (not sent)", f.Code, posO, stO, apiQty[f.Code], posW)
+		if posO != stO || posO != apiQty[f.Code] {
+			return fmt.Errorf("%s disagrees: outlet POS=%d stub=%d stock-API=%d", f.Code, posO, stO, apiQty[f.Code])
 		}
 	}
 	return nil
@@ -137,18 +137,16 @@ SELECT count(*) FROM live FULL JOIN led USING (lt, lid, product_id, variant_size
 	}
 	for _, f := range r.fgs {
 		it := r.items[f.Letter]
-		for _, loc := range []struct{ typ, id, slug string }{{"outlet", r.outletID, r.outletSlg}, {"warehouse", r.cfg.warehouseID, warehouseSlug}} {
-			var sum int
-			if err := r.db.QueryRow(ctxT(), `SELECT COALESCE(sum(qty),0)::int FROM stock_movements
-				WHERE location_type=$1 AND location_id=$2::uuid AND product_id=$3::uuid AND variant_size=$4`,
-				loc.typ, loc.id, it.ProductID, it.Size).Scan(&sum); err != nil {
-				return err
-			}
-			st, _ := r.stubBal(loc.typ, loc.slug, f.Code)
-			r.note("DB ledger sum %s/%s %s = %d, stub = %d", loc.typ, loc.slug, f.Code, sum, st)
-			if sum != st {
-				return fmt.Errorf("ledger sum %d != stub balance %d for %s at %s", sum, st, f.Code, loc.slug)
-			}
+		var sum int
+		if err := r.db.QueryRow(ctxT(), `SELECT COALESCE(sum(qty),0)::int FROM stock_movements
+			WHERE location_type='outlet' AND location_id=$1::uuid AND product_id=$2::uuid AND variant_size=$3`,
+			r.outletID, it.ProductID, it.Size).Scan(&sum); err != nil {
+			return err
+		}
+		st, _ := r.stubBal("outlet", r.cfg.outletCode, f.Code)
+		r.note("DB ledger sum outlet/%s %s = %d, stub = %d", r.cfg.outletCode, f.Code, sum, st)
+		if sum != st {
+			return fmt.Errorf("ledger sum %d != stub balance %d for %s at outlet %s", sum, st, f.Code, r.cfg.outletCode)
 		}
 	}
 	return nil

@@ -170,10 +170,50 @@ func (r *rt) checkHeld() error {
 		return err
 	}
 	for _, it := range items {
-		if r.locIDs()[str(it, "locationId")] && r.createdSinceStart(it) {
-			return fmt.Errorf("document %s (%s at %s %s) is held: %s. If the location is unmapped, map it first (warehouses: UPDATE warehouses SET erp_slug='%s' WHERE id='%s'; outlets are linked by the catalog pull)",
-				str(it, "id"), str(it, "kind"), str(it, "locationType"), str(it, "locationId"), str(it, "holdReason"), warehouseSlug, r.cfg.warehouseID)
+		if !r.locIDs()[str(it, "locationId")] || !r.createdSinceStart(it) || isWarehouseHold(it) {
+			continue // a warehouse document is held by design: the ERP takes outlets only
 		}
+		return fmt.Errorf("document %s (%s at %s %s) is held: %s. Outlets are linked by the catalog pull (erp_code) "+
+			"and must be assigned to the client on the ERP/stub (stub: -assigned-outlets or POST /_stub/assigned-outlets)",
+			str(it, "id"), str(it, "kind"), str(it, "locationType"), str(it, "locationId"), str(it, "holdReason"))
+	}
+	return nil
+}
+
+// warehouseHoldMark is part of the relay's hold reason for a warehouse document (erp/payload.go).
+const warehouseHoldMark = "ERP belum menerima dokumen gudang"
+
+func isWarehouseHold(it obj) bool {
+	return str(it, "locationType") == "warehouse" && strings.Contains(str(it, "holdReason"), warehouseHoldMark)
+}
+
+// wantWarehouseHeld asserts that this run's warehouse documents of kind (for refID when set)
+// are held with the warehouse reason and never reached the stub.
+func (r *rt) wantWarehouseHeld(kind, refID string) error {
+	rows, err := r.outboxList("held", kind)
+	if err != nil {
+		return err
+	}
+	n := 0
+	for _, it := range rows {
+		if str(it, "locationId") != r.cfg.warehouseID || !r.createdSinceStart(it) || (refID != "" && str(it, "refId") != refID) {
+			continue
+		}
+		if !isWarehouseHold(it) {
+			return fmt.Errorf("warehouse %s document %s is held for another reason: %s", kind, str(it, "id"), str(it, "holdReason"))
+		}
+		docs, err := r.stubDocByID(str(it, "documentId"))
+		if err != nil {
+			return err
+		}
+		if len(docs) != 0 {
+			return fmt.Errorf("held warehouse %s document %s reached the stub", kind, str(it, "id"))
+		}
+		n++
+	}
+	r.note("%d warehouse %s document(s) held (%q), none sent", n, kind, warehouseHoldMark)
+	if n == 0 {
+		return fmt.Errorf("no held warehouse %s document of this run", kind)
 	}
 	return nil
 }

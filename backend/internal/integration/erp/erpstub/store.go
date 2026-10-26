@@ -17,8 +17,11 @@ type warehouse struct {
 	Name string `json:"name"`
 }
 
+// location is the stock-document location: the ERP keys an outlet by its code;
+// slug is the deprecated alias on input and informational on stored records.
 type location struct {
 	Type string `json:"type"`
+	Code string `json:"code"`
 	Slug string `json:"slug"`
 }
 
@@ -39,6 +42,7 @@ type docRecord struct {
 	DocumentID  string          `json:"document_id"`
 	Kind        string          `json:"kind"`
 	Location    location        `json:"location"`
+	PeriodMonth string          `json:"period_month"` // Jakarta month, YYYY-MM
 	Ref         docRef          `json:"ref"`
 	Part        *partInfo       `json:"part,omitempty"`
 	Hash        string          `json:"hash"`
@@ -47,9 +51,11 @@ type docRecord struct {
 	Body        json.RawMessage `json:"body"`
 }
 
-// balance is the live quantity of one FG at one location.
+// balance is the live quantity of one FG at one location (keyed by type, outlet code, fg code).
+// State files persisted before the code key (slug-keyed balances, no location.code) are not migrated: delete them.
 type balance struct {
 	LocationType string    `json:"location_type"`
+	LocationCode string    `json:"location_code"`
 	LocationSlug string    `json:"location_slug"`
 	FgCode       string    `json:"fg_code"`
 	Qty          int64     `json:"qty"`
@@ -189,15 +195,6 @@ func (st *state) findOutlet(match func(*erpapi.IntegrationOutlet) bool) *erpapi.
 		}
 	}
 	return nil
-}
-
-func (st *state) hasWarehouse(slug string) bool {
-	for _, w := range st.Warehouses {
-		if w.Slug == slug {
-			return true
-		}
-	}
-	return false
 }
 
 func (st *state) findDoc(scope, documentID string) *docRecord {

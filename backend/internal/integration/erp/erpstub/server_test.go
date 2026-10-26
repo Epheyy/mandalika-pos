@@ -131,7 +131,7 @@ func docBody(n int, kind string, lines ...map[string]any) map[string]any {
 		"document_id": uid(n),
 		"kind":        kind,
 		"source":      map[string]any{"system": "pos", "brand": "mandalika", "device_id": "d", "actor": "a"},
-		"location":    map[string]any{"type": "outlet", "slug": "kemang"},
+		"location":    map[string]any{"type": "outlet", "code": "KMG"},
 		"occurred_at": "2026-04-01T10:00:00Z",
 		"ref":         map[string]any{"type": "order", "id": fmt.Sprintf("ref-%d", n), "number": "N"},
 		"lines":       lines,
@@ -173,9 +173,9 @@ func (e *env) balances() []balance {
 	return rows
 }
 
-func (e *env) qty(locType, slug, code string) int64 {
+func (e *env) qty(locType, locCode, code string) int64 {
 	for _, b := range e.balances() {
-		if b.LocationType == locType && b.LocationSlug == slug && b.FgCode == code {
+		if b.LocationType == locType && b.LocationCode == locCode && b.FgCode == code {
 			return b.Qty
 		}
 	}
@@ -199,18 +199,15 @@ func expectValidation(t *testing.T, rec *httptest.ResponseRecorder) resp {
 	return r
 }
 
-// applyChain posts the section-10 fixtures in order (gudang-pusat opening first).
+// applyChain posts the section-10 fixtures in order.
 func applyChain(t *testing.T, e *env) map[string]docResult {
 	t.Helper()
-	gudang := docBody(900, "opening", ln(900, "FG-001", 100))
-	gudang["location"] = map[string]any{"type": "warehouse", "slug": "gudang-pusat"}
 	out := map[string]docResult{}
 	steps := []struct {
 		name string
 		body []byte
 	}{
 		{"opening", fixture(t, "doc_opening.json")},
-		{"gudang_opening", mustJSON(t, gudang)},
 		{"sale", fixture(t, "doc_sale.json")},
 		{"refund", fixture(t, "doc_refund.json")},
 		{"transfer_out", fixture(t, "doc_transfer_out.json")},
@@ -239,7 +236,7 @@ func TestSection10Chain(t *testing.T) {
 	if len(rows) != 2 {
 		t.Fatalf("balances = %+v", rows)
 	}
-	if e.qty("outlet", "kemang", "FG-001") != 49 || e.qty("warehouse", "gudang-pusat", "FG-001") != 90 {
+	if e.qty("outlet", "KMG", "FG-001") != 49 || e.qty("outlet", "BSD", "FG-001") != -10 {
 		t.Fatalf("final balances wrong: %+v", rows)
 	}
 	var page stockPage
@@ -351,10 +348,11 @@ func TestLocationAndFGResolution(t *testing.T) {
 		mod  func(m map[string]any)
 		want int
 	}{
-		{"unknown location slug", func(m map[string]any) { m["location"] = map[string]any{"type": "outlet", "slug": "nowhere"} }, 422},
-		{"tombstoned outlet slug", func(m map[string]any) { m["location"] = map[string]any{"type": "outlet", "slug": "old-popup"} }, 422},
-		{"unknown warehouse slug", func(m map[string]any) { m["location"] = map[string]any{"type": "warehouse", "slug": "kemang"} }, 422},
-		{"tombstoned FG code", func(m map[string]any) { m["lines"] = []map[string]any{ln(1, "FG-006", 1)} }, 422},
+		{"unknown location code", func(m map[string]any) { m["location"] = map[string]any{"type": "outlet", "code": "NOWHERE"} }, 422},
+		{"tombstoned outlet code", func(m map[string]any) { m["location"] = map[string]any{"type": "outlet", "code": "POP"} }, 422},
+		{"warehouse is never accepted", func(m map[string]any) { m["location"] = map[string]any{"type": "warehouse", "code": "KMG"} }, 422},
+		{"tombstoned FG code is accepted (ERP BR7)", func(m map[string]any) { m["lines"] = []map[string]any{ln(1, "FG-006", 1)} }, 200},
+		{"unknown FG code", func(m map[string]any) { m["lines"] = []map[string]any{ln(3, "FG-NOPE", 1)} }, 422},
 		{"discontinued FG is accepted", func(m map[string]any) { m["lines"] = []map[string]any{ln(2, "FG-005", 1)} }, 200},
 	}
 	for i, c := range cases {
@@ -390,8 +388,8 @@ func TestLineLimits(t *testing.T) {
 		return mustJSON(t, docBody(n, "receipt", lines...))
 	}
 	expectStatus(t, e.post(mk(1, 200)), http.StatusOK)
-	if e.qty("outlet", "kemang", "FG-001") != 200 {
-		t.Fatalf("qty = %d", e.qty("outlet", "kemang", "FG-001"))
+	if e.qty("outlet", "KMG", "FG-001") != 200 {
+		t.Fatalf("qty = %d", e.qty("outlet", "KMG", "FG-001"))
 	}
 	r := expectValidation(t, e.post(mk(2, 201)))
 	if r.Details[0].Path != "lines" {
@@ -509,7 +507,7 @@ func TestConcurrentIdenticalPosts(t *testing.T) {
 	if counts["200/applied"] != 1 || counts["200/replayed"] != n-1 {
 		t.Fatalf("results = %v", counts)
 	}
-	if got := e.qty("outlet", "kemang", "FG-001"); got != -1 {
+	if got := e.qty("outlet", "KMG", "FG-001"); got != -1 {
 		t.Fatalf("balance moved %d, want -1 once", got)
 	}
 }
@@ -529,7 +527,7 @@ func TestStatePersistenceSurvivesRestart(t *testing.T) {
 	}
 	changed := mutate(t, sale, func(m map[string]any) { m["lines"].([]any)[0].(map[string]any)["qty"] = -5 })
 	expectStatus(t, e2.post(changed), http.StatusConflict)
-	if got := e2.qty("outlet", "kemang", "FG-001"); got != 41 {
+	if got := e2.qty("outlet", "KMG", "FG-001"); got != 41 {
 		t.Fatalf("balance after restart = %d, want 41", got)
 	}
 	if e2.docCount() != 2 {
@@ -553,8 +551,8 @@ func TestPersistFailureRollsBackAndNeverAnswersApplied(t *testing.T) {
 	if decode(t, rec).Code != "INTEGRATION_BUSY" {
 		t.Fatalf("persist failure body = %s", rec.Body.String())
 	}
-	if e.docCount() != 1 || e.qty("outlet", "kemang", "FG-001") != 42 {
-		t.Fatalf("rollback failed: docs=%d qty=%d", e.docCount(), e.qty("outlet", "kemang", "FG-001"))
+	if e.docCount() != 1 || e.qty("outlet", "KMG", "FG-001") != 42 {
+		t.Fatalf("rollback failed: docs=%d qty=%d", e.docCount(), e.qty("outlet", "KMG", "FG-001"))
 	}
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		t.Fatal(err)
@@ -566,11 +564,15 @@ func TestPersistFailureRollsBackAndNeverAnswersApplied(t *testing.T) {
 	}
 }
 
-func TestDocumentIDCaseChangeIsConflictNotValidation(t *testing.T) {
+func TestDocumentIDCaseChangeReplays(t *testing.T) {
 	e := newEnv(t, "")
 	expectStatus(t, e.post(fixture(t, "doc_opening.json")), http.StatusOK)
 	sale := fixture(t, "doc_sale.json")
 	expectStatus(t, e.post(sale), http.StatusOK)
 	upper := mutate(t, sale, func(m map[string]any) { m["document_id"] = strings.ToUpper(m["document_id"].(string)) })
-	expectStatus(t, e.post(upper), http.StatusConflict)
+	rec := e.post(upper)
+	expectStatus(t, rec, http.StatusOK)
+	if decodeResult(t, rec).Status != "replayed" {
+		t.Fatalf("id case change must replay: %s", rec.Body.String())
+	}
 }

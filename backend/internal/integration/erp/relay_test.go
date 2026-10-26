@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 )
 
-var testCfg = Config{MaxAttempts: 10, AuthBackoff: 5 * time.Minute}
+var testCfg = Config{MaxAttempts: 10, AuthBackoff: 5 * time.Minute, HoldDelay: 5 * time.Minute}
 
 const (
 	appliedBody  = `{"success":true,"data":{"document_id":"d1","status":"applied","movement_ids":["m1"]}}`
@@ -245,16 +245,113 @@ func TestClientAndClassifyAgainstFakeServer(t *testing.T) {
 	}
 }
 
+// erpErr is an error envelope exactly as the merged ERP's error handler writes it
+// (apps/api/src/middleware/error.handler.ts): details are Zod issues with array paths.
+func erpErr(errName, code, msg, details string) []byte {
+	b := `{"success":false,"error":"` + errName + `","message":"` + msg + `","code":"` + code + `"`
+	if details != "" {
+		b += `,"details":` + details
+	}
+	return []byte(b + `,"requestId":"r1"}`)
+}
+
+func TestClassifyMergedErpErrors(t *testing.T) {
+	cases := []struct {
+		name       string
+		resp       Response
+		status     string
+		wantStop   string
+		wantAtt    int
+		minDelay   time.Duration
+		errContain string
+		clear      bool // the frozen payload is dropped so the next look rebuilds it
+	}{
+		{name: "409 IDEMPOTENCY_CONFLICT dies and names the sha",
+			resp:   Response{Status: 409, Body: erpErr("ConflictError", "IDEMPOTENCY_CONFLICT", "document_id sudah dipakai untuk isi dokumen lain", "")},
+			status: statusDead, wantAtt: 4, errContain: "IDEMPOTENCY_CONFLICT: document_id sudah dipakai"},
+		{name: "422 occurred_at more than 24 h ahead dies",
+			resp: Response{Status: 422, Body: erpErr("ValidationError", "VALIDATION_ERROR", "Validasi gagal",
+				`[{"code":"custom","path":["occurred_at"],"message":"occurred_at lebih dari 24 jam ke depan"}]`)},
+			status: statusDead, wantAtt: 4, errContain: "occurred_at: occurred_at lebih dari 24 jam ke depan"},
+		{name: "422 occurred_at older than 6 months dies (an old opening is reported, not retried)",
+			resp: Response{Status: 422, Body: erpErr("ValidationError", "VALIDATION_ERROR", "Validasi gagal",
+				`[{"code":"custom","path":["occurred_at"],"message":"occurred_at lebih lama dari 6 bulan"}]`)},
+			status: statusDead, wantAtt: 4, errContain: "occurred_at lebih lama dari 6 bulan"},
+		{name: "422 sign by kind dies",
+			resp: Response{Status: 422, Body: erpErr("ValidationError", "VALIDATION_ERROR", "Validasi gagal",
+				`[{"code":"custom","path":["lines",0,"qty"],"message":"qty sale harus ≤ 0"}]`)},
+			status: statusDead, wantAtt: 4, errContain: "lines.0.qty: qty sale harus ≤ 0"},
+		{name: "422 outlet not set on the client is held, payload dropped, no attempt",
+			resp: Response{Status: 422, Body: erpErr("ValidationError", "VALIDATION_ERROR", "Validasi gagal",
+				`[{"code":"custom","path":["location","code"],"message":"Outlet tidak dikenal atau tidak diatur untuk client ini"}]`)},
+			status: statusHeld, wantAtt: 3, minDelay: 5 * time.Minute, clear: true,
+			errContain: "location.code: Outlet tidak dikenal atau tidak diatur untuk client ini"},
+		{name: "422 slug-only payload (no location.code) is held and rebuilt",
+			resp: Response{Status: 422, Body: erpErr("ValidationError", "VALIDATION_ERROR", "Validasi gagal",
+				`[{"code":"invalid_type","path":["location","code"],"message":"Invalid input: expected string, received undefined"}]`)},
+			status: statusHeld, wantAtt: 3, minDelay: 5 * time.Minute, clear: true, errContain: "location.code"},
+		{name: "422 location plus another field dies",
+			resp: Response{Status: 422, Body: erpErr("ValidationError", "VALIDATION_ERROR", "Validasi gagal",
+				`[{"path":["location","code"],"message":"x"},{"path":["lines",0,"fg_code"],"message":"FG code tidak dikenal: FG-9"}]`)},
+			status: statusDead, wantAtt: 4, errContain: "FG code tidak dikenal"},
+		{name: "422 without details dies",
+			resp:   Response{Status: 422, Body: erpErr("ValidationError", "VALIDATION_ERROR", "Validasi gagal", "")},
+			status: statusDead, wantAtt: 4, errContain: "VALIDATION_ERROR"},
+		{name: "413 PAYLOAD_TOO_LARGE dies at once",
+			resp:   Response{Status: 413, Body: erpErr("PayloadTooLargeError", "PAYLOAD_TOO_LARGE", "Body dokumen stok melebihi 512 KB", "")},
+			status: statusDead, wantAtt: 4, errContain: "PAYLOAD_TOO_LARGE"},
+		{name: "403 INTEGRATION_FORBIDDEN_SCOPE pauses the client",
+			resp:   Response{Status: 403, Body: erpErr("ForbiddenError", "INTEGRATION_FORBIDDEN_SCOPE", "Scope required: integration:stock:write", "")},
+			status: statusPending, wantStop: stopForbidden, wantAtt: 3, minDelay: 5 * time.Minute, errContain: "INTEGRATION_FORBIDDEN_SCOPE"},
+		{name: "403 INTEGRATION_CLIENT_SUSPENDED pauses the client",
+			resp:   Response{Status: 403, Body: erpErr("ForbiddenError", "INTEGRATION_CLIENT_SUSPENDED", "Client suspended", "")},
+			status: statusPending, wantStop: stopForbidden, wantAtt: 3, minDelay: 5 * time.Minute},
+		{name: "401 INTEGRATION_UNAUTHORIZED pauses the client",
+			resp:   Response{Status: 401, Body: erpErr("UnauthorizedError", "INTEGRATION_UNAUTHORIZED", "API key tidak valid", "")},
+			status: statusPending, wantStop: stopUnauthorized, wantAtt: 3, minDelay: 5 * time.Minute},
+		{name: "503 INTEGRATION_BUSY retries after Retry-After",
+			resp:   Response{Status: 503, RetryAfter: time.Second, Body: erpErr("ServiceUnavailableError", "INTEGRATION_BUSY", "ERP sedang sibuk", "")},
+			status: statusPending, wantAtt: 4, minDelay: 16 * time.Minute, errContain: "INTEGRATION_BUSY"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			att := 3
+			o := classify(c.resp, nil, att, "abc123", "d1", testCfg)
+			if o.status != c.status || o.stop != c.wantStop || o.attempts != c.wantAtt {
+				t.Errorf("got status=%s stop=%q attempts=%d; want %s %q %d", o.status, o.stop, o.attempts, c.status, c.wantStop, c.wantAtt)
+			}
+			if o.delay < c.minDelay {
+				t.Errorf("delay = %v, want >= %v", o.delay, c.minDelay)
+			}
+			if !strings.Contains(o.lastError, c.errContain) {
+				t.Errorf("lastError = %q, want substring %q", o.lastError, c.errContain)
+			}
+			if c.resp.Status == 409 && !strings.HasSuffix(o.lastError, "payload_sha256=abc123)") {
+				t.Errorf("409 lastError %q must end with the payload hash", o.lastError)
+			}
+			if o.clearPayload != c.clear {
+				t.Errorf("clearPayload = %v, want %v", o.clearPayload, c.clear)
+			}
+			if (o.status == statusHeld) != (o.holdReason != "") {
+				t.Errorf("holdReason = %q for status %s", o.holdReason, o.status)
+			}
+			if o.httpStatus == nil || *o.httpStatus != c.resp.Status || o.response == nil {
+				t.Errorf("http status / response not kept: %v %v", o.httpStatus, o.response)
+			}
+		})
+	}
+}
+
 func TestOutcomeCount(t *testing.T) {
 	var rep RunReport
 	for _, o := range []outcome{
 		{status: statusDelivered}, {status: statusReplayed}, {status: statusDead},
 		{status: statusPending}, {status: statusPending, stop: stopRateLimited},
-		{status: statusPending, stop: stopUnauthorized},
+		{status: statusPending, stop: stopUnauthorized}, {status: statusHeld},
 	} {
 		o.count(&rep)
 	}
-	want := RunReport{Delivered: 1, Replayed: 1, Dead: 1, Retried: 1, Released: 2}
+	want := RunReport{Delivered: 1, Replayed: 1, Dead: 1, Retried: 1, Released: 2, Held: 1}
 	if rep != want {
 		t.Errorf("report = %+v, want %+v", rep, want)
 	}
