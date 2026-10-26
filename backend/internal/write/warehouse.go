@@ -120,9 +120,11 @@ type GoodsReceiptItem struct {
 	UnitCost    *float64 `json:"unitCost"`
 }
 type GoodsReceipt struct {
-	Supplier string             `json:"supplier"`
-	Note     string             `json:"note"`
-	Items    []GoodsReceiptItem `json:"items"`
+	Supplier string `json:"supplier"`
+	Note     string `json:"note"`
+	// Source is ReceiptSourceSupply (the default when empty) or ReceiptSourceWarranty.
+	Source string             `json:"source,omitempty"`
+	Items  []GoodsReceiptItem `json:"items"`
 }
 
 type WarehouseAdjust struct {
@@ -219,6 +221,9 @@ func (r *Repo) CreateLocationGoodsReceipt(ctx context.Context, kind, locID, crea
 	if err := validateGoodsReceipt(kind, g.Items); err != nil {
 		return err
 	}
+	if err := validateReceiptSource(g.Source); err != nil {
+		return err
+	}
 	return r.locationWork(ctx, kind, locID, goodsReceiptWork(ctx, kind, locID, createdBy, g))
 }
 
@@ -226,6 +231,9 @@ func (r *Repo) CreateLocationGoodsReceipt(ctx context.Context, kind, locID, crea
 // transaction (an idempotency receipt claim). It neither begins, commits nor retries.
 func (r *Repo) CreateLocationGoodsReceiptTx(ctx context.Context, tx pgx.Tx, kind, locID, createdBy string, g GoodsReceipt) error {
 	if err := validateGoodsReceipt(kind, g.Items); err != nil {
+		return err
+	}
+	if err := validateReceiptSource(g.Source); err != nil {
 		return err
 	}
 	return locationWorkTx(ctx, tx, kind, locID, goodsReceiptWork(ctx, kind, locID, createdBy, g))
@@ -238,9 +246,9 @@ func goodsReceiptWork(ctx context.Context, kind, locID, createdBy string, g Good
 	return func(t pgx.Tx) error {
 		var rid string
 		if e := t.QueryRow(ctx,
-			`INSERT INTO goods_receipts (warehouse_id, outlet_id, supplier, note, created_by)
-			 VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-			whID, outID, nullStr(g.Supplier), nullStr(g.Note), nullUUID(createdBy)).Scan(&rid); e != nil {
+			`INSERT INTO goods_receipts (warehouse_id, outlet_id, supplier, note, source, created_by)
+			 VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+			whID, outID, nullStr(g.Supplier), nullStr(g.Note), receiptSource(g.Source), nullUUID(createdBy)).Scan(&rid); e != nil {
 			return e
 		}
 		for _, it := range g.Items {

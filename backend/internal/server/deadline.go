@@ -40,6 +40,9 @@ type deadlineRule struct {
 //     outlives the 25 s default, and a middleware context shorter than the handler's own
 //     55 s context and 60 s write deadline would cut the stream first (the handler aborts the
 //     response on a mid-stream failure). It is bounded by those instead.
+//   - GET /inventory/movements/summary/export: EXEMPT for the same reason (a whole-window ledger
+//     scan up to 100k SKU rows); the handler bounds itself with the same 55 s context and
+//     60 s write deadline, and reads every row before it writes the first byte.
 //   - POST */import (products, customers, ingredients, admin/erp/sku-mapping, stock-counts/{id}): EXEMPT.
 //     These routes extend their own deadlines (read 60 s, write 150 s, imports.go) for a
 //     16 MiB upload plus a 50k-row plan, which a 28 s context would cut mid-transaction.
@@ -52,6 +55,7 @@ var deadlineExceptions = []deadlineRule{
 	{http.MethodPost, "/api/v1/internal/erp/catalog-pull", LongDeadline},
 	{http.MethodPost, "/api/v1/admin/erp/catalog-pull", LongDeadline},
 	{http.MethodGet, "/api/v1/inventory/movements/export", 0},
+	{http.MethodGet, "/api/v1/inventory/movements/summary/export", 0},
 	{http.MethodPost, "/api/v1/products/import", 0},
 	{http.MethodPost, "/api/v1/customers/import", 0},
 	{http.MethodPost, "/api/v1/ingredients/import", 0},

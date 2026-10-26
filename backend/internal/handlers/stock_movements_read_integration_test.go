@@ -53,6 +53,8 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 		router.Get("/inventory/movements", h.ListStockMovements)
 		router.Get("/inventory/movements/export", h.ExportStockMovements)
 		router.Get("/inventory/movements/summary", h.LedgerMovementSummary)
+		router.Get("/inventory/movements/summary/export", h.ExportMovementLedgerSummary)
+		router.Get("/inventory/goods-receipts/{id}", h.GetGoodsReceipt)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
 		return w
@@ -561,6 +563,137 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 		}
 		if w = admin("/inventory/movements/summary?locationType=outlet&locationId=" + mvOutletA + "&q=zzz-nothing"); !strings.Contains(w.Body.String(), `"data":[]`) {
 			t.Fatalf("q miss: %s", w.Body.String())
+		}
+	})
+
+	t.Run("pergerakan buckets split by type, reconcile, and the export carries them", func(t *testing.T) {
+		const (
+			outC, prodR, whTransfer, outTransfer         = "00000000-0000-4000-8f69-0000000000a3", "00000000-0000-4000-8f69-0000000000c3", "00000000-0000-4000-8f69-0000000000f5", "00000000-0000-4000-8f69-0000000000f6"
+			supplyReceipt, warrantyReceipt, backTransfer = "00000000-0000-4000-8f69-0000000000f7", "00000000-0000-4000-8f69-0000000000f8", "00000000-0000-4000-8f69-0000000000f9"
+		)
+		exec := func(sql string, args ...any) {
+			t.Helper()
+			if _, err := pool.Exec(ctx, sql, args...); err != nil {
+				t.Fatalf("%v: %s", err, sql)
+			}
+		}
+		exec(`INSERT INTO outlets(id,name) VALUES($1,'MV outlet C')`, outC)
+		exec(`INSERT INTO products(id,name) VALUES($1,'MV bucket R')`, prodR)
+		exec(`INSERT INTO product_variants(product_id,size,price,sku,barcode) VALUES($1,'M',100000,'MV-R-M','8990007')`, prodR)
+		exec(`INSERT INTO goods_receipts(id,outlet_id,source) VALUES($1,$3,'supply'),($2,$3,'warranty')`, supplyReceipt, warrantyReceipt, outC)
+		exec(`INSERT INTO transfers(id,status,source_warehouse_id,dest_outlet_id) VALUES($1,'received',$2,$3)`, whTransfer, mvWarehouse, outC)
+		exec(`INSERT INTO transfers(id,status,source_outlet_id,dest_outlet_id) VALUES($1,'received',$2,$3)`, outTransfer, mvOutletB, outC)
+		exec(`INSERT INTO transfers(id,status,source_outlet_id,dest_outlet_id) VALUES($1,'received',$2,$3)`, backTransfer, outC, mvOutletB)
+		exec(`INSERT INTO goods_receipt_items(receipt_id,product_id,variant_size,qty,unit_cost) VALUES($1,$3,'M',3,12500.50),($2,$3,'M',5,NULL)`, warrantyReceipt, supplyReceipt, prodR)
+		chain := 0
+		n := 0
+		put := func(kind string, qty int, refType, refID, dedupe string) {
+			t.Helper()
+			n++
+			var ref any
+			if refID != "" {
+				ref = refID
+			}
+			if dedupe == "" {
+				dedupe = fmt.Sprintf("mv-bucket:%d", n)
+			}
+			exec(`INSERT INTO stock_movements(document_id,dedupe_key,kind,location_type,location_id,product_id,variant_size,
+			  qty,qty_before,qty_after,ref_type,ref_id,occurred_at,flags,recorded_at)
+			  VALUES(gen_random_uuid(),$1,$2,'outlet',$3,$4,'M',$5,$6,$7,$8,$9,'2026-02-01T03:00:00Z','{}','2026-02-01T03:00:00Z')`,
+				dedupe, kind, outC, prodR, qty, chain, chain+qty, refType, ref)
+			chain += qty
+		}
+		put("opening", 10, "backfill", "", "")
+		put("receipt", 5, "goods_receipt", supplyReceipt, "")
+		put("receipt", 3, "goods_receipt", warrantyReceipt, "")
+		put("transfer_in", 4, "transfer", whTransfer, "")
+		put("transfer_in", 2, "transfer", outTransfer, "")
+		put("transfer_out", -1, "transfer", backTransfer, "")
+		put("sale", -6, "order", "", "")
+		put("refund", 1, "order", "", "")
+		put("sale", -1, "order", "", "giveaway:00000000-0000-4000-8f69-0000000000ab")
+		put("count", -2, "stock_count", "", "")
+		put("write_off", -1, "stock_adjustment", "", "")
+
+		w := admin("/inventory/movements/summary?locationType=outlet&locationId=" + outC + "&q=MV-R-M")
+		var resp api.MovementLedgerSummaryResponse
+		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &resp) != nil || len(resp.Data) != 1 {
+			t.Fatalf("summary: %d %s", w.Code, w.Body.String())
+		}
+		r := resp.Data[0]
+		want := api.MovementBuckets{Masuk: 12, Penjualan: -6, Refund: 1, Transfer: 1, Penyesuaian: 7, Hadiah: -1}
+		if r.Buckets != want || r.MasukGaransi != 3 || r.Opening != 0 || r.Closing != 14 {
+			t.Fatalf("buckets = %+v garansi %d opening %d closing %d, want %+v garansi 3 closing 14", r.Buckets, r.MasukGaransi, r.Opening, r.Closing, want)
+		}
+		b := r.Buckets
+		if r.Opening+b.Masuk+b.Penjualan+b.Refund+b.Transfer+b.Penyesuaian+b.Hadiah != r.Closing {
+			t.Fatalf("opening + buckets != closing: %+v", r)
+		}
+		// every SKU of every location reconciles, whatever mix of rows it holds
+		for _, loc := range []string{mvOutletA, mvOutletB, outC} {
+			var all api.MovementLedgerSummaryResponse
+			_ = json.Unmarshal(admin("/inventory/movements/summary?locationType=outlet&locationId="+loc).Body.Bytes(), &all)
+			for _, row := range all.Data {
+				bk := row.Buckets
+				if row.Opening+bk.Masuk+bk.Penjualan+bk.Refund+bk.Transfer+bk.Penyesuaian+bk.Hadiah != row.Closing {
+					t.Fatalf("%s %s|%s does not reconcile: %+v", loc, row.ProductId, row.VariantSize, row)
+				}
+			}
+		}
+		// the warehouse side: the same delivery leaves the warehouse as Transfer (never Masuk)
+		var wh api.MovementLedgerSummaryResponse
+		_ = json.Unmarshal(admin("/inventory/movements/summary?locationType=warehouse&locationId="+mvWarehouse).Body.Bytes(), &wh)
+		for _, row := range wh.Data {
+			if row.Buckets.Masuk != 0 {
+				t.Fatalf("warehouse Masuk must stay 0 here: %+v", row)
+			}
+		}
+		// kartu stok marks the warranty receipt
+		var page api.StockMovementPage
+		_ = json.Unmarshal(admin("/inventory/movements?locationType=outlet&locationId="+outC+"&productId="+prodR+"&variantSize=M&kind=receipt").Body.Bytes(), &page)
+		warranty := 0
+		for _, m := range page.Data {
+			if m.IsWarranty != nil && *m.IsWarranty {
+				warranty++
+			}
+		}
+		if len(page.Data) != 2 || warranty != 1 {
+			t.Fatalf("receipt rows = %d, warranty rows = %d, want 2 and 1", len(page.Data), warranty)
+		}
+		// the CSV export has the same numbers under the same bucket names
+		ew := admin("/inventory/movements/summary/export?locationType=outlet&locationId=" + outC + "&from=2026-02-01&to=2026-02-01")
+		if ew.Code != 200 || !strings.HasPrefix(ew.Header().Get("Content-Type"), "text/csv") {
+			t.Fatalf("export: %d %s", ew.Code, ew.Body.String())
+		}
+		recs, err := csv.NewReader(strings.NewReader(ew.Body.String())).ReadAll()
+		if err != nil || len(recs) != 2 {
+			t.Fatalf("export csv: %v %q", err, ew.Body.String())
+		}
+		col := map[string]string{}
+		for i, h := range recs[0] {
+			col[h] = recs[1][i]
+		}
+		for k, v := range map[string]string{"saldo_awal": "0", "masuk": "12", "penjualan": "-6", "refund": "1", "transfer": "1",
+			"penyesuaian": "7", "hadiah": "-1", "saldo_akhir": "14", "masuk_garansi": "3", "sku": "MV-R-M"} {
+			if col[k] != v {
+				t.Fatalf("export %s = %q, want %q (%v)", k, col[k], v, col)
+			}
+		}
+		if bad := admin("/inventory/movements/summary/export?locationType=outlet&locationId=" + outC); bad.Code != 400 {
+			t.Fatalf("export without a range: %d", bad.Code)
+		}
+		// the receipt document behind a kartu stok row: lines, source, scope
+		gw := admin("/inventory/goods-receipts/" + warrantyReceipt)
+		var gr api.GoodsReceiptDetail
+		if gw.Code != 200 || json.Unmarshal(gw.Body.Bytes(), &gr) != nil || gr.Source != api.GoodsReceiptDetailSourceWarranty ||
+			gr.LocationId.String() != outC || gr.LocationType != api.InventoryLocationTypeOutlet || len(gr.Items) != 1 || gr.Items[0].Qty != 3 {
+			t.Fatalf("goods receipt: %d %s", gw.Code, gw.Body.String())
+		}
+		if w404 := admin("/inventory/goods-receipts/00000000-0000-4000-8f69-0000000000ff"); w404.Code != 404 {
+			t.Fatalf("unknown receipt: %d", w404.Code)
+		}
+		if w403 := get("manager", mvOutletA, "/inventory/goods-receipts/"+warrantyReceipt); w403.Code != 403 {
+			t.Fatalf("receipt of another outlet for a manager: %d", w403.Code)
 		}
 	})
 

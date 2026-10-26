@@ -2,6 +2,28 @@ package write
 
 import "fmt"
 
+// Goods receipt sources: what a receipt is for. Pergerakan reports warranty replacements apart.
+const (
+	ReceiptSourceSupply   = "supply"
+	ReceiptSourceWarranty = "warranty"
+)
+
+// receiptSource is the stored source of a receipt: empty means supply.
+func receiptSource(s string) string {
+	if s == "" {
+		return ReceiptSourceSupply
+	}
+	return s
+}
+
+// validateReceiptSource rejects a source other than supply or warranty (empty is supply).
+func validateReceiptSource(s string) error {
+	if s != "" && s != ReceiptSourceSupply && s != ReceiptSourceWarranty {
+		return fmt.Errorf("sumber penerimaan tidak valid")
+	}
+	return nil
+}
+
 // validateGoodsReceipt checks a location goods-in request before any DB work.
 // MaxReceiptQty bounds one goods-receipt line so the int32 stock arithmetic can
 // never wrap.

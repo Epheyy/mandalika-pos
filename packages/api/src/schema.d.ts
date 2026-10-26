@@ -908,6 +908,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inventory/goods-receipts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One goods receipt with its lines, read-only (manage_inventory) */
+        get: operations["getGoodsReceipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/inventory/adjust": {
         parameters: {
             query?: never;
@@ -2397,6 +2414,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inventory/movements/summary/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pergerakan (per-SKU ledger summary with buckets) as CSV, same filters as the summary (manage_inventory)
+         * @description UTF-8 CSV with a header row; cells starting with = + - @ are guarded. from and to are required, at most 93 days; more than 100000 SKU rows answers 413.
+         */
+        get: operations["exportMovementLedgerSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/inventory/movements/summary": {
         parameters: {
             query?: never;
@@ -3083,7 +3120,39 @@ export interface components {
         GoodsReceiptInput: {
             supplier?: string | null;
             note?: string | null;
+            /**
+             * @description supply (default when absent) or warranty: a warranty replacement (Garansi), reported apart in Pergerakan.
+             * @enum {string}
+             */
+            source?: "supply" | "warranty";
             items: components["schemas"]["GoodsReceiptItemInput"][];
+        };
+        GoodsReceiptDetailItem: {
+            /** Format: uuid */
+            productId: string;
+            productName: string;
+            variantSize: string;
+            sku?: string;
+            qty: number;
+            /** Format: double */
+            unitCost?: number | null;
+        };
+        /** @description Read-only view of one goods receipt (Barang Masuk), opened from the kartu stok. */
+        GoodsReceiptDetail: {
+            /** Format: uuid */
+            id: string;
+            locationType: components["schemas"]["InventoryLocationType"];
+            /** Format: uuid */
+            locationId: string;
+            locationName?: string;
+            supplier?: string;
+            note?: string;
+            /** @enum {string} */
+            source: "supply" | "warranty";
+            /** Format: date-time */
+            createdAt: string;
+            createdByName?: string;
+            items: components["schemas"]["GoodsReceiptDetailItem"][];
         };
         WarehouseAdjustInput: {
             /** Format: uuid */
@@ -5191,6 +5260,13 @@ export interface components {
             requisitionNumber?: string;
             /** @description Status of the ERP outbox document that carries this movement, when there is one. */
             erpStatus?: string;
+            /** @description True for a goods receipt row recorded as a warranty replacement (Garansi). */
+            isWarranty?: boolean;
+            /**
+             * Format: uuid
+             * @description Id of the approved adjustment request behind this row (docNumber is its number); absent for direct adjustments and other kinds.
+             */
+            requestId?: string;
         };
         StockMovementSummary: {
             /** @description qtyBefore of the first in-range row, or the balance at the last earlier row when the range is empty. */
@@ -5206,6 +5282,19 @@ export interface components {
             nextCursor?: string;
             summary?: components["schemas"]["StockMovementSummary"];
         };
+        /** @description Signed quantity per Pergerakan bucket; opening + the sum of all buckets = closing. The ledger-kind to bucket mapping lives in internal/ledger/bucket.go. */
+        MovementBuckets: {
+            /** @description Goods receipts (supply and warranty) and warehouse deliveries received at an outlet. */
+            masuk: number;
+            penjualan: number;
+            refund: number;
+            /** @description Store to store, store to warehouse and everything sent out. */
+            transfer: number;
+            /** @description Adjustments, count variances, write-offs, opening balances. */
+            penyesuaian: number;
+            /** @description Per-sale giveaway item. */
+            hadiah: number;
+        };
         MovementLedgerSummaryRow: {
             /** Format: uuid */
             productId: string;
@@ -5214,6 +5303,9 @@ export interface components {
             sku: string;
             barcode?: string;
             opening: number;
+            buckets: components["schemas"]["MovementBuckets"];
+            /** @description Part of buckets.masuk that came in as warranty replacements (Garansi). */
+            masukGaransi: number;
             /** @description Incoming quantity per movement kind. */
             inByKind: {
                 [key: string]: number;
@@ -7675,6 +7767,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    getGoodsReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description goods receipt */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoodsReceiptDetail"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
         };
     };
@@ -10800,6 +10924,54 @@ export interface operations {
                 from?: string;
                 /** @description Last day (inclusive, YYYY-MM-DD, read in the location timezone) or exclusive instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range ends at the last row recorded before it. */
                 to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV file (UTF-8, header row) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description invalid filter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description range over 93 days or over 100000 rows */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    exportMovementLedgerSummary: {
+        parameters: {
+            query: {
+                locationType: components["schemas"]["InventoryLocationType"];
+                locationId: string;
+                /** @description First day (YYYY-MM-DD) or instant (RFC 3339), on time recorded. */
+                from: string;
+                /** @description Last day (inclusive, YYYY-MM-DD) or exclusive instant (RFC 3339), on time recorded. */
+                to: string;
+                /** @description Substring match on product name, SKU or barcode. */
+                q?: string;
             };
             header?: never;
             path?: never;

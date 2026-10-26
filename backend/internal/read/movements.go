@@ -14,6 +14,7 @@ import (
 
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/bizday"
+	"github.com/mandalika/pos-backend/internal/ledger"
 )
 
 // MovementFilter selects ledger rows of ONE location (kartu stok). From/To are resolved
@@ -118,7 +119,8 @@ SELECT m.id, m.seq, m.occurred_at, m.recorded_at, m.kind, m.location_type, m.loc
   COALESCE(lo.name, lw.name), p.name, m.product_id, m.variant_size, NULLIF(v.sku,''), v.barcode,
   m.qty, m.qty_before, m.qty_after, m.ref_type, m.ref_id, m.ref_number, m.flags,
   (m.dedupe_key LIKE 'giveaway:%'), m.actor, u.display_name, COALESCE(wsa.reason, CASE WHEN sci.reason_code IS NOT NULL THEN sci.reason_text ELSE sc.reason_text END), eo.status,
-  COALESCE(wsa.reason_code, sci.reason_code, sc.reason_code), au.display_name, sar.number, pb.number
+  COALESCE(wsa.reason_code, sci.reason_code, sc.reason_code), au.display_name, sar.number, pb.number,
+  COALESCE(gr.source = 'warranty', false), sar.id
 FROM stock_movements m
 LEFT JOIN outlets lo ON m.location_type='outlet' AND lo.id=m.location_id
 LEFT JOIN warehouses lw ON m.location_type='warehouse' AND lw.id=m.location_id
@@ -126,6 +128,7 @@ LEFT JOIN products p ON p.id=m.product_id
 LEFT JOIN LATERAL (SELECT sku, barcode FROM product_variants pv
                    WHERE pv.product_id=m.product_id AND pv.size=m.variant_size LIMIT 1) v ON true
 LEFT JOIN users u ON u.id::text = m.actor
+LEFT JOIN goods_receipts gr ON m.kind='receipt' AND m.ref_type='goods_receipt' AND gr.id = m.ref_id
 LEFT JOIN warehouse_stock_adjustments wsa ON m.ref_type='stock_adjustment' AND wsa.id=m.ref_id
 LEFT JOIN stock_adjustment_requests sar ON wsa.request_id = sar.id
 LEFT JOIN stock_counts sc ON m.ref_type='stock_count' AND sc.id=m.ref_id
@@ -178,11 +181,14 @@ func scanMovement(rows pgx.Rows) (api.StockMovementRow, error) {
 		refNumber, actor, actorName, reason       *string
 		erpStatus                                 *string
 		reasonCode, approver, docNumber, pbNumber *string
+		requestID                                 *openapi_types.UUID
+		isWarranty                                bool
 	)
 	err := rows.Scan(&m.Id, &m.Seq, &m.OccurredAt, &m.RecordedAt, &kind, &locType, &m.LocationId,
 		&locName, &prodName, &m.ProductId, &m.VariantSize, &sku, &barcode,
 		&m.Qty, &m.QtyBefore, &m.QtyAfter, &m.RefType, &refID, &refNumber, &m.Flags,
-		&m.IsGiveaway, &actor, &actorName, &reason, &erpStatus, &reasonCode, &approver, &docNumber, &pbNumber)
+		&m.IsGiveaway, &actor, &actorName, &reason, &erpStatus, &reasonCode, &approver, &docNumber, &pbNumber,
+		&isWarranty, &requestID)
 	if err != nil {
 		return m, fmt.Errorf("movement scan: %w", err)
 	}
@@ -195,6 +201,10 @@ func scanMovement(rows pgx.Rows) (api.StockMovementRow, error) {
 		m.ReasonCode = &rc
 	}
 	m.ApprovedByName, m.DocNumber, m.RequisitionNumber = approver, docNumber, pbNumber
+	m.RequestId = requestID
+	if isWarranty {
+		m.IsWarranty = &isWarranty
+	}
 	if m.Flags == nil {
 		m.Flags = []string{}
 	}
@@ -249,23 +259,41 @@ ORDER BY m.seq DESC LIMIT 1`, f.LocationType, f.LocationID, f.ProductID, f.Varia
 	return out, nil
 }
 
-// MovementLedgerSummary returns one line per SKU of the location: opening, incoming and outgoing
-// quantity by kind over the seq window of the range (time recorded), and closing,
-// all from the ledger. A SKU with history but no movement in the window still shows, with
-// opening = closing = its balance at its last earlier row (seq below the window).
+// MovementLedgerSummary returns one line per SKU of the location: opening, the signed quantity per
+// bucket (ledger.BucketOf), the by-kind in/out quantities over the seq window of the range (time
+// recorded), and closing, all from the ledger. A SKU with history but no movement in the window
+// still shows, with opening = closing = its balance at its last earlier row (seq below the window).
 func (r *Repo) MovementLedgerSummary(ctx context.Context, w SeqWindow, locType, locID, q string, page, limit int) ([]api.MovementLedgerSummaryRow, int, error) {
+	return r.movementLedgerSummary(ctx, w, locType, locID, q, off(page, limit), &limit)
+}
+
+// MovementLedgerSummaryAll is MovementLedgerSummary without paging, for the export: at most
+// maxRows rows (the caller treats maxRows+1 as over the cap).
+func (r *Repo) MovementLedgerSummaryAll(ctx context.Context, w SeqWindow, locType, locID, q string, maxRows int) ([]api.MovementLedgerSummaryRow, error) {
+	limit := maxRows + 1
+	rows, _, err := r.movementLedgerSummary(ctx, w, locType, locID, q, 0, &limit)
+	return rows, err
+}
+
+func (r *Repo) movementLedgerSummary(ctx context.Context, w SeqWindow, locType, locID, q string, offset int, limit *int) ([]api.MovementLedgerSummaryRow, int, error) {
 	inRange, args := windowSQL(w, "m.location_type=$1 AND m.location_id=$2", []any{locType, locID})
 	args = append(args, w.Before)
 	prevCond := fmt.Sprintf("m.seq < $%d", len(args))
 	if !w.Resolved {
 		prevCond = "false"
 	}
-	args = append(args, "%"+likeEscape(strings.TrimSpace(q))+"%", off(page, limit), limit)
+	args = append(args, "%"+likeEscape(strings.TrimSpace(q))+"%", offset, limit)
 	qArg, offArg, limArg := len(args)-2, len(args)-1, len(args)
 	sql := fmt.Sprintf(`
 WITH rng AS (
-  SELECT product_id, variant_size, kind, qty, qty_before, qty_after, seq
-  FROM stock_movements m WHERE %[1]s
+  SELECT m.product_id, m.variant_size, m.kind, m.qty, m.qty_before, m.qty_after, m.seq,
+         (m.dedupe_key LIKE 'giveaway:%%') AS giveaway,
+         COALESCE(gr.source = 'warranty', false) AS warranty,
+         (t.source_warehouse_id IS NOT NULL) AS src_wh
+  FROM stock_movements m
+  LEFT JOIN goods_receipts gr ON m.kind='receipt' AND m.ref_type='goods_receipt' AND gr.id = m.ref_id
+  LEFT JOIN transfers t ON m.kind='transfer_in' AND m.ref_type='transfer' AND t.id = m.ref_id
+  WHERE %[1]s
 ),
 firsts AS (SELECT DISTINCT ON (product_id, variant_size) product_id, variant_size, qty_before
            FROM rng ORDER BY product_id, variant_size, seq ASC),
@@ -274,32 +302,45 @@ lasts AS (SELECT DISTINCT ON (product_id, variant_size) product_id, variant_size
 prev AS (SELECT DISTINCT ON (product_id, variant_size) product_id, variant_size, qty_after
          FROM stock_movements m WHERE m.location_type=$1 AND m.location_id=$2 AND %[2]s
          ORDER BY product_id, variant_size, seq DESC),
-bykind AS (SELECT product_id, variant_size, kind,
+grp AS (SELECT product_id, variant_size, kind, giveaway, warranty, COALESCE(src_wh, false) AS src_wh,
              SUM(CASE WHEN qty > 0 THEN qty ELSE 0 END) AS qin, SUM(CASE WHEN qty < 0 THEN -qty ELSE 0 END) AS qout
-           FROM rng GROUP BY 1,2,3),
-kagg AS (SELECT product_id, variant_size,
-           COALESCE(jsonb_object_agg(kind, qin) FILTER (WHERE qin > 0), '{}'::jsonb) AS in_by,
-           COALESCE(jsonb_object_agg(kind, qout) FILTER (WHERE qout > 0), '{}'::jsonb) AS out_by
-         FROM bykind GROUP BY 1,2),
+           FROM rng GROUP BY 1,2,3,4,5,6),
+gagg AS (SELECT product_id, variant_size,
+           jsonb_agg(jsonb_build_object('kind', kind, 'giveaway', giveaway, 'warranty', warranty,
+                                        'srcWh', src_wh, 'qin', qin, 'qout', qout)) AS groups
+         FROM grp GROUP BY 1,2),
 skus AS (SELECT product_id, variant_size FROM firsts UNION SELECT product_id, variant_size FROM prev)
 SELECT json_build_object(
   'productId', s.product_id, 'productName', COALESCE(p.name, ''), 'variantSize', s.variant_size,
   'sku', COALESCE(v.sku, ''), 'barcode', v.barcode,
   'opening', COALESCE(f.qty_before, pv.qty_after, 0), 'closing', COALESCE(l.qty_after, pv.qty_after, 0),
-  'inByKind', COALESCE(k.in_by, '{}'::jsonb), 'outByKind', COALESCE(k.out_by, '{}'::jsonb)
+  'groups', COALESCE(k.groups, '[]'::jsonb)
 ), COUNT(*) OVER ()
 FROM skus s
 LEFT JOIN firsts f ON f.product_id=s.product_id AND f.variant_size=s.variant_size
 LEFT JOIN lasts l ON l.product_id=s.product_id AND l.variant_size=s.variant_size
 LEFT JOIN prev pv ON pv.product_id=s.product_id AND pv.variant_size=s.variant_size
-LEFT JOIN kagg k ON k.product_id=s.product_id AND k.variant_size=s.variant_size
+LEFT JOIN gagg k ON k.product_id=s.product_id AND k.variant_size=s.variant_size
 LEFT JOIN products p ON p.id=s.product_id
 LEFT JOIN LATERAL (SELECT sku, barcode FROM product_variants pv2
                    WHERE pv2.product_id=s.product_id AND pv2.size=s.variant_size LIMIT 1) v ON true
 WHERE ($%[3]d = '%%%%' OR p.name ILIKE $%[3]d OR v.sku ILIKE $%[3]d OR v.barcode ILIKE $%[3]d)
 ORDER BY p.name, s.variant_size, s.product_id
 OFFSET $%[4]d LIMIT $%[5]d`, inRange, prevCond, qArg, offArg, limArg)
-	return listJSON[api.MovementLedgerSummaryRow](ctx, r.Pool, sql, args...)
+	raws, total, err := listJSON[summaryRowRaw](ctx, r.Pool, sql, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]api.MovementLedgerSummaryRow, 0, len(raws))
+	for _, raw := range raws {
+		row := raw.MovementLedgerSummaryRow
+		row.Buckets, row.MasukGaransi, row.InByKind, row.OutByKind, err = foldGroups(ledger.LocationType(locType), raw.Groups)
+		if err != nil {
+			return nil, 0, err
+		}
+		out = append(out, row)
+	}
+	return out, total, nil
 }
 
 // likeEscape escapes LIKE metacharacters so a search term matches literally.

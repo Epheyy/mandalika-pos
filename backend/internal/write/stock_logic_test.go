@@ -51,3 +51,17 @@ func TestValidateLocationAdjust(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateReceiptSource(t *testing.T) {
+	for _, ok := range []string{"", ReceiptSourceSupply, ReceiptSourceWarranty} {
+		if err := validateReceiptSource(ok); err != nil {
+			t.Errorf("%q: %v", ok, err)
+		}
+	}
+	if err := validateReceiptSource("gift"); err == nil {
+		t.Error("an unknown source must be rejected")
+	}
+	if receiptSource("") != ReceiptSourceSupply || receiptSource(ReceiptSourceWarranty) != ReceiptSourceWarranty {
+		t.Error("receiptSource: empty is supply, a set source is kept")
+	}
+}
