@@ -12,6 +12,44 @@
   --color-indigo-700: #8f6210;
   --color-indigo-800: #6e4a0c;
   --color-indigo-900: #4d3408;
+
+  /* POS UX direction tokens (A1). Additive; the indigo remap above stays. */
+  --color-paper-0: #fbf9f5;
+  --color-paper-1: #f3efe7;
+  --color-paper-2: #e9e3d8;
+  --color-ink-900: #1a1008;
+  --color-ink-700: #4a3f33;
+  --color-ink-500: #7a6f62;
+  --color-brand: #b07d18;
+  --color-brand-pressed: #8f6412;
+  --color-on-brand: #ffffff;
+  --color-ok: #1f7a4d;
+  --color-ok-bg: #e3f3ea;
+  --color-warn: #b45309;
+  --color-warn-bg: #fdf0df;
+  --color-danger: #b42318;
+  --color-danger-bg: #fbe4e1;
+  --color-info: #1d4ed8;
+  --color-info-bg: #e3eafc;
+  --color-promo: #6d28d9;
+  --color-promo-bg: #efe7fb;
+  --color-reward: #0f766e;
+  --color-reward-bg: #dff3f0;
+
+  --radius-control: 12px;
+  --radius-sheet: 16px;
+  --radius-chip: 22px;
+
+  --font-sans: Roboto, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* 48px minimum touch target and tabular figures for money columns. */
+@utility touch {
+  min-width: 48px;
+  min-height: 48px;
+}
+@utility tnum {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Safe-area padding. --sat/--sab/--sal/--sar are injected by MainActivity from

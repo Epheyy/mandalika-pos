@@ -3,12 +3,26 @@
  * Two columns: Operasional (order/history/recap/cash-flow/sync) and Pengaturan
  * (print / product-display), with a user card header and a status footer. The
  * online/offline indicator now lives in the app header (beside the shift chip),
- * not here. Icons are inline SVG to avoid pulling in an icon dependency. Brand
+ * not here. Icons are inline SVG (components/ui/icons) to avoid an icon dependency. Brand
  * gold comes free: index.css remaps the indigo palette to gold.
  */
 import { memo } from 'react'
 import type { ReactElement } from 'react'
 import type { components } from '@mandalika/api'
+import {
+  IconBag as BagIcon,
+  IconCash as CashIcon,
+  IconClose as CloseIcon,
+  IconDisplay as DisplayIcon,
+  IconHistory as HistoryIcon,
+  IconInbox as InboxIcon,
+  IconSignOut as SignOutIcon,
+  IconPrinter as PrinterIcon,
+  IconRecap as RecapIcon,
+  IconSync as SyncIcon,
+  IconTransferHistory as TransferHistoryIcon,
+  type IconProps,
+} from '../components/ui/icons'
 
 type User = components['schemas']['User']
 
@@ -37,42 +51,6 @@ interface MenuDrawerProps {
   onRequisitions: () => void
   inboundCount: number
 }
-
-type IconProps = { className?: string }
-
-const BagIcon = ({ className }: IconProps) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" /><path d="M3 6h18" /><path d="M16 10a4 4 0 0 1-8 0" /></svg>
-)
-const InboxIcon = ({ className }: IconProps) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /></svg>
-)
-const HistoryIcon = ({ className }: IconProps) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" /></svg>
-)
-const RecapIcon = ({ className }: IconProps) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="M9 12h6M9 16h6" /></svg>
-)
-const CashIcon = ({ className }: IconProps) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 12h.01M18 12h.01" /></svg>
-)
-const SyncIcon = ({ className }: IconProps) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /></svg>
-)
-const PrinterIcon = ({ className }: IconProps) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>
-)
-const DisplayIcon = ({ className }: IconProps) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
-)
-const LogoutIcon = ({ className }: IconProps) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></svg>
-)
-const CloseIcon = ({ className }: IconProps) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
-)
-const TransferHistoryIcon = ({ className }: IconProps) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="m8 12 4 4 4-8" /></svg>
-)
 
 type Item = {
   Icon: (p: IconProps) => ReactElement
@@ -197,7 +175,7 @@ export const MenuDrawer = memo(function MenuDrawer({
               <button type="button" onClick={() => { onClose(); onTerminal() }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-all text-left">
                 <div className="p-1.5 rounded-lg bg-gray-100 flex-shrink-0">
-                  <LogoutIcon className="w-4 h-4 text-gray-500" />
+                  <SignOutIcon className="w-4 h-4 text-gray-500" />
                 </div>
                 Terminal
               </button>
