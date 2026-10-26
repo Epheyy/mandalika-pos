@@ -243,7 +243,7 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		erWant(t, "group key", erStr(t, ctx, pool, `SELECT erp_group_key FROM products`), "pos:santal noir")
 		erWant(t, "product name", erStr(t, ctx, pool, `SELECT name FROM products`), "Santal Noir")
 		erWantInt(t, "sellable products", erCount(t, ctx, pool, `SELECT count(*) FROM products WHERE sellable`), 0)
-		erWant(t, "sizes", erStr(t, ctx, pool, `SELECT string_agg(size, ',' ORDER BY size) FROM product_variants`), "30ml,50ml")
+		erWant(t, "sizes (an unknown ERP category passes through as the line)", erStr(t, ctx, pool, `SELECT string_agg(size, ',' ORDER BY size) FROM product_variants`), "30ml EAU DE PARFUM,50ml EAU DE PARFUM")
 		erWantInt(t, "variant shape", erCount(t, ctx, pool,
 			`SELECT count(*) FROM product_variants WHERE sku=barcode AND sku IN ('X30','X50') AND price=0 AND erp_slug IS NOT NULL AND is_active`), 2)
 		erWantInt(t, "products content-version bump", erCount(t, ctx, pool, `SELECT count(*) FROM content_versions WHERE data_manifest ? 'products' AND data_manifest ? 'outlets'`), 1)
@@ -288,13 +288,12 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		reqs := e.tr.fgRequests()
 		last := reqs[len(reqs)-1]
 		erWant(t, "updated_since", last.URL.Query().Get("updated_since"), w0.Add(-5*time.Minute).Format(time.RFC3339))
-		// The live sibling a50 owns the product now, so the discontinued a30's rename and
-		// recategorisation do not reach it (owner rule; a live owner's rename is covered in
-		// one-fragrance-across-categories). The unused new category is not created.
+		// The POS owns the product: the a30 rename and re-filing never reach it, and no ERP
+		// category becomes a POS category (no gender: the new product has no category).
 		erWant(t, "product name", erStr(t, ctx, pool, `SELECT name FROM products`), "Alpha")
-		erWant(t, "category", erStr(t, ctx, pool, `SELECT c.name FROM products p JOIN categories c ON c.id=p.category_id`), "EDP")
-		erWantInt(t, "unused category not created", erCount(t, ctx, pool, `SELECT count(*) FROM categories WHERE name='Parfum'`), 0)
-		erWantInt(t, "a30 inactive", erCount(t, ctx, pool, `SELECT count(*) FROM product_variants WHERE erp_slug='a30' AND NOT is_active AND size='30ml'`), 1)
+		erWant(t, "category", erStr(t, ctx, pool, `SELECT COALESCE(c.name,'-') FROM products p LEFT JOIN categories c ON c.id=p.category_id`), "-")
+		erWantInt(t, "no category created", erCount(t, ctx, pool, `SELECT count(*) FROM categories`), 0)
+		erWantInt(t, "a30 inactive", erCount(t, ctx, pool, `SELECT count(*) FROM product_variants WHERE erp_slug='a30' AND NOT is_active AND size='30ml EDP'`), 1)
 		erWantInt(t, "a50 still active", erCount(t, ctx, pool, `SELECT count(*) FROM product_variants WHERE erp_slug='a50' AND is_active`), 1)
 		erWantInt(t, "product active (a50 is)", erCount(t, ctx, pool, `SELECT count(*) FROM products WHERE is_active`), 1)
 		wm := erStr(t, ctx, pool, `SELECT to_char(watermark AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') FROM integration_watermarks WHERE resource='finished_goods'`)
@@ -318,8 +317,8 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		e.clock.Advance(time.Hour)
 		e.fg("b30", "B30", "Beta 100ml", "EDP", 100, "ACTIVE", "")
 		e.mustComplete(erp.ModeFull)
-		erWant(t, "size unchanged", erStr(t, ctx, pool, `SELECT size FROM product_variants WHERE erp_slug='b30'`), "30ml")
-		erWant(t, "stock row unchanged", erStr(t, ctx, pool, `SELECT variant_size||':'||stock FROM outlet_variant_stock`), "30ml:7")
+		erWant(t, "size unchanged", erStr(t, ctx, pool, `SELECT size FROM product_variants WHERE erp_slug='b30'`), "30ml EDP")
+		erWant(t, "stock row unchanged", erStr(t, ctx, pool, `SELECT variant_size||':'||stock FROM outlet_variant_stock`), "30ml EDP:7")
 		erWantInt(t, "no extra variants", erCount(t, ctx, pool, `SELECT count(*) FROM product_variants`), 1)
 	})
 
@@ -331,18 +330,22 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		e := newErEnv(t, ctx, pool, 0)
 		erPosOutlet(t, ctx, pool, "Kemang POS", "KMG", "", "", "") // content_versions has one row per outlet
 		e.outlet("kemang", "KMG", "Mandalika Kemang", "")
+		if _, err := pool.Exec(ctx, `INSERT INTO categories (name) VALUES ('Man'),('WOMAN')`); err != nil {
+			t.Fatal(err)
+		}
 		// Slugs page SN110 first, so the FG that creates the product is not the lowest code.
-		e.fg("b-sn030", "SN030", "Santal Noir 30ml", "EDP 30", 30, "ACTIVE", `,"unit":"Pcs"`)
-		e.fg("a-sn110", "SN110", "Santal Noir 110ml", "EDP 110", 110, "ACTIVE", `,"unit":"Pcs"`)
+		e.fg("b-sn030", "SN030", "Santal Noir 30ml", "EDP 30", 30, "ACTIVE", `,"unit":"Pcs","gender":"MEN"`)
+		e.fg("a-sn110", "SN110", "Santal Noir 110ml", "EDP 110", 110, "ACTIVE", `,"unit":"Pcs","gender":"WOMEN"`)
+		e.fg("c-sn050", "SN050", "Santal Noir 50ml", "EDP 30", 50, "ACTIVE", `,"unit":"Pcs","gender":"MEN"`)
 		e.mustComplete(erp.ModeFull)
 		erWantInt(t, "products", erCount(t, ctx, pool, `SELECT count(*) FROM products`), 1)
 		erWant(t, "group key", erStr(t, ctx, pool, `SELECT erp_group_key FROM products`), "pos:santal noir")
-		erWant(t, "sizes", erStr(t, ctx, pool, `SELECT string_agg(size, ',' ORDER BY size) FROM product_variants`), "110ml,30ml")
+		erWant(t, "sizes", erStr(t, ctx, pool, `SELECT string_agg(size, ',' ORDER BY size) FROM product_variants`), "110ml EDP 110,30ml EDP 30,50ml EDP 30")
 		category := func() string {
-			return erStr(t, ctx, pool, `SELECT p.name||'/'||c.name FROM products p JOIN categories c ON c.id=p.category_id`)
+			return erStr(t, ctx, pool, `SELECT p.name||'/'||COALESCE(c.name,'-') FROM products p LEFT JOIN categories c ON c.id=p.category_id`)
 		}
-		erWant(t, "set once, by the FG that created the product", category(), "Santal Noir/EDP 110")
-		erWantInt(t, "the sibling's category is not created", erCount(t, ctx, pool, `SELECT count(*) FROM categories WHERE name='EDP 30'`), 0)
+		erWant(t, "filed by the page's majority ERP gender (MEN), matched case-insensitively", category(), "Santal Noir/Man")
+		erWantInt(t, "no ERP category created", erCount(t, ctx, pool, `SELECT count(*) FROM categories`), 2)
 
 		before := erVersion(t, ctx, pool)
 		if before == "" {
@@ -353,20 +356,20 @@ func TestErpIntegrationPostgres(t *testing.T) {
 			e.mustComplete(erp.ModeFull)
 		}
 		erWant(t, "content version after reruns", erVersion(t, ctx, pool), before)
-		erWant(t, "category stable", category(), "Santal Noir/EDP 110")
+		erWant(t, "category stable", category(), "Santal Noir/Man")
 
 		e.clock.Advance(time.Hour)
 		e.fg("a-sn110", "SN110", "Santal Noir Intense 110ml", "EDP 110", 110, "ACTIVE", `,"unit":"Pcs"`)
 		e.mustComplete(erp.ModeIncremental)
-		erWant(t, "an ERP rename does not rename the product", category(), "Santal Noir/EDP 110")
+		erWant(t, "an ERP rename does not rename the product", category(), "Santal Noir/Man")
 		erWant(t, "version unchanged by a rename", erVersion(t, ctx, pool), before)
 		erWant(t, "each size stores what the ERP said", erStr(t, ctx, pool,
-			`SELECT string_agg(erp_name||'/'||erp_category, ',' ORDER BY sku) FROM product_variants`), "Santal Noir/EDP 30,Santal Noir Intense/EDP 110")
+			`SELECT string_agg(erp_name||'/'||erp_category, ',' ORDER BY sku) FROM product_variants`), "Santal Noir/EDP 30,Santal Noir/EDP 30,Santal Noir Intense/EDP 110")
 
 		e.clock.Advance(time.Hour)
 		e.fg("a-sn110", "SN110", "Santal Noir Intense 110ml", "EDP 110", 110, "DISCONTINUE", `,"unit":"Pcs"`)
 		e.mustComplete(erp.ModeIncremental)
-		erWant(t, "a discontinued size hands nothing over", category(), "Santal Noir/EDP 110")
+		erWant(t, "a discontinued size hands nothing over", category(), "Santal Noir/Man")
 		if after := erVersion(t, ctx, pool); after == before {
 			t.Fatal("the discontinued size must bump the content version")
 		}
@@ -378,19 +381,22 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		e := newErEnv(t, ctx, pool, 0)
 		erPosOutlet(t, ctx, pool, "Kemang POS", "KMG", "", "", "")
 		e.outlet("kemang", "KMG", "Mandalika Kemang", "")
-		e.fg("h1", "H1", "Eta 30ml", "Cat A", 30, "ACTIVE", "")
-		e.fg("h2", "H2", "Eta 50ml", "Cat B", 50, "ACTIVE", "")
+		if _, err := pool.Exec(ctx, `INSERT INTO categories (name) VALUES ('UNISEX')`); err != nil {
+			t.Fatal(err)
+		}
+		e.fg("h1", "H1", "Eta 30ml", "Cat A", 30, "ACTIVE", `,"gender":"UNISEX"`)
+		e.fg("h2", "H2", "Eta 50ml", "Cat B", 50, "ACTIVE", `,"gender":"UNISEX"`)
 		e.mustComplete(erp.ModeFull)
-		erWant(t, "creator category", erStr(t, ctx, pool, `SELECT c.name FROM products p JOIN categories c ON c.id=p.category_id`), "Cat A")
+		erWant(t, "category from the ERP gender", erStr(t, ctx, pool, `SELECT c.name FROM products p JOIN categories c ON c.id=p.category_id`), "UNISEX")
 		before := erVersion(t, ctx, pool)
 
 		e.clock.Advance(time.Hour)
-		e.fg("h1", "H1", "Eta 30ml", "Cat A", 30, "ACTIVE", `,"deleted_at":"2026-06-01T00:30:00Z"`)
+		e.fg("h1", "H1", "Eta 30ml", "Cat A", 30, "ACTIVE", `,"gender":"UNISEX","deleted_at":"2026-06-01T00:30:00Z"`)
 		rep := e.mustComplete(erp.ModeFull)
 		if r := e.resource(rep, erp.ResourceFinishedGoods); r.Deactivated != 1 {
 			t.Fatalf("deactivated = %d", r.Deactivated)
 		}
-		erWant(t, "category kept by reconcile", erStr(t, ctx, pool, `SELECT c.name FROM products p JOIN categories c ON c.id=p.category_id`), "Cat A")
+		erWant(t, "category kept by reconcile", erStr(t, ctx, pool, `SELECT c.name FROM products p JOIN categories c ON c.id=p.category_id`), "UNISEX")
 		erWantInt(t, "product still active", erCount(t, ctx, pool, `SELECT count(*) FROM products WHERE is_active`), 1)
 		if erVersion(t, ctx, pool) == before {
 			t.Fatal("the reconcile must bump the content version")
@@ -414,7 +420,7 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		e.fg("l2", "L2", "Lambda Noir 50ml", "Cat B", 50, "ACTIVE", "")
 		e.mustComplete(erp.ModeIncremental)
 		erWant(t, "name kept while the owner is unstored", erStr(t, ctx, pool, `SELECT name FROM products`), "Lambda")
-		erWant(t, "category kept while the owner is unstored", erStr(t, ctx, pool, `SELECT c.name FROM products p JOIN categories c ON c.id=p.category_id`), "Cat A")
+		erWant(t, "no category from the ERP", erStr(t, ctx, pool, `SELECT COALESCE(c.name,'-') FROM products p LEFT JOIN categories c ON c.id=p.category_id`), "-")
 		erWant(t, "no version bump", erVersion(t, ctx, pool), before)
 		erWant(t, "the pulled size is stored", erStr(t, ctx, pool, `SELECT erp_name FROM product_variants WHERE sku='L2'`), "Lambda Noir")
 
@@ -424,21 +430,22 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		erWant(t, "product follows the owner", erStr(t, ctx, pool, `SELECT name FROM products`), "Lambda")
 	})
 
-	// Category is only a tie-breaker: one name in two product lines that share a size.
-	t.Run("name-collision-tie-breaker", func(t *testing.T) {
+	// Mapping v3: the line is part of the label, so one name in two lines that share a size is
+	// one product (the old category tie-breaker split it).
+	t.Run("one-name-two-lines-is-one-product", func(t *testing.T) {
 		e := newErEnv(t, ctx, pool, 0)
 		e.fg("d100", "D100", "Dune 100ml", "Eau de Parfum", 100, "ACTIVE", "")
 		e.fg("m100", "M100", "Dune 100ml", "Body Mist", 100, "ACTIVE", "")
-		e.mustComplete(erp.ModeFull)
+		rep := e.mustComplete(erp.ModeFull)
 		e.clock.Advance(time.Hour)
 		e.fg("m200", "M200", "Dune 200ml", "Body Mist", 200, "ACTIVE", "")
 		e.mustComplete(erp.ModeIncremental)
-		erWant(t, "group keys", erStr(t, ctx, pool, `SELECT string_agg(erp_group_key, ',' ORDER BY erp_group_key) FROM products`),
-			"pos:dune,pos:dune|body mist")
-		erWant(t, "body mist sizes", erStr(t, ctx, pool, `SELECT string_agg(v.size, ',' ORDER BY v.size) FROM product_variants v
-			JOIN products p ON p.id=v.product_id WHERE p.erp_group_key='pos:dune|body mist'`), "100ml,200ml")
-		erWant(t, "edp sizes", erStr(t, ctx, pool, `SELECT string_agg(v.size, ',') FROM product_variants v
-			JOIN products p ON p.id=v.product_id WHERE p.erp_group_key='pos:dune'`), "100ml")
+		erWant(t, "group keys", erStr(t, ctx, pool, `SELECT string_agg(erp_group_key, ',' ORDER BY erp_group_key) FROM products`), "pos:dune")
+		erWant(t, "sizes", erStr(t, ctx, pool, `SELECT string_agg(size, ',' ORDER BY size) FROM product_variants`),
+			"100ml BODY MIST,100ml EAU DE PARFUM,200ml BODY MIST")
+		if note := e.resource(rep, erp.ResourceFinishedGoods).Error; !strings.Contains(note, `fg D100: ERP category "Eau de Parfum" is not in the line table, labelled "100ml EAU DE PARFUM"`) {
+			t.Fatalf("unknown category note = %q", note)
+		}
 	})
 
 	t.Run("tombstone", func(t *testing.T) {
@@ -599,7 +606,7 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		if _, err := pool.Exec(ctx, `UPDATE product_variants SET price=50000 WHERE erp_slug='g30'`); err != nil {
 			t.Fatal(err)
 		}
-		erWant(t, "POS read after pricing", sizes(), "30ml,50ml")
+		erWant(t, "POS read after pricing", sizes(), "30ml EDP,50ml")
 	})
 
 	t.Run("admin-deactivated-product-stays-inactive", func(t *testing.T) {
@@ -667,13 +674,13 @@ func TestErpIntegrationPostgres(t *testing.T) {
 			}
 			return strings.Join(out, ",")
 		}
-		erWant(t, "backoffice outlet scope shows every variant", sizes(read.Scope{OutletID: outletID}), "100ml,30ml,50ml")
+		erWant(t, "backoffice outlet scope shows every variant", sizes(read.Scope{OutletID: outletID}), "100ml,30ml EDP,50ml EDP")
 		erWant(t, "tablet pull hides inactive and Rp0 ERP variants", sizes(read.Scope{OutletID: outletID, SellableOnly: true}), "100ml")
 		// R6: the resolved outlet price decides, not the base price.
-		if _, err := pool.Exec(ctx, `INSERT INTO outlet_variant_price (outlet_id, product_id, variant_size, price) VALUES ($1,$2,'30ml',70000)`, outletID, productID); err != nil {
+		if _, err := pool.Exec(ctx, `INSERT INTO outlet_variant_price (outlet_id, product_id, variant_size, price) VALUES ($1,$2,'30ml EDP',70000)`, outletID, productID); err != nil {
 			t.Fatal(err)
 		}
-		erWant(t, "outlet price override un-hides the Rp0 base variant", sizes(read.Scope{OutletID: outletID, SellableOnly: true}), "100ml,30ml")
+		erWant(t, "outlet price override un-hides the Rp0 base variant", sizes(read.Scope{OutletID: outletID, SellableOnly: true}), "100ml,30ml EDP")
 	})
 
 	t.Run("500-fg-full-run-within-budget", func(t *testing.T) {

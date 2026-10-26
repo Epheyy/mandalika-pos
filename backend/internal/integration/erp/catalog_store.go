@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mandalika/pos-backend/internal/integration/erp/erpapi"
+	"github.com/mandalika/pos-backend/internal/integration/erp/erpmap"
 )
 
 // pgLocker is the single-flight lock (R1). DATABASE_URL may be a transaction-mode pooler,
@@ -357,9 +358,13 @@ type itemOutcome struct {
 }
 
 func (p *pgStore) ApplyFG(ctx context.Context, items []erpapi.IntegrationFG) (pageApply, error) {
+	genders := GroupGenders(items) // the category default of a product this page creates
 	return applyPage(ctx, p.Pool, items,
 		func(fg erpapi.IntegrationFG) string { return "fg " + fg.Slug },
-		skipUnchangedFG, applyFGItem, "products", "categories")
+		skipUnchangedFG,
+		func(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG) (itemOutcome, error) {
+			return applyFGItem(ctx, q, fg, genders[GroupKey(fg)])
+		}, "products", "categories")
 }
 
 func (p *pgStore) ApplyOutlets(ctx context.Context, items []erpapi.IntegrationOutlet) (pageApply, error) {
@@ -501,8 +506,9 @@ func lockProduct(ctx context.Context, q pgx.Tx, productID string) error {
 // applyFGItem upserts one finished good by product_variants.erp_slug. It never
 // touches an existing variant's size, price, barcode or images, never writes an existing
 // product's name, category, brand, sellable or images (the POS owns them once the product
-// exists, mapping v3 §6.4), and never deletes.
-func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG) (itemOutcome, error) {
+// exists, mapping v3 §6.4), and never deletes. gender is the page's majority ERP gender of
+// the FG's group: the category default of a fragrance product this FG creates.
+func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, gender erpapi.IntegrationFGGender) (itemOutcome, error) {
 	if strings.TrimSpace(fg.Slug) == "" || strings.TrimSpace(fg.Code) == "" || strings.TrimSpace(fg.Name) == "" {
 		return itemOutcome{}, itemError("missing slug, code or name")
 	}
@@ -566,14 +572,15 @@ func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG) (itemOu
 			return out, err
 		}
 	} else {
-		var label string
+		label := VariantLabel(fg)
 		var pcreated bool
 		if fg.IsOthers {
-			label = sizeUnitless
 			productID, pcreated, catCreated, err = othersProduct(ctx, q, fg, active)
 		} else {
-			label = SizeLabel(fg.Size, fg.Unit)
-			productID, pcreated, catCreated, err = groupProduct(ctx, q, fg, name, label, active)
+			productID, pcreated, out.note, err = fragranceProduct(ctx, q, fg, name, gender, active)
+			if _, known := erpmap.Line(derefOr(fg.Category)); !known {
+				out.note = joinNotes(out.note, fmt.Sprintf("fg %s: ERP category %q is not in the line table, labelled %q", fg.Code, derefOr(fg.Category), label))
+			}
 		}
 		if err != nil {
 			return out, err
@@ -637,56 +644,87 @@ func othersProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, activ
 	return id, true, catCreated, nil
 }
 
-// groupProduct finds (locking) or creates the product a new FG joins: the GroupKey product
-// (name minus size). Category only breaks a tie: when that product is filed under another
-// category (or none, or the FG has none), the FG goes to its CategoryGroupKey product if one
-// exists, or to a new one if the GroupKey product already holds the FG's size label.
-// created reports a new product; catCreated a new category row (only ever for a new product).
-func groupProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, name, label string, active bool) (string, bool, bool, error) {
-	key := GroupKey(fg.Name, fg.Size)
-	id, cat, found, err := productByGroupKey(ctx, q, key)
-	if err != nil {
-		return "", false, false, err
+// fragranceProduct finds (locking) or creates the product a new sellable FG joins (mapping
+// v3 §6.2): the product keyed GroupKey(fg) ("erp:NO1"); else, as a safety net for a POS
+// product the SKU-mapping import left without that key, the single product (key NULL or
+// "pos:...") holding a linked variant of the same fragrance code; else a new product. A new
+// product is named by the stripped ERP name (disambiguated with the fragrance code when the
+// name is taken), filed under the POS category of the group's ERP gender when that category
+// exists (owner decision (a); never created), not sellable (D20). created reports a new row;
+// note reports a disambiguated name.
+func fragranceProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, name string, gender erpapi.IntegrationFGGender, active bool) (id string, created bool, note string, err error) {
+	key := GroupKey(fg)
+	id, _, found, err := productByGroupKey(ctx, q, key)
+	if err != nil || found {
+		return id, false, "", err
 	}
-	if found {
-		// Lookup only: joining an existing product never adds a category.
-		catID, err := findCategory(ctx, q, fg.Category)
-		if err != nil {
-			return "", false, false, err
-		}
-		if !sameCategory(cat, catID) {
-			tieKey := CategoryGroupKey(fg.Name, fg.Category, fg.Size)
-			tieID, _, tieFound, err := productByGroupKey(ctx, q, tieKey)
-			if err != nil {
-				return "", false, false, err
-			}
-			if tieFound {
-				return tieID, false, false, nil
-			}
-			clash, err := hasSize(ctx, q, id, label)
-			if err != nil {
-				return "", false, false, err
-			}
-			if clash {
-				key, found = tieKey, false
-			}
+	fc := erpmap.FragranceCode(fg.Code)
+	if fc != "" {
+		if id, found, err = productByLinkedFragrance(ctx, q, fc); err != nil || found {
+			return id, false, "", err
 		}
 	}
-	if found {
-		return id, false, false, nil
+	var catID *string
+	if c, ok := genderCategory[gender]; ok {
+		if catID, err = findCategory(ctx, q, &c); err != nil {
+			return "", false, "", err
+		}
 	}
-	catID, catCreated, err := upsertCategory(ctx, q, fg.Category)
-	if err != nil {
-		return "", false, false, err
+	var taken bool
+	if err := q.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM products WHERE lower(name)=lower($1))`, name).Scan(&taken); err != nil {
+		return "", false, "", err
 	}
-	// D20: new ERP products are not sellable until the owner prices and enables them.
+	if taken && fc != "" { // THE ONLY ONE (the hamper set) vs the fragrance THE; ONLY THE BRAVE vs its rework ONL-R
+		note = fmt.Sprintf("fg %s: product name %q is taken, new product named %q", fg.Code, name, name+" ("+fc+")")
+		name += " (" + fc + ")"
+	}
 	if err := q.QueryRow(ctx, `
 		INSERT INTO products (name, brand, category_id, sellable, is_active, erp_group_key)
 		VALUES ($1,'',$2::text::uuid,false,$3,$4) RETURNING id::text`,
 		name, catID, active, key).Scan(&id); err != nil {
-		return "", false, false, err
+		return "", false, "", err
 	}
-	return id, true, catCreated, nil
+	return id, true, note, nil
+}
+
+// productByLinkedFragrance locks the single product without an "erp:" key that holds an
+// ERP-linked variant whose SKU has fragrance code fc. Two such products is an item error:
+// the operator must give one of them the key erp:<fc>.
+func productByLinkedFragrance(ctx context.Context, q pgx.Tx, fc string) (string, bool, error) {
+	rows, err := q.Query(ctx, `
+		SELECT DISTINCT p.id::text FROM products p JOIN product_variants v ON v.product_id=p.id
+		 WHERE v.erp_slug IS NOT NULL AND (p.erp_group_key IS NULL OR p.erp_group_key LIKE 'pos:%')
+		   AND substring(upper(v.sku) from '^(?:[A-Z]+[0-9]+[A-Z]*|[0-9]+[A-Z]+)-(.+)$') = $1
+		 LIMIT 2`, fc)
+	if err != nil {
+		return "", false, err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return "", false, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return "", false, err
+	}
+	switch len(ids) {
+	case 0:
+		return "", false, nil
+	case 1:
+		return ids[0], true, lockProduct(ctx, q, ids[0])
+	}
+	return "", false, itemError(fmt.Sprintf("fragrance %s is linked in more than one POS product; give one of them erp_group_key erp:%s", fc, fc))
+}
+
+func derefOr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 func sameCategory(a, b *string) bool {

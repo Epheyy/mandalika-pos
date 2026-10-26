@@ -82,54 +82,74 @@ func TestProductNameFromFG(t *testing.T) {
 		{"no token", "Mandalika   Oud", "Mandalika Oud"},
 		{"only token falls back", "50ml", "50ml"},
 		{"digits glued to word untouched", "Oud50ml", "Oud50ml"},
+		{"ERP size-line suffix", "24HOURS - 100ML PARFUM INTENSE", "24HOURS"},
+		{"ERP suffix with M", "NO1 - 110ML M EXTRAIT", "NO1"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := ProductNameFromFG(tc.in, nil); got != tc.want {
+			if got := ProductNameFromFG(tc.in); got != tc.want {
 				t.Fatalf("ProductNameFromFG(%q) = %q, want %q", tc.in, got, tc.want)
 			}
 		})
 	}
 }
 
-func TestGroupKey(t *testing.T) {
-	k30 := GroupKey("Mandalika Oud 30ml", f64(30))
-	k50 := GroupKey("Mandalika Oud 50ml", f64(50))
-	if k30 != k50 {
-		t.Fatalf("siblings must share a key: %q vs %q", k30, k50)
-	}
-	if want := "pos:mandalika oud"; k30 != want {
-		t.Fatalf("key = %q, want %q", k30, want)
-	}
-	if norm := GroupKey("  MANDALIKA   oud 50 ml ", f64(50)); norm != k50 {
-		t.Fatalf("normalisation: %q vs %q", norm, k50)
-	}
-	if other := GroupKey("Mandalika Rose 50ml", f64(50)); other == k50 {
-		t.Fatalf("different fragrance must change key, both %q", other)
+func gfg(code, name string, others bool) erpapi.IntegrationFG {
+	return erpapi.IntegrationFG{Code: code, Name: name, IsOthers: others}
+}
+
+// Mapping v3 §6.2: the fragrance part of the code groups, not the name. ONLY THE BRAVE
+// PP120E-ONL and PP120E-ONL-R ("… - 120ML EXTRAIT REWORK") share a stripped name but are two
+// groups; the name rule would have collided.
+func TestGroupKeyByFragranceCode(t *testing.T) {
+	for _, c := range []struct {
+		fg   erpapi.IntegrationFG
+		want string
+	}{
+		{gfg("PP120E-24H", "24HOURS", false), "erp:24H"},
+		{gfg("PP100P-24H", "24HOURS - 100ML PARFUM INTENSE", false), "erp:24H"},
+		{gfg("15GL-NO1", "NO1", false), "erp:NO1"},
+		{gfg("PP120E-ONL", "ONLY THE BRAVE", false), "erp:ONL"},
+		{gfg("PP120E-ONL-R", "ONLY THE BRAVE - 120ML EXTRAIT REWORK", false), "erp:ONL-R"},
+		{gfg("A10M-HOL-EX", "HOLY SWEET ELIXIR", false), "erp:HOL-EX"},
+		{gfg("DW110E-GOR", "GORGEOUS TUBEROSE", true), "erp:DW110E-GOR"}, // others: one product per item
+		{gfg("KEM-CAN", "CANVAS BAG MANDALIKA", true), "erp:KEM-CAN"},
+		{gfg("SN030", "Santal Noir 30ml", false), "pos:santal noir"}, // no fragrance part: name rule
+		{gfg("SN110", "  SANTAL   noir 110 ml ", false), "pos:santal noir"},
+	} {
+		if got := GroupKey(c.fg); got != c.want {
+			t.Errorf("GroupKey(%s %q) = %q, want %q", c.fg.Code, c.fg.Name, got, c.want)
+		}
 	}
 }
 
-// Regression (ERP local pull 2026-10-23): one fragrance whose sizes sit in different
-// ERP categories must group into one POS product, not one product per category.
-func TestGroupKeyIgnoresCategory(t *testing.T) {
-	if a, b := GroupKey("Santal Noir 30ml", f64(30)), GroupKey("Santal Noir 100ml", f64(100)); a != b {
-		t.Fatalf("one fragrance split across categories: %q vs %q", a, b)
+func TestOthersProductName(t *testing.T) {
+	if got := OthersProductName(" 24HOURS ", "DP120E-24H"); got != "24HOURS (DP120E-24H)" {
+		t.Fatalf("OthersProductName = %q", got)
 	}
 }
 
-func TestCategoryGroupKey(t *testing.T) {
-	edp, mist := str("Eau de Parfum"), str("Body Mist")
-	a, b := CategoryGroupKey("Santal Noir 100ml", edp, f64(100)), CategoryGroupKey("Santal Noir 100ml", mist, f64(100))
-	if a == b {
-		t.Fatalf("tie-breaker must separate categories, both %q", a)
+func TestGroupGendersMajorityThenLowestCode(t *testing.T) {
+	g := func(code string, gender erpapi.IntegrationFGGender, others bool) erpapi.IntegrationFG {
+		return erpapi.IntegrationFG{Code: code, Name: "x", Gender: gender, IsOthers: others}
 	}
-	if want := "pos:santal noir|eau de parfum"; a != want {
-		t.Fatalf("key = %q, want %q", a, want)
+	got := GroupGenders([]erpapi.IntegrationFG{
+		// GORGEOUS TUBEROSE: 5 WOMEN, 2 UNISEX (production 2026-10-26)
+		g("A10M-GOR", erpapi.WOMEN, false), g("15GL-GOR", erpapi.WOMEN, false), g("15GW-GOR", erpapi.WOMEN, false),
+		g("V2E-GOR", erpapi.WOMEN, false), g("V2P-GOR", erpapi.WOMEN, false),
+		g("PW110E-GOR", erpapi.UNISEX, false), g("PW110P-GOR", erpapi.UNISEX, false),
+		g("DW110E-GOR", erpapi.UNISEX, true), g("DW110P-GOR", erpapi.UNISEX, true), // others do not vote
+		// a tie: the lowest code's gender wins
+		g("V2P-TIE", erpapi.MEN, false), g("A10M-TIE", erpapi.WOMEN, false),
+		g("V2E-BAD", "", false), // no valid gender: no entry
+	})
+	want := map[string]erpapi.IntegrationFGGender{"erp:GOR": erpapi.WOMEN, "erp:TIE": erpapi.WOMEN}
+	if len(got) != len(want) {
+		t.Fatalf("GroupGenders = %v, want %v", got, want)
 	}
-	if a == GroupKey("Santal Noir 100ml", f64(100)) {
-		t.Fatal("tie-breaker key must differ from the plain key")
-	}
-	if none := CategoryGroupKey("Santal Noir 100ml", nil, f64(100)); none != "pos:santal noir|" {
-		t.Fatalf("nil category key = %q", none)
+	for k, w := range want {
+		if got[k] != w {
+			t.Errorf("GroupGenders[%s] = %q, want %q", k, got[k], w)
+		}
 	}
 }

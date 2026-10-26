@@ -21,7 +21,7 @@ func fgSourceName(fg erpapi.IntegrationFG) string {
 	if fg.IsOthers {
 		return collapseSpaces(fg.Name)
 	}
-	return ProductNameFromFG(fg.Name, fg.Size)
+	return ProductNameFromFG(fg.Name)
 }
 
 // fgCategory is the category text stored for an FG: spaces collapsed, nil when blank.

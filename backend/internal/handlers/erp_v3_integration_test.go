@@ -71,7 +71,7 @@ func erV3Subtests(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Run("v3-existing-product-fields-are-pos-owned", func(t *testing.T) {
 		e := newErEnv(t, ctx, pool, 0)
 		erPosOutlet(t, ctx, pool, "Mandalika PMS", "PMS", "SURABAYA", "0811", "")
-		no1 := erPosProduct(t, ctx, pool, "NO1", "MAN", "pos:no1",
+		no1 := erPosProduct(t, ctx, pool, "NO1", "MAN", "erp:NO1",
 			erPosVariant{"10ml ATOMIZER", "A10M-NO1", "a10m-no1"}, erPosVariant{"2ml EXTRAIT DE PARFUM", "V2E-NO1", "v2e-no1"})
 		uns := erPosProduct(t, ctx, pool, "UNSTOPPABLE", "UNISEX", "erp:UNS", erPosVariant{"10ml ATOMIZER", "A10M-UNS", "a10m-uns"})
 		can := erPosProduct(t, ctx, pool, "CANVAS BAG", "KEMASAN", "erp:KEM-CAN", erPosVariant{"Satuan", "KEM-CAN", "kem-can"})
@@ -211,4 +211,6 @@ func erV3Subtests(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 			t.Fatal(err)
 		}
 	})
+
+	erV3CatalogSubtests(t, ctx, pool)
 }
