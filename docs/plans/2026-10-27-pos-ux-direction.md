@@ -468,7 +468,7 @@ Constraints: nothing touches code before the 2026-11-02 demo; POS web-layer chan
 
 ### Fase 0 — sebelum demo (now until 2026-11-02): decisions and mocks only
 - Owner has answered the D-register (2026-10-27). Zero code before 2 Nov.
-- Hi-fi mocks of W1-W5 in **Figma** (the `design:figma` connector is authorised): A1 tokens as Figma variables (paper, ink, brand, semantic), the five screens at 1280×800, plus the three brand skins as variable modes. This is the approval artifact for Fase A and the reference `impeccable` reviews against. 1 session.
+- Hi-fi mocks of W1-W5 in **Figma** — DONE 2026-10-27: https://www.figma.com/design/iMyGehblek8VJXbMIRRPrf (page "Kertas & Emas": a tokens board, then W1 Katalog + Keranjang, W2 Bayar, W3 Pelanggan + Hadiah, W4 Refund from Riwayat, W5 Koneksi & antrean, all 1280×800 with every fill bound to the Brand / Semantic / Dimension variables). The Figma Starter plan allows one variable mode, so brand skins are not modes: `brand/primary` is re-aliased to a `palette/*` entry per brand, and Flamboyan / Performance Perfume colours are placeholders until the owner supplies them (**D-24**). This is the approval artifact for Fase A and the reference `impeccable` reviews against.
 
 ### Fase 0b — jendela polish POS 2026-11-02 → 2026-11-07 (only if the POS is not in the 2 Nov demo)
 Five working days. What fits, in order, all OTA-safe and none touching SyncEngine or the order payload:
@@ -581,6 +581,7 @@ Owner answered on 2026-10-27: "agree with most of all the defaults"; D-11 no per
 | D-20 | Low-stock threshold for the amber tile state | 2 units per variant | 2 |
 | D-21 | Optional reference number field for Kartu/QRIS/Transfer | Yes in A3 (display + payload field to confirm with the server) | Yes |
 | D-22 | Backoffice English leftovers renamed (Dashboard, Overview, Template, Log Error) | Yes | Yes |
-| D-23 | Hi-fi mocks in Figma before Fase A | (new) | **Yes**, Fase 0, via the authorised `design:figma` connector |
+| D-23 | Hi-fi mocks in Figma before Fase A | (new) | **Done** 2026-10-27: https://www.figma.com/design/iMyGehblek8VJXbMIRRPrf |
+| D-24 | Brand colours for Flamboyan and Performance Perfume (Figma `palette/*` placeholders: rose `#9f1f4a`, navy `#1f3a8a`) | (new) | **Owner to supply** the real brand hex values |
 
 Known limits of this document: no screenshots of competitor apps were inspected (prose sources only); Lightspeed and Pawoon help centers refused fetches, so those facts are search excerpts; tap counts for the proposed design are targets, not measurements, until `ecc:click-path-audit` runs on a build; the POS inventory did not read `ShiftRecapPanel.tsx`, the requisition screens and `authBoot` in full.
