@@ -1,6 +1,6 @@
 # Arah UI/UX POS Mandalika — dokumen arah desain (2026-10-27)
 
-Status: **proposal for owner approval, no code changed.** Written on branch `claude/pos-ux-direction-2026-10-27` (off `prod-hardening`), not pushed. Nothing here is to be built before the ERP demo on 2026-11-02.
+Status: **direction approved by the owner on 2026-10-27 with amendments (see the D-register), no code changed.** Branch `claude/pos-ux-direction-2026-10-27` (off `prod-hardening`). Nothing is built before the ERP demo on 2026-11-02; the owner has a **POS polish window of 2026-11-02 to 2026-11-07** if the POS is not part of the 2 Nov demo, and wants the items that this document first deferred ("No", "Skip in v1", "Later") pulled into that window.
 
 Scope: the POS cashier app (`apps/pos/src`, Capacitor + React, Android tablets 10-11 inch in landscape, offline-first, OTA via Capgo) first, then the web backoffice (`apps/backoffice/src`). The product is a template for three perfume brands (Mandalika, Flamboyan, Performance Perfume), so every visual decision below is expressed as tokens that can be re-skinned per brand.
 
@@ -14,7 +14,7 @@ How to read: section 1 is what exists today (read from the code, with `file:line
 - **Ten frictions dominate** (section 1.3): sub-44 px touch targets on the hot path, 10-11 px fixed text that the font setting cannot scale, a 3-tap variant popup that starts every size at 0, a wrong "Stok habis" warning, silent wipes of promos/customer/cart, six words for "discount" behind two buttons, two offline indicators that disagree, a parked sale that only turns a chip red, whole-order-only refunds buried 9 taps deep, and a printed receipt that does not match the screen.
 - **Recommended direction: "Kertas & Emas"** (paper and gold): warm-paper surfaces, ink-black text at 16 sp minimum, one gold reserved for the primary action and brand, and a strict semantic palette for state (stock, offline/sync, promo, reward) that is never gold. Big tiles, a persistent customer chip, a single "Promo & Diskon" door, one connection-and-queue chip, and a Bayar bar that always shows the total.
 - **Evidence from the market** (section 2): Majoo, Moka, Qasir, Square, Shopify, Toast, Loyverse and Lightspeed converge on 14 patterns; we already do 8 of them structurally and do the offline ones better than the Indonesian vendors. The gaps are the tender screen, the variant sheet, the line-edit sheet, and visible per-order sync state.
-- **Plan**: after the demo, 4 OTA-safe restyle slices (about 7 sessions), then 3 UI-flow slices inside the POS web layer (about 6 sessions, reviewed against the cart reducer), then 4 data/flow slices that touch SyncEngine, stock or the receipt schema (about 8 sessions). Backoffice follows in 4 slices (about 9 sessions). Total about 30 sessions. Section 5 has the order and the first three things to do.
+- **Plan**: Figma mocks before the demo (Fase 0); in the 2-7 Nov polish window the 4 OTA-safe restyle slices plus held orders, blind count and the denomination counter (about 7 sessions); then 3 UI-flow slices inside the POS web layer (about 6 sessions, reviewed against the cart reducer); then data/flow slices that touch SyncEngine, stock, the receipt schema or tender invariants, including split tender (about 11 sessions). Backoffice follows in 4 slices (about 9 sessions). Total about 34 sessions. Section 5 has the order and the first three things to do.
 
 ---
 
@@ -152,7 +152,7 @@ Fit: **Strong** = adopt as is; **Adapt** = adopt with a perfume-counter twist; *
 | P6 | Checkout in 2-4 taps: Bayar → method → amount → Selesai | Majoo https://majoo.id/panduan-pengguna/detail/56 ; Moka Charge; Shopify tap counts (URL above) | **Strong.** One Bayar bar with the total on it. |
 | P7 | Cash tender: quick-amount chips from the total + Uang Pas + keypad, change inline | Majoo https://majoo.id/panduan-pengguna/detail/65 ; Qasir; Toast https://support.toasttab.com/en/article/Taking-Payments ; Shopify 11.10 (roundup URL) | **Adapt.** IDR chips: Uang Pas · next 50k · next 100k · next 500k · 1.000.000 (**D-3**). QRIS/Transfer/Kartu in the same method list. |
 | P8 | Automatic promos appear as labelled lines with no cashier action; manual discount and code entry share one door; combinability is an explicit rule | Square auto toggle https://squareup.com/help/us/en/article/6606 ; Shopify combining (URL above); Majoo Promosi → Promo/Kupon/Poin https://majoo.id/panduan-pengguna/detail/303 ; Pawoon auto promo [snippet] | **Strong.** The engine already has auto, code, stacking, BXGY, tiered, bundle. The UI job is one "Promo & Diskon" button and labelled cart lines. |
-| P9 | Manual discount, refund and reward redemption are PIN or role gated, visibly | Olsera Pass Keys; iReap role gate; Moka PIN [3P]; Square passcode discounts | **Adapt.** Backend already splits discount permission (A09 8b); the UI should show a lock before the attempt, not an error after (**D-11**). |
+| P9 | Manual discount, refund and reward redemption are PIN or role gated, visibly | Olsera Pass Keys; iReap role gate; Moka PIN [3P]; Square passcode discounts | **Adapt, partially.** No permission gate exists today (HANDOFF slice 8b was never built) and the owner does not want one: it would slow the counter (**D-11**). Keep the PIN only where it already exists (refund approval, A06). Refund and reward gating follow the vendors; manual discount stays open to every cashier. |
 | P10 | Customer is a persistent chip in the cart header; loyalty appears only after attach; a reward becomes a cart line | Majoo +Pelanggan / Ganti / Tanpa Pelanggan https://majoo.id/panduan-pengguna/detail/52 and Poin → Gratis Produk https://majoo.id/panduan-pengguna/detail/303 ; Loyverse https://help.loyverse.com/help/points-discounts ; Square rewards [snippet]; Olsera required/optional attach | **Strong.** Matches SP-CRM-9 (reward = Rp0 line). The chip should show tier and reward count without opening anything. |
 | P11 | Offline is automatic and visible: one status chip, per-order state (queued / sent / failed), and a status page with Retry | Square (7777 URL); Toast banner (offline URL); Shopify badges + Connectivity (offline-payments URL); Lightspeed Status page [snippet]; Loyverse "Unsynced"; Majoo Status top-left https://majoo.id/panduan-pengguna/detail/53 | **Strong.** Indonesian vendors mostly leave this implicit; doing it well is a differentiator and our engine already exposes the states (1.4). |
 | P12 | Explicit capability downgrade offline: online-only actions disabled with a reason, selling stays | Lightspeed [snippet]; Loyverse (refund disabled offline); Toast (loyalty unavailable); iReap referenced retur; Kasir Pintar "Mode Wajib Online" [snippet] | **Strong.** We already gate loyalty preview, requisitions and shift open online-only; the button should say so. |
@@ -186,7 +186,7 @@ Set aside: held orders (Majoo Daftar Order, Moka Save Bill; Moka blocks split bi
 **One tap away (a sheet that slides over the cart or the catalog, never two deep):**
 - Variant sheet (tap a multi-size tile): size rows with price and stock, tap = add one, "+ 1" repeat.
 - Line sheet (tap a cart line): qty stepper, size switch, line discount (if permitted), note, Hapus.
-- Promo & Diskon sheet: code field at top, active promos as toggle cards with the "Bisa digabung" rule, manual Diskon/Surcharge at the bottom behind the permission lock. Pickers for BXGY/bundle replace the sheet's content (same sheet, back arrow), never stack on it.
+- Promo & Diskon sheet: code field at top, active promos as toggle cards with the "Bisa digabung" rule, manual Diskon/Biaya tambahan at the bottom, open to every cashier (D-11). Pickers for BXGY/bundle replace the sheet's content (same sheet, back arrow), never stack on it.
 - Pelanggan sheet: phone field, recent customers, result with tier and "N hadiah tersedia", + Baru.
 - Checkout sheet (Bayar): methods, cash chips, keypad, change, loyalty reward and points in a "Hadiah & Poin" block above the methods when a customer is attached, Konfirmasi.
 - Connection sheet (tap the chip): status, queue list with per-order state, "Kirim sekarang", "Perbarui data", "Bagikan log".
@@ -272,7 +272,7 @@ Tone: short, plain, second person implied, no blame, no system words ("server", 
 | Methods | **Tunai · Kartu · QRIS · Transfer** | — |
 | Automatic or listed promotion | **Promo** | Promosi Aktif, BOGO, tier, Bertingkat (use "Beli lebih, hemat lebih") |
 | Typed code | **Kode Promo** | Kode diskon, Kode:, Kode |
-| Manual reduction | **Diskon manual** (needs permission) | Diskon / Surcharge; "Surcharge" → **Biaya tambahan** |
+| Manual reduction | **Diskon manual** (no permission gate, D-11) | Diskon / Surcharge; "Surcharge" → **Biaya tambahan** |
 | The amount saved | **Hemat Rp X** on lines; **Total hemat** in totals | Potongan, Total Promo, Total Diskon |
 | Combinable | **Bisa digabung** / **Tidak bisa digabung** | tidak digabung |
 | Anything free | **Hadiah** (line label **GRATIS**) | Hadiah Loyalti / Hadiah Promo as separate concepts; "giveaway" |
@@ -466,8 +466,24 @@ Backoffice wireframe (described, not drawn): the shell keeps the 256 px sidebar 
 
 Constraints: nothing touches code before the 2026-11-02 demo; POS web-layer changes ship over OTA (Capgo) without an APK, native changes (fonts in the APK, Capacitor plugins) need an APK; anything that touches `packages/sync`, `cashier/stock.ts`, the cart reducer's order payload, `receiptQuote`, or the backend goes through the reviewer agent and the Neon e2e routine. "Session" = one focused Claude Code session of implementation plus review, per the repo's existing routine.
 
-### Fase 0 — sebelum demo (now until 2026-11-02): decisions only
-- Owner reads this document and answers the D-register (end of file). Zero code. If the owner wants to see the direction, a static HTML mock of W1 and W2 can be produced as an artifact without touching the repo (1 session, optional).
+### Fase 0 — sebelum demo (now until 2026-11-02): decisions and mocks only
+- Owner has answered the D-register (2026-10-27). Zero code before 2 Nov.
+- Hi-fi mocks of W1-W5 in **Figma** (the `design:figma` connector is authorised): A1 tokens as Figma variables (paper, ink, brand, semantic), the five screens at 1280×800, plus the three brand skins as variable modes. This is the approval artifact for Fase A and the reference `impeccable` reviews against. 1 session.
+
+### Fase 0b — jendela polish POS 2026-11-02 → 2026-11-07 (only if the POS is not in the 2 Nov demo)
+Five working days. What fits, in order, all OTA-safe and none touching SyncEngine or the order payload:
+1. **A1 tokens + kit** (day 1-2).
+2. **A4 status, copy, locks** (day 2-3).
+3. **A2 catalog + cart** including the best-size tile promotion (**D-2**, now Yes) and price/stock on tiles (day 3-4).
+4. **A3 checkout** (day 4-5).
+5. The deferred items the owner pulled forward, as far as they are POS-local:
+   - **Held orders / Simpan pesanan** (**D-6**, now Yes): save the current cart to tablet storage with a name, a "Pesanan tersimpan (N)" chip in the cart header, restore and delete. Cart-reducer plus local storage only; no payload change. Fits in the window (1 session).
+   - **Blind count at Tutup Shift** (**D-4**, now Yes as an option in Pengaturan): hide "Sistem" amounts until "Terhitung" is entered. Display-only in `ShiftRecapPanel.tsx`. Fits (half a session).
+   - **Denomination counter at Tutup Shift** (**D-5**, now Yes): 100k/50k/20k/10k/5k/2k/1k/coins × count → fills "Terhitung Tunai". Display-only. Fits (half a session).
+   - **OTA "Versi baru siap" prompt** (**D-19**, now in the window): needs Capgo manual mode, a native config change, so it ships as an **APK**, not OTA; build it in the window but it reaches tablets only through the fleet rollout.
+   - **Split tender** (the other half of D-6): touches the tender invariants (A09), the order payload, the sync schema and the backend. **Not safe inside the window**; scheduled as C6 after the window with the reviewer and Neon e2e.
+   - **Dark theme** (**D-12**): No, confirmed by the owner.
+If the POS **is** in the 2 Nov demo, Fase 0b collapses into the first week after the demo in the same order.
 
 ### Fase A — restyle tanpa perubahan perilaku (POS, OTA-safe, class R) — about 7 sessions
 | Slice | Content | Files (POS) | Sessions |
@@ -493,7 +509,8 @@ Review: `chore` agent for mechanical swaps, `reviewer` for anything in `CashierS
 | C2 Parked sale, per-item | `onDeadLetter` → cashier-visible event; per-item retry/dismiss in the W5 sheet; guard rails on Tutup Shift / Keluar with counts | 1-2 |
 | C3 Giveaway visible | POS reads the outlet giveaway config, shows the GRATIS bag line in the cart and subtracts it in the stock display (`engine.ts:993-1016`); server behaviour unchanged (**D-13**) | 1-2 |
 | C4 Refund per baris | Refund payload with items, server stock restore per line, sync schema, backoffice Refund report; reason presets; PIN (**D-14**) | 3 |
-| (optional) C5 Native | Bundled brand font and an OTA "Versi baru siap" prompt (Capgo manual mode) → APK (**D-7**, **D-19**) | 1 |
+| C5 Native | Bundled brand font (if **D-7** changes) and the OTA "Versi baru siap" prompt (Capgo manual mode) → APK (**D-19**, built in Fase 0b, shipped by fleet rollout) | 1 |
+| C6 Split tender | Choose type then amount (Shopify/Loyverse model), tender invariants (A09), order payload, sync schema, backend, receipt; the second half of **D-6** | 2-3 |
 
 ### Fase D — backoffice — about 9 sessions
 | Slice | Content | Sessions |
@@ -508,7 +525,7 @@ Review: `chore` agent for mechanical swaps, `reviewer` for anything in `CashierS
 2. **A4 status, copy, locks** (the cheapest change with the largest effect on "is my sale safe"; pure strings and one chip).
 3. **A2 catalog + cart** (the hot path; touch targets and visible price/stock), then A3, then B1.
 
-Total: Fase A about 7, B about 6, C about 8, D about 9 → about 30 sessions, with A+B (about 13) delivering the visible cashier result.
+Total: Fase 0 about 1, A about 7 (of which about 5 fit the 2-7 Nov window), B about 6, C about 11 (with C6), D about 9 → about 34 sessions, with 0b+A+B (about 14) delivering the visible cashier result.
 
 ---
 
@@ -529,37 +546,41 @@ Installed already (invoke, do not reinstall):
 - **dataviz**: only for backoffice reports (Laporan, Pergerakan reconcile strip) so charts share the token palette.
 - **ecc:ui-demo**: record a short demo of the restyled hot path for the owner's approval between A3 and B1.
 
-Worth installing (not present): nothing essential. If the owner wants Figma-level handoff, authorise the `design:figma` connector via /mcp; otherwise the ASCII wireframes plus the static HTML mock are sufficient for this team.
+- **design:figma** (connector authorised by the owner on 2026-10-27): Fase 0 hi-fi mocks of W1-W5 with the A1 tokens as Figma variables and three brand modes; later `get_design_context` / Code Connect so the React components in A1 map to the Figma components, and `get_screenshot` as the reference the finish reviewer compares each OTA slice against.
+- **design:design-handoff**: turns the Figma frames into the per-slice specs (spacing, states, copy) that the `implementer` agent builds from.
+
+Worth installing (not present): nothing essential.
 
 ---
 
 ## Daftar keputusan pemilik (owner decisions, D-register)
 
-Every item below is an assumption in this document until the owner answers it.
+Owner answered on 2026-10-27: "agree with most of all the defaults"; D-11 no permission gate; every "No" / "Skip in v1" / "Later" item pulled forward into the 2-7 Nov window; Figma connector authorised. The "Decided" column is the current state.
 
-| ID | Decision | Default assumed here |
-|---|---|---|
-| D-1 | Catalog/cart split ratio in landscape | 62 / 38 |
-| D-2 | Promote the best-selling size of a product to its own tile | No in v1 |
-| D-3 | Cash quick-amount chip set | Uang Pas · next 50k · next 100k · next 500k · 1.000.000 |
-| D-4 | Blind count at Tutup Shift (hide expected cash from the cashier) | Off |
-| D-5 | Denomination counter at Tutup Shift | Not in v1 |
-| D-6 | Held orders / split tender | Skip in v1 |
-| D-7 | Font: system Roboto (OTA) vs bundled brand font (APK) | System |
-| D-8 | "Refund" vs "Retur" | Refund |
-| D-9 | Show price and stock on tiles by default | Yes |
-| D-10 | Tap a size row adds one immediately (no 0-start popup) | Yes |
-| D-11 | Show a lock on manual discount for cashiers without the permission | Yes |
-| D-12 | Dark theme | No |
-| D-13 | Show the per-sale giveaway (canvas bag) as a GRATIS line on the POS and subtract it from displayed stock | Yes (phase C) |
-| D-14 | Per-line refund scope (backend + sync schema) | Yes, phase C, PIN-gated |
-| D-15 | Backoffice router / URL state | Yes, phase D4 |
-| D-16 | Sidebar grouping into five sections | As in 4.1 |
-| D-17 | One token layer, three brand skins (only `--brand-*` and logo differ) | Yes |
-| D-18 | Remove the dead "Ambil Pesanan" menu item | Yes |
-| D-19 | Add a visible OTA "Versi baru siap" prompt (Capgo manual mode, APK change) | Later |
-| D-20 | Low-stock threshold for the amber tile state | 2 units per variant |
-| D-21 | Optional reference number field for Kartu/QRIS/Transfer | Yes in A3 (display + payload field to confirm with the server) |
-| D-22 | Backoffice English leftovers renamed (Dashboard, Overview, Template, Log Error) | Yes |
+| ID | Decision | Default proposed | Decided (2026-10-27) |
+|---|---|---|---|
+| D-1 | Catalog/cart split ratio in landscape | 62 / 38 | 62 / 38 |
+| D-2 | Promote the best-selling size of a product to its own tile | No in v1 | **Yes**, in Fase 0b (A2) |
+| D-3 | Cash quick-amount chip set | Uang Pas · next 50k · next 100k · next 500k · 1.000.000 | As proposed |
+| D-4 | Blind count at Tutup Shift (hide expected cash from the cashier) | Off | **Yes**, as a setting, Fase 0b |
+| D-5 | Denomination counter at Tutup Shift | Not in v1 | **Yes**, Fase 0b |
+| D-6 | Held orders / split tender | Skip in v1 | **Yes**: held orders in Fase 0b (POS-local); split tender as C6 after the window (touches tender invariants, payload, backend) |
+| D-7 | Font: system Roboto (OTA) vs bundled brand font (APK) | System | System |
+| D-8 | "Refund" vs "Retur" | Refund | Refund |
+| D-9 | Show price and stock on tiles by default | Yes | Yes |
+| D-10 | Tap a size row adds one immediately (no 0-start popup) | Yes | Yes |
+| D-11 | Permission gate (lock) on manual discount | Yes | **No gate.** Owner: a gate would slow the counter. Also closes HANDOFF's open "slice 8b discount permission" decision as "not wanted". |
+| D-12 | Dark theme | No | **No** (owner confirmed 2026-10-27) |
+| D-13 | Show the per-sale giveaway (canvas bag) as a GRATIS line on the POS and subtract it from displayed stock | Yes (phase C) | Yes (phase C) |
+| D-14 | Per-line refund scope (backend + sync schema) | Yes, phase C, PIN-gated | Yes, phase C, PIN-gated (refund PIN is A06, already live) |
+| D-15 | Backoffice router / URL state | Yes, phase D4 | Yes |
+| D-16 | Sidebar grouping into five sections | As in 4.1 | As in 4.1 |
+| D-17 | One token layer, three brand skins (only `--brand-*` and logo differ) | Yes | Yes, modelled as Figma variable modes |
+| D-18 | Remove the dead "Ambil Pesanan" menu item | Yes | Yes (replaced by "Pesanan tersimpan" once D-6 lands) |
+| D-19 | Add a visible OTA "Versi baru siap" prompt (Capgo manual mode, APK change) | Later | **Build in Fase 0b**, ships via APK fleet rollout |
+| D-20 | Low-stock threshold for the amber tile state | 2 units per variant | 2 |
+| D-21 | Optional reference number field for Kartu/QRIS/Transfer | Yes in A3 (display + payload field to confirm with the server) | Yes |
+| D-22 | Backoffice English leftovers renamed (Dashboard, Overview, Template, Log Error) | Yes | Yes |
+| D-23 | Hi-fi mocks in Figma before Fase A | (new) | **Yes**, Fase 0, via the authorised `design:figma` connector |
 
 Known limits of this document: no screenshots of competitor apps were inspected (prose sources only); Lightspeed and Pawoon help centers refused fetches, so those facts are search excerpts; tap counts for the proposed design are targets, not measurements, until `ecc:click-path-audit` runs on a build; the POS inventory did not read `ShiftRecapPanel.tsx`, the requisition screens and `authBoot` in full.
