@@ -1,0 +1,50 @@
+import type { Tone } from '../components/ui/tone'
+
+export type ChipInput = {
+  reachable: boolean
+  offlineLevel: 'unknown' | 'ok' | 'warn' | 'locked'
+  offlineHours?: number
+  /** Items waiting in the outbox (sending or queued). */
+  pending: number
+  /** Retryable items that keep failing. */
+  stuck: number
+  /** Dead-lettered items needing review. */
+  parked: number
+  accountIssue: boolean
+  /** A reference-data pull is in flight. */
+  updating: boolean
+  /** Backoffice has newer reference data than this tablet. */
+  wallRaised: boolean
+}
+
+export type ChipModel = { text: string; tone: Tone }
+
+const ACCOUNT_CHIP: ChipModel = { text: 'Masalah akun', tone: 'danger' }
+
+/** The one connection + queue chip (UX direction section 3.5). Pure: the caller maps engine state. */
+export function chipModel(i: ChipInput): ChipModel {
+  return i.reachable ? onlineChip(i) : offlineChip(i)
+}
+
+function onlineChip(i: ChipInput): ChipModel {
+  if (i.parked > 0) return { text: `${i.parked} perlu ditinjau`, tone: 'danger' }
+  if (i.accountIssue) return ACCOUNT_CHIP
+  if (i.stuck > 0) return { text: `${i.stuck} tertunda`, tone: 'warn' }
+  if (i.pending > 0) return { text: `Mengirim ${i.pending}…`, tone: 'info' }
+  if (i.updating) return { text: 'Memperbarui data…', tone: 'info' }
+  if (i.wallRaised) return { text: 'Data baru siap · perbarui', tone: 'info' }
+  return { text: 'Online · Tersinkron', tone: 'ok' }
+}
+
+function offlineChip(i: ChipInput): ChipModel {
+  if (i.accountIssue) return ACCOUNT_CHIP
+  const locked = i.offlineLevel === 'locked'
+  const prefix = locked ? 'Offline terkunci' : i.offlineLevel === 'warn' ? `Offline ${i.offlineHours ?? 10} jam` : 'Offline'
+  if (i.parked > 0) return { text: `${prefix} · ${i.parked} perlu ditinjau`, tone: 'danger' }
+  const tone: Tone = locked ? 'danger' : 'warn'
+  if (i.pending > 0) {
+    const saved = locked || i.offlineLevel === 'warn' ? `${i.pending} tersimpan` : `${i.pending} tersimpan di tablet`
+    return { text: `${prefix} · ${saved}`, tone }
+  }
+  return { text: `${prefix} · ${locked ? 'hubungi admin' : 'aman'}`, tone }
+}

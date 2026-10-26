@@ -19,7 +19,8 @@ import { setBackHandler } from '../native'
 import { useAuth } from '../auth'
 import { useOfflineData } from '../hooks/useOfflineData'
 import { useOfflineCap } from '../hooks/useOfflineCap'
-import { offlineLockMessage } from '../lib/offlineCap'
+import { OFFLINE_LOCKED_MESSAGE, offlineLockMessage } from '../lib/offlineCap'
+import { Banner } from '../components/ui'
 import { useShift } from '../hooks/useShift'
 import { useTerminalLabel } from '../hooks/useTerminalLabel'
 import { useCart } from '../hooks/useCart'
@@ -187,6 +188,7 @@ export default function CashierScreen() {
   // panel then requires counted income before allowing the close.
   const [closeIntent, setCloseIntent] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [showConnection, setShowConnection] = useState(false)
   const [showReceive, setShowReceive] = useState(false)
   const [showTransferHistory, setShowTransferHistory] = useState(false)
   const [showRequisitions, setShowRequisitions] = useState(false)
@@ -342,11 +344,8 @@ export default function CashierScreen() {
     variantQtys: Record<string, number>,
   ): boolean => {
     if (!ensureShift()) return false
-    const lockedMsg = offlineLock()
-    if (lockedMsg) {
-      showToast(lockedMsg)
-      return false
-    }
+    // The persistent lock banner under the header explains why; no toast.
+    if (offlineLock()) return false
     track(`Tambah ${product.name}`)
     const inCart = (size: string) => state.cart
       .filter((i) => i.productId === product.id && i.variantSize === size)
@@ -944,6 +943,7 @@ export default function CashierScreen() {
   // Android hardware Back: close the top-most surface instead of exiting.
   useEffect(() => {
     setBackHandler(() => {
+      if (showConnection) { setShowConnection(false); return true }
       if (showMenu) { setShowMenu(false); return true }
       if (showSettings) { setShowSettings(false); return true }
       if (showHistory) { setShowHistory(false); return true }
@@ -962,7 +962,7 @@ export default function CashierScreen() {
     })
     return () => setBackHandler(null)
   }, [
-    showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRequisitions, showRecap, refundOrder,
+    showConnection, showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRequisitions, showRecap, refundOrder,
     state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment,
     state.activeTab,
   ])
@@ -992,19 +992,10 @@ export default function CashierScreen() {
             onRequestClose={() => { setCloseIntent(true); setShowRecap(true) }}
             promptOpen={shiftPrompt} onPromptConsumed={() => setShiftPrompt(false)}
           />
-          {/* Online/offline pill — label always visible (incl. portrait). */}
-          <div
-            className={`flex items-center gap-1 flex-shrink-0 px-1.5 py-0.5 rounded-full ${offlineData.isOnline ? 'bg-green-50' : 'bg-gray-100'}`}
-            title={offlineData.isOnline ? 'Online' : 'Offline'}
-          >
-            <span className={`w-2 h-2 rounded-full ${offlineData.isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
-            <span className={`text-[11px] font-semibold ${offlineData.isOnline ? 'text-green-600' : 'text-gray-400'}`}>
-              {offlineData.isOnline ? 'Online' : 'Offline'}
-            </span>
-          </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <SyncStatus
+            open={showConnection} onOpenChange={setShowConnection}
             isOnline={offlineData.isOnline} pendingCount={offlineData.pendingCount}
             review={offlineData.review} stuck={offlineData.stuck} accountProblem={offlineData.accountProblem} wall={offlineData.wall}
             offlineCap={offlineCap} isResyncing={offlineData.isResyncing} autoUpdate={offlineData.autoPullAvailable}
@@ -1025,6 +1016,10 @@ export default function CashierScreen() {
           </button>
         </div>
       </header>
+
+      {offlineCap.level === 'locked' && (
+        <Banner tone="danger" message={OFFLINE_LOCKED_MESSAGE} action={{ label: 'Cek koneksi', onClick: () => void offlineData.resync() }} />
+      )}
 
       {shift.shiftError && (
         <div role="alert" className="bg-red-700 text-white text-sm font-semibold px-4 py-2 flex items-center justify-between gap-3 flex-shrink-0">

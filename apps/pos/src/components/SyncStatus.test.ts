@@ -1,7 +1,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { OfflineCapNotice, ReviewRow, SyncStatus } from './SyncStatus'
+import { ReviewRow, SyncStatus } from './SyncStatus'
 
 const item = (k: string) => ({ idempotencyKey: k, type: 'order', lastError: 'x' })
 const render = (over: Partial<Parameters<typeof SyncStatus>[0]>) => renderToStaticMarkup(createElement(SyncStatus, {
@@ -14,49 +14,49 @@ const render = (over: Partial<Parameters<typeof SyncStatus>[0]>) => renderToStat
 describe('SyncStatus chip', () => {
   const raised = { raised: true, localVersion: 1, serverVersion: 2 }
 
-  it('shows "Memperbarui..." while a pull is in flight and the wall is raised', () => {
-    expect(render({ wall: raised, isResyncing: true })).toContain('Memperbarui...')
+  it('shows "Memperbarui data…" while a pull is in flight', () => {
+    expect(render({ wall: raised, isResyncing: true })).toContain('Memperbarui data…')
   })
 
-  it('keeps "Pembaruan tersedia" as the status while the wall is raised and idle', () => {
-    expect(render({ wall: raised })).toContain('Pembaruan tersedia')
+  it('shows "Data baru siap · perbarui" while the wall is raised and idle', () => {
+    expect(render({ wall: raised })).toContain('Data baru siap · perbarui')
   })
 
-  it('"Memperbarui..." ranks below review, account, stuck and pending', () => {
-    expect(render({ wall: raised, isResyncing: true, review: [item('a')] })).toContain('Perlu ditinjau (1)')
-    expect(render({ wall: raised, isResyncing: true, accountProblem: 'x' })).toContain('Masalah akun/outlet')
-    expect(render({ wall: raised, isResyncing: true, stuck: [item('a')], pendingCount: 1 })).toContain('Tertunda (1)')
-    expect(render({ wall: raised, isResyncing: true, pendingCount: 2 })).toContain('Menyinkronkan 2')
-    expect(render({ wall: raised, isResyncing: true, review: [item('a')] })).not.toContain('Memperbarui...')
+  it('updating ranks below review, account, stuck and pending', () => {
+    expect(render({ wall: raised, isResyncing: true, review: [item('a')] })).toContain('1 perlu ditinjau')
+    expect(render({ wall: raised, isResyncing: true, accountProblem: 'x' })).toContain('Masalah akun')
+    expect(render({ wall: raised, isResyncing: true, stuck: [item('a')], pendingCount: 1 })).toContain('1 tertunda')
+    expect(render({ wall: raised, isResyncing: true, pendingCount: 2 })).toContain('Mengirim 2…')
+    expect(render({ wall: raised, isResyncing: true, review: [item('a')] })).not.toContain('Memperbarui data')
   })
 
-  it('a manual-only sync with no raised wall does not claim an update', () => {
-    expect(render({ isResyncing: true })).not.toContain('Pembaruan tersedia')
+  it('a manual-only sync with no raised wall does not claim new data', () => {
+    expect(render({ isResyncing: true })).not.toContain('Data baru siap')
   })
-  it('shows "Perlu ditinjau (n)" for parked items', () => {
-    expect(render({ review: [item('a'), item('b')] })).toContain('Perlu ditinjau (2)')
+  it('shows "N perlu ditinjau" for parked items', () => {
+    expect(render({ review: [item('a'), item('b')] })).toContain('2 perlu ditinjau')
   })
 
   it('keeps stuck-retrying items visible on their own label', () => {
-    expect(render({ stuck: [item('a')], pendingCount: 1 })).toContain('Tertunda (1)')
+    expect(render({ stuck: [item('a')], pendingCount: 1 })).toContain('1 tertunda')
   })
 
   it('review wins over stuck when both exist', () => {
     const html = render({ review: [item('a')], stuck: [item('b')] })
-    expect(html).toContain('Perlu ditinjau (1)')
+    expect(html).toContain('1 perlu ditinjau')
   })
 
   it('offline is the plain offline state: no "server" wording, stuck items not announced', () => {
     const html = render({ isOnline: false, stuck: [item('a')], pendingCount: 1 })
-    expect(html).toContain('Offline')
-    expect(html).not.toContain('Tertunda')
+    expect(html).toContain('Offline · 1 tersimpan di tablet')
+    expect(html).not.toContain('tertunda')
     expect(html).not.toMatch(/server/i)
   })
 
-  it('shows the account/outlet problem state when online', () => {
+  it('shows the account problem state when online', () => {
     const html = render({ accountProblem: 'Masalah akun/outlet — hubungi admin.', pendingCount: 2 })
-    expect(html).toContain('Masalah akun/outlet')
-    expect(html).not.toContain('Perlu ditinjau')
+    expect(html).toContain('Masalah akun')
+    expect(html).not.toContain('perlu ditinjau')
   })
 
   it('offline never shows the account problem state', () => {
@@ -65,6 +65,37 @@ describe('SyncStatus chip', () => {
 
   it('offline with review items still counts them', () => {
     expect(render({ isOnline: false, review: [item('a')] })).toContain('Offline · 1 perlu ditinjau')
+  })
+})
+
+describe('Koneksi & antrean sheet', () => {
+  const open = (over: Partial<Parameters<typeof SyncStatus>[0]>) => render({ open: true, ...over })
+  it('is closed until opened and titled "Koneksi & antrean"', () => {
+    expect(render({})).not.toContain('Koneksi')
+    expect(open({})).toContain('Koneksi &amp; antrean')
+  })
+  it('offers Kirim sekarang (N) for queued items', () => {
+    const html = open({ pendingCount: 3 })
+    expect(html).toContain('Kirim sekarang (3)')
+    expect(html).toContain('Tersimpan di tablet (3)')
+  })
+  it('offers Perbarui data when the wall is raised', () => {
+    expect(open({ wall: { raised: true, localVersion: 1, serverVersion: 2 } })).toContain('Perbarui data')
+  })
+  it('review rows carry the plain sentence and hide the raw error behind Detail teknis', () => {
+    const html = open({ review: [{ ...item('a'), lastError: 'boom 500' }] })
+    expect(html).toContain('Perlu ditinjau (1)')
+    expect(html).toContain('Transaksi aman di tablet ini.')
+    expect(html).toContain('Bagikan log')
+    expect(html.indexOf('Detail teknis')).toBeLessThan(html.indexOf('boom 500'))
+  })
+  it('puts the data versions under Detail teknis', () => {
+    expect(open({})).toContain('Versi data lokal 1 · server 1')
+  })
+  it('explains offline and the hours left', () => {
+    const html = open({ isOnline: false, offlineCap: { level: 'ok', offlineMs: 2 * 3_600_000 } })
+    expect(html).toContain('terkirim otomatis saat online')
+    expect(html).toContain('Sisa sekitar 10 jam')
   })
 })
 
@@ -93,21 +124,19 @@ describe('review row reported label', () => {
 describe('SyncStatus offline cap (A05)', () => {
   it('shows the offline hours on the chip once the tablet nears the cap', () => {
     const html = render({ isOnline: false, offlineCap: { level: 'warn', offlineMs: 10.5 * 3_600_000 } })
-    expect(html).toContain('Offline 10 jam')
+    expect(html).toContain('Offline 10 jam · aman')
   })
   it('shows a locked chip at the cap', () => {
     const html = render({ isOnline: false, offlineCap: { level: 'locked', offlineMs: 12.2 * 3_600_000 } })
-    expect(html).toContain('Offline · terkunci')
+    expect(html).toContain('Offline terkunci · hubungi admin')
   })
   it('is unchanged while ok or unknown', () => {
-    expect(render({ isOnline: false, offlineCap: { level: 'ok', offlineMs: 3_600_000 } })).toContain('>Offline<')
-    expect(render({ isOnline: false, offlineCap: { level: 'unknown', offlineMs: null } })).toContain('>Offline<')
+    expect(render({ isOnline: false, offlineCap: { level: 'ok', offlineMs: 3_600_000 } })).toContain('Offline · aman')
+    expect(render({ isOnline: false, offlineCap: { level: 'unknown', offlineMs: null } })).toContain('Offline · aman')
   })
-  it('renders the warning text in the notice', () => {
-    const html = renderToStaticMarkup(createElement(OfflineCapNotice, { cap: { level: 'warn', offlineMs: 10.2 * 3_600_000 } }))
-    expect(html).toContain('Sambungkan internet sebelum 12 jam')
-    expect(renderToStaticMarkup(createElement(OfflineCapNotice, { cap: { level: 'locked', offlineMs: 13 * 3_600_000 } }))).toContain('dikunci')
-    expect(renderToStaticMarkup(createElement(OfflineCapNotice, { cap: { level: 'ok', offlineMs: 1 } }))).toBe('')
+  it('puts the 10 h nudge in the sheet only', () => {
+    const html = render({ open: true, isOnline: false, offlineCap: { level: 'warn', offlineMs: 10.2 * 3_600_000 } })
+    expect(html).toContain('Offline hampir 12 jam. Sambungkan internet agar penjualan tidak terkunci.')
   })
 })
 
@@ -115,7 +144,7 @@ describe('SyncStatus automatic-update note', () => {
   it('is shown by default only while the wall is raised and auto-pull is available (source pin: the panel is client-side state)', async () => {
     const { readFileSync } = await import('node:fs')
     const src = readFileSync(new URL('./SyncStatus.tsx', import.meta.url), 'utf8')
-    expect(src).toContain('updateAvailable && autoUpdate &&')
+    expect(src).toContain('o.autoUpdate ?')
     expect(src).toContain('autoUpdate = true')
   })
 })
