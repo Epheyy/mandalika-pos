@@ -98,7 +98,7 @@ describe('prepareRefund (CashierScreen guard + queue-time snapshot)', () => {
   it('refuses without permission, without a synced open shift, or with a blank/long reason', () => {
     expect(prepareRefund({ ...ok, canRefund: false })).toEqual({ ok: false, message: REFUND_NO_PERMISSION })
     expect(prepareRefund({ ...ok, shiftId: null })).toEqual({ ok: false, message: REFUND_NO_SHIFT })
-    expect(prepareRefund({ ...ok, shiftId: '' })).toEqual({ ok: false, message: 'Shift belum terkirim' }) // L3: shown but unsynced
+    expect(prepareRefund({ ...ok, shiftId: '' })).toEqual({ ok: false, message: 'Shift masih tersimpan di tablet' }) // L3: shown but unsynced
     expect(prepareRefund({ ...ok, reason: '   ' })).toMatchObject({ ok: false })
     expect(prepareRefund({ ...ok, reason: 'x'.repeat(MAX_REFUND_REASON_CHARS + 1) })).toMatchObject({ ok: false })
     expect(prepareRefund({ ...ok, reason: 'x'.repeat(MAX_REFUND_REASON_CHARS) })).toMatchObject({ ok: true })

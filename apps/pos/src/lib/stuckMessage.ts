@@ -1,5 +1,5 @@
 export const STUCK_RETRY_MESSAGE =
-  'Belum terkirim setelah beberapa kali coba. Transaksi aman di tablet. Jika terus begini, hubungi admin.'
+  'Masih tersimpan di tablet setelah beberapa kali coba. Transaksi aman. Jika terus begini, hubungi admin.'
 
 export const HOLD_SHIFT_MESSAGE = 'Tutup/Buka shift menunggu transaksi sebelumnya tersinkron'
 

@@ -107,7 +107,7 @@ export const MenuDrawer = memo(function MenuDrawer({
     { Icon: InboxIcon, label: 'Terima Transfer', badge: inboundCount > 0, onClick: () => { onClose(); onReceiveTransfer() } },
     { Icon: TransferHistoryIcon, label: 'Riwayat Transfer', onClick: () => { onClose(); onOpenTransferHistory() } },
     ...(canRequestStock ? [{ Icon: InboxIcon, label: 'Permintaan Barang', onClick: () => { onClose(); onRequisitions() } }] : []),
-    { Icon: SyncIcon, label: isSyncing ? 'Menyinkronkan…' : 'Perbarui data', badge: pendingSync, onClick: () => onSync() },
+    { Icon: SyncIcon, label: isSyncing ? 'Memperbarui data…' : 'Perbarui data', badge: pendingSync, onClick: () => onSync() },
   ]
 
   const settingItems: Item[] = [
@@ -184,7 +184,7 @@ export const MenuDrawer = memo(function MenuDrawer({
         <div className="px-5 py-3 border-t border-gray-100 flex-shrink-0 bg-gray-50 space-y-1">
           <p className="text-xs text-gray-400">Powered by <span className="font-bold text-gray-600">Mandalika</span></p>
           {lastSyncedLabel && (
-            <p className="text-[11px] text-gray-400">Terakhir sinkronisasi: {lastSyncedLabel}</p>
+            <p className="text-[11px] text-gray-400">Data terakhir diperbarui: {lastSyncedLabel}</p>
           )}
         </div>
       </div>

@@ -29,6 +29,8 @@ export function chipModel(i: ChipInput): ChipModel {
 function onlineChip(i: ChipInput): ChipModel {
   if (i.parked > 0) return { text: `${i.parked} perlu ditinjau`, tone: 'danger' }
   if (i.accountIssue) return ACCOUNT_CHIP
+  // The lock lifts only after contact, so a green chip beside the lock banner would be wrong.
+  if (i.offlineLevel === 'locked') return { text: 'Terkunci · hubungi admin', tone: 'danger' }
   if (i.stuck > 0) return { text: `${i.stuck} tertunda`, tone: 'warn' }
   if (i.pending > 0) return { text: `Mengirim ${i.pending}…`, tone: 'info' }
   if (i.updating) return { text: 'Memperbarui data…', tone: 'info' }

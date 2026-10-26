@@ -72,3 +72,25 @@ describe('chipModel offline', () => {
     expect(chip({ ...off, offlineLevel: 'unknown' }).text).toBe('Offline · aman')
   })
 })
+
+describe('chipModel while locked or warning (review follow-ups)', () => {
+  it('online × locked is danger, never green', () => {
+    expect(chip({ offlineLevel: 'locked' })).toEqual({ text: 'Terkunci · hubungi admin', tone: 'danger' })
+    expect(chip({ offlineLevel: 'locked', pending: 2 }).tone).toBe('danger')
+  })
+  it('online × locked still shows parked and account problems first', () => {
+    expect(chip({ offlineLevel: 'locked', parked: 1 }).text).toBe('1 perlu ditinjau')
+    expect(chip({ offlineLevel: 'locked', accountIssue: true }).text).toBe('Masalah akun')
+  })
+  it('warn × stuck and locked × stuck read as queued while offline', () => {
+    expect(chip({ reachable: false, offlineLevel: 'warn', offlineHours: 10, pending: 3, stuck: 3 }).text).toBe('Offline 10 jam · 3 tersimpan')
+    expect(chip({ reachable: false, offlineLevel: 'locked', pending: 3, stuck: 3 }).text).toBe('Offline terkunci · 3 tersimpan')
+  })
+  it('account issue wins offline in warn and locked', () => {
+    expect(chip({ reachable: false, offlineLevel: 'warn', accountIssue: true }).text).toBe('Masalah akun')
+    expect(chip({ reachable: false, offlineLevel: 'locked', accountIssue: true }).text).toBe('Masalah akun')
+  })
+  it('falls back to 10 jam when the hours are unknown in warn', () => {
+    expect(chip({ reachable: false, offlineLevel: 'warn' }).text).toBe('Offline 10 jam · aman')
+  })
+})

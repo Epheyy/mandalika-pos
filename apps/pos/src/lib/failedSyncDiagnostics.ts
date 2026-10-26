@@ -4,8 +4,8 @@ type DiagnosticPlatform = {
 }
 
 export const diagnosticExportMessages = {
-  shared: 'Log dibagikan. Transaksi gagal tetap menunggu sinkronisasi.',
-  copied: 'Log disalin. Transaksi gagal tetap menunggu sinkronisasi.',
+  shared: 'Log dibagikan. Transaksi gagal tetap tersimpan di tablet.',
+  copied: 'Log disalin. Transaksi gagal tetap tersimpan di tablet.',
   cancelled: 'Berbagi log dibatalkan. Transaksi gagal tetap tersimpan.',
   failed: 'Log belum dapat dibagikan. Transaksi gagal tetap tersimpan.',
   unavailable: 'Fitur berbagi atau salin tidak tersedia. Transaksi gagal tetap tersimpan.',

@@ -15,7 +15,7 @@ describe('offlineLockMessage', () => {
   })
   it('states what is locked and that recorded work is safe', () => {
     expect(OFFLINE_LOCKED_MESSAGE).toContain('12 jam')
-    expect(OFFLINE_LOCKED_MESSAGE).toContain('Penjualan dikunci')
+    expect(OFFLINE_LOCKED_MESSAGE).toContain('Penjualan, refund, dan kas masuk/keluar')
     expect(OFFLINE_LOCKED_MESSAGE).toContain('tetap aman')
   })
 })

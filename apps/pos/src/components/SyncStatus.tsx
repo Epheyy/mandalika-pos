@@ -158,7 +158,7 @@ export const SyncStatus = memo(function SyncStatus({
 
   return (
     <div className="relative">
-      <Chip selected tone={chip.tone} dot onClick={() => setOpen(true)}>
+      <Chip selected toggle={false} tone={chip.tone} dot onClick={() => setOpen(true)}>
         {chip.text}
       </Chip>
 
@@ -243,7 +243,7 @@ export const SyncStatus = memo(function SyncStatus({
               Bagikan log
             </Button>
           )}
-          {!canFlush && !updateAvailable && !hasFailed && (
+          {!canFlush && !updateAvailable && !hasFailed && offlineCap?.level !== 'locked' && (
             <StatusBadge tone="ok" size="md" label="Tidak ada yang perlu dilakukan" />
           )}
         </div>

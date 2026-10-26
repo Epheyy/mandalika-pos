@@ -342,24 +342,28 @@ export default function CashierScreen() {
   const addWithStockWarning = (
     product: components['schemas']['Product'],
     variantQtys: Record<string, number>,
-  ): boolean => {
-    if (!ensureShift()) return false
-    // The persistent lock banner under the header explains why; no toast.
-    if (offlineLock()) return false
+  ): 'blocked' | 'oversold' | 'added' => {
+    if (!ensureShift()) return 'blocked'
+    // The banner reads a 30 s poll while this gate reads the engine live, so always say why a tap did nothing.
+    const lockedMsg = offlineLock()
+    if (lockedMsg) {
+      showToast(lockedMsg)
+      return 'blocked'
+    }
     track(`Tambah ${product.name}`)
     const inCart = (size: string) => state.cart
       .filter((i) => i.productId === product.id && i.variantSize === size)
       .reduce((s, i) => s + i.quantity, 0)
     const oversold = oversoldSizes(product, variantQtys, inCart).length > 0
     cartActions.addVariants(product, variantQtys)
-    return oversold
+    return oversold ? 'oversold' : 'added'
   }
 
   const handleProductTap = (
     product: components['schemas']['Product'],
     variantQtys: Record<string, number>,
   ) => {
-    if (addWithStockWarning(product, variantQtys)) showToast(OVERSELL_WARNING)
+    if (addWithStockWarning(product, variantQtys) === 'oversold') showToast(OVERSELL_WARNING)
   }
 
   // Scan-to-cart: resolve the code to a variant, add 1 respecting stock.
@@ -374,8 +378,9 @@ export default function CashierScreen() {
     }
     const { product, variant } = match
     // Past the stock: still added (A44 owner decision 2026-10-16), with a warning toast.
-    const oversold = addWithStockWarning(product, { [variant.size]: 1 })
-    showToast(oversold
+    const result = addWithStockWarning(product, { [variant.size]: 1 })
+    if (result === 'blocked') return
+    showToast(result === 'oversold'
       ? OVERSELL_WARNING
       : `Ditambah: ${product.name}${variantLabel(variant.size) ? ' ' + variantLabel(variant.size) : ''}`)
   }
@@ -884,7 +889,7 @@ export default function CashierScreen() {
     }
     setRefundOrder(null)
     setRefundSale(null)
-    showToast('Refund diproses — stok dipulihkan saat sinkronisasi')
+    showToast('Refund diproses — stok dipulihkan saat terkirim')
   }
 
   // A08: only called after the server minted a grant; the queued receive carries its id, never a PIN.

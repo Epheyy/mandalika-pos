@@ -15,7 +15,7 @@ export const REFUND_NO_PERMISSION = 'Butuh izin refund'
 export const REFUND_QUEUED = 'Refund tersimpan di tablet'
 export const REFUND_NO_SHIFT = 'Buka shift dulu'
 export const REFUND_DONE = 'Sudah direfund'
-export const REFUND_SHIFT_UNSYNCED = 'Shift belum terkirim'
+export const REFUND_SHIFT_UNSYNCED = 'Shift masih tersimpan di tablet'
 
 export type RefundAvailability =
   | { kind: 'allowed' }

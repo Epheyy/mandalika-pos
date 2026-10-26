@@ -3,7 +3,7 @@ import type { OfflineCapState } from '@mandalika/sync'
 /** A05: after 12 h without an online contact, new sales, refunds and cash in/out lock until the
  *  tablet reconnects. Shift close stays allowed and recorded work is never touched. */
 export const OFFLINE_LOCKED_MESSAGE =
-  'Tablet offline lebih dari 12 jam. Penjualan dikunci sampai online. Transaksi yang ada tetap aman.'
+  'Tablet offline lebih dari 12 jam. Penjualan, refund, dan kas masuk/keluar dikunci sampai online. Transaksi yang ada tetap aman.'
 
 const HOUR_MS = 3_600_000
 

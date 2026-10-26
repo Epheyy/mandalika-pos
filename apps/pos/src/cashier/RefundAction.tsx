@@ -1,6 +1,6 @@
 import type { components } from '@mandalika/api'
 import { StatusBadge } from '../components/ui'
-import { refundAvailability, type RefundAvailabilityInput } from './refundView'
+import { REFUND_DONE, refundAvailability, type RefundAvailabilityInput } from './refundView'
 
 type Order = components['schemas']['Order']
 
@@ -14,7 +14,7 @@ export function RefundAction({ order, onRefund, ...gate }: RefundActionProps) {
   const a = refundAvailability({ order, ...gate })
   if (a.kind === 'hidden') return null
   if (a.kind === 'blocked') {
-    return <StatusBadge tone="warn" size="md" label={a.reason} className="mt-2 w-full justify-center" />
+    return <StatusBadge tone={a.reason === REFUND_DONE ? 'neutral' : 'warn'} size="md" label={a.reason} className="mt-2 w-full justify-center" />
   }
   return (
     <button type="button"
