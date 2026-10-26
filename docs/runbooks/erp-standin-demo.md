@@ -274,14 +274,14 @@ parameter because the relay still does not invalidate.
 ## Cutover to the real ERP (erp-flamboyan)
 
 Source: the ERP developer's reply of 2026-10-24 ("Integrasi Stok ERP–POS", answer to the 2026-10-21
-handoff) and the owner's decisions of 2026-10-25. The relay accepts the ERP's `status: "success"` envelope
+handoff) and the owner's decisions of 2026-10-25 and 2026-10-26 (catalog mapping v3: sandbox report `docs/integration/2026-10-26-erp-sandbox-pull-report.md` §6 and §8). The relay accepts the ERP's `status: "success"` envelope
 and its array `details[].path` (both stub forms still work). Each step needs its own owner go-ahead; do
 them per outlet, in this order.
 
 1. **ERP:** the ERP admin creates client `pos_<brand>` with scopes "Katalog (baca)", "Stok outlet (baca)"
    and "Dokumen stok (tulis)"; the key comes over a secret channel and becomes a new `ERP_API_KEY`
    version. Point `ERP_BASE_URL` at `https://<erp-host>/api/integration/v1`. Keep `ERP_RELAY_ENABLED=false`
-   until step 6. Pause the `erp-relay` job and the pull job while switching (§7).
+   until step 9. Pause the `erp-relay` job and the pull job while switching (§7).
 2. **POS, clear the demo mapping:** unset the demo warehouse slug. The ERP refuses warehouse documents
    with 422 this phase; with the slug empty they stay `held` in the outbox and burn no attempts.
    ```sql
@@ -289,39 +289,137 @@ them per outlet, in this order.
    UPDATE warehouses SET erp_slug = NULL WHERE erp_slug = 'gudang-pusat';  -- "Gudang Pusat (contoh)"
    ```
    Also unlink or delete the demo variants and the demo outlet mapping (§7, data left behind).
-3. **POS, map outlets by slug before the first pull.** The pull links an existing outlet only when its
-   code equals the ERP outlet code exactly; otherwise it creates a duplicate inactive outlet and the real
-   outlet's documents stay `held` for ever. There is no UI for `outlets.erp_slug`: make the codes equal in
-   the ERP, or set the slug once by SQL (check first, one row):
+> **Warning: the stub is retired once the real ERP is configured.** After `ERP_BASE_URL` and `ERP_API_KEY`
+> point at the real ERP, never run a full pull against the stub again. That rules out pointing the service back
+> at the stub, running `cmd/erp-catalog-pull` with the stub env, and leaving a scheduler job that targets a
+> stub-configured revision. A full pull treats its source as the complete catalog:
+> - **Reconcile deactivates** every linked variant that the source does not list (up to max(5, 20 %) per run,
+>   and again on every later run).
+> - The stub's demo FGs are created as new products.
+> - The relay would send documents to the wrong system.
+>
+> If you roll back to a stub revision, pause both pull jobs first (§7).
+
+3. **POS, check the first-pull prerequisites** (mapping v3, sandbox report §8). The pull never creates an outlet
+   and never writes a POS outlet's name, address, phone or code. It links an ERP outlet to the one unlinked POS
+   outlet whose `erp_slug` equals the ERP slug, or whose code equals the ERP code or slug (case-insensitive).
+   It never links an ONLINE channel (MP-*).
+   - Today PMS, LWB and MKS link by code, and BSD is already linked by slug.
+   - Any other outlet that must link needs an equal code, or its slug set once by SQL (check first, one row):
    ```sql
-   SELECT id, name, code, erp_slug FROM outlets WHERE id = '<OUTLET_ID>';
+   SELECT id, name, code, erp_slug FROM outlets ORDER BY code;
    UPDATE outlets SET erp_slug = '<erp-outlet-slug>' WHERE id = '<OUTLET_ID>' AND erp_slug IS NULL;
    ```
-4. **POS, SKU mapping from a full catalog sync.** Take `code` and `slug` of every FG from a full
-   `GET /catalog/finished-goods` (ERP answer Q6) and import the SKU-mapping CSV (`fg_code`, `fg_slug`,
-   optional `erp_group_key` in the `pos:<name minus size>` form) before the first pull, so existing
-   variants link instead of being duplicated (runbook `erp-catalog-sync.md` §2). Then run a full pull.
-   The ERP demo seed holds only 24 FGs: documents for any other product stay `held` (unmapped) until the
-   full FG master is imported in the ERP.
-5. **POS, every outlet movement has an outbox row**, including those recorded before the outbox existed
+   Rehearsal rows: the first full pull deactivates the `RH-DEMO*` variants that are still linked to stand-in
+   slugs (22 on 2026-10-26). That is harmless, but delete or unlink them first if you want a quiet pull.
+4. **POS, SKU identity map with the 4 corrections, dry run then commit** (owner go-ahead: Neon write).
+   - The file is [`docs/integration/2026-10-26-sku-mapping-cutover.csv`](../integration/2026-10-26-sku-mapping-cutover.csv).
+     It holds the 29 real variants by their test-Neon ids, with the ERP code, slug and v3 group key
+     (`erp:<fragrance>`, `erp:HAMPERS-THE`, `erp:KEM-CAN`, `erp:KEM-KAR`), plus the ERP name, category, size
+     and others flag for the conflict check.
+   - It moves the 4 wrong POS SKUs to the ERP codes:
+     - `PW110E-NO1` → `PP120E-NO1`
+     - `PW110P-NO1` → `PP120P-NO1`
+     - `PW110E-ONL` → `PP120E-ONL`
+     - `PW110P-ONL` → `PP120P-ONL`
+
+     Their barcodes keep the old SKU, so printed labels still scan.
+   - `has_stock` and `product`/`size`/`sku`/`barcode` are context columns and are ignored.
+   - Rows not in the file are untouched.
+
+   The commands need `curl` and `jq`, and run from the repo root. The password is typed, never pasted into a
+   file:
+   ```bash
+   API=https://mandalika-pos-538849926142.asia-southeast2.run.app/api/v1
+   CSV=docs/integration/2026-10-26-sku-mapping-cutover.csv
+   read -rsp 'admin password: ' PW; echo
+   TOKEN=$(jq -n --arg p "$PW" '{email:"admin@mandalika.local",password:$p}' \
+     | curl -fsS -H 'Content-Type: application/json' -d @- "$API/auth/login" | jq -r .data.access); unset PW
+   # dry run: nothing is written
+   jq -n --rawfile csv "$CSV" '{csv:$csv,dryRun:true,fileName:"sku-mapping-cutover.csv"}' \
+     | curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d @- \
+       "$API/admin/erp/sku-mapping/import" > sku-preview.json
+   jq '.data.summary, [.data.issues[] | {row, code, message}]' sku-preview.json
+   ```
+   Expected dry run: `update 29, error 0, warning 9`. The 9 warnings are:
+   - `name_conflict` on CANVAS BAG (KEM-CAN) and on THE ONLY ONE (HAME-THE, HAMP-THE, the hamper set);
+   - `label_conflict` on HAME-THE and HAMP-THE;
+   - `sku_changed` on the 4 rows above.
+
+   The conflicts are expected. The pull keeps the POS name and label, and links them so the giveaway and
+   hamper movements reach the ERP.
+
+   Stop on any **error**, or on a summary that differs. Typical causes are a variant deleted or a SKU changed on
+   Neon since 2026-10-26. In that case regenerate the file from a fresh export (§2 of `erp-catalog-sync.md`)
+   with the same codes and keys.
+
+   Commit, with the preview's hash and summary:
+   ```bash
+   jq -n --rawfile csv "$CSV" --slurpfile p sku-preview.json \
+     '{csv:$csv,dryRun:false,fileName:"sku-mapping-cutover.csv",fileSha256:$p[0].data.fileSha256,expectedSummary:$p[0].data.summary}' \
+     | curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+       -H 'Idempotency-Key: sku-mapping-cutover-2026-10-26' -d @- "$API/admin/erp/sku-mapping/import" \
+     | jq '.data.summary, .data.runId'
+   rm sku-preview.json
+   ```
+   Check the commit with one row per product: `SELECT p.name, p.erp_group_key, count(v.erp_slug) FROM products
+   p JOIN product_variants v ON v.product_id=p.id WHERE v.sku NOT LIKE 'RH-%' GROUP BY 1,2 ORDER BY 1;`. Expect 8
+   products with keys and 29 linked variants. Also check `SELECT sku, barcode FROM product_variants WHERE sku LIKE
+   'PP120%';`, which must return 4 rows with the old PW110 barcodes.
+5. **POS, the full pull** (owner go-ahead: Neon write):
+   ```bash
+   curl -fsS -X POST -H "Authorization: Bearer $TOKEN" "$API/admin/erp/catalog-pull?mode=full" | jq
+   ```
+   Expected result, from the sandbox run on the same data (report §8):
+   - status `completed` with 0 item errors, in about 7 s;
+   - 0 outlets created and 4 linked;
+   - 31 fragrance products, 26 of them new, not sellable and filed under MAN, WOMAN or UNISEX by ERP gender;
+   - every label `<size>ml <LINE>`;
+   - 179 others items as separate not-for-sale products under the category `ERP: bukan untuk dijual`;
+   - 1 new category;
+   - the 22 `RH-DEMO*` variants deactivated.
+
+   The run notes (`error` column) list 2 renamed new products (`THE ONLY ONE (THE)`, `ONLY THE BRAVE (ONL-R)`)
+   and the 25 unlinked ERP outlets:
+   ```sql
+   SELECT resource, status, upserted, error FROM erp_sync_runs ORDER BY started_at DESC LIMIT 2;
+   ```
+   Run it a second time. It must change nothing: no content-version bump, and the same counts.
+6. **POS, the outlet link check after the pull.**
+   ```sql
+   SELECT code, name, erp_slug, erp_code, is_active FROM outlets ORDER BY code;
+   ```
+   Expect BSD, LWB, MKS and PMS to have `erp_slug`/`erp_code`, with their names, addresses and phones as they
+   were. The outlets run note lists the other 21 RETAIL outlets and the 4 ONLINE channels as `unlinked`.
+   - To bring a store in, create the POS outlet with the ERP code (or set its `erp_slug` as in step 3).
+   - The next pull links it.
+   - Its documents stay `held` in the outbox until it is linked.
+7. **POS, every outlet movement has an outbox row**, including those recorded before the outbox existed
    (migrations 0064 → 0065). The `opening` line is live stock minus all earlier ledger movements, so one
    missing movement leaves the ERP balance off by exactly that movement.
    ```sql
    SELECT count(*) FROM stock_movements m WHERE m.location_type = 'outlet' AND m.location_id = '<OUTLET_ID>'
       AND NOT EXISTS (SELECT 1 FROM erp_outbox o WHERE o.document_id = m.document_id);  -- must be 0
    ```
-6. **ERP:** imports FG stock QTY 0 for that outlet in the current month, and from then on stops its own
-   import, adjust and reject of FG stock at that outlet (single writer; plan 1 relies on this rule only).
-7. **POS:** `ERP_RELAY_ENABLED=true`, resume the `erp-relay` job. The backlog (`opening` and every
+8. **ERP:** imports FG stock QTY 0 for that outlet in the current month. From then on the ERP stops its own
+   import, adjust and reject of FG stock at that outlet. This is the single-writer rule, and plan 1 relies on it
+   alone.
+9. **POS:** set `ERP_RELAY_ENABLED=true` and resume the `erp-relay` job. The backlog (`opening` and every
    document) may arrive in any order: the ERP posts each line as a delta, so the sum is the POS live stock.
-8. **Verify** once the backlog is drained (no `pending`/`sending` rows for the outlet): the ERP's
-   `GET /outlets/{code}/stock` equals POS live stock (`outlet_variant_stock`) per FG. A difference means a
-   missing or dead document: check `dead` rows first (`last_error` names the field, e.g. `lines.2.fg_code`).
+10. **Verify** once the backlog is drained (no `pending` or `sending` rows for the outlet). The ERP's
+    `GET /outlets/{code}/stock` must equal the POS live stock (`outlet_variant_stock`) per FG. A difference means a
+    missing or dead document. Check `dead` rows first: `last_error` names the field, for example `lines.2.fg_code`.
 
-Not rewritten by the pull: size labels and `erp_group_key` of products created by pulls before the
-2026-10-25 mapping rule was deployed (the stand-in demo products here). Those pulls labelled sizes from the
-stock unit (`"50pcs"`) and keyed products `pos:<category>|<name>`; a new sibling FG of such a product creates
-a new product. Delete or unlink the demo products in step 2; see `erp-catalog-sync.md` §1 for the queries.
+**What the pull never rewrites (mapping v3):**
+- size labels;
+- `erp_group_key`;
+- any field of an existing product other than clearing `is_active` when no variant is active. This covers name,
+  category, brand, sellable and images. The POS owns them, and they are editable in the backoffice even on linked
+  products.
+
+An ERP rename or re-filing shows only in `product_variants.erp_name` / `erp_category`, which record the drift.
+Products created by stand-in pulls before v3 keep their `pos:...` keys and `"<n>pcs"` labels. Delete or unlink
+those demo products in step 2 (`erp-catalog-sync.md` §1 has the queries).
 
 ## 7. Rollback (each line is independent)
 

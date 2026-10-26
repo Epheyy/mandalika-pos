@@ -6,57 +6,41 @@ variant) and outlets from the ERP Integration API v1 and keys them on the ERP's 
 
 Nothing in this runbook runs by itself. Every step below is an owner action on deploy day.
 
-## 1. What the pull does
+## 1. What the pull does (mapping v3, 2026-10-26)
+
+Rules from the sandbox pull against the production ERP: `docs/integration/2026-10-26-erp-sandbox-pull-report.md`
+§6 and §8, and the owner decisions of 2026-10-26. The pure naming rules are in `erpmap`.
 
 | ERP field | POS effect |
 |---|---|
 | FG `slug` | `product_variants.erp_slug` (the key) |
-| FG `code` | `product_variants.sku` (immutable in the ERP); also the barcode of a NEW variant |
-| FG `name` | product name, size token removed ("Oud 50ml" → "Oud"); written by the product's owner FG only (below) |
-| FG `category` | category, matched by name (case-insensitive), created if missing; written by the owner FG only |
-| FG `size` + `unit` | size label `"<n>ml"` (`"Satuan"` when size is null), set ONCE at creation, never renamed. `unit` is the ERP stock unit (Pcs, Botol): it never becomes the suffix (110 + Pcs = `"110ml"`). Only a measurement unit (ml, l, g, gr, kg) replaces `ml` |
+| FG `code` | `product_variants.sku` (immutable in the ERP); also the barcode of a NEW variant. The fragrance part of the code (`PP120E-NO1` → `NO1`) groups sizes into one product |
+| FG `is_others` | true (display, tester, paper, box, packaging): its **own product**, `erp:<code>`, named `<ERP name> (<code>)`, label `Satuan`, `sellable=false`, price 0, category `ERP: bukan untuk dijual` (owner decision b). The owner may sell one; the pull never flips it back |
+| FG `name` | name of a NEW product only: ERP name minus the ` - <n>ML <line>` suffix; a taken name gets ` (<fragrance code>)` and a run note |
+| FG `category` | the product LINE in the label of a NEW variant: `<size>ml <LINE>` via the 7-row table (EXT → EXTRAIT DE PARFUM, PERFUME INTENSE → PARFUM INTENSE, ATOMIZER, GLASS WOMAN, GLASS MAN, LEATHER, GLITTER; an unknown category passes through upper-cased and is noted). Stored on the variant (`erp_category`), never a POS category |
+| FG `gender` | category of a NEW fragrance product only: majority gender of the page's group → MAN / WOMAN / UNISEX, matched to an existing POS category (never created; none → no category) |
+| FG `size` + `unit` | size part of the label, set ONCE at creation. `unit` is the ERP stock unit (Pcs): 110 + Pcs = `110ml` |
 | FG `status` DISCONTINUE, or `deleted_at` | variant `is_active = false` (never deleted) |
-| outlet `slug` / `code` | `outlets.erp_slug` / `outlets.erp_code`. `outlets.code` (receipt numbers) is NEVER written |
-| outlet name / address / phone | copied |
+| outlet `slug` / `code` | link only: `outlets.erp_slug` / `erp_code` of the one unlinked POS outlet whose code equals the ERP code or slug. Never creates an outlet; never links `type = ONLINE`; unlinked ERP outlets are a run note |
+| outlet name / address / phone | **never written** (POS-owned) |
 | outlet `deleted_at` | outlet `is_active = false` |
 
-Never touched by the pull: price, images, barcode of an existing variant, bundles, recipes, loyalty, stock.
+Never touched by the pull on an existing row: product name, category, brand, sellable, images; variant
+size, price, barcode, images; outlet name, address, phone, code; bundles, recipes, loyalty, stock. The POS
+owns these and they are editable in the backoffice even on linked rows (only a linked variant's size and SKU,
+removing a linked variant and deleting a linked product stay locked). What the ERP says about each size is
+kept on the variant (`erp_name`, `erp_category`) as the drift record.
 
-- A new FG joins the product with the same `erp_group_key` = `pos:<name minus size>` (normalised), whatever
-  its ERP category: the ERP may file sizes of one fragrance under different categories (local pull of
-  2026-10-23). Category only breaks a tie: when that product is filed under another category, the FG goes to
-  the `pos:<name minus size>|<category>` product if one exists, or to a new one if the name product already
-  has the FG's size label (for example an EDP and a body mist both called "Dune 100ml"). Otherwise it creates
-  a new product that is **not sellable** until priced (D20). An ERP variant whose resolved outlet price is 0
-  never reaches a tablet.
-- Grouping depends on arrival order and is permanent: two product lines with one name ("Dune" EDP and
-  "Dune" body mist) share the name product until a size collides, and only later FGs go to the tie product.
-  Rename such lines in the ERP if they must stay apart.
-- The product's name and category follow its **owner FG**: among its linked FGs, active ones first, then
-  the smallest `code` (byte order). Every FG's own name (minus size) and category are stored on its variant
-  (`product_variants.erp_name` / `erp_category`, migration 0068), so when the owner is discontinued, deleted
-  or reconciled away, the product takes the next size's values **in the same pull**. A missing value is
-  taken from the next size in the same order. Siblings that disagree never flip the product, so a rerun
-  full pull bumps no content version.
-- The first full pull after migration 0068 is deployed stores those values for every linked variant (each
-  goes through the slower item path once) and may rename or re-categorise some products once (one content
-  version bump), where the old last-writer rule had left another size's name. Until a product's owner row
-  is stored, the pull keeps the product's name and category as they are. Run `mode=full` once right after
-  the deploy so every product settles at once.
-- Existing keys and labels are never rewritten. Products created by a pull before this rule was deployed
-  keep `pos:<category>|<name>` keys and any `"<n>pcs"` labels (the stand-in demo on the test environment
-  has some), and a new sibling FG of such a product creates a new product. List them first:
-  `SELECT id, name, erp_group_key FROM products WHERE erp_group_key LIKE 'pos:%|%';` (new tie keys match
-  too: `pos:<name>|<category>`) and
-  `SELECT product_id, size, sku FROM product_variants WHERE erp_slug IS NOT NULL AND size ~ '[0-9]pcs$';`.
-  Re-key through the SKU-mapping CSV `erp_group_key` column (new format) only BEFORE the first pull on the
-  new rule (afterwards the new key is taken and the CSV answers `group_key_in_use`). A size label has no
-  supported fix path (the CSV never changes size, the backoffice answers 409): it needs a reviewed SQL change
-  that also renames `outlet_variant_stock.variant_size`, so prefer deleting demo rows before cutover.
+- A new sellable FG joins the product whose `erp_group_key` is `erp:<fragrance code>`; else the one product
+  (key NULL or `pos:...`) that already holds a linked variant of that fragrance code; else it creates a new
+  product, **not sellable** until priced (D20). Two such products is an item error (give one the key). A code
+  without a fragrance part falls back to `pos:<name minus size>`. Existing POS products get their key from the
+  SKU-mapping CSV (§2).
+- A new FG whose label already exists in the target product is an item error, never a duplicate (for
+  example an unmapped wrong POS SKU holding `120ml EXTRAIT DE PARFUM`).
+- An ERP variant whose resolved outlet price is 0 never reaches a tablet.
 - `products.is_active` is only ever switched OFF by the pull (all its variants inactive); an admin switches
   it back on.
-- A new ERP outlet is linked to the one unlinked POS outlet with the same code (case-insensitive), else
-  created inactive with no POS code, for an admin to finish.
 - Watermark: the first page's `server_time` of the last completed run; incremental runs ask
   `updated_since = watermark - 5 min`. A partial or failed run never moves it.
 - Full run reconcile: linked variants missing from a complete full run are deactivated, at most
@@ -79,8 +63,12 @@ links variants by SKU on its own; an unlinked variant whose SKU equals an FG cod
    ```
 2. **Export**: Backoffice admin, or `GET /api/v1/admin/erp/sku-mapping/export` (admin role) → CSV with
    `variant_id, product, size, sku, has_stock, barcode, fg_code, fg_slug, erp_group_key`.
-3. **Fill** `fg_code` and `fg_slug` from the ERP catalog (the ERP developer can export them; FG codes never
-   change, so this is done once). Leave both empty for a variant that has no ERP FG yet. `erp_group_key`
+3. **Fill** `fg_code` and `fg_slug` from the ERP catalog (for the 2026-10-26 cutover the file is ready:
+   `docs/integration/2026-10-26-sku-mapping-cutover.csv`, commands in `erp-standin-demo.md` "Cutover" step 4).
+   Set `erp_group_key` to `erp:<fragrance code>` on every row of a fragrance product so sibling sizes join it;
+   optional context columns `fg_name`, `fg_category`, `fg_size`, `fg_is_others` make the dry run warn on name
+   and label conflicts. The ERP developer can export codes and slugs; FG codes never
+   change, so this is done once. Leave both empty for a variant that has no ERP FG yet. `erp_group_key`
    is optional (all rows of one product must agree).
 4. **Dry run, then apply**: `POST /api/v1/admin/erp/sku-mapping/import` with the CSV, `dryRun: true` first,
    then the commit with an `Idempotency-Key` and the preview's hash (same contract as the product CSV import).

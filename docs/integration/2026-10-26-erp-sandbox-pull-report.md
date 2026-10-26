@@ -9,6 +9,10 @@ Mapping v3 below is required first. The mechanics work: paging, watermark, idemp
 tester strips, boxes and stickers. Every sellable fragrance is split across 2–5 POS products. Linked POS products and
 outlets also have their categories, names, addresses and phones overwritten.
 
+**Update (same day):** mapping v3 (§6 plus the owner decisions of 2026-10-26) is implemented and the pull was re-run on
+the same data: zero POS-owned fields overwritten, zero outlets created, one product per fragrance, every label in the
+POS convention, others as separate not-for-sale products, the 4 SKUs mapped. See **§8**.
+
 ## 1. Setup (read-only for the ERP and for Neon)
 
 | Item | Value |
@@ -257,4 +261,106 @@ Rules:
 
 Backend killed, the container was stopped (`--rm`, nothing left). The scratch Neon dump, the sandbox env file (DB
 password, admin password, JWT secrets) and the token were deleted. The ERP key and Neon DSN appear in no file (0 hits).
+No push, deploy, Neon write or ERP write was made.
+
+## 8. Addendum: re-run with mapping v3 (2026-10-26, afternoon)
+
+Code: branch `claude/agitated-lewin-761935` at `703675a9` (v3 guards `fad4fadc`, grouping `9d0ffbc5`, SKU-mapping
+warnings `703675a9`). The outlet-note wording was shortened after the run (`df4d5e22`); nothing else changed.
+Same machinery as §1: a throwaway `postgres:18.3` container, migrated by `cmd/seed`, `cmd/server` for the import, and
+`cmd/erp-catalog-pull -mode full -budget 5m` run from an empty directory. Read-only for the ERP and for Neon.
+
+**Verdict.** Every v3 target is met. The pull overwrote no POS-owned field and created no outlet. It made one
+product per fragrance, with every label in the POS convention. The 179 others items became separate not-for-sale
+products, and the 4 corrected SKUs are mapped. A second full pull changed nothing.
+
+Owner decision (b) replaces the §6.1 "skip others" rule and the §6.6 product and variant counts. Others are now
+created, but each one as its own product with key `erp:<code>`, `sellable=false`, price 0 and the category
+**`ERP: bukan untuk dijual`**. Each product name carries the code, for example `24HOURS (DP120E-24H)`.
+
+### 8.1 Inputs
+
+| Item | Value |
+|---|---|
+| Test-catalog copy | A fresh read-only `pg_dump --data-only` of TEST Neon `categories`, `products`, `product_variants` and `outlets`. It holds **4 outlets, 37 products, 61 variants and 7 categories**. Report §1 counted 32 products and 55 variants; the new products and variants are 6 more `RH-*` rehearsal rows, and the 29 real variants are unchanged. Categories: GIFT-SET, HAMPERS, KEMASAN, MAN, Rehearsal, UNISEX, WOMAN |
+| ERP | 374 FGs (191 sellable, 183 others) and 29 outlets (25 RETAIL, 4 ONLINE), unchanged since the morning |
+| Mapping file | [`2026-10-26-sku-mapping-cutover.csv`](2026-10-26-sku-mapping-cutover.csv): the 29 real variants with test-Neon variant ids. It holds the ERP `fg_code`/`fg_slug` and the v3 keys (`erp:GOR`, `erp:HOL`, `erp:UNS`, `erp:NO1`, `erp:ONL`, `erp:HAMPERS-THE`, `erp:KEM-CAN`, `erp:KEM-KAR`), plus the ERP context columns. The sandbox imported this exact file |
+
+### 8.2 SKU-mapping dry run, then commit
+
+**29 updates, 0 errors, 9 warnings.** The dry run and the commit had the same summary.
+
+| Warning | Rows |
+|---|---|
+| `name_conflict` | KEM-CAN ("CANVAS BAG" vs "CANVAS BAG MANDALIKA"), HAME-THE and HAMP-THE ("THE ONLY ONE" vs "HAMPERS THE ONLY ONE") |
+| `label_conflict` | HAME-THE ("EXTRAIT DE PARFUM" vs "Satuan"), HAMP-THE ("PARFUM INTENSE" vs "Satuan") |
+| `sku_changed` | PW110E-NO1 → PP120E-NO1, PW110P-NO1 → PP120P-NO1, PW110E-ONL → PP120E-ONL, PW110P-ONL → PP120P-ONL (the barcode keeps the old SKU) |
+
+The other 22 rows matched the ERP name and the v3 label exactly.
+
+### 8.3 Full pull: counts against §3
+
+| Measure | Morning (§3) | v3 | Expected |
+|---|---|---|---|
+| Run | completed, 0 item errors, ≈6 s | completed, **0 item errors**: outlets 0.67 s, FGs 6.31 s | ✓ |
+| POS-owned fields changed on existing rows | category of NO1, UNSTOPPABLE, THE ONLY ONE, GOR, HOL, CANVAS BAG, KARTU GARANSI; CANVAS BAG renamed; 4 outlets' name/address/phone | **0 of 102 rows**: 37 products (name, category, brand, sellable, images, image_url, description), 61 variants (size, price, barcode), 4 outlets (name, address, phone, code, active) compared before and after | 0 ✓ |
+| Outlets | 4 linked, **25 created** (4 ONLINE) | 4 linked (BSD by slug; PMS, LWB, MKS by code), **0 created**, 25 reported as unlinked in the run note (21 RETAIL with no POS outlet code; MP-DPK, MP-KMG, MP-KWC, MP-SBY as ONLINE). Addresses kept (PMS SURABAYA + phone, LWB Bali, MKS Makassar, BSD Jakarta) | ✓ |
+| Products | +246 | **+205** = 26 fragrance products + 179 others products | |
+| Variants | +349 created, 25 linked | **+345** created, 29 linked (374 = 345 + 29) | |
+| Categories | +30 (one per ERP category) | **+1** (`ERP: bukan untuk dijual`) | ✓ |
+| Sellable fragrance FGs | spread over 2-5 products each | the 191 sit in **31 products**, one per fragrance code (5 existing + 26 new) | ✓ |
+| Labels in `<size>ml <LINE>` | 0 of 170 | **191 of 191** | ✓ |
+| Products mixing sellable and others | 5 | **0** | ✓ |
+| Others items | 179 inside priced products | **179 products**: all not sellable, 1 variant `Satuan` at Rp0, category `ERP: bukan untuk dijual`. The 4 linked others keep their POS products: KEM-CAN, KEM-KAR, HAME-THE, HAMP-THE | ✓ |
+| Product names with " - " (others excluded) | 78 | **0** | ✓ |
+| Category of the 26 new fragrance products | ERP line category | from the majority ERP gender, matched to existing POS categories: 11 MAN, 14 WOMAN, 1 UNISEX; none created | ✓ |
+| 4 corrected SKUs | 4 unlinked + 4 Rp0 PP120 duplicates | PP120E/P-NO1 and PP120E/P-ONL linked into NO1 and ONLY THE BRAVE, keeping their labels and prices (Rp575000 / Rp675000) | ✓ |
+| Reconcile | 18 `RH-DEMO*` deactivated | 22 `RH-DEMO*` deactivated: the extra rehearsal rows on Neon, still linked to stand-in slugs | as §6.7 |
+| Run notes | none | 2 names disambiguated (below), 25 unlinked outlets | |
+
+### 8.4 Samples: what the backoffice lists
+
+| Product (category, sellable) | Variants (label · code · price when set) |
+|---|---|
+| NO1 (MAN, yes; existing) | 100ml EXTRAIT DE PARFUM · PP100E-NO1; 100ml PARFUM INTENSE · PP100P-NO1; 10ml ATOMIZER · A10M-NO1 · Rp225000; 120ml EXTRAIT DE PARFUM · PP120E-NO1 · Rp575000; 120ml PARFUM INTENSE · PP120P-NO1 · Rp675000; 15ml GLASS MAN · 15GM-NO1; 15ml LEATHER · 15GL-NO1; 2ml EXTRAIT DE PARFUM · V2E-NO1 · Rp1; 2ml PARFUM INTENSE · V2P-NO1 · Rp1 |
+| ONLY THE BRAVE (MAN, yes; existing) | the same shape as NO1 (PP120E/P-ONL linked, priced) |
+| GORGEOUS TUBEROSE (WOMAN, yes; existing) | the 5 priced rows + 15ml GLASS WOMAN · 15GW-GOR; 15ml GLITTER · 15GL-GOR |
+| HOLY SWEET (WOMAN, yes; existing) | the 5 priced rows + 15ml GLASS WOMAN · 15GW-HOL; 15ml GLITTER · 15GL-HOL |
+| UNSTOPPABLE (UNISEX, yes; existing) | the 5 priced rows (the ERP has no other sellable UNS size; its displays and tester papers are others products) |
+| 24HOURS (MAN, no; new) | 100ml EXTRAIT DE PARFUM · PP100E-24H; 100ml PARFUM INTENSE · PP100P-24H; 10ml ATOMIZER · A10M-24H; 120ml EXTRAIT DE PARFUM · PP120E-24H; 120ml PARFUM INTENSE · PP120P-24H; 15ml GLASS MAN · 15GM-24H; 2ml EXTRAIT DE PARFUM · V2E-24H; 2ml PARFUM INTENSE · V2P-24H |
+| DAY (MAN, no; new) | the same 8 labels as 24HOURS |
+| CHAMPION (MAN, no; new) | 10ml ATOMIZER; 120ml EXTRAIT DE PARFUM; 120ml PARFUM INTENSE; 2ml EXTRAIT DE PARFUM; 2ml PARFUM INTENSE (one product, not five) |
+| HOLY SWEET ELIXIR (WOMAN, no; new) | 10ml ATOMIZER · A10M-HOL-EX; 110ml PARFUM INTENSE · PW110E-HOL-EX (the category wins over the code letter); 2ml EXTRAIT DE PARFUM · V2E-HOL-EX |
+| THE ONLY ONE (THE) (WOMAN, no; new) | 15ml LEATHER · 15GL-THE; 2ml EXTRAIT DE PARFUM · V2E-THE; 2ml PARFUM INTENSE · V2P-THE. The hamper product THE ONLY ONE (HAMPERS) is unchanged |
+| ONLY THE BRAVE (ONL-R) (MAN, no; new) | 120ml EXTRAIT DE PARFUM · PP120E-ONL-R |
+| CANVAS BAG / KARTU GARANSI (KEMASAN, yes; existing) | Satuan · KEM-CAN / KEM-KAR, name and category kept |
+| GIFT CARD (KEM-GIF), PAPERBAG CREAM (KEM-PAP), STICKER GARANSI MR. FANTASTIC (KEM-MRF), STICKER GARANSI THE ONLY ONE (KEM-THE) | Satuan, ERP: bukan untuk dijual, not sellable |
+| 24HOURS (DP120E-24H), GORGEOUS TUBEROSE (DW110E-GOR), KERTAS TESTER LANDSCAPE CHAMPION (KTL-CHA), ONLY THE BRAVE - 120ML PARFUM INTENSE REWORK (PP120P-ONL-R) | the same: one Satuan row at Rp0, ERP: bukan untuk dijual, not sellable |
+
+### 8.5 Second full pull and owner edits
+
+Before the second pull, the owner's edits were simulated:
+- turn `sellable` on for `GORGEOUS TUBEROSE (DW110E-GOR)`;
+- rename `24HOURS` to `24 HOURS`;
+- re-file `24HOURS` under UNISEX.
+
+The second full pull then ran: 374 upserted, 0 item errors, 0 deactivated. **0 rows changed** across products,
+variants and outlets, and the content versions were unchanged (6,6,6,6). The display stayed sellable, and the
+rename and re-filing stayed.
+
+### 8.6 Open owner calls (defaults chosen and tested; change on request)
+
+- **ONL-R rework.** It is its own product, `ONLY THE BRAVE (ONL-R)`. The alternative is a `120ml EXTRAIT DE PARFUM REWORK` label inside ONLY THE BRAVE.
+- **THE fragrance.** It is named `THE ONLY ONE (THE)`, because the hamper product holds the plain name.
+  - A name that is already taken gets the fragrance code appended, and the run note reports it.
+  - The owner can rename these products: name and category are now editable on linked products (`ac78c365`).
+- **New-product category from the ERP gender.** This is a default only. The gender is inconsistent across the ERP (§6.4 caveat), and later pulls never change the category.
+- **PP120P-ONL-R.** It is filed as DISPLAY PARFUM / others, so it became a not-for-sale others product. The ERP should re-file it if it is a sellable rework.
+
+The ERP-side data issues of §6.7 are unchanged.
+
+### 8.7 Teardown
+
+The containers were stopped (`--rm`). The scratch Neon dump, the ERP JSON pages, the sandbox env file and the
+binaries were deleted. `grep` for the key prefix and for the Neon host over the worktree and scratch found 0 hits.
 No push, deploy, Neon write or ERP write was made.
