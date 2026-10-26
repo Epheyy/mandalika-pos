@@ -188,6 +188,7 @@ Set aside: held orders (Majoo Daftar Order, Moka Save Bill; Moka blocks split bi
 - Line sheet (tap a cart line): qty stepper, size switch, line discount (if permitted), note, Hapus.
 - Promo & Diskon sheet: code field at top, active promos as toggle cards with the "Bisa digabung" rule, manual Diskon/Biaya tambahan at the bottom, open to every cashier (D-11). Pickers for BXGY/bundle replace the sheet's content (same sheet, back arrow), never stack on it.
 - Pelanggan sheet: phone field, recent customers, result with tier and "N hadiah tersedia", + Baru.
+- Profil Pelanggan (owner request 2026-10-27, Figma W3b): tapping a customer result or the attached chip opens the profile: tier, points, rewards available, total spend, days since the last visit, a "Bahan obrolan" box (last purchase, usual repurchase interval, scent preference, never-tried suggestion), the last purchases with items and an "Ulangi" shortcut that adds those lines to the cart, "Sering dibeli" chips, CRM notes and reminders with "+ Tambah catatan", and a gold "Pilih untuk transaksi ini" bar. Online-only for history (offline shows this tablet's receipts for that customer). Data already exists server-side (orders by customer, SP-CRM-6 interactions and reminders, loyalty ledger); the "Bahan obrolan" sentence is computed from order history (last item, median gap between purchases, categories not yet bought) and needs one new read endpoint (**D-25**). Built in B3.
 - Checkout sheet (Bayar): methods, cash chips, keypad, change, loyalty reward and points in a "Hadiah & Poin" block above the methods when a customer is attached, Konfirmasi.
 - Connection sheet (tap the chip): status, queue list with per-order state, "Kirim sekarang", "Perbarui data", "Bagikan log".
 
@@ -500,7 +501,7 @@ Review: `chore` agent for mechanical swaps, `reviewer` for anything in `CashierS
 |---|---|---|---|
 | B1 Variant sheet + line sheet | Tap size = add one (**D-10**); line sheet with qty, size switch, note (per-line note is a new field in the order payload → check with the server, else keep order-level), Hapus; swipe-to-delete | `ProductGrid.tsx` local state; `cashierReducer` ADD/UPDATE_LINE semantics unchanged; the overstock warning path in `stock.ts` must still fire | 2 |
 | B2 One "Promo & Diskon" door + safe clears | Merge AdjustmentDrawer and PromoPanel into one sheet; pickers replace sheet content instead of stacking; per-promo invalidation at confirm (not clear-all); customer-attach conflict confirm; Android Back covers every sheet | `CashierScreen.tsx:616-695` re-guard, `cashierReducer.ts:378-397,450-529`; the promo validator stays `promoValidate.ts` 1:1 with Go | 2-3 |
-| B3 Pelanggan chip + hadiah di keranjang | W3 sheet; chip with tier and reward count; reward preview moved from checkout into the cart header (still online-only); "Hadiah & Poin" block in W2 | Loyalty preview call unchanged (`/sync/loyalty-preview`); reward line shape unchanged (SP-CRM-9) | 1-2 |
+| B3 Pelanggan chip + hadiah di keranjang + profil | W3 sheet; chip with tier and reward count; reward preview moved from checkout into the cart header (still online-only); "Hadiah & Poin" block in W2; **W3b customer profile** (history, "Bahan obrolan", Ulangi, notes) | Loyalty preview call unchanged (`/sync/loyalty-preview`); reward line shape unchanged (SP-CRM-9); profile needs one new read endpoint `GET /customers/{id}/profile` (orders, interactions, computed pitch) — backend half, no migration (**D-25**) | 2-3 |
 
 ### Fase C — perubahan data / alur yang menyentuh SyncEngine, stok, struk atau backend (class S) — about 8 sessions
 | Slice | Content | Sessions |
@@ -583,5 +584,7 @@ Owner answered on 2026-10-27: "agree with most of all the defaults"; D-11 no per
 | D-22 | Backoffice English leftovers renamed (Dashboard, Overview, Template, Log Error) | Yes | Yes |
 | D-23 | Hi-fi mocks in Figma before Fase A | (new) | **Done** 2026-10-27: https://www.figma.com/design/iMyGehblek8VJXbMIRRPrf |
 | D-24 | Brand colours for Flamboyan and Performance Perfume (Figma `palette/*` placeholders: rose `#9f1f4a`, navy `#1f3a8a`) | (new) | **Owner to supply** the real brand hex values |
+| D-25 | Customer profile sheet on the POS with purchase history and a computed "Bahan obrolan" pitch (owner request) | (new) | **Yes**, B3; Figma W3b; needs one backend read endpoint |
+| D-26 | Product photos on catalog tiles (the app already stores product photos; W1 now shows a 56 dp thumbnail per tile) | (new) | **Yes**; tiles without a photo show the bottle placeholder |
 
 Known limits of this document: no screenshots of competitor apps were inspected (prose sources only); Lightspeed and Pawoon help centers refused fetches, so those facts are search excerpts; tap counts for the proposed design are targets, not measurements, until `ecc:click-path-audit` runs on a build; the POS inventory did not read `ShiftRecapPanel.tsx`, the requisition screens and `authBoot` in full.
