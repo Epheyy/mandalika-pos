@@ -8,6 +8,10 @@ Last updated: 2026-10-26 by Claude (Opus 5.5) - INVENTORY CONTROLS LIVE (backend
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-10-27: AUDITOR ROUND 2 code-complete on branch claude/elated-dewdney-24861b (5 commits 5700b93a..f1c671b7, NOT merged/pushed/deployed): Pergerakan
+> buckets (Masuk/Penjualan/Refund/Transfer/Penyesuaian/Hadiah, ledger.BucketOf), Garansi receipt tag (mig 0076), Pergerakan CSV, Kartu Stok document
+> links + shortcuts. Gates: MV+SL Postgres (docker), browser:ci, vitest, tsc, gen-check green. Awaits owner merge go-ahead + auditor confirming the note.
+>
 > 2026-10-26 (evening): ERP MAPPING v3 LIVE + SKU IDENTITY MAP COMMITTED: backend `00139-juy` (tag `mapv3`, commit
 > bb0fc478, no migration) at 100%, rollback `00137-cev`; mirror CI green on bb0fc478 (5/5). SKU mapping run
 > `32ed428d` on test Neon: update 29 / error 0 / warning 9 (expected), the 4 wrong SKUs now PP120E/P-NO1 and
