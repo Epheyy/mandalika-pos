@@ -8,6 +8,13 @@ Last updated: 2026-10-26 by Claude (Opus 5.5) - INVENTORY CONTROLS LIVE (backend
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-10-26 (evening): ERP MAPPING v3 LIVE + SKU IDENTITY MAP COMMITTED: backend `00139-juy` (tag `mapv3`, commit
+> bb0fc478, no migration) at 100%, rollback `00137-cev`; mirror CI green on bb0fc478 (5/5). SKU mapping run
+> `32ed428d` on test Neon: update 29 / error 0 / warning 9 (expected), the 4 wrong SKUs now PP120E/P-NO1 and
+> PP120E/P-ONL (barcodes keep the old SKU). The ERP merged its real `POST /stock-documents` on 2026-10-26 (outlet
+> CODE is the location key; POS still sends slug) — card "ERP write endpoint cutover" proposed, not started.
+> Auditor round-2 card proposed (Pergerakan buckets, Kartu Stok links). Backoffice shell overflow-clip fix pushed.
+>
 > 2026-10-26: AUDITOR INVENTORY CONTROLS LIVE (owner go-ahead before the Nov 2 demo, confirmed in-session): backend
 > `00137-cev` (tag `invctl`, commit a361b39, migrations 0069-0075) at 100%, rollback `00135-zeq`; POS OTA 2.1.6
 > (id 1cb88508, code 12). Live ERP rehearsal DEMO8 15/15 + ledger invariant 0 rows. All features dormant until
@@ -40,6 +47,36 @@ Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 
 
 ## Now (live state)
 
+- **MAPPING v3 LIVE 2026-10-26 (owner: "merge and push then commit the SKU mapping"):** prod-hardening
+  `a6bf19ab..bb0fc478` (sandbox report + 8 mapping-v3 commits) on origin + ci; backend **`00139-juy`** (tag `mapv3`)
+  at 100%, rollback `00137-cev`. The catalog pull now: never writes name/category/brand/sellable/images/price of an
+  existing product or name/address/phone of an existing outlet; never creates outlets (link by erp_slug or exact code,
+  ONLINE MP-* never); groups by the fragrance part of the ERP code with `<size>ml <LINE>` labels; new-product name =
+  ERP name minus the " - <size> <line>" suffix (`-R` rework code → "<name> - REWORK"), category from majority ERP
+  gender (MAN/WOMAN/UNISEX, default only); ERP "others" (displays, testers, paper, stickers) become separate
+  not-for-sale Rp0 products under category "ERP: bukan untuk dijual" (owner may switch sellable on; the pull never
+  flips it back). Sandbox re-run against production ERP (report §8): 0/102 POS fields changed, 0 outlets created,
+  191 sellable items in 31 products, 179 others not for sale, second pull a no-op. Backoffice: name/category
+  editable again on ERP-linked products, name/address/phone on linked outlets (`ac78c365`). SKU identity map
+  (`docs/integration/2026-10-26-sku-mapping-cutover.csv`) dry-run on tag then COMMITTED on the live revision, run id
+  `32ed428d`, summary update 29/error 0/warning 9 (3 name_conflict + 2 label_conflict on KEM-CAN and the hampers,
+  4 sku_changed); Neon read-back confirms `PP120E-NO1`, `PP120P-NO1`, `PP120E-ONL`, `PP120P-ONL` with old barcodes,
+  slugs linked, group keys `erp:NO1`/`erp:ONL`. Runbook "Cutover to the real ERP" step 4 is therefore DONE on the
+  test DB. **Not yet done:** the real-ERP full pull (needs the ERP client key in Cloud Run and the ERP write scope).
+- **ERP WRITE ENDPOINT MERGED ON THEIR MAIN 2026-10-26 (scout + re-derived from source):** `POST
+  /api/integration/v1/stock-documents`, scope `integration:stock:write`, `Idempotency-Key` must equal document_id
+  (POS already sends it), envelope `{status:"success",data:{document_id,status,movement_ids}}` (POS accepts),
+  errors `{message,code}`. **Break:** location is `{type:"outlet", code}` (ERP commit 01433bf2) — POS sends `slug`
+  → 422 at cutover. Also: outlet must be assigned to the client (integration_stock_locations), sign-by-kind, period
+  window (>24 h ahead / >6 months back → 422), same-key-different-body → 409 IDEMPOTENCY_CONFLICT, warehouse 422.
+  Deployment on erp.mandalika.web.id and the write scope on `pos_mandalika` are unconfirmed. Card proposed:
+  "ERP write endpoint cutover: location.code, stub parity, rehearsal" (Opus high).
+- **AUDITOR ROUND 2 (2026-10-26):** Pergerakan should split Masuk/Keluar into buckets (Masuk = warehouse receipts +
+  Garansi; Penjualan; Refund; Transfer = store↔store/store→warehouse; Penyesuaian; Hadiah); Kartu Stok rows should
+  link to the source document + shortcuts to create an adjustment / goods-in. Card proposed (Sonnet medium).
+- **Backoffice scroll bug (owner screenshot 2026-10-26):** the shell `h-screen overflow-hidden` could be scrolled by
+  focus() on an off-screen element with no way back; changed to `overflow-clip` (App.tsx:159). Unverified on the
+  owner's machine; if it recurs, look for the focused element below the fold on the Produk screen.
 - **INVENTORY CONTROLS LIVE 2026-10-26 (owner go-ahead "live even before the demo", confirmed in-session; grant skipped):**
   prod-hardening `a361b39` (merge of `inv-integration`: S0-S6 + F1-F3, plus prod-hardening 19c091d/e0ff77d) pushed to origin +
   ci; mirror CI green on a361b39 (all five; Postgres needed one rerun: runner had host port 56474 busy at fixture start —
