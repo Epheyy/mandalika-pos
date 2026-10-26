@@ -482,7 +482,7 @@ Five working days. What fits, in order, all OTA-safe and none touching SyncEngin
    - **Denomination counter at Tutup Shift** (**D-5**, now Yes): 100k/50k/20k/10k/5k/2k/1k/coins × count → fills "Terhitung Tunai". Display-only. Fits (half a session).
    - **OTA "Versi baru siap" prompt** (**D-19**, now in the window): needs Capgo manual mode, a native config change, so it ships as an **APK**, not OTA; build it in the window but it reaches tablets only through the fleet rollout.
    - **Split tender** (the other half of D-6): touches the tender invariants (A09), the order payload, the sync schema and the backend. **Not safe inside the window**; scheduled as C6 after the window with the reviewer and Neon e2e.
-   - **Dark theme** (**D-12**): the owner's "flip all No" instruction is ambiguous here; stays No until the owner says otherwise (one line answer needed).
+   - **Dark theme** (**D-12**): No, confirmed by the owner.
 If the POS **is** in the 2 Nov demo, Fase 0b collapses into the first week after the demo in the same order.
 
 ### Fase A — restyle tanpa perubahan perilaku (POS, OTA-safe, class R) — about 7 sessions
@@ -570,7 +570,7 @@ Owner answered on 2026-10-27: "agree with most of all the defaults"; D-11 no per
 | D-9 | Show price and stock on tiles by default | Yes | Yes |
 | D-10 | Tap a size row adds one immediately (no 0-start popup) | Yes | Yes |
 | D-11 | Permission gate (lock) on manual discount | Yes | **No gate.** Owner: a gate would slow the counter. Also closes HANDOFF's open "slice 8b discount permission" decision as "not wanted". |
-| D-12 | Dark theme | No | **Owner to confirm in one line**: the "flip all No" instruction may or may not include this; stays No meanwhile |
+| D-12 | Dark theme | No | **No** (owner confirmed 2026-10-27) |
 | D-13 | Show the per-sale giveaway (canvas bag) as a GRATIS line on the POS and subtract it from displayed stock | Yes (phase C) | Yes (phase C) |
 | D-14 | Per-line refund scope (backend + sync schema) | Yes, phase C, PIN-gated | Yes, phase C, PIN-gated (refund PIN is A06, already live) |
 | D-15 | Backoffice router / URL state | Yes, phase D4 | Yes |
