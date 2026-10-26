@@ -125,7 +125,7 @@ func (s *obeStub) call(method, path string) ([]byte, int, error) {
 type obeDoc struct {
 	DocumentID string `json:"document_id"`
 	Kind       string `json:"kind"`
-	Location   struct{ Type, Slug string }
+	Location   struct{ Type, Code, Slug string }
 	Ref        struct{ Type, ID string }
 	Body       erp.StockDocument `json:"body"`
 }
@@ -163,17 +163,18 @@ func (s *obeStub) docByID(t *testing.T, id string) (obeDoc, int) {
 	return found, n
 }
 
-func (s *obeStub) balance(t *testing.T, locType, slug, fg string) int64 {
+// balance reads a stub balance; the stub keys outlets by their ERP code, like the ERP.
+func (s *obeStub) balance(t *testing.T, locType, locCode, fg string) int64 {
 	t.Helper()
 	var rows []struct {
 		LocationType string `json:"location_type"`
-		LocationSlug string `json:"location_slug"`
+		LocationCode string `json:"location_code"`
 		FgCode       string `json:"fg_code"`
 		Qty          int64  `json:"qty"`
 	}
 	s.data(t, "/_stub/balances", &rows)
 	for _, r := range rows {
-		if r.LocationType == locType && r.LocationSlug == slug && r.FgCode == fg {
+		if r.LocationType == locType && r.LocationCode == locCode && r.FgCode == fg {
 			return r.Qty
 		}
 	}
@@ -372,7 +373,7 @@ func obrE2ECases(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		e.t = t
 		pA, pS := e.product("FG-001", 10), e.product("FG-002", 1) // pS is oversold by 2
 		e.open()
-		b1, b2 := e.stub.balance(t, "outlet", "kemang", "FG-001"), e.stub.balance(t, "outlet", "kemang", "FG-002")
+		b1, b2 := e.stub.balance(t, "outlet", "KMG", "FG-001"), e.stub.balance(t, "outlet", "KMG", "FG-002")
 		saleOrder = e.sale([2]any{pA, 2}, [2]any{pS, 3})
 		row := e.outbox("sale", saleOrder)
 		e.want(row.status == "pending", "outbox status %s before relay, want pending", row.status)
@@ -380,10 +381,10 @@ func obrE2ECases(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		rep := e.run()
 		e.want(rep.Delivered == 1 && e.status(saleDoc) == "delivered", "run %+v, status %s", rep, e.status(saleDoc))
 		d, n := e.stub.docByID(t, saleDoc)
-		e.want(n == 1 && d.Kind == "sale" && d.Location.Type == "outlet" && d.Location.Slug == "kemang", "stub doc %+v n=%d", d, n)
+		e.want(n == 1 && d.Kind == "sale" && d.Location.Type == "outlet" && d.Location.Code == "KMG" && d.Location.Slug == "kemang", "stub doc %+v n=%d", d, n)
 		e.want(slices.Equal(obeLineIDs(d), e.movementIDs(saleDoc)), "stub movement ids %v != ledger %v", obeLineIDs(d), e.movementIDs(saleDoc))
-		e.want(e.stub.balance(t, "outlet", "kemang", "FG-001") == b1-2, "FG-001 balance %d, want %d", e.stub.balance(t, "outlet", "kemang", "FG-001"), b1-2)
-		e.want(e.stub.balance(t, "outlet", "kemang", "FG-002") == b2-3, "FG-002 balance %d, want %d", e.stub.balance(t, "outlet", "kemang", "FG-002"), b2-3)
+		e.want(e.stub.balance(t, "outlet", "KMG", "FG-001") == b1-2, "FG-001 balance %d, want %d", e.stub.balance(t, "outlet", "KMG", "FG-001"), b1-2)
+		e.want(e.stub.balance(t, "outlet", "KMG", "FG-002") == b2-3, "FG-002 balance %d, want %d", e.stub.balance(t, "outlet", "KMG", "FG-002"), b2-3)
 		short := 0
 		for _, l := range d.Body.Lines {
 			if l.FgCode == "FG-002" && slices.Contains(l.Flags, "shortage") {
@@ -401,7 +402,7 @@ func obrE2ECases(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		if saleOrder == "" {
 			t.Fatal("depends on e2e-sale-delivered, which left no document")
 		}
-		b1 := e.stub.balance(t, "outlet", "kemang", "FG-001")
+		b1 := e.stub.balance(t, "outlet", "KMG", "FG-001")
 		if code, body := e.do("/orders/"+saleOrder+"/refund", map[string]any{"reason": "obe"}); code != 200 && code != 201 {
 			t.Fatalf("refund: %d %s", code, body)
 		}
@@ -414,14 +415,14 @@ func obrE2ECases(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		for _, l := range d.Body.Lines {
 			e.want(slices.Contains(sold, l.RefundOfMovementID), "refund line %s refund_of %q not a sale movement %v", l.MovementID, l.RefundOfMovementID, sold)
 		}
-		e.want(e.stub.balance(t, "outlet", "kemang", "FG-001") == b1+2, "FG-001 not restored: %d, want %d", e.stub.balance(t, "outlet", "kemang", "FG-001"), b1+2)
+		e.want(e.stub.balance(t, "outlet", "KMG", "FG-001") == b1+2, "FG-001 not restored: %d, want %d", e.stub.balance(t, "outlet", "KMG", "FG-001"), b1+2)
 	})
 
 	t.Run("e2e-fault-503-then-recover", func(t *testing.T) {
 		e.t = t
 		p := e.product("FG-001", 10)
 		e.open()
-		b1 := e.stub.balance(t, "outlet", "kemang", "FG-001")
+		b1 := e.stub.balance(t, "outlet", "KMG", "FG-001")
 		order := e.sale([2]any{p, 1})
 		row := e.outbox("sale", order)
 		if _, code, err := e.stub.call(http.MethodPost, "/_stub/fault?status=503&count=1"); err != nil || code != 200 {
@@ -435,11 +436,11 @@ func obrE2ECases(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		}
 		e.want(e.status(row.docID) == "pending" && attempts == 1 && httpStatus != nil && *httpStatus == 503,
 			"after fault: run %+v status %s attempts %d http %v", rep, e.status(row.docID), attempts, httpStatus)
-		e.want(e.stub.balance(t, "outlet", "kemang", "FG-001") == b1, "a failed delivery must not move the stub balance")
+		e.want(e.stub.balance(t, "outlet", "KMG", "FG-001") == b1, "a failed delivery must not move the stub balance")
 		e.exec(`UPDATE erp_outbox SET next_attempt_at=now() WHERE document_id=$1`, row.docID)
 		rep = e.run()
 		e.want(rep.Delivered == 1 && e.status(row.docID) == "delivered", "recover: run %+v status %s", rep, e.status(row.docID))
-		e.want(e.stub.balance(t, "outlet", "kemang", "FG-001") == b1-1, "balance %d, want %d", e.stub.balance(t, "outlet", "kemang", "FG-001"), b1-1)
+		e.want(e.stub.balance(t, "outlet", "KMG", "FG-001") == b1-1, "balance %d, want %d", e.stub.balance(t, "outlet", "KMG", "FG-001"), b1-1)
 	})
 
 	t.Run("e2e-422-dead-then-fixed", func(t *testing.T) {
@@ -457,7 +458,7 @@ func obrE2ECases(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		e.want(e.status(row.docID) == "dead" && httpStatus != nil && *httpStatus == 422 && resp != nil && strings.Contains(*resp, "VALIDATION_ERROR"),
 			"run %+v status %s http %v response %v", rep, e.status(row.docID), httpStatus, resp)
 		e.exec(`UPDATE product_variants SET sku='FG-003' WHERE product_id=$1`, p)
-		b3 := e.stub.balance(t, "outlet", "kemang", "FG-003")
+		b3 := e.stub.balance(t, "outlet", "KMG", "FG-003")
 		if _, err := erp.Retry(ctx, pool, row.id); err != nil {
 			t.Fatal(err)
 		}
@@ -465,7 +466,7 @@ func obrE2ECases(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		e.want(rep.Delivered == 1 && e.status(row.docID) == "delivered", "after fix: run %+v status %s", rep, e.status(row.docID))
 		d, n := e.stub.docByID(t, row.docID)
 		e.want(n == 1 && len(d.Body.Lines) == 1 && d.Body.Lines[0].FgCode == "FG-003", "stub body %+v n=%d", d.Body.Lines, n)
-		e.want(e.stub.balance(t, "outlet", "kemang", "FG-003") == b3-1, "FG-003 balance %d, want %d", e.stub.balance(t, "outlet", "kemang", "FG-003"), b3-1)
+		e.want(e.stub.balance(t, "outlet", "KMG", "FG-003") == b3-1, "FG-003 balance %d, want %d", e.stub.balance(t, "outlet", "KMG", "FG-003"), b3-1)
 	})
 
 	t.Run("e2e-replay", func(t *testing.T) {
@@ -473,7 +474,7 @@ func obrE2ECases(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		if saleDoc == "" {
 			t.Fatal("depends on e2e-sale-delivered, which left no document")
 		}
-		b1, b2 := e.stub.balance(t, "outlet", "kemang", "FG-001"), e.stub.balance(t, "outlet", "kemang", "FG-002")
+		b1, b2 := e.stub.balance(t, "outlet", "KMG", "FG-001"), e.stub.balance(t, "outlet", "KMG", "FG-002")
 		e.park()
 		if _, err := erp.Retry(ctx, pool, saleOutbox); err != nil {
 			t.Fatal(err)
@@ -482,7 +483,7 @@ func obrE2ECases(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		e.want(rep.Replayed == 1 && e.status(saleDoc) == "replayed", "run %+v status %s", rep, e.status(saleDoc))
 		_, n := e.stub.docByID(t, saleDoc)
 		e.want(n == 1, "stub holds %d copies of the document, want 1", n)
-		e.want(e.stub.balance(t, "outlet", "kemang", "FG-001") == b1 && e.stub.balance(t, "outlet", "kemang", "FG-002") == b2, "a replay changed the stub balances")
+		e.want(e.stub.balance(t, "outlet", "KMG", "FG-001") == b1 && e.stub.balance(t, "outlet", "KMG", "FG-002") == b2, "a replay changed the stub balances")
 	})
 
 	t.Run("e2e-transfer-pair", func(t *testing.T) {
@@ -528,7 +529,7 @@ func obrE2ECases(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		_, n := e.stub.docByID(t, out.docID)
 		e.want(n == 0, "the stub got %d copies of the warehouse document, want 0", n)
 		di, _ := e.stub.docByID(t, in.docID)
-		e.want(di.Kind == "transfer_in" && di.Location.Type == "outlet" && di.Location.Slug == "kemang", "transfer_in doc %+v", di)
+		e.want(di.Kind == "transfer_in" && di.Location.Type == "outlet" && di.Location.Code == "KMG", "transfer_in doc %+v", di)
 		e.want(di.Ref.ID == tid, "ref id %s, want %s", di.Ref.ID, tid)
 		e.want(len(di.Body.Lines) == 1, "transfer_in lines %+v", di.Body.Lines)
 		l := di.Body.Lines[0]

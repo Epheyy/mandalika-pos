@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/mandalika/pos-backend/internal/integration/erp/erpstub"
@@ -22,6 +23,8 @@ func main() {
 	key := flag.String("key", os.Getenv("ERP_STUB_KEY"), "bearer API key (env ERP_STUB_KEY)")
 	seedPath := flag.String("seed", "", "seed JSON path (default: embedded seed)")
 	statePath := flag.String("state", "", "state file; loaded at start if present, saved after every mutation")
+	assigned := flag.String("assigned-outlets", os.Getenv("ERP_STUB_ASSIGNED_OUTLETS"),
+		"comma-separated outlet codes assigned to the client; empty = every outlet (env ERP_STUB_ASSIGNED_OUTLETS)")
 	envelope := flag.String("envelope", os.Getenv("ERP_STUB_ENVELOPE"),
 		`stock-document success envelope: "legacy" ({"success":true}, default) or "erp" ({"status":"success"}) (env ERP_STUB_ENVELOPE)`)
 	flag.Parse()
@@ -37,7 +40,7 @@ func main() {
 		}
 		seed = b
 	}
-	s, err := erpstub.New(erpstub.Config{Key: *key, StatePath: *statePath, Seed: seed, Envelope: *envelope})
+	s, err := erpstub.New(erpstub.Config{Key: *key, StatePath: *statePath, Seed: seed, Envelope: *envelope, AssignedOutlets: splitCodes(*assigned)})
 	if err != nil {
 		log.Fatalf("init: %v", err)
 	}
@@ -53,4 +56,15 @@ func persistenceLabel(path string) string {
 		return "off"
 	}
 	return "on (" + path + ")"
+}
+
+// splitCodes parses the comma-separated flag; empty means nil (every outlet).
+func splitCodes(s string) []string {
+	var out []string
+	for _, c := range strings.Split(s, ",") {
+		if c = strings.TrimSpace(c); c != "" {
+			out = append(out, c)
+		}
+	}
+	return out
 }

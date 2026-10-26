@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/mandalika/pos-backend/internal/integration/erp/erpapi"
 )
@@ -29,8 +30,8 @@ func (s *Server) hookBalances(w http.ResponseWriter, _ *http.Request) {
 		if a.LocationType != b.LocationType {
 			return a.LocationType < b.LocationType
 		}
-		if a.LocationSlug != b.LocationSlug {
-			return a.LocationSlug < b.LocationSlug
+		if a.LocationCode != b.LocationCode {
+			return a.LocationCode < b.LocationCode
 		}
 		return a.FgCode < b.FgCode
 	})
@@ -186,4 +187,48 @@ func validateOutletInput(in *erpapi.IntegrationOutlet) []detail {
 		ds = append(ds, detail{"type", "invalid type"})
 	}
 	return ds
+}
+
+// assignedSet turns the configured codes into the lookup set; nil means every outlet.
+func assignedSet(codes []string) map[string]bool {
+	if codes == nil {
+		return nil
+	}
+	set := make(map[string]bool, len(codes))
+	for _, c := range codes {
+		if c = strings.TrimSpace(c); c != "" {
+			set[c] = true
+		}
+	}
+	return set
+}
+
+// hookAssignedOutlets replaces the client-outlet assignment at runtime
+// (in memory, not persisted). Body {"codes":[...]}; {"codes":null} = every outlet.
+func (s *Server) hookAssignedOutlets(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+	var in map[string]json.RawMessage
+	if err != nil || json.Unmarshal(body, &in) != nil {
+		writeErr(w, http.StatusBadRequest, "INVALID_INPUT", "malformed JSON body", nil)
+		return
+	}
+	raw, present := in["codes"]
+	var codes []string
+	if !present || json.Unmarshal(raw, &codes) != nil {
+		writeValidation(w, []detail{{"codes", "required: an array of outlet codes, or null for every outlet"}})
+		return
+	}
+	set := assignedSet(codes) // JSON null leaves codes nil => every outlet
+	s.mu.Lock()
+	s.assigned = set
+	s.mu.Unlock()
+	var out []string
+	if set != nil {
+		out = make([]string, 0, len(set))
+		for c := range set {
+			out = append(out, c)
+		}
+		sort.Strings(out)
+	}
+	writeOK(w, http.StatusOK, map[string]any{"codes": out})
 }

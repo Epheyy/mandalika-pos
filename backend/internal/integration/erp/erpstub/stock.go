@@ -44,7 +44,7 @@ func (s *Server) buildStock(code string, q url.Values) (*stockPage, bool, []deta
 		Slug: outlet.Slug, Code: outlet.Code, Name: outlet.Name,
 		Type: erpapi.IntegrationOutletStockOutletType(outlet.Type),
 	}}
-	rows := outletRows(s.st, outlet.Slug)
+	rows := outletRows(s.st, outlet.Code)
 	page.LastUpdatedAt = latestUpdate(rows)
 
 	var ds []detail
@@ -56,10 +56,10 @@ func (s *Server) buildStock(code string, q url.Values) (*stockPage, bool, []deta
 	return page, false, ds
 }
 
-func outletRows(st *state, outletSlug string) map[string]*balance {
+func outletRows(st *state, outletCode string) map[string]*balance {
 	rows := map[string]*balance{}
 	for _, b := range st.Balances {
-		if b.LocationType == "outlet" && b.LocationSlug == outletSlug {
+		if b.LocationType == "outlet" && b.LocationCode == outletCode {
 			rows[b.FgCode] = b
 		}
 	}
