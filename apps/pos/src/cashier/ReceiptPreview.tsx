@@ -4,6 +4,8 @@ import { formatRupiah } from './pricing'
 import { receiptRefLabel } from './orderRef'
 import logoGold from '../assets/logo-gold.png'
 import { variantLabel } from '@mandalika/types'
+import { PAYMENT_LABELS } from '../lib/paymentLabels'
+import { Sheet } from '../components/ui/Sheet'
 
 type AppSettings = components['schemas']['AppSettings']
 type CartItem = components['schemas']['CartItem']
@@ -32,12 +34,6 @@ interface ReceiptPreviewProps {
   onNewSale: () => void
 }
 
-const PAYMENT_LABELS: Record<string, string> = {
-  cash: 'Tunai',
-  card: 'Kartu',
-  transfer: 'Transfer',
-  qris: 'QRIS',
-}
 
 export const ReceiptPreview = memo(function ReceiptPreview({
   isOpen,
@@ -74,8 +70,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
   })
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[90vh] flex flex-col">
+    <Sheet open variant="center" maxWidth="max-w-sm" panelClassName="max-h-[90vh] flex flex-col">
         {/* Success header */}
         <div className="flex flex-col items-center pt-6 pb-4 border-b border-gray-100 px-5">
           <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mb-3">
@@ -207,7 +202,6 @@ export const ReceiptPreview = memo(function ReceiptPreview({
             Transaksi Baru
           </button>
         </div>
-      </div>
-    </div>
+    </Sheet>
   )
 })

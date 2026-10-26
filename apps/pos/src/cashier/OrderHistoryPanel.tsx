@@ -12,6 +12,7 @@ import { variantLabel } from '@mandalika/types'
 import { RefundAction } from './RefundAction'
 import { PAYMENT_LABELS } from './refundView'
 import { PAGE_SIZE, businessToday, defaultHistoryDay, orderHistoryQuery } from './orderHistoryQuery'
+import { Sheet } from '../components/ui/Sheet'
 
 type Order = components['schemas']['Order']
 type OrderListResponse = components['schemas']['OrderListResponse']
@@ -123,8 +124,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] flex flex-col">
+    <Sheet open variant="center" maxWidth="max-w-2xl" panelClassName="max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h3 className="font-bold text-gray-900">Riwayat Transaksi</h3>
@@ -328,7 +328,6 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </Sheet>
   )
 }

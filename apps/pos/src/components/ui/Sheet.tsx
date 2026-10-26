@@ -34,7 +34,7 @@ const OVERLAY_CLASSES: Record<SheetVariant, string> = {
 
 const PANEL_CLASSES: Record<SheetVariant, string> = {
   center: 'bg-white rounded-2xl w-full shadow-xl',
-  side: 'bg-white h-full',
+  side: 'bg-white h-full w-full',
   full: 'w-full h-full',
 }
 

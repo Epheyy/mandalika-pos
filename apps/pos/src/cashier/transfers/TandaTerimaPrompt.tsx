@@ -12,6 +12,7 @@ import { useState } from 'react'
 import type { components } from '@mandalika/api'
 import { usePrinter } from '../../printer'
 import { buildTandaTerimaData } from './buildTandaTerimaData'
+import { Sheet } from '../../components/ui/Sheet'
 
 type Transfer = components['schemas']['Transfer']
 type ReceiptSettings = components['schemas']['ReceiptSettings']
@@ -45,8 +46,7 @@ export function TandaTerimaPrompt({ transfer, receivedByName, receiptSettings, o
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-[70] flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
+    <Sheet open variant="center" z={70} maxWidth="max-w-sm">
         {/* Header */}
         <div className="px-5 pt-5 pb-4 border-b border-gray-100">
           <h3 className="font-bold text-gray-900 text-base">Tanda terima siap</h3>
@@ -89,7 +89,6 @@ export function TandaTerimaPrompt({ transfer, receivedByName, receiptSettings, o
             Lewati
           </button>
         </div>
-      </div>
-    </div>
+    </Sheet>
   )
 }

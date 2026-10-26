@@ -6,6 +6,7 @@ import { formatRupiah } from './pricing'
 import { cashTender } from './tender'
 import { stockFor, overstockLines } from './stock'
 import type { CartLineLike } from './stock'
+import { PAYMENT_LABELS } from '../lib/paymentLabels'
 
 type AppSettings = components['schemas']['AppSettings']
 type Customer = components['schemas']['Customer']
@@ -52,12 +53,6 @@ interface CheckoutPanelProps {
   cartLines: CartLineLike[]
 }
 
-const PAYMENT_LABELS: Record<string, string> = {
-  cash: 'Tunai',
-  card: 'Kartu',
-  transfer: 'Transfer',
-  qris: 'QRIS',
-}
 
 export const CheckoutPanel = memo(function CheckoutPanel({
   isOpen,

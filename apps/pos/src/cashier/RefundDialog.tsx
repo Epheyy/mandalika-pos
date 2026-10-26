@@ -3,6 +3,7 @@ import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
 import { MAX_REFUND_REASON_CHARS, variantLabel } from '@mandalika/types'
 import { canSubmitRefundReason } from './refundView'
+import { Sheet } from '../components/ui/Sheet'
 
 type Order = components['schemas']['Order']
 
@@ -38,8 +39,7 @@ export const RefundDialog = memo(function RefundDialog({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
+    <Sheet open variant="center" maxWidth="max-w-sm" panelClassName="p-5">
         <h3 className="font-bold text-gray-900 mb-1">Refund Order</h3>
         <p className="text-xs text-gray-500 mb-4">
           {order.orderNumber} · {formatRupiah(order.total)}
@@ -99,7 +99,6 @@ export const RefundDialog = memo(function RefundDialog({
             Batal
           </button>
         </div>
-      </div>
-    </div>
+    </Sheet>
   )
 })

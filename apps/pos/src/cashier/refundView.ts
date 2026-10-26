@@ -1,6 +1,10 @@
 import type { components } from '@mandalika/api'
 import { MAX_REFUND_REASON_CHARS, canRefund as userCanRefund } from '@mandalika/types'
 import { formatRupiah } from './pricing'
+import { PAYMENT_LABELS } from '../lib/paymentLabels'
+
+// Re-exported so existing importers (localReceipts, panels) keep their import path.
+export { PAYMENT_LABELS }
 
 type Order = components['schemas']['Order']
 
@@ -12,10 +16,6 @@ export const REFUND_QUEUED = 'Refund menunggu sinkronisasi'
 export const REFUND_NO_SHIFT = 'Buka shift dulu'
 export const REFUND_DONE = 'Sudah direfund'
 export const REFUND_SHIFT_UNSYNCED = 'Shift belum tersinkron'
-
-export const PAYMENT_LABELS: Record<string, string> = {
-  cash: 'Tunai', card: 'Kartu', transfer: 'Transfer', qris: 'QRIS',
-}
 
 export type RefundAvailability =
   | { kind: 'allowed' }

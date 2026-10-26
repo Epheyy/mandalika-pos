@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
+import { Sheet } from '../components/ui/Sheet'
 
 type Shift = components['schemas']['Shift']
 
@@ -157,8 +158,7 @@ export const ShiftBar = memo(function ShiftBar({
 
       {/* Open shift modal */}
       {showOpenModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-xs p-5 shadow-xl">
+        <Sheet open variant="center" maxWidth="max-w-xs" panelClassName="p-5">
             <h3 className="font-bold text-gray-900 mb-4">Buka Shift Baru</h3>
             <label htmlFor="shift-starting-cash" className="block text-xs text-gray-600 mb-1">
               Uang awal (kas)
@@ -192,8 +192,7 @@ export const ShiftBar = memo(function ShiftBar({
                 Batal
               </button>
             </div>
-          </div>
-        </div>
+        </Sheet>
       )}
     </>
   )

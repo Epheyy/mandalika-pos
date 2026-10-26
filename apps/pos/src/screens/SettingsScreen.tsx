@@ -18,6 +18,7 @@ import { usePrinter } from '../printer'
 import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
 import { offlineLockMessage } from '../lib/offlineCap'
 import { TerminalSection } from './TerminalSection'
+import { Sheet } from '../components/ui/Sheet'
 
 type AppSettings = components['schemas']['AppSettings']
 type Shift = components['schemas']['Shift']
@@ -179,8 +180,7 @@ export const SettingsScreen = memo(function SettingsScreen({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[90vh] flex flex-col">
+    <Sheet open variant="center" maxWidth="max-w-sm" panelClassName="max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="font-bold text-gray-900">{TITLES[section]}</h2>
@@ -423,7 +423,6 @@ export const SettingsScreen = memo(function SettingsScreen({
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Sheet>
   )
 })
