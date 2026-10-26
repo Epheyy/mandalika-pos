@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -49,31 +50,32 @@ func stepTransfer(r *rt) error {
 	return r.checkTransferDocs(tid, outRow, inRow)
 }
 
+// checkTransferDocs: the ERP takes outlets only, so the warehouse transfer_out stays held in
+// the POS outbox and only the outlet transfer_in reaches the stub.
 func (r *rt) checkTransferDocs(tid string, outRow, inRow obj) error {
-	for _, row := range []obj{outRow, inRow} {
-		if _, err := r.wantStatus(str(row, "id"), "delivered"); err != nil {
-			return err
-		}
+	if _, err := r.wantStatus(str(outRow, "id"), "held"); err != nil {
+		return err
 	}
-	do, err := r.stubDocByID(str(outRow, "documentId"))
-	if err != nil {
+	if err := r.wantWarehouseHeld("transfer_out", tid); err != nil {
+		return err
+	}
+	if _, err := r.wantStatus(str(inRow, "id"), "delivered"); err != nil {
 		return err
 	}
 	di, err := r.stubDocByID(str(inRow, "documentId"))
 	if err != nil {
 		return err
 	}
-	if len(do) != 1 || len(di) != 1 {
-		return fmt.Errorf("stub holds %d transfer_out and %d transfer_in documents, want 1 each", len(do), len(di))
+	if len(di) != 1 {
+		return fmt.Errorf("stub holds %d transfer_in documents, want 1", len(di))
 	}
-	if str(do[0], "kind") != "transfer_out" || str(do[0], "location", "slug") != warehouseSlug ||
-		str(di[0], "kind") != "transfer_in" || str(di[0], "location", "slug") != r.outletSlg {
-		return fmt.Errorf("unexpected transfer documents: out=%v in=%v", do[0]["location"], di[0]["location"])
+	if str(di[0], "kind") != "transfer_in" || str(di[0], "location", "code") != r.cfg.outletCode {
+		return fmt.Errorf("unexpected transfer_in document: %v", di[0]["location"])
 	}
-	if str(do[0], "ref", "id") != tid || str(di[0], "ref", "id") != tid {
-		return fmt.Errorf("ref ids %q / %q, want both %s", str(do[0], "ref", "id"), str(di[0], "ref", "id"), tid)
+	if str(di[0], "ref", "id") != tid {
+		return fmt.Errorf("transfer_in ref id %q, want %s", str(di[0], "ref", "id"), tid)
 	}
-	r.note("two stub documents share ref.id %s: transfer_out@%s, transfer_in@%s", tid, warehouseSlug, r.outletSlg)
+	r.note("transfer %s: transfer_out held at the warehouse, transfer_in delivered at outlet %s", tid, r.cfg.outletCode)
 	ls := list(di[0], "body", "lines")
 	if len(ls) != 1 {
 		return fmt.Errorf("transfer_in has %d lines, want 1", len(ls))
@@ -83,10 +85,7 @@ func (r *rt) checkTransferDocs(tid string, outRow, inRow obj) error {
 	if num(ls[0], "qty") != 9 || num(ls[0], "expected_qty") != 10 || !slices.Contains(fl, any("variance")) {
 		return fmt.Errorf("transfer_in line %v lacks qty 9 / expected 10 / variance flag", ls[0])
 	}
-	if err := r.wantBal("warehouse", warehouseSlug, r.items["C"].fg, 10); err != nil {
-		return err
-	}
-	return r.wantBal("outlet", r.outletSlg, r.items["C"].fg, 9)
+	return r.wantBal("outlet", r.cfg.outletCode, r.items["C"].fg, 9)
 }
 
 func stepFault(r *rt) error {
@@ -116,7 +115,7 @@ func stepFault(r *rt) error {
 	if num(d, "attempts") != 1 || num(d, "lastHttpStatus") != 503 {
 		return fmt.Errorf("attempts=%d http=%d, want 1 and 503", num(d, "attempts"), num(d, "lastHttpStatus"))
 	}
-	if err := r.wantBal("outlet", r.outletSlg, r.items["A"].fg, 10); err != nil {
+	if err := r.wantBal("outlet", r.cfg.outletCode, r.items["A"].fg, 10); err != nil {
 		return fmt.Errorf("a failed delivery moved the stub balance: %w", err)
 	}
 	return r.waitDelivered(id)
@@ -137,28 +136,28 @@ func (r *rt) waitDelivered(id string) error {
 		}
 		if str(d, "status") == "delivered" {
 			r.note("delivered after %s (%s), final attempts=%d", time.Since(t0).Round(time.Second), relaySummary(rep), num(d, "attempts"))
-			return r.wantBal("outlet", r.outletSlg, r.items["A"].fg, 9)
+			return r.wantBal("outlet", r.cfg.outletCode, r.items["A"].fg, 9)
 		}
 		time.Sleep(15 * time.Second)
 	}
 	return fmt.Errorf("document %s still not delivered after -fault-wait %s", id, r.cfg.faultWait)
 }
 
-func (r *rt) tombstone(f fg, deleted bool) error {
+// recodeFG sets the stub FG's code (same slug). Like the ERP, the stub still accepts an FG in
+// trash (BR7), so an unknown fg_code is provoked by an ERP-side code change instead.
+func (r *rt) recodeFG(f fg, code string) error {
 	rec := fgRecord(f, time.Now().UTC().Format(time.RFC3339))
-	if deleted {
-		rec["deleted_at"] = time.Now().UTC().Format(time.RFC3339)
-	}
+	rec["code"] = code
 	_, err := r.stub.must("POST", "/_stub/fg", nil, rec)
 	return err
 }
 
 func stepDeadLetter(r *rt) error {
 	d := r.items["D"]
-	if err := r.tombstone(d.fg, true); err != nil {
+	if err := r.recodeFG(d.fg, d.fg.Code+"-X"); err != nil {
 		return err
 	}
-	r.note("stub FG %s tombstoned (no catalog pull is run until it is restored)", d.fg.Code)
+	r.note("stub FG %s recoded to %s-X (no catalog pull is run until it is restored)", d.fg.Code, d.fg.Code)
 	order, _, err := r.sell("dead1", []line{{"D", 1}})
 	if err != nil {
 		return err
@@ -182,10 +181,10 @@ func stepDeadLetter(r *rt) error {
 	if err := r.inDeadList(id); err != nil {
 		return err
 	}
-	if err := r.tombstone(d.fg, false); err != nil {
+	if err := r.recodeFG(d.fg, d.fg.Code); err != nil {
 		return err
 	}
-	r.note("stub FG %s restored; admin retry + relay", d.fg.Code)
+	r.note("stub FG %s code restored; admin retry + relay", d.fg.Code)
 	if err := r.retry(id); err != nil {
 		return err
 	}
@@ -195,7 +194,74 @@ func stepDeadLetter(r *rt) error {
 	if _, err := r.wantStatus(id, "delivered"); err != nil {
 		return err
 	}
-	return r.wantBal("outlet", r.outletSlg, d.fg, 9)
+	return r.wantBal("outlet", r.cfg.outletCode, d.fg, 9)
+}
+
+// stepUnassignedOutlet: like the ERP, the stub refuses an outlet that is not set on the
+// client with a 422 on location.code only. The relay holds the document (no attempt burned,
+// body dropped) instead of dead-lettering it; once the outlet is assigned, a retry delivers it.
+func stepUnassignedOutlet(r *rt) error {
+	setAssigned := func(codes any) error {
+		_, err := r.stub.must("POST", "/_stub/assigned-outlets", nil, obj{"codes": codes})
+		return err
+	}
+	if err := setAssigned([]string{}); err != nil {
+		return err
+	}
+	restored := false
+	defer func() {
+		if !restored {
+			if err := setAssigned(nil); err != nil {
+				r.note("WARNING: could not restore the stub outlet assignment: %v", err)
+			}
+		}
+	}()
+	r.note("stub: no outlet assigned to the client")
+	a := r.items["A"].fg
+	before, err := r.stubBal("outlet", r.cfg.outletCode, a.Code)
+	if err != nil {
+		return err
+	}
+	order, _, err := r.sell("unassigned1", []line{{"A", 1}})
+	if err != nil {
+		return err
+	}
+	row, err := r.outboxOne("sale", order)
+	if err != nil {
+		return err
+	}
+	id := str(row, "id")
+	rep, err := r.relay() // one run: relayDrain would stop on the held document
+	if err != nil {
+		return err
+	}
+	r.note("relay: %s", relaySummary(rep))
+	det, err := r.wantStatus(id, "held")
+	if err != nil {
+		return err
+	}
+	r.note("held: http=%d attempts=%d holdReason=%q", num(det, "lastHttpStatus"), num(det, "attempts"), str(det, "holdReason"))
+	if num(det, "lastHttpStatus") != 422 || num(det, "attempts") != 0 || !strings.Contains(str(det, "holdReason"), "tidak diatur untuk client ini") {
+		return fmt.Errorf("held document %s: want http 422, 0 attempts and the outlet-assignment reason", id)
+	}
+	if err := r.wantBal("outlet", r.cfg.outletCode, a, before); err != nil {
+		return fmt.Errorf("a refused document moved the stub balance: %w", err)
+	}
+	if err := setAssigned(nil); err != nil {
+		return err
+	}
+	restored = true
+	r.note("stub: every outlet assigned again; admin retry + relay")
+	if err := r.retry(id); err != nil {
+		return err
+	}
+	if err := r.relayDrain(); err != nil {
+		return err
+	}
+	if _, err := r.wantStatus(id, "delivered"); err != nil {
+		return err
+	}
+	return r.wantBal("outlet", r.cfg.outletCode, a, before-1)
 }
 
 func (r *rt) inDeadList(id string) error {

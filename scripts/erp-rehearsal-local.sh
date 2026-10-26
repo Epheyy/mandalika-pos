@@ -2,9 +2,11 @@
 # Local run of the ERP stand-in demo rehearsal (backend/cmd/erp-rehearsal).
 #
 # Builds the backend, the erpstub, seed and the harness, creates a throwaway Postgres
-# database, starts stub + backend on loopback ports, creates one outlet and one warehouse
+# database, starts stub + backend on loopback ports (the stub assigns only the rehearsal
+# outlet to the client, like the ERP's client dialog), creates one outlet and one warehouse
 # through the admin API, maps the warehouse to the stub's `gudang-pusat` (the only SQL
-# step: warehouses.erp_slug has no API writer), runs the harness and tears everything down.
+# step: warehouses.erp_slug has no API writer; the relay must hold warehouse documents even
+# when mapped), runs the harness and tears everything down.
 #
 # Optional env:  LOCAL_PG_URL   admin DSN of an existing local Postgres, e.g.
 #                               postgres://user:pass@localhost:5432/postgres?sslmode=disable
@@ -83,7 +85,7 @@ echo "== creating throwaway database $DB"
 "$PSQL" "$LOCAL_PG_URL" -q -c "CREATE DATABASE \"$DB\""
 DB_CREATED=1
 
-STUB_ARGS=(-addr "127.0.0.1:$STUB_PORT" -key "$STUB_KEY")
+STUB_ARGS=(-addr "127.0.0.1:$STUB_PORT" -key "$STUB_KEY" -assigned-outlets "$OUTLET_CODE")
 if [ "${FROM_SEED:-0}" = 1 ]; then
   "$TMP/bin/erp-rehearsal$EXT" -print-seed -run-id "$RUN_ID" -outlet-code "$OUTLET_CODE" >"$TMP/seed.json"
   STUB_ARGS+=(-seed "$TMP/seed.json")
@@ -122,7 +124,7 @@ OUTLET_ID="$(post outlets "{\"name\":\"Rehearsal Outlet\",\"code\":\"$OUTLET_COD
 WH_ID="$(post warehouses '{"name":"Rehearsal Gudang","code":"RHG","isActive":true}' | field id)"
 [ -n "$OUTLET_ID" ] && [ -n "$WH_ID" ] || { echo "could not create outlet/warehouse" >&2; exit 1; }
 "$PSQL" "$DB_URL" -q -c "UPDATE warehouses SET erp_slug='gudang-pusat' WHERE id='$WH_ID'"
-echo "   outlet $OUTLET_ID, warehouse $WH_ID mapped to gudang-pusat (psql)"
+echo "   outlet $OUTLET_ID, warehouse $WH_ID mapped to gudang-pusat (psql; its documents must still be held)"
 
 echo "== running the rehearsal (run id $RUN_ID)"
 set +e

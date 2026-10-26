@@ -119,13 +119,14 @@ func (r *rt) stubDocs() ([]obj, error) {
 	return list(out.Body, "data"), nil
 }
 
-func (r *rt) stubBal(locType, slug, code string) (int, error) {
+// stubBal reads a stub balance; the stub keys outlets by their ERP code, like the ERP.
+func (r *rt) stubBal(locType, locCode, code string) (int, error) {
 	out, err := r.stub.must("GET", "/_stub/balances", nil, nil)
 	if err != nil {
 		return 0, err
 	}
 	for _, b := range list(out.Body, "data") {
-		if str(b, "location_type") == locType && str(b, "location_slug") == slug && str(b, "fg_code") == code {
+		if str(b, "location_type") == locType && str(b, "location_code") == locCode && str(b, "fg_code") == code {
 			return num(b, "qty"), nil
 		}
 	}
@@ -133,14 +134,14 @@ func (r *rt) stubBal(locType, slug, code string) (int, error) {
 }
 
 // wantBal asserts a stub balance and records it as evidence.
-func (r *rt) wantBal(locType, slug string, f fg, want int) error {
-	got, err := r.stubBal(locType, slug, f.Code)
+func (r *rt) wantBal(locType, locCode string, f fg, want int) error {
+	got, err := r.stubBal(locType, locCode, f.Code)
 	if err != nil {
 		return err
 	}
-	r.note("stub balance %s/%s %s = %d (want %d)", locType, slug, f.Code, got, want)
+	r.note("stub balance %s/%s %s = %d (want %d)", locType, locCode, f.Code, got, want)
 	if got != want {
-		return fmt.Errorf("stub balance %s/%s %s = %d, want %d", locType, slug, f.Code, got, want)
+		return fmt.Errorf("stub balance %s/%s %s = %d, want %d", locType, locCode, f.Code, got, want)
 	}
 	return nil
 }

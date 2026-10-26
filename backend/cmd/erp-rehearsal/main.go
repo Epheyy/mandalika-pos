@@ -32,7 +32,7 @@ func run() int {
 	var live, seed bool
 	flag.StringVar(&c.outletCode, "outlet-code", "", "POS outlet code to use (required)")
 	flag.StringVar(&c.outletSlug, "outlet-slug", "", "stub outlet slug (default rehearsal-<code>; the POS outlet's erp_slug wins when linked)")
-	flag.StringVar(&c.warehouseID, "warehouse-id", "", "POS warehouse id (must have erp_slug gudang-pusat)")
+	flag.StringVar(&c.warehouseID, "warehouse-id", "", "POS warehouse id (its documents must stay held: the ERP takes outlets only)")
 	flag.StringVar(&c.runID, "run-id", time.Now().UTC().Format("060102t150405"), "makes every FG code/slug unique per run")
 	flag.BoolVar(&live, "live", false, "required when the backend or stub host is not loopback")
 	flag.BoolVar(&seed, "print-seed", false, "print the stub seed JSON for -run-id/-outlet-code and exit (no network)")
