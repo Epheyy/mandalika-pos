@@ -332,8 +332,9 @@ them per outlet, in this order.
    ```bash
    API=https://mandalika-pos-538849926142.asia-southeast2.run.app/api/v1
    CSV=docs/integration/2026-10-26-sku-mapping-cutover.csv
+   ADMIN_EMAIL='<backoffice admin email>'
    read -rsp 'admin password: ' PW; echo
-   TOKEN=$(jq -n --arg p "$PW" '{email:"admin@mandalika.local",password:$p}' \
+   TOKEN=$(jq -n --arg e "$ADMIN_EMAIL" --arg p "$PW" '{email:$e,password:$p}' \
      | curl -fsS -H 'Content-Type: application/json' -d @- "$API/auth/login" | jq -r .data.access); unset PW
    # dry run: nothing is written
    jq -n --rawfile csv "$CSV" '{csv:$csv,dryRun:true,fileName:"sku-mapping-cutover.csv"}' \

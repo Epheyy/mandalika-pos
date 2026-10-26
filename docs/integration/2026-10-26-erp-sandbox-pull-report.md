@@ -356,6 +356,8 @@ rename and re-filing stayed.
   - The owner can rename these products: name and category are now editable on linked products (`ac78c365`).
 - **New-product category from the ERP gender.** This is a default only. The gender is inconsistent across the ERP (§6.4 caveat), and later pulls never change the category.
 - **PP120P-ONL-R.** It is filed as DISPLAY PARFUM / others, so it became a not-for-sale others product. The ERP should re-file it if it is a sellable rework.
+- **New KEM-\* packaging.** GIFT CARD, PAPERBAG CREAM and the two warranty stickers are others items. Under decision (b) they are filed under `ERP: bukan untuk dijual`, not under KEMASAN as §6.4 had planned. CANVAS BAG and KARTU GARANSI keep KEMASAN.
+- **Saving without a category.** The backoffice product form still lets an ERP-linked product save with no category (`validateProductForm`). Now that the category is POS-owned, the owner may want it required as for other products. This is unchanged.
 
 The ERP-side data issues of §6.7 are unchanged.
 
