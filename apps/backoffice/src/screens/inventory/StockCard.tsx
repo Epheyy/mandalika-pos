@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { MovementSku, StockMovementPage, StockMovementParams, StockMovementRow } from '@mandalika/api'
-import { Download, Search, X } from 'lucide-react'
+import type { MovementSku, StockMovementPage, StockMovementParams, StockMovementRow, WarehouseStockRow } from '@mandalika/api'
+import { Download, PackagePlus, Search, SlidersHorizontal, X } from 'lucide-react'
 import { api } from '../../api'
+import { useAuth } from '../../auth'
 import { localDay } from '../../lib/businessDay'
 import { downloadCsvText } from '../../lib/csvUtils'
 import { Badge } from '../../ui/Badge'
@@ -11,6 +12,10 @@ import { EmptyState } from '../../ui/EmptyState'
 import { Select, fieldClass } from '../../ui/Field'
 import { MOVEMENT_KIND_LABEL, MOVEMENT_KINDS, formatMovementTime, daysAgoDay, isRecordedLate, type MovementKind } from './stockCardFormat'
 import { useLocations, type LocationType } from './useLocations'
+import { DocumentModal } from './DocumentModal'
+import { docRefOf, type DocRef } from './documentRef'
+import { GoodsInModal } from '../warehouses/GoodsInModal'
+import { AdjustModal } from '../warehouses/AdjustModal'
 
 /** A SKU picked elsewhere (the summary tab) to open straight on its kartu stok. */
 export interface StockCardTarget {
@@ -56,6 +61,12 @@ export function StockCard({ target }: StockCardProps) {
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const generation = useRef(0)
+  const { user } = useAuth()
+  const canReadOrders = user?.role === 'admin' || (user?.permissions ?? []).some((p) => p === 'view_reports' || p === 'view_transactions')
+  const [doc, setDoc] = useState<DocRef | null>(null)
+  // The two shortcuts act on the SKU's LIVE stock row (not the card's range saldo).
+  const [shortcut, setShortcut] = useState<{ kind: 'adjust' | 'receive'; row: WarehouseStockRow } | null>(null)
+  const [shortcutBusy, setShortcutBusy] = useState(false)
 
   const params = useCallback((): StockMovementParams | null => {
     if (!loc.location) return null
@@ -112,6 +123,26 @@ export function StockCard({ target }: StockCardProps) {
     }
   }
 
+  const openShortcut = async (kind: 'adjust' | 'receive') => {
+    if (!loc.location || !sku) return
+    setShortcutBusy(true)
+    setError(null)
+    try {
+      const stock = await api.getTransferLocationStock(loc.location.type, loc.location.id)
+      const row = stock.find((r) => r.productId === sku.productId && r.variantSize === sku.variantSize)
+      if (!row) throw new Error('SKU ini belum punya baris stok di lokasi ini.')
+      setShortcut({ kind, row })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Gagal memuat stok')
+    } finally {
+      setShortcutBusy(false)
+    }
+  }
+
+  const locName = loc.location
+    ? ([...loc.outlets, ...loc.warehouses].find((l) => l.id === loc.location?.id)?.name ?? '')
+    : ''
+
   const toggleKind = (k: MovementKind) =>
     setKinds((prev) => {
       const next = new Set(prev)
@@ -162,6 +193,16 @@ export function StockCard({ target }: StockCardProps) {
       </div>
 
       {sku && summary && <SaldoHeader label={sku.label} summary={summary} />}
+      {sku && loc.location && (
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" icon={<SlidersHorizontal className="h-4 w-4" />} loading={shortcutBusy} onClick={() => void openShortcut('adjust')}>
+            Buat penyesuaian
+          </Button>
+          <Button variant="secondary" icon={<PackagePlus className="h-4 w-4" />} loading={shortcutBusy} onClick={() => void openShortcut('receive')}>
+            Catat barang masuk
+          </Button>
+        </div>
+      )}
       {!sku && loc.location && (
         <p className="text-xs text-gray-400">Pilih satu SKU untuk melihat saldo awal, total masuk/keluar, dan saldo akhir.</p>
       )}
@@ -171,9 +212,28 @@ export function StockCard({ target }: StockCardProps) {
         {rows.length === 0 ? (
           error ? null : <EmptyState icon={<Search />} title={loading ? 'Memuat…' : 'Tidak ada pergerakan stok untuk filter ini'} />
         ) : (
-          <MovementTable rows={rows} zone={loc.zone} showProduct={!sku} />
+          <MovementTable rows={rows} zone={loc.zone} showProduct={!sku} canReadOrders={canReadOrders} onOpenDoc={setDoc} />
         )}
       </Card>
+
+      {doc && <DocumentModal doc={doc} zone={loc.zone} onClose={() => setDoc(null)} />}
+      {shortcut && loc.location && shortcut.kind === 'adjust' && (
+        <AdjustModal
+          location={{ kind: loc.location.type, id: loc.location.id, name: locName }}
+          row={shortcut.row}
+          onClose={() => setShortcut(null)}
+          onDone={() => load()}
+        />
+      )}
+      {shortcut && loc.location && shortcut.kind === 'receive' && (
+        <GoodsInModal
+          open
+          location={{ kind: loc.location.type, id: loc.location.id, name: locName }}
+          rows={[shortcut.row]}
+          onClose={() => setShortcut(null)}
+          onDone={() => load()}
+        />
+      )}
 
       {nextCursor && (
         <div className="flex justify-center">
@@ -239,7 +299,15 @@ function SaldoHeader({ label, summary }: { label: string; summary: NonNullable<S
   )
 }
 
-function MovementTable({ rows, zone, showProduct }: { rows: StockMovementRow[]; zone: string; showProduct: boolean }) {
+interface MovementTableProps {
+  rows: StockMovementRow[]
+  zone: string
+  showProduct: boolean
+  canReadOrders: boolean
+  onOpenDoc: (d: DocRef) => void
+}
+
+function MovementTable({ rows, zone, showProduct, canReadOrders, onOpenDoc }: MovementTableProps) {
   const heads = ['Waktu Kejadian', 'Waktu Tercatat', 'Jenis', ...(showProduct ? ['Produk'] : []), 'Dokumen', 'Masuk', 'Keluar', 'Saldo', 'Oleh', 'Alasan', 'Penyetuju', 'Tanda', 'ERP']
   return (
     <div className="overflow-x-auto">
@@ -253,7 +321,7 @@ function MovementTable({ rows, zone, showProduct }: { rows: StockMovementRow[]; 
         </thead>
         <tbody className="divide-y divide-gray-50">
           {rows.map((m) => (
-            <MovementTableRow key={m.id} m={m} zone={zone} showProduct={showProduct} />
+            <MovementTableRow key={m.id} m={m} zone={zone} showProduct={showProduct} doc={docRefOf(m, canReadOrders)} onOpenDoc={onOpenDoc} />
           ))}
         </tbody>
       </table>
@@ -261,7 +329,15 @@ function MovementTable({ rows, zone, showProduct }: { rows: StockMovementRow[]; 
   )
 }
 
-function MovementTableRow({ m, zone, showProduct }: { m: StockMovementRow; zone: string; showProduct: boolean }) {
+interface MovementTableRowProps {
+  m: StockMovementRow
+  zone: string
+  showProduct: boolean
+  doc: DocRef | null
+  onOpenDoc: (d: DocRef) => void
+}
+
+function MovementTableRow({ m, zone, showProduct, doc, onOpenDoc }: MovementTableRowProps) {
   const cell = 'px-4 py-3 text-sm text-gray-700 whitespace-nowrap'
   return (
     <tr className="hover:bg-gray-50">
@@ -272,7 +348,13 @@ function MovementTableRow({ m, zone, showProduct }: { m: StockMovementRow; zone:
         <td className={cell}>{m.productName ?? '—'} · {m.variantSize}{m.sku ? ` (${m.sku})` : ''}</td>
       )}
       <td className={`${cell} font-mono`}>
-        {m.refNumber ?? m.refType}
+        {doc ? (
+          <button type="button" className="font-mono text-gold-700 underline underline-offset-2 hover:text-gold-900" onClick={() => onOpenDoc(doc)}>
+            {m.refNumber ?? m.refType}
+          </button>
+        ) : (
+          (m.refNumber ?? m.refType)
+        )}
         {m.requisitionNumber && <span className="block text-xs text-gray-400">dari {m.requisitionNumber}</span>}
       </td>
       <td className={`${cell} text-green-700 font-bold`}>{m.qty > 0 ? m.qty : ''}</td>
@@ -287,6 +369,7 @@ function MovementTableRow({ m, zone, showProduct }: { m: StockMovementRow; zone:
       <td className={cell}>
         <span className="flex gap-1">
           {m.isGiveaway && <Badge tone="gold">Hadiah</Badge>}
+          {m.isWarranty && <Badge tone="gold">Garansi</Badge>}
           {m.flags.includes('shortage') && <Badge tone="danger">Minus</Badge>}
           {isRecordedLate(m.occurredAt, m.recordedAt, zone) && <Badge tone="warning">Tercatat terlambat</Badge>}
         </span>

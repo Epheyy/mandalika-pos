@@ -6,6 +6,7 @@ import { BO } from './fixture'
 
 const OUTLET = '00000000-0000-4000-8f69-0000000000a1'
 const PRODUCT = '00000000-0000-4000-8f69-0000000000c1'
+const RECEIPT_ID = '00000000-0000-4000-8f69-0000000000f8'
 const CSV = 'id,jenis,saldo\r\nmv-1,sale,-3\r\n'
 
 const row = (seq: number, kind: string, qty: number, after: number, over: Record<string, unknown> = {}) => ({
@@ -15,7 +16,7 @@ const row = (seq: number, kind: string, qty: number, after: number, over: Record
   flags: [] as string[], isGiveaway: false, ...over,
 })
 
-const RECEIPT = row(1, 'receipt', 5, 5, { refType: 'goods_receipt', refNumber: undefined })
+const RECEIPT = row(1, 'receipt', 5, 5, { refType: 'goods_receipt', refId: RECEIPT_ID, refNumber: undefined, isWarranty: true })
 // an offline sale: occurred on Jan 3, recorded on Jan 5 (the late badge)
 const SHORTAGE = row(2, 'sale', -7, -2, { flags: ['shortage'], recordedAt: '2026-01-05T02:00:00Z' })
 const GIVEAWAY = row(3, 'sale', -1, -3, { isGiveaway: true, refNumber: 'INV-3' })
@@ -29,6 +30,7 @@ export const stockCardFlow = async (page: ScenarioPage) => {
   const summaryCalls: URLSearchParams[] = []
   const exportCalls: URLSearchParams[] = []
   const skuCalls: URLSearchParams[] = []
+  const receiptPosts: Array<{ query: URLSearchParams; body: Record<string, unknown> }> = []
   let denySummary = true
 
   await page.unrouteAll({ behavior: 'wait' })
@@ -47,9 +49,23 @@ export const stockCardFlow = async (page: ScenarioPage) => {
       summaryCalls.push(url.searchParams)
       if (denySummary) return route.fulfill({ status: 403, json: { error: 'lokasi di luar cakupan akun' } })
       return route.fulfill({ json: {
-        data: [{ productId: PRODUCT, productName: 'Canvas Bag', variantSize: 'Std', sku: 'CB-STD', opening: 0, closing: -3, inByKind: { receipt: 5 }, outByKind: { sale: 8 } }],
+        data: [{ productId: PRODUCT, productName: 'Canvas Bag', variantSize: 'Std', sku: 'CB-STD', opening: 0, closing: -3, buckets: { masuk: 5, penjualan: -7, refund: 0, transfer: 0, penyesuaian: 0, hadiah: -1 }, masukGaransi: 5, inByKind: { receipt: 5 }, outByKind: { sale: 8 } }],
         meta: { total: 1, page: 1, limit: 25 },
       } })
+    }
+    if (path.endsWith(`/inventory/goods-receipts/${RECEIPT_ID}`)) {
+      return route.fulfill({ json: {
+        id: RECEIPT_ID, locationType: 'outlet', locationId: OUTLET, locationName: 'MV Outlet', source: 'warranty',
+        supplier: 'Garansi toko', createdAt: '2026-01-03T05:00:00Z', createdByName: 'MV Admin',
+        items: [{ productId: PRODUCT, productName: 'Canvas Bag', variantSize: 'Std', sku: 'CB-STD', qty: 5 }],
+      } })
+    }
+    if (path.endsWith('/transfers/location-stock')) {
+      return route.fulfill({ json: { data: [{ productId: PRODUCT, productName: 'Canvas Bag', variantSize: 'Std', sku: 'CB-STD', stock: -3 }] } })
+    }
+    if (path.endsWith('/inventory/goods-receipt') && req.method() === 'POST') {
+      receiptPosts.push({ query: url.searchParams, body: JSON.parse(req.postData() ?? '{}') as Record<string, unknown> })
+      return route.fulfill({ json: { ok: true } })
     }
     if (path.endsWith('/inventory/movements/export')) {
       exportCalls.push(url.searchParams)
@@ -83,12 +99,15 @@ export const stockCardFlow = async (page: ScenarioPage) => {
   await page.getByLabel('Cari').fill('canvas')
   const summaryRow = page.getByRole('row', { name: /Canvas Bag/ })
   await summaryRow.waitFor()
+  for (const h of ['Masuk', 'Penjualan', 'Refund', 'Transfer', 'Penyesuaian', 'Hadiah']) await page.getByRole('columnheader', { name: h, exact: true }).waitFor()
+  await summaryRow.getByText('-7', { exact: true }).waitFor()
   check(summaryCalls.some((q) => q.get('locationType') === 'outlet' && q.get('locationId') === OUTLET && !!q.get('from') && !!q.get('to')), 'summary query')
   results.push({ step: 'ringkasan', calls: summaryCalls.length })
 
   await summaryRow.click()
   await page.getByText('Canvas Bag · Std (CB-STD)').first().waitFor()
   await page.getByText('Saldo Akhir').first().waitFor()
+  await page.getByRole('button', { name: 'Buat penyesuaian' }).waitFor()
   await page.getByText('Hadiah', { exact: true }).nth(1).waitFor() // the row badge, next to the chip
   await page.getByText('Minus', { exact: true }).nth(1).waitFor()
   await page.getByText('Tercatat terlambat', { exact: true }).waitFor()
@@ -101,6 +120,30 @@ export const stockCardFlow = async (page: ScenarioPage) => {
   check(listCalls.some((q) => q.get('cursor') === 'c1'), 'cursor sent')
   await page.getByRole('button', { name: 'Muat lebih banyak' }).waitFor({ state: 'detached' })
   results.push({ step: 'paging', rows: 3 })
+
+  // Pergerakan buckets are signed columns, Garansi is marked on the receipt row
+  await page.getByText('Garansi', { exact: true }).waitFor()
+  // the Dokumen cell of the receipt row opens the receipt in place
+  await page.getByRole('button', { name: 'goods_receipt', exact: true }).click()
+  const heading = page.getByRole('heading', { name: 'Barang Masuk', exact: true })
+  await heading.waitFor()
+  await page.getByText('Penggantian garansi', { exact: true }).waitFor()
+  await page.getByRole('cell', { name: 'Canvas Bag', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Tutup' }).last().click()
+  await heading.waitFor({ state: 'detached' })
+  results.push({ step: 'document-link' })
+
+  // "Catat barang masuk" opens the existing goods-in form on this SKU and location
+  await page.getByRole('button', { name: 'Catat barang masuk', exact: true }).click()
+  await heading.waitFor()
+  await page.getByLabel('Qty masuk Canvas Bag Std').fill('3')
+  await page.getByLabel(/Penggantian garansi/).check()
+  await page.getByRole('button', { name: 'Catat Barang Masuk', exact: true }).click()
+  await heading.waitFor({ state: 'detached' })
+  const post = receiptPosts[0]
+  check(receiptPosts.length === 1 && post.query.get('kind') === 'outlet' && post.query.get('id') === OUTLET, 'receipt post location')
+  check(post.body.source === 'warranty' && JSON.stringify(post.body.items).includes(`"productId":"${PRODUCT}"`) && JSON.stringify(post.body.items).includes('"qty":3'), 'receipt post body')
+  results.push({ step: 'shortcut-goods-in' })
 
   await page.getByRole('button', { name: 'Hadiah', exact: true }).click()
   await page.getByText('goods_receipt', { exact: true }).waitFor({ state: 'detached' })

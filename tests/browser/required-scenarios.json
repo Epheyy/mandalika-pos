@@ -190,7 +190,7 @@
     {
       "id": "BO-STOCK-CARD",
       "finding": "inventory-controls-S1",
-      "description": "Ringkasan row opens the Kartu Stok on that SKU, saldo header and Hadiah/Minus badges, cursor paging, Hadiah chip sends giveaway=true, Unduh CSV saves the server file",
+      "description": "Ringkasan row opens the Kartu Stok on that SKU, saldo header and Hadiah/Minus badges, cursor paging, Hadiah chip sends giveaway=true, Unduh CSV saves the server file; Pergerakan bucket columns; Garansi badge; Dokumen cell opens the goods receipt in place; Catat barang masuk shortcut posts a warranty receipt for the SKU and location",
       "source": "tests/browser/backoffice-stockcard-scenarios.ts"
     },
     {
