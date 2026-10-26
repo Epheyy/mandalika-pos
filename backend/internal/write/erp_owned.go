@@ -27,35 +27,10 @@ func IsErpOwned(err error) bool {
 
 func erpOwned(msg string) error { return &ErpOwnedError{Msg: msg} }
 
-// guardLinkedProduct rejects a changed name or category on an ERP-linked product and, when
-// only whitespace differs, makes the write use the STORED values (p is updated). A
-// product is linked when it has an erp_group_key or any variant has an erp_slug. A
-// missing product row is left to updateProductRow (ErrNotFound). The row is read with
-// FOR NO KEY UPDATE, the lock the UPDATE right after takes anyway, so the compared
-// values cannot change before the write.
-func guardLinkedProduct(ctx context.Context, t pgx.Tx, id string, p *Product) error {
-	var name, category string
-	var linked bool
-	e := t.QueryRow(ctx, `
-		SELECT p.name, COALESCE(p.category_id::text,''),
-		       p.erp_group_key IS NOT NULL
-		       OR EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id=p.id AND v.erp_slug IS NOT NULL)
-		  FROM products p WHERE p.id=$1 FOR NO KEY UPDATE OF p`, id).Scan(&name, &category, &linked)
-	if errors.Is(e, pgx.ErrNoRows) {
-		return nil
-	}
-	if e != nil {
-		return e
-	}
-	if !linked {
-		return nil
-	}
-	if differs(p.Name, name) || !strings.EqualFold(p.CategoryID, category) {
-		return erpOwned("Nama dan kategori produk ini dikelola ERP; ubah di ERP")
-	}
-	p.Name, p.CategoryID = name, category
-	return nil
-}
+// Mapping v3 (owner decision 2026-10-26): a product's name and category and an outlet's
+// name, address and phone are POS-owned and editable even when ERP-linked, so there is no
+// product-row or outlet guard. Only variant size/SKU, variant removal and product delete
+// stay ERP-owned.
 
 // guardLinkedVariants rejects a changed size or SKU on an ERP-linked variant and the
 // removal of one; a whitespace-only difference is replaced by the stored size and SKU in
@@ -127,28 +102,3 @@ func guardLinkedProductDelete(ctx context.Context, t pgx.Tx, id string) error {
 // differs compares form text with the stored text ignoring edge whitespace: the backoffice
 // forms trim before they send, so an untouched field must not look changed.
 func differs(a, b string) bool { return strings.TrimSpace(a) != strings.TrimSpace(b) }
-
-// guardLinkedOutlet rejects a changed name, address or phone on an ERP-linked outlet and
-// otherwise keeps the stored values (o is updated). The
-// form stores an empty address or phone as NULL, so compare the COALESCEd values.
-func guardLinkedOutlet(ctx context.Context, t pgx.Tx, id string, o *Outlet) error {
-	var name, address, phone string
-	var linked bool
-	e := t.QueryRow(ctx, `
-		SELECT name, COALESCE(address,''), COALESCE(phone,''), erp_slug IS NOT NULL
-		  FROM outlets WHERE id=$1 FOR NO KEY UPDATE`, id).Scan(&name, &address, &phone, &linked)
-	if errors.Is(e, pgx.ErrNoRows) {
-		return nil
-	}
-	if e != nil {
-		return e
-	}
-	if !linked {
-		return nil
-	}
-	if differs(o.Name, name) || differs(o.Address, address) || differs(o.Phone, phone) {
-		return erpOwned("Nama, alamat, dan telepon outlet ini dikelola ERP; ubah di ERP")
-	}
-	o.Name, o.Address, o.Phone = name, address, phone
-	return nil
-}

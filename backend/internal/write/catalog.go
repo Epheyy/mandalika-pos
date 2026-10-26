@@ -249,19 +249,15 @@ func (r *Repo) UpdateProduct(ctx context.Context, id string, p Product) error {
 	return retryBusy(ctx, func() error { return r.updateProduct(ctx, id, p) })
 }
 
-// updateProduct is one UpdateProduct attempt (one fresh tx). Its only product-row lock is
-// the FOR NO KEY UPDATE of the ERP guard, which the UPDATE right after takes anyway; it
+// updateProduct is one UpdateProduct attempt (one fresh tx). It
 // does not lock the parent against stock writers: a stock row a concurrent receipt adds
-// for a removed or renamed size after the guard is only left behind under the old size
+// for a removed or renamed size after the variant guard is only left behind under the old size
 // (nothing is destroyed or moved), and a FOR UPDATE would stall every sale of the product
 // for the length of an edit. The incoming variants are copied because the ERP guard
 // replaces ERP-owned text on linked variants with the stored values.
 func (r *Repo) updateProduct(ctx context.Context, id string, p Product) error {
 	p.Variants = append([]Variant(nil), p.Variants...)
 	return barcodeConflict(r.tx(ctx, "products", func(t pgx.Tx) error {
-		if e := guardLinkedProduct(ctx, t, id, &p); e != nil {
-			return e
-		}
 		if e := updateProductRow(ctx, t, id, p); e != nil {
 			return e
 		}

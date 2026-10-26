@@ -330,24 +330,26 @@ func erpLinkedCatalog() Catalog {
 	return c
 }
 
-func TestPlanProductsErpLinkedCategoryAndSizeAreReadOnlyWarnings(t *testing.T) {
+func TestPlanProductsErpLinkedCategoryAppliesAndSizeIsReadOnlyWarning(t *testing.T) {
 	tb := Read([]byte(productHeader+"Melati,Mandalika,Woody,,40 ml,125.000,MEL-50,,,,\n"), ProductSpec)
 	p, err := PlanProducts(tb, erpLinkedCatalog())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Report.HasErrors() || p.Report.Summary.Warning != 2 || !hasIssue(p.Report, "erp_owned", SevWarning) {
+	if p.Report.HasErrors() || p.Report.Summary.Warning != 1 || !hasIssue(p.Report, "erp_owned", SevWarning) {
 		t.Fatalf("%+v %+v", p.Report.Summary, p.Report.Issues)
 	}
-	if len(p.Products) != 1 || p.Products[0].CategoryName != "" {
-		t.Fatalf("the category must not be planned: %+v", p.Products)
+	if len(p.Products) != 1 || p.Products[0].CategoryName != "Woody" {
+		t.Fatalf("the category is POS-owned and must be planned: %+v", p.Products)
 	}
 	v := p.Products[0].Variants[0]
 	if v.Size != "50 ml" || v.RenameFrom != "" || v.Price != 125000 || !v.Update {
 		t.Errorf("size is kept, price applies: %+v", v)
 	}
-	if p.Report.Summary.NewCategories != 0 {
-		t.Errorf("an ERP-owned category must not be created: %+v", p.Report.Summary)
+	for _, i := range p.Report.Issues {
+		if i.Code == "erp_owned" && i.Column == "Kategori" {
+			t.Errorf("category must not warn erp_owned: %+v", i)
+		}
 	}
 }
 

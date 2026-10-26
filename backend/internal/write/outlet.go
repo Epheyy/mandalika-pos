@@ -39,9 +39,6 @@ func (r *Repo) CreateOutlet(ctx context.Context, o Outlet) (string, error) {
 
 func (r *Repo) UpdateOutlet(ctx context.Context, id string, o Outlet) error {
 	return r.tx(ctx, "outlets", func(t pgx.Tx) error {
-		if e := guardLinkedOutlet(ctx, t, id, &o); e != nil {
-			return e
-		}
 		ct, e := t.Exec(ctx,
 			`UPDATE outlets SET name=$1, code=$2, address=$3, phone=$4, logo_url=$5, is_active=$6,
 			   timezone=COALESCE(NULLIF($7,''),timezone) WHERE id=$8`,

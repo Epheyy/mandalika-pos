@@ -1346,21 +1346,16 @@ func TestCsvImportPostgres(t *testing.T) {
 		}
 	})
 
-	sub("erp-owned: a linked product's name or category change is a 409 and writes nothing", func(t *testing.T) {
-		before := erpState()
-		for name, body := range map[string]map[string]any{
-			"name": linkedPayload("ZErp Renamed", catKeep,
-				variantBody(eV50, "50 ml", "ZE-50", 100000, "ZE-BC50"), variantBody(eV100, "100 ml", "ZE-100", 180000, "ZE-BC100")),
-			"category": linkedPayload("ZErp Linked", catOther,
-				variantBody(eV50, "50 ml", "ZE-50", 100000, "ZE-BC50"), variantBody(eV100, "100 ml", "ZE-100", 180000, "ZE-BC100")),
-		} {
-			code, raw := do(http.MethodPut, tok, "/products/"+eLinked, body)
-			if code != http.StatusConflict || !strings.Contains(string(raw), "dikelola ERP") {
-				t.Errorf("%s change -> %d %s, want 409", name, code, raw)
-			}
+	sub("erp-owned: a linked product's name and category are POS-owned: a change is a 200 and is written", func(t *testing.T) {
+		vs := []map[string]any{variantBody(eV50, "50 ml", "ZE-50", 100000, "ZE-BC50"), variantBody(eV100, "100 ml", "ZE-100", 180000, "ZE-BC100")}
+		code, raw := do(http.MethodPut, tok, "/products/"+eLinked, linkedPayload("ZErp Renamed", catOther, vs...))
+		if code != http.StatusOK || count(`SELECT count(*) FROM products WHERE id=$1 AND name='ZErp Renamed' AND category_id=$2`, eLinked, catOther) != 1 {
+			t.Fatalf("name+category change -> %d %s, want 200 and written", code, raw)
 		}
-		if erpState() != before {
-			t.Error("a refused save changed data")
+		// restore, later subtests expect the original name and category
+		if code, raw = do(http.MethodPut, tok, "/products/"+eLinked, linkedPayload("ZErp Linked", catKeep, vs...)); code != http.StatusOK ||
+			count(`SELECT count(*) FROM products WHERE id=$1 AND name='ZErp Linked' AND category_id=$2`, eLinked, catKeep) != 1 {
+			t.Fatalf("restore -> %d %s", code, raw)
 		}
 	})
 
@@ -1432,34 +1427,26 @@ func TestCsvImportPostgres(t *testing.T) {
 		}
 	})
 
-	sub("erp-owned: a linked outlet's name, address or phone change is a 409; code, an unchanged save and an empty phone stay editable", func(t *testing.T) {
+	sub("erp-owned: a linked outlet's name, address and phone are POS-owned and editable; code and an empty phone too", func(t *testing.T) {
 		put := func(name, code, address, phone string) (int, []byte) {
 			return do(http.MethodPut, tok, "/outlets/"+eOutlet, map[string]any{"name": name, "code": code, "address": address, "phone": phone, "isActive": true})
 		}
-		for field, args := range map[string][4]string{
-			"name":    {"ZErp Outlet Baru", "ZE1", "Jl. ERP 1", ""},
-			"address": {"ZErp Outlet", "ZE1", "Jl. Lain", ""},
-			"phone":   {"ZErp Outlet", "ZE1", "Jl. ERP 1", "0812"},
-		} {
-			if code, raw := put(args[0], args[1], args[2], args[3]); code != http.StatusConflict || !strings.Contains(string(raw), "dikelola ERP") {
-				t.Errorf("%s change -> %d %s, want 409", field, code, raw)
-			}
-		}
-		if text(`SELECT name||'|'||address FROM outlets WHERE id=$1`, eOutlet) != "ZErp Outlet|Jl. ERP 1" {
-			t.Error("a refused save changed the outlet")
+		if code, raw := put("ZErp Outlet Baru", "ZE1", "Jl. Lain", "0812"); code != http.StatusOK ||
+			text(`SELECT name||'|'||address||'|'||phone FROM outlets WHERE id=$1`, eOutlet) != "ZErp Outlet Baru|Jl. Lain|0812" {
+			t.Fatalf("name/address/phone change -> %d %s, want 200 and written", code, raw)
 		}
 		if code, raw := put("ZErp Outlet", "ZE1-NEW", "Jl. ERP 1", ""); code != http.StatusOK {
-			t.Fatalf("code change (empty phone = stored NULL) -> %d %s, want 200", code, raw)
+			t.Fatalf("restore + code change (empty phone = stored NULL) -> %d %s, want 200", code, raw)
 		}
 		if text(`SELECT code FROM outlets WHERE id=$1`, eOutlet) != "ZE1-NEW" {
 			t.Error("the code change was not applied")
 		}
 	})
 
-	sub("erp-owned: a CSV row of a linked product warns and skips category and size, and still applies price and barcode", func(t *testing.T) {
+	sub("erp-owned: a CSV row of a linked product applies the category (POS-owned), warns and skips size, and still applies price and barcode", func(t *testing.T) {
 		csv := prodHeader + "ZErp Linked,ZBrand,ZErp Other,,40 ml,125.000,ZE-50,ZE-BC50-CSV,,,\n"
 		rep := mustApply("/products/import", csv, "p-erp-1")
-		if rep.Summary.Error != 0 || rep.Summary.Update != 1 || rep.Summary.Warning != 2 || rep.Summary.NewCategories != 0 {
+		if rep.Summary.Error != 0 || rep.Summary.Update != 1 || rep.Summary.Warning != 1 || rep.Summary.NewCategories != 0 {
 			t.Fatalf("%+v %+v", rep.Summary, rep.Issues)
 		}
 		codes := map[string]bool{}
@@ -1468,16 +1455,16 @@ func TestCsvImportPostgres(t *testing.T) {
 				codes[i.Column] = true
 			}
 		}
-		if !codes["Kategori"] || !codes["Ukuran"] {
-			t.Errorf("want erp_owned warnings on Kategori and Ukuran: %+v", rep.Issues)
+		if codes["Kategori"] || !codes["Ukuran"] {
+			t.Errorf("want an erp_owned warning on Ukuran only: %+v", rep.Issues)
 		}
 		if got := text(`SELECT p.name||'|'||p.category_id::text||'|'||v.size||'|'||v.price::text||'|'||v.barcode
-		                  FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.id=$1`, eV50); got != "ZErp Linked|"+catKeep+"|50 ml|125000.00|ZE-BC50-CSV" {
+		                  FROM products p JOIN product_variants v ON v.product_id=p.id WHERE v.id=$1`, eV50); got != "ZErp Linked|"+catOther+"|50 ml|125000.00|ZE-BC50-CSV" {
 			t.Errorf("after the import: %s", got)
 		}
 	})
 
-	sub("erp-owned: a CSV row with the unchanged category and size is no warning, and a linked product's Aktif still applies", func(t *testing.T) {
+	sub("erp-owned: a CSV row moving the category back and keeping the size is no warning, and a linked product's Aktif still applies", func(t *testing.T) {
 		csv := prodHeader + "ZErp Linked,ZBrand,ZErp Keep,,50 ml,125000,ZE-50,,,Tidak,\n"
 		rep := mustApply("/products/import", csv, "p-erp-2")
 		if rep.Summary.Warning != 0 || rep.Summary.Error != 0 || rep.Summary.Update != 1 {
@@ -1500,8 +1487,8 @@ func TestCsvImportPostgres(t *testing.T) {
 		}
 	})
 
-	sub("erp-owned: a whitespace-only difference passes and the STORED name, size, SKU and address are kept", func(t *testing.T) {
-		code, raw := do(http.MethodPut, tok, "/products/"+eLinked, linkedPayload(" ZErp Linked ", catKeep,
+	sub("erp-owned: a whitespace-only difference on a linked variant passes and the STORED size and SKU are kept", func(t *testing.T) {
+		code, raw := do(http.MethodPut, tok, "/products/"+eLinked, linkedPayload("ZErp Linked", catKeep,
 			variantBody(eV50, " 50 ml ", "ZE-50 ", 126000, "ZE-BC50-CSV"), variantBody(eV100, "100 ml", " ZE-100", 180000, "ZE-BC100-NEW")))
 		if code != http.StatusOK {
 			t.Fatalf("product -> %d %s, want 200", code, raw)
@@ -1511,13 +1498,6 @@ func TestCsvImportPostgres(t *testing.T) {
 		}
 		if got := text(`SELECT sku FROM product_variants WHERE id=$1`, eV100); got != "ZE-100" {
 			t.Errorf("sku drifted: %q", got)
-		}
-		code, raw = do(http.MethodPut, tok, "/outlets/"+eOutlet, map[string]any{"name": " ZErp Outlet", "code": "ZE1-NEW", "address": " Jl. ERP 1 ", "phone": "", "isActive": true})
-		if code != http.StatusOK {
-			t.Fatalf("outlet -> %d %s, want 200", code, raw)
-		}
-		if got := text(`SELECT name||'|'||address FROM outlets WHERE id=$1`, eOutlet); got != "ZErp Outlet|Jl. ERP 1" {
-			t.Errorf("outlet text drifted: %q", got)
 		}
 	})
 }

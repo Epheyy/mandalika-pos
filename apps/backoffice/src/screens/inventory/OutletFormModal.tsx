@@ -21,9 +21,6 @@ const EMPTY_FORM: OutletFormValues = {
   timezone: DEFAULT_TIMEZONE,
 }
 
-// Disabled look for an ERP-owned control (the shared field class has none).
-const ERP_LOCKED = 'disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed'
-
 interface Props {
   editing: Outlet | null
   onClose: () => void
@@ -51,7 +48,6 @@ export function OutletFormModal({ editing, onClose, onDone }: Props) {
   const [logoUploading, setLogoUploading] = useState(false)
   const logoFileRef = useRef<HTMLInputElement>(null)
   const erpLinked = !!editing?.erpSlug
-  const erpProps = erpLinked ? { disabled: true, hint: <span id="erp-hint-outlet-name">Dikelola ERP</span>, 'aria-describedby': 'erp-hint-outlet-name', className: ERP_LOCKED } : {}
 
   const onLogoFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -121,7 +117,6 @@ export function OutletFormModal({ editing, onClose, onDone }: Props) {
         <Input
           label="Nama Outlet *"
           type="text"
-          {...erpProps}
           value={form.name}
           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
         />
@@ -148,28 +143,22 @@ export function OutletFormModal({ editing, onClose, onDone }: Props) {
         <div>
           <Textarea
             label="Alamat"
-            disabled={erpLinked}
-            aria-describedby={erpLinked ? 'erp-hint-outlet-address' : undefined}
-            className={erpLinked ? ERP_LOCKED : undefined}
             value={form.address}
             onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
             rows={2}
           />
-          <p id="erp-hint-outlet-address" className="text-xs text-gray-500 mt-1">
-            {erpLinked ? 'Dikelola ERP. ' : ''}Juga digunakan sebagai alamat surat jalan / tanda terima.
+          <p className="text-xs text-gray-500 mt-1">
+            Juga digunakan sebagai alamat surat jalan / tanda terima.
           </p>
         </div>
         <div>
           <Input
             label="No. Telepon"
             type="tel"
-            disabled={erpLinked}
-            aria-describedby={erpLinked ? 'erp-hint-outlet-phone' : undefined}
-            className={erpLinked ? ERP_LOCKED : undefined}
             value={form.phone}
             onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
           />
-          <p id="erp-hint-outlet-phone" className="text-xs text-gray-500 mt-1">{erpLinked ? 'Dikelola ERP. ' : ''}Juga muncul di surat jalan / tanda terima.</p>
+          <p className="text-xs text-gray-500 mt-1">Juga muncul di surat jalan / tanda terima.</p>
         </div>
         <div>
           <Select

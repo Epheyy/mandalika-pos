@@ -11,6 +11,8 @@ import type { Form } from './types'
 
 // ERP-owned fields are read-only on linked rows (plan 4.5): the static markup of the
 // real components shows which controls are disabled and which badges are present.
+// Mapping v3 (2026-10-26): product name/category and outlet name/address/phone are
+// POS-owned and stay editable on linked rows; variant size/SKU, removal and delete stay locked.
 
 const noop = () => {}
 const linkedVariant: ProductVariant = { id: 'v1', size: '50 ml', price: 100000, stock: 0, sku: 'ZE-50', barcode: 'BC', erpSlug: 'slug-50', isActive: true }
@@ -96,17 +98,19 @@ function formModal(form: Form) {
 describe('ProductFormModal for an ERP-linked product', () => {
   const linked: Form = { ...EMPTY, name: 'Melati', categoryId: 'c', variants: [linkedVariant], erpLinked: true, erpGroupKey: 'grp-melati' }
 
-  it('shows the origin line and locks name and category, but not brand, description or the flags', () => {
+  it('shows the origin line and leaves name, category, brand, description and the flags editable', () => {
     const html = formModal(linked)
     expect(html).toContain('Dari ERP')
     expect(html).toContain('grp-melati')
-    expect(html.match(/>Dikelola ERP</g)?.length).toBe(2) // name hint + category hint
+    expect(html).not.toContain('erp-hint-name')
+    expect(html).not.toContain('erp-hint-category')
     const inputs = html.match(/<input[^>]*>/g) ?? []
     const nameInput = inputs.find((t) => t.includes('value="Melati"')) ?? ''
     const brandInput = inputs.find((t) => t.includes('value="Mandalika"')) ?? ''
-    expect(isDisabled(nameInput)).toBe(true)
+    expect(nameInput).not.toBe('')
+    expect(isDisabled(nameInput)).toBe(false)
     expect(isDisabled(brandInput)).toBe(false)
-    expect(isDisabled((html.match(/<select[^>]*>/) ?? [''])[0])).toBe(true)
+    expect(isDisabled((html.match(/<select[^>]*>/) ?? [''])[0])).toBe(false)
     expect(isDisabled((html.match(/<textarea[^>]*>/) ?? [''])[0])).toBe(false)
     for (const t of inputs.filter((x) => x.includes('type="checkbox"'))) expect(isDisabled(t)).toBe(false)
   })
@@ -125,14 +129,15 @@ const outlet = (over: Partial<Outlet>): Outlet => ({
 })
 
 describe('OutletFormModal for an ERP-linked outlet', () => {
-  it('locks name, address and phone, shows the ERP code, and keeps code editable', () => {
+  it('shows the ERP code and keeps name, address, phone and code editable', () => {
     const html = renderToStaticMarkup(<OutletFormModal editing={outlet({ erpSlug: 'slug-o', erpCode: 'ERP-01' })} onClose={noop} onDone={noop} />)
     expect(html).toContain('Kode ERP')
     expect(html).toContain('ERP-01')
     const inputs = html.match(/<input[^>]*>/g) ?? []
-    expect(isDisabled(inputs.find((t) => t.includes('value="Outlet ERP"')) ?? '')).toBe(true)
-    expect(isDisabled(inputs.find((t) => t.includes('type="tel"')) ?? '')).toBe(true)
-    expect(isDisabled((html.match(/<textarea[^>]*>/) ?? [''])[0])).toBe(true)
+    expect(html).not.toContain('Dikelola ERP')
+    expect(isDisabled(inputs.find((t) => t.includes('value="Outlet ERP"')) ?? 'disabled')).toBe(false)
+    expect(isDisabled(inputs.find((t) => t.includes('type="tel"')) ?? 'disabled')).toBe(false)
+    expect(isDisabled((html.match(/<textarea[^>]*>/) ?? ['disabled'])[0])).toBe(false)
     expect(isDisabled(inputs.find((t) => t.includes('value="ZE1"')) ?? 'disabled')).toBe(false)
   })
 

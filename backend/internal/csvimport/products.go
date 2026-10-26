@@ -441,14 +441,8 @@ func mergeProductFields(b *Builder, g *productGroup, pp *PlannedProduct, ix *cat
 
 	ex := g.existing
 	var changed []string
-	if cat != "" && ex != nil && ex.ERPLinked {
-		// ERP-owned (plan 4.5): the category is not applied. A row that names another
-		// category is a warning; the same category is simply no change.
-		if c, ok := ix.catByLower[strings.ToLower(cat)]; !ok || c.ID != ex.CategoryID {
-			b.Issue(catRow.row, "Kategori", SevWarning, "erp_owned",
-				"kategori produk ini dikelola ERP; perubahan tidak diterapkan", cat)
-		}
-	} else if cat != "" {
+	// Category is POS-owned (mapping v3): applied like any product, ERP-linked or not.
+	if cat != "" {
 		pp.CategoryName = cat
 		id := cats.resolve(cat)
 		// A category that does not exist yet is always a change (it is created and assigned),
