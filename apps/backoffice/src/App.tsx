@@ -156,7 +156,7 @@ export default function App() {
   const Screen = active?.C
 
   return (
-    <div className="h-screen flex bg-gray-50 overflow-hidden">
+    <div className="h-screen flex bg-gray-50 overflow-clip">
       {sidebarOpen && (
         <button
           type="button"
