@@ -61,7 +61,8 @@ func TestGiveawayPostgres(t *testing.T) {
 		}
 		return n
 	}
-	exec(`INSERT INTO outlets(id,name,erp_slug) VALUES($1,'GW A','gw-a'),($2,'GW B','gw-b'),($3,'GW C','gw-c'),($4,'GW D','gw-d')`, outA, outB, outC, outD)
+	// Linked outlets carry the ERP code too: the relay names the outlet by erp_code.
+	exec(`INSERT INTO outlets(id,name,erp_slug,erp_code) VALUES($1,'GW A','gw-a','GWA'),($2,'GW B','gw-b','GWB'),($3,'GW C','gw-c','GWC'),($4,'GW D','gw-d','GWD')`, outA, outB, outC, outD)
 	exec(`INSERT INTO users(id,email,password_hash,display_name,role,outlet_id) VALUES($1,'gw@example.invalid','x','GW cashier','cashier',$2)`, user, outA)
 
 	var pn atomic.Int64
