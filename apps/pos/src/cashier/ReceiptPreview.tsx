@@ -68,6 +68,12 @@ export const ReceiptPreview = memo(function ReceiptPreview({
   onPairPrinter,
 }: ReceiptPreviewProps) {
   const [printerLineDismissed, setPrinterLineDismissed] = useState(false)
+  // A new success view starts with the no-printer line visible again.
+  const [wasOpen, setWasOpen] = useState(isOpen)
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen)
+    if (isOpen) setPrinterLineDismissed(false)
+  }
   if (!isOpen) return null
 
   const subtotal = items.reduce((s, i) => s + i.subtotal, 0)

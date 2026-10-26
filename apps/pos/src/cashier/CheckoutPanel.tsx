@@ -8,6 +8,7 @@ import { stockFor, overstockLines } from './stock'
 import type { CartLineLike } from './stock'
 import { PAYMENT_LABELS } from '../lib/paymentLabels'
 import { quickCashAmounts } from '../lib/quickCash'
+import { applyKey } from '../lib/cashKeypad'
 import { Sheet } from '../components/ui/Sheet'
 import { Chip } from '../components/ui/Chip'
 import { Button } from '../components/ui/Button'
@@ -60,13 +61,10 @@ interface CheckoutPanelProps {
   isOnline?: boolean
 }
 
+const noop = () => {}
+
 const KEYPAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '000', '0', '⌫'] as const
 
-/** Applies a keypad key to the typed cash amount: digits append (no leading zeros), '⌫' drops one digit. */
-function applyKey(current: string, key: string): string {
-  if (key === '⌫') return current.slice(0, -1)
-  return (current + key).replace(/^0+/, '')
-}
 
 export const CheckoutPanel = memo(function CheckoutPanel({
   isOpen,
@@ -107,7 +105,14 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   // SP-CRM-9c: overstock confirm modal state
   const [showOverstockConfirm, setShowOverstockConfirm] = useState(false)
   // The points redeem UI sits behind the "Tukar N poin" chip; open from the start when points are already applied.
-  const [showPoints, setShowPoints] = useState(pointsToRedeem > 0)
+  const [userOpenedPoints, setUserOpenedPoints] = useState(false)
+  const showPoints = pointsToRedeem > 0 || userOpenedPoints
+  // Forget the manual open when the sheet closes so it does not carry into the next sale.
+  const [wasOpen, setWasOpen] = useState(isOpen)
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen)
+    if (!isOpen) setUserOpenedPoints(false)
+  }
 
   if (!isOpen) return null
 
@@ -139,7 +144,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
       z={50}
       maxWidth="max-w-md lg:max-w-[486px]"
       panelClassName="flex flex-col"
-      onClose={isProcessing ? undefined : onClose}
+      onClose={isProcessing ? noop : onClose}
       closeLabel="Tutup latar"
     >
       {/* Header */}
@@ -179,7 +184,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
             </div>
           )}
           {derived.surchargeAmount > 0 && (
-            <div className="flex justify-between text-warn">
+            <div className="flex justify-between text-ink-700">
               <span>Biaya tambahan</span>
               <span className="tnum">+{formatRupiah(derived.surchargeAmount)}</span>
             </div>
@@ -215,7 +220,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
 
         {/* Notes */}
         {orderNotes && (
-          <div className="p-3 bg-warn-bg rounded-control text-xs text-warn">
+          <div className="p-3 bg-warn-bg rounded-control text-xs text-ink-700">
             <span className="font-semibold">Catatan: </span>
             {orderNotes}
           </div>
@@ -260,14 +265,14 @@ export const CheckoutPanel = memo(function CheckoutPanel({
                           <button
                             type="button"
                             onClick={() => setOpenRewards((o) => ({ ...o, [rw.conditionId]: true }))}
-                            className="min-h-11 text-xs font-semibold text-reward underline"
+                            className="min-h-12 text-xs font-semibold text-reward underline"
                           >
                             Ganti
                           </button>
                           <button
                             type="button"
                             onClick={() => onClearReward(rw.conditionId)}
-                            className="min-h-11 text-xs font-semibold text-reward underline"
+                            className="min-h-12 text-xs font-semibold text-reward underline"
                           >
                             Hapus
                           </button>
@@ -307,7 +312,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
                           <button
                             type="button"
                             onClick={() => onClearReward(rw.conditionId)}
-                            className="mt-1 min-h-11 text-xs font-semibold text-reward underline"
+                            className="mt-1 min-h-12 text-xs font-semibold text-reward underline"
                           >
                             Batalkan hadiah
                           </button>
@@ -320,7 +325,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
 
             {customerPoints > 0 && (
               <div>
-                <Chip tone="reward" toggle={false} onClick={() => setShowPoints((o) => !o)} className="!border-reward text-reward">
+                <Chip tone="reward" toggle={false} onClick={() => setUserOpenedPoints((o) => !o)} className="!border-reward text-reward">
                   Tukar {customerPoints} poin ›
                 </Chip>
                 {showPoints && (
@@ -403,7 +408,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
         {/* Amount received (cash) or the bill (non-cash) */}
         {isCash ? (
           <div>
-            <label htmlFor="checkout-amount" className="block text-[13px] font-semibold text-ink-700 mb-2">
+            <label htmlFor="checkout-amount" className="block text-sm font-semibold text-ink-700 mb-2">
               Diterima dari pelanggan
             </label>
             <input
@@ -414,13 +419,13 @@ export const CheckoutPanel = memo(function CheckoutPanel({
               onChange={(e) => onAmountPaidChange(e.target.value)}
               placeholder={String(derived.total)}
               aria-label="Jumlah dibayar"
-              className="w-full h-16 border-2 border-brand rounded-control px-4 text-[32px] font-bold tnum text-ink-900 focus:outline-none"
+              className="w-full h-16 border-2 border-ink-700 rounded-control px-4 text-[2rem] font-bold tnum text-ink-900 focus:outline-none"
             />
             <div className="flex gap-2 flex-wrap mt-2">
               {quickAmounts.map((amt, i) => (
                 <Chip
                   key={amt}
-                  selected={typedAmount === amt}
+                  selected={typedAmount === amt || (i === 0 && typedAmount === null)}
                   tone="info"
                   onClick={() => onAmountPaidChange(String(amt))}
                 >
@@ -444,7 +449,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
             {tender.change > 0 && (
               <div className="flex items-baseline justify-between mt-3">
                 <span className="text-sm text-ink-700">Kembalian</span>
-                <span className="text-[28px] font-bold tnum text-ok">{formatRupiah(tender.change)}</span>
+                <span className="text-[1.75rem] font-bold tnum text-ok">{formatRupiah(tender.change)}</span>
               </div>
             )}
             {isCashShort && (
@@ -476,7 +481,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
         >
           {isProcessing ? 'Memproses…' : `Konfirmasi ${formatRupiah(derived.total)}`}
         </Button>
-        <p className="text-[10px] text-ink-500 text-center mt-2">Order akan terkirim otomatis</p>
+        <p className="text-xs text-ink-500 text-center mt-2">Order akan terkirim otomatis</p>
       </div>
 
       {/* SP-CRM-9c: overstock confirm — warn + override, above the checkout sheet */}
@@ -508,7 +513,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
             <Button variant="secondary" className="flex-1" onClick={() => setShowOverstockConfirm(false)}>
               Batal
             </Button>
-            <Button
+            <Button variant="danger"
               className="flex-1"
               onClick={() => {
                 setShowOverstockConfirm(false)

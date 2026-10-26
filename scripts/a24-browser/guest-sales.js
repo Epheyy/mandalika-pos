@@ -9,7 +9,7 @@ async(page)=>{
  const applyCode=async(code)=>{await panel();await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill(code);await page.getByRole('button',{name:'Pakai',exact:true}).click();};
  const capture=async(name,method='qris',registered=false)=>{
   const before=(await box()).length;await page.getByRole('button',{name:'Bayar',exact:true}).click();
-  if(!registered){assert(!(await page.locator('body').innerText()).includes('Tukar Poin Loyalti'),'guest redemption UI');assert(!(await page.locator('body').innerText()).includes('Hadiah Loyalti'),'guest reward UI');}
+  if(!registered){assert(!(await page.locator('body').innerText()).includes('Tukar Poin Loyalti'),'guest redemption UI');assert(!(await page.locator('body').innerText()).includes('Hadiah Loyalti'),'guest reward UI');assert(!(await page.locator('body').innerText()).includes('Hadiah & Poin'),'guest reward card');assert((await page.getByRole('button',{name:/^Tukar [0-9]+ poin/}).count())===0,'guest points chip');}
   if(method==='cash')await page.getByRole('spinbutton',{name:'Jumlah dibayar'}).fill('100000');else await page.getByRole('button',{name:'QRIS',exact:true}).click();
   await page.getByRole('button',{name:/^Konfirmasi Rp/}).click();await page.getByRole('heading',{name:'Pembayaran Berhasil',exact:true}).waitFor();
   const queue=await box(), item=queue.at(-1), receipt=await page.locator('body').innerText();
