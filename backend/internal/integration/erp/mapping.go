@@ -81,6 +81,17 @@ func CategoryGroupKey(name string, category *string, size *float64) string {
 	return GroupKey(name, size) + "|" + normKey(cat)
 }
 
+// OthersGroupKey is the product key of an ERP "others" item (display, tester, paper, box,
+// packaging): one product per item code (owner decision (b), 2026-10-26).
+func OthersGroupKey(code string) string { return "erp:" + strings.TrimSpace(code) }
+
+// OthersProductName names the product of an ERP "others" item: the ERP name with the code
+// appended, so a display filed under a bare fragrance name ("24HOURS", DP120E-24H) never
+// reads like the fragrance product.
+func OthersProductName(name, code string) string {
+	return collapseSpaces(name) + " (" + strings.TrimSpace(code) + ")"
+}
+
 func normKey(s string) string { return strings.ToLower(collapseSpaces(s)) }
 
 func collapseSpaces(s string) string { return strings.Join(strings.Fields(s), " ") }

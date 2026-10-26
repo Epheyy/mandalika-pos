@@ -57,6 +57,7 @@ const (
 	incrementalOverlap = 5 * time.Minute  // updated_since = watermark - overlap
 	fullSyncMaxAge     = 24 * time.Hour   // auto picks full when the last full is older
 	maxErrorMessages   = 10               // item-error messages kept per run
+	maxNoteMessages    = 40               // report notes kept per run (unlinked outlets, ...)
 	maxErrorText       = 2000
 	catalogLockName    = "erp-catalog-pull"
 	runGrace           = 5 * time.Second // run ctx deadline = budget + runGrace
@@ -112,14 +113,17 @@ type watermarkState struct {
 }
 
 type runStats struct {
-	Pages, Upserted, Tombstoned, ItemErrors int
-	ErrorMsgs                               []string // first maxErrorMessages item errors
+	Pages, Upserted, Tombstoned, ItemErrors, Notes int
+	ErrorMsgs                                      []string // first maxErrorMessages item errors
+	NoteMsgs                                       []string // first maxNoteMessages report notes
 }
 
-// pageApply is what applying one page did. Errors are per-item messages.
+// pageApply is what applying one page did. Errors are per-item messages; Notes report
+// items the pull deliberately left alone (an ERP outlet with no POS outlet to link, ...).
 type pageApply struct {
 	Upserted, Tombstoned int
 	Errors               []string
+	Notes                []string
 }
 
 type completion struct {
@@ -343,6 +347,12 @@ func (s *Syncer) runResource(ctx context.Context, st runStore, resource string, 
 				stats.ErrorMsgs = append(stats.ErrorMsgs, m)
 			}
 		}
+		stats.Notes += len(pr.Apply.Notes)
+		for _, m := range pr.Apply.Notes {
+			if len(stats.NoteMsgs) < maxNoteMessages {
+				stats.NoteMsgs = append(stats.NoteMsgs, m)
+			}
+		}
 		if candidate == nil {
 			w := pr.ServerTime.UTC()
 			candidate = &w
@@ -362,7 +372,7 @@ func (s *Syncer) runResource(ctx context.Context, st runStore, resource string, 
 	out.Pages, out.Upserted, out.Tombstoned, out.ItemErrors = stats.Pages, stats.Upserted, stats.Tombstoned, stats.ItemErrors
 
 	if stop == "" {
-		note := itemErrorNote(stats)
+		note := joinNotes(itemErrorNote(stats), reportNote(stats))
 		deact, refused, cerr := st.Complete(ctx, completion{
 			Resource: resource, RunID: runID, Mode: mode, Watermark: *candidate, Now: s.now(),
 			Reconcile: mode == ModeFull, SeenSlugs: seen, Stats: stats, Note: note,
@@ -399,9 +409,19 @@ func itemErrorNote(st runStats) string {
 	return clip(fmt.Sprintf("%d item error(s): %s", st.ItemErrors, strings.Join(st.ErrorMsgs, "; ")))
 }
 
+// reportNote lists the run's report notes; they are not errors.
+func reportNote(st runStats) string {
+	if st.Notes == 0 {
+		return ""
+	}
+	return clip(fmt.Sprintf("%d note(s): %s", st.Notes, strings.Join(st.NoteMsgs, "; ")))
+}
+
+// clip bounds a stored run text. It never cuts a rune: Postgres rejects invalid UTF-8, and
+// report notes carry ERP names.
 func clip(s string) string {
 	if len(s) > maxErrorText {
-		return s[:maxErrorText]
+		return strings.ToValidUTF8(s[:maxErrorText], "")
 	}
 	return s
 }

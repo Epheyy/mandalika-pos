@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/mandalika/pos-backend/internal/integration/erp/erpapi"
 )
@@ -555,8 +556,8 @@ func TestOverCapAllowsSmallGapsAndTwentyPercent(t *testing.T) {
 
 func TestUnchangedFGMirrorsTheItemApply(t *testing.T) {
 	sp := func(v string) *string { return &v }
-	base := fgSnap{sku: "A", productName: "a", active: true, productActive: true, hasActive: true,
-		category: sp("edp"), erpName: sp("a"), erpCategory: sp("EDP"), srcName: sp("a"), srcCategory: sp("edp")}
+	base := fgSnap{sku: "A", productID: "p", active: true, productActive: true, hasActive: true,
+		erpName: sp("a"), erpCategory: sp("EDP")}
 	f := fg("a")
 	f.Code, f.Name, f.Category = "A", "a", sp("EDP")
 	if !unchangedFG(f, base) {
@@ -581,26 +582,6 @@ func TestUnchangedFGMirrorsTheItemApply(t *testing.T) {
 	if unchangedFG(f, legacy) {
 		t.Fatal("a row without stored source values (before migration 0068) must be written once")
 	}
-	drift := base
-	drift.srcName = sp("a prime")
-	if unchangedFG(f, drift) {
-		t.Fatal("a product not showing its source name must be re-synced")
-	}
-	drift = base
-	drift.srcCategory = sp("parfum")
-	if unchangedFG(f, drift) {
-		t.Fatal("a product not showing its source category must be re-synced")
-	}
-	drift = base
-	drift.category = nil
-	if unchangedFG(f, drift) {
-		t.Fatal("a product without a category must take its source category")
-	}
-	noSrc := base // a higher-ranked size was never stored: the product keeps what it has
-	noSrc.srcName, noSrc.srcCategory, noSrc.productName, noSrc.category = nil, nil, "legacy", nil
-	if !unchangedFG(f, noSrc) {
-		t.Fatal("no source values: the product keeps what it has")
-	}
 	f.Status = erpapi.DISCONTINUE
 	if unchangedFG(f, base) {
 		t.Fatal("status change must not be skipped")
@@ -611,8 +592,29 @@ func TestUnchangedFGMirrorsTheItemApply(t *testing.T) {
 	if unchangedFG(f, stale) {
 		t.Fatal("an active product without an active variant must be cleared, not skipped")
 	}
+	other := base
+	other.erpName = sp("DISPLAY a")
+	o := f
+	o.Name, o.IsOthers = "DISPLAY a", true
+	if !unchangedFG(o, other) {
+		t.Fatal("an others FG stores its full name: unchanged must be skipped")
+	}
 	f.Name = ""
 	if unchangedFG(f, base) {
 		t.Fatal("an invalid item must go through the item path to be reported")
+	}
+}
+
+func TestReportNoteListsNotesAndClipNeverCutsARune(t *testing.T) {
+	st := runStats{Notes: 2, NoteMsgs: []string{"outlet A", "outlet B"}}
+	if got := reportNote(st); got != "2 note(s): outlet A; outlet B" {
+		t.Fatalf("reportNote = %q", got)
+	}
+	if reportNote(runStats{}) != "" {
+		t.Fatal("no notes, no text")
+	}
+	long := strings.Repeat("a", maxErrorText-1) + "é"
+	if got := clip(long); !utf8.ValidString(got) || len(got) > maxErrorText {
+		t.Fatalf("clip cut a rune: valid=%v len=%d", utf8.ValidString(got), len(got))
 	}
 }

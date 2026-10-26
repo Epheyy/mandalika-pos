@@ -226,20 +226,11 @@ func reconcileVariants(ctx context.Context, tx pgx.Tx, seen []string) (int, stri
 	if err := rows.Err(); err != nil || len(products) == 0 {
 		return 0, "", err
 	}
-	// After the variant update (a data-modifying CTE would not see it): re-derive each
-	// product's name and category, so a deactivated owner hands over to the next size now,
-	// and clear products.is_active when no variant is left active (R2: clear only).
+	// After the variant update (a data-modifying CTE would not see it): clear
+	// products.is_active when no variant is left active (R2: clear only).
 	slices.Sort(products)
-	catCreated := false
 	for _, pid := range slices.Compact(products) {
-		_, created, err := syncProduct(ctx, tx, pid)
-		if err != nil {
-			return 0, "", err
-		}
-		catCreated = catCreated || created
-	}
-	if catCreated {
-		if err := bumpVersion(ctx, tx, "categories"); err != nil {
+		if _, err := syncProduct(ctx, tx, pid); err != nil {
 			return 0, "", err
 		}
 	}
@@ -326,6 +317,9 @@ func applyPage[T any](ctx context.Context, pool *pgxpool.Pool, items []T, label 
 		if err := sp.Commit(ctx); err != nil {
 			return pageApply{}, err
 		}
+		if out.note != "" {
+			res.Notes = append(res.Notes, out.note)
+		}
 		if out.skipped {
 			continue
 		}
@@ -354,10 +348,12 @@ func applyPage[T any](ctx context.Context, pool *pgxpool.Pool, items []T, label 
 }
 
 // itemOutcome: skipped items (e.g. an unknown tombstone) count nowhere; bump lists
-// the content-version resources whose rows this item changed.
+// the content-version resources whose rows this item changed; note is a report line
+// for the run (not an error).
 type itemOutcome struct {
 	skipped, tombstoned bool
 	bump                []string
+	note                string
 }
 
 func (p *pgStore) ApplyFG(ctx context.Context, items []erpapi.IntegrationFG) (pageApply, error) {
@@ -374,17 +370,15 @@ func (p *pgStore) ApplyOutlets(ctx context.Context, items []erpapi.IntegrationOu
 
 // fgSnap is the stored state of one linked variant and its product, prefetched per page.
 type fgSnap struct {
-	sku, productID, productName string
-	active, productActive       bool
-	hasActive                   bool    // the product has at least one active variant
-	category                    *string // lower(product category name), nil when none
-	erpName, erpCategory        *string // what this FG said last (migration 0068)
-	srcName, srcCategory        *string // the product's source values; srcCategory lower-cased
+	sku, productID        string
+	active, productActive bool
+	hasActive             bool    // the product has at least one active variant
+	erpName, erpCategory  *string // what this FG said last (migration 0068)
 }
 
 // unchangedFG reports whether applying fg would write nothing. It mirrors applyFGItem:
-// sku, variant is_active, the FG's stored name and category, the clear-only product
-// is_active, and the product already showing its source name and category.
+// sku, variant is_active, the FG's stored name and category, and the clear-only product
+// is_active (the only product column the pull writes on an existing product).
 func unchangedFG(fg erpapi.IntegrationFG, sn fgSnap) bool {
 	if strings.TrimSpace(fg.Slug) == "" || strings.TrimSpace(fg.Code) == "" || strings.TrimSpace(fg.Name) == "" {
 		return false // let the item path report the error
@@ -392,36 +386,28 @@ func unchangedFG(fg erpapi.IntegrationFG, sn fgSnap) bool {
 	if sn.sku != fg.Code || sn.active != FGActive(fg) {
 		return false
 	}
-	if sn.erpName == nil || *sn.erpName != ProductNameFromFG(fg.Name, fg.Size) || !sameCategory(sn.erpCategory, fgCategory(fg)) {
+	if sn.erpName == nil || *sn.erpName != fgSourceName(fg) || !sameCategory(sn.erpCategory, fgCategory(fg)) {
 		return false
 	}
-	if sn.productActive && !sn.hasActive {
-		return false
-	}
-	if sn.srcName != nil && sn.productName != *sn.srcName {
-		return false
-	}
-	return sn.srcCategory == nil || sn.category != nil && *sn.category == *sn.srcCategory
+	return !sn.productActive || sn.hasActive
 }
 
 // skipUnchangedFG is the R7 prefetch: one query for the page's linked variants, then items
 // that would write nothing are skipped (no savepoint); their erp_synced_at is bulk-updated by
 // the returned after step, which applyPage runs after the item loop (lock order).
 // An item is never skipped when an earlier written item of the page touches the same product
-// (a written sibling can change the product's source name and category).
+// (a written sibling can change which variants of the product are active).
 func skipUnchangedFG(ctx context.Context, q pgx.Tx, items []erpapi.IntegrationFG) ([]erpapi.IntegrationFG, []itemOutcome, func(context.Context, pgx.Tx) error, error) {
 	slugs := make([]string, 0, len(items))
 	for _, it := range items {
 		slugs = append(slugs, it.Slug)
 	}
 	rows, err := q.Query(ctx, `
-		SELECT v.erp_slug, v.sku, v.is_active, p.id::text, p.name, p.is_active,
+		SELECT v.erp_slug, v.sku, v.is_active, p.id::text, p.is_active,
 		       EXISTS (SELECT 1 FROM product_variants v2 WHERE v2.product_id=p.id AND v2.is_active),
-		       lower(c.name), v.erp_name, v.erp_category,
-		       `+sourceName("p.id")+`, lower(`+sourceCategory("p.id")+`)
+		       v.erp_name, v.erp_category
 		  FROM product_variants v
 		  JOIN products p ON p.id=v.product_id
-		  LEFT JOIN categories c ON c.id=p.category_id
 		 WHERE v.erp_slug = ANY($1::text[])`, slugs)
 	if err != nil {
 		return nil, nil, nil, err
@@ -430,8 +416,8 @@ func skipUnchangedFG(ctx context.Context, q pgx.Tx, items []erpapi.IntegrationFG
 	for rows.Next() {
 		var slug string
 		var sn fgSnap
-		if err := rows.Scan(&slug, &sn.sku, &sn.active, &sn.productID, &sn.productName, &sn.productActive, &sn.hasActive, &sn.category,
-			&sn.erpName, &sn.erpCategory, &sn.srcName, &sn.srcCategory); err != nil {
+		if err := rows.Scan(&slug, &sn.sku, &sn.active, &sn.productID, &sn.productActive, &sn.hasActive,
+			&sn.erpName, &sn.erpCategory); err != nil {
 			rows.Close()
 			return nil, nil, nil, err
 		}
@@ -467,6 +453,22 @@ func skipUnchangedFG(ctx context.Context, q pgx.Tx, items []erpapi.IntegrationFG
 	return rest, skipped, after, nil
 }
 
+// findCategory matches by case-insensitive name and never creates; nil when absent or blank.
+func findCategory(ctx context.Context, q pgx.Tx, name *string) (*string, error) {
+	if name == nil || collapseSpaces(*name) == "" {
+		return nil, nil
+	}
+	var cid string
+	err := q.QueryRow(ctx, `SELECT id::text FROM categories WHERE lower(name)=lower($1) ORDER BY id LIMIT 1`, collapseSpaces(*name)).Scan(&cid)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &cid, nil
+}
+
 // upsertCategory matches by case-insensitive name and creates when missing.
 // A blank name returns nil (the product keeps whatever category it has).
 func upsertCategory(ctx context.Context, q pgx.Tx, name *string) (id *string, created bool, err error) {
@@ -497,14 +499,16 @@ func lockProduct(ctx context.Context, q pgx.Tx, productID string) error {
 }
 
 // applyFGItem upserts one finished good by product_variants.erp_slug. It never
-// touches an existing variant's size, price, barcode or images, and never deletes.
+// touches an existing variant's size, price, barcode or images, never writes an existing
+// product's name, category, brand, sellable or images (the POS owns them once the product
+// exists, mapping v3 §6.4), and never deletes.
 func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG) (itemOutcome, error) {
 	if strings.TrimSpace(fg.Slug) == "" || strings.TrimSpace(fg.Code) == "" || strings.TrimSpace(fg.Name) == "" {
 		return itemOutcome{}, itemError("missing slug, code or name")
 	}
 	active := FGActive(fg)
 	out := itemOutcome{tombstoned: fg.DeletedAt != nil}
-	name := ProductNameFromFG(fg.Name, fg.Size)
+	name := fgSourceName(fg)
 
 	var variantID, productID, curSKU string
 	err := q.QueryRow(ctx, `SELECT id::text, product_id::text, sku FROM product_variants WHERE erp_slug=$1`, fg.Slug).
@@ -554,7 +558,7 @@ func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG) (itemOu
 		}
 		changed = ct.RowsAffected() > 0
 		// erp_synced_at and the stored source values are bookkeeping only: they must not
-		// count as a change (no version bump); syncProduct decides whether the product changed.
+		// count as a change (no version bump).
 		if _, err := q.Exec(ctx, `UPDATE product_variants SET erp_synced_at=now() WHERE id=$1`, variantID); err != nil {
 			return out, err
 		}
@@ -562,20 +566,21 @@ func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG) (itemOu
 			return out, err
 		}
 	} else {
-		// The FG's own category only matters for grouping a new variant; a known one is
-		// re-derived from the stored values by syncProduct.
-		catID, created, err := upsertCategory(ctx, q, fg.Category)
+		var label string
+		var pcreated bool
+		if fg.IsOthers {
+			label = sizeUnitless
+			productID, pcreated, catCreated, err = othersProduct(ctx, q, fg, active)
+		} else {
+			label = SizeLabel(fg.Size, fg.Unit)
+			productID, pcreated, catCreated, err = groupProduct(ctx, q, fg, name, label, active)
+		}
 		if err != nil {
 			return out, err
 		}
-		catCreated = created
-		label := SizeLabel(fg.Size, fg.Unit)
-		var clash bool
-		if productID, created, err = groupProduct(ctx, q, fg, name, label, catID, active); err != nil {
-			return out, err
-		}
-		changed = created
-		if clash, err = hasSize(ctx, q, productID, label); err != nil {
+		changed = pcreated
+		clash, err := hasSize(ctx, q, productID, label)
+		if err != nil {
 			return out, err
 		}
 		if clash {
@@ -591,58 +596,97 @@ func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG) (itemOu
 		changed = true
 	}
 
-	pchanged, pcatCreated, err := syncProduct(ctx, q, productID)
+	pchanged, err := syncProduct(ctx, q, productID)
 	if err != nil {
 		return out, err
 	}
 	if changed || pchanged {
 		out.bump = append(out.bump, "products")
 	}
-	if catCreated || pcatCreated {
+	if catCreated {
 		out.bump = append(out.bump, "categories")
 	}
 	return out, nil
+}
+
+// othersCategory files every product the pull creates for an ERP "others" item (display,
+// tester, paper, box, packaging): the visible "not for sale" marker of owner decision (b),
+// 2026-10-26. Created on first use; the owner may re-file or sell an item afterwards.
+const othersCategory = "ERP: bukan untuk dijual"
+
+// othersProduct finds (locking) or creates the product of one ERP "others" item: one
+// product per item, keyed by its code, never a variant of a priced product. The product is
+// created not sellable; its name carries the code so it never reads like the fragrance.
+func othersProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, active bool) (id string, created, catCreated bool, err error) {
+	key := OthersGroupKey(fg.Code)
+	id, _, found, err := productByGroupKey(ctx, q, key)
+	if err != nil || found {
+		return id, false, false, err
+	}
+	cat := othersCategory
+	catID, catCreated, err := upsertCategory(ctx, q, &cat)
+	if err != nil {
+		return "", false, false, err
+	}
+	if err := q.QueryRow(ctx, `
+		INSERT INTO products (name, brand, category_id, sellable, is_active, erp_group_key)
+		VALUES ($1,'',$2::text::uuid,false,$3,$4) RETURNING id::text`,
+		OthersProductName(fg.Name, fg.Code), catID, active, key).Scan(&id); err != nil {
+		return "", false, false, err
+	}
+	return id, true, catCreated, nil
 }
 
 // groupProduct finds (locking) or creates the product a new FG joins: the GroupKey product
 // (name minus size). Category only breaks a tie: when that product is filed under another
 // category (or none, or the FG has none), the FG goes to its CategoryGroupKey product if one
 // exists, or to a new one if the GroupKey product already holds the FG's size label.
-// created reports a new row.
-func groupProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, name, label string, catID *string, active bool) (string, bool, error) {
+// created reports a new product; catCreated a new category row (only ever for a new product).
+func groupProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, name, label string, active bool) (string, bool, bool, error) {
 	key := GroupKey(fg.Name, fg.Size)
 	id, cat, found, err := productByGroupKey(ctx, q, key)
 	if err != nil {
-		return "", false, err
+		return "", false, false, err
 	}
-	if found && !sameCategory(cat, catID) {
-		tieKey := CategoryGroupKey(fg.Name, fg.Category, fg.Size)
-		tieID, _, tieFound, err := productByGroupKey(ctx, q, tieKey)
+	if found {
+		// Lookup only: joining an existing product never adds a category.
+		catID, err := findCategory(ctx, q, fg.Category)
 		if err != nil {
-			return "", false, err
+			return "", false, false, err
 		}
-		if tieFound {
-			return tieID, false, nil
-		}
-		clash, err := hasSize(ctx, q, id, label)
-		if err != nil {
-			return "", false, err
-		}
-		if clash {
-			key, found = tieKey, false
+		if !sameCategory(cat, catID) {
+			tieKey := CategoryGroupKey(fg.Name, fg.Category, fg.Size)
+			tieID, _, tieFound, err := productByGroupKey(ctx, q, tieKey)
+			if err != nil {
+				return "", false, false, err
+			}
+			if tieFound {
+				return tieID, false, false, nil
+			}
+			clash, err := hasSize(ctx, q, id, label)
+			if err != nil {
+				return "", false, false, err
+			}
+			if clash {
+				key, found = tieKey, false
+			}
 		}
 	}
 	if found {
-		return id, false, nil
+		return id, false, false, nil
+	}
+	catID, catCreated, err := upsertCategory(ctx, q, fg.Category)
+	if err != nil {
+		return "", false, false, err
 	}
 	// D20: new ERP products are not sellable until the owner prices and enables them.
 	if err := q.QueryRow(ctx, `
 		INSERT INTO products (name, brand, category_id, sellable, is_active, erp_group_key)
 		VALUES ($1,'',$2::text::uuid,false,$3,$4) RETURNING id::text`,
 		name, catID, active, key).Scan(&id); err != nil {
-		return "", false, err
+		return "", false, false, err
 	}
-	return id, true, nil
+	return id, true, catCreated, nil
 }
 
 func sameCategory(a, b *string) bool {
@@ -667,8 +711,12 @@ func hasSize(ctx context.Context, q pgx.Tx, productID, label string) (bool, erro
 	return clash, err
 }
 
-// applyOutletItem upserts one outlet by outlets.erp_slug. It never writes
-// outlets.code, never re-activates a known outlet, and never deletes.
+// applyOutletItem links one ERP outlet to a POS outlet (mapping v3 §6.5). Outlets are
+// POS-owned: the pull never creates one, never writes name, address, phone or code, and
+// never re-activates one. A linked outlet (by erp_slug) follows erp_code and an ERP
+// tombstone. An unlinked ERP outlet links to the single unlinked POS outlet whose code
+// equals the ERP code or slug (case-insensitive); an ONLINE channel never links. The
+// rest is reported as a run note.
 func applyOutletItem(ctx context.Context, q pgx.Tx, o erpapi.IntegrationOutlet) (itemOutcome, error) {
 	if strings.TrimSpace(o.Slug) == "" || strings.TrimSpace(o.Code) == "" || strings.TrimSpace(o.Name) == "" {
 		return itemOutcome{}, itemError("missing slug, code or name")
@@ -680,13 +728,9 @@ func applyOutletItem(ctx context.Context, q pgx.Tx, o erpapi.IntegrationOutlet) 
 	err := q.QueryRow(ctx, `SELECT id::text FROM outlets WHERE erp_slug=$1`, o.Slug).Scan(&id)
 	if err == nil {
 		ct, err := q.Exec(ctx, `
-			UPDATE outlets SET erp_code=$2, name=$3, address=$4, phone=$5,
-			       is_active = CASE WHEN $6::boolean THEN false ELSE is_active END
-			 WHERE id=$1
-			   AND (erp_code IS DISTINCT FROM $2 OR name IS DISTINCT FROM $3
-			     OR address IS DISTINCT FROM $4 OR phone IS DISTINCT FROM $5
-			     OR ($6::boolean AND is_active))`,
-			id, o.Code, o.Name, o.Address, o.Phone, deleted)
+			UPDATE outlets SET erp_code=$2, is_active = CASE WHEN $3::boolean THEN false ELSE is_active END
+			 WHERE id=$1 AND (erp_code IS DISTINCT FROM $2 OR ($3::boolean AND is_active))`,
+			id, o.Code, deleted)
 		if err != nil {
 			return out, err
 		}
@@ -698,12 +742,15 @@ func applyOutletItem(ctx context.Context, q pgx.Tx, o erpapi.IntegrationOutlet) 
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return out, err
 	}
-	if deleted { // a tombstone for an outlet we never had is not created
+	if deleted { // a tombstone for an outlet we never had is ignored
 		return itemOutcome{skipped: true}, nil
 	}
+	if o.Type == erpapi.IntegrationOutletTypeONLINE {
+		return itemOutcome{skipped: true, note: unlinkedOutletNote(o, "online channel, never a POS outlet")}, nil
+	}
 
-	// Link exactly one unlinked outlet whose POS code equals the ERP code (flagged decision).
-	rows, err := q.Query(ctx, `SELECT id::text FROM outlets WHERE erp_slug IS NULL AND lower(code)=lower($1) LIMIT 2`, o.Code)
+	rows, err := q.Query(ctx, `SELECT id::text FROM outlets
+		 WHERE erp_slug IS NULL AND (lower(code)=lower($1) OR lower(code)=lower($2)) LIMIT 2`, o.Code, o.Slug)
 	if err != nil {
 		return out, err
 	}
@@ -721,24 +768,15 @@ func applyOutletItem(ctx context.Context, q pgx.Tx, o erpapi.IntegrationOutlet) 
 	}
 	switch len(matches) {
 	case 1:
-		_, err := q.Exec(ctx, `UPDATE outlets SET erp_slug=$2, erp_code=$3, name=$4, address=$5, phone=$6 WHERE id=$1`,
-			matches[0], o.Slug, o.Code, o.Name, o.Address, o.Phone)
+		_, err := q.Exec(ctx, `UPDATE outlets SET erp_slug=$2, erp_code=$3 WHERE id=$1`, matches[0], o.Slug, o.Code)
 		out.bump = []string{"outlets"}
 		return out, err
 	case 0:
-		// Inactive, code NULL (admin assigns the POS receipt code), default timezone.
-		if err := q.QueryRow(ctx, `
-			INSERT INTO outlets (name, address, phone, is_active, erp_slug, erp_code)
-			VALUES ($1,$2,$3,false,$4,$5) RETURNING id::text`,
-			o.Name, o.Address, o.Phone, o.Slug, o.Code).Scan(&id); err != nil {
-			return out, err
-		}
-		// Baseline content_versions row, as write.CreateOutlet does.
-		if _, err := q.Exec(ctx, `INSERT INTO content_versions (outlet_id) VALUES ($1) ON CONFLICT DO NOTHING`, id); err != nil {
-			return out, err
-		}
-		out.bump = []string{"outlets"}
-		return out, nil
+		return itemOutcome{skipped: true, note: unlinkedOutletNote(o, "no POS outlet with this code")}, nil
 	}
 	return out, itemError(fmt.Sprintf("more than one unlinked outlet has code %q", o.Code))
+}
+
+func unlinkedOutletNote(o erpapi.IntegrationOutlet, why string) string {
+	return fmt.Sprintf("outlet %s %q (%s) not linked: %s", o.Code, collapseSpaces(o.Name), o.Type, why)
 }
