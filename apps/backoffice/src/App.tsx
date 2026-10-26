@@ -266,7 +266,7 @@ export default function App() {
           <div className="flex-1" />
           <OutletSwitcher />
         </header>
-        <main className="flex-1 overflow-y-auto">
+        <main className="relative flex-1 overflow-y-auto">
           {Screen ? (
             <Screen />
           ) : (
