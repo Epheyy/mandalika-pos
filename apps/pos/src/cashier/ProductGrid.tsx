@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState, type CSSProperties } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState, type CSSProperties, type MutableRefObject } from 'react'
 import type { components } from '@mandalika/api'
 import {
   DndContext,
@@ -19,7 +19,11 @@ import { CSS } from '@dnd-kit/utilities'
 import { formatRupiah } from './pricing'
 import { nextVariantQty, oversoldSizes } from './stock'
 import { variantLabel } from '@mandalika/types'
-import { IconHeart } from '../components/ui/icons'
+import { IconHeart, IconScan } from '../components/ui/icons'
+import { Chip } from '../components/ui/Chip'
+import { Sheet } from '../components/ui/Sheet'
+import { Stepper } from '../components/ui/Stepper'
+import { STOCK_DOT_CLASS, STOCK_TEXT_CLASS, stockLabel, stockTone } from './stockTone'
 
 type Product = components['schemas']['Product']
 type Category = components['schemas']['Category']
@@ -67,17 +71,31 @@ interface ProductGridProps {
   onScanClick?: () => void
   onToggleFavourites: () => void
   isLoading: boolean
+  /** Filled while the variant sheet is open so the screen's Android Back handler can close it (returns true when it did). */
+  variantBackRef?: MutableRefObject<(() => boolean) | null>
 }
 
 interface SortableCardProps {
   product: Product
+  categoryName: string | undefined
   showPrice: boolean
   showStock: boolean
   showVariants: boolean
   onTap: (product: Product) => void
 }
 
-const SortableCard = memo(function SortableCard({ product, showPrice, showStock, showVariants, onTap }: SortableCardProps) {
+/** Bottle silhouette for products without a photo. Decorative; the name sits next to it. */
+function BottlePlaceholder() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 2.5h4v3h-4z" />
+      <path d="M9 5.5h6v2l2 2.5v9.5a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V10l2-2.5z" />
+      <path d="M9.5 14h5" />
+    </svg>
+  )
+}
+
+const SortableCard = memo(function SortableCard({ product, categoryName, showPrice, showStock, showVariants, onTap }: SortableCardProps) {
   const totalStock = product.variants.reduce((s, v) => s + v.stock, 0)
   const inStock = totalStock > 0
   const prices = product.variants.map((v) => v.price)
@@ -86,7 +104,8 @@ const SortableCard = memo(function SortableCard({ product, showPrice, showStock,
   // Compact price for small grids: a single price, or the minimum with "+"
   // when variants differ (e.g. "Rp 250.000+").
   const priceLabel = minPrice === maxPrice ? formatRupiah(minPrice) : `${formatRupiah(minPrice)}+`
-  const initial = (product.name || '?').charAt(0).toUpperCase()
+  const subline = categoryName ?? (product.variants.length > 0 ? variantLabel(product.variants[0].size) : '')
+  const tone = stockTone(totalStock)
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: product.id })
@@ -115,77 +134,74 @@ const SortableCard = memo(function SortableCard({ product, showPrice, showStock,
           onTap(product)
         }
       }}
-      className={`group flex flex-col rounded-xl border text-left overflow-hidden select-none touch-manipulation ${
-        inStock
-          ? 'border-gray-200 bg-white cursor-pointer hover:border-indigo-300 hover:shadow-md active:scale-[0.98]'
-          : 'border-amber-200 bg-amber-50 cursor-pointer hover:border-amber-300 hover:shadow-md active:scale-[0.98]'
-      } ${isDragging ? 'shadow-lg ring-2 ring-indigo-300' : 'transition-all duration-150'}`}
+      className={`flex min-h-[150px] cursor-pointer select-none touch-manipulation flex-col gap-2 rounded-control border bg-white p-3 text-left active:scale-[0.98] ${
+        inStock ? 'border-paper-2' : 'border-danger'
+      } ${isDragging ? 'shadow-lg ring-2 ring-paper-2' : 'transition-transform duration-150'}`}
     >
-      {/* Media — uniform aspect-square so every card is the same height,
-          whether the product has a photo or a fallback initial tile. */}
-      <div className="relative w-full aspect-square overflow-hidden">
+      <div className="flex items-start gap-2">
         {product.imageUrl ? (
           <img
             src={product.imageUrl}
-            alt={product.name}
-            className={`w-full h-full object-cover pointer-events-none transition-transform duration-200 ${inStock ? 'group-hover:scale-105' : 'grayscale opacity-60'}`}
+            alt=""
+            className={`pointer-events-none h-14 w-14 flex-shrink-0 rounded-lg object-cover ${inStock ? '' : 'grayscale opacity-60'}`}
             loading="lazy"
             draggable={false}
           />
         ) : (
-          <div className={`w-full h-full flex items-center justify-center bg-gradient-to-br from-indigo-50 to-indigo-100 ${!inStock ? 'opacity-60' : ''}`}>
-            <span className="text-3xl font-black text-indigo-300 select-none">{initial}</span>
+          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg bg-paper-1 text-ink-500">
+            <BottlePlaceholder />
           </div>
         )}
-        {!inStock && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/40">
-            <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wide bg-red-500 text-white rounded-full">Habis</span>
-          </div>
-        )}
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 text-[0.9375rem] font-semibold leading-snug text-ink-900">{product.name}</p>
+          {subline && <p className="mt-0.5 truncate text-xs text-ink-500">{subline}</p>}
+        </div>
       </div>
 
-      <div className="p-2">
-        <p className="text-xs font-semibold text-gray-800 line-clamp-2 leading-tight min-h-[2.1em]">
-          {product.name}
-        </p>
-        {showVariants ? (
-          /* Per-variant rows — each variant's own price/stock, not an
-             accumulated total. */
-          <div className="mt-1 space-y-0.5">
-            {product.variants.map((v) => (
-              <div key={v.size} className="flex items-baseline justify-between gap-1.5 text-[10px]">
-                {variantLabel(v.size) && <span className="text-gray-600 truncate">{variantLabel(v.size)}</span>}
-                {(showPrice || showStock) && (
-                  <span className="flex-shrink-0 flex items-center gap-1.5">
-                    {showPrice && <span className="font-bold text-indigo-600">{formatRupiah(v.price)}</span>}
-                    {showStock && <span className={v.stock > 0 ? 'text-gray-400' : 'text-red-500 font-semibold'}>Stok {v.stock}</span>}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <>
-            {showPrice && (
-              <p className="mt-1 text-[11px] font-black text-indigo-600 truncate">{priceLabel}</p>
-            )}
-            {showStock && (
-              <p className={`text-[10px] ${inStock ? 'text-gray-400' : 'text-red-500 font-semibold'}`}>
-                {inStock ? `Stok ${totalStock}` : 'Stok akan minus · tetap bisa dijual'}
-              </p>
-            )}
-          </>
-        )}
-      </div>
+      {showVariants ? (
+        /* Per-variant rows — each variant's own price/stock, not an
+           accumulated total. */
+        <div className="mt-auto space-y-1">
+          {product.variants.map((v) => (
+            <div key={v.size} className="flex items-baseline justify-between gap-2 text-xs">
+              {variantLabel(v.size) && <span className="truncate text-ink-700">{variantLabel(v.size)}</span>}
+              {(showPrice || showStock) && (
+                <span className="flex flex-shrink-0 items-center gap-2">
+                  {showPrice && <span className="tnum font-bold text-ink-900">{formatRupiah(v.price)}</span>}
+                  {showStock && <span className={`tnum font-semibold ${STOCK_TEXT_CLASS[stockTone(v.stock)]}`}>{stockLabel(v.stock)}</span>}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-auto space-y-1">
+          {(showPrice || product.variants.length > 1) && (
+            <div className="flex items-baseline justify-between gap-2">
+              {showPrice && <p className="tnum truncate text-base font-bold text-ink-900">{priceLabel}</p>}
+              {product.variants.length > 1 && (
+                <p className="ml-auto flex-shrink-0 text-xs text-ink-500">{product.variants.length} ukuran</p>
+              )}
+            </div>
+          )}
+          {showStock && (
+            <p className={`flex items-center gap-1.5 text-[0.8125rem] font-semibold ${STOCK_TEXT_CLASS[tone]}`}>
+              <span aria-hidden="true" className={`h-2 w-2 flex-shrink-0 rounded-full ${STOCK_DOT_CLASS[tone]}`} />
+              {stockLabel(totalStock)}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   )
 })
 
+// 4 columns is the 1280 dp design (180 dp tiles beside the 486 dp cart); narrower widths step down so a tile never gets thinner than its photo and name need.
 const colClass: Record<number, string> = {
   2: 'grid-cols-2',
   3: 'grid-cols-3',
-  4: 'grid-cols-4',
-  6: 'grid-cols-6',
+  4: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4',
+  6: 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-6',
 }
 
 export const ProductGrid = memo(function ProductGrid({
@@ -205,10 +221,20 @@ export const ProductGrid = memo(function ProductGrid({
   onScanClick,
   onToggleFavourites,
   isLoading,
+  variantBackRef,
 }: ProductGridProps) {
   const [variantPopup, setVariantPopup] = useState<Product | null>(null)
   const [variantQtys, setVariantQtys] = useState<Record<string, number>>({})
   const [order, setOrder] = useState<string[]>(loadOrder)
+
+  // Android Back closes the variant sheet before anything underneath.
+  useEffect(() => {
+    if (!variantBackRef) return
+    variantBackRef.current = variantPopup ? () => { setVariantPopup(null); return true } : null
+    return () => { variantBackRef.current = null }
+  }, [variantPopup, variantBackRef])
+
+  const categoryNames = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories])
 
   // Custom order applied first, then the category/search/favourite filters.
   const orderedAll = useMemo(() => sortByCustomOrder(products, order), [products, order])
@@ -267,9 +293,9 @@ export const ProductGrid = memo(function ProductGrid({
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden bg-paper-0">
       {/* Search bar — Enter submits (keyboard-wedge scanners append CR) */}
-      <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0 flex gap-2">
+      <div className="flex flex-shrink-0 gap-2 px-3 pt-3">
         <input
           type="search"
           value={searchQuery}
@@ -280,68 +306,46 @@ export const ProductGrid = memo(function ProductGrid({
               onSearchSubmit(searchQuery)
             }
           }}
-          placeholder="Cari / scan produk…"
+          placeholder="Cari nama, SKU, atau pindai barcode"
           aria-label="Cari atau scan produk"
-          className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          className="h-12 min-w-0 flex-1 rounded-control border border-paper-2 bg-white px-4 text-base text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-paper-2"
         />
         {onScanClick && (
           <button
             type="button"
             onClick={onScanClick}
-            className="flex-shrink-0 px-3 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 active:scale-95 transition"
+            className="touch flex flex-shrink-0 items-center justify-center rounded-control border border-paper-2 bg-white text-ink-700 active:bg-paper-1"
             title="Scan barcode / QR"
             aria-label="Scan barcode atau QR"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M3 12h18"/></svg>
+            <IconScan size={22} />
           </button>
         )}
       </div>
 
-      {/* Category tabs */}
-      <div className="flex gap-1 px-3 py-2 overflow-x-auto flex-shrink-0 border-b border-gray-100">
-        <button type="button"
-          onClick={() => onCategoryChange(null)}
-          className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-            selectedCategoryId === null
-              ? 'bg-indigo-600 text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
+      {/* Category chips */}
+      <div className="flex flex-shrink-0 gap-2 overflow-x-auto px-3 py-3">
+        <Chip selected={selectedCategoryId === null} onClick={() => onCategoryChange(null)} className="flex-shrink-0">
           Semua
-        </button>
+        </Chip>
         {categories.map((cat) => (
-          <button type="button"
-            key={cat.id}
-            onClick={() => onCategoryChange(cat.id)}
-            className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-              selectedCategoryId === cat.id
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
+          <Chip key={cat.id} selected={selectedCategoryId === cat.id} onClick={() => onCategoryChange(cat.id)} className="flex-shrink-0">
             {cat.name}
-          </button>
+          </Chip>
         ))}
-        <button type="button"
-          onClick={onToggleFavourites}
-          className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-            showFavouritesOnly
-              ? 'bg-pink-500 text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          <IconHeart size={12} className="inline-block align-[-0.125em]" /> Favorit
-        </button>
+        <Chip selected={showFavouritesOnly} onClick={onToggleFavourites} className="flex-shrink-0">
+          <IconHeart size={16} /> Favorit
+        </Chip>
       </div>
 
       {/* Product grid */}
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-y-auto px-3 pb-3">
         {isLoading ? (
-          <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
+          <div className="flex h-32 items-center justify-center text-sm text-ink-500">
             Memuat produk…
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
+          <div className="flex h-32 items-center justify-center text-sm text-ink-500">
             Produk tidak ditemukan
           </div>
         ) : (
@@ -350,6 +354,7 @@ export const ProductGrid = memo(function ProductGrid({
               <div className={`grid ${colClass[gridCols] ?? 'grid-cols-4'} gap-2`}>
                 {filtered.map((product) => (
                   <SortableCard key={product.id} product={product}
+                    categoryName={product.categoryId ? categoryNames.get(product.categoryId) : undefined}
                     showPrice={showPrice} showStock={showStock} showVariants={showVariants}
                     onTap={handleProductClick} />
                 ))}
@@ -359,62 +364,49 @@ export const ProductGrid = memo(function ProductGrid({
         )}
       </div>
 
-      {/* Variant popup */}
-      {variantPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Tutup"
-            tabIndex={-1}
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setVariantPopup(null)}
-          />
-          <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
-            <h3 className="font-bold text-gray-900 mb-4">{variantPopup.name}</h3>
-            <div className="space-y-3 mb-5">
+      {/* Variant sheet */}
+      <Sheet
+        open={variantPopup !== null}
+        onClose={() => setVariantPopup(null)}
+        variant="center"
+        z={50}
+        panelClassName="overflow-hidden"
+        title={<span className="block px-5 pt-5 pb-2 text-lg text-ink-900">{variantPopup?.name}</span>}
+      >
+        {variantPopup && (
+          <div className="px-5 pb-5">
+            <div className="divide-y divide-paper-2">
               {variantPopup.variants.map((v) => (
-                <div key={v.size} className="flex items-center justify-between">
-                  <div>
-                    {variantLabel(v.size) && <p className="text-sm font-semibold text-gray-700">{variantLabel(v.size)}</p>}
-                    <p className="text-xs text-indigo-600">{formatRupiah(v.price)}</p>
-                    <p className={`text-xs ${v.stock > 0 ? 'text-gray-400' : 'text-red-500 font-semibold'}`}>Stok: {v.stock}</p>
+                <div key={v.size} className="flex min-h-16 items-center justify-between gap-3 py-2">
+                  <div className="min-w-0">
+                    {variantLabel(v.size) && <p className="text-base font-semibold text-ink-900">{variantLabel(v.size)}</p>}
+                    <p className="tnum text-[0.9375rem] text-ink-700">{formatRupiah(v.price)}</p>
+                    <p className={`tnum text-[0.8125rem] font-semibold ${STOCK_TEXT_CLASS[stockTone(v.stock)]}`}>{stockLabel(v.stock)}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button type="button"
-                      onClick={() => handleVariantChange(v.size, -1)}
-                      disabled={(variantQtys[v.size] || 0) === 0}
-                      className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-40"
-                    >
-                      −
-                    </button>
-                    <span className="w-6 text-center text-sm font-bold">
-                      {variantQtys[v.size] || 0}
-                    </span>
-                    <button type="button"
-                      onClick={() => handleVariantChange(v.size, 1)}
-                      className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-40"
-                    >
-                      +
-                    </button>
-                  </div>
+                  <Stepper
+                    value={variantQtys[v.size] || 0}
+                    min={0}
+                    onDecrement={() => handleVariantChange(v.size, -1)}
+                    onIncrement={() => handleVariantChange(v.size, 1)}
+                  />
                 </div>
               ))}
             </div>
             {oversoldSizes(variantPopup, variantQtys, () => 0).length > 0 && (
-              <p role="status" className="mb-3 text-xs font-semibold text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+              <p role="status" className="mt-3 rounded-control bg-warn-bg px-3 py-2 text-xs font-semibold text-warn">
                 Jumlah melebihi stok. Tetap bisa ditambahkan; penjualan dicatat sebagai stok minus.
               </p>
             )}
             <button type="button"
               onClick={handleConfirmVariants}
               disabled={Object.values(variantQtys).reduce((a, b) => a + b, 0) === 0}
-              className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-semibold text-sm disabled:opacity-40 hover:bg-indigo-700 transition-colors"
+              className="mt-4 min-h-14 w-full rounded-control bg-ink-900 text-base font-bold text-white disabled:opacity-40 active:opacity-90"
             >
               Tambah ke Keranjang
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </Sheet>
     </div>
   )
 })
