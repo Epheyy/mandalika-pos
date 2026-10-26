@@ -1037,7 +1037,7 @@ export default function CashierScreen() {
       {/* Main layout */}
       <div className="flex-1 flex overflow-hidden">
         {/* Mobile tab bar — cart tab only appears when the cart has items. */}
-        <div className={`sm:hidden absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-10 safe-bottom-tab ${derived.totalCartItems > 0 ? 'flex' : 'hidden'}`}>
+        <div className={`sm:hidden absolute bottom-0 left-0 right-0 bg-white border-t border-paper-2 z-10 safe-bottom-tab ${derived.totalCartItems > 0 ? 'flex' : 'hidden'}`}>
           {(['products', 'cart'] as const).map((tab) => (
             <button type="button" key={tab} onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', tab })}
               className={`flex-1 py-3 text-xs font-bold relative ${state.activeTab === tab ? 'text-ink-900 border-t-2 border-ink-900' : 'text-ink-500'}`}>

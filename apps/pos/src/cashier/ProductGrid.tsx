@@ -23,7 +23,7 @@ import { IconHeart, IconScan } from '../components/ui/icons'
 import { Chip } from '../components/ui/Chip'
 import { Sheet } from '../components/ui/Sheet'
 import { Stepper } from '../components/ui/Stepper'
-import { STOCK_DOT_CLASS, STOCK_TEXT_CLASS, stockLabel, stockTone } from './stockTone'
+import { STOCK_DOT_CLASS, STOCK_TEXT_CLASS, stockLabel, stockTone, type StockTone } from './stockTone'
 
 type Product = components['schemas']['Product']
 type Category = components['schemas']['Category']
@@ -77,6 +77,7 @@ interface ProductGridProps {
 
 interface SortableCardProps {
   product: Product
+  gridCols: number
   categoryName: string | undefined
   showPrice: boolean
   showStock: boolean
@@ -95,7 +96,26 @@ function BottlePlaceholder() {
   )
 }
 
-const SortableCard = memo(function SortableCard({ product, categoryName, showPrice, showStock, showVariants, onTap }: SortableCardProps) {
+// Narrow tiles (under about 150 dp) stack the photo above the name so the name keeps room. Keyed on the column count per breakpoint, not on measured width.
+const HEAD_LAYOUT: Record<number, { head: string; photo: string }> = {
+  2: { head: 'flex-row', photo: 'h-14 w-14' },
+  3: { head: 'flex-col lg:flex-row', photo: 'h-10 w-10 lg:h-14 lg:w-14' },
+  4: { head: 'flex-row sm:flex-col xl:flex-row', photo: 'h-14 w-14 sm:h-10 sm:w-10 xl:h-14 xl:w-14' },
+  6: { head: 'flex-col', photo: 'h-10 w-10' },
+}
+
+/** Colour dot + stock word on a tile. Never colour alone. */
+function StockLine({ tone, text, soldOutSizes = 0 }: { tone: StockTone; text: string; soldOutSizes?: number }) {
+  return (
+    <p className={`flex items-center gap-1.5 text-[0.8125rem] font-semibold ${STOCK_TEXT_CLASS[tone]}`}>
+      <span aria-hidden="true" className={`h-2 w-2 flex-shrink-0 rounded-full ${STOCK_DOT_CLASS[tone]}`} />
+      {text}
+      {soldOutSizes > 0 && <span className="text-warn">{` · ${soldOutSizes} ukuran habis`}</span>}
+    </p>
+  )
+}
+
+const SortableCard = memo(function SortableCard({ product, gridCols, categoryName, showPrice, showStock, showVariants, onTap }: SortableCardProps) {
   const totalStock = product.variants.reduce((s, v) => s + v.stock, 0)
   const inStock = totalStock > 0
   const prices = product.variants.map((v) => v.price)
@@ -104,8 +124,13 @@ const SortableCard = memo(function SortableCard({ product, categoryName, showPri
   // Compact price for small grids: a single price, or the minimum with "+"
   // when variants differ (e.g. "Rp 250.000+").
   const priceLabel = minPrice === maxPrice ? formatRupiah(minPrice) : `${formatRupiah(minPrice)}+`
-  const subline = categoryName ?? (product.variants.length > 0 ? variantLabel(product.variants[0].size) : '')
+  const subline = categoryName ?? ''
   const tone = stockTone(totalStock)
+  const layout = HEAD_LAYOUT[gridCols] ?? HEAD_LAYOUT[4]
+  const [imgFailed, setImgFailed] = useState(false)
+  const soldOutSizes = product.variants.length > 1 && inStock ? product.variants.filter((v) => v.stock <= 0).length : 0
+  // "Habis" / negative stock always shows, even when the stock display is off; the toggle only hides the positive count.
+  const showStockRow = showStock || !inStock
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: product.id })
@@ -138,21 +163,22 @@ const SortableCard = memo(function SortableCard({ product, categoryName, showPri
         inStock ? 'border-paper-2' : 'border-danger'
       } ${isDragging ? 'shadow-lg ring-2 ring-paper-2' : 'transition-transform duration-150'}`}
     >
-      <div className="flex items-start gap-2">
-        {product.imageUrl ? (
+      <div className={`flex items-start gap-2 ${layout.head}`}>
+        {product.imageUrl && !imgFailed ? (
           <img
             src={product.imageUrl}
             alt=""
-            className={`pointer-events-none h-14 w-14 flex-shrink-0 rounded-lg object-cover ${inStock ? '' : 'grayscale opacity-60'}`}
+            onError={() => setImgFailed(true)}
+            className={`pointer-events-none flex-shrink-0 rounded-lg object-cover ${layout.photo} ${inStock ? '' : 'grayscale opacity-60'}`}
             loading="lazy"
             draggable={false}
           />
         ) : (
-          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg bg-paper-1 text-ink-500">
+          <div className={`flex flex-shrink-0 items-center justify-center rounded-lg bg-paper-1 text-ink-500 ${layout.photo} ${inStock ? '' : 'opacity-60'}`}>
             <BottlePlaceholder />
           </div>
         )}
-        <div className="min-w-0 flex-1">
+        <div className="w-full min-w-0 flex-1">
           <p className="line-clamp-2 text-[0.9375rem] font-semibold leading-snug text-ink-900">{product.name}</p>
           {subline && <p className="mt-0.5 truncate text-xs text-ink-500">{subline}</p>}
         </div>
@@ -173,6 +199,7 @@ const SortableCard = memo(function SortableCard({ product, categoryName, showPri
               )}
             </div>
           ))}
+          {!showStock && !inStock && <StockLine tone={tone} text={stockLabel(totalStock)} />}
         </div>
       ) : (
         <div className="mt-auto space-y-1">
@@ -184,12 +211,7 @@ const SortableCard = memo(function SortableCard({ product, categoryName, showPri
               )}
             </div>
           )}
-          {showStock && (
-            <p className={`flex items-center gap-1.5 text-[0.8125rem] font-semibold ${STOCK_TEXT_CLASS[tone]}`}>
-              <span aria-hidden="true" className={`h-2 w-2 flex-shrink-0 rounded-full ${STOCK_DOT_CLASS[tone]}`} />
-              {stockLabel(totalStock)}
-            </p>
-          )}
+          {showStockRow && <StockLine tone={tone} text={stockLabel(totalStock)} soldOutSizes={showStock ? soldOutSizes : 0} />}
         </div>
       )}
     </div>
@@ -353,7 +375,7 @@ export const ProductGrid = memo(function ProductGrid({
             <SortableContext items={filtered.map((p) => p.id)} strategy={rectSortingStrategy}>
               <div className={`grid ${colClass[gridCols] ?? 'grid-cols-4'} gap-2`}>
                 {filtered.map((product) => (
-                  <SortableCard key={product.id} product={product}
+                  <SortableCard key={product.id} product={product} gridCols={gridCols}
                     categoryName={product.categoryId ? categoryNames.get(product.categoryId) : undefined}
                     showPrice={showPrice} showStock={showStock} showVariants={showVariants}
                     onTap={handleProductClick} />
