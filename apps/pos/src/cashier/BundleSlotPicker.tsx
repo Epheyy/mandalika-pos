@@ -18,6 +18,7 @@ import type { components } from '@mandalika/api'
 import type { BundleAssignment, BundleUnitRef } from './bundle'
 import { bundleApplications, keyMatchesLine } from './pricing'
 import { formatRupiah } from './pricing'
+import { IconPackage } from '../components/ui/icons'
 
 type CartItem = components['schemas']['CartItem']
 type BundleConfig = NonNullable<components['schemas']['Promotion']['bundleConfig']>
@@ -142,7 +143,7 @@ export function BundleSlotPicker({
       <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="min-w-0">
-            <h3 className="font-bold text-gray-900 truncate">📦 Pilih Item Paket</h3>
+            <h3 className="font-bold text-gray-900 truncate"><IconPackage size={16} className="inline-block align-[-0.125em]" /> Pilih Item Paket</h3>
             <p className="text-[11px] text-gray-500 truncate">{promoName}</p>
           </div>
           <button

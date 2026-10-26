@@ -13,6 +13,7 @@ import { RefundAction } from './RefundAction'
 import { PAYMENT_LABELS } from './refundView'
 import { PAGE_SIZE, businessToday, defaultHistoryDay, orderHistoryQuery } from './orderHistoryQuery'
 import { Sheet } from '../components/ui/Sheet'
+import { IconPrinter } from '../components/ui/icons'
 
 type Order = components['schemas']['Order']
 type OrderListResponse = components['schemas']['OrderListResponse']
@@ -287,7 +288,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
                         title={canReprint ? undefined : 'Pasangkan printer untuk cetak ulang'}
                         className="mt-3 w-full py-2 border border-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-50 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
                       >
-                        🖨 Cetak Ulang
+                        <IconPrinter size={14} className="inline-block align-[-0.125em]" /> Cetak Ulang
                       </button>
                       <RefundAction
                         order={o}

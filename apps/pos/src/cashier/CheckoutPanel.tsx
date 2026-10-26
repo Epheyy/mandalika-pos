@@ -7,6 +7,7 @@ import { cashTender } from './tender'
 import { stockFor, overstockLines } from './stock'
 import type { CartLineLike } from './stock'
 import { PAYMENT_LABELS } from '../lib/paymentLabels'
+import { IconUser, IconGift, IconWarning } from '../components/ui/icons'
 
 type AppSettings = components['schemas']['AppSettings']
 type Customer = components['schemas']['Customer']
@@ -174,7 +175,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
           {/* Customer info */}
           {selectedCustomer && (
             <div className="flex items-center gap-2 p-3 bg-indigo-50 rounded-xl text-xs">
-              <span className="text-indigo-600">👤</span>
+              <span className="text-indigo-600"><IconUser size={12} /></span>
               <div>
                 <p className="font-semibold text-indigo-800">
                   {selectedCustomer.name}
@@ -196,7 +197,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
           {loyaltyEnabled && selectedCustomer && (rewardsLoading || rewards.length > 0) && (
             <div>
               <p className="text-xs font-semibold text-gray-700 mb-2">
-                🎁 Hadiah Loyalti
+                <IconGift size={12} className="inline-block align-[-0.125em]" /> Hadiah Loyalti
               </p>
               {rewardsLoading && (
                 <p className="text-[11px] text-gray-400">Memeriksa hadiah…</p>
@@ -463,7 +464,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
           />
           <div className="relative bg-white rounded-2xl shadow-xl max-w-sm w-full p-5">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-2xl">⚠️</span>
+              <span className="text-2xl"><IconWarning size={24} /></span>
               <h3 className="text-base font-black text-gray-900">Stok Tidak Mencukupi</h3>
             </div>
             <p className="text-xs text-gray-500 mb-3">Penjualan ini melebihi stok dan akan membuat stok minus:</p>

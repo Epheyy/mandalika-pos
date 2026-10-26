@@ -4,6 +4,7 @@ import type { CartDerived } from '../hooks/useCart'
 import { formatRupiah } from './pricing'
 import { variantLabel } from '@mandalika/types'
 import type { AppliedPromoCode } from './promoValidate'
+import { IconUser, IconClock } from '../components/ui/icons'
 
 type CartItem = components['schemas']['CartItem']
 type AppSettings = components['schemas']['AppSettings']
@@ -65,7 +66,7 @@ export const Cart = memo(function Cart({
       {selectedCustomer && (
         <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 flex-shrink-0">
           <p className="text-xs font-bold text-indigo-800 truncate">
-            👤 {selectedCustomer.name}
+            <IconUser size={12} className="inline-block align-[-0.125em]" /> {selectedCustomer.name}
           </p>
           <p className="text-[10px] text-indigo-600">
             {selectedCustomer.phone}
@@ -273,7 +274,7 @@ export const Cart = memo(function Cart({
           </div>
           {pendingSync && (
             <p className="text-[10px] text-amber-600 text-center mt-1">
-              ⏳ Menunggu sinkronisasi
+              <IconClock size={10} className="inline-block align-[-0.125em]" /> Menunggu sinkronisasi
             </p>
           )}
         </div>
