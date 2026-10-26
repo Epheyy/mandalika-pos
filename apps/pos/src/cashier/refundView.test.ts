@@ -49,12 +49,12 @@ describe('refundAvailability', () => {
   })
   it('explains a missing permission', () => {
     expect(refundAvailability({ ...base, canRefund: false })).toEqual({ kind: 'blocked', reason: REFUND_NO_PERMISSION })
-    expect(REFUND_NO_PERMISSION).toBe('Butuh izin Proses Refund')
+    expect(REFUND_NO_PERMISSION).toBe('Butuh izin refund')
   })
   it('explains a queued or parked refund for the same order only', () => {
     expect(refundAvailability({ ...base, queuedOrderIds: new Set(['o1']) })).toEqual({ kind: 'blocked', reason: REFUND_QUEUED })
     expect(refundAvailability({ ...base, queuedOrderIds: new Set(['other']) })).toEqual({ kind: 'allowed' })
-    expect(REFUND_QUEUED).toBe('Refund menunggu sinkronisasi')
+    expect(REFUND_QUEUED).toBe('Refund tersimpan di tablet')
   })
   it('blocks when no shift is open (B3)', () => {
     expect(refundAvailability({ ...base, hasOpenShift: false })).toEqual({ kind: 'blocked', reason: REFUND_NO_SHIFT })
@@ -70,8 +70,8 @@ describe('RefundAction render', () => {
     expect(render()).toContain('Refund Transaksi Ini')
   })
   it.each([
-    ['no permission', { canRefund: false }, 'Butuh izin Proses Refund'],
-    ['queued', { queuedOrderIds: new Set(['o1']) }, 'Refund menunggu sinkronisasi'],
+    ['no permission', { canRefund: false }, 'Butuh izin refund'],
+    ['queued', { queuedOrderIds: new Set(['o1']) }, 'Refund tersimpan di tablet'],
     ['no shift', { hasOpenShift: false }, 'Buka shift dulu'],
   ])('replaces the button with a muted line: %s', (_n, over, text) => {
     const html = render(over)
@@ -98,7 +98,7 @@ describe('prepareRefund (CashierScreen guard + queue-time snapshot)', () => {
   it('refuses without permission, without a synced open shift, or with a blank/long reason', () => {
     expect(prepareRefund({ ...ok, canRefund: false })).toEqual({ ok: false, message: REFUND_NO_PERMISSION })
     expect(prepareRefund({ ...ok, shiftId: null })).toEqual({ ok: false, message: REFUND_NO_SHIFT })
-    expect(prepareRefund({ ...ok, shiftId: '' })).toEqual({ ok: false, message: 'Shift belum tersinkron' }) // L3: shown but unsynced
+    expect(prepareRefund({ ...ok, shiftId: '' })).toEqual({ ok: false, message: 'Shift belum terkirim' }) // L3: shown but unsynced
     expect(prepareRefund({ ...ok, reason: '   ' })).toMatchObject({ ok: false })
     expect(prepareRefund({ ...ok, reason: 'x'.repeat(MAX_REFUND_REASON_CHARS + 1) })).toMatchObject({ ok: false })
     expect(prepareRefund({ ...ok, reason: 'x'.repeat(MAX_REFUND_REASON_CHARS) })).toMatchObject({ ok: true })

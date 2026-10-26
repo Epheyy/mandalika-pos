@@ -9,15 +9,15 @@ type Order = components['schemas']['Order']
 // Pure rules behind the local receipt book (A41): the sales made on this tablet, listed from the outbox and the
 // receipt archive. Receipt facts only: no customer name or phone is ever shown, searched or printed from here.
 
-export const LOCAL_BADGE = ['Belum tersinkron', 'Perlu ditinjau', 'Tersinkron', 'Refund menunggu', 'Sudah direfund'] as const
+export const LOCAL_BADGE = ['Tersimpan di tablet', 'Perlu ditinjau', 'Terkirim', 'Refund tersimpan di tablet', 'Sudah direfund'] as const
 export type LocalBadgeLabel = (typeof LOCAL_BADGE)[number]
 
 export function localBadge(r: Pick<LocalReceipt, 'state' | 'refundQueued' | 'refunded'>): { label: LocalBadgeLabel; tone: 'ok' | 'warn' | 'bad' | 'muted' } {
   if (r.refunded) return { label: 'Sudah direfund', tone: 'muted' }
-  if (r.refundQueued) return { label: 'Refund menunggu', tone: 'warn' }
+  if (r.refundQueued) return { label: 'Refund tersimpan di tablet', tone: 'warn' }
   if (r.state === 'parked') return { label: 'Perlu ditinjau', tone: 'bad' }
-  if (r.state === 'queued') return { label: 'Belum tersinkron', tone: 'warn' }
-  return { label: 'Tersinkron', tone: 'ok' }
+  if (r.state === 'queued') return { label: 'Tersimpan di tablet', tone: 'warn' }
+  return { label: 'Terkirim', tone: 'ok' }
 }
 
 /** Search by receipt number only (case-insensitive fragment); a blank term lists everything. */

@@ -105,7 +105,7 @@ export const ShiftBar = memo(function ShiftBar({
             onClick={onRequestClose}
             className="px-2 py-0.5 text-[11px] font-semibold bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors flex-shrink-0"
           >
-            Tutup
+            Tutup Shift
           </button>
 
           {showDetail && (
@@ -163,7 +163,7 @@ export const ShiftBar = memo(function ShiftBar({
         <Sheet open variant="center" maxWidth="max-w-xs" panelClassName="p-5">
             <h3 className="font-bold text-gray-900 mb-4">Buka Shift Baru</h3>
             <label htmlFor="shift-starting-cash" className="block text-xs text-gray-600 mb-1">
-              Uang awal (kas)
+              Kas Awal
             </label>
             <input
               id="shift-starting-cash"

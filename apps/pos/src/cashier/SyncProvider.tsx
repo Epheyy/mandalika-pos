@@ -97,7 +97,7 @@ export function SyncProvider({
               (i) => i.type === 'transfer_receive' && !(i.reviewCode && RECEIVE_CONFLICT_CODES.includes(i.reviewCode)),
             )
             if (hadOtherReceiveReview) {
-              onReceiveRejectedRef.current?.('Penerimaan perlu ditinjau — transfer mungkin sudah diterima atau PIN ditolak. Stok dikembalikan; hitungan tetap tersimpan.')
+              onReceiveRejectedRef.current?.('Penerimaan perlu ditinjau: transfer mungkin sudah diterima atau PIN ditolak. Stok dikembalikan, hitungan tetap tersimpan.')
             }
           },
           onStuckRetrying: (items) => {

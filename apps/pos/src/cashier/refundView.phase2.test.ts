@@ -19,7 +19,7 @@ describe('L3: shift not yet synced', () => {
   const base = { order: order(), canRefund: true, hasOpenShift: false, queuedOrderIds: new Set<string>() }
   it('says the shift is unsynced when the header shows one without a server id', () => {
     expect(refundAvailability({ ...base, shiftUnsynced: true })).toEqual({ kind: 'blocked', reason: REFUND_SHIFT_UNSYNCED })
-    expect(REFUND_SHIFT_UNSYNCED).toBe('Shift belum tersinkron')
+    expect(REFUND_SHIFT_UNSYNCED).toBe('Shift belum terkirim')
   })
   it('still says "Buka shift dulu" when there is no shift at all', () => {
     expect(refundAvailability(base)).toEqual({ kind: 'blocked', reason: REFUND_NO_SHIFT })

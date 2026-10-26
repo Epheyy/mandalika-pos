@@ -59,7 +59,7 @@ export default function OutletMismatchScreen() {
           berbeda. Transaksi dinonaktifkan agar tidak tercatat di outlet yang salah.
         </p>
         <div className="mt-4 bg-gray-50 rounded-xl p-3 text-xs text-gray-600 space-y-1">
-          <div className="flex justify-between"><span>Menunggu dikirim</span><span className="font-semibold text-gray-800">{summary?.pending ?? 0}</span></div>
+          <div className="flex justify-between"><span>Tersimpan di tablet</span><span className="font-semibold text-gray-800">{summary?.pending ?? 0}</span></div>
           <div className="flex justify-between"><span>Perlu ditinjau</span><span className="font-semibold text-gray-800">{review}</span></div>
         </div>
         {(summary?.pending ?? 0) > 0 && (

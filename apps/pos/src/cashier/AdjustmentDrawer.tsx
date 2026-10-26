@@ -79,7 +79,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
     return (
       <Sheet open variant="center" z={40} maxWidth="max-w-sm" panelClassName="p-5">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-gray-900">Diskon / Surcharge</h3>
+            <h3 className="font-bold text-gray-900">Diskon manual / Biaya tambahan</h3>
             <button type="button" onClick={close} className="text-gray-400 hover:text-gray-600">×</button>
           </div>
           <div className="flex gap-2 mb-3">
@@ -117,7 +117,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
               onClick={onApplySurcharge}
               className="flex-1 py-2 bg-orange-500 text-white rounded-xl text-sm font-semibold"
             >
-              Surcharge +
+              Biaya tambahan +
             </button>
           </div>
           {(state.discountRunning > 0 || state.surchargeRunning > 0) && (

@@ -150,7 +150,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
             )}
             {derived.surchargeAmount > 0 && (
               <div className="flex justify-between text-orange-600">
-                <span>Surcharge</span>
+                <span>Biaya tambahan</span>
                 <span>+{formatRupiah(derived.surchargeAmount)}</span>
               </div>
             )}
@@ -447,7 +447,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
             {isProcessing ? 'Memproses…' : `Konfirmasi ${formatRupiah(derived.total)}`}
           </button>
           <p className="text-[10px] text-gray-400 text-center mt-2">
-            Order akan disinkronisasi ke server secara otomatis
+            Order akan terkirim otomatis
           </p>
         </div>
       </div>
@@ -467,7 +467,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
               <span className="text-2xl text-amber-500"><IconWarning size={24} /></span>
               <h3 className="text-base font-black text-gray-900">Stok Tidak Mencukupi</h3>
             </div>
-            <p className="text-xs text-gray-500 mb-3">Penjualan ini melebihi stok dan akan membuat stok minus:</p>
+            <p className="text-xs text-gray-500 mb-3">Penjualan ini melebihi stok. Stok akan minus:</p>
             <ul className="space-y-1 mb-4 max-h-40 overflow-y-auto">
               {overstock.map((line) => {
                 const p = stockProducts.find((x) => x.id === line.productId)
@@ -482,7 +482,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
                       {line.variantSize ? ` · ${line.variantSize}` : ''}
                     </span>
                     <span className="text-red-600 font-bold shrink-0">
-                      minta {line.quantity} · stok {avail ?? 0}
+                      diminta {line.quantity} · stok {avail ?? 0}
                     </span>
                   </li>
                 )

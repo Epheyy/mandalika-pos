@@ -594,7 +594,7 @@ export default function CashierScreen() {
     const invalidPhysical = invalidPhysicalPromotionIds(state)
     if (invalidPhysical.length) {
       for (const id of invalidPhysical) dispatch({ type: 'REMOVE_PROMOTION', id })
-      showToast('Promo dibatalkan: syarat barang berubah')
+      showToast('Promo tidak berlaku lagi (syarat barang berubah). Dihapus dari keranjang.')
       return
     }
     const { appliedPromotions, appliedPromoCodes } = effectivePromotionSelection(state.appliedPromotions, state.appliedPromoCodes)
@@ -613,7 +613,7 @@ export default function CashierScreen() {
     for (const p of appliedPromotions) {
       const vs = validatePromo(p, guardCtx)
       if (vs.length > 0) {
-        showToast(`Promo dibatalkan: ${violationMessage(vs[0])}`)
+        showToast(`Promo tidak berlaku lagi (${violationMessage(vs[0])}). Dihapus dari keranjang.`)
         dispatch({ type: 'CLEAR_PROMOTIONS' })
         return
       }
@@ -630,7 +630,7 @@ export default function CashierScreen() {
           ? bxgyRewardDue(cfg, state.cart.filter((c) => !c.isReward)) < 1
           : calcPromoDiscount(p, state.cart, derived.subtotal) <= 0
         if (unmet) {
-          showToast('Promo dibatalkan: syarat beli belum terpenuhi')
+          showToast('Promo tidak berlaku lagi (syarat beli belum terpenuhi). Dihapus dari keranjang.')
           if (isSeparateSet)
             dispatch({ type: 'CART_REMOVE_PROMO_REWARDS', rewardPromotionId: p.id })
           dispatch({ type: 'CLEAR_PROMOTIONS' })
@@ -654,13 +654,13 @@ export default function CashierScreen() {
     for (const c of appliedPromoCodes) {
       const dc = activeCodeByName.get(c.code.toUpperCase())
       if (!dc) {
-        showToast('Kode diskon dibatalkan: Kode tidak ditemukan')
+        showToast('Kode Promo tidak berlaku lagi (kode tidak ditemukan). Dihapus dari keranjang.')
         dispatch({ type: 'CLEAR_PROMOTIONS' })
         return
       }
       const vs = validateCode(dc, guardCtx)
       if (vs.length > 0) {
-        showToast(`Kode diskon dibatalkan: ${violationMessage(vs[0])}`)
+        showToast(`Kode Promo tidak berlaku lagi (${violationMessage(vs[0])}). Dihapus dari keranjang.`)
         dispatch({ type: 'REMOVE_PROMO_CODE', code: c.code })
         return
       }
@@ -669,13 +669,13 @@ export default function CashierScreen() {
       if (c.promotion) {
         const linkedPromo = activePromoById.get(c.promotion.id)
         if (!linkedPromo) {
-          showToast('Kode diskon dibatalkan: Promo tertaut tidak tersedia')
+          showToast('Kode Promo tidak berlaku lagi (promo tertaut tidak tersedia). Dihapus dari keranjang.')
           dispatch({ type: 'CLEAR_PROMOTIONS' })
           return
         }
         const promoVs = validatePromo(linkedPromo, guardCtx)
         if (promoVs.length > 0) {
-          showToast(`Kode diskon dibatalkan: ${violationMessage(promoVs[0])}`)
+          showToast(`Kode Promo tidak berlaku lagi (${violationMessage(promoVs[0])}). Dihapus dari keranjang.`)
           dispatch({ type: 'CLEAR_PROMOTIONS' })
           return
         }
@@ -686,7 +686,7 @@ export default function CashierScreen() {
       (appliedPromotions.some((p) => !p.combinable) ||
         appliedPromoCodes.some((c) => !c.combinable))
     ) {
-      showToast('Promo/Kode diskon dibatalkan: tidak bisa digabung')
+      showToast('Promo/Kode Promo tidak berlaku lagi (tidak bisa digabung). Dihapus dari keranjang.')
       dispatch({ type: 'CLEAR_PROMOTIONS' })
       return
     }
@@ -1189,7 +1189,6 @@ export default function CashierScreen() {
         lastSyncedLabel={offlineData.lastSyncedAt
           ? new Date(offlineData.lastSyncedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
           : null}
-        onTakeOrder={() => setShowMenu(false)}
         onHistory={() => setShowHistory(true)}
         onLocalReceipts={() => setShowLocalReceipts(true)}
         onRecap={() => setShowRecap(true)}

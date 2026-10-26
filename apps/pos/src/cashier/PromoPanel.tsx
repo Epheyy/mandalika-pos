@@ -43,7 +43,7 @@ function CombinableTag({ combinable }: { combinable: boolean }) {
     </span>
   ) : (
     <span className="inline-block text-[9px] font-semibold text-gray-400 bg-gray-100 rounded px-1.5 py-0.5 leading-none">
-      Tidak digabung
+      Tidak bisa digabung
     </span>
   )
 }
@@ -51,7 +51,7 @@ function CombinableTag({ combinable }: { combinable: boolean }) {
 function promoRuleLabel(p: Promotion): string {
   let base: string
   if (p.type === 'percentage') base = `Diskon ${p.value}%`
-  else if (p.type === 'fixed') base = `Potongan ${formatRupiah(p.value)}`
+  else if (p.type === 'fixed') base = `Hemat ${formatRupiah(p.value)}`
   else if (p.type === 'buy_x_get_y') {
     const c = p.bxgyConfig
     if (c) {
@@ -60,17 +60,16 @@ function promoRuleLabel(p: Promotion): string {
           ? 'Gratis'
           : c.getDiscountKind === 'percentage'
             ? `Diskon ${c.getDiscountValue}%`
-            : `Potongan ${formatRupiah(c.getDiscountValue)}`
+            : `Hemat ${formatRupiah(c.getDiscountValue)}`
       base = `Beli ${c.buyQuantity}, ${deal} ${c.getQuantity}`
     } else {
       base = 'Beli X Gratis Y'
     }
   } else if (p.type === 'tiered') {
-    const tiers = p.tieredConfig?.tiers ?? []
-    base = tiers.length > 0 ? `Bertingkat (${tiers.length} tier)` : 'Bertingkat'
+    base = 'Beli lebih, hemat lebih'
   } else if (p.type === 'bundle') {
     base = 'Paket Bundel'
-  } else base = 'BOGO'
+  } else base = 'Beli 1 gratis 1'
   return p.minPurchase ? `${base} · Min. ${formatRupiah(p.minPurchase)}` : base
 }
 
@@ -78,14 +77,14 @@ function promoRuleLabel(p: Promotion): string {
 const codeRuleLabel = (c: AppliedPromoCode): string => {
     if (c.promotion) {
       return c.promotion.isBOGO
-        ? 'BOGO (via promo)'
+        ? 'Beli 1 gratis 1 (via promo)'
         : c.promotion.type === 'percentage'
           ? `Diskon ${c.promotion.value}% (via promo)`
-          : `Potongan ${formatRupiah(c.promotion.value)} (via promo)`
+          : `Hemat ${formatRupiah(c.promotion.value)} (via promo)`
     }
     return c.type === 'percentage'
       ? `Diskon ${c.value}%`
-      : `Potongan ${formatRupiah(c.value)}`
+      : `Hemat ${formatRupiah(c.value)}`
   }
 
 export const PromoPanel = memo(function PromoPanel({
@@ -155,7 +154,7 @@ export const PromoPanel = memo(function PromoPanel({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h3 className="font-bold text-gray-900">Promo &amp; Kode Diskon</h3>
+          <h3 className="font-bold text-gray-900">Promo &amp; Kode Promo</h3>
           <button type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-xl leading-none"
@@ -301,7 +300,7 @@ export const PromoPanel = memo(function PromoPanel({
           {activePromos.length > 0 && (
             <div>
               <p className="text-[11px] font-bold text-gray-500 tracking-wide uppercase mb-2">
-                Promosi Aktif
+                Promo tersedia
               </p>
               <div className="space-y-2">
                 {activePromos.map(({ promo, violations }) => {

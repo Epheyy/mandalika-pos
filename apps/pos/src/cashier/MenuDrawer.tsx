@@ -10,9 +10,9 @@ import { memo } from 'react'
 import type { ReactElement } from 'react'
 import type { components } from '@mandalika/api'
 import {
-  IconBag as BagIcon,
   IconCash as CashIcon,
   IconClose as CloseIcon,
+  IconExternal,
   IconDisplay as DisplayIcon,
   IconHistory as HistoryIcon,
   IconInbox as InboxIcon,
@@ -34,7 +34,6 @@ interface MenuDrawerProps {
   pendingSync: boolean
   isSyncing: boolean
   lastSyncedLabel?: string | null
-  onTakeOrder: () => void
   onHistory: () => void
   onLocalReceipts: () => void
   onRecap: () => void
@@ -81,7 +80,6 @@ export const MenuDrawer = memo(function MenuDrawer({
   pendingSync,
   isSyncing,
   lastSyncedLabel,
-  onTakeOrder,
   onHistory,
   onLocalReceipts,
   onRecap,
@@ -102,15 +100,14 @@ export const MenuDrawer = memo(function MenuDrawer({
   const initial = (user.displayName || '?').charAt(0).toUpperCase()
 
   const opItems: Item[] = [
-    { Icon: BagIcon, label: 'Ambil Pesanan', active: true, onClick: () => { onTakeOrder() } },
     { Icon: HistoryIcon, label: 'Riwayat', onClick: () => { onClose(); onHistory() } },
     { Icon: HistoryIcon, label: 'Struk di Tablet Ini', onClick: () => { onClose(); onLocalReceipts() } },
-    { Icon: RecapIcon, label: 'Rekapan', onClick: () => { onClose(); onRecap() } },
-    { Icon: CashIcon, label: 'Uang Masuk/Keluar', onClick: () => { onClose(); onCashFlow() } },
+    { Icon: RecapIcon, label: 'Rekap Shift', onClick: () => { onClose(); onRecap() } },
+    { Icon: CashIcon, label: 'Kas Masuk/Keluar', onClick: () => { onClose(); onCashFlow() } },
     { Icon: InboxIcon, label: 'Terima Transfer', badge: inboundCount > 0, onClick: () => { onClose(); onReceiveTransfer() } },
     { Icon: TransferHistoryIcon, label: 'Riwayat Transfer', onClick: () => { onClose(); onOpenTransferHistory() } },
     ...(canRequestStock ? [{ Icon: InboxIcon, label: 'Permintaan Barang', onClick: () => { onClose(); onRequisitions() } }] : []),
-    { Icon: SyncIcon, label: isSyncing ? 'Menyinkronkan…' : 'Sinkronkan', badge: pendingSync, onClick: () => onSync() },
+    { Icon: SyncIcon, label: isSyncing ? 'Menyinkronkan…' : 'Perbarui data', badge: pendingSync, onClick: () => onSync() },
   ]
 
   const settingItems: Item[] = [
@@ -148,7 +145,7 @@ export const MenuDrawer = memo(function MenuDrawer({
             </div>
             <button type="button" onClick={() => { onClose(); onBackOffice() }}
               className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex-shrink-0">
-              Back Office →
+              Back Office <IconExternal size={14} className="inline-block align-[-0.125em]" />
             </button>
           </div>
         </div>

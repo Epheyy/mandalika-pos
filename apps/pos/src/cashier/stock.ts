@@ -57,7 +57,7 @@ export function overstockLines(
 }
 
 /** A44 (owner decision 2026-10-16): selling past the system stock is never blocked. */
-export const OVERSELL_WARNING = 'Stok habis — tetap ditambahkan, dicatat sebagai stok minus'
+export const OVERSELL_WARNING = 'Stok tidak cukup. Tetap ditambahkan; stok akan minus.'
 
 /** Variant popup +/-: quantity floors at zero and is NOT capped by stock. */
 export function nextVariantQty(prev: number, delta: number): number {

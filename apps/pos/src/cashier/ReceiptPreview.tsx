@@ -80,7 +80,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
           <h3 className="font-bold text-gray-900 text-lg">Pembayaran Berhasil</h3>
           {isPendingSync ? (
             <p className="text-xs text-amber-600 mt-1">
-              <IconClock size={12} className="inline-block align-[-0.125em]" /> Menunggu sinkronisasi ke server
+              <IconClock size={12} className="inline-block align-[-0.125em]" /> Tersimpan di tablet · akan terkirim otomatis
             </p>
           ) : (
             <p className="text-xs text-gray-500 mt-1">
