@@ -118,9 +118,13 @@ UPDATE erp_outbox SET status='held', hold_reason=$1, next_attempt_at=now() + mak
   lease_token=NULL, lease_until=NULL, updated_at=now()
 WHERE id=$3 AND lease_token=$4`
 
+// $9 is the hold reason (NULL unless the row is held); $10 drops the frozen body.
 const finishSQL = `
 UPDATE erp_outbox SET status=$1, attempts=$2, next_attempt_at=now() + make_interval(secs => $3),
   last_http_status=$4, last_error=$5, erp_response=COALESCE($6::jsonb, erp_response),
+  hold_reason=$9,
+  payload=CASE WHEN $10 THEN NULL ELSE payload END,
+  payload_sha256=CASE WHEN $10 THEN NULL ELSE payload_sha256 END,
   delivered_at=CASE WHEN $1 IN ('delivered','replayed') THEN now() ELSE delivered_at END,
   lease_token=NULL, lease_until=NULL, updated_at=now()
 WHERE id=$7 AND lease_token=$8`
@@ -307,13 +311,16 @@ func (r *Relay) finish(ctx context.Context, token, id string, o outcome) (bool, 
 	defer cancel()
 	exec := func(o outcome) (int64, error) {
 		tag, err := r.pool.Exec(sctx, finishSQL, o.status, o.attempts, o.delay.Seconds(),
-			o.httpStatus, nullIfEmpty(o.lastError), o.response, id, token)
+			o.httpStatus, nullIfEmpty(o.lastError), o.response, id, token, nullIfEmpty(o.holdReason), o.clearPayload)
 		return tag.RowsAffected(), err
 	}
 	n, err := exec(o)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && strings.HasPrefix(pgErr.Code, "22") {
 		o.response, o.lastError = nil, "ERP response could not be stored"
+		if o.holdReason != "" {
+			o.holdReason = o.lastError
+		}
 		n, err = exec(o)
 	}
 	if err != nil {

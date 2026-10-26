@@ -400,6 +400,52 @@ func obrRelayCases(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		}
 	})
 
+	// The merged ERP answers 422 on location.code when the outlet is not set on the client
+	// (an ERP admin task) or when an old body names it by slug only: the row is held, no
+	// attempt is burned, and the next look rebuilds the body with the current erp_code.
+	t.Run("relay-held-422-location-rebuilds", func(t *testing.T) {
+		obrPrepare(t, ctx, pool)
+		d := obrSeed(t, ctx, pool, true, false)
+		const locBody = `{"success":false,"error":"ValidationError","message":"Validasi gagal","code":"VALIDATION_ERROR",` +
+			`"details":[{"code":"custom","path":["location","code"],"message":"Outlet tidak dikenal atau tidak diatur untuk client ini"}],"requestId":"r1"}`
+		p := &obrPoster{reply: obrAnswer(422, locBody)}
+		r := obrRelay(pool, p, erp.Config{})
+		if rep := obrRun(t, ctx, r); rep.Held != 1 || rep.Dead != 0 {
+			t.Fatalf("report = %+v", rep)
+		}
+		row := obrGet(t, ctx, pool, d.docID)
+		obrWant(t, row, "held", 0)
+		if row.hold == nil || !strings.Contains(*row.hold, "tidak diatur untuk client ini") || row.payload != nil || row.sha != nil ||
+			row.httpStatus == nil || *row.httpStatus != 422 || row.nextInSecs < 240 || !row.leaseClear {
+			t.Fatalf("held row = %+v hold=%v", row, row.hold)
+		}
+
+		const fixed = "OBR-2" // the ERP admin assigned the outlet under its corrected code
+		if _, err := pool.Exec(ctx, `UPDATE outlets SET erp_code=$2 WHERE id=$1`, obrOutlet, fixed); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _, _ = pool.Exec(ctx, `UPDATE outlets SET erp_code=$2 WHERE id=$1`, obrOutlet, obrCode) })
+		p.mu.Lock()
+		p.reply = obrOK("applied")
+		p.mu.Unlock()
+		obrDue(t, ctx, pool, d.docID)
+		if rep := obrRun(t, ctx, r); rep.Delivered != 1 {
+			t.Fatalf("report after assignment = %+v", rep)
+		}
+		row = obrGet(t, ctx, pool, d.docID)
+		obrWant(t, row, "delivered", 1)
+		if row.hold != nil {
+			t.Fatalf("hold_reason kept after delivery: %v", *row.hold)
+		}
+		calls := p.callsFor(d.docID)
+		if len(calls) != 2 {
+			t.Fatalf("calls = %d, want 2", len(calls))
+		}
+		if first, second := obrParse(t, calls[0].body), obrParse(t, calls[1].body); first.Location.Code != obrCode || second.Location.Code != fixed {
+			t.Fatalf("location codes = %s then %s, want %s then %s", first.Location.Code, second.Location.Code, obrCode, fixed)
+		}
+	})
+
 	t.Run("relay-dead-409-retry-keeps-payload", func(t *testing.T) {
 		obrPrepare(t, ctx, pool)
 		d := obrSeed(t, ctx, pool, true, false)
