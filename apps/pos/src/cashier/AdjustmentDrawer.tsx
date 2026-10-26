@@ -8,6 +8,7 @@ import type { components } from '@mandalika/api'
 import type { CashierState, CashierAction } from './state/cashierReducer'
 import { PromoPanel } from './PromoPanel'
 import { promotionPreviewCart } from './promotionFulfillment'
+import { Sheet } from '../components/ui/Sheet'
 
 type Promotion = components['schemas']['Promotion']
 type DiscountCode = components['schemas']['DiscountCode']
@@ -51,8 +52,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
 
   if (state.activeAdjustment === 'notes') {
     return (
-      <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
+      <Sheet open variant="center" z={40} maxWidth="max-w-sm" panelClassName="p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-gray-900">Catatan Order</h3>
             <button type="button" onClick={close} className="text-gray-400 hover:text-gray-600">×</button>
@@ -71,15 +71,13 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
           >
             Simpan
           </button>
-        </div>
-      </div>
+      </Sheet>
     )
   }
 
   if (state.activeAdjustment === 'discount') {
     return (
-      <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
+      <Sheet open variant="center" z={40} maxWidth="max-w-sm" panelClassName="p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-gray-900">Diskon / Surcharge</h3>
             <button type="button" onClick={close} className="text-gray-400 hover:text-gray-600">×</button>
@@ -130,8 +128,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
               Hapus semua
             </button>
           )}
-        </div>
-      </div>
+      </Sheet>
     )
   }
 

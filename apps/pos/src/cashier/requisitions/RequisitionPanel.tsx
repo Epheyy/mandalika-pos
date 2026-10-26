@@ -22,6 +22,7 @@ import {
   cancelRequisitionById, discardPending, forceDiscardPending, resolvePendingCreate, saveRequisition, submitRequisitionById,
 } from './requisitionSave'
 import type { RequisitionStatus } from './requisitionLabels'
+import { Sheet } from '../../components/ui/Sheet'
 
 interface Props {
   onClose: () => void
@@ -256,9 +257,7 @@ export function RequisitionPanel({ onClose, onOpenReceive, isOnline, products, u
   const back = () => (view.name === 'list' ? requestLeave(onClose) : requestLeave(goList))
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <button type="button" aria-label="Tutup" tabIndex={-1} className="absolute inset-0 bg-black/30" onClick={() => requestLeave(onClose)} />
-      <div className="relative w-full max-w-lg bg-white h-full flex flex-col">
+    <Sheet open variant="side" onClose={() => requestLeave(onClose)} panelClassName="flex flex-col">
         <div className="px-4 py-3 border-b flex items-center justify-between">
           <div className="flex items-center gap-2">
             {view.name !== 'list' && <button type="button" onClick={back} aria-label="Kembali" className="text-indigo-600 font-bold">←</button>}
@@ -300,7 +299,6 @@ export function RequisitionPanel({ onClose, onOpenReceive, isOnline, products, u
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </Sheet>
   )
 }

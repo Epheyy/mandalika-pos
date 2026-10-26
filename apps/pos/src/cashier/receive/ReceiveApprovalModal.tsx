@@ -7,6 +7,7 @@ import {
   requestReceiveGrant,
   type ReceiveGrantInput,
 } from './receiveApprovalFlow'
+import { Sheet } from '../../components/ui/Sheet'
 
 interface Props {
   /** The receipt key created up front; reused on every retry so a lost response never double-receives. */
@@ -117,9 +118,7 @@ export function ReceiveApprovalModal({
   }
 
   const shell = (children: React.ReactNode) => (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">{children}</div>
-    </div>
+    <Sheet open variant="center" maxWidth="max-w-sm" panelClassName="p-5">{children}</Sheet>
   )
   const closeOnly = (text: string) =>
     shell(

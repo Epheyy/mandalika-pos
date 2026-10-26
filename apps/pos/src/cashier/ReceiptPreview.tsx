@@ -4,6 +4,9 @@ import { formatRupiah } from './pricing'
 import { receiptRefLabel } from './orderRef'
 import logoGold from '../assets/logo-gold.png'
 import { variantLabel } from '@mandalika/types'
+import { PAYMENT_LABELS } from '../lib/paymentLabels'
+import { Sheet } from '../components/ui/Sheet'
+import { IconCheck, IconClock, IconWarning, IconPrinter } from '../components/ui/icons'
 
 type AppSettings = components['schemas']['AppSettings']
 type CartItem = components['schemas']['CartItem']
@@ -32,12 +35,6 @@ interface ReceiptPreviewProps {
   onNewSale: () => void
 }
 
-const PAYMENT_LABELS: Record<string, string> = {
-  cash: 'Tunai',
-  card: 'Kartu',
-  transfer: 'Transfer',
-  qris: 'QRIS',
-}
 
 export const ReceiptPreview = memo(function ReceiptPreview({
   isOpen,
@@ -74,17 +71,16 @@ export const ReceiptPreview = memo(function ReceiptPreview({
   })
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[90vh] flex flex-col">
+    <Sheet open variant="center" maxWidth="max-w-sm" panelClassName="max-h-[90vh] flex flex-col">
         {/* Success header */}
         <div className="flex flex-col items-center pt-6 pb-4 border-b border-gray-100 px-5">
           <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mb-3">
-            <span className="text-green-600 text-xl">✓</span>
+            <span className="text-green-600 text-xl"><IconCheck size={20} /></span>
           </div>
           <h3 className="font-bold text-gray-900 text-lg">Pembayaran Berhasil</h3>
           {isPendingSync ? (
             <p className="text-xs text-amber-600 mt-1">
-              ⏳ Menunggu sinkronisasi ke server
+              <IconClock size={12} className="inline-block align-[-0.125em]" /> Menunggu sinkronisasi ke server
             </p>
           ) : (
             <p className="text-xs text-gray-500 mt-1">
@@ -180,7 +176,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
         {/* Actions */}
         {printError && (
           <p className="px-5 text-xs text-red-600 mb-1 flex-shrink-0">
-            ⚠ {printError}
+            <IconWarning size={12} className="inline-block align-[-0.125em]" /> {printError}
           </p>
         )}
         {canReprint && (
@@ -189,7 +185,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
               onClick={onReprint}
               className="w-full py-2 border border-indigo-200 text-indigo-700 rounded-xl text-sm font-semibold hover:bg-indigo-50 transition-colors"
             >
-              🖨 Cetak Ulang Struk
+              <IconPrinter size={14} className="inline-block align-[-0.125em]" /> Cetak Ulang Struk
             </button>
           </div>
         )}
@@ -207,7 +203,6 @@ export const ReceiptPreview = memo(function ReceiptPreview({
             Transaksi Baru
           </button>
         </div>
-      </div>
-    </div>
+    </Sheet>
   )
 })

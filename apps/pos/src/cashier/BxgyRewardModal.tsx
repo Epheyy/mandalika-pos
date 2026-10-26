@@ -18,6 +18,7 @@ import type { components } from '@mandalika/api'
 import type { BXGYRewardOption } from './pricing'
 import { formatRupiah } from './pricing'
 import { stockFor } from './stock'
+import { IconGift } from '../components/ui/icons'
 
 type Promotion = components['schemas']['Promotion']
 type Product = components['schemas']['Product']
@@ -106,7 +107,7 @@ export function BxgyRewardModal({
       <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="min-w-0">
-            <h3 className="font-bold text-gray-900 truncate">🎁 Pilih Hadiah</h3>
+            <h3 className="font-bold text-gray-900 truncate"><IconGift size={16} className="inline-block align-[-0.125em]" /> Pilih Hadiah</h3>
             <p className="text-[11px] text-gray-500 truncate">{promo.name}</p>
           </div>
           <button

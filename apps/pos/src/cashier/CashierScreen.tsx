@@ -63,6 +63,7 @@ import { diagnosticExportMessages, shareFailedSyncDiagnostics } from '../lib/fai
 import { track } from '../lib/activityLog'
 import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
 import logoGold from '../assets/logo-gold.png'
+import { PAYMENT_LABELS } from '../lib/paymentLabels'
 
 type FontSize = 'sm' | 'md' | 'lg'
 type GridCols = 2 | 3 | 4 | 6
@@ -83,9 +84,6 @@ const DEFAULT_SETTINGS: components['schemas']['AppSettings'] = {
   allowNegativeStock: true,
 }
 
-const PAYMENT_LABELS: Record<string, string> = {
-  cash: 'Tunai', card: 'Kartu', transfer: 'Transfer', qris: 'QRIS',
-}
 
 const DEFAULT_LOYALTY: components['schemas']['LoyaltySettings'] = {
   enabled: true, tierEnabled: true, pointsPerThousand: 1, redemptionRate: 100,

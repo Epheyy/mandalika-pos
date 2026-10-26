@@ -19,6 +19,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { formatRupiah } from './pricing'
 import { nextVariantQty, oversoldSizes } from './stock'
 import { variantLabel } from '@mandalika/types'
+import { IconHeart } from '../components/ui/icons'
 
 type Product = components['schemas']['Product']
 type Category = components['schemas']['Category']
@@ -329,7 +330,7 @@ export const ProductGrid = memo(function ProductGrid({
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
-          ♥ Favorit
+          <IconHeart size={12} className="inline-block align-[-0.125em]" /> Favorit
         </button>
       </div>
 

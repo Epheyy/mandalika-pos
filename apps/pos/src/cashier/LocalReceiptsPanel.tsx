@@ -9,6 +9,7 @@ import { formatRupiah } from './pricing'
 import { RefundAction } from './RefundAction'
 import { PAYMENT_LABELS, type RefundAvailabilityInput } from './refundView'
 import { filterLocalReceipts, localBadge, localReceiptOrder, localSaleRef, reprintReceiptData } from './localReceipts'
+import { Sheet } from '../components/ui/Sheet'
 
 type Gate = Pick<RefundAvailabilityInput, 'canRefund' | 'hasOpenShift' | 'shiftUnsynced' | 'syncedRefundOrderIds' | 'queuedSaleUuids' | 'serverIdToSaleUuid'>
 
@@ -36,8 +37,7 @@ export function LocalReceiptsPanel({ isOpen, onClose, receipts, canReprint, onRe
   if (!isOpen) return null
   const rows = filterLocalReceipts(receipts, search)
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" data-testid="local-receipts">
-      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] flex flex-col">
+    <Sheet open variant="center" maxWidth="max-w-2xl" panelClassName="max-h-[90vh] flex flex-col" testId="local-receipts">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h3 className="font-bold text-gray-900">Struk di tablet ini</h3>
           <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500" aria-label="Tutup">✕</button>
@@ -77,7 +77,6 @@ export function LocalReceiptsPanel({ isOpen, onClose, receipts, canReprint, onRe
             )
           })}
         </div>
-      </div>
-    </div>
+    </Sheet>
   )
 }
