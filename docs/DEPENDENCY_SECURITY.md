@@ -178,3 +178,18 @@ or later within the parent range, requires a single dompurify entry in pnpm-lock
 and checks that the entry point loads. There is no sanitize() regression because the
 repo has no DOM implementation (jsdom/happy-dom) and none is added; jsPDF.html() output
 sanitization is not claimed to be tested.
+
+## zod consumer regression
+
+The exact eslint-plugin-react-hooks@7.1.1>zod override pins 4.6.6 inside the plugin's
+`^3.25.0 || ^4.0.0` range, fixing GHSA-mrhx-c7xc-m3w5 (CVE-2023-54404, high; affected
+<4.6.6), which dependency-security reported as a build-time blocker on 2026-10-25. zod
+reaches the repo only through the plugin, a root lint devDependency that validates its
+rule options with zod and formats errors with zod-validation-error; no app or package
+imports zod and no root zod dependency is added. 4.6.6 is the release that fixes the
+advisory (4.6.7 was one day newer). Canonical quality runs
+scripts/ci/zod-consumer-test.cjs after installation; it resolves zod from the plugin's
+actual install, requires 4.6.6 or later within the parent range, requires a single zod
+entry in pnpm-lock.yaml and the override, checks that zod-validation-error resolves the
+same zod, runs a strict-object parse, a failing safeParse and its formatted message, and
+loads the plugin's rules-of-hooks and exhaustive-deps rules.

@@ -4,7 +4,7 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-10-23 by Claude (Opus 5.5) - ERP stand-in LIVE (backend `00129-sis`, stub `mandalika-erpstub`, Scheduler jobs on); live rehearsal 15/15; see Now.
+Last updated: 2026-10-25 by Claude (Opus 5.5) - ERP reply follow-ups LIVE (backend `00135-zeq`, f211ca1, mig 0068); full catalog sync done; live rehearsal DEMO7 15/15; see Now.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
@@ -46,6 +46,24 @@ Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 
 
 ## Now (live state)
 
+- **ERP REPLY FOLLOW-UPS LIVE 2026-10-25 (owner go-ahead "do all three": push, deploy, full sync):** prod-hardening
+  `b023f63..f211ca1` pushed to origin + ci; mirror CI green on f211ca1 for the four deploy gates (quality, backend,
+  postgres, browser); dependency-security FAILS on a new advisory (zod 4.4.3, GHSA-mrhx-c7xc-m3w5 high, build-time,
+  fixed in 4.6.6; not a deploy gate; follow-up). Backend **`00135-zeq`** (tag `erpreply`) at 100%, rollback
+  `00133-cih` (tag `delfix`, same ERP flags). Migration **0068** (product_variants.erp_name/erp_category) applied on
+  Neon; 0067 stays reserved for the global SKU index. Changes: relay accepts the ERP `status:"success"` envelope;
+  `details[].path` array in last_error; size label ignores the stock unit (110+Pcs=110ml); grouping by name minus
+  size, category only as tie-breaker; product name/category follow the owner size (active first, lowest code) and
+  hand over in the same pull. Full catalog pull run once after the deploy: FG upserted 3, **deactivated 4 =
+  RH-DEMO2-A..D** (the stub restarted and only lists the baked RH-DEMO-A..C, plus run FGs seeded since). Old rows keep
+  `50pcs` labels and `pos:rehearsal|...` keys (never rewritten; delete demo rows at cutover, runbook
+  erp-standin-demo.md "Cutover to the real ERP"). **Live rehearsal re-proven on 00135-zeq: `-run-id DEMO7` 15/15
+  PASS, DB ledger invariant 0 rows.** The operator laptop's link drops ~1/3 of connections after the server answered
+  (DEMO3/4/5 failed on it, DEMO6 14/15 on a lost POST /transfers reply), so cmd/erp-rehearsal now retries transport
+  failures on replay-safe requests (881cbd1) and recovers once-only writes by checking whether they landed (2a2f4bb).
+  Test data left (no cleanup path): unpriced RH-DEMO3/4/6/7 products, their stub FGs (gone at the next stub restart),
+  and one never-sent DRAFT transfer "erp-rehearsal" of 10 x RH-DEMO6-C (warehouse -> BSD; cancel it in the
+  backoffice). Next live rerun needs a fresh id (DEMO8).
 - **ERP STAND-IN LIVE 2026-10-23 (owner go-ahead "go B1–B6, merge and push", confirmed in-session):** the ERP
   integration is ON in the test env against the stub. Backend **`00129-sis`** (tag `erpdemo`, image e46e7fb,
   ERP_INTEGRATION_ENABLED/ERP_RELAY_ENABLED=true, ERP_BRAND=mandalika) at 100%, rollback `00126-seh`

@@ -11,15 +11,15 @@ func ctxT() context.Context { return context.Background() }
 
 func stepTransfer(r *rt) error {
 	c := r.items["C"]
+	note := "erp-rehearsal " + r.cfg.runID // run-unique: finds the transfer after a lost reply
 	body := obj{
 		"source": obj{"kind": "warehouse", "id": r.cfg.warehouseID}, "dest": obj{"kind": "outlet", "id": r.outletID},
-		"note": "erp-rehearsal", "items": []obj{{"productId": c.ProductID, "variantSize": c.Size, "qty": 10}},
+		"note": note, "items": []obj{{"productId": c.ProductID, "variantSize": c.Size, "qty": 10}},
 	}
-	out, err := r.beMust("POST", "/transfers", nil, body)
+	tid, err := r.onceRecover("POST", "/transfers", nil, body, dataID, func() (string, error) { return r.transferByNote(note) })
 	if err != nil {
 		return err
 	}
-	tid := str(out.Body, "data", "id")
 	r.note("transfer %s created (warehouse -> outlet, 10 x %s)", tid, c.fg.Code)
 	h := map[string]string{"Idempotency-Key": "rh-" + normID(r.cfg.runID) + "-send1"}
 	for i := 1; i <= 2; i++ {
@@ -34,7 +34,8 @@ func stepTransfer(r *rt) error {
 		return err
 	}
 	recv := obj{"discrepancyReason": "rusak", "items": []obj{{"productId": c.ProductID, "variantSize": c.Size, "receivedQty": 9}}}
-	if _, err := r.beMust("POST", "/transfers/"+tid+"/receive", nil, recv); err != nil {
+	if _, err := r.onceRecover("POST", "/transfers/"+tid+"/receive", nil, recv,
+		func(resp) string { return "received" }, func() (string, error) { return r.transferReceived(tid) }); err != nil {
 		return err
 	}
 	inRow, err := r.outboxOne("transfer_in", tid)
@@ -219,16 +220,16 @@ func stepDeleteGuard(r *rt) error {
 		return err
 	}
 	name := "ERP Rehearsal " + r.cfg.runID + " guard"
+	guardSKU := "RH-" + normID(r.cfg.runID) + "-GUARD" // unique: finds the product after a lost reply
 	create := obj{"name": name, "brand": "Rehearsal", "categoryId": str(p, "categoryId"), "sellable": true, "isActive": true,
 		"variants": []obj{
-			{"size": "Guard", "price": 1000, "stock": 0, "sku": "RH-" + normID(r.cfg.runID) + "-GUARD"},
+			{"size": "Guard", "price": 1000, "stock": 0, "sku": guardSKU},
 			{"size": "Keep", "price": 1000, "stock": 0, "sku": "RH-" + normID(r.cfg.runID) + "-KEEP"},
 		}}
-	out, err := r.beMust("POST", "/products", nil, create)
+	pid, err := r.onceRecover("POST", "/products", nil, create, dataID, func() (string, error) { return r.productIDBySKU(guardSKU) })
 	if err != nil {
 		return err
 	}
-	pid := str(out.Body, "data", "id")
 	gp, err := r.product(pid)
 	if err != nil {
 		return err
@@ -240,7 +241,8 @@ func stepDeleteGuard(r *rt) error {
 		}
 	}
 	rc := obj{"items": []obj{{"productId": pid, "variantSize": "Guard", "qty": 2}}}
-	if _, err := r.beMust("POST", fmt.Sprintf("/inventory/goods-receipt?kind=outlet&id=%s", r.outletID), nil, rc); err != nil {
+	rk := map[string]string{"Idempotency-Key": "rh-" + normID(r.cfg.runID) + "-guard-receipt"} // replay-safe
+	if _, err := r.beMust("POST", fmt.Sprintf("/inventory/goods-receipt?kind=outlet&id=%s", r.outletID), rk, rc); err != nil {
 		return err
 	}
 	r.note("throwaway product %s created, 2 units of variant Guard received at the outlet", pid)

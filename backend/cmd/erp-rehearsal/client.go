@@ -72,6 +72,44 @@ type httpc struct {
 	// read cache (15 s, key = path + query) is not dropped by every writer (the ERP
 	// relay does not invalidate it), so a plain re-read can be stale.
 	noCache bool
+	// onRetry, when set, reports a transport retry (the runner adds the step name).
+	onRetry func(msg string)
+}
+
+// Transport retry (2026-10-25): from the operator laptop about a third of connections to
+// Cloud Run were dropped (reset, unexpected EOF, timeout) after the server had already
+// answered. call retries such a transport-level failure up to len(retryBackoff) more
+// times, waiting 2, 4, 8 and 16 s. It never retries after an HTTP response of any status,
+// and only replays a request whose second arrival cannot apply twice (replaySafe).
+var retryBackoff = []time.Duration{2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second}
+
+// idempotentPOSTs are the POST paths (relative to the client base, query ignored) that are
+// safe to replay: login only opens another session; the relay and catalog-pull runs and
+// the stub's FG/outlet upserts and fault switch converge on the same state; /sync/batch
+// dedupes every order by its idempotencyKey. Not here, so sent exactly once: POST
+// /products, /transfers, /transfers/{id}/receive (no key), /shifts, /shifts/{id}/close,
+// /inventory/adjust, a goods receipt without an Idempotency-Key and the outbox retry; the
+// steps send those through onceRecover (recover.go), which checks whether a write with a
+// lost reply had landed before sending it again.
+var idempotentPOSTs = map[string]bool{
+	"/api/v1/auth/login": true, "/internal/erp/relay": true, "/internal/erp/catalog-pull": true,
+	"/_stub/fg": true, "/_stub/outlet": true, "/_stub/fault": true, "/sync/batch": true,
+}
+
+// replaySafe: GET, PUT (full replacement) and DELETE (a second delete cannot remove
+// anything more; it may answer 404 or the same refusal), any request with an
+// Idempotency-Key (the server answers a replay with the first result), and the
+// idempotentPOSTs.
+func replaySafe(method, path string, h map[string]string) bool {
+	switch {
+	case method == http.MethodGet, method == http.MethodPut, method == http.MethodDelete:
+		return true
+	case h["Idempotency-Key"] != "":
+		return true
+	case method == http.MethodPost:
+		return idempotentPOSTs[redactQuery(path)]
+	}
+	return false
 }
 
 func newHTTP(base string, hdr map[string]string) *httpc {
@@ -79,14 +117,39 @@ func newHTTP(base string, hdr map[string]string) *httpc {
 }
 
 // call sends one request; h adds per-call headers; body (if non-nil) is sent as JSON.
+// A transport failure is retried when replaySafe allows it (see retryBackoff).
 func (c *httpc) call(method, path string, h map[string]string, body any) (resp, error) {
-	var rd io.Reader
+	var payload []byte
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
 			return resp{}, err
 		}
-		rd = bytes.NewReader(b)
+		payload = b
+	}
+	retries := 0
+	if replaySafe(method, path, h) {
+		retries = len(retryBackoff)
+	}
+	for attempt := 0; ; attempt++ {
+		out, err := c.once(method, path, h, payload)
+		if err == nil || attempt >= retries {
+			return out, err
+		}
+		if c.onRetry != nil {
+			c.onRetry(fmt.Sprintf("transport retry %d/%d of %s %s in %v: %v",
+				attempt+1, retries, method, redactQuery(path), retryBackoff[attempt], err))
+		}
+		time.Sleep(retryBackoff[attempt])
+	}
+}
+
+// once sends one attempt. An error means no complete HTTP response (dial, reset, EOF,
+// timeout, or a body cut off mid-read).
+func (c *httpc) once(method, path string, h map[string]string, payload []byte) (resp, error) {
+	var rd io.Reader
+	if payload != nil {
+		rd = bytes.NewReader(payload)
 	}
 	if c.noCache && method == http.MethodGet {
 		sep := "?"
@@ -99,7 +162,7 @@ func (c *httpc) call(method, path string, h map[string]string, body any) (resp, 
 	if err != nil {
 		return resp{}, err
 	}
-	if body != nil {
+	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	for k, v := range c.hdr {
