@@ -218,6 +218,10 @@ For the live rehearsal (B6) pause both jobs first, so the harness controls every
 `... resume ...` afterwards.
 
 ### B6. Rehearsal against the live test environment (go-ahead: test-data writes on Neon)
+**Ordering (since 2026-10-26):** the harness reads the stub's code-keyed balances (`location_code`) and calls
+`POST /_stub/assigned-outlets`, so a live B6 needs the stub redeployed from the same commit as the harness (B2),
+with its state file reset. The backend alone does not need the new stub: it still sends `location.slug`, which an
+older stub image keys on.
 Creates demo products (FG codes from `-run-id`), goods receipts, a sale, a refund, a transfer and one
 dead-lettered then fixed document in the test DB. Run from `backend/`:
 ```bash
@@ -300,7 +304,7 @@ and its array `details[].path` (both stub forms still work). Each step needs its
 them per outlet, in this order.
 
 **Endpoint merged (2026-10-26).** The ERP's `POST /stock-documents` is on erp-flamboyan `main` (its module README
-still says "not merged"; stale). The POS relay matches it since branch `claude/mystifying-joliot-02531d`:
+still says "not merged"; stale). The POS relay matches it since commit `3410ea3c` (2026-10-26):
 - it sends `location: {type: "outlet", code: <outlets.erp_code>, slug: <erp_slug>}`. The ERP keys on the
   **code**; the slug is an ignored extra kept for one release;
 - an outlet without `erp_code` is `held` until the pull links it;
