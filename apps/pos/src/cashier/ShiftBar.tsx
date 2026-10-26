@@ -90,12 +90,12 @@ export const ShiftBar = memo(function ShiftBar({
           <button type="button"
             ref={detailBtnRef}
             onClick={toggleDetail}
-            className="flex items-center gap-1.5 min-w-0 flex-shrink"
+            className="flex min-h-11 items-center gap-1.5 min-w-0 flex-shrink"
             aria-expanded={showDetail}
             title="Detail shift"
           >
-            <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-            <span className="text-xs font-bold text-gray-800 flex-shrink-0">Shift Aktif</span>
+            <span className="w-2 h-2 rounded-full bg-ok flex-shrink-0" />
+            <span className="text-sm font-bold text-ink-900 flex-shrink-0">Shift Aktif</span>
             <svg className={`w-3 h-3 text-gray-400 flex-shrink-0 transition-transform ${showDetail ? 'rotate-180' : ''}`}
               viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="m6 9 6 6 6-6" />
@@ -103,7 +103,7 @@ export const ShiftBar = memo(function ShiftBar({
           </button>
           <button type="button"
             onClick={onRequestClose}
-            className="px-2 py-0.5 text-[11px] font-semibold bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors flex-shrink-0"
+            className="min-h-11 px-3 text-sm font-semibold bg-danger-bg text-danger rounded-control active:opacity-90 flex-shrink-0"
           >
             Tutup Shift
           </button>

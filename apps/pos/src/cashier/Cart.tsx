@@ -4,7 +4,9 @@ import type { CartDerived } from '../hooks/useCart'
 import { formatRupiah } from './pricing'
 import { variantLabel } from '@mandalika/types'
 import type { AppliedPromoCode } from './promoValidate'
-import { IconUser, IconClock } from '../components/ui/icons'
+import { IconClock, IconClose } from '../components/ui/icons'
+import { Button } from '../components/ui/Button'
+import { Stepper } from '../components/ui/Stepper'
 
 type CartItem = components['schemas']['CartItem']
 type AppSettings = components['schemas']['AppSettings']
@@ -35,6 +37,26 @@ interface CartProps {
   wallRaised: boolean
 }
 
+/** Small coloured tag in front of a promo or reward line. */
+function Tag({ tone, children }: { tone: 'promo' | 'reward'; children: string }) {
+  const palette = tone === 'promo' ? 'bg-promo-bg text-promo' : 'bg-reward-bg text-reward'
+  return <span className={`flex-shrink-0 rounded-md px-1.5 py-0.5 text-xs font-bold ${palette}`}>{children}</span>
+}
+
+/** 48 dp remove control for a totals row; negative margin keeps the row compact. */
+function RemoveButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className="touch -my-3 inline-flex items-center justify-center rounded-control text-promo active:bg-promo-bg"
+    >
+      <IconClose size={16} />
+    </button>
+  )
+}
+
 export const Cart = memo(function Cart({
   cart,
   derived,
@@ -59,97 +81,92 @@ export const Cart = memo(function Cart({
   wallRaised,
 }: CartProps) {
   const isEmpty = cart.length === 0
+  const rewardLines = cart.filter((i) => i.isReward).length
+  const hasPromo = appliedPromotions.length > 0 || appliedPromoCodes.length > 0
+  const hasManual = discountRunning > 0 || surchargeRunning > 0
 
   return (
-    <div className="flex flex-col h-full bg-white border-l border-gray-100">
+    <div className="flex h-full flex-col border-l border-paper-2 bg-white">
       {/* Active customer — pinned at the very top of the cart */}
       {selectedCustomer && (
-        <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 flex-shrink-0">
-          <p className="text-xs font-bold text-indigo-800 truncate">
-            <IconUser size={12} className="inline-block align-[-0.125em]" /> {selectedCustomer.name}
-          </p>
-          <p className="text-[10px] text-indigo-600">
-            {selectedCustomer.phone}
-            {loyaltyEnabled && ` · ${selectedCustomer.points} poin`}
-          </p>
+        <div className="flex min-h-14 flex-shrink-0 items-center gap-3 bg-paper-1 px-4 py-2">
+          <span aria-hidden="true" className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-paper-2 text-base font-bold text-ink-700">
+            {(selectedCustomer.name || '?').charAt(0).toUpperCase()}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-[0.9375rem] font-semibold text-ink-900">{selectedCustomer.name}</p>
+            <p className="truncate text-[0.8125rem] text-ink-500">
+              {selectedCustomer.phone}
+              {loyaltyEnabled && ` · ${selectedCustomer.points} poin`}
+              {rewardLines > 0 && <span className="font-semibold text-reward">{` · ${rewardLines} hadiah`}</span>}
+            </p>
+          </div>
         </div>
       )}
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-        <h2 className="font-bold text-gray-900 text-sm">
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-paper-2 px-4 py-3">
+        <h2 className="text-base font-bold text-ink-900">
           Keranjang
           {derived.totalCartItems > 0 && (
-            <span className="ml-1.5 bg-indigo-600 text-white text-xs rounded-full px-1.5 py-0.5">
+            <span className="tnum ml-2 rounded-full bg-ink-900 px-2 py-0.5 text-xs text-white">
               {derived.totalCartItems}
             </span>
           )}
         </h2>
-        {!isEmpty && (
-          <button type="button"
-            onClick={onClear}
-            className="text-xs text-red-500 hover:text-red-700 font-semibold"
-          >
-            Hapus semua
-          </button>
-        )}
       </div>
 
       {/* Items */}
-      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+      <div className="flex-1 overflow-y-auto px-4">
         {isEmpty ? (
-          <div className="flex flex-col items-center justify-center h-32 text-gray-400">
-            <p className="text-sm">Keranjang kosong</p>
-            <p className="text-xs mt-1">Pilih produk untuk mulai</p>
+          <div className="flex h-32 flex-col items-center justify-center text-ink-500">
+            <p className="text-[0.9375rem]">Keranjang kosong</p>
+            <p className="mt-1 text-[0.8125rem]">Pilih produk untuk mulai</p>
           </div>
         ) : (
           cart.map((item) => (
             <div
               key={`${item.productId}-${item.variantSize}-${item.isReward ? item.rewardPromotionId ?? item.rewardConditionId ?? 'r' : ''}`}
-              className="flex items-start gap-2 p-2 rounded-lg bg-gray-50"
+              className="flex min-h-16 items-center gap-3 border-b border-paper-2 py-2"
             >
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-gray-800 truncate">
-                  {item.productName}
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-2 text-[0.9375rem] font-semibold text-ink-900">
+                  <span className="truncate">{item.productName}</span>
+                  {item.isReward && <Tag tone="reward">HADIAH</Tag>}
                 </p>
-                {variantLabel(item.variantSize) && <p className="text-xs text-gray-500">{variantLabel(item.variantSize)}</p>}
-                {item.isReward ? (
-                  <p className="text-xs font-bold text-green-600">
-                    {item.subtotal <= 0 ? 'GRATIS' : formatRupiah(item.subtotal)}
-                    {' · '}
-                    {item.rewardPromotionId ? 'Hadiah Promo' : 'Hadiah Loyalti'}
-                  </p>
-                ) : (
-                  <p className="text-xs text-indigo-600 font-bold">{formatRupiah(item.subtotal)}</p>
+                {variantLabel(item.variantSize) && <p className="text-[0.8125rem] text-ink-500">{variantLabel(item.variantSize)}</p>}
+                {item.isReward && (
+                  <p className="text-[0.8125rem] text-ink-500">{item.rewardPromotionId ? 'Hadiah Promo' : 'Hadiah Loyalti'}</p>
                 )}
               </div>
-              {!item.isReward && (
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button type="button"
-                    onClick={() =>
-                      onSetQty(item.productId, item.variantSize, item.quantity - 1)
-                    }
-                    className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-300 text-xs"
-                  >
-                    −
-                  </button>
-                  <span className="w-5 text-center text-xs font-bold">
+              {item.isReward ? (
+                <>
+                  <span className="tnum flex h-9 min-w-9 items-center justify-center rounded-lg bg-paper-1 px-2 text-base font-semibold text-ink-900">
                     {item.quantity}
                   </span>
-                  <button type="button"
-                    onClick={() =>
-                      onSetQty(item.productId, item.variantSize, item.quantity + 1)
-                    }
-                    className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-300 text-xs"
-                  >
-                    +
-                  </button>
-                  <button type="button"
+                  <p className={`tnum min-w-20 text-right text-base font-bold ${item.subtotal <= 0 ? 'text-reward' : 'text-ink-900'}`}>
+                    {item.subtotal <= 0 ? 'GRATIS' : formatRupiah(item.subtotal)}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Stepper
+                    value={item.quantity}
+                    onDecrement={() => onSetQty(item.productId, item.variantSize, item.quantity - 1)}
+                    onIncrement={() => onSetQty(item.productId, item.variantSize, item.quantity + 1)}
+                  />
+                  <div className="min-w-20 text-right">
+                    <p className="tnum text-base font-bold text-ink-900">{formatRupiah(item.subtotal)}</p>
+                    <p className="tnum text-xs text-ink-500">{formatRupiah(item.price)}</p>
+                  </div>
+                  <button
+                    type="button"
                     onClick={() => onRemove(item.productId, item.variantSize)}
-                    className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-red-500 hover:bg-red-200 text-xs ml-1"
+                    aria-label="Hapus"
+                    className="touch -mr-2 inline-flex items-center justify-center rounded-control text-ink-500 active:bg-paper-1"
                   >
-                    ×
+                    <IconClose size={20} />
                   </button>
-                </div>
+                </>
               )}
             </div>
           ))
@@ -158,137 +175,119 @@ export const Cart = memo(function Cart({
 
       {/* Adjustments row */}
       {!isEmpty && (
-        <div className="px-3 py-2 border-t border-gray-100 flex gap-1 flex-shrink-0">
-          <button type="button"
-            onClick={() => onOpenAdjustment('notes')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-              orderNotes
-                ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
-                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            Catatan
-          </button>
-          <button type="button"
-            onClick={() => onOpenAdjustment('discount')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-              discountRunning > 0 || surchargeRunning > 0
-                ? 'border-orange-400 bg-orange-50 text-orange-700'
-                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            Diskon manual
-          </button>
-          <button type="button"
-            onClick={() => onOpenAdjustment('promo')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-              appliedPromotions.length > 0 || appliedPromoCodes.length > 0
-                ? 'border-green-400 bg-green-50 text-green-700'
-                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-t border-paper-2 px-4 py-2">
+          <Button variant="promo" onClick={() => onOpenAdjustment('promo')} className={hasPromo ? 'ring-2 ring-promo' : ''}>
             Promo &amp; Kode
-          </button>
+          </Button>
+          <Button variant="secondary" onClick={() => onOpenAdjustment('notes')} className={orderNotes ? 'border-ink-700' : ''}>
+            Catatan
+          </Button>
+          <Button variant="secondary" onClick={() => onOpenAdjustment('discount')} className={hasManual ? 'border-warn text-warn' : ''}>
+            Diskon manual
+          </Button>
+          <Button variant="ghost" onClick={onClear} className="ml-auto">
+            Kosongkan
+          </Button>
         </div>
       )}
 
       {/* Totals */}
       {!isEmpty && (
-        <div className="px-4 py-3 border-t border-gray-100 space-y-1 flex-shrink-0 text-xs">
-          <div className="flex justify-between text-gray-600">
+        <div className="flex-shrink-0 space-y-2 border-t border-paper-2 px-4 py-3 text-[0.9375rem]">
+          <div className="tnum flex justify-between text-ink-700">
             <span>Subtotal</span>
             <span>{formatRupiah(derived.subtotal)}</span>
           </div>
           {appliedPromotions.map((p) => (
-            <div key={p.id} className="flex justify-between items-center text-green-600">
-              <span className="flex items-center gap-1">
-                Promo: {p.name}
-                <button type="button"
-                  onClick={() => onRemovePromotion(p.id)}
-                  className="w-4 h-4 rounded-full bg-green-100 text-green-700 text-[10px] leading-none hover:bg-green-200"
-                  title="Hapus promo"
-                >
-                  ×
-                </button>
+            <div key={p.id} className="flex items-center justify-between gap-2 text-promo">
+              <span className="flex min-w-0 items-center gap-2">
+                <Tag tone="promo">PROMO</Tag>
+                <span className="truncate">{p.name}</span>
               </span>
+              <RemoveButton label="Hapus promo" onClick={() => onRemovePromotion(p.id)} />
             </div>
           ))}
           {appliedPromoCodes.map((c) => (
-            <div key={c.code} className="flex justify-between items-center text-green-600">
-              <span className="flex items-center gap-1">
-                Kode Promo: {c.code}
-                <button type="button"
-                  onClick={() => onRemovePromoCode(c.code)}
-                  className="w-4 h-4 rounded-full bg-green-100 text-green-700 text-[10px] leading-none hover:bg-green-200"
-                  title="Hapus kode"
-                >
-                  ×
-                </button>
+            <div key={c.code} className="flex items-center justify-between gap-2 text-promo">
+              <span className="flex min-w-0 items-center gap-2">
+                <Tag tone="promo">PROMO</Tag>
+                <span className="truncate">Kode Promo: {c.code}</span>
               </span>
+              <RemoveButton label="Hapus kode" onClick={() => onRemovePromoCode(c.code)} />
             </div>
           ))}
-          {(appliedPromotions.length > 0 || appliedPromoCodes.length > 0) && derived.promoDiscountAmount > 0 && (
-            <div className="flex justify-between text-green-600">
+          {hasPromo && derived.promoDiscountAmount > 0 && (
+            <div className="tnum flex justify-between text-promo">
               <span>Hemat promo</span>
               <span>−{formatRupiah(derived.promoDiscountAmount)}</span>
             </div>
           )}
           {discountRunning > 0 && (
-            <div className="flex justify-between items-center text-green-600">
-              <span className="flex items-center gap-1">
-                Diskon manual{' '}
-                {discountType === 'percentage'
-                  ? `${discountRunning}%`
-                  : formatRupiah(discountRunning)}
-                <button type="button"
-                  onClick={onClearDiscount}
-                  className="w-4 h-4 rounded-full bg-green-100 text-green-700 text-[10px] leading-none hover:bg-green-200"
-                  title="Hapus diskon"
-                >
-                  ×
-                </button>
+            <div className="flex items-center justify-between gap-2 text-promo">
+              <span className="flex min-w-0 items-center gap-2">
+                <Tag tone="promo">PROMO</Tag>
+                <span className="truncate">
+                  Diskon manual{' '}
+                  {discountType === 'percentage' ? `${discountRunning}%` : formatRupiah(discountRunning)}
+                </span>
               </span>
+              <RemoveButton label="Hapus diskon" onClick={onClearDiscount} />
             </div>
           )}
           {derived.discountAmount > 0 && (
-            <div className="flex justify-between text-green-600">
+            <div className="tnum flex justify-between font-semibold text-promo">
               <span>Total hemat</span>
               <span>−{formatRupiah(derived.discountAmount)}</span>
             </div>
           )}
           {derived.surchargeAmount > 0 && (
-            <div className="flex justify-between text-orange-600">
+            <div className="tnum flex justify-between text-warn">
               <span>Biaya tambahan</span>
               <span>+{formatRupiah(derived.surchargeAmount)}</span>
             </div>
           )}
           {settings.taxEnabled && derived.taxAmount > 0 && (
-            <div className="flex justify-between text-gray-600">
+            <div className="tnum flex justify-between text-ink-700">
               <span>PPN {settings.taxRate}%</span>
               <span>{formatRupiah(derived.taxAmount)}</span>
             </div>
           )}
-          <div className="flex justify-between font-bold text-gray-900 text-sm pt-1 border-t border-gray-100">
+          <div className="tnum flex justify-between border-t border-paper-2 pt-2 font-bold text-ink-900">
             <span>Total</span>
             <span>{formatRupiah(derived.total)}</span>
           </div>
           {pendingSync && (
-            <p className="text-[10px] text-amber-600 text-center mt-1">
-              <IconClock size={10} className="inline-block align-[-0.125em]" /> Tersimpan di tablet
+            <p className="mt-1 text-center text-[0.8125rem] text-warn">
+              <IconClock size={14} className="inline-block align-[-0.125em]" /> Tersimpan di tablet
             </p>
           )}
         </div>
       )}
 
-      {/* Checkout button */}
-      <div className="px-3 pb-4 flex-shrink-0 safe-bottom">
-        <button type="button"
-          onClick={onCheckout}
-          disabled={isEmpty || wallRaised}
-          className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm disabled:opacity-40 hover:bg-indigo-700 transition-colors shadow-sm"
-        >
-          {wallRaised ? 'Sinkronisasi diperlukan' : 'Bayar'}
-        </button>
+      {/* Bayar bar: 64 dp, brand fill. The aria-label keeps the button's name "Bayar" (the total is in the visible text). */}
+      <div className="flex-shrink-0 safe-bottom">
+        {isEmpty ? (
+          <button type="button" disabled className="flex min-h-16 w-full items-center justify-center bg-paper-1 text-base font-semibold text-ink-500">
+            Pilih produk
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onCheckout}
+            disabled={wallRaised}
+            aria-label={wallRaised ? undefined : 'Bayar'}
+            className="tnum flex min-h-16 w-full items-center justify-between bg-brand px-5 text-on-brand active:bg-brand-pressed disabled:opacity-40"
+          >
+            {wallRaised ? (
+              <span className="mx-auto text-lg font-bold">Sinkronisasi diperlukan</span>
+            ) : (
+              <>
+                <span className="text-lg font-bold uppercase">Bayar</span>
+                <span className="text-2xl font-bold">{formatRupiah(derived.total)}</span>
+              </>
+            )}
+          </button>
+        )}
       </div>
     </div>
   )

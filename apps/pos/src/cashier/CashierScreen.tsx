@@ -16,11 +16,12 @@ import { TransferHistoryPanel } from './TransferHistoryPanel'
 import { RequisitionPanel } from './requisitions/RequisitionPanel'
 import { usePrinter } from '../printer'
 import { setBackHandler } from '../native'
+import { readCardPref } from '../lib/cardPrefs'
 import { useAuth } from '../auth'
 import { useOfflineData } from '../hooks/useOfflineData'
 import { useOfflineCap } from '../hooks/useOfflineCap'
 import { OFFLINE_LOCKED_MESSAGE, offlineLockMessage } from '../lib/offlineCap'
-import { Banner } from '../components/ui'
+import { Banner, IconMenu } from '../components/ui'
 import { useShift } from '../hooks/useShift'
 import { useTerminalLabel } from '../hooks/useTerminalLabel'
 import { useCart } from '../hooks/useCart'
@@ -112,10 +113,10 @@ export default function CashierScreen() {
     const gc = localStorage.getItem('pos_gridCols')
     return gc ? (parseInt(gc) as GridCols) : 4
   })
-  // Optional product-card details — off by default, toggled in display settings.
-  const [showPrice, setShowPrice] = useState(() => localStorage.getItem('pos_cardPrice') === '1')
-  const [showStock, setShowStock] = useState(() => localStorage.getItem('pos_cardStock') === '1')
-  const [showVariants, setShowVariants] = useState(() => localStorage.getItem('pos_cardVariants') === '1')
+  // Product-card details — price and stock on unless switched off (D-9), variants off unless switched on; toggled in display settings.
+  const [showPrice, setShowPrice] = useState(() => readCardPref('pos_cardPrice', true))
+  const [showStock, setShowStock] = useState(() => readCardPref('pos_cardStock', true))
+  const [showVariants, setShowVariants] = useState(() => readCardPref('pos_cardVariants', false))
   const [showSettings, setShowSettings] = useState(false)
   // Which settings section to scroll to when opened from a drawer shortcut.
   const [settingsSection, setSettingsSection] = useState<SettingsSection | undefined>(undefined)
@@ -193,6 +194,7 @@ export default function CashierScreen() {
   const [showTransferHistory, setShowTransferHistory] = useState(false)
   const [showRequisitions, setShowRequisitions] = useState(false)
   const requisitionBackRef = useRef<(() => boolean) | null>(null)
+  const variantBackRef = useRef<(() => boolean) | null>(null)
   const [pendingReceive, setPendingReceive] = useState<null | { transferId: string; items: { productId: string; variantSize: string; receivedQty: number }[]; reason: string; orderUuid: string; receiptKey: string }>(null)
   // Raised when the cashier tries to sell with no open shift → forces the
   // ShiftBar open-shift modal (selling without a shift is not allowed).
@@ -948,6 +950,7 @@ export default function CashierScreen() {
   // Android hardware Back: close the top-most surface instead of exiting.
   useEffect(() => {
     setBackHandler(() => {
+      if (variantBackRef.current?.()) return true
       if (showConnection) { setShowConnection(false); return true }
       if (showMenu) { setShowMenu(false); return true }
       if (showSettings) { setShowSettings(false); return true }
@@ -979,15 +982,15 @@ export default function CashierScreen() {
   const saleUuidByServerId = new Map(localReceipts.flatMap((r): [string, string][] => (r.serverOrderId ? [[r.serverOrderId, r.orderUuid]] : [])))
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+    <div className="h-screen flex flex-col bg-paper-0 overflow-hidden">
       {/* Header — brand logo, then the active-shift chip and the live
           online/offline indicator in the same row (moved up out of the old
           shift bar / the drawer footer). */}
-      <header className="bg-white border-b border-gray-100 px-3 py-2 flex items-center justify-between gap-2 flex-shrink-0 safe-top">
+      <header className="bg-white border-b border-paper-2 min-h-14 px-3 py-1 flex items-center justify-between gap-2 flex-shrink-0 safe-top">
         <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-          <img src={logoGold} alt="Mandalika POS" className="h-6 w-auto object-contain flex-shrink-0" />
+          <img src={logoGold} alt="Mandalika POS" className="h-7 w-auto object-contain flex-shrink-0" />
           {/* Read-only: the terminal's outlet is fixed (A04); change it only via Lepas terminal. */}
-          {outletLabel && <span className="text-xs font-semibold text-gray-600 truncate flex-shrink min-w-0" title="Outlet terminal">{outletLabel}</span>}
+          {outletLabel && <span className="text-[0.9375rem] font-semibold text-ink-700 truncate flex-shrink min-w-0" title="Outlet terminal">{outletLabel}</span>}
           <ShiftBar
             currentShift={shift.currentShift} isLoading={shift.isLoadingShift}
             isOpening={shift.isOpeningShift}
@@ -1009,14 +1012,12 @@ export default function CashierScreen() {
           />
           <button type="button"
             onClick={() => setShowMenu(true)}
-            className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            className="touch relative inline-flex items-center justify-center rounded-control text-ink-700 active:bg-paper-1"
             title="Menu" aria-label="Menu"
           >
-            <svg className="w-5 h-5 text-gray-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 6h18M3 12h18M3 18h18" />
-            </svg>
+            <IconMenu size={24} />
             {(offlineData.pendingCount > 0 || inbound.length > 0) && (
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
+              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-danger" />
             )}
           </button>
         </div>
@@ -1039,10 +1040,10 @@ export default function CashierScreen() {
         <div className={`sm:hidden absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-10 safe-bottom-tab ${derived.totalCartItems > 0 ? 'flex' : 'hidden'}`}>
           {(['products', 'cart'] as const).map((tab) => (
             <button type="button" key={tab} onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', tab })}
-              className={`flex-1 py-3 text-xs font-bold relative ${state.activeTab === tab ? 'text-indigo-600 border-t-2 border-indigo-600' : 'text-gray-500'}`}>
+              className={`flex-1 py-3 text-xs font-bold relative ${state.activeTab === tab ? 'text-ink-900 border-t-2 border-ink-900' : 'text-ink-500'}`}>
               {tab === 'products' ? 'Produk' : 'Keranjang'}
               {tab === 'cart' && derived.totalCartItems > 0 && (
-                <span className="absolute top-1.5 right-8 bg-indigo-600 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center">
+                <span className="absolute top-1.5 right-8 bg-ink-900 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
                   {derived.totalCartItems}
                 </span>
               )}
@@ -1080,12 +1081,13 @@ export default function CashierScreen() {
             onSearchSubmit={handleSearchSubmit}
             onScanClick={() => void handleCameraScan()}
             onToggleFavourites={() => setShowFavouritesOnly((v) => !v)} isLoading={false}
+            variantBackRef={variantBackRef}
           />
         </div>
 
         {/* Cart panel — only mounts once the cart has items (dynamic). */}
         {derived.totalCartItems > 0 && (
-          <div className={`w-full sm:w-80 flex-shrink-0 flex-col sm:flex pb-20 sm:pb-0 ${state.activeTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
+          <div className={`w-full sm:w-80 lg:w-[486px] flex-shrink-0 flex-col sm:flex pb-20 sm:pb-0 ${state.activeTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
             <Cart
               cart={state.cart} derived={derived} settings={settings}
               selectedCustomer={state.selectedCustomer}
