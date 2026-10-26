@@ -90,12 +90,12 @@ export const ShiftBar = memo(function ShiftBar({
           <button type="button"
             ref={detailBtnRef}
             onClick={toggleDetail}
-            className="flex items-center gap-1.5 min-w-0 flex-shrink"
+            className="flex min-h-11 items-center gap-1.5 min-w-0 flex-shrink"
             aria-expanded={showDetail}
             title="Detail shift"
           >
-            <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-            <span className="text-xs font-bold text-gray-800 flex-shrink-0">Shift Aktif</span>
+            <span className="w-2 h-2 rounded-full bg-ok flex-shrink-0" />
+            <span className="text-sm font-bold text-ink-900 flex-shrink-0">Shift Aktif</span>
             <svg className={`w-3 h-3 text-gray-400 flex-shrink-0 transition-transform ${showDetail ? 'rotate-180' : ''}`}
               viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="m6 9 6 6 6-6" />
@@ -103,7 +103,7 @@ export const ShiftBar = memo(function ShiftBar({
           </button>
           <button type="button"
             onClick={onRequestClose}
-            className="px-2 py-0.5 text-[11px] font-semibold bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors flex-shrink-0"
+            className="min-h-11 px-3 text-sm font-semibold bg-danger-bg text-danger rounded-control active:opacity-90 flex-shrink-0"
           >
             Tutup Shift
           </button>
@@ -131,7 +131,7 @@ export const ShiftBar = memo(function ShiftBar({
                   <span className="text-gray-500">Kasir</span>
                   <span className="font-bold text-gray-800 truncate ml-2">{currentShift.cashierName}</span>
                 </div>
-                <p className="text-[10px] text-gray-400 pt-1 border-t border-gray-100">
+                <p className="text-xs text-gray-400 pt-1 border-t border-gray-100">
                   Penjualan & rekonsiliasi ada di menu Rekap Shift.
                 </p>
               </div>
@@ -145,7 +145,7 @@ export const ShiftBar = memo(function ShiftBar({
             onClick={() => setShowOpenModal(true)}
             disabled={!canOpen}
             title={canOpen ? undefined : 'Buka Shift butuh koneksi internet dan data shift dari kantor pusat'}
-            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1 min-h-11 px-3 py-1 text-xs font-semibold bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
           >
             {!canOpen && !isOnline && <IconLock size={14} />}
             Buka Shift

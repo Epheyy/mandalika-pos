@@ -7,6 +7,12 @@ const render = (props: Record<string, unknown> = {}) =>
   renderToStaticMarkup(createElement(Button, props, 'Bayar'))
 
 describe('Button', () => {
+  it('active swaps the secondary border instead of adding a competing one', () => {
+    const html = render({ variant: 'secondary', active: true })
+    expect(html).toContain('border-ink-700')
+    expect(html).not.toContain('border-paper-2')
+  })
+
   it('renders the primary md recipe by default with type=button', () => {
     const html = render()
     expect(html).toContain('bg-brand text-on-brand')

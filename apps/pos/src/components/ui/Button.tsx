@@ -9,6 +9,8 @@ type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
   loading?: boolean
   leading?: ReactNode
   fullWidth?: boolean
+  /** Selected / has-content state: swaps the variant's base classes for its active ones (no competing utilities). */
+  active?: boolean
   children?: ReactNode
 }
 
@@ -19,6 +21,11 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   danger: 'bg-danger text-white active:opacity-90',
   promo: 'bg-promo-bg text-promo active:opacity-90',
   reward: 'bg-reward-bg text-reward active:opacity-90',
+}
+
+const ACTIVE_CLASSES: Partial<Record<ButtonVariant, string>> = {
+  secondary: 'bg-white border border-ink-700 text-ink-900 active:bg-paper-1',
+  promo: 'bg-promo-bg text-promo ring-2 ring-promo active:opacity-90',
 }
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
@@ -33,6 +40,7 @@ export function Button({
   disabled = false,
   leading,
   fullWidth = false,
+  active = false,
   className = '',
   type = 'button',
   children,
@@ -41,7 +49,7 @@ export function Button({
   const classes = [
     'inline-flex items-center justify-center gap-2 rounded-control font-semibold tnum',
     'disabled:opacity-50 disabled:pointer-events-none',
-    VARIANT_CLASSES[variant],
+    (active && ACTIVE_CLASSES[variant]) || VARIANT_CLASSES[variant],
     SIZE_CLASSES[size],
     fullWidth ? 'w-full' : '',
     className,
