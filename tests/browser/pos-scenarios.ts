@@ -113,7 +113,7 @@ export const posBoundaries = async (page: ScenarioPage) =>{
   // Remove both qualifying paid scent lines through the real cart controls.
   await page.getByRole('button',{name: 'Kurangi', exact: true}).first().click();
   await page.getByRole('button',{name: 'Kurangi', exact: true}).first().click();
-  const edited=await page.locator('body').innerText();if(edited.includes('Hadiah Promo')||edited.includes('Kode:')))throw Error('participant edit left effect '+kind+owner);if((await page.getByRole('button',{name:/Hapus promo|Hapus kode/}).count())!==0)throw Error('no leftover promo line');
+  const edited=await page.locator('body').innerText();if(edited.includes('Hadiah Promo')||edited.includes('Kode:'))throw Error('participant edit left effect '+kind+owner);if((await page.getByRole('button',{name:/Hapus promo|Hapus kode/}).count())!==0)throw Error('no leftover promo line');
   out.push({kind,owner,participantEdit:edited});
   await fresh();await apply(kind,owner);await page.getByRole('button',{name: 'Kosongkan', exact: true}).click();if(await page.getByRole('button',{name:'Bayar',exact:true}).count())throw Error('clear left cart');out.push({kind,owner,clear:true});
  }
