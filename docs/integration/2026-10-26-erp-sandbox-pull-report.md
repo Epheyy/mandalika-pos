@@ -132,8 +132,8 @@ Whole-catalog figures:
 | ALSUT, BOTANI, BXC, CCM, DELTAMAS, DMB, DPM, KARAWACI, KOKAS, KUNCIT, LMK, MKG, PASKAL, PMB, PMJ, PVJ, QUEEN, SENTUL, SMB, SMS, TSM-CBB (21) | RETAIL | **created** as POS outlets (inactive, code NULL) |
 | **MP-DPK, MP-KMG, MP-KWC, MP-SBY** (slug `mp-surabaya-pusat`) | **ONLINE** | **created** as POS outlets ✗. These are e-commerce channels; per the ERP developer's rule they must never be POS outlets |
 
-All 29 ERP outlets have NULL address and phone. Every ERP outlet carries `type` (RETAIL/ONLINE), which the POS
-client ignores today. A code prefix test (`MP-`) agrees with `type` on all 4.
+All 29 ERP outlets have NULL address and phone. Every ERP outlet carries `type` (RETAIL/ONLINE). The generated
+client already has the field (`erpapi.IntegrationOutlet.Type`), but `applyOutletItem` ignores it today. A code prefix test (`MP-`) agrees with `type` on all 4.
 
 ## 6. Mapping v3: specification from the real data
 
@@ -203,8 +203,11 @@ Rules:
   lowest-SKU linked variant. That moved NO1 from MAN to LEATHER, UNSTOPPABLE from UNISEX to ATOMIZER and THE ONLY
   ONE from HAMPERS to LEATHER, because `15GL-…` sorts first. The ERP category is a *line*, the POS category is a
   *gender/collection*, so they are different dimensions.
-  - Set a category only on a product the pull creates. Map it from ERP `gender` (MEN→MAN, WOMEN→WOMAN,
-    UNISEX→UNISEX); packaging goes to KEMASAN.
+  - Set a category only on a product the pull creates. Map it from the majority ERP `gender` of the group
+    (MEN→MAN, WOMEN→WOMAN, UNISEX→UNISEX); packaging goes to KEMASAN.
+  - Caveat: ERP gender is not consistent. UNSTOPPABLE is WOMEN in the ERP but UNISEX in the POS. GORGEOUS TUBEROSE
+    mixes 5 WOMEN and 2 UNISEX. THE fragrance is 2 WOMEN and 1 MEN. Treat gender as a default for new products
+    only; the owner can override it.
   - Do not create one POS category per ERP category. That added 30 categories.
 - **Stop renaming linked products.** CANVAS BAG became "CANVAS BAG MANDALIKA". Name only on create; afterwards
   report drift, don't write it.
