@@ -380,7 +380,7 @@ them per outlet, in this order.
    - 1 new category;
    - the 22 `RH-DEMO*` variants deactivated.
 
-   The run notes (`error` column) list 2 renamed new products (`THE ONLY ONE (THE)`, `ONLY THE BRAVE (ONL-R)`)
+   The run notes (`error` column) list 1 renamed new product (`THE ONLY ONE (THE)`; the rework ONL-R is named `ONLY THE BRAVE - REWORK` by rule)
    and the 25 unlinked ERP outlets:
    ```sql
    SELECT resource, status, upserted, error FROM erp_sync_runs ORDER BY started_at DESC LIMIT 2;

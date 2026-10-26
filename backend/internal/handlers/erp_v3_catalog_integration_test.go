@@ -92,11 +92,11 @@ func erV3CatalogSubtests(t *testing.T, ctx context.Context, pool *pgxpool.Pool) 
 		if r.ItemErrors != 0 || r.Upserted != 118 {
 			t.Fatalf("fg result = %+v", r)
 		}
-		for _, s := range []string{`product name "THE ONLY ONE" is taken, new product named "THE ONLY ONE (THE)"`,
-			`product name "ONLY THE BRAVE" is taken, new product named "ONLY THE BRAVE (ONL-R)"`} {
-			if !strings.Contains(r.Error, s) {
-				t.Fatalf("fg note lacks %q: %s", s, r.Error)
-			}
+		if s := `product name "THE ONLY ONE" is taken, new product named "THE ONLY ONE (THE)"`; !strings.Contains(r.Error, s) {
+			t.Fatalf("fg note lacks %q: %s", s, r.Error)
+		}
+		if strings.Contains(r.Error, "ONL-R") {
+			t.Fatalf("the rework is named by rule, not by the clash fallback: %s", r.Error)
 		}
 		for _, id := range existing {
 			erWant(t, "existing product after the pull", erProductRow(t, ctx, pool, id), before[id])
@@ -112,7 +112,7 @@ func erV3CatalogSubtests(t *testing.T, ctx context.Context, pool *pgxpool.Pool) 
 			{"PP120E-CHA", "CHAMPION|MAN|false|erp:CHA", lbl("10ml ATOMIZER", "120ml "+ext, "120ml "+pi, "2ml "+ext, "2ml "+pi)},
 			{"A10M-NO1", "NO1|MAN|true|erp:NO1", lbl("100ml "+ext, "100ml "+pi, "10ml ATOMIZER", "120ml "+ext, "120ml "+pi, "15ml GLASS MAN", "15ml LEATHER", "2ml "+ext, "2ml "+pi)},
 			{"A10M-ONL", "ONLY THE BRAVE|MAN|true|erp:ONL", lbl("100ml "+ext, "100ml "+pi, "10ml ATOMIZER", "120ml "+ext, "120ml "+pi, "15ml GLASS MAN", "15ml LEATHER", "2ml "+ext, "2ml "+pi)},
-			{"PP120E-ONL-R", "ONLY THE BRAVE (ONL-R)|MAN|false|erp:ONL-R", lbl("120ml " + ext)},
+			{"PP120E-ONL-R", "ONLY THE BRAVE - REWORK|MAN|false|erp:ONL-R", lbl("120ml " + ext)},
 			{"A10M-GOR", "GORGEOUS TUBEROSE|WOMAN|true|erp:GOR", lbl("10ml ATOMIZER", "110ml "+ext, "110ml "+pi, "15ml GLASS WOMAN", "15ml GLITTER", "2ml "+ext, "2ml "+pi)},
 			{"A10M-HOL", "HOLY SWEET|WOMAN|true|erp:HOL", lbl("10ml ATOMIZER", "110ml "+ext, "110ml "+pi, "15ml GLASS WOMAN", "15ml GLITTER", "2ml "+ext, "2ml "+pi)},
 			{"A10M-HOL-EX", "HOLY SWEET ELIXIR|WOMAN|false|erp:HOL-EX", lbl("10ml ATOMIZER", "110ml "+pi, "2ml "+ext)},

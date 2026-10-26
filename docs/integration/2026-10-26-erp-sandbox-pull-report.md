@@ -332,7 +332,7 @@ The other 22 rows matched the ERP name and the v3 label exactly.
 | CHAMPION (MAN, no; new) | 10ml ATOMIZER; 120ml EXTRAIT DE PARFUM; 120ml PARFUM INTENSE; 2ml EXTRAIT DE PARFUM; 2ml PARFUM INTENSE (one product, not five) |
 | HOLY SWEET ELIXIR (WOMAN, no; new) | 10ml ATOMIZER · A10M-HOL-EX; 110ml PARFUM INTENSE · PW110E-HOL-EX (the category wins over the code letter); 2ml EXTRAIT DE PARFUM · V2E-HOL-EX |
 | THE ONLY ONE (THE) (WOMAN, no; new) | 15ml LEATHER · 15GL-THE; 2ml EXTRAIT DE PARFUM · V2E-THE; 2ml PARFUM INTENSE · V2P-THE. The hamper product THE ONLY ONE (HAMPERS) is unchanged |
-| ONLY THE BRAVE (ONL-R) (MAN, no; new) | 120ml EXTRAIT DE PARFUM · PP120E-ONL-R |
+| ONLY THE BRAVE - REWORK (MAN, no; new) | 120ml EXTRAIT DE PARFUM · PP120E-ONL-R (named by the rework rule added after the run, see 8.6; the run itself produced `ONLY THE BRAVE (ONL-R)`) |
 | CANVAS BAG / KARTU GARANSI (KEMASAN, yes; existing) | Satuan · KEM-CAN / KEM-KAR, name and category kept |
 | GIFT CARD (KEM-GIF), PAPERBAG CREAM (KEM-PAP), STICKER GARANSI MR. FANTASTIC (KEM-MRF), STICKER GARANSI THE ONLY ONE (KEM-THE) | Satuan, ERP: bukan untuk dijual, not sellable |
 | 24HOURS (DP120E-24H), GORGEOUS TUBEROSE (DW110E-GOR), KERTAS TESTER LANDSCAPE CHAMPION (KTL-CHA), ONLY THE BRAVE - 120ML PARFUM INTENSE REWORK (PP120P-ONL-R) | the same: one Satuan row at Rp0, ERP: bukan untuk dijual, not sellable |
@@ -350,7 +350,7 @@ rename and re-filing stayed.
 
 ### 8.6 Open owner calls (defaults chosen and tested; change on request)
 
-- **ONL-R rework.** It is its own product, `ONLY THE BRAVE (ONL-R)`. The alternative is a `120ml EXTRAIT DE PARFUM REWORK` label inside ONLY THE BRAVE.
+- **ONL-R rework: decided.** The owner answered on 2026-10-26 that it is its own product named `ONLY THE BRAVE - REWORK`. A rework code (the fragrance part ends in `-R`) now names a new product `<fragrance name> - REWORK`. The `(<fragrance code>)` suffix is kept for genuine name clashes only, so the re-run would now report 1 renamed product (THE) instead of 2, and 1 product name with " - ".
 - **THE fragrance.** It is named `THE ONLY ONE (THE)`, because the hamper product holds the plain name.
   - A name that is already taken gets the fragrance code appended, and the run note reports it.
   - The owner can rename these products: name and category are now editable on linked products (`ac78c365`).

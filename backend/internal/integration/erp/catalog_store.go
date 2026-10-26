@@ -577,7 +577,7 @@ func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, gender 
 		if fg.IsOthers {
 			productID, pcreated, catCreated, err = othersProduct(ctx, q, fg, active)
 		} else {
-			productID, pcreated, out.note, err = fragranceProduct(ctx, q, fg, name, gender, active)
+			productID, pcreated, out.note, err = fragranceProduct(ctx, q, fg, gender, active)
 			if _, known := erpmap.Line(derefOr(fg.Category)); !known {
 				out.note = joinNotes(out.note, fmt.Sprintf("fg %s: ERP category %q is not in the line table, labelled %q", fg.Code, derefOr(fg.Category), label))
 			}
@@ -648,11 +648,11 @@ func othersProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, activ
 // v3 §6.2): the product keyed GroupKey(fg) ("erp:NO1"); else, as a safety net for a POS
 // product the SKU-mapping import left without that key, the single product (key NULL or
 // "pos:...") holding a linked variant of the same fragrance code; else a new product. A new
-// product is named by the stripped ERP name (disambiguated with the fragrance code when the
-// name is taken), filed under the POS category of the group's ERP gender when that category
+// product is named by erpmap.NewProductName (the stripped ERP name; "<name> - REWORK" for a
+// rework code), disambiguated with the fragrance code when that name is taken, filed under the POS category of the group's ERP gender when that category
 // exists (owner decision (a); never created), not sellable (D20). created reports a new row;
 // note reports a disambiguated name.
-func fragranceProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, name string, gender erpapi.IntegrationFGGender, active bool) (id string, created bool, note string, err error) {
+func fragranceProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, gender erpapi.IntegrationFGGender, active bool) (id string, created bool, note string, err error) {
 	key := GroupKey(fg)
 	id, _, found, err := productByGroupKey(ctx, q, key)
 	if err != nil || found {
@@ -670,11 +670,12 @@ func fragranceProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, na
 			return "", false, "", err
 		}
 	}
+	name := erpmap.NewProductName(fg.Name, fg.Code) // "ONLY THE BRAVE - REWORK" for ONL-R
 	var taken bool
 	if err := q.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM products WHERE lower(name)=lower($1))`, name).Scan(&taken); err != nil {
 		return "", false, "", err
 	}
-	if taken && fc != "" { // THE ONLY ONE (the hamper set) vs the fragrance THE; ONLY THE BRAVE vs its rework ONL-R
+	if taken && fc != "" { // a genuine clash: THE ONLY ONE (the hamper set) vs the fragrance THE
 		note = fmt.Sprintf("fg %s: product name %q is taken, new product named %q", fg.Code, name, name+" ("+fc+")")
 		name += " (" + fc + ")"
 	}

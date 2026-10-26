@@ -188,3 +188,21 @@ func TestRealCatalogGroupsOneProductPerFragrance(t *testing.T) {
 		}
 	}
 }
+
+// Owner answer 2026-10-26: a rework code (the fragrance part ends in "-R", ONL-R) names its new
+// product "<fragrance name> - REWORK", not the clash fallback "ONLY THE BRAVE (ONL-R)".
+func TestNewProductNameRework(t *testing.T) {
+	for _, c := range []struct{ name, code, want string }{
+		{"ONLY THE BRAVE - 120ML EXTRAIT REWORK", "PP120E-ONL-R", "ONLY THE BRAVE - REWORK"},
+		{"ONLY THE BRAVE", "PP120E-ONL", "ONLY THE BRAVE"},
+		{"24HOURS - 100ML EXTRAIT", "PP100E-24H", "24HOURS"},
+		{"HOLY SWEET ELIXIR", "A10M-HOL-EX", "HOLY SWEET ELIXIR"},
+		{"ROSE", "PP100E-ROSE-R", "ROSE - REWORK"},
+		{"BAR", "PP100E-BAR", "BAR"}, // ends in R but no "-R" part
+		{"Santal Noir 30ml", "SN030", "Santal Noir"},
+	} {
+		if got := NewProductName(c.name, c.code); got != c.want {
+			t.Errorf("NewProductName(%q, %q) = %q, want %q", c.name, c.code, got, c.want)
+		}
+	}
+}

@@ -109,4 +109,19 @@ func ProductName(name string) string {
 	return out
 }
 
+// IsRework reports a rework fragrance code: the fragrance part ends in "-R" ("ONL-R" of
+// PP120E-ONL-R).
+func IsRework(fragranceCode string) bool { return strings.HasSuffix(fragranceCode, "-R") }
+
+// NewProductName is the name of a product the pull creates for a sellable FG: ProductName, and
+// for a rework code "<fragrance name> - REWORK" (owner answer 2026-10-26: "ONLY THE BRAVE -
+// REWORK", not a separate fragrance name).
+func NewProductName(name, code string) string {
+	n := ProductName(name)
+	if IsRework(FragranceCode(code)) {
+		return n + " - REWORK"
+	}
+	return n
+}
+
 func collapse(s string) string { return strings.Join(strings.Fields(s), " ") }
