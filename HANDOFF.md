@@ -8,6 +8,12 @@ Last updated: 2026-10-26 by Claude (Opus 5.5) - INVENTORY CONTROLS LIVE (backend
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-10-26 (night): AUDITOR ROUND 2 + ERP WRITE-ENDPOINT CUTOVER LIVE (owner: "go for both, merge and push then
+> deploy"): backend `00141-sow` (tag `aud2erp`, merge commit 9421fbdf, migration 0076 goods_receipts.source) at
+> 100%, rollback `00139-juy`; mirror CI 5/5 green on 9421fbdf. Demo stub redeployed from the same commit as
+> `mandalika-erpstub-00004-gvd` (state reset, DEMO seed for outlet BSD, slug `bsd`). Relay run after promote: outbox
+> unchanged (24 delivered, 4 replayed, 13 held = unmapped LWB/MKS/PMS, warehouses, demo guard variants; 2 old dead).
+>
 > 2026-10-27: AUDITOR ROUND 2 code-complete on branch claude/elated-dewdney-24861b (5 commits 5700b93a..f1c671b7, NOT merged/pushed/deployed): Pergerakan
 > buckets (Masuk/Penjualan/Refund/Transfer/Penyesuaian/Hadiah, ledger.BucketOf), Garansi receipt tag (mig 0076), Pergerakan CSV, Kartu Stok document
 > links + shortcuts. Gates: MV+SL Postgres (docker), browser:ci, vitest, tsc, gen-check green. Awaits owner merge go-ahead + auditor confirming the note.
@@ -51,6 +57,24 @@ Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 
 
 ## Now (live state)
 
+- **AUDITOR ROUND 2 + ERP WRITE CUTOVER LIVE 2026-10-26 (night):** prod-hardening `01a6e62b..9421fbdf` (6 auditor
+  commits ff + merge of 7 ERP commits) on origin + ci; backend **`00141-sow`** (tag `aud2erp`), rollback `00139-juy`.
+  Auditor round 2: Pergerakan buckets (Saldo Awal | Masuk incl. Garansi | Penjualan | Refund | Transfer | Penyesuaian |
+  Hadiah | Saldo Akhir; `ledger.BucketOf` one-place mapping; transfer_in from a warehouse = Masuk), Pergerakan CSV
+  (≤93 days, 100k rows), "Penggantian garansi" checkbox on Barang Masuk (migration 0076 `goods_receipts.source`
+  supply|warranty, default supply), Kartu Stok document read-only modals + "Buat penyesuaian"/"Catat barang masuk"
+  shortcuts; auditor note `docs/plans/2026-10-27-pergerakan-buckets-catatan-auditor.md` (owner to forward).
+  ERP write cutover: documents carry `location:{type:"outlet",code,slug}` with code from `outlets.erp_code` (filled by
+  the pull on link; no erp_code → held); 409 IDEMPOTENCY_CONFLICT / 413 / sign+period 422 → dead with message, 403
+  scope/suspended → run paused, outlet-only 422 → held (retries every 5 min, no cap: follow-up); stub mirrors the
+  merged ERP rules (code key, Idempotency-Key, sign-by-kind, Jakarta-month window, 409, movement_ids, warehouse
+  422, assigned-outlet list via `ERP_STUB_ASSIGNED_OUTLETS`); rehearsal 16 steps + 12b; handoff §4.3/§11 (Q23–Q27)
+  and runbook cutover updated (one-time per-outlet requeue SQL before the first real send). **Stub redeployed**
+  `mandalika-erpstub-00004-gvd` from 9421fbdf, seed `go run ./cmd/erp-rehearsal -print-seed -run-id DEMO
+  -outlet-code BSD -outlet-slug bsd` (the default slug `rehearsal-bsd` would not match POS BSD erp_slug `bsd`;
+  runbook B2 step 3 is stale since v3 never overwrites outlet fields). Demo morning: still `--min-instances 1`.
+  **Before the real ERP:** ERP admin deploys the merged code, grants `integration:stock:write`, assigns BSD/LWB/MKS/
+  PMS to `pos_mandalika`; POS links LWB/MKS/PMS (code match on first pull), requeues per outlet, flips the key/URL.
 - **MAPPING v3 LIVE 2026-10-26 (owner: "merge and push then commit the SKU mapping"):** prod-hardening
   `a6bf19ab..bb0fc478` (sandbox report + 8 mapping-v3 commits) on origin + ci; backend **`00139-juy`** (tag `mapv3`)
   at 100%, rollback `00137-cev`. The catalog pull now: never writes name/category/brand/sellable/images/price of an
