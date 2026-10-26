@@ -23,6 +23,7 @@ interface GoodsInModalProps {
 export function GoodsInModal({ open, location, rows, onClose, onDone }: GoodsInModalProps) {
   const [supplier, setSupplier] = useState('')
   const [note, setNote] = useState('')
+  const [isWarranty, setIsWarranty] = useState(false)
   const [lines, setLines] = useState<Record<string, GoodsLine>>({})
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -53,6 +54,7 @@ export function GoodsInModal({ open, location, rows, onClose, onDone }: GoodsInM
       const body: GoodsReceiptInput = {
         supplier: supplier.trim() || null,
         note: note.trim() || null,
+        source: isWarranty ? 'warranty' : 'supply',
         items,
       }
       await api.createLocationGoodsReceipt({ kind: location.kind, id: location.id }, body)
@@ -100,6 +102,11 @@ export function GoodsInModal({ open, location, rows, onClose, onDone }: GoodsInM
             placeholder="Opsional"
           />
         </div>
+
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" checked={isWarranty} onChange={(e) => setIsWarranty(e.target.checked)} />
+          Penggantian garansi (dicatat sebagai Garansi di Pergerakan)
+        </label>
 
         {rows.length === 0 ? (
           <p className="text-sm text-gray-400 py-3">

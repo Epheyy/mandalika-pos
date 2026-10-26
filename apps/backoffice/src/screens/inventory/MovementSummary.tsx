@@ -1,32 +1,25 @@
 import { useState } from 'react'
 import type { MovementLedgerSummaryResponse, MovementLedgerSummaryRow } from '@mandalika/api'
-import { BarChart2 } from 'lucide-react'
+import { BarChart2, Download } from 'lucide-react'
 import { api } from '../../api'
 import { localDay } from '../../lib/businessDay'
+import { downloadCsvText } from '../../lib/csvUtils'
+import { Button } from '../../ui/Button'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { Select, fieldClass } from '../../ui/Field'
 import { Card } from '../../ui/Card'
 import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
-import { MOVEMENT_KIND_LABEL, daysAgoDay, type MovementKind } from './stockCardFormat'
+import { daysAgoDay } from './stockCardFormat'
+import { BUCKET_COLUMNS, formatSigned } from './pergerakanBuckets'
 import type { StockCardTarget } from './StockCard'
 import { useLocations } from './useLocations'
 
 // The ledger summary scans a location's history: refresh it slowly (the inputs refetch at once).
 const SUMMARY_REFRESH_MS = 60_000
 
-const HEADERS = ['Produk', 'Ukuran', 'SKU', 'Saldo Awal', 'Masuk', 'Keluar', 'Saldo Akhir']
-
-/** "Penjualan 3 · Penerimaan 5" for the per-kind quantities of a summary row. */
-function kindBreakdown(byKind: Record<string, number>): string {
-  return Object.entries(byKind)
-    .filter(([, qty]) => qty > 0)
-    .map(([kind, qty]) => `${MOVEMENT_KIND_LABEL[kind as MovementKind] ?? kind} ${qty}`)
-    .join(' · ')
-}
-
-const sum = (byKind: Record<string, number>): number => Object.values(byKind).reduce((a, b) => a + b, 0)
+const HEADERS = ['Produk', 'Ukuran', 'SKU', 'Saldo Awal', ...BUCKET_COLUMNS.map((c) => c.label), 'Saldo Akhir']
 
 interface MovementSummaryProps {
   /** Open the kartu stok of a SKU (a row click). */
@@ -41,6 +34,8 @@ export function MovementSummary({ onOpenCard }: MovementSummaryProps) {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   const where = loc.location
   const q = usePolledQuery<MovementLedgerSummaryResponse>(
@@ -63,6 +58,26 @@ export function MovementSummary({ onOpenCard }: MovementSummaryProps) {
   const rows = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+  const exportCsv = async () => {
+    if (!where) return
+    setExporting(true)
+    setExportError(null)
+    try {
+      const text = await api.exportMovementLedgerSummary({
+        locationType: where.type,
+        locationId: where.id,
+        from: fromDay,
+        to: toDay,
+        q: search.trim() || undefined,
+      })
+      downloadCsvText(text, `pergerakan-stok_${fromDay}_${toDay}.csv`)
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : 'Gagal mengunduh CSV')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const open = (r: MovementLedgerSummaryRow) =>
     onOpenCard({
@@ -143,8 +158,12 @@ export function MovementSummary({ onOpenCard }: MovementSummaryProps) {
             className={fieldClass}
           />
         </div>
+        <Button variant="secondary" icon={<Download className="h-4 w-4" />} loading={exporting} onClick={exportCsv} disabled={!where}>
+          Unduh CSV
+        </Button>
       </div>
 
+      {exportError && <p role="alert" className="text-sm text-red-600">{exportError}</p>}
       {q.error && <p role="alert" className="text-sm text-red-600">{q.error}</p>}
 
       <Card className="overflow-hidden">
@@ -175,8 +194,15 @@ export function MovementSummary({ onOpenCard }: MovementSummaryProps) {
                     <td className="px-5 py-3 text-sm text-gray-500">{r.variantSize}</td>
                     <td className="px-5 py-3 text-sm text-gray-500 font-mono">{r.sku || '—'}</td>
                     <td className="px-5 py-3 text-sm text-gray-700">{r.opening}</td>
-                    <td className="px-5 py-3 text-sm text-green-700" title={kindBreakdown(r.inByKind)}>{sum(r.inByKind)}</td>
-                    <td className="px-5 py-3 text-sm text-red-600" title={kindBreakdown(r.outByKind)}>{sum(r.outByKind)}</td>
+                    {BUCKET_COLUMNS.map((c) => (
+                      <td
+                        key={c.key}
+                        className={`px-5 py-3 text-sm ${r.buckets[c.key] < 0 ? 'text-red-600' : r.buckets[c.key] > 0 ? 'text-green-700' : 'text-gray-400'}`}
+                        title={c.key === 'masuk' && r.masukGaransi !== 0 ? `${c.hint}. Di antaranya Garansi: ${r.masukGaransi}` : c.hint}
+                      >
+                        {formatSigned(r.buckets[c.key])}
+                      </td>
+                    ))}
                     <td className="px-5 py-3 text-sm font-black text-gray-900">{r.closing}</td>
                   </tr>
                 ))}
