@@ -4,21 +4,15 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-10-25 by Claude (Opus 5.5) - ERP reply follow-ups LIVE (backend `00135-zeq`, f211ca1, mig 0068); full catalog sync done; live rehearsal DEMO7 15/15; see Now.
+Last updated: 2026-10-26 by Claude (Opus 5.5) - INVENTORY CONTROLS LIVE (backend `00137-cev`, a361b39, migs 0069-0075) + POS OTA 2.1.6; rehearsal DEMO8 15/15; see Now.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
-> 2026-10-26: Auditor inventory controls S0–S5 (plan `docs/plans/2026-10-25-inventory-controls-plan.md`, owner answers §8 1–9)
-> merged LOCALLY on branch `inv-integration` (77c7279; migrations 0069–0074; 0067 reserved, 0068 = ERP). All gates green:
-> common Go + archtest, codegen gate (docker 1.26.10), all 36 Postgres gates (docker), quality:ci, browser:ci; every slice and
-> the merge Opus-reviewed. NOT pushed or deployed (Nov 2 ERP demo; owner go-ahead needed; all features inert until configured).
-> F1–F3 (approver + ADJ no. on Kartu Stok, scanner imports logged as 'imported', PB no. on transfer rows; mig 0075 index)
-> also on `inv-integration`, Opus-reviewed. S6 (cashier Permintaan Barang screen on the POS tablet; owner took the plan's
-> defaults) DONE on `inv-integration` (a86683d): online-only, persisted create key under `mandalika.pos.` (survives an Android
-> restart), never a duplicate PB, no approve/fulfil on the tablet, server re-checks sizes at create/update/submit/fulfil.
-> Final tip gates: gen-check, vet, go test, all 36 Postgres gates, quality:ci, browser:ci (33 scenarios) — all green.
-> Release (owner go-ahead, after the Nov 2 demo): backend deploy with 0069–0075 → hosted smoke → grant request_stock to the
-> pilot terminal account → OTA 2.1.6 (no APK) → on-device check. Nothing pushed or deployed yet.
+> 2026-10-26: AUDITOR INVENTORY CONTROLS LIVE (owner go-ahead before the Nov 2 demo, confirmed in-session): backend
+> `00137-cev` (tag `invctl`, commit a361b39, migrations 0069-0075) at 100%, rollback `00135-zeq`; POS OTA 2.1.6
+> (id 1cb88508, code 12). Live ERP rehearsal DEMO8 15/15 + ledger invariant 0 rows. All features dormant until
+> configured: approval switch off, no giveaway item set, `request_stock` granted to nobody (owner skipped the grant).
+> Plans: `docs/plans/2026-10-25-inventory-controls-plan.md`, `docs/plans/2026-10-26-s6-pos-requisitions-plan.md`.
 >
 > 2026-10-22: A29 parent SERVER half + ERP developer review R-1/E-1/D-1/S-1 LIVE (backend `00126-seh`, commit a2fddd7).
 > A29 stays Parent-open for the CLIENT half only (POS: honour Retry-After, default deadline on non-batch calls; OTA).
@@ -46,6 +40,21 @@ Remaining before go-live: fleet rollout of APK 1.9, legacy-envelope cutoff, A34 
 
 ## Now (live state)
 
+- **INVENTORY CONTROLS LIVE 2026-10-26 (owner go-ahead "live even before the demo", confirmed in-session; grant skipped):**
+  prod-hardening `a361b39` (merge of `inv-integration`: S0-S6 + F1-F3, plus prod-hardening 19c091d/e0ff77d) pushed to origin +
+  ci; mirror CI green on a361b39 (all five; Postgres needed one rerun: runner had host port 56474 busy at fixture start —
+  the RQ gate port is in Linux's ephemeral range; retry once if it recurs). Backend **`00137-cev`** (tag `invctl`) at 100%,
+  rollback **`00135-zeq`** (tag `erpreply`; migrations 0069-0075 are additive, old revision ignores them). ERP_* env unchanged
+  (stand-in stub, integration + relay on). Smokes on the tag: auth 12/12, oversell/refund (a44) 28/28, release 18/18, new
+  endpoints 200 (approvals, requisitions, settings, movements, movements summary, outlet giveaway). Deploy/promote need
+  `GH_REPO=mandalika-ci/mandalika-pos-ci` (origin Actions minutes exhausted). POS **OTA 2.1.6** published (id 1cb88508,
+  from a361b39, versionCode 12); journal guard acknowledged because NO journal-adjacent file changed since OTA 2.1.5
+  (4b0f7f7); /ota/check: 2.1.5 -> offered 2.1.6, 2.1.6 -> up-to-date. Live ERP rehearsal `-run-id DEMO8` (outlet BSD,
+  Gudang Pusat) **15/15 PASS, DB ledger invariant 0 rows**. Dormant until configured: Backoffice -> Pengaturan "Wajib
+  persetujuan stok" (off), per-outlet "Hadiah per transaksi" (none set), `request_stock` (granted to nobody; the POS
+  "Permintaan Barang" menu appears only after an admin ticks it per terminal account, then a token refresh ~15 min).
+  Rollback note: rolling the backend back past F2 (524aadd) would let a scanner importer approve their own count.
+  Next DEMO run id: DEMO9. Test data left by DEMO8: RH-DEMO8-* products/FGs (no cleanup path), per the runbook.
 - **ERP REPLY FOLLOW-UPS LIVE 2026-10-25 (owner go-ahead "do all three": push, deploy, full sync):** prod-hardening
   `b023f63..f211ca1` pushed to origin + ci; mirror CI green on f211ca1 for the four deploy gates (quality, backend,
   postgres, browser); dependency-security FAILS on a new advisory (zod 4.4.3, GHSA-mrhx-c7xc-m3w5 high, build-time,
