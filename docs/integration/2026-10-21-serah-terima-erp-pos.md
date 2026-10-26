@@ -93,6 +93,24 @@ Tambahkan scope `integration:stock:write` ke registry scope (`packages/shared/sr
 
 ### 4.3 Endpoint: `POST /api/integration/v1/stock-documents`
 
+> **Status 2026-10-26:** endpoint ini sudah digabung di `main` erp-flamboyan (rencana 1 dan 2; baris status README modul ERP
+> masih menulis "not merged", itu sudah usang). Perbedaan dengan usulan di bawah, dan yang POS sudah sesuaikan:
+> - `location` = `{ "type": "outlet", "code": "<kode outlet ERP>" }`. **Kuncinya `code`, bukan `slug`** (keputusan ERP
+>   H01). POS mengirim `outlets.erp_code` (diisi saat tarik katalog menautkan outlet) dan, untuk satu rilis, juga
+>   `slug`; ERP membuang field yang tidak dikenal sebelum menghitung hash.
+> - Hanya outlet. Dokumen gudang ditolak 422 (K4 di luar lingkup), jadi POS **menahan** (`held`) dokumen gudang di
+>   outbox, termasuk kaki `transfer_out` dari gudang; kaki `transfer_in` di outlet tetap terkirim.
+> - Outlet harus diatur pada client pemanggil (`stock_outlet_codes`), selain itu 422 di `location.code`. POS menahan
+>   dokumen seperti itu (tidak dead-letter, tanpa menghabiskan percobaan) dan membangun ulang body pada percobaan
+>   berikutnya.
+> - Tanda `qty` per kind: `sale`, `transfer_out`, `write_off` ≤ 0; `refund`, `transfer_in`, `transfer_cancel`,
+>   `receipt` ≥ 0; `adjust`, `count`, `opening` bebas. Salah tanda → 422 → dead-letter.
+> - Periode: bulan Asia/Jakarta dari `occurred_at`; lebih dari 24 jam ke depan → 422; lebih lama dari hari pertama
+>   (bulan berjalan − 6 bulan) → 422. POS men-dead-letter dokumen itu dengan pesannya (tidak dicoba ulang terus).
+> - Idempotensi per client API (bukan `pos:<brand>`); `Idempotency-Key` wajib sama dengan `document_id`
+>   (tidak peka huruf besar/kecil); replay diperiksa sebelum validasi outlet, tanda, dan periode.
+> - Sukses: `{ "status": "success", "data": { document_id, status, movement_ids } }`; 413 di atas 512 KB.
+
 Satu endpoint untuk semua dokumen stok. Satu dokumen berisi satu atau lebih baris pergerakan. ERP memecah dokumen menjadi baris `stock_movements`.
 
 **Header**
@@ -115,7 +133,7 @@ Content-Type: application/json
     "device_id": "tab-07",
     "actor": "kasir uuid atau nama"
   },
-  "location": { "type": "outlet", "slug": "kemang" },
+  "location": { "type": "outlet", "code": "KMG", "slug": "kemang" },
   "occurred_at": "2026-11-02T03:15:20+07:00",
   "recorded_at": "2026-11-02T03:15:41Z",
   "ref": { "type": "order", "id": "order uuid", "number": "KMG-AB0004" },
@@ -146,7 +164,7 @@ Content-Type: application/json
 | `document_id` | UUID dari backend POS. Kunci idempoten dokumen. Sama dengan header `Idempotency-Key`. |
 | `kind` | Enum di atas. ERP memetakan ke `MovementType` IN/OUT/CORRECTION dan menyimpan `kind` di `reason`. |
 | `source.brand` | Nama deployment POS. ERP memakai `idempotency_scope = "pos:<brand>"`. |
-| `location` | `type` `outlet` atau `warehouse`; `slug` adalah slug ERP. Transfer antar lokasi dikirim sebagai dua dokumen (`transfer_out` di sumber, `transfer_in` di tujuan) dengan `ref.id` yang sama. |
+| `location` | `type` `outlet` (gudang: lihat status di atas); `code` adalah kode outlet ERP (`slug` ikut dikirim satu rilis, diabaikan ERP). Transfer antar lokasi dikirim sebagai dua dokumen (`transfer_out` di sumber, `transfer_in` di tujuan) dengan `ref.id` yang sama. |
 | `occurred_at` | Waktu kejadian di perangkat (dapat lebih lama dari `recorded_at` karena offline). ERP memakai ini untuk `period_month`. |
 | `recorded_at` | Waktu backend POS menerima. |
 | `ref` | Dokumen asal di POS. `number` adalah nomor yang tercetak (struk, nomor transfer). |
@@ -347,7 +365,7 @@ Pertanyaan untuk developer ERP:
 
 ---
 
-## 11. Daftar pertanyaan terbuka terkonsolidasi (status 2026-10-22)
+## 11. Daftar pertanyaan terbuka terkonsolidasi (status 2026-10-22; §11.4 ditambah 2026-10-26)
 
 Semua langkah kode di sisi POS sudah selesai dan digabung (reorganisasi, ledger `stock_movements`, outbox + relay, tarik
 katalog + id eksternal). Backend dengan ledger dan outbox sudah berjalan di lingkungan uji (relay masih mati; akan dinyalakan
@@ -364,7 +382,7 @@ saat ERP punya endpoint tulis). Daftar ini menggabungkan §9, §4, dan temuan im
 | Q4 | Perubahan nama kategori, unit, atau nilai `size` tidak mengubah `updated_at` FG (README ERP). POS hanya melihatnya pada full run harian. Bisakah ERP mem-bump `updated_at` FG saat data turunan berubah? | README §Full sync |
 | Q5 | Hapus permanen (purge) dari trash hanya tertangkap oleh full reconcile. Apakah ada jeda minimum sebelum purge, atau endpoint daftar id yang dipurge? | README §Record yang dihapus |
 | Q6 **[D]** | Ekspor `code` + `slug` FG (CSV) untuk pemetaan SKU satu kali di POS. Bisakah ERP menyediakannya dari UI atau endpoint? | pemetaan SKU |
-| Q7 | Gudang: tidak ada endpoint katalog gudang. POS mengirim dokumen dengan `location.type = "warehouse"` dan butuh `slug` gudang ERP. Apakah akan ada `GET /catalog/warehouses`? | §4.3 `location` |
+| Q7 | Gudang: tidak ada endpoint katalog gudang. POS mengirim dokumen dengan `location.type = "warehouse"` dan butuh `slug` gudang ERP. Apakah akan ada `GET /catalog/warehouses`? | **DIJAWAB (kode ERP digabung 2026-10-26): gudang di luar lingkup (K4), 422.** POS menahan semua dokumen gudang di outbox. |
 | Q8 | Spec dipublikasikan sebagai OpenAPI 3.1. Generator Go POS (oapi-codegen v2.7.2) butuh 3.0, jadi POS menurunkan versi secara mekanis. Bisakah ERP juga menerbitkan 3.0, atau konfirmasi bahwa konversi `type: [x, "null"]` menjadi `nullable: true` cukup? | §4.3 klien |
 | Q9 **[D]** | Tenant: satu ERP per brand, atau satu ERP untuk tiga brand? | **DIJAWAB (pemilik, 2026-10-22): satu ERP per brand.** Scope `pos:<brand>` per deployment; tidak perlu scoping client per outlet. |
 | Q10 **[D]** | Hosting: di mana ERP di-host untuk demo, dan kapan API key client POS tersedia? | §4.1 |
@@ -376,10 +394,10 @@ atau detail yang perlu disepakati agar ERP tidak menolak dokumen yang sah.
 
 | # | Pertanyaan | Perilaku POS saat ini |
 |---|---|---|
-| Q11 **[D]** | Urutan idempotensi vs validasi: pemeriksaan `document_id` harus dilakukan **sebelum** validasi isi. Bila validasi dulu, kirim ulang setelah timeout mendapat 422 "movement_id sudah dipakai" dan POS men-dead-letter dokumen yang sebenarnya sudah diterima. Stub POS memeriksa idempotensi dulu; mohon samakan dan perbaiki kalimat di yaml. | kirim ulang = key sama, body sama, harap `replayed` |
+| Q11 **[D]** | **DIJAWAB (kode ERP 2026-10-26): replay diperiksa setelah skema, sebelum outlet/tanda/periode/FG/movement_id.** Urutan idempotensi vs validasi: pemeriksaan `document_id` harus dilakukan **sebelum** validasi isi. Bila validasi dulu, kirim ulang setelah timeout mendapat 422 "movement_id sudah dipakai" dan POS men-dead-letter dokumen yang sebenarnya sudah diterima. Stub POS memeriksa idempotensi dulu; mohon samakan dan perbaiki kalimat di yaml. | kirim ulang = key sama, body sama, harap `replayed` |
 | Q12 **[D]** | Tidak ada jaminan urutan antar dokumen: `refund` bisa tiba sebelum `sale`-nya, `transfer_in` sebelum `transfer_out`, part dalam urutan acak. ERP harus menerapkan tiap dokumen secara independen (saldo sementara negatif diizinkan). Setuju? | relay paralel, retry per dokumen |
-| Q13 **[D]** | 401/403 vs 400/409/422: POS memperlakukan 401 dan 403 sebagai kondisi **seluruh client** (jeda, coba lagi nanti) dan 400/409/422 sebagai masalah **dokumen** (dead-letter). Mohon pakai 403 hanya untuk kondisi client (scope, suspended), bukan per dokumen. | §4.3 respons |
-| Q14 **[D]** | Body 2xx: POS mewajibkan `data.document_id` (echo) dan `data.status` bernilai `applied` atau `replayed`. | §4.3 |
+| Q13 **[D]** | **DIJAWAB (kode ERP 2026-10-26): 403 hanya untuk scope/suspended; outlet yang tidak diatur pada client = 422 di `location.code`, yang POS tahan (bukan dead-letter).** 401/403 vs 400/409/422: POS memperlakukan 401 dan 403 sebagai kondisi **seluruh client** (jeda, coba lagi nanti) dan 400/409/422 sebagai masalah **dokumen** (dead-letter). Mohon pakai 403 hanya untuk kondisi client (scope, suspended), bukan per dokumen. | §4.3 respons |
+| Q14 **[D]** | **DIJAWAB: ERP mengembalikan `data.document_id`, `data.status` (`applied`/`replayed`) dan `movement_ids`.** Body 2xx: POS mewajibkan `data.document_id` (echo) dan `data.status` bernilai `applied` atau `replayed`. | §4.3 |
 | Q15 | Nilai `ref.type` yang POS kirim: `order`, `transfer`, `goods_receipt`, `stock_adjustment`, `stock_count`, `backfill` (contoh §10 memakai `receipt` / `adjustment`; nilai di atas yang benar). | §10 |
 | Q16 | `tenders`: metode pembayaran POS bebas; hanya `cash`, `card`, `transfer`, `qris` yang dikirim, lainnya dilewati. Tender `sale` hanya di part 1; tender `refund` = minus total order (refund selalu seluruh order). | §4.3 |
 | Q17 | Dokumen `opening` (backfill): `ref.type = backfill`, `ref.id` = uuid dokumen part 0, `ref.number` kosong; baris boleh `qty = 0` dengan `qty_before` = jumlah ledger sebelumnya. Apakah baris qty 0 diterima? | rencana §2.4 |
@@ -396,3 +414,17 @@ atau detail yang perlu disepakati agar ERP tidak menolak dokumen yang sah.
 - Varian terhubung hanya lewat pemetaan SKU (CSV: SKU lama ke `code` FG, impor dry-run lalu commit); pull tidak pernah menautkan berdasarkan kesamaan SKU.
 - Keunikan global SKU (migrasi 0067) dikirim sebagai deploy terpisah setelah jumlah duplikat di DB uji = 0.
 - Jadwal tarik katalog (saat diaktifkan): incremental tiap 15 menit, full 02:07 WIB. Relay stok tiap 2 menit.
+
+### 11.4 Pertanyaan baru setelah kode ERP digabung (2026-10-26)
+
+Sisi POS sudah menyesuaikan diri dengan kode ERP di `main` (lihat status di §4.3): POS mengirim `location.code`, menahan
+dokumen gudang, menahan dokumen yang outletnya belum diatur pada client, dan men-dead-letter 409/422 lainnya dengan
+pesannya. Yang masih perlu dijawab pengembang ERP:
+
+| # | Pertanyaan | Konteks |
+|---|---|---|
+| Q23 **[D]** | Kapan kode `main` (rencana 1 + 2, migrasi `20261026022551`, `20261026041607`, `20261026090000`) terpasang di `https://erp.mandalika.web.id`? Relay POS baru dinyalakan setelah itu. | runbook cutover langkah 9 |
+| Q24 **[D]** | Client `pos_mandalika` per 2026-10-26 pagi hanya punya dua scope baca. Mohon admin ERP menambah `integration:stock:write` dan mengatur outlet BSD, LWB, MKS, PMS (kode ERP-nya) pada client itu **sebelum** relay dinyalakan. Tanpa itu setiap dokumen mendapat 403 (POS jeda) atau 422 `location.code` (POS tahan). | BR5, AC10 |
+| Q25 | Jendela periode vs `opening` hasil backfill: `opening` dihitung saat backfill (`occurred_at` = waktu backfill) dari stok live dikurangi semua pergerakan ledger sebelumnya. Pergerakan yang `occurred_at`-nya lebih lama dari 6 bulan saat dikirim (mis. dokumen yang lama tertahan karena varian belum dipetakan) ditolak 422, sehingga saldo ERP kurang tepat sebesar pergerakan itu. Apakah ERP bisa menerima dokumen lama ke periode tertentu (mis. dipindah ke bulan tertua yang terbuka), atau POS sebaiknya mengirim satu `adjust` pengganti saat cutover? Hari ini ledger POS dimulai Oktober 2026, jadi belum ada yang terkena. | BR12, BR10 |
+| Q26 | `slug`: aturan H01 menyatakan slug bukan pengenal kontrak. Konfirmasi bahwa field `location.slug` akan tetap dibuang tanpa error (Zod `z.object`, bukan `strict`), dan POS boleh berhenti mengirimnya mulai rilis berikutnya. | BR15, H01 |
+| Q27 | Baris status README modul `docs/modules/integration/stock-document/README.md` masih menulis kedua rencana "not merged", padahal sudah di `main`. Mohon perbarui (sekalian tanggal deploy) agar kedua tim membaca status yang sama. | dokumen ERP |
