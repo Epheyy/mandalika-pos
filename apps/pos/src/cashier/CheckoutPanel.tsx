@@ -464,7 +464,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
           />
           <div className="relative bg-white rounded-2xl shadow-xl max-w-sm w-full p-5">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-2xl"><IconWarning size={24} /></span>
+              <span className="text-2xl text-amber-500"><IconWarning size={24} /></span>
               <h3 className="text-base font-black text-gray-900">Stok Tidak Mencukupi</h3>
             </div>
             <p className="text-xs text-gray-500 mb-3">Penjualan ini melebihi stok dan akan membuat stok minus:</p>
