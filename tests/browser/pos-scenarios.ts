@@ -244,7 +244,7 @@ export const posRecap = async (page: ScenarioPage) =>{
   page.__a26pos.fail='/api/v1/cash-flows';
   await page.getByText('Historical 60',{exact:true}).first().click();
   await page.getByText('Data belum diperbarui — menampilkan snapshot lengkap terakhir',{exact:true}).waitFor();
-  await page.getByRole('button',{name:'Rekap Shift',exact:true}).last().click();
+  await page.getByRole('button',{name:'Rekapan',exact:true}).last().click();
   await page.getByText('Data belum diperbarui — menampilkan snapshot lengkap terakhir',{exact:true}).waitFor();
   const failedCache=await page.evaluate(()=>localStorage.getItem('mandalika.cache.rekap:current'));
   if(failedCache!==cache['mandalika.cache.rekap:current'])throw new Error('partial cache overwritten');
