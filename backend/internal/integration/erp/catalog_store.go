@@ -784,7 +784,7 @@ func applyOutletItem(ctx context.Context, q pgx.Tx, o erpapi.IntegrationOutlet) 
 		return itemOutcome{skipped: true}, nil
 	}
 	if o.Type == erpapi.IntegrationOutletTypeONLINE {
-		return itemOutcome{skipped: true, note: unlinkedOutletNote(o, "online channel, never a POS outlet")}, nil
+		return itemOutcome{skipped: true, note: unlinkedOutletNote(o, "online channel")}, nil
 	}
 
 	rows, err := q.Query(ctx, `SELECT id::text FROM outlets
@@ -810,11 +810,11 @@ func applyOutletItem(ctx context.Context, q pgx.Tx, o erpapi.IntegrationOutlet) 
 		out.bump = []string{"outlets"}
 		return out, err
 	case 0:
-		return itemOutcome{skipped: true, note: unlinkedOutletNote(o, "no POS outlet with this code")}, nil
+		return itemOutcome{skipped: true, note: unlinkedOutletNote(o, "no POS outlet code")}, nil
 	}
 	return out, itemError(fmt.Sprintf("more than one unlinked outlet has code %q", o.Code))
 }
 
 func unlinkedOutletNote(o erpapi.IntegrationOutlet, why string) string {
-	return fmt.Sprintf("outlet %s %q (%s) not linked: %s", o.Code, collapseSpaces(o.Name), o.Type, why)
+	return fmt.Sprintf("outlet %s %q (%s) unlinked: %s", o.Code, collapseSpaces(o.Name), o.Type, why)
 }

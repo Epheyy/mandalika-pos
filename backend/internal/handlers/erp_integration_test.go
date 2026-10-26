@@ -236,7 +236,7 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		erWantInt(t, "linked outlets", erCount(t, ctx, pool, `SELECT count(*) FROM outlets WHERE is_active AND code='KMG' AND erp_slug='kemang' AND erp_code='KMG'`), 1)
 		erWantInt(t, "outlet total", erCount(t, ctx, pool, `SELECT count(*) FROM outlets`), 1)
 		erWantInt(t, "content_versions rows", erCount(t, ctx, pool, `SELECT count(*) FROM content_versions`), 1)
-		if note := e.resource(rep, erp.ResourceOutlets).Error; !strings.Contains(note, `outlet BSD "Mandalika BSD" (RETAIL) not linked`) {
+		if note := e.resource(rep, erp.ResourceOutlets).Error; !strings.Contains(note, `outlet BSD "Mandalika BSD" (RETAIL) unlinked: no POS outlet code`) {
 			t.Fatalf("outlet note = %q", note)
 		}
 		erWantInt(t, "products", erCount(t, ctx, pool, `SELECT count(*) FROM products`), 1)
