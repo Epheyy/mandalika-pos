@@ -26,6 +26,7 @@ import (
 const (
 	obrOutlet = "00000000-0000-4000-8f71-00000000000a"
 	obrSlug   = "obr-outlet"
+	obrCode   = "OBR-1" // outlets.erp_code: the ERP's key for the outlet
 )
 
 var obrN int // sequence for every seeded fixture (subtests run sequentially)
@@ -109,10 +110,11 @@ func obrPrepare(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
 	for _, q := range []string{
 		`ALTER TABLE outlets ADD COLUMN IF NOT EXISTS erp_slug text`,
+		`ALTER TABLE outlets ADD COLUMN IF NOT EXISTS erp_code text`,
 		`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS erp_slug text`,
 		`ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS erp_slug text`,
 		fmt.Sprintf(`INSERT INTO outlets(id,name) VALUES('%s','OBR outlet') ON CONFLICT DO NOTHING`, obrOutlet),
-		fmt.Sprintf(`UPDATE outlets SET erp_slug='%s' WHERE id='%s'`, obrSlug, obrOutlet),
+		fmt.Sprintf(`UPDATE outlets SET erp_slug='%s', erp_code='%s' WHERE id='%s'`, obrSlug, obrCode, obrOutlet),
 		`UPDATE erp_outbox SET next_attempt_at = now() + interval '1 day' WHERE status IN ('pending','held')`,
 	} {
 		if _, err := pool.Exec(ctx, q); err != nil {
@@ -258,7 +260,7 @@ func obrRelayCases(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		if err := pool.QueryRow(ctx, `SELECT id::text FROM stock_movements WHERE document_id=$1`, d.docID).Scan(&movementID); err != nil {
 			t.Fatal(err)
 		}
-		if doc.DocumentID != d.docID || doc.Kind != "sale" || doc.Location.Slug != obrSlug || doc.Location.Type != "outlet" ||
+		if doc.DocumentID != d.docID || doc.Kind != "sale" || doc.Location.Code != obrCode || doc.Location.Slug != obrSlug || doc.Location.Type != "outlet" ||
 			doc.RecordedAt != row.createdAt.UTC().Format(time.RFC3339) || doc.Source.Brand != "mandalika" ||
 			len(doc.Lines) != 1 || doc.Lines[0].FgCode != d.sku || doc.Lines[0].MovementID != movementID ||
 			doc.Lines[0].Qty != -1 || doc.Lines[0].UnitPrice == nil || *doc.Lines[0].UnitPrice != 150000 ||

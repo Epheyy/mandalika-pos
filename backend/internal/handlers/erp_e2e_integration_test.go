@@ -342,7 +342,7 @@ func obeSetupEnv(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *obeEnv 
 	relay := erp.NewRelay(pool, client, erp.Config{Enabled: true, Brand: "mandalika", BatchSize: 50}, slog.Default())
 	e := &obeEnv{t: t, ctx: ctx, pool: pool, stub: stub, relay: relay}
 	e.exec(`INSERT INTO outlets(id,name) VALUES($1,'OBE outlet') ON CONFLICT DO NOTHING`, obeOutlet)
-	e.exec(`UPDATE outlets SET erp_slug='kemang' WHERE id=$1`, obeOutlet)
+	e.exec(`UPDATE outlets SET erp_slug='kemang', erp_code='KMG' WHERE id=$1`, obeOutlet)
 	e.exec(`INSERT INTO warehouses(id,name) VALUES($1,'OBE warehouse') ON CONFLICT DO NOTHING`, obeWarehouse)
 	e.exec(`UPDATE warehouses SET erp_slug='gudang-pusat' WHERE id=$1`, obeWarehouse)
 	e.exec(`INSERT INTO users(id,email,password_hash,display_name,role,outlet_id) VALUES($1,'obe@example.invalid','x','OBE cashier','cashier',$2) ON CONFLICT DO NOTHING`, obeUser, obeOutlet)
@@ -519,13 +519,17 @@ func obrE2ECases(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		}
 		out, in := e.outbox("transfer_out", tid), e.outbox("transfer_in", tid)
 		rep := e.run()
-		e.want(rep.Delivered == 2 && e.status(out.docID) == "delivered" && e.status(in.docID) == "delivered",
+		// The ERP takes outlets only: the warehouse leg stays held (even though the warehouse
+		// has an erp_slug) and the outlet leg posts on its own.
+		e.want(rep.Delivered == 1 && rep.Held == 1 && e.status(out.docID) == "held" && e.status(in.docID) == "delivered",
 			"run %+v out=%s in=%s", rep, e.status(out.docID), e.status(in.docID))
-		do, _ := e.stub.docByID(t, out.docID)
+		reason := e.str(`SELECT hold_reason FROM erp_outbox WHERE document_id=$1`, out.docID)
+		e.want(strings.Contains(reason, "dokumen gudang"), "transfer_out hold_reason %q", reason)
+		_, n := e.stub.docByID(t, out.docID)
+		e.want(n == 0, "the stub got %d copies of the warehouse document, want 0", n)
 		di, _ := e.stub.docByID(t, in.docID)
-		e.want(do.Kind == "transfer_out" && do.Location.Type == "warehouse" && do.Location.Slug == "gudang-pusat", "transfer_out doc %+v", do)
 		e.want(di.Kind == "transfer_in" && di.Location.Type == "outlet" && di.Location.Slug == "kemang", "transfer_in doc %+v", di)
-		e.want(do.Ref.ID == tid && di.Ref.ID == tid, "ref ids %s / %s, want %s", do.Ref.ID, di.Ref.ID, tid)
+		e.want(di.Ref.ID == tid, "ref id %s, want %s", di.Ref.ID, tid)
 		e.want(len(di.Body.Lines) == 1, "transfer_in lines %+v", di.Body.Lines)
 		l := di.Body.Lines[0]
 		e.want(l.ExpectedQty != nil && *l.ExpectedQty == 10 && l.Qty == 9 && slices.Contains(l.Flags, "variance"),

@@ -13,7 +13,7 @@ import (
 const saleExample = `{
  "document_id": "d0000000-0000-4000-8000-000000000002", "kind": "sale",
  "source": {"system": "pos", "brand": "mandalika", "device_id": "tab-07", "actor": "kasir-01"},
- "location": {"type": "outlet", "slug": "kemang"},
+ "location": {"type": "outlet", "code": "KMG", "slug": "kemang"},
  "occurred_at": "2026-11-02T03:15:20+07:00", "recorded_at": "2026-11-01T20:15:41Z",
  "ref": {"type": "order", "id": "5b1f0c2e-9a77-4d3e-8f10-2c6a1e9b0a01", "number": "KMG-AB0004"},
  "lines": [{"movement_id": "b0000000-0000-4000-8000-000000000002", "fg_code": "FG-001",
@@ -24,7 +24,7 @@ const countPartExample = `{
  "document_id": "d0000000-0000-4000-8000-000000000032", "kind": "count",
  "part": {"index": 2, "count": 3},
  "source": {"system": "pos", "brand": "mandalika"},
- "location": {"type": "outlet", "slug": "kemang"},
+ "location": {"type": "outlet", "code": "KMG", "slug": "kemang"},
  "occurred_at": "2026-11-01T21:00:00+07:00", "recorded_at": "2026-11-01T14:00:05Z",
  "ref": {"type": "stock_count", "id": "7c3a9e10-2b44-4f6d-9e21-0d5b8a6f3c02", "number": "SO-2026-11-01"},
  "lines": [{"movement_id": "b0000000-0000-4000-8000-000000000201", "fg_code": "FG-001",
