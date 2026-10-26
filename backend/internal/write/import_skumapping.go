@@ -14,7 +14,8 @@ import (
 func planSkuMappingImport(ctx context.Context, q pgx.Tx, t *csvimport.Table) (*importPlan, error) {
 	cat := csvimport.SkuMappingCatalog{GroupKeys: map[string]string{}, GroupKeyOwners: map[string]string{}}
 	rows, err := q.Query(ctx, `
-		SELECT v.id::text, v.product_id::text, v.sku, COALESCE(v.erp_slug,''), COALESCE(p.erp_group_key,'')
+		SELECT v.id::text, v.product_id::text, v.sku, COALESCE(v.erp_slug,''), COALESCE(p.erp_group_key,''),
+		       p.name, v.size
 		  FROM product_variants v JOIN products p ON p.id = v.product_id`)
 	if err != nil {
 		return nil, err
@@ -22,7 +23,7 @@ func planSkuMappingImport(ctx context.Context, q pgx.Tx, t *csvimport.Table) (*i
 	for rows.Next() {
 		var v csvimport.SkuMappingVariant
 		var gk string
-		if err = rows.Scan(&v.ID, &v.ProductID, &v.SKU, &v.ErpSlug, &gk); err != nil {
+		if err = rows.Scan(&v.ID, &v.ProductID, &v.SKU, &v.ErpSlug, &gk, &v.ProductName, &v.Size); err != nil {
 			rows.Close()
 			return nil, err
 		}

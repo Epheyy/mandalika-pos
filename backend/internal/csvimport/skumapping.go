@@ -2,13 +2,23 @@ package csvimport
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
+
+	"github.com/mandalika/pos-backend/internal/integration/erp/erpmap"
 )
 
 // KindSkuMapping is the one-time ERP SKU mapping import (plan 4.2): it links each
 // variant to its ERP finished good (sku = fg_code, erp_slug = fg_slug) and optionally
 // sets the parent product's erp_group_key. The kind string matches migration 0066's
 // import_runs.kind check.
+//
+// The optional fg_name, fg_category, fg_size and fg_is_others columns carry what the ERP
+// says about the finished good. When present, the planner warns where the POS variant
+// differs from it under the catalog pull's rules (mapping v3): a product name that is not
+// the ERP name (name_conflict), a label that is not the ERP label (label_conflict). A row
+// that changes the variant's SKU warns sku_changed (the barcode keeps the old SKU).
+// Warnings never block the commit: the pull keeps the POS name and label.
 const KindSkuMapping = "sku_mapping"
 
 // SkuMappingSpec is the layout of the sku-mapping export. variant_id, fg_code and fg_slug
@@ -25,12 +35,18 @@ var SkuMappingSpec = Spec{
 		{Key: "fg_code", Required: true},
 		{Key: "fg_slug", Required: true},
 		{Key: "erp_group_key"},
+		{Key: "fg_name"},
+		{Key: "fg_category"},
+		{Key: "fg_size"},
+		{Key: "fg_is_others"},
 	},
 }
 
-// SkuMappingVariant is one current variant. ErpSlug is "" while unlinked.
+// SkuMappingVariant is one current variant. ErpSlug is "" while unlinked; ProductName
+// and Size (the variant label) feed the ERP-context warnings.
 type SkuMappingVariant struct {
 	ID, ProductID, SKU, ErpSlug string
+	ProductName, Size           string
 }
 
 // SkuMappingCatalog is the snapshot the planner checks the file against. GroupKeys maps a
@@ -58,6 +74,8 @@ type SkuMappingPlan struct {
 type skuMappingRow struct {
 	row                       Row
 	variantID, code, slug, gk string
+	fgName, fgCategory        string // ERP context, optional
+	fgSize, fgOthers          string
 }
 
 // skuMappingIndex is the per-file lookup state shared by the row checks.
@@ -126,7 +144,9 @@ func PlanSkuMapping(t *Table, cat SkuMappingCatalog) (*SkuMappingPlan, error) {
 		c := row.Cells
 		r := &skuMappingRow{row: row, variantID: strings.TrimSpace(c["variant_id"]),
 			code: strings.TrimSpace(c["fg_code"]), slug: strings.TrimSpace(c["fg_slug"]),
-			gk: strings.TrimSpace(c["erp_group_key"])}
+			gk:     strings.TrimSpace(c["erp_group_key"]),
+			fgName: strings.TrimSpace(c["fg_name"]), fgCategory: strings.TrimSpace(c["fg_category"]),
+			fgSize: strings.TrimSpace(c["fg_size"]), fgOthers: strings.TrimSpace(c["fg_is_others"])}
 		rows = append(rows, r)
 		if r.code != "" || r.slug != "" {
 			mapped = append(mapped, r)
@@ -160,6 +180,7 @@ func PlanSkuMapping(t *Table, cat SkuMappingCatalog) (*SkuMappingPlan, error) {
 		if linkChanged {
 			plan.Mappings = append(plan.Mappings, PlannedSkuMapping{VariantID: v.ID, ProductID: v.ProductID, OldSKU: v.SKU, FGCode: r.code, FGSlug: r.slug})
 		}
+		warnERPContext(b, r, v)
 		if keyChanged {
 			plan.GroupKeys[v.ProductID] = r.gk
 		}
@@ -243,5 +264,53 @@ func (ix *skuMappingIndex) checkGroupKey(b *Builder, r *skuMappingRow, v *SkuMap
 	}
 	if owner := ix.cat.GroupKeyOwners[r.gk]; owner != "" && owner != v.ProductID {
 		b.Issue(r.row, "erp_group_key", SevError, "group_key_in_use", "erp_group_key sudah dipakai produk lain", r.gk)
+	}
+}
+
+// warnERPContext compares the POS variant with what the ERP says about the finished good
+// (the optional fg_* columns) and with its own SKU. Warnings only.
+func warnERPContext(b *Builder, r *skuMappingRow, v *SkuMappingVariant) {
+	row := r.row
+	if v.SKU != r.code {
+		b.Issue(row, "fg_code", SevWarning, "sku_changed",
+			fmt.Sprintf("SKU POS %q diganti menjadi kode ERP %q (barcode tetap %q)", v.SKU, r.code, v.SKU), r.code)
+	}
+	others := false
+	if r.fgOthers != "" {
+		o, err := ParseBool(r.fgOthers)
+		if err != nil {
+			b.Issue(row, "fg_is_others", SevWarning, "invalid_bool", "fg_is_others bukan true/false; dianggap false", r.fgOthers)
+		}
+		others = o
+	}
+	if r.fgName != "" {
+		want := erpmap.ProductName(r.fgName)
+		if others {
+			want = strings.Join(strings.Fields(r.fgName), " ")
+		}
+		if !strings.EqualFold(strings.Join(strings.Fields(v.ProductName), " "), want) {
+			b.Issue(row, "fg_name", SevWarning, "name_conflict",
+				fmt.Sprintf("nama produk POS %q berbeda dengan nama ERP %q; pull tidak mengganti nama POS, pastikan barangnya sama", v.ProductName, want), r.fgName)
+		}
+	}
+	if r.fgCategory == "" && r.fgSize == "" {
+		return
+	}
+	var size *float64
+	if r.fgSize != "" {
+		f, err := strconv.ParseFloat(strings.ReplaceAll(r.fgSize, ",", "."), 64)
+		if err != nil {
+			b.Issue(row, "fg_size", SevWarning, "invalid_number", "fg_size bukan angka; label tidak diperiksa", r.fgSize)
+			return
+		}
+		size = &f
+	}
+	var category *string
+	if r.fgCategory != "" {
+		category = &r.fgCategory
+	}
+	if want := erpmap.VariantLabel(others, size, nil, category); !strings.EqualFold(v.Size, want) {
+		b.Issue(row, "size", SevWarning, "label_conflict",
+			fmt.Sprintf("label varian POS %q berbeda dengan label ERP %q; pull tidak mengganti label POS, pastikan barangnya sama", v.Size, want), v.Size)
 	}
 }
