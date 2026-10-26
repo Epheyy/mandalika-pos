@@ -82,7 +82,7 @@ describe('out-of-stock selling (A44 Q2)', () => {
   })
 
   it('the warning copy tells the cashier the sale still goes through', () => {
-    expect(OVERSELL_WARNING).toContain('tetap')
+    expect(OVERSELL_WARNING).toContain('Tetap ditambahkan')
   })
 })
 

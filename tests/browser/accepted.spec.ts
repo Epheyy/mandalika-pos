@@ -172,15 +172,15 @@ for (const [id, description] of [
 
 test('S0A-DIAGNOSTICS repeated share cancellation and failures keep unresolved operations', async ({ page }, info) => {
   await page.goto(`${POS}/tests/failed-diagnostics/`)
-  await page.getByRole('button', { name: 'Perlu ditinjau (2)', exact: true }).click()
+  await page.getByRole('button', { name: '2 perlu ditinjau', exact: true }).click()
   const outcomes: object[] = []
   for (const scenario of ['share success', 'share success', 'cancel', 'share failure', 'clipboard failure']) {
     await page.getByLabel('Diagnostic outcome').selectOption(scenario)
-    await page.getByRole('button', { name: 'Bagikan log diagnostik', exact: true }).click()
+    await page.getByRole('button', { name: 'Bagikan log', exact: true }).click()
     await expect.poll(async () => JSON.parse(await page.locator('pre').innerText()).exports).toBe(outcomes.length + 1)
     const current = JSON.parse(await page.locator('pre').innerText())
     expect(current).toMatchObject({ retained: 2, unchanged: true, reconstructed: true, failed: 2 })
-    await expect(page.getByRole('button', { name: 'Perlu ditinjau (2)', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '2 perlu ditinjau', exact: true })).toBeVisible()
     outcomes.push({ scenario, current, message: await page.getByRole('status').innerText() })
   }
   await evidence(info, outcomes)
@@ -193,14 +193,14 @@ test('S0B-REFUND-RETENTION denied original refund survives export reconstruction
   await page.getByRole('button', { name: 'Deliver five permission denials' }).click()
   await expect.poll(async () => (await current()).failed).toBe(1)
   const parked = await current()
-  await page.getByRole('button', { name: 'Perlu ditinjau (1)', exact: true }).click()
-  await page.getByRole('button', { name: 'Bagikan log diagnostik', exact: true }).click()
+  await page.getByRole('button', { name: '1 perlu ditinjau', exact: true }).click()
+  await page.getByRole('button', { name: 'Bagikan log', exact: true }).click()
   await expect.poll(async () => (await current()).exports).toBe(1)
   expect((await current()).retained).toEqual(parked.retained)
   await page.getByRole('button', { name: 'Reconstruct from same storage' }).click()
   expect((await current()).retained).toEqual(parked.retained)
   await page.getByRole('button', { name: 'Restore synthetic permission' }).click()
-  await page.getByRole('button', { name: 'Perlu ditinjau (1)', exact: true }).click()
+  await page.getByRole('button', { name: '1 perlu ditinjau', exact: true }).click()
   await page.getByRole('button', { name: 'Coba lagi', exact: true }).click()
   await expect.poll(async () => (await current()).retained.length).toBe(0)
   const final = await current()
@@ -232,7 +232,7 @@ test('POS-OFFLINE-RETURN a sale made offline is found after a reload, reprinted 
   const row = panel.getByTestId('local-receipt-row')
   await expect(row).toHaveCount(1)
   await expect(row).toContainText('HAR-0001')
-  await expect(row).toContainText('Belum tersinkron')
+  await expect(row).toContainText('Tersimpan di tablet')
   expect(await panel.innerText()).not.toMatch(/Budi|cust-secret/)
 
   // Reprint: one print, no new outbox entry.
@@ -254,9 +254,9 @@ test('POS-OFFLINE-RETURN a sale made offline is found after a reload, reprinted 
 
   // A second refund of the same sale is blocked while the first waits.
   await page.getByRole('button', { name: 'Buka Struk di tablet ini', exact: true }).click()
-  await expect(panel.getByTestId('local-receipt-row')).toContainText('Refund menunggu')
+  await expect(panel.getByTestId('local-receipt-row')).toContainText('Refund tersimpan di tablet')
   await expect(panel.getByRole('button', { name: 'Refund Transaksi Ini', exact: true })).toHaveCount(0)
-  await expect(panel).toContainText('Refund menunggu sinkronisasi')
+  await expect(panel).toContainText('Refund tersimpan di tablet')
   await panel.getByRole('button', { name: 'Tutup', exact: true }).click()
 
   // Online: the sale goes first, then the refund; the server refunds the sale once.

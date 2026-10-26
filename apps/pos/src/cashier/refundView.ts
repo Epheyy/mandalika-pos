@@ -11,11 +11,11 @@ type Order = components['schemas']['Order']
 // Pure rules behind the refund UI (A06): what the history panel offers, what CashierScreen
 // queues, and how a parked refund reads in the review list. The gate is UI-only; the server decides.
 
-export const REFUND_NO_PERMISSION = 'Butuh izin Proses Refund'
-export const REFUND_QUEUED = 'Refund menunggu sinkronisasi'
+export const REFUND_NO_PERMISSION = 'Butuh izin refund'
+export const REFUND_QUEUED = 'Refund tersimpan di tablet'
 export const REFUND_NO_SHIFT = 'Buka shift dulu'
 export const REFUND_DONE = 'Sudah direfund'
-export const REFUND_SHIFT_UNSYNCED = 'Shift belum tersinkron'
+export const REFUND_SHIFT_UNSYNCED = 'Shift masih tersimpan di tablet'
 
 export type RefundAvailability =
   | { kind: 'allowed' }

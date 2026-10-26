@@ -8,7 +8,7 @@ import type { Api, ListRequisitionsParams, ListResult, RequestOptions, StockRequ
 export const REQUEST_TIMEOUT_MS = 20_000
 const REQ_OPTS: RequestOptions = { timeoutMs: REQUEST_TIMEOUT_MS }
 
-export const OFFLINE_MESSAGE = 'Permintaan Barang butuh koneksi internet.'
+export const OFFLINE_MESSAGE = 'Permintaan Barang butuh internet.'
 export const RETRY_MESSAGE = 'Server belum menjawab. Tekan Coba Lagi — permintaan tidak akan tercatat dua kali.'
 export const FORBIDDEN_MESSAGE = 'Akun ini belum punya izin Permintaan Barang. Minta admin menambahkan izin.'
 export const NO_OUTLET_MESSAGE = 'Outlet belum dipilih di tablet ini.'

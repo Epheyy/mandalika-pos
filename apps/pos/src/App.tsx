@@ -22,7 +22,7 @@ function LoginScreen() {
     try {
       await login(email, password)
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'login failed')
+      setErr(e instanceof Error ? e.message : 'Masuk gagal. Periksa email dan kata sandi.')
     } finally {
       setBusy(false)
     }

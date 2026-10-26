@@ -31,7 +31,7 @@ export type SettingsSection = 'display' | 'printer' | 'cashflow' | 'terminal'
 const TITLES: Record<SettingsSection, string> = {
   display: 'Pengaturan Tampilan Produk',
   printer: 'Pengaturan Cetakan',
-  cashflow: 'Uang Masuk / Keluar',
+  cashflow: 'Kas Masuk / Keluar',
   terminal: 'Terminal',
 }
 
@@ -176,7 +176,7 @@ export const SettingsScreen = memo(function SettingsScreen({
     }
     setCashFlowAmount('')
     setCashFlowDesc('')
-    setCashFlowMsg('Berhasil disimpan (akan disinkronisasi)')
+    setCashFlowMsg('Berhasil disimpan (akan terkirim)')
   }
 
   return (

@@ -2,6 +2,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
 import { Sheet } from '../components/ui/Sheet'
+import { IconLock } from '../components/ui/icons'
 
 type Shift = components['schemas']['Shift']
 
@@ -104,7 +105,7 @@ export const ShiftBar = memo(function ShiftBar({
             onClick={onRequestClose}
             className="px-2 py-0.5 text-[11px] font-semibold bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors flex-shrink-0"
           >
-            Tutup
+            Tutup Shift
           </button>
 
           {showDetail && (
@@ -131,7 +132,7 @@ export const ShiftBar = memo(function ShiftBar({
                   <span className="font-bold text-gray-800 truncate ml-2">{currentShift.cashierName}</span>
                 </div>
                 <p className="text-[10px] text-gray-400 pt-1 border-t border-gray-100">
-                  Penjualan & rekonsiliasi ada di menu Rekapan.
+                  Penjualan & rekonsiliasi ada di menu Rekap Shift.
                 </p>
               </div>
             </>
@@ -143,14 +144,15 @@ export const ShiftBar = memo(function ShiftBar({
           <button type="button"
             onClick={() => setShowOpenModal(true)}
             disabled={!canOpen}
-            title={canOpen ? undefined : 'Buka Shift butuh koneksi internet dan data shift dari server'}
-            className="px-2.5 py-1 text-[11px] font-semibold bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
+            title={canOpen ? undefined : 'Buka Shift butuh koneksi internet dan data shift dari kantor pusat'}
+            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
           >
+            {!canOpen && !isOnline && <IconLock size={14} />}
             Buka Shift
           </button>
           {!canOpen && (
-            <span role="status" className="text-[10px] font-semibold text-amber-700 whitespace-nowrap">
-              {isOnline ? 'Memeriksa shift…' : 'Offline — butuh internet'}
+            <span role="status" className="text-xs font-semibold text-amber-700 whitespace-nowrap">
+              {isOnline ? 'Memeriksa shift…' : 'Butuh internet'}
             </span>
           )}
         </div>
@@ -161,7 +163,7 @@ export const ShiftBar = memo(function ShiftBar({
         <Sheet open variant="center" maxWidth="max-w-xs" panelClassName="p-5">
             <h3 className="font-bold text-gray-900 mb-4">Buka Shift Baru</h3>
             <label htmlFor="shift-starting-cash" className="block text-xs text-gray-600 mb-1">
-              Uang awal (kas)
+              Kas Awal
             </label>
             <input
               id="shift-starting-cash"

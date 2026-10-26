@@ -22,15 +22,15 @@ describe('LocalReceiptsPanel', () => {
     const html = render([row()])
     expect(html).toContain('Struk di tablet ini')
     expect(html).toContain('BSD-G0007')
-    expect(html).toContain('Belum tersinkron')
+    expect(html).toContain('Tersimpan di tablet')
     expect(html).toContain('Cetak Ulang')
     expect(html).toContain('Refund Transaksi Ini')
   })
 
   it('shows the muted reason instead of the refund button when the gate blocks it', () => {
-    expect(render([row({ refundQueued: true })], { queuedSaleUuids: new Set(['u-1']) })).toContain('Refund menunggu sinkronisasi')
+    expect(render([row({ refundQueued: true })], { queuedSaleUuids: new Set(['u-1']) })).toContain('Refund tersimpan di tablet')
     expect(render([row({ state: 'synced', refunded: true })], { syncedRefundOrderIds: new Set(['u-1']) })).toContain('Sudah direfund')
-    expect(render([row()], { canRefund: false })).toContain('Butuh izin Proses Refund')
+    expect(render([row()], { canRefund: false })).toContain('Butuh izin refund')
     expect(render([row()], { hasOpenShift: false })).toContain('Buka shift dulu')
   })
 

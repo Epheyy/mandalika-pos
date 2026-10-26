@@ -1,5 +1,5 @@
 export const STUCK_RETRY_MESSAGE =
-  'Belum tersinkron setelah beberapa kali coba — server sedang bermasalah. Tetap dicoba ulang otomatis; hubungi admin bila berlanjut.'
+  'Masih tersimpan di tablet setelah beberapa kali coba. Transaksi aman. Jika terus begini, hubungi admin.'
 
 export const HOLD_SHIFT_MESSAGE = 'Tutup/Buka shift menunggu transaksi sebelumnya tersinkron'
 

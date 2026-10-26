@@ -45,7 +45,7 @@ describe('failed-sync diagnostic delivery and visible unresolved state', () => {
     const before = structuredClone(engine.outbox.all())
     const storedBefore = store.get('mandalika.pos.outbox')
     const markupBefore = renderStatus()
-    expect(markupBefore).toContain('Perlu ditinjau (2)')
+    expect(markupBefore).toContain('2 perlu ditinjau')
     expect(renderStatus(false)).toContain('Offline · 2 perlu ditinjau')
     const share = vi.fn().mockImplementation(async (data: ShareData) => {
       expect(data.text).toContain('original-order')

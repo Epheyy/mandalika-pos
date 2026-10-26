@@ -71,7 +71,7 @@ export const qualifyPos = async (page: ScenarioPage) =>{
  page.__a24.products.forEach(p=>p.variants.forEach(v=>v.barcode=v.sku));
  const body=()=>page.locator('body').innerText();
  const fresh=async()=>{await page.reload();await page.getByRole('button',{name:'S Synthetic Scent',exact:true}).waitFor();for(const sku of ['SYN-M','SYN-L','TEST-M']){await page.getByRole('searchbox').fill(sku);await page.getByRole('searchbox').press('Enter');}await page.getByRole('button',{name:'Bayar',exact:true}).waitFor();};
- const panel=async()=>{await page.getByRole('button',{name:'Promo',exact:true}).click();};
+ const panel=async()=>{await page.getByRole('button',{name:'Promo & Kode',exact:true}).click();};
  const direct=async(kind)=>{await panel();await page.getByRole('button').filter({hasText:'Synthetic '+kind}).last().click();};
  const code=async(kind)=>{await panel();await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill('Raw-'+kind);await page.getByRole('button',{name:'Pakai',exact:true}).click();};
  const confirm=async(kind)=>{await page.getByRole('button',{name:kind==='Bundle'?/Synthetic Scent · MRp/:/Synthetic Tester · MRp/}).click();await page.getByRole('button',{name:'Terapkan',exact:true}).click();};
@@ -80,7 +80,7 @@ export const qualifyPos = async (page: ScenarioPage) =>{
   await (owner==='direct'?direct(kind):code(kind));
   assert(await page.getByRole('button',{name:'Batal',exact:true}).count()===1,owner+kind+' opens picker');
   await page.getByRole('button',{name:'Batal',exact:true}).click();
-  await page.getByRole('heading',{name:'Promo & Kode Diskon'}).locator('..').getByRole('button',{name:'×',exact:true}).click();
+  await page.getByRole('heading',{name:'Promo & Kode Promo'}).locator('..').getByRole('button',{name:'×',exact:true}).click();
   assert((await body())===before,'cancel must preserve cart and selection');
   await(owner==='direct'?direct(kind):code(kind));await confirm(kind);
   assert((await body()).includes('Hadiah Promo'),'confirm physical reward');
@@ -94,7 +94,7 @@ export const qualifyPos = async (page: ScenarioPage) =>{
   const remove=page.getByRole('button',{name:/Hapus promo|Hapus kode/});
   if(await remove.count())await remove.first().click();
   else await page.getByRole('button',{name:/Hapus semua/}).last().click();
-  if(await page.getByRole('heading',{name:'Promo & Kode Diskon'}).count())await page.getByRole('heading',{name:'Promo & Kode Diskon'}).locator('..').getByRole('button',{name:'×',exact:true}).click();
+  if(await page.getByRole('heading',{name:'Promo & Kode Promo'}).count())await page.getByRole('heading',{name:'Promo & Kode Promo'}).locator('..').getByRole('button',{name:'×',exact:true}).click();
   assert(!(await body()).includes('Hadiah Promo'),'removal clears reward');
   result.push({kind,owner,removed:await body()});
  }
@@ -106,7 +106,7 @@ export const posBoundaries = async (page: ScenarioPage) =>{
  page.__a24.codes.push({...page.__a24.codes[0],id:'invalid-code',code:'Raw-Invalid',promotionId:'invalid'});
  const scan=async(sku)=>{await page.getByRole('searchbox').fill(sku);await page.getByRole('searchbox').press('Enter');};
  const fresh=async()=>{await page.reload();await page.getByRole('button',{name:'S Synthetic Scent',exact:true}).waitFor();for(const sku of ['SYN-M','SYN-L','TEST-M'])await scan(sku);};
- const apply=async(kind,owner)=>{await page.getByRole('button',{name:'Promo',exact:true}).click();if(owner==='direct')await page.getByRole('button').filter({hasText:'Synthetic '+kind}).last().click();else {await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill('Raw-'+kind);await page.getByRole('button',{name:'Pakai',exact:true}).click();}await page.getByRole('button',{name:kind==='Bundle'?/Synthetic Scent · MRp/:/Synthetic Tester · MRp/}).click();await page.getByRole('button',{name:'Terapkan',exact:true}).click();};
+ const apply=async(kind,owner)=>{await page.getByRole('button',{name:'Promo & Kode',exact:true}).click();if(owner==='direct')await page.getByRole('button').filter({hasText:'Synthetic '+kind}).last().click();else {await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill('Raw-'+kind);await page.getByRole('button',{name:'Pakai',exact:true}).click();}await page.getByRole('button',{name:kind==='Bundle'?/Synthetic Scent · MRp/:/Synthetic Tester · MRp/}).click();await page.getByRole('button',{name:'Terapkan',exact:true}).click();};
  for(const kind of ['Bundle','BXGY'])for(const owner of ['direct','linked']){
   await fresh();await apply(kind,owner);
   // Remove both qualifying paid scent lines through the real cart controls.
@@ -116,10 +116,10 @@ export const posBoundaries = async (page: ScenarioPage) =>{
   out.push({kind,owner,participantEdit:edited});
   await fresh();await apply(kind,owner);await page.getByRole('button',{name:'Hapus semua',exact:true}).click();if(await page.getByRole('button',{name:'Bayar',exact:true}).count())throw Error('clear left cart');out.push({kind,owner,clear:true});
  }
- await fresh();await page.getByRole('button',{name:'Promo',exact:true}).click();if(await page.getByRole('button').filter({hasText:'Invalid Legacy'}).last().isEnabled())throw Error('invalid direct enabled');
+ await fresh();await page.getByRole('button',{name:'Promo & Kode',exact:true}).click();if(await page.getByRole('button').filter({hasText:'Invalid Legacy'}).last().isEnabled())throw Error('invalid direct enabled');
  await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill('Raw-Invalid');await page.getByRole('button',{name:'Pakai',exact:true}).click();
  if(await page.getByRole('button',{name:'Terapkan',exact:true}).count())throw Error('invalid linked picker');
- await page.getByRole('heading',{name:'Promo & Kode Diskon'}).locator('..').getByRole('button',{name:'×',exact:true}).click();const invalid=await page.locator('body').innerText();if(invalid.includes('Hadiah Promo')||invalid.includes('Kode:'))throw Error('invalid effect');out.push({invalidRefused:invalid});
+ await page.getByRole('heading',{name:'Promo & Kode Promo'}).locator('..').getByRole('button',{name:'×',exact:true}).click();const invalid=await page.locator('body').innerText();if(invalid.includes('Hadiah Promo')||invalid.includes('Kode Promo:'))throw Error('invalid effect');out.push({invalidRefused:invalid});
  page.__a24.posBoundaries=out;return out;
 }
 
@@ -128,10 +128,10 @@ export const physicalQueue = async (page: ScenarioPage) =>{
  for(const kind of ['Bundle','BXGY'])for(const owner of ['direct','linked']){
   await page.reload();await page.getByRole('button',{name:'S Synthetic Scent',exact:true}).waitFor();
   for(const sku of ['SYN-M','SYN-L','TEST-M']){await page.getByRole('searchbox').fill(sku);await page.getByRole('searchbox').press('Enter');}
-  const apply=async()=>{await page.getByRole('button',{name:'Promo',exact:true}).click();if(owner==='direct')await page.getByRole('button').filter({hasText:'Synthetic '+kind}).last().click();else{await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill('Raw-'+kind);await page.getByRole('button',{name:'Pakai',exact:true}).click();}await page.getByRole('button',{name:kind==='Bundle'?/Synthetic Scent · MRp/:/Synthetic Tester · MRp/}).click();await page.getByRole('button',{name:'Terapkan',exact:true}).click();};
+  const apply=async()=>{await page.getByRole('button',{name:'Promo & Kode',exact:true}).click();if(owner==='direct')await page.getByRole('button').filter({hasText:'Synthetic '+kind}).last().click();else{await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill('Raw-'+kind);await page.getByRole('button',{name:'Pakai',exact:true}).click();}await page.getByRole('button',{name:kind==='Bundle'?/Synthetic Scent · MRp/:/Synthetic Tester · MRp/}).click();await page.getByRole('button',{name:'Terapkan',exact:true}).click();};
   await apply();
   await page.getByRole('button',{name:/^Promo(?: |$)/}).first().click();await page.getByRole('button',{name:'Hapus '+(owner==='direct'?'Synthetic ':'Raw-')+kind,exact:true}).click();
-  await page.getByRole('heading',{name:'Promo & Kode Diskon'}).locator('..').getByRole('button',{name:'×',exact:true}).click();assert(!(await page.locator('body').innerText()).includes('Hadiah Promo'),'individual removal');
+  await page.getByRole('heading',{name:'Promo & Kode Promo'}).locator('..').getByRole('button',{name:'×',exact:true}).click();assert(!(await page.locator('body').innerText()).includes('Hadiah Promo'),'individual removal');
   await apply();await page.getByRole('button',{name:'Bayar',exact:true}).click();await page.getByRole('button',{name:'QRIS',exact:true}).click();await page.getByRole('button',{name:/^Konfirmasi Rp/}).click();await page.getByRole('heading',{name:'Pembayaran Berhasil'}).waitFor();
   const item=await page.evaluate(()=>JSON.parse(localStorage.getItem('mandalika.pos.outbox')!).at(-1)),p=item.payload;
   assert(p.items.reduce((n,i)=>n+i.quantity,0)===(kind==='Bundle'?3:4),'physical quantity');
@@ -167,7 +167,7 @@ export const guestSales = async (page: ScenarioPage) =>{
  const select=async()=>{await page.getByRole('textbox',{name:'Cari pelanggan dengan nomor telepon'}).fill(page.__a24.customer.phone);await page.getByRole('textbox',{name:'Cari pelanggan dengan nomor telepon'}).press('Enter');await page.getByRole('button').filter({hasText:'Synthetic Customer'}).click();};
  const clear=async()=>{await page.getByText('Synthetic Customer',{exact:true}).first().locator('../..').getByRole('button',{name:'×',exact:true}).click();};
  const panel=()=>page.getByRole('button',{name:/^Promo(?: |$)/}).first().click();
- const closePanel=()=>page.getByRole('heading',{name:'Promo & Kode Diskon'}).locator('..').getByRole('button',{name:'×',exact:true}).click();
+ const closePanel=()=>page.getByRole('heading',{name:'Promo & Kode Promo'}).locator('..').getByRole('button',{name:'×',exact:true}).click();
  const applyCode=async(code)=>{await panel();await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill(code);await page.getByRole('button',{name:'Pakai',exact:true}).click();};
  const capture=async(name,method='qris',registered=false)=>{
   const before=(await box()).length;await page.getByRole('button',{name:'Bayar',exact:true}).click();
@@ -190,7 +190,7 @@ export const guestSales = async (page: ScenarioPage) =>{
  page.__a24.promotions.push({...page.__a24.promotions[2],id:'generic-fixed',name:'Generic Fixed',type:'fixed',value:5000});
  await fresh();await select();await panel();await page.getByRole('button').filter({hasText:'Generic Fixed'}).last().click();await applyCode('ASSIGNED');await clear();
  await page.getByRole('button',{name:'Bayar',exact:true}).click();await page.getByRole('button',{name:'QRIS',exact:true}).click();const n=(await box()).length;await page.getByRole('button',{name:/^Konfirmasi Rp/}).click();
- assert((await box()).length===n,'ineligible benefit must not queue');assert((await page.locator('body').innerText()).includes('Kode diskon dibatalkan'),'revalidation feedback');
+ assert((await box()).length===n,'ineligible benefit must not queue');assert((await page.locator('body').innerText()).includes('Kode Promo tidak berlaku lagi'),'revalidation feedback');
  await page.getByRole('button',{name:/^Konfirmasi Rp/}).click();await page.getByRole('heading',{name:'Pembayaran Berhasil',exact:true}).waitFor();const cleared=(await box()).at(-1);assert(cleared.payload.customerId===null&&cleared.payload.discountCodes.length===0,'cleared guest identity/code');assert(cleared.payload.promotionIds.includes('generic-fixed'),'unrelated generic survives');results.push({name:'clear-assigned-reconfirm',item:cleared,receipt:await page.locator('body').innerText()});
  await fresh();await select();await page.getByRole('button',{name:'Bayar',exact:true}).click();await page.getByRole('button').filter({hasText:'Customer gift'}).click();await page.getByRole('button',{name:/Synthetic Tester · M/}).click();await page.getByRole('button',{name:'Semua',exact:true}).last().click();await page.getByRole('heading',{name:'Konfirmasi Pembayaran'}).locator('..').getByRole('button',{name:'×',exact:true}).click();await clear();const loyaltyClear=await capture('clear-reward-points');assert(loyaltyClear.payload.items.length===1,'loyalty line removed');
  await fresh();await select();const registered=await capture('registered-preserved','qris',true);
@@ -225,7 +225,7 @@ export const posRecap = async (page: ScenarioPage) =>{
     return route.fulfill({json:{data:rows.slice((pageNo-1)*limit,pageNo*limit),meta:{page:pageNo,limit,total:rows.length}}});
   };
   for(const part of ['orders','shifts','cash-flows'])await page.route(`http://127.0.0.1:59999/api/v1/${part}**`,routeHandler);
-  await page.getByRole('button',{name:'Rekapan',exact:true}).click();
+  await page.getByRole('button',{name:'Rekap Shift',exact:true}).click();
   await page.getByText('201 Uang Masuk',{exact:true}).waitFor();
   const active=await page.locator('body').innerText();
   if(!active.replace(/\s/g,'').includes('Rp401.000'))throw new Error('active total not complete');
@@ -252,7 +252,7 @@ export const posRecap = async (page: ScenarioPage) =>{
   page.__a26pos.offline=true;
   await page.getByRole('button',{name:'✕ Kembali ke Kasir',exact:true}).click();
   await page.getByRole('button',{name:'Menu',exact:true}).click();
-  await page.getByRole('button',{name:'Rekapan',exact:true}).click();
+  await page.getByRole('button',{name:'Rekap Shift',exact:true}).click();
   await page.getByText('201 Uang Masuk',{exact:true}).waitFor();
   await page.getByText('Data belum diperbarui — menampilkan snapshot lengkap terakhir',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Riwayat',exact:true}).last().click();
@@ -288,7 +288,7 @@ export const posAutoPull = async (page: ScenarioPage) => {
   assert(!(await body()).includes('77'), 'new stock is not on screen before the pull');
   page.__a24.products[0].variants[0].stock = 77; // real data change in the pull body
   page.__a24.version = 2;
-  assert(await advance(60, async () => (await body()).includes('Pembaruan tersedia')), 'the chip shows the raised wall');
+  assert(await advance(60, async () => (await body()).includes('Data baru siap')), 'the chip shows the raised wall');
   assert(await advance(90, () => pulls() === n0 + 1), 'one automatic pull for the bump');
   assert(await advance(30, async () => (await body()).includes('Tersinkron')), 'the chip clears after the pull');
   assert((await body()).includes('77'), 'the new stock reaches the screen after the pull');
@@ -301,10 +301,10 @@ export const posAutoPull = async (page: ScenarioPage) => {
   await page.getByRole('searchbox').press('Enter');
   const n1 = pulls();
   page.__a24.version = 3;
-  assert(await advance(60, async () => (await body()).includes('Pembaruan tersedia')), 'the chip shows the second bump');
+  assert(await advance(60, async () => (await body()).includes('Data baru siap')), 'the chip shows the second bump');
   await advance(240);
   assert(pulls() === n1, 'no pull while the cart has an item');
-  assert((await body()).includes('Pembaruan tersedia'), 'the chip stays raised while deferred');
+  assert((await body()).includes('Data baru siap'), 'the chip stays raised while deferred');
   out.push({ step: 'bump with item in cart', pulls: pulls() - n1 });
 
   // 3. Clearing the cart lets it through.
@@ -344,9 +344,9 @@ export const posStockDrift = async (page: ScenarioPage) => {
   assert((await figure()) === before, 'the card shows the old stock figure before the pull');
   page.__a24.products[0].variants[0].stock -= 3;
   page.__a24.stockSeq = 11; // another tablet sold; version unchanged
-  assert(await advance(120, async () => { const t = await body(); if (t.includes('Pembaruan tersedia')) sawChip = true; return pulls() === n0 + 1; }), 'one automatic stock pull');
+  assert(await advance(120, async () => { const t = await body(); if (t.includes('Data baru siap')) sawChip = true; return pulls() === n0 + 1; }), 'one automatic stock pull');
   assert(await advance(30, async () => (await figure()) === before - 3), 'the card shows exactly the new stock figure after the pull');
-  await advance(420, async () => { if ((await body()).includes('Pembaruan tersedia')) sawChip = true; return false; });
+  await advance(420, async () => { if ((await body()).includes('Data baru siap')) sawChip = true; return false; });
   assert(!sawChip, 'a stock-only pull never raises the update chip');
   assert(pulls() === n0 + 1, 'no further pulls once the counter is covered');
   // An own sale acked at local seq + 1 is explained by its settling entry: no pull.

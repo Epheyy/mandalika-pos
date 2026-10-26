@@ -177,7 +177,7 @@ export const Cart = memo(function Cart({
                 : 'border-gray-200 text-gray-600 hover:bg-gray-50'
             }`}
           >
-            Diskon
+            Diskon manual
           </button>
           <button type="button"
             onClick={() => onOpenAdjustment('promo')}
@@ -187,7 +187,7 @@ export const Cart = memo(function Cart({
                 : 'border-gray-200 text-gray-600 hover:bg-gray-50'
             }`}
           >
-            Promo
+            Promo &amp; Kode
           </button>
         </div>
       )}
@@ -216,7 +216,7 @@ export const Cart = memo(function Cart({
           {appliedPromoCodes.map((c) => (
             <div key={c.code} className="flex justify-between items-center text-green-600">
               <span className="flex items-center gap-1">
-                Kode: {c.code}
+                Kode Promo: {c.code}
                 <button type="button"
                   onClick={() => onRemovePromoCode(c.code)}
                   className="w-4 h-4 rounded-full bg-green-100 text-green-700 text-[10px] leading-none hover:bg-green-200"
@@ -229,7 +229,7 @@ export const Cart = memo(function Cart({
           ))}
           {(appliedPromotions.length > 0 || appliedPromoCodes.length > 0) && derived.promoDiscountAmount > 0 && (
             <div className="flex justify-between text-green-600">
-              <span>Total Promo</span>
+              <span>Hemat promo</span>
               <span>−{formatRupiah(derived.promoDiscountAmount)}</span>
             </div>
           )}
@@ -252,13 +252,13 @@ export const Cart = memo(function Cart({
           )}
           {derived.discountAmount > 0 && (
             <div className="flex justify-between text-green-600">
-              <span>Total Diskon</span>
+              <span>Total hemat</span>
               <span>−{formatRupiah(derived.discountAmount)}</span>
             </div>
           )}
           {derived.surchargeAmount > 0 && (
             <div className="flex justify-between text-orange-600">
-              <span>Surcharge</span>
+              <span>Biaya tambahan</span>
               <span>+{formatRupiah(derived.surchargeAmount)}</span>
             </div>
           )}
@@ -274,7 +274,7 @@ export const Cart = memo(function Cart({
           </div>
           {pendingSync && (
             <p className="text-[10px] text-amber-600 text-center mt-1">
-              <IconClock size={10} className="inline-block align-[-0.125em]" /> Menunggu sinkronisasi
+              <IconClock size={10} className="inline-block align-[-0.125em]" /> Tersimpan di tablet
             </p>
           )}
         </div>

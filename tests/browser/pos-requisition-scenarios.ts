@@ -227,9 +227,9 @@ export const posRequisition = async (page: ScenarioPage) => {
   const postsBefore = rawCreates();
   page.__a24.netDown = true;
   await page.evaluate(() => { window.dispatchEvent(new Event('offline')); });
-  await page.getByTitle('Offline', { exact: true }).waitFor();
+  await page.getByRole('button', { name: /^Offline/ }).waitFor();
   await page.getByRole('button', { name: 'Simpan Draf', exact: true }).click();
-  await page.getByText('Permintaan Barang butuh koneksi internet.').waitFor();
+  await page.getByText('Permintaan Barang butuh internet.').waitFor();
   assert(rawCreates() === postsBefore, '(f) no create request left the tablet while offline');
   assert(await page.getByLabel('Qty Synthetic Scent M').inputValue() === '1', '(f) the form content is kept');
   page.__a24.netDown = false;

@@ -17,17 +17,17 @@ const receipt = (over: Partial<LocalReceipt> = {}): LocalReceipt => ({
 
 describe('localBadge', () => {
   it('maps every state', () => {
-    expect(localBadge(receipt({ state: 'queued' })).label).toBe('Belum tersinkron')
+    expect(localBadge(receipt({ state: 'queued' })).label).toBe('Tersimpan di tablet')
     expect(localBadge(receipt({ state: 'parked' })).label).toBe('Perlu ditinjau')
-    expect(localBadge(receipt({ state: 'synced' })).label).toBe('Tersinkron')
-    expect(localBadge(receipt({ state: 'synced', refundQueued: true })).label).toBe('Refund menunggu')
+    expect(localBadge(receipt({ state: 'synced' })).label).toBe('Terkirim')
+    expect(localBadge(receipt({ state: 'synced', refundQueued: true })).label).toBe('Refund tersimpan di tablet')
     expect(localBadge(receipt({ state: 'synced', refunded: true })).label).toBe('Sudah direfund')
-    expect(LOCAL_BADGE).toEqual(['Belum tersinkron', 'Perlu ditinjau', 'Tersinkron', 'Refund menunggu', 'Sudah direfund'])
+    expect(LOCAL_BADGE).toEqual(['Tersimpan di tablet', 'Perlu ditinjau', 'Terkirim', 'Refund tersimpan di tablet', 'Sudah direfund'])
   })
 
   it('a completed refund wins over a queued one, and a queued refund wins over the sale state', () => {
     expect(localBadge(receipt({ refunded: true, refundQueued: true })).label).toBe('Sudah direfund')
-    expect(localBadge(receipt({ state: 'parked', refundQueued: true })).label).toBe('Refund menunggu')
+    expect(localBadge(receipt({ state: 'parked', refundQueued: true })).label).toBe('Refund tersimpan di tablet')
   })
 })
 

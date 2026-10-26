@@ -171,7 +171,7 @@ const SortableCard = memo(function SortableCard({ product, showPrice, showStock,
             )}
             {showStock && (
               <p className={`text-[10px] ${inStock ? 'text-gray-400' : 'text-red-500 font-semibold'}`}>
-                {inStock ? `Stok ${totalStock}` : 'Stok habis · tetap bisa dijual'}
+                {inStock ? `Stok ${totalStock}` : 'Stok akan minus · tetap bisa dijual'}
               </p>
             )}
           </>

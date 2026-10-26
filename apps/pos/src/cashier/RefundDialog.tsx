@@ -74,7 +74,7 @@ export const RefundDialog = memo(function RefundDialog({
         <p className="text-[10px] text-gray-400 text-right mb-3">{`${[...reason].length}/${MAX_REFUND_REASON_CHARS}`}</p>
 
         <p className="text-[10px] text-gray-400 mb-4">
-          Stok akan dipulihkan oleh server saat sinkronisasi.
+          Stok akan dipulihkan oleh kantor pusat saat terkirim.
         </p>
 
         {error && (

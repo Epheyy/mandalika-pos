@@ -1,4 +1,5 @@
 export { Button, type ButtonSize, type ButtonVariant } from './Button'
+export { Banner } from './Banner'
 export { Chip } from './Chip'
 export { Money } from './Money'
 export { Sheet, type SheetVariant, type SheetZ } from './Sheet'

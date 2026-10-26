@@ -23,7 +23,7 @@ describe('offlineLockMessage', () => {
 describe('offlineWarnMessage', () => {
   it('warns with whole hours from the warn level', () => {
     expect(offlineWarnMessage(state('warn', 10.9 * H))).toBe(
-      'Tablet offline 10 jam. Sambungkan internet sebelum 12 jam agar penjualan tidak terkunci.',
+      'Offline hampir 12 jam. Sambungkan internet agar penjualan tidak terkunci.',
     )
   })
   it('is silent for every other level', () => {
