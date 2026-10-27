@@ -57,9 +57,8 @@ import { applyPendingStock, stockFor, oversoldSizes, OVERSELL_WARNING } from './
 import { isLineInBundle, planSizeSwitch, SIZE_SWITCH_BUNDLE_MESSAGE } from './lineSizes'
 import { decideApplyCode, validatePromo, validateCode, violationMessage } from './promoValidate'
 import { calcPromoDiscount, bxgyRewardDue } from './pricing'
-import { planPromotionFulfillment, invalidPhysicalPromotionIds, type PromotionOwner, type FulfillmentPlan } from './promotionFulfillment'
-import { BxgyRewardModal, type BxgyRewardPick } from './BxgyRewardModal'
-import { BundleSlotPicker } from './BundleSlotPicker'
+import { planPromotionFulfillment, invalidPhysicalPromotionIds, type PromotionOwner, type PendingFulfillment } from './promotionFulfillment'
+import type { BxgyRewardPick } from './BxgyRewardModal'
 import type { BundleAssignment } from './bundle'
 import { api, authStore } from '../api'
 import { reportErrors } from '../lib/errorReporter'
@@ -279,7 +278,7 @@ export default function CashierScreen() {
   const [rewardsLoading, setRewardsLoading] = useState(false)
 
   // Pending picker context has no effect on the sale until confirmed.
-  const [pendingFulfillment, setPendingFulfillment] = useState<(Extract<FulfillmentPlan, { kind: 'bxgy-picker' | 'bundle-picker' }> & { products: components['schemas']['Product'][] }) | null>(null)
+  const [pendingFulfillment, setPendingFulfillment] = useState<PendingFulfillment | null>(null)
   // Background reference pull (auto-pull): the engine may swap the catalog only while nothing is in flight.
   useAutoPullGate(engine, {
     cartCount: state.cart.length, isCheckoutOpen: state.isCheckoutOpen, isProcessing: state.isProcessing,
@@ -507,6 +506,12 @@ export default function CashierScreen() {
   }
 
   const handleSelectPromotion = (promotion: components['schemas']['Promotion']) => applySelection({ kind: 'direct', promotion })
+
+  // Closing the Promo & Diskon sheet (x, backdrop, Back) also drops a picker that was open in it.
+  const closePromoSheet = () => {
+    setPendingFulfillment(null)
+    dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel: null })
+  }
 
   const handleBxgyRewardConfirm = (picks: BxgyRewardPick[]) => {
     if (pendingFulfillment?.kind !== 'bxgy-picker') return
@@ -993,7 +998,8 @@ export default function CashierScreen() {
       if (refundOrder) { setRefundOrder(null); setRefundSale(null); return true }
       if (state.isSuccessOpen) { dispatch({ type: 'CLOSE_SUCCESS' }); return true }
       if (state.isCheckoutOpen) { dispatch({ type: 'CLOSE_CHECKOUT' }); return true }
-      if (state.activeAdjustment) { dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel: null }); return true }
+      if (pendingFulfillment) { setPendingFulfillment(null); return true }
+      if (state.activeAdjustment) { closePromoSheet(); return true }
       if (state.activeTab === 'cart') { dispatch({ type: 'SET_ACTIVE_TAB', tab: 'products' }); return true }
       // Nothing to navigate back to — still consume it. A POS must never be
       // closed/minimized by a stray Back press; only "Keluar" logs out.
@@ -1002,7 +1008,7 @@ export default function CashierScreen() {
     return () => setBackHandler(null)
   }, [
     showConnection, showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRequisitions, showRecap, refundOrder,
-    state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment,
+    state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment, pendingFulfillment,
     state.activeTab,
   ])
 
@@ -1154,6 +1160,12 @@ export default function CashierScreen() {
         onApplySurcharge={cartActions.applySurcharge}
         promoCodeError={promoCodeError}
         onClearPromoCodeError={() => setPromoCodeError(null)}
+        pendingFulfillment={pendingFulfillment}
+        stockFor={(pid, size) => stockFor(displayProducts, pid, size)}
+        onBxgyConfirm={handleBxgyRewardConfirm}
+        onBundleConfirm={handleBundlePickerConfirm}
+        onCancelPicker={() => setPendingFulfillment(null)}
+        onClosePromo={closePromoSheet}
       />
 
       <CheckoutPanel
@@ -1321,28 +1333,6 @@ export default function CashierScreen() {
           receivedByName={user?.displayName ?? ''}
           receiptSettings={settings.receipt}
           onClose={() => setPendingTT(null)}
-        />
-      )}
-
-      {pendingFulfillment?.kind === 'bxgy-picker' && (
-        <BxgyRewardModal
-          promo={pendingFulfillment.promo}
-          options={pendingFulfillment.options}
-          due={pendingFulfillment.due}
-          stockProducts={displayProducts}
-          onConfirm={handleBxgyRewardConfirm}
-          onCancel={() => setPendingFulfillment(null)}
-        />
-      )}
-
-      {pendingFulfillment?.kind === 'bundle-picker' && (
-        <BundleSlotPicker
-          cfg={pendingFulfillment.cfg}
-          cart={pendingFulfillment.cart}
-          promoName={pendingFulfillment.promo.name}
-          stockFor={(pid, size) => stockFor(displayProducts, pid, size)}
-          onConfirm={handleBundlePickerConfirm}
-          onCancel={() => setPendingFulfillment(null)}
         />
       )}
 

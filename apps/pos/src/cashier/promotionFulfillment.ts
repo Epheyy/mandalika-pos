@@ -148,3 +148,6 @@ export function invalidPhysicalPromotionIds(state: CashierState): string[] {
   }
   return invalid
 }
+
+/** A BXGY/bundle picker waiting for the cashier's choice; rendered inside the Promo & Diskon sheet. */
+export type PendingFulfillment = Extract<FulfillmentPlan, { kind: 'bxgy-picker' | 'bundle-picker' }> & { products: Product[] }

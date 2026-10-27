@@ -37,7 +37,7 @@ interface CartProps {
   lineBackRef?: MutableRefObject<(() => boolean) | null>
   onClear: () => void
   onCheckout: () => void
-  onOpenAdjustment: (panel: 'notes' | 'discount' | 'promo') => void
+  onOpenAdjustment: (panel: 'notes' | 'promo') => void
   discountRunning: number
   discountType: 'percentage' | 'fixed'
   surchargeRunning: number
@@ -263,14 +263,11 @@ export const Cart = memo(function Cart({
       {/* Adjustments row */}
       {!isEmpty && (
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-t border-paper-2 px-4 py-2">
-          <Button variant="promo" active={hasPromo} onClick={() => onOpenAdjustment('promo')}>
-            Promo &amp; Kode
+          <Button variant="promo" active={hasPromo || hasManual} onClick={() => onOpenAdjustment('promo')}>
+            Promo &amp; Diskon
           </Button>
           <Button variant="secondary" active={orderNotes !== ''} onClick={() => onOpenAdjustment('notes')}>
             Catatan
-          </Button>
-          <Button variant={hasManual ? 'promo' : 'secondary'} onClick={() => onOpenAdjustment('discount')}>
-            Diskon manual
           </Button>
         </div>
       )}
