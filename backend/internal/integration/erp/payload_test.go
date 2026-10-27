@@ -95,6 +95,21 @@ func TestBuildDocumentRefundLinksOriginalAndNegatesTender(t *testing.T) {
 	}
 }
 
+// C4a: a part refund's tender is the refund row's amount, not the order total.
+func TestBuildDocumentRefundTenderUsesRefundRowAmount(t *testing.T) {
+	m := movement("a", 1)
+	in := input("refund", m)
+	amt := int64(25000)
+	in.Order = &OrderInfo{PaymentMethod: "cash", Total: 90000, LinePrice: map[string]int64{}, RefundAmount: &amt}
+	doc := mustBuild(t, in)
+	if len(doc.Tenders) != 1 || doc.Tenders[0] != (Tender{Method: "cash", Amount: -25000}) {
+		t.Errorf("tenders = %+v, want -25000", doc.Tenders)
+	}
+	if doc.Lines[0].Qty != 1 {
+		t.Errorf("line qty = %d, want the refunded quantity 1", doc.Lines[0].Qty)
+	}
+}
+
 func TestBuildDocumentTransferPairing(t *testing.T) {
 	out := input("transfer_out", movement("a", -10))
 	out.Header.RefType, out.Header.RefID, out.Header.DocumentID = "transfer", "tr-1", "d-out"

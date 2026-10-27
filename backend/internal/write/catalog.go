@@ -204,7 +204,7 @@ func seedOutletStock(ctx context.Context, t pgx.Tx, productID, seedOutletID stri
 	if outlet == "" {
 		if e := t.QueryRow(ctx, `
 			SELECT o.id FROM outlets o
-			LEFT JOIN (SELECT outlet_id, count(*) n FROM orders WHERE status='completed' GROUP BY outlet_id) oc
+			LEFT JOIN (SELECT outlet_id, count(*) n FROM orders WHERE status IN ('completed','partially_refunded') GROUP BY outlet_id) oc
 			  ON oc.outlet_id=o.id
 			WHERE o.is_active
 			ORDER BY COALESCE(oc.n,0) DESC, o.created_at ASC LIMIT 1`).Scan(&outlet); e != nil {

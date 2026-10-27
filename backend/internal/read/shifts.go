@@ -23,9 +23,10 @@ const shiftObj = `json_build_object('id',s.id,'outletId',s.outlet_id,'businessDa
   'cashRefundsPaid',CASE WHEN s.status='closed' AND s.refunds_paid_by_method IS NOT NULL THEN s.cash_refunds_paid END,
   'refundsPaidByMethod',CASE WHEN s.status='closed' THEN s.refunds_paid_by_method
     ELSE (SELECT COALESCE(jsonb_object_agg(x.payment_method, x.amount),'{}'::jsonb) FROM (
-      SELECT o.payment_method, sum(o.total) AS amount FROM orders o
-       WHERE o.refund_shift_id=s.id AND o.status='refunded' AND o.shift_id IS DISTINCT FROM s.id
-       GROUP BY o.payment_method) x) END)`
+      SELECT r.payment_method, sum(r.amount) AS amount
+        FROM order_refunds r JOIN orders o ON o.id = r.order_id
+       WHERE r.shift_id=s.id AND o.shift_id IS DISTINCT FROM s.id
+       GROUP BY r.payment_method) x) END)`
 
 // Shifts lists shifts newest first. dateFrom/dateTo are business days compared with
 // shifts.business_date (a shift's opening day in its outlet's zone, owner rule A28).

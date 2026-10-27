@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -60,6 +61,10 @@ type OrderInfo struct {
 	PaymentMethod string
 	Total         int64
 	LinePrice     map[string]int64 // order_items.id -> rounded price
+	// RefundAmount is order_refunds.amount (rounded) of the refund this document carries,
+	// found by ledger_document_key. nil on a sale document, or when no refund row matches
+	// (should not happen): the refund tender then falls back to -Total.
+	RefundAmount *int64
 }
 
 // BuildInput is everything BuildDocument needs; it holds no connection.
@@ -212,6 +217,13 @@ func buildTenders(h OutboxHeader, order *OrderInfo) []Tender {
 	case "sale":
 		return []Tender{{Method: order.PaymentMethod, Amount: order.Total}}
 	case "refund":
+		// One refund row = one document. The tender is what that refund paid out (a part refund
+		// is not the order total); the row is found by the document's ledger key.
+		if order.RefundAmount != nil {
+			return []Tender{{Method: order.PaymentMethod, Amount: -*order.RefundAmount}}
+		}
+		slog.Warn("erp: refund document has no order_refunds row, tender falls back to the order total",
+			"documentId", h.DocumentID, "order", h.RefID)
 		return []Tender{{Method: order.PaymentMethod, Amount: -order.Total}}
 	}
 	return nil
@@ -240,6 +252,11 @@ FROM stock_movements m WHERE m.document_id=$1 ORDER BY m.seq`
 
 	orderSQL      = `SELECT o.payment_method, round(o.total)::bigint FROM orders o WHERE o.id=$1`
 	orderItemsSQL = `SELECT oi.id::text, round(oi.price)::bigint FROM order_items oi WHERE oi.order_id=$1`
+	// The outbox row's doc_key is the ledger document key (refund:<refundId>, or the legacy
+	// refund:<orderId>), which order_refunds.ledger_document_key mirrors.
+	refundAmountSQL = `SELECT round(r.amount)::bigint FROM erp_outbox ob
+	  JOIN order_refunds r ON r.ledger_document_key = ob.doc_key
+	 WHERE ob.document_id=$1::uuid AND r.order_id=$2`
 )
 
 // LoadBuildInput reads everything BuildDocument needs for one outbox row. Plain reads
@@ -266,6 +283,16 @@ func LoadBuildInput(ctx context.Context, q Querier, h OutboxHeader, brand string
 	if (h.Kind == "sale" || h.Kind == "refund") && h.RefType == "order" {
 		if in.Order, err = loadOrder(ctx, q, h.RefID); err != nil {
 			return in, err
+		}
+		// Only part 1 carries the tender, so only it needs the refund amount.
+		if h.Kind == "refund" && in.Order != nil && h.Part <= 1 {
+			var amt int64
+			switch err := q.QueryRow(ctx, refundAmountSQL, h.DocumentID, h.RefID).Scan(&amt); {
+			case err == nil:
+				in.Order.RefundAmount = &amt
+			case !errors.Is(err, pgx.ErrNoRows):
+				return in, fmt.Errorf("erp: load refund amount: %w", err)
+			}
 		}
 	}
 	return in, nil

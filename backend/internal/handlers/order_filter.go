@@ -10,7 +10,7 @@ import (
 )
 
 func validOrderStatus(s string) bool {
-	return s == "" || s == "completed" || s == "refunded" || s == "cancelled"
+	return s == "" || s == "completed" || s == "partially_refunded" || s == "refunded" || s == "cancelled"
 }
 
 // dayRange validates the business-day pair shared by /orders, /shifts, the summary and the

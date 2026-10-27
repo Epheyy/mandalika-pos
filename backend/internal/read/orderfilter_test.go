@@ -124,3 +124,40 @@ func TestBuildOrderWhereQUnrestrictedKeepsCustomerSearch(t *testing.T) {
 		t.Errorf("args=%v", args)
 	}
 }
+
+// C4a: on the refund basis the bounds apply to order_refunds rows. The list form is one EXISTS
+// (an order with several refunds appears once, one row satisfying every bound); the summary's
+// row form puts the same bounds on alias r.
+func TestBuildOrderWhereRefundBasisUsesRefundRows(t *testing.T) {
+	f := OrderFilter{Scope: Scope{CrossAll: true}, DateBasis: "refund", DateFrom: "2026-01-02", DateTo: "2026-01-03"}
+	where, args := buildOrderWhere(f)
+	if !strings.Contains(where, "EXISTS (SELECT 1 FROM order_refunds r WHERE r.order_id = o.id") ||
+		!strings.Contains(where, "r.refund_business_date >= $1::text::date") ||
+		!strings.Contains(where, "r.refund_business_date <= $2::text::date") {
+		t.Errorf("list form: %q", where)
+	}
+	if strings.Contains(where, "o.refund_business_date") || strings.Contains(where, "o.status='refunded'") {
+		t.Errorf("must not read the orders.refund_* columns: %q", where)
+	}
+	if len(args) != 2 {
+		t.Errorf("args = %v", args)
+	}
+	rowWhere, _ := appendOrderWhere(f, []any{}, true)
+	if strings.Contains(rowWhere, "EXISTS") || !strings.Contains(rowWhere, "AND r.refund_business_date >= $1::text::date") {
+		t.Errorf("row form: %q", rowWhere)
+	}
+}
+
+func TestBuildOrderWhereRefundBasisWithoutBoundsStillRequiresARefund(t *testing.T) {
+	where, _ := buildOrderWhere(OrderFilter{Scope: Scope{CrossAll: true}, DateBasis: "refund"})
+	if !strings.Contains(where, "EXISTS (SELECT 1 FROM order_refunds r WHERE r.order_id = o.id)") {
+		t.Errorf("where = %q", where)
+	}
+}
+
+func TestBuildOrderWhereSaleBasisKeepsOrderColumns(t *testing.T) {
+	where, _ := buildOrderWhere(OrderFilter{Scope: Scope{CrossAll: true}, DateFrom: "2026-01-02"})
+	if !strings.Contains(where, "o.business_date >= $1::text::date") || strings.Contains(where, "order_refunds") {
+		t.Errorf("where = %q", where)
+	}
+}
