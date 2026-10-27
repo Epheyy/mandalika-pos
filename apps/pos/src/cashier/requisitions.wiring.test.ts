@@ -47,7 +47,7 @@ describe('Permintaan Barang wiring (S6)', () => {
     expect(screen).toContain('canRequestStock={canRequestStock(user)}')
     expect(screen).toContain('onRequisitions={() => setShowRequisitions(true)}')
     const drawer = read('./MenuDrawer.tsx')
-    expect(drawer).toMatch(/canRequestStock \? \[\{[^\]]*'Permintaan Barang'/)
+    expect(drawer).toMatch(/canRequestStock && hasFeature\('requisitions'\) \? \[\{[^\]]*'Permintaan Barang'/)
   })
 
   it('Android Back closes the panel and the auto-pull gate sees it open', () => {

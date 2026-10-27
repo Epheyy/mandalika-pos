@@ -74,7 +74,7 @@ export default function OutletPickScreen() {
               key={o.id}
               disabled={busyId !== null}
               onClick={() => void choose(o)}
-              className="w-full text-left px-4 py-3 rounded-xl border border-gray-200 hover:border-amber-500 hover:bg-amber-50 transition disabled:opacity-60"
+              className="w-full text-left px-4 py-3 rounded-xl border border-gray-200 hover:border-brand hover:bg-paper-1 transition disabled:opacity-60"
             >
               <p className="text-sm font-bold text-gray-900">{busyId === o.id ? 'Menyimpan…' : o.name}</p>
               {o.address && <p className="text-xs text-gray-400">{o.address}</p>}

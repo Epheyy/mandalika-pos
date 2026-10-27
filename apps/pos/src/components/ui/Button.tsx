@@ -18,7 +18,7 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary: 'bg-brand text-on-brand active:bg-brand-pressed',
   secondary: 'bg-white border border-paper-2 text-ink-900 active:bg-paper-1',
   ghost: 'bg-transparent text-ink-700 active:bg-paper-1',
-  danger: 'bg-danger text-white active:opacity-90',
+  danger: 'bg-danger-solid text-white active:opacity-90',
   promo: 'bg-promo-bg text-promo active:opacity-90',
   reward: 'bg-reward-bg text-reward active:opacity-90',
 }

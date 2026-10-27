@@ -81,7 +81,7 @@ export function TerminalSection() {
           type="button"
           disabled={blocked !== null || busy}
           onClick={() => setConfirming(true)}
-          className="w-full py-2 bg-red-600 text-white rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-red-700 transition-colors"
+          className="w-full py-2 bg-danger-solid text-white rounded-xl text-sm font-semibold disabled:opacity-40 active:opacity-90 transition-colors"
         >
           Lepas terminal
         </button>
@@ -93,7 +93,7 @@ export function TerminalSection() {
               type="button"
               disabled={blocked !== null || busy}
               onClick={() => void release()}
-              className="flex-1 py-2 bg-red-600 text-white rounded-xl text-sm font-semibold disabled:opacity-40"
+              className="flex-1 py-2 bg-danger-solid text-white rounded-xl text-sm font-semibold disabled:opacity-40"
             >
               {busy ? 'Melepas…' : 'Ya, lepas'}
             </button>

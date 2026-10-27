@@ -33,6 +33,8 @@
   --color-warn-bg: #fdf0df;
   --color-danger: #b42318;
   --color-danger-bg: #fbe4e1;
+  /* Solid danger surfaces (Refund confirm, lock/shift-error bars). Performance skin maps it to ink-900 (D-28). */
+  --color-danger-solid: var(--color-danger);
   --color-info: #1d4ed8;
   --color-info-bg: #e3eafc;
   --color-promo: #6d28d9;
