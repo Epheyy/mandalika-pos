@@ -1059,7 +1059,7 @@ export default function CashierScreen() {
       )}
 
       {shift.shiftError && (
-        <div role="alert" className="bg-red-700 text-white text-sm font-semibold px-4 py-2 flex items-center justify-between gap-3 flex-shrink-0">
+        <div role="alert" className="bg-danger-solid text-white text-sm font-semibold px-4 py-2 flex items-center justify-between gap-3 flex-shrink-0">
           <span>{shift.shiftError}</span>
           <button type="button" onClick={shift.clearShiftError} className="text-xs underline flex-shrink-0">Tutup</button>
         </div>
