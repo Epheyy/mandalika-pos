@@ -21,7 +21,6 @@ import { Pagination } from '../ui/Pagination'
 import { canViewSummary, lastDaysRange, orderFilterParams, transaksiFilters, transaksiHeader } from './reports/orderQuery'
 import { useOrderReport } from './reports/useOrderReport'
 import { refundedByLine } from './refundDisplay'
-import { refundedMoney } from './reports/reportTotals'
 import { canRefundWholeOrder, orderIconClasses, orderStatusLabel, orderStatusTone } from '../lib/orderStatus'
 import { quoteWarningTitle, receiptTotalLine } from './quoteDisplay'
 
@@ -119,7 +118,6 @@ export function OrdersPanel() {
           .join('; '),
         Pajak: o.taxAmount,
         Total: o.total,
-        'Jumlah Refund': o.status === 'refunded' || o.status === 'partially_refunded' ? refundedMoney(o) : '',
       }))
       const scope = outletId ? (ctxOutlets.find((o) => o.id === outletId)?.name ?? null) : 'semua-outlet'
       const name = buildExportName('transaksi', [scope, fStatus || undefined, fPay || undefined, query.trim() || undefined])
