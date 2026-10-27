@@ -86,6 +86,12 @@
       "source": "tests/browser/pos-scenarios.ts"
     },
     {
+      "id": "POS-PROMO-SHEET",
+      "finding": "UX-B2",
+      "description": "One Promo & Diskon door: code field and manual Diskon inline in the same sheet, Kosongkan asks before clearing (Batal keeps the cart)",
+      "source": "tests/browser/pos-scenarios.ts"
+    },
+    {
       "id": "S0A-DIAGNOSTICS",
       "finding": "A02",
       "description": "Rendered repeated export/cancel/share/clipboard failures retain two failed operations",

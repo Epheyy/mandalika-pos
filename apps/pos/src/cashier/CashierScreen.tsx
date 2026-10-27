@@ -282,7 +282,7 @@ export default function CashierScreen() {
 
   // Pending picker context has no effect on the sale until confirmed.
   // Open confirm dialog (customer change, Kosongkan); Back and Batal dismiss it.
-  const [confirm, setConfirm] = useState<{ message: string; confirmLabel: string; tone: 'danger' | 'primary'; run: () => void } | null>(null)
+  const [confirm, setConfirm] = useState<{ message: string; confirmLabel: string; tone: 'danger' | 'primary'; run: () => void; onCancel?: () => void } | null>(null)
   const [pendingFulfillment, setPendingFulfillment] = useState<PendingFulfillment | null>(null)
   // Background reference pull (auto-pull): the engine may swap the catalog only while nothing is in flight.
   useAutoPullGate(engine, {
@@ -514,11 +514,12 @@ export default function CashierScreen() {
 
   // A customer change silently strips reward lines and bundle/giveaway promos (SET_CUSTOMER), so
   // confirm first when that would actually remove something. The reducer's semantics are unchanged.
-  const requestSetCustomer = (customer: components['schemas']['Customer'] | null) => {
+  const dismissConfirm = () => { confirm?.onCancel?.(); setConfirm(null) }
+  const requestSetCustomer = (customer: components['schemas']['Customer'] | null, onCancel?: () => void) => {
     const names = customerAttachImpact(state)
     if (names.length === 0) { dispatch({ type: 'SET_CUSTOMER', customer }); return }
     const change = customer === null ? 'release' : state.selectedCustomer ? 'replace' : 'attach'
-    setConfirm({ message: customerAttachMessage(names, change), confirmLabel: 'Lanjutkan', tone: 'primary', run: () => dispatch({ type: 'SET_CUSTOMER', customer }) })
+    setConfirm({ message: customerAttachMessage(names, change), confirmLabel: 'Lanjutkan', tone: 'primary', run: () => dispatch({ type: 'SET_CUSTOMER', customer }), onCancel })
   }
 
   // Closing the Promo & Diskon sheet (x, backdrop, Back) also drops a picker that was open in it.
@@ -585,7 +586,8 @@ export default function CashierScreen() {
     }
     setLocalCustomers((prev) => [created, ...prev])
     getKnownCustomers().remember(created)
-    requestSetCustomer(created)
+    // Cancelling the confirm leaves the (already queued) customer unselected: say so, so nobody re-adds them.
+    requestSetCustomer(created, () => showToast('Pelanggan tersimpan, belum dipilih'))
     setIsAddingCustomer(false)
     setNewCustomerForm({ name: '', phone: '', email: '' })
   }
@@ -937,7 +939,7 @@ export default function CashierScreen() {
         successOpen: state.isSuccessOpen, checkoutOpen: state.isCheckoutOpen, adjustmentOpen: !!state.activeAdjustment, cartTabActive: state.activeTab === 'cart',
       })
       if (layer === 'ignore-busy') return true
-      if (layer === 'close-confirm') { setConfirm(null); return true }
+      if (layer === 'close-confirm') { dismissConfirm(); return true }
       if (lineBackRef.current?.()) return true
       if (variantBackRef.current?.()) return true
       if (showConnection) { setShowConnection(false); return true }
@@ -1087,7 +1089,7 @@ export default function CashierScreen() {
               onSwitchSize={handleSwitchSize} lineBackRef={lineBackRef}
               onClear={() => setConfirm({ message: 'Kosongkan keranjang? Pelanggan, promo dan catatan ikut terhapus.', confirmLabel: 'Kosongkan', tone: 'danger', run: cartActions.clearCart })}
               onCheckout={handleCheckout}
-              onOpenAdjustment={(panel) => dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel })}
+              onOpenAdjustment={(panel) => { setPendingFulfillment(null); dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel }) }}
               discountRunning={state.discountRunning} discountType={state.appliedDiscountType}
               surchargeRunning={state.surchargeRunning}
               orderNotes={state.orderNotes}
@@ -1115,6 +1117,7 @@ export default function CashierScreen() {
         onClearPromoCodeError={() => setPromoCodeError(null)}
         pendingFulfillment={pendingFulfillment}
         stockFor={(pid, size) => stockFor(displayProducts, pid, size)}
+        stockProducts={displayProducts}
         onBxgyConfirm={handleBxgyRewardConfirm}
         onBundleConfirm={handleBundlePickerConfirm}
         onCancelPicker={() => setPendingFulfillment(null)}
@@ -1294,7 +1297,7 @@ export default function CashierScreen() {
         message={confirm?.message ?? ''}
         confirmLabel={confirm?.confirmLabel ?? ''}
         tone={confirm?.tone}
-        onCancel={() => setConfirm(null)}
+        onCancel={dismissConfirm}
         onConfirm={() => { const run = confirm?.run; setConfirm(null); run?.() }}
       />
 

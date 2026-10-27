@@ -37,6 +37,8 @@ interface AdjustmentDrawerProps {
   /** A picker waiting for a choice; shown inside the sheet in place of the list. */
   pendingFulfillment: PendingFulfillment | null
   stockFor: (productId: string, variantSize: string) => number | null
+  /** Live (pending-adjusted) catalog for the stock shown in the BXGY picker. */
+  stockProducts: components['schemas']['Product'][]
   onBxgyConfirm: (picks: BxgyRewardPick[]) => void
   onBundleConfirm: (assignment: BundleAssignment) => void
   /** "‹ Kembali" / Batal in a picker: back to the list, nothing applied. */
@@ -62,6 +64,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
   onClearPromoCodeError,
   pendingFulfillment,
   stockFor,
+  stockProducts,
   onBxgyConfirm,
   onBundleConfirm,
   onCancelPicker,
@@ -103,7 +106,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
         promo={pendingFulfillment.promo}
         options={pendingFulfillment.options}
         due={pendingFulfillment.due}
-        stockProducts={pendingFulfillment.products}
+        stockProducts={stockProducts}
         onConfirm={onBxgyConfirm}
         onCancel={onCancelPicker}
       />

@@ -85,11 +85,30 @@ describe('resolveConfirmGuard', () => {
     expect(next.appliedPromotions.map((p) => p.id)).toEqual(['OK'])
   })
 
-  it('a drop with no cart effect adds nothing in the second pass', () => {
-    const bad = promo('BAD', expired), good = promo('GOOD', { minPurchase: 50000 })
-    const state = stateWith({ appliedPromotions: [bad, good] })
-    const r = run(state, [bad, good])
-    expect(r.drops).toHaveLength(1)
+  it('second pass: stripping a giveaway lowers the subtotal and drops a min-purchase code once', () => {
+    // Paid 100.000 + reward 10.000 = 110.000 satisfies the code at first; the expired BXGY goes,
+    // its reward line goes with it, and the code no longer reaches its minimum.
+    const bxgy = promo('BX', {
+      ...expired, type: 'buy_x_get_y', value: 0,
+      bxgyConfig: { buyQuantity: 1, getQuantity: 1, buyProductIds: ['a'], getProductIds: ['gift'], getDiscountKind: 'percentage', getDiscountValue: 50 },
+    })
+    const reward: CartItem = { ...line('gift', 10000), isReward: true, rewardPromotionId: 'BX' }
+    const state = stateWith({ cart: [line('a', 100000), reward], appliedPromotions: [bxgy], appliedPromoCodes: [applied('MIN')] })
+    const r = run(state, [bxgy], [dcode('MIN', { minPurchase: 110000 })])
+    expect(r.drops.map((d) => (d.kind === 'promotion' ? d.id : d.code))).toEqual(['BX', 'MIN'])
+    const next = apply(state, r.actions)
+    expect(next.appliedPromotions).toEqual([])
+    expect(next.appliedPromoCodes).toEqual([])
+    expect(next.cart).toEqual([line('a', 100000)])
+  })
+
+  it('a linked code whose promotion is no longer active is dropped alone', () => {
+    const linkedCode: AppliedPromoCode = { code: 'LNK', value: 0, type: 'percentage', combinable: true, promotion: { id: 'GONE', type: 'percentage', value: 10, isBOGO: false } }
+    const keep = promo('KEEP')
+    const state = stateWith({ appliedPromotions: [keep], appliedPromoCodes: [linkedCode] })
+    const r = run(state, [keep], [dcode('LNK')])
+    expect(r.drops).toEqual([{ kind: 'code', code: 'LNK', reason: 'promo tertaut tidak tersedia' }])
+    expect(apply(state, r.actions).appliedPromotions.map((p) => p.id)).toEqual(['KEEP'])
   })
 
   it('does not report a drop twice across the two passes', () => {

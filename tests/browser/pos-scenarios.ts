@@ -409,3 +409,46 @@ export const posLineSheet = async (page: ScenarioPage) => {
   out.push({ lineSheet: ['open from line body', '+1 → 200.000', 'M→L keeps qty 2 → 240.000', 'Kurangi → 120.000', 'Hapus → cart empty'] })
   return out
 }
+
+// B2: one "Promo & Diskon" door, manual discount inline in it, and Kosongkan asks first.
+export const posPromoSheet = async (page: ScenarioPage) => {
+  const out: any[] = []
+  const assert = (v: unknown, m: string) => { if (!v) throw Error(m) }
+  const body = () => page.locator('body').innerText()
+  await page.getByRole('searchbox').fill('SYN-M')
+  await page.getByRole('searchbox').press('Enter')
+  await page.getByRole('button', { name: 'Bayar', exact: true }).waitFor()
+  // One door: the two old buttons are gone; the single one opens the sheet.
+  assert((await page.getByRole('button', { name: 'Diskon manual', exact: true }).count()) === 0, 'no separate Diskon manual button')
+  assert((await page.getByRole('button', { name: 'Promo & Kode', exact: true }).count()) === 0, 'old Promo & Kode button is gone')
+  await page.getByRole('button', { name: 'Promo & Diskon', exact: true }).click()
+  const heading = page.getByRole('heading', { name: 'Promo & Diskon' })
+  await heading.waitFor()
+  assert((await page.getByRole('textbox', { name: 'Kode promo', exact: true }).count()) === 1, 'the code field sits in the sheet')
+  // Manual discount is collapsed, opens inline, and applying keeps the sheet open (replaces, no gate).
+  const section = page.getByRole('button', { name: /^Diskon manual \/ Biaya tambahan/ })
+  assert((await section.getAttribute('aria-expanded')) === 'false', 'manual section starts collapsed')
+  await section.click()
+  await page.getByRole('button', { name: 'Persen (%)', exact: true }).click()
+  await page.getByRole('spinbutton', { name: 'Nilai diskon atau biaya tambahan' }).fill('10')
+  await page.getByRole('button', { name: 'Diskon −', exact: true }).click()
+  assert(await heading.count(), 'applying a manual discount keeps the sheet open')
+  assert((await body()).includes('Diskon manual 10%'), 'manual discount summary is shown')
+  await heading.locator('..').getByRole('button', { name: 'Tutup', exact: true }).click()
+  assert((await heading.count()) === 0, 'the sheet closes')
+  assert((await body()).includes('Total hemat'), 'the cart shows the saving')
+  out.push({ singleDoor: ['Promo & Diskon', 'Kode promo field', 'manual 10% inline'] })
+
+  // Kosongkan asks first: Batal keeps the cart, the confirm clears it.
+  const confirm = page.getByRole('dialog').filter({ hasText: 'Kosongkan keranjang?' })
+  await page.getByRole('button', { name: 'Kosongkan', exact: true }).click()
+  await confirm.waitFor()
+  assert((await confirm.innerText()).includes('Pelanggan, promo dan catatan ikut terhapus'), 'confirm copy')
+  await confirm.getByRole('button', { name: 'Batal', exact: true }).click()
+  assert((await page.getByRole('button', { name: 'Bayar', exact: true }).count()) === 1, 'Batal keeps the cart')
+  await page.getByRole('button', { name: 'Kosongkan', exact: true }).click()
+  await confirm.getByRole('button', { name: 'Kosongkan', exact: true }).click()
+  assert((await page.getByRole('button', { name: 'Bayar', exact: true }).count()) === 0, 'confirm clears the cart')
+  out.push({ kosongkan: ['dialog', 'Batal keeps cart', 'Kosongkan clears cart'] })
+  return out
+}
