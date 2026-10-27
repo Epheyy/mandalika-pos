@@ -3,7 +3,7 @@ import { fetchAllPages, type AppSettings } from '@mandalika/api'
 import { variantLabel } from '@mandalika/types'
 import { format, parseISO } from 'date-fns'
 import { id } from 'date-fns/locale'
-import { ShoppingBag, Search, ChevronDown, ChevronUp, RotateCcw, Download } from 'lucide-react'
+import { ShoppingBag, Search, ChevronDown, ChevronUp, Download } from 'lucide-react'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { useOutlet } from '../outlet'
@@ -13,7 +13,7 @@ import { BRAND } from '../lib/brand'
 import { paymentFilterOptions } from '../lib/paymentOptions'
 import { exportToXLSX, buildExportName } from '../lib/csvUtils'
 import { Button } from '../ui/Button'
-import { Input, Select, Textarea, fieldClass } from '../ui/Field'
+import { Input, Select, fieldClass } from '../ui/Field'
 import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { EmptyState } from '../ui/EmptyState'
@@ -21,7 +21,9 @@ import { Pagination } from '../ui/Pagination'
 import { canViewSummary, lastDaysRange, orderFilterParams, transaksiFilters, transaksiHeader } from './reports/orderQuery'
 import { useOrderReport } from './reports/useOrderReport'
 import { refundedByLine } from './refundDisplay'
-import { canRefundWholeOrder, orderIconClasses, orderStatusLabel, orderStatusTone } from '../lib/orderStatus'
+import { orderIconClasses, orderStatusLabel, orderStatusTone } from '../lib/orderStatus'
+import { OrderRefundSection } from './orders/OrderRefundSection'
+import { AdminRefundForm } from './orders/AdminRefundForm'
 import { quoteWarningTitle, receiptTotalLine } from './quoteDisplay'
 
 const TENDER_WARNING_TITLES: Record<string, string> = {
@@ -49,10 +51,6 @@ export function OrdersPanel() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [refundingId, setRefundingId] = useState<string | null>(null)
-  const [note, setNote] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
   const [exportBusy, setExportBusy] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
 
@@ -70,24 +68,9 @@ export function OrdersPanel() {
   const settingsQ = usePolledQuery<AppSettings>(() => api.getAppSettings(), [], 60000)
   const payOptions = paymentFilterOptions(settingsQ.data?.paymentMethods, orders)
 
-  const refund = async (orderId: string) => {
-    if (!note.trim()) {
-      setErr('Alasan refund wajib diisi')
-      return
-    }
-    setBusy(true)
-    setErr(null)
-    try {
-      await api.refundOrder(orderId, note.trim())
-      setRefundingId(null)
-      setNote('')
-      setExpanded(null)
-      await Promise.all([q.refetch(), sq.refetch()])
-    } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'Gagal memproses refund.')
-    } finally {
-      setBusy(false)
-    }
+  const canRefund = user?.role === 'admin'
+  const reloadAfterRefund = async () => {
+    await Promise.all([q.refetch(), sq.refetch()])
   }
 
   // Detailed export for analysts: one row per order with the discount source
@@ -206,15 +189,11 @@ export function OrdersPanel() {
                   tabIndex={0}
                   onClick={() => {
                     setExpanded(expanded === o.id ? null : o.id)
-                    setRefundingId(null)
-                    setNote('')
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault()
                       setExpanded(expanded === o.id ? null : o.id)
-                      setRefundingId(null)
-                      setNote('')
                     }
                   }}
                 >
@@ -313,7 +292,7 @@ export function OrdersPanel() {
                           <p className="text-sm text-amber-800">{o.notes}</p>
                         </div>
                       )}
-                      {o.status === 'refunded' && o.refundReason && (
+                      {(o.refunds ?? []).length === 0 && o.status === 'refunded' && o.refundReason && (
                         <div className="bg-red-50 rounded-xl p-3">
                           <p className="text-xs font-black text-red-600 mb-1">Alasan Refund</p>
                           <p className="text-sm text-red-700">{o.refundReason}</p>
@@ -328,63 +307,8 @@ export function OrdersPanel() {
                           )}
                         </div>
                       )}
-                      {o.status === 'partially_refunded' && (
-                        <div className="bg-amber-50 rounded-xl p-3 space-y-1">
-                          <p className="text-xs font-black text-amber-700">
-                            Sebagian refund{o.refundedAmount !== undefined ? ` · ${BRAND.currency.format(o.refundedAmount)}` : ''}
-                          </p>
-                          {(o.refunds ?? []).map((r) => (
-                            <p key={r.id} className="text-xs text-amber-800">
-                              Refund ke-{r.seq} · {BRAND.currency.format(r.amount)} · {r.reason}
-                            </p>
-                          ))}
-                          {user?.role === 'admin' && (
-                            <p className="text-xs text-amber-700">Refund seluruh transaksi tidak tersedia untuk transaksi yang sudah sebagian di-refund.</p>
-                          )}
-                        </div>
-                      )}
-                      {user?.role === 'admin' && canRefundWholeOrder(o.status) && (
-                        <div>
-                          {refundingId === o.id ? (
-                            <div className="space-y-2">
-                              <Textarea
-                                label="Alasan Refund *"
-                                value={note}
-                                onChange={(e) => setNote(e.target.value)}
-                                placeholder="Tuliskan alasan refund secara jelas..."
-                                rows={3}
-                                error={err ?? undefined}
-                              />
-                              <div className="flex gap-2">
-                                <Button
-                                  variant="secondary"
-                                  className="flex-1"
-                                  onClick={() => { setRefundingId(null); setNote(''); setErr(null) }}
-                                >
-                                  Batal
-                                </Button>
-                                <Button
-                                  variant="danger"
-                                  className="flex-1"
-                                  loading={busy}
-                                  onClick={() => refund(o.id)}
-                                >
-                                  {busy ? 'Memproses...' : 'Konfirmasi Refund'}
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => { e.stopPropagation(); setRefundingId(o.id); setNote(''); setErr(null) }}
-                              icon={<RotateCcw className="w-3.5 h-3.5" />}
-                            >
-                              Proses Refund
-                            </Button>
-                          )}
-                        </div>
-                      )}
+                      <OrderRefundSection order={o} />
+                      {canRefund && <AdminRefundForm order={o} onDone={reloadAfterRefund} />}
                     </div>
                   </div>
                 )}
