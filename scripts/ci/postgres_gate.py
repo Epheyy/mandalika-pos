@@ -172,6 +172,26 @@ def port_free(port: int) -> bool:
     return True
 
 
+def port_diagnosis(port: int) -> str:
+    """Which check tripped, plus Linux socket state for the port, so a busy-port failure names its holder."""
+    parts = [f"connect_open={port_open(port)}"]
+    with socket.socket() as s:
+        if os.name != "nt":
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind(("127.0.0.1", port))
+            parts.append("bind=ok")
+        except OSError as e:
+            parts.append(f"bind={e.errno}")
+    if shutil.which("ss"):
+        try:
+            out = command(["ss", "-tanp", "sport", "=", f":{port}", "or", "dport", "=", f":{port}"], timeout=5).stdout
+            parts.append("ss=" + " | ".join(out.strip().splitlines()[:6]))
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    return "; ".join(parts)
+
+
 def wait_port_free(port: int, tries: int = PORT_WAIT_TRIES, delay: float = PORT_WAIT_DELAY) -> bool:
     """Bounded wait (tries x delay) for a previous container to release the port."""
     for attempt in range(tries):
@@ -247,7 +267,8 @@ class Fixture:
 
     def start(self):
         if not wait_port_free(self.port):
-            raise GateError("expected fixture port already occupied; no existing target used")
+            raise GateError("expected fixture port already occupied; no existing target used: "
+                            + port_diagnosis(self.port))
         if self.args.runtime == "docker":
             self.created = True  # cleanup by unique owned name even if create response is lost
             env = clean_env() | {"POSTGRES_PASSWORD": self.password}
@@ -353,7 +374,7 @@ class Fixture:
             if directory.exists():
                 raise GateError("fixture files survived removal")
         if not wait_port_free(self.port):
-            raise GateError("fixture port still occupied after teardown")
+            raise GateError("fixture port still occupied after teardown: " + port_diagnosis(self.port))
         self.evidence["cleanup"] = "removed-and-port-closed"
 
 
