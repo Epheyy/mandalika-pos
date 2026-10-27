@@ -1137,6 +1137,17 @@ export class SyncEngine {
     return [...byUuid.values()].sort((a, b) => at(b.r) - at(a.r) || b.order - a.order).map((x) => x.r)
   }
 
+  /** This tablet's receipts of sales still in the outbox that name this customer, newest first (B3: the profile's
+   *  offline history). Asked for one customer id; the receipt view itself carries no customer data (A41/A30), and
+   *  an acknowledged sale is not linked here (the archive keeps no customer). */
+  localReceiptsForCustomer(customerId: string): LocalReceipt[] {
+    if (!customerId) return []
+    const mine = new Set(
+      this.outbox.all().filter((i) => i.type === 'order' && i.status !== 'acked' && i.payload.customerId === customerId).map((i) => i.idempotencyKey),
+    )
+    return mine.size === 0 ? [] : this.localReceipts().filter((r) => mine.has(r.idempotencyKey))
+  }
+
   /** Items needing review: explicit server/client verdicts plus legacy attempt-count
    *  parks. Never auto-retried, never deleted. */
   reviewItems(): ReviewItem[] {

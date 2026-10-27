@@ -33,6 +33,11 @@ import { Cart } from './Cart'
 import { CheckoutPanel } from './CheckoutPanel'
 import { cashTender } from './tender'
 import { CustomerPicker } from './CustomerPicker'
+import { CustomerChip } from './CustomerChip'
+import { CustomerProfileSheet } from './CustomerProfileSheet'
+import { chipRewards, localHistoryFor, planOne, planRepeat, recentCustomers, rewardsAvailableCount } from './customerProfile'
+import { useLoyaltyRewards } from '../hooks/useLoyaltyRewards'
+import { useCustomerProfile } from '../hooks/useCustomerProfile'
 import { awaitingSearch, finderHits, getKnownCustomers, lookupFailureMessage, prefillFromSearch } from './customerFinder'
 import { AdjustmentDrawer } from './AdjustmentDrawer'
 import { MenuDrawer } from './MenuDrawer'
@@ -68,7 +73,7 @@ import { reportErrors } from '../lib/errorReporter'
 import { diagnosticExportMessages, shareFailedSyncDiagnostics } from '../lib/failedSyncDiagnostics'
 import { track } from '../lib/activityLog'
 import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
-import { brand } from '../brand'
+import { brand, hasFeature } from '../brand'
 import { PAYMENT_LABELS } from '../lib/paymentLabels'
 
 type FontSize = 'sm' | 'md' | 'lg'
@@ -128,6 +133,11 @@ export default function CashierScreen() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [isAddingCustomer, setIsAddingCustomer] = useState(false)
+  // B3: the Pelanggan sheet (find / attach) and the Profil Pelanggan sheet (a customer's history), over the cart column.
+  const [showCustomerSheet, setShowCustomerSheet] = useState(false)
+  const [profileCustomer, setProfileCustomer] = useState<Customer | null>(null)
+  const [profileNow, setProfileNow] = useState(0)
+  const openProfile = (c: Customer) => { setProfileNow(Date.now()); setProfileCustomer(c) }
   const [newCustomerForm, setNewCustomerForm] = useState({ name: '', phone: '', email: '' })
   const [localCustomers, setLocalCustomers] = useState<Customer[]>([])
   // A30: customers are found by full phone number only. The online lookup runs only when the
@@ -275,10 +285,12 @@ export default function CashierScreen() {
     }
   }, [derived.totalCartItems, state.activeTab])
 
-  const [rewards, setRewards] = useState<
-    components['schemas']['LoyaltyPreviewReward'][]
-  >([])
-  const [rewardsLoading, setRewardsLoading] = useState(false)
+  // B3: the reward preview lives in the cart (online only); the chip and the checkout read the same state.
+  const { rewards, loading: rewardsLoading } = useLoyaltyRewards({
+    customerId: state.selectedCustomer?.id ?? null, enabled: loyalty.enabled, online: offlineData.isOnline, cart: state.cart, total: derived.total,
+  })
+
+  const customerProfile = useCustomerProfile(profileCustomer?.id ?? null, offlineData.isOnline)
 
   // Pending picker context has no effect on the sale until confirmed.
   // Open confirm dialog (customer change, Kosongkan); Back and Batal dismiss it.
@@ -295,38 +307,6 @@ export default function CashierScreen() {
     appliedPromotionCount: state.appliedPromotions.length, appliedPromoCodeCount: state.appliedPromoCodes.length,
     pointsToRedeem: state.pointsToRedeem,
   })
-
-  useEffect(() => {
-    if (
-      !state.isCheckoutOpen ||
-      !loyalty.enabled ||
-      !state.selectedCustomer ||
-      !offlineData.isOnline
-    ) {
-      setRewards([])
-      setRewardsLoading(false)
-      return
-    }
-    let ignore = false
-    setRewardsLoading(true)
-    api
-      .loyaltyPreview(state.selectedCustomer.id, state.cart, derived.total)
-      .then((r) => {
-        if (!ignore) setRewards(r)
-      })
-      .catch(() => {
-        if (!ignore) setRewards([])
-      })
-      .finally(() => {
-        if (!ignore) setRewardsLoading(false)
-      })
-    return () => {
-      ignore = true
-    }
-    // Fetch once when the panel opens; the cart is final at checkout. Re-picking a
-    // reward must not refetch, so cart/derived.total are intentionally excluded.
-    // eslint-disable-next-line react-hooks/exhaustive-deps, react-doctor/exhaustive-deps
-  }, [state.isCheckoutOpen, loyalty.enabled, state.selectedCustomer?.id, offlineData.isOnline])
 
   const enabledMethods = settings.paymentMethods.filter((m) => m.isEnabled)
   const defaultMethod = enabledMethods[0]?.id ?? 'cash'
@@ -522,6 +502,29 @@ export default function CashierScreen() {
     setConfirm({ message: customerAttachMessage(names, change), confirmLabel: 'Lanjutkan', tone: 'primary', run: () => dispatch({ type: 'SET_CUSTOMER', customer }), onCancel })
   }
 
+  const closeCustomerSheet = () => {
+    setShowCustomerSheet(false)
+    setIsAddingCustomer(false)
+    setCustomerError(null)
+    dispatch({ type: 'SET_CUSTOMER_SEARCH', search: '' })
+  }
+
+  // Ulangi / Sering dibeli: the same add path as a tile tap (shift and offline gates, stock warning). A Rp0 reward
+  // line is never repeated; a size the catalog no longer sells is named, not silently dropped.
+  const addPlanned = (plan: ReturnType<typeof planRepeat>) => {
+    let oversold = false
+    let added = 0
+    for (const a of plan.adds) {
+      const result = addWithStockWarning(a.product, a.variantQtys)
+      if (result === 'blocked') return
+      if (result === 'oversold') oversold = true
+      added += Object.values(a.variantQtys).reduce((n, q) => n + q, 0)
+    }
+    if (plan.skipped.length > 0) showToast(`Tidak bisa diulang: ${plan.skipped.join(', ')} (sudah tidak dijual)`)
+    else if (oversold) showToast(OVERSELL_WARNING)
+    else if (added > 0) showToast(`${added} item ditambahkan ke keranjang`)
+  }
+
   // Closing the Promo & Diskon sheet (x, backdrop, Back) also drops a picker that was open in it.
   const closePromoSheet = () => {
     setPendingFulfillment(null)
@@ -588,7 +591,7 @@ export default function CashierScreen() {
     getKnownCustomers().remember(created)
     // Cancelling the confirm leaves the (already queued) customer unselected: say so, so nobody re-adds them.
     requestSetCustomer(created, () => showToast('Pelanggan tersimpan, belum dipilih'))
-    setIsAddingCustomer(false)
+    closeCustomerSheet()
     setNewCustomerForm({ name: '', phone: '', email: '' })
   }
 
@@ -940,6 +943,8 @@ export default function CashierScreen() {
       })
       if (layer === 'ignore-busy') return true
       if (layer === 'close-confirm') { confirm?.onCancel?.(); setConfirm(null); return true }
+      if (profileCustomer) { setProfileCustomer(null); return true }
+      if (showCustomerSheet) { closeCustomerSheet(); return true }
       if (lineBackRef.current?.()) return true
       if (variantBackRef.current?.()) return true
       if (showConnection) { setShowConnection(false); return true }
@@ -964,7 +969,7 @@ export default function CashierScreen() {
   }, [
     showConnection, showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRequisitions, showRecap, refundOrder,
     state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment, state.isProcessing, pendingFulfillment, confirm,
-    state.activeTab,
+    state.activeTab, profileCustomer, showCustomerSheet,
   ])
 
   if (!user) return null
@@ -972,6 +977,18 @@ export default function CashierScreen() {
   // Sales made on this tablet (A41): read only while a surface that needs them is open (the list is parsed from storage).
   const localReceipts: LocalReceipt[] = showHistory || showLocalReceipts ? engine.localReceipts() : []
   const saleUuidByServerId = new Map(localReceipts.flatMap((r): [string, string][] => (r.serverOrderId ? [[r.serverOrderId, r.orderUuid]] : [])))
+
+  const attached = state.selectedCustomer
+  const customerChip = (
+    <CustomerChip
+      customer={state.selectedCustomer}
+      loyaltyEnabled={loyalty.enabled && hasFeature('loyalty')}
+      rewards={chipRewards({ loyaltyEnabled: loyalty.enabled && hasFeature('loyalty'), online: offlineData.isOnline, loading: rewardsLoading, count: rewardsAvailableCount(rewards, state.cart) })}
+      onOpenProfile={hasFeature('customerProfile') && attached ? () => openProfile(attached) : null}
+      onOpenPicker={() => setShowCustomerSheet(true)}
+      onRelease={() => requestSetCustomer(null)}
+    />
+  )
 
   return (
     <div className="h-screen flex flex-col bg-paper-0 overflow-hidden">
@@ -1045,24 +1062,7 @@ export default function CashierScreen() {
 
         {/* Product panel */}
         <div className={`flex-1 min-w-0 overflow-hidden sm:block ${state.activeTab === 'cart' ? 'hidden' : 'block'}`}>
-          <CustomerPicker
-            customers={customers} selectedCustomer={state.selectedCustomer}
-            customerSearch={state.customerSearch} isAddingCustomer={isAddingCustomer}
-            newCustomerForm={newCustomerForm} isSaving={isSavingCustomer}
-            onSearchChange={(q) => dispatch({ type: 'SET_CUSTOMER_SEARCH', search: q })}
-            onSelect={(c) => { getKnownCustomers().remember(c); requestSetCustomer(c) }}
-            onClear={() => requestSetCustomer(null)}
-            onToggleAdding={() => { setIsAddingCustomer((v) => !v); setCustomerError(null) }}
-            onNewFormChange={(f, v) => setNewCustomerForm((prev) => ({ ...prev, [f]: v }))}
-            onSaveNew={() => void handleAddCustomer()}
-            earnedPoints={derived.earnedPoints}
-            onAddNewFromSearch={handleAddNewFromSearch}
-            errorText={customerError}
-            loyaltyEnabled={loyalty.enabled}
-            isSearching={lookupPending} lookupError={lookupError}
-            awaitingSearch={awaitingSearch(state.customerSearch, offlineData.isOnline, lookupRequest?.text ?? null)}
-            onSubmitSearch={() => setLookupRequest((prev) => ({ text: state.customerSearch.trim(), n: (prev?.n ?? 0) + 1 }))}
-          />
+          {derived.totalCartItems === 0 && customerChip}
           <ProductGrid
             products={displayProducts} categories={categories}
             selectedCategoryId={selectedCategoryId} searchQuery={searchQuery}
@@ -1082,7 +1082,7 @@ export default function CashierScreen() {
           <div className={`w-full sm:w-80 lg:w-[486px] flex-shrink-0 flex-col sm:flex pb-20 sm:pb-0 ${state.activeTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
             <Cart
               cart={state.cart} derived={derived} settings={settings}
-              selectedCustomer={state.selectedCustomer}
+              customerSlot={customerChip}
               pendingSync={offlineData.pendingCount > 0}
               products={displayProducts}
               onRemove={cartActions.removeItem} onSetQty={cartActions.setQty}
@@ -1098,12 +1098,44 @@ export default function CashierScreen() {
               onRemovePromotion={(id) => dispatch({ type: 'REMOVE_PROMOTION', id })}
               onRemovePromoCode={(code) => dispatch({ type: 'REMOVE_PROMO_CODE', code })}
               onClearDiscount={() => dispatch({ type: 'CLEAR_DISCOUNT' })}
-              loyaltyEnabled={loyalty.enabled}
               wallRaised={false}
             />
           </div>
         )}
       </div>
+
+      <CustomerPicker
+        open={showCustomerSheet} onClose={closeCustomerSheet}
+        customers={customers}
+        recent={showCustomerSheet && hasFeature('customerProfile') ? recentCustomers(getKnownCustomers().recent(10), customers) : []}
+        customerSearch={state.customerSearch} isAddingCustomer={isAddingCustomer}
+        newCustomerForm={newCustomerForm} isSaving={isSavingCustomer}
+        onSearchChange={(q) => dispatch({ type: 'SET_CUSTOMER_SEARCH', search: q })}
+        onSelect={(c) => { getKnownCustomers().remember(c); setShowCustomerSheet(false); requestSetCustomer(c) }}
+        onToggleAdding={() => { setIsAddingCustomer((v) => !v); setCustomerError(null) }}
+        onNewFormChange={(f, v) => setNewCustomerForm((prev) => ({ ...prev, [f]: v }))}
+        onSaveNew={() => void handleAddCustomer()}
+        onAddNewFromSearch={handleAddNewFromSearch}
+        errorText={customerError}
+        loyaltyEnabled={loyalty.enabled}
+        isSearching={lookupPending} lookupError={lookupError}
+        awaitingSearch={awaitingSearch(state.customerSearch, offlineData.isOnline, lookupRequest?.text ?? null)}
+        onSubmitSearch={() => setLookupRequest((prev) => ({ text: state.customerSearch.trim(), n: (prev?.n ?? 0) + 1 }))}
+        isOnline={offlineData.isOnline}
+        onOpenProfile={hasFeature('customerProfile') ? openProfile : undefined}
+      />
+      <CustomerProfileSheet
+        customer={profileCustomer} status={customerProfile.status} profile={customerProfile.profile}
+        localOrders={profileCustomer ? localHistoryFor(engine.localReceiptsForCustomer(profileCustomer.id)) : []}
+        loyaltyEnabled={loyalty.enabled && hasFeature('loyalty')}
+        rewardsCount={profileCustomer && profileCustomer.id === state.selectedCustomer?.id && offlineData.isOnline && !rewardsLoading ? rewardsAvailableCount(rewards, state.cart) : null}
+        attached={profileCustomer !== null && profileCustomer.id === state.selectedCustomer?.id}
+        now={profileNow}
+        onRepeat={(lines) => addPlanned(planRepeat(lines, displayProducts))}
+        onAddOne={(item) => addPlanned(planOne(item, displayProducts))}
+        onSelect={(c) => { getKnownCustomers().remember(c); setProfileCustomer(null); setShowCustomerSheet(false); requestSetCustomer(c) }}
+        onClose={() => setProfileCustomer(null)}
+      />
 
       {/* Floating panels */}
       <AdjustmentDrawer

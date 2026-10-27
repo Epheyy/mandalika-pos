@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, type MutableRefObject } from 'react'
+import { memo, useEffect, useState, type MutableRefObject, type ReactNode } from 'react'
 import type { components } from '@mandalika/api'
 import type { CartDerived } from '../hooks/useCart'
 import { formatRupiah } from './pricing'
@@ -12,7 +12,6 @@ import { sizeOptions } from './lineSizes'
 
 type CartItem = components['schemas']['CartItem']
 type AppSettings = components['schemas']['AppSettings']
-type Customer = components['schemas']['Customer']
 type Promotion = components['schemas']['Promotion']
 type Product = components['schemas']['Product']
 
@@ -25,7 +24,8 @@ interface CartProps {
   cart: CartItem[]
   derived: CartDerived
   settings: AppSettings
-  selectedCustomer: Customer | null
+  /** The customer chip (B3), pinned above the lines. */
+  customerSlot: ReactNode
   pendingSync: boolean
   /** Catalog (pending-adjusted) for the line sheet's size switch. */
   products: Product[]
@@ -47,7 +47,6 @@ interface CartProps {
   onClearDiscount: () => void
   onRemovePromotion: (id: string) => void
   onRemovePromoCode: (code: string) => void
-  loyaltyEnabled: boolean
   wallRaised: boolean
 }
 
@@ -75,7 +74,7 @@ export const Cart = memo(function Cart({
   cart,
   derived,
   settings,
-  selectedCustomer,
+  customerSlot,
   pendingSync,
   products,
   onRemove,
@@ -94,11 +93,9 @@ export const Cart = memo(function Cart({
   onClearDiscount,
   onRemovePromotion,
   onRemovePromoCode,
-  loyaltyEnabled,
   wallRaised,
 }: CartProps) {
   const isEmpty = cart.length === 0
-  const rewardLines = cart.filter((i) => i.isReward).length
   const hasPromo = appliedPromotions.length > 0 || appliedPromoCodes.length > 0
   const hasManual = discountRunning > 0 || surchargeRunning > 0
 
@@ -144,22 +141,8 @@ export const Cart = memo(function Cart({
 
   return (
     <div className="flex h-full flex-col border-l border-paper-2 bg-white">
-      {/* Active customer — pinned at the very top of the cart */}
-      {selectedCustomer && (
-        <div className="flex min-h-14 flex-shrink-0 items-center gap-3 bg-paper-1 px-4 py-2">
-          <span aria-hidden="true" className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-paper-2 text-base font-bold text-ink-700">
-            {(selectedCustomer.name || '?').charAt(0).toUpperCase()}
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-[0.9375rem] font-semibold text-ink-900">{selectedCustomer.name}</p>
-            <p className="truncate text-[0.8125rem] text-ink-500">
-              {selectedCustomer.phone}
-              {loyaltyEnabled && ` · ${selectedCustomer.points} poin`}
-              {rewardLines > 0 && <span className="font-semibold text-reward">{` · ${rewardLines} hadiah di keranjang`}</span>}
-            </p>
-          </div>
-        </div>
-      )}
+      {/* Customer chip (B3) — pinned at the very top of the cart */}
+      {customerSlot}
       {/* Header */}
       <div className="flex flex-shrink-0 items-center justify-between border-b border-paper-2 py-1 pl-4 pr-2">
         <h2 className="text-base font-bold text-ink-900">

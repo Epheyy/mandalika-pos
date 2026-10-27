@@ -8,6 +8,8 @@ type Customer = components['schemas']['Customer']
 export const KNOWN_CUSTOMERS_KEY = 'mandalika.pos.knownCustomers'
 /** Least-recently-used customers beyond this many are forgotten (A30, owner decision Q3). */
 export const KNOWN_CUSTOMERS_MAX = 300
+/** The most customers `recent` ever returns (B3). */
+export const RECENT_CUSTOMERS_MAX = 5
 /** A customer not used for this long is forgotten (A30, owner decision Q3). */
 export const KNOWN_CUSTOMERS_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
@@ -27,8 +29,9 @@ interface Entry {
 /**
  * Customers this tablet looked up, selected or created, so a sale to them still works with no
  * connection (A30). It is NOT a customer list: the only way in is `remember`, and the only way
- * out is `findByPhone` with a full phone number (exact normalized match). There is deliberately
- * no method that returns more than the customers sharing one phone. Entries are most-recent-first.
+ * out is `findByPhone` with a full phone number (exact normalized match), plus `recent` (B3), which
+ * returns at most RECENT_CUSTOMERS_MAX of them for the Pelanggan sheet's "Terakhir dilayani di tablet ini".
+ * There is deliberately no method that returns the whole memory. Entries are most-recent-first.
  */
 export class KnownCustomers {
   constructor(
@@ -72,6 +75,23 @@ export class KnownCustomers {
     if (!updated) return
     entries[i] = updated
     this.#save(entries)
+  }
+
+  /** The customers served most recently on this tablet, newest first (B3 "Terakhir dilayani"), never more than
+   *  RECENT_CUSTOMERS_MAX whatever `limit` says (the A30 memory is still not listable). */
+  recent(limit: number): Customer[] {
+    return this.#load()
+      .slice(0, Math.max(0, Math.min(limit, RECENT_CUSTOMERS_MAX)))
+      .map((e) => ({
+        id: e.id,
+        name: e.name,
+        phone: e.phone,
+        points: e.points,
+        totalSpent: 0,
+        visitCount: 0,
+        createdAt: new Date(e.lastUsedAt).toISOString(),
+        ...(e.segment ? { segment: e.segment } : {}),
+      }))
   }
 
   /** Remembered customers whose phone equals this one in any format. [] for a non-phone. */
