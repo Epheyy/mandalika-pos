@@ -1,0 +1,25 @@
+{
+  "description": "AllocateNet + RefundAmountForUnits golden vectors. Integers only (whole rupiah). Shared with the TypeScript twin (apps/pos/src/cashier/allocate.ts). allocations: lines[].base is the line subtotal as priced, components[] are order-level discounts applied in order (eligible = line indices, null = every line), total is the stored order total (after tax, surcharge, rounding, redeemed points). expectedNets is aligned to lines; ok=false means no valid allocation (expectedNets omitted). refunds: steps[] are units returned per refund in sequence of a line with the given net/qty; expectedAmounts[i] = cum(prior+k)-cum(prior), cum(n) = n==qty ? net : floor(net*n/qty).",
+  "allocations": [
+    {"name": "no discount, no tax", "lines": [{"lineNo": 0, "base": 100000}, {"lineNo": 1, "base": 50000}], "components": [], "total": 150000, "ok": true, "expectedNets": [100000, 50000]},
+    {"name": "tax 11 percent spread proportionally", "lines": [{"lineNo": 0, "base": 100000}, {"lineNo": 1, "base": 50000}], "components": [], "total": 166500, "ok": true, "expectedNets": [111000, 55500]},
+    {"name": "tiered 10 percent over every line", "lines": [{"lineNo": 0, "base": 60000}, {"lineNo": 1, "base": 40000}], "components": [{"amount": 10000, "eligible": null}], "total": 90000, "ok": true, "expectedNets": [54000, 36000]},
+    {"name": "scoped promo only discounts its line", "lines": [{"lineNo": 0, "base": 100000}, {"lineNo": 1, "base": 100000}], "components": [{"amount": 20000, "eligible": [0]}], "total": 180000, "ok": true, "expectedNets": [80000, 100000]},
+    {"name": "stacked codes plus manual, remainder to lowest line", "lines": [{"lineNo": 0, "base": 100000}, {"lineNo": 1, "base": 100000}, {"lineNo": 2, "base": 50000}], "components": [{"amount": 25000, "eligible": [0, 1]}, {"amount": 15000, "eligible": null}], "total": 210000, "ok": true, "expectedNets": [81666, 81667, 46667]},
+    {"name": "redeem points reduce total (negative residual) with tie-break", "lines": [{"lineNo": 0, "base": 100}, {"lineNo": 1, "base": 100}, {"lineNo": 2, "base": 100}], "components": [], "total": 100, "ok": true, "expectedNets": [33, 33, 34]},
+    {"name": "zero priced line stays zero under surcharge", "lines": [{"lineNo": 0, "base": 0}, {"lineNo": 1, "base": 100000}], "components": [], "total": 110000, "ok": true, "expectedNets": [0, 110000]},
+    {"name": "rounding up spreads one rupiah-block with tie to lowest line", "lines": [{"lineNo": 0, "base": 33000}, {"lineNo": 1, "base": 33000}, {"lineNo": 2, "base": 33000}], "components": [], "total": 100000, "ok": true, "expectedNets": [33334, 33333, 33333]},
+    {"name": "bxgy same-set discount over counted lines only", "lines": [{"lineNo": 0, "base": 100000}, {"lineNo": 1, "base": 50000}, {"lineNo": 2, "base": 80000}], "components": [{"amount": 25000, "eligible": [1, 2]}], "total": 205000, "ok": true, "expectedNets": [100000, 40385, 64615]},
+    {"name": "bundle or bxgy separate-set repriced lines carry their own base", "lines": [{"lineNo": 0, "base": 150000}, {"lineNo": 1, "base": 0}, {"lineNo": 2, "base": 80000}], "components": [], "total": 230000, "ok": true, "expectedNets": [150000, 0, 80000]},
+    {"name": "component above eligible base is clamped", "lines": [{"lineNo": 0, "base": 30000}, {"lineNo": 1, "base": 70000}], "components": [{"amount": 50000, "eligible": [0]}], "total": 70000, "ok": true, "expectedNets": [0, 70000]},
+    {"name": "non-contiguous line numbers keep tie order by lineNo", "lines": [{"lineNo": 5, "base": 100}, {"lineNo": 2, "base": 100}], "components": [], "total": 201, "ok": true, "expectedNets": [100, 101]},
+    {"name": "all lines free but positive total has no allocation", "lines": [{"lineNo": 0, "base": 0}, {"lineNo": 1, "base": 0}], "components": [], "total": 500, "ok": false}
+  ],
+  "refunds": [
+    {"name": "three units one at a time, last settles remainder", "net": 100000, "qty": 3, "steps": [1, 1, 1], "expectedAmounts": [33333, 33333, 33334]},
+    {"name": "two then one", "net": 10, "qty": 3, "steps": [2, 1], "expectedAmounts": [6, 4]},
+    {"name": "all at once", "net": 100, "qty": 4, "steps": [4], "expectedAmounts": [100]},
+    {"name": "free line refunds zero", "net": 0, "qty": 2, "steps": [1, 1], "expectedAmounts": [0, 0]},
+    {"name": "single unit", "net": 12345, "qty": 1, "steps": [1], "expectedAmounts": [12345]}
+  ]
+}
