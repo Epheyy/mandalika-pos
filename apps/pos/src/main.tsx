@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import { applyBrand, brand } from './brand'
 import { AuthProvider } from './auth'
 import { PrinterProvider } from './printer'
 import { bootNativeShell, hideSplash } from './native'
@@ -14,6 +15,7 @@ import { dropLegacyPinLockout } from './lib/legacyPinLockout'
 // Boot order matters: hydrate secure storage (refresh token / outbox / device
 // id / snapshot) and set up the native shell BEFORE React reads any of it.
 async function boot(): Promise<void> {
+  applyBrand(brand)
   try {
     await bootStorage()
   } catch (err) {

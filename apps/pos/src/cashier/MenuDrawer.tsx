@@ -9,6 +9,7 @@
 import { memo } from 'react'
 import type { ReactElement } from 'react'
 import type { components } from '@mandalika/api'
+import { hasFeature } from '../brand'
 import {
   IconCash as CashIcon,
   IconClose as CloseIcon,
@@ -106,7 +107,7 @@ export const MenuDrawer = memo(function MenuDrawer({
     { Icon: CashIcon, label: 'Kas Masuk/Keluar', onClick: () => { onClose(); onCashFlow() } },
     { Icon: InboxIcon, label: 'Terima Transfer', badge: inboundCount > 0, onClick: () => { onClose(); onReceiveTransfer() } },
     { Icon: TransferHistoryIcon, label: 'Riwayat Transfer', onClick: () => { onClose(); onOpenTransferHistory() } },
-    ...(canRequestStock ? [{ Icon: InboxIcon, label: 'Permintaan Barang', onClick: () => { onClose(); onRequisitions() } }] : []),
+    ...(canRequestStock && hasFeature('requisitions') ? [{ Icon: InboxIcon, label: 'Permintaan Barang', onClick: () => { onClose(); onRequisitions() } }] : []),
     { Icon: SyncIcon, label: isSyncing ? 'Memperbarui data…' : 'Perbarui data', badge: pendingSync, onClick: () => onSync() },
   ]
 

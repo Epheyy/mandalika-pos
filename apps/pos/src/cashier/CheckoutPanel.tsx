@@ -9,6 +9,7 @@ import type { CartLineLike } from './stock'
 import { PAYMENT_LABELS } from '../lib/paymentLabels'
 import { quickCashAmounts } from '../lib/quickCash'
 import { applyKey } from '../lib/cashKeypad'
+import { hasFeature } from '../brand'
 import { Sheet } from '../components/ui/Sheet'
 import { Chip } from '../components/ui/Chip'
 import { Button } from '../components/ui/Button'
@@ -135,7 +136,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   }
 
   const showLoyaltyCard =
-    loyaltyEnabled && !!selectedCustomer && (!isOnline || rewardsLoading || rewards.length > 0 || customerPoints > 0)
+    hasFeature('loyalty') && loyaltyEnabled && !!selectedCustomer && (!isOnline || rewardsLoading || rewards.length > 0 || customerPoints > 0)
 
   return (
     <Sheet

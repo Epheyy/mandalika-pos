@@ -66,7 +66,7 @@ import { reportErrors } from '../lib/errorReporter'
 import { diagnosticExportMessages, shareFailedSyncDiagnostics } from '../lib/failedSyncDiagnostics'
 import { track } from '../lib/activityLog'
 import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
-import logoGold from '../assets/logo-gold.png'
+import { brand } from '../brand'
 import { PAYMENT_LABELS } from '../lib/paymentLabels'
 
 type FontSize = 'sm' | 'md' | 'lg'
@@ -83,7 +83,7 @@ const DEFAULT_SETTINGS: components['schemas']['AppSettings'] = {
     { id: 'qris', label: 'QRIS', isEnabled: true },
     { id: 'transfer', label: 'Transfer', isEnabled: true },
   ],
-  receipt: { headerText: '', footerText: '', showTax: true, showCashier: true },
+  receipt: { headerText: brand.receiptHeader, footerText: '', showTax: true, showCashier: true },
   autoOpenShift: false,
   allowNegativeStock: true,
 }
@@ -1019,7 +1019,7 @@ export default function CashierScreen() {
           shift bar / the drawer footer). */}
       <header className="bg-white border-b border-paper-2 min-h-14 px-3 py-1 flex items-center justify-between gap-2 flex-shrink-0 safe-top">
         <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-          <img src={logoGold} alt="Mandalika POS" className="h-7 w-auto object-contain flex-shrink-0" />
+          <img src={brand.logo} alt={`${brand.displayName} POS`} className="h-7 w-auto object-contain flex-shrink-0" />
           {/* Read-only: the terminal's outlet is fixed (A04); change it only via Lepas terminal. */}
           {outletLabel && <span className="text-[0.9375rem] font-semibold text-ink-700 truncate flex-shrink min-w-0" title="Outlet terminal">{outletLabel}</span>}
           <ShiftBar
