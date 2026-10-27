@@ -165,7 +165,14 @@ func refundHTTPError(err error) (int, string) {
 
 func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Reason string `json:"reason"`
+		Reason     string `json:"reason"`
+		ReasonCode string `json:"reasonCode"`
+		// Items is the per-line shape (C4c admin refund). Absent = the whole order; a present
+		// but empty array stays non-nil so the service refuses it instead of refunding everything.
+		Items []struct {
+			LineNo   int `json:"lineNo"`
+			Quantity int `json:"quantity"`
+		} `json:"items"`
 	}
 	if err := httpx.DecodeLoose(r, &body); err != nil {
 		if isBodyTooLarge(err) {
@@ -174,6 +181,13 @@ func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		}
 		httpx.Err(w, http.StatusBadRequest, "Isi permintaan refund tidak valid.")
 		return
+	}
+	var items []service.RefundItemInput
+	if body.Items != nil {
+		items = make([]service.RefundItemInput, 0, len(body.Items))
+		for _, it := range body.Items {
+			items = append(items, service.RefundItemInput{LineNo: it.LineNo, Quantity: it.Quantity})
+		}
 	}
 	id := chi.URLParam(r, "id")
 	fail := func(err error) {
@@ -209,6 +223,7 @@ func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		return h.OrderSvc.Refund(r.Context(), service.RefundInput{
 			OutletID: outlet, OrderID: id, Reason: body.Reason,
 			UserID: c.userID, UserName: c.name,
+			Items: items, ReasonCode: body.ReasonCode,
 		})
 	}); err != nil {
 		fail(err)

@@ -1544,6 +1544,44 @@ func TestRefundLinesPostgres(t *testing.T) {
 	})
 
 	// ─────────────────────────────────────────────────────────────────────────────
+	sub("13 direct route per-line (admin refund, C4c): items shape, no claim, server rules unchanged", func(t *testing.T) {
+		o := newOutlet()
+		pA, pB := newProduct(o, 30000), newProduct(o, 70000)
+		oid := sell(o, saleOpt{items: []map[string]any{line(pA, 1, 30000), line(pB, 1, 70000)}})
+		post := func(body map[string]any) (int, string) {
+			cur.Helper()
+			code, raw := call("POST", "/orders/"+oid+"/refund", o.tok, body)
+			return code, string(raw)
+		}
+		if code, b := post(map[string]any{"reason": "rusak", "items": []map[string]int{}}); code != 400 {
+			t.Fatalf("empty items must be refused, got %d %s", code, b)
+		}
+		if code, b := post(map[string]any{"reason": "rusak", "items": []map[string]int{{"lineNo": 0, "quantity": 2}}}); code != 409 || !strings.Contains(b, "jangan bayar ulang") {
+			t.Fatalf("over quantity: %d %s", code, b)
+		}
+		if code, b := post(map[string]any{"reason": "rusak", "reasonCode": "Bad Code", "items": []map[string]int{{"lineNo": 0, "quantity": 1}}}); code != 400 {
+			t.Fatalf("bad reason code: %d %s", code, b)
+		}
+		if code, b := post(map[string]any{"reason": "rusak", "reasonCode": "rusak", "items": []map[string]int{{"lineNo": 0, "quantity": 1}}}); code != 201 {
+			t.Fatalf("per-line direct refund: %d %s", code, b)
+		}
+		rs := refunds(oid)
+		if len(rs) != 1 || rs[0].scope != "partial" || rs[0].amount != 30000 || rs[0].claimed != -1 || status(oid) != "partially_refunded" {
+			t.Fatalf("direct partial row: %+v status=%s", rs, status(oid))
+		}
+		// the remaining line, then nothing is left
+		if code, b := post(map[string]any{"reason": "rusak", "items": []map[string]int{{"lineNo": 1, "quantity": 1}}}); code != 201 {
+			t.Fatalf("second direct refund: %d %s", code, b)
+		}
+		if code, _ := post(map[string]any{"reason": "rusak", "items": []map[string]int{{"lineNo": 1, "quantity": 1}}}); code != 409 {
+			t.Fatalf("third must conflict, got %d", code)
+		}
+		if status(oid) != "refunded" || len(refunds(oid)) != 2 {
+			t.Fatalf("final status %s", status(oid))
+		}
+	})
+
+	// ─────────────────────────────────────────────────────────────────────────────
 	sub("11 invariant (D-49): sum(order_refunds.amount) <= orders.total + 1, always", func(t *testing.T) {
 		rows, err := pool.Query(ctx, `SELECT o.id::text FROM orders o JOIN order_refunds r ON r.order_id=o.id
 			GROUP BY o.id, o.total

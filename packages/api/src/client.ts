@@ -122,6 +122,9 @@ export type MovementSummaryRow = S['MovementSummaryRow']
 export type MovementSummaryResponse = S['MovementSummaryResponse']
 export type PromoRewardGrantReport = S['PromoRewardGrantReport']
 export type DiscountCodeReport = S['DiscountCodeReport']
+export type RefundReport = S['RefundReport']
+export type RefundReportRow = S['RefundReportRow']
+export type OrderRefund = S['OrderRefund']
 export type OversellReport = S['OversellReport']
 export type OversellRecord = S['OversellRecord']
 export type OversellSummary = S['OversellSummary']
@@ -349,7 +352,8 @@ export interface Api {
   // orders / shifts
   listOrders: (params?: ListOrdersParams) => Promise<ListResult<Order>>
   getOrder: (id: string) => Promise<Order>
-  refundOrder: (id: string, reason: string) => Promise<Order>
+  /** Whole order when `items` is omitted (only while it has no earlier refund); else a per-line refund (admin, C4c). */
+  refundOrder: (id: string, reason: string, opts?: { reasonCode?: string; items?: { lineNo: number; quantity: number }[] }) => Promise<Order>
   listShifts: (params?: ListShiftsParams) => Promise<ListResult<Shift>>
   listErrorLogs: (params?: Record<string, string | number>) => Promise<ListResult<ErrorLog>>
   listSyncReviewItems: (params: SyncReviewListParams) => Promise<SyncReviewItemList>
@@ -466,6 +470,7 @@ export interface Api {
   listPromoRewardGrants: (opts?: { dateFrom?: string; dateTo?: string; outletId?: string; promotionId?: string; productId?: string; page?: number; limit?: number }) => Promise<PromoRewardGrantReport>
 
   // discount code usage report (SP-Code-2)
+  listRefundReport: (opts?: { dateFrom?: string; dateTo?: string; outletId?: string; flag?: 'any' | 'amount_mismatch' | 'over_total'; page?: number; limit?: number }) => Promise<RefundReport>
   listDiscountCodeReport: (opts?: { dateFrom?: string; dateTo?: string; page?: number; limit?: number }) => Promise<DiscountCodeReport>
 
   // oversold sale lines "Stok Minus" (A44)
@@ -865,8 +870,8 @@ export function createClient(opts: ClientOptions): Api {
 
     listOrders: (params) => list<Order>(`${API}/orders`, params),
     getOrder: (id) => data<Order>('GET', `${API}/orders/${id}`),
-    refundOrder: (id, reason) =>
-      data<Order>('POST', `${API}/orders/${id}/refund`, { reason }),
+    refundOrder: (id, reason, opts) =>
+      data<Order>('POST', `${API}/orders/${id}/refund`, { reason, ...(opts?.reasonCode ? { reasonCode: opts.reasonCode } : {}), ...(opts?.items ? { items: opts.items } : {}) }),
     listShifts: (params) => list<Shift>(`${API}/shifts`, params),
     listErrorLogs: (params) => list<ErrorLog>(`${API}/error-logs`, params),
     listErpOutbox: async (params) => {
@@ -1085,6 +1090,16 @@ export function createClient(opts: ClientOptions): Api {
       if (promotionId) params.promotionId = promotionId
       if (productId) params.productId = productId
       return request<PromoRewardGrantReport>('GET', `${API}/promo-reward-grants` + qs(params))
+    },
+
+    listRefundReport: (opts) => {
+      const { dateFrom, dateTo, outletId, flag, page = 1, limit = 50 } = opts ?? {}
+      const params: Record<string, string | number> = { page, limit }
+      if (dateFrom) params.dateFrom = dateFrom
+      if (dateTo) params.dateTo = dateTo
+      if (outletId) params.outletId = outletId
+      if (flag) params.flag = flag
+      return request<RefundReport>('GET', `${API}/refund-report` + qs(params))
     },
 
     listDiscountCodeReport: (opts) => {

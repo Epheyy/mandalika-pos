@@ -4859,6 +4859,12 @@ export interface components {
         };
         RefundRequest: {
             reason: string;
+            reasonCode?: string;
+            /** @description Per-line refund (admin, C4c). Absent = the whole order (only while it has no earlier refund). */
+            items?: {
+                lineNo: number;
+                quantity: number;
+            }[];
         };
         /** @description One of orderId or saleOrderUuid is required (the server resolves the sale by saleOrderUuid alone when orderId is empty). Legacy shape = {orderId, reason, deviceId, ...}: refunds the whole order and is refused (conflict) on a partially_refunded order. Per-line shape adds items (required, non-empty) and optionally refundAmount and reasonCode. Unknown keys (the tablet's display snapshot) are ignored. */
         SyncRefundPayload: {

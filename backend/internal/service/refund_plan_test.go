@@ -77,6 +77,9 @@ func TestResolveRefundAmount(t *testing.T) {
 		{"claim off by 2", i64(1002), 1000, 0, 5000, 1002, RefundWarnAmountMismatch, i64(1002)},
 		{"claim lower by 2", i64(998), 1000, 0, 5000, 998, RefundWarnAmountMismatch, i64(998)},
 		{"negative claim ignored", i64(-5), 1000, 0, 5000, 1000, RefundWarnAmountMismatch, nil},
+		{"claim at the column limit is kept", i64(maxRefundAmountRp), 1000, 0, 5000, 5000, RefundWarnOverTotal, i64(maxRefundAmountRp)},
+		{"nothing left, no claim: record 0", nil, 1000, 5000, 5000, 0, RefundWarnOverTotal, nil},
+		{"malformed claim plus cap", i64(-1), 6000, 0, 5000, 5000, RefundWarnOverTotal, nil},
 		{"huge claim ignored", i64(maxRefundAmountRp + 1), 1000, 0, 5000, 1000, RefundWarnAmountMismatch, nil},
 		// D-49: the amount of record never exceeds what the order still has left (total - prior);
 		// the claim is kept as information and the flag still says why.

@@ -510,10 +510,16 @@ func (h *Handlers) RefundReport(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusBadRequest, "flag tidak valid (any, amount_mismatch, over_total)")
 		return
 	}
+	sc := scope(r)
+	if !sc.CrossAll && sc.OutletID == "" {
+		// A non-admin with no outlet must never read as "all outlets": fail closed.
+		httpx.Err(w, http.StatusForbidden, "Outlet aktif belum dipilih untuk akun ini.")
+		return
+	}
 	f := read.RefundReportFilters{
 		DateFrom: q.Get("dateFrom"),
 		DateTo:   q.Get("dateTo"),
-		OutletID: scope(r).OutletID, // scope-clamped; "" = all outlets (admin)
+		OutletID: sc.OutletID, // scope-clamped; "" only for an admin on all outlets
 		Flag:     flag,
 	}
 	summary, rows, total, err := h.Repo.RefundReport(r.Context(), f, p, l)

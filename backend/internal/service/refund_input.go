@@ -60,8 +60,8 @@ const (
 	maxRefundReasonCodeRunes = 40
 	// refundAmountToleranceRp is the rupiah rounding slack before a claimed amount is flagged.
 	refundAmountToleranceRp = 1
-	// maxRefundAmountRp bounds a claimed refund amount (numeric(14,2) holds 1e12 comfortably).
-	maxRefundAmountRp = int64(1_000_000_000_000)
+	// maxRefundAmountRp bounds a claimed refund amount (numeric(14,2) tops out at 999,999,999,999.99).
+	maxRefundAmountRp = int64(999_999_999_999)
 )
 
 // RefundItemInput is one refunded order line: LineNo is order_items.line_no (the 0-based
