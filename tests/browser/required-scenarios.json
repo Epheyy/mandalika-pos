@@ -98,6 +98,12 @@
       "source": "tests/browser/pos-scenarios.ts"
     },
     {
+      "id": "POS-GIVEAWAY",
+      "finding": "UX-C3",
+      "description": "Outlet giveaway: a paid line shows the bag as a HADIAH / GRATIS cart line without stepper or remove, the on-screen receipt lists it, the order payload carries no bag line (the quote does, as a Rp0 reward line) and the bag's tile stock drops by one once queued",
+      "source": "tests/browser/pos-scenarios.ts"
+    },
+    {
       "id": "POS-HELD-ORDERS",
       "finding": "UX-B4",
       "description": "Pesanan tersimpan: Simpan keranjang names and parks the cart (no confirm, cart empties, chip shows the count), the hamburger entry opens the list, Lanjutkan restores the line and the sale is paid in cash",

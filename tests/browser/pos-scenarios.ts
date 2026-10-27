@@ -18,6 +18,8 @@ export const passTerminalPicker = async (page: ScenarioPage, outletName = 'Synth
 export interface PosSetupOpts {
   user?: Record<string, unknown>;
   extraRoute?: (route: any, path: string, method: string, req: any) => Promise<boolean>;
+  /** C3: seed an outlet giveaway (a stocked bag product in the catalog + `outletGiveaway` in the pull bundle). */
+  giveaway?: { stock: number };
 }
 
 export const setupPos = async (page: ScenarioPage, opts: PosSetupOpts = {}) => {
@@ -32,6 +34,11 @@ export const setupPos = async (page: ScenarioPage, opts: PosSetupOpts = {}) => {
   const settings={taxEnabled:false,taxRate:0,roundingEnabled:false,roundingType:'none',allowNegativeStock:true,autoOpenShift:false,paymentMethods:[{id:'cash',label:'Tunai',isEnabled:true},{id:'qris',label:'QRIS',isEnabled:true}],receipt:{headerText:'Synthetic receipt',footerText:'Test only',showTax:false,showCashier:true}};
   const user={id:'00000000-0000-4000-8300-000000000091',displayName:'Synthetic Cashier',role:'admin',outletId:'00000000-0000-4000-8300-000000000090',permissions:['create_order','manage_promotions'],...opts.user};
   const snapshot={version:1,products,categories:[],bundles:[],customers:[customer],promotions,discountCodes:codes,loyaltyConditions:[],loyaltySettings:{enabled:true,tierEnabled:false,pointsPerThousand:1,redemptionRate:100},appSettings:settings,outletName:'Synthetic Outlet',outletCode:'SYN',salesmen:[]};
+  if (opts.giveaway) {
+    const bag = {id:'00000000-0000-4000-8300-0000000000b9',name:'Synthetic Bag',isActive:true,variants:[{size:'STD',sku:'BAG-STD',barcode:'BAG-STD',price:0,stock:opts.giveaway.stock}]};
+    products.push(bag);
+    (snapshot as any).outletGiveaway={productId:bag.id,variantSize:'STD',productName:bag.name,stock:opts.giveaway.stock};
+  }
   page.__a24={products,promotions,codes,customer,snapshot,version:1,calls:[],writes:[],unexpected:[]};
   await page.unrouteAll({behavior:'wait'});
   await page.route('http://127.0.0.1:59999/api/v1/**',async route=>{
@@ -531,5 +538,47 @@ export const posHeldOrders = async (page: ScenarioPage) => {
   await page.getByRole('heading', { name: 'Pembayaran Berhasil' }).waitFor()
   out.push({ restored: ['Lanjutkan Bu Sari', 'line back in cart', 'paid in cash'] })
   await page.getByRole('button', { name: 'Transaksi Baru', exact: true }).click()
+  return out
+}
+
+// C3: the outlet giveaway is shown, not sent. A paid line brings a HADIAH/GRATIS bag line to the cart, the sale
+// carries no bag order line (the server adds it), the on-screen receipt lists it, and the bag's tile stock drops by
+// the one unit the server will take.
+export const posGiveaway = async (page: ScenarioPage) => {
+  const out: any[] = []
+  const assert = (v: unknown, m: string) => { if (!v) throw Error(m) }
+  const line = page.getByTestId('giveaway-line')
+  const bagTile = async () => {
+    await page.getByRole('searchbox').fill('Synthetic Bag')
+    const tile = page.getByRole('button', { name: /^Synthetic Bag/ }).first()
+    await tile.waitFor()
+    const text = await tile.innerText()
+    await page.getByRole('searchbox').fill('')
+    return text
+  }
+  assert((await bagTile()).includes('50'), 'the bag tile starts at stock 50')
+  assert((await line.count()) === 0, 'no giveaway line while the cart is empty')
+
+  await page.getByRole('searchbox').fill('SYN-M')
+  await page.getByRole('searchbox').press('Enter')
+  await page.getByRole('button', { name: 'Ubah Synthetic Scent M', exact: true }).waitFor()
+  await line.waitFor()
+  const text = await line.innerText()
+  assert(text.includes('Synthetic Bag') && text.includes('HADIAH') && text.includes('GRATIS') && text.includes('Hadiah pembelian'), 'the cart shows the bag as a HADIAH / GRATIS line: ' + text)
+  assert((await line.getByRole('button').count()) === 0, 'the giveaway line has no stepper or remove control')
+  out.push({ cart: text.replace(/\s+/g, ' ') })
+
+  await page.getByRole('button', { name: 'Bayar', exact: true }).click()
+  await page.getByRole('button', { name: /^Konfirmasi Rp/ }).click()
+  await page.getByRole('heading', { name: 'Pembayaran Berhasil' }).waitFor()
+  assert((await page.getByTestId('receipt-giveaway').innerText()).includes('GRATIS'), 'the receipt lists the bag as GRATIS')
+  const sent = (page.__a24.writes as any[]).flatMap((w: any) => w.items ?? []).filter((i: any) => i.type === 'order')
+  assert(sent.length === 1, 'one order was sent')
+  assert(!sent[0].payload.items.some((i: any) => /Bag/.test(i.productName)), 'the bag is not an order line')
+  assert(sent[0].payload.receiptSnapshot.lines.some((l: any) => /Bag/.test(l.name) && l.isReward === true && l.amount === 0), 'the quote carries the bag as a Rp0 reward line')
+  out.push({ receipt: 'bag row GRATIS', payload: 'no bag order line, quote carries it' })
+  await page.getByRole('button', { name: 'Transaksi Baru', exact: true }).click()
+  assert((await bagTile()).includes('49'), 'the bag tile drops to 49 once the sale is queued')
+  out.push({ stock: '50 -> 49' })
   return out
 }
