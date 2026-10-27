@@ -1,5 +1,5 @@
 import { test, expect, evidence, POS, BO, type ScenarioPage } from './fixture'
-import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCustomer, posRecap, posAutoPull, posStockDrift, posLineSheet, posPromoSheet } from './pos-scenarios'
+import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCustomer, posRecap, posAutoPull, posStockDrift, posLineSheet, posPromoSheet, posCustomerProfile } from './pos-scenarios'
 import { setupBackoffice, backofficeChecks, transactionsChecks, qualifyBackoffice, reportsRaces } from './backoffice-scenarios'
 import { reviewResolveFlow } from './backoffice-review-scenarios'
 import { csvImportFlow } from './backoffice-import-scenarios'
@@ -90,6 +90,14 @@ test('POS-PROMO-SHEET one Promo & Diskon door with the manual discount inline; K
   const p = page as ScenarioPage
   await setupPos(p)
   const result = await posPromoSheet(p)
+  expect(result).toHaveLength(2)
+  await evidence(info, result)
+})
+
+test('POS-CUSTOMER-PROFILE the chip, the Profil Pelanggan sheet and Ulangi add the last sale paid lines', async ({ page }, info) => {
+  const p = page as ScenarioPage
+  await setupPos(p)
+  const result = await posCustomerProfile(p)
   expect(result).toHaveLength(2)
   await evidence(info, result)
 })

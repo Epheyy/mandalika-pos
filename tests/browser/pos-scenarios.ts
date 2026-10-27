@@ -165,8 +165,8 @@ export const guestSales = async (page: ScenarioPage) =>{
  const results: any[]=[]; const assert=(v,m)=>{if(!v)throw Error(m)};
  const box=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('mandalika.pos.outbox')||'[]'));
  const fresh=async()=>{await page.reload();await page.getByRole('button',{name:/^Synthetic Scent/}).first().waitFor();await page.getByRole('searchbox').fill('SYN-M');await page.getByRole('searchbox').press('Enter');};
- const select=async()=>{await page.getByRole('textbox',{name:'Cari pelanggan dengan nomor telepon'}).fill(page.__a24.customer.phone);await page.getByRole('textbox',{name:'Cari pelanggan dengan nomor telepon'}).press('Enter');await page.getByRole('button').filter({hasText:'Synthetic Customer'}).click();};
- const clear=async()=>{await page.getByText('Synthetic Customer',{exact:true}).first().locator('../..').getByRole('button',{name:'×',exact:true}).click();const ok=page.getByRole('dialog').getByRole('button',{name:'Lanjutkan',exact:true});if(await ok.count())await ok.click();};
+ const select=async()=>{await page.getByRole('button',{name:'+ Pelanggan',exact:true}).click();await page.getByRole('textbox',{name:'Cari pelanggan dengan nomor telepon'}).fill(page.__a24.customer.phone);await page.getByRole('textbox',{name:'Cari pelanggan dengan nomor telepon'}).press('Enter');await page.getByRole('button').filter({hasText:'Synthetic Customer'}).click();};
+ const clear=async()=>{await page.getByRole('button',{name:'Lepas',exact:true}).click();const ok=page.getByRole('dialog').getByRole('button',{name:'Lanjutkan',exact:true});if(await ok.count())await ok.click();};
  const panel=()=>page.getByRole('button',{name:/^Promo(?: |$)/}).first().click();
  const closePanel=()=>page.getByRole('heading',{name:'Promo & Diskon'}).locator('..').getByRole('button',{name:'Tutup',exact:true}).click();
  const applyCode=async(code)=>{await panel();await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill(code);await page.getByRole('button',{name:'Pakai',exact:true}).click();};
@@ -202,7 +202,7 @@ export const guestSales = async (page: ScenarioPage) =>{
 }
 
 export const addCustomer = async (page: ScenarioPage) =>{
- await page.reload();await page.getByRole('button',{name:'+ Baru',exact:true}).click();
+ await page.reload();await page.getByRole('button',{name:'+ Pelanggan',exact:true}).click();await page.getByRole('button',{name:'+ Baru',exact:true}).click();
  await page.getByRole('textbox',{name:'Nama pelanggan',exact:true}).fill('New Synthetic Customer');await page.getByRole('textbox',{name:'Nomor telepon pelanggan',exact:true}).fill('+44000000000');await page.getByRole('button',{name:'Simpan',exact:true}).click();
  await page.getByText('New Synthetic Customer',{exact:true}).first().waitFor();await page.getByRole('searchbox').fill('SYN-M');await page.getByRole('searchbox').press('Enter');await page.getByRole('button',{name:'Bayar',exact:true}).click();await page.getByRole('button',{name:'QRIS',exact:true}).click();await page.getByRole('button',{name:/^Konfirmasi Rp/}).click();await page.getByRole('heading',{name:'Pembayaran Berhasil'}).waitFor();
  const q=await page.evaluate(()=>JSON.parse(localStorage.getItem('mandalika.pos.outbox')!));const created=q.findLast(i=>i.type==='customer_create'),sale=q.at(-1);if(!created||sale.payload.customerId!==created.payload.customerId||sale.payload.customerName!=='New Synthetic Customer')throw Error('new customer sale identity');
@@ -450,5 +450,50 @@ export const posPromoSheet = async (page: ScenarioPage) => {
   await confirm.getByRole('button', { name: 'Kosongkan', exact: true }).click()
   assert((await page.getByRole('button', { name: 'Bayar', exact: true }).count()) === 0, 'confirm clears the cart')
   out.push({ kosongkan: ['dialog', 'Batal keeps cart', 'Kosongkan clears cart'] })
+  return out
+}
+
+// B3: the customer chip, the Profil Pelanggan sheet and "Ulangi" (adds the last sale's paid lines, never a reward line).
+export const posCustomerProfile = async (page: ScenarioPage) => {
+  const out: any[] = []
+  const assert = (v: unknown, m: string) => { if (!v) throw Error(m) }
+  const body = () => page.locator('body').innerText()
+  const [scent, tester] = page.__a24.products
+  const profile = {
+    customer: { id: page.__a24.customer.id, name: 'Synthetic Customer', phone: page.__a24.customer.phone, tier: 'Gold', points: 100, since: '2026-01-01T00:00:00Z', orderCount: 4, totalSpend: 2500000 },
+    rewardsAvailable: 1,
+    lastOrders: [{ id: 'ord-1', number: 'SYN-0001', at: new Date(Date.now() - 21 * 86400000).toISOString(), outletCode: 'SYN', paymentMethod: 'cash', total: 200000,
+      lines: [{ productId: scent.id, name: 'Synthetic Scent', size: 'M', qty: 2, free: false }, { productId: tester.id, name: 'Synthetic Tester', size: 'M', qty: 1, free: true }] }],
+    frequentItems: [{ productId: scent.id, size: 'M', name: 'Synthetic Scent', count: 6 }],
+    notes: [], pitch: { lastItem: 'Synthetic Scent', lastAt: new Date(Date.now() - 21 * 86400000).toISOString(), usualIntervalDays: 30, neverTriedCategories: ['Woody'] },
+  }
+  await page.route('http://127.0.0.1:59999/api/v1/sync/customers/*/profile', (route) => route.fulfill({ status: 200, json: { data: profile } }))
+  // Empty state: "+ Pelanggan" opens the Pelanggan sheet; a phone search lists the match with a Profil entry.
+  await page.getByRole('button', { name: '+ Pelanggan', exact: true }).click()
+  await page.getByRole('heading', { name: 'Pelanggan', exact: true }).waitFor()
+  await page.getByRole('textbox', { name: 'Cari pelanggan dengan nomor telepon' }).fill(page.__a24.customer.phone)
+  await page.getByRole('textbox', { name: 'Cari pelanggan dengan nomor telepon' }).press('Enter')
+  await page.getByRole('button', { name: 'Profil Synthetic Customer', exact: true }).click()
+  await page.getByRole('heading', { name: 'Profil Pelanggan' }).waitFor()
+  await page.getByText('Bahan obrolan', { exact: true }).waitFor()
+  const text = await body()
+  assert(text.includes('Terakhir beli Synthetic Scent') && text.includes('3 minggu lalu'), 'the pitch sentence is built from the profile')
+  assert(text.includes('Woody belum pernah dicoba'), 'never-tried line')
+  // Ulangi adds the paid line (2 × Scent M) and not the Rp0 Tester.
+  await page.getByRole('button', { name: 'Ulangi SYN-0001', exact: true }).click()
+  await page.getByText('2 item ditambahkan ke keranjang').waitFor()
+  // The gold bar attaches the customer and closes the profile; the cart shows the chip with Ganti / Lepas.
+  await page.getByRole('button', { name: 'Pilih untuk transaksi ini', exact: true }).click()
+  await page.getByRole('button', { name: 'Lepas', exact: true }).waitFor()
+  const cart = await body()
+  assert(cart.includes('Synthetic Customer') && cart.includes('Ganti'), 'chip shows the customer with Ganti')
+  assert(await page.getByRole('button', { name: 'Bayar', exact: true }).count() === 1, 'Ulangi filled the cart')
+  assert(/200\.000/.test(cart) && !/220\.000/.test(cart), 'a reward line is never repeated: the total is 2 x Scent M only')
+  assert((await page.getByRole('heading', { name: 'Profil Pelanggan' }).count()) === 0, 'the profile closed')
+  out.push({ customerProfile: ['+ Pelanggan', 'Cari + Profil', 'Bahan obrolan', 'Ulangi paid lines only', 'Pilih untuk transaksi ini', 'chip Ganti/Lepas'] })
+  // Lepas releases the customer (no promo or reward to drop: no confirm).
+  await page.getByRole('button', { name: 'Lepas', exact: true }).click()
+  assert((await page.getByRole('button', { name: 'Lepas', exact: true }).count()) === 0, 'Lepas releases the customer')
+  out.push({ release: ['Lepas'] })
   return out
 }
