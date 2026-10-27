@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { KNOWN_CUSTOMERS_KEY, KNOWN_CUSTOMERS_MAX, KNOWN_CUSTOMERS_TTL_MS, KnownCustomers } from './knownCustomers'
+import { KNOWN_CUSTOMERS_KEY, KNOWN_CUSTOMERS_MAX, KNOWN_CUSTOMERS_TTL_MS, KnownCustomers, RECENT_CUSTOMERS_MAX } from './knownCustomers'
 import { controllableKV } from './testFixtures/controllableKV'
 
 // A30: the tablet remembers only customers this device looked up, selected or created, and can
@@ -24,11 +24,11 @@ describe('KnownCustomers', () => {
     expect(k.findByPhone('')).toEqual([])
   })
 
-  it('has no listing API', () => {
+  it('has no full listing API (only a capped recent list, B3)', () => {
     const { kv } = controllableKV()
     const k = new KnownCustomers(kv)
     const methods = Object.getOwnPropertyNames(Object.getPrototypeOf(k)).filter((m) => m !== 'constructor')
-    expect(methods.sort()).toEqual(['findByPhone', 'refresh', 'remember'])
+    expect(methods.sort()).toEqual(['findByPhone', 'recent', 'refresh', 'remember'])
   })
 
   it('persists across instances and stores only the needed fields', () => {
@@ -115,5 +115,16 @@ describe('KnownCustomers', () => {
       id: 'c1', name: 'Customer 1', phone: cust(1).phone, points: 1, totalSpent: 0, visitCount: 0,
       segment: { id: 's', name: 'VIP', color: 'gold' },
     })
+  })
+
+  it('recent returns the newest customers first and never more than the cap', () => {
+    const { kv } = controllableKV()
+    const k = new KnownCustomers(kv, () => 1_000)
+    for (let n = 1; n <= 8; n++) k.remember(cust(n))
+    k.remember(cust(2)) // used again: moves to the front
+    expect(k.recent(50).map((c) => c.id)).toEqual(['c2', 'c8', 'c7', 'c6', 'c5'])
+    expect(k.recent(50)).toHaveLength(RECENT_CUSTOMERS_MAX)
+    expect(k.recent(2).map((c) => c.id)).toEqual(['c2', 'c8'])
+    expect(k.recent(0)).toEqual([])
   })
 })

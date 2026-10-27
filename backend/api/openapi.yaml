@@ -1222,6 +1222,76 @@ components:
         orderId: { type: string, format: uuid, nullable: true }
         orderNumber: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
+    CustomerProfileOrderLine:
+      type: object
+      required: [productId, name, size, qty, free]
+      properties:
+        productId: { type: string, format: uuid }
+        name: { type: string }
+        size: { type: string }
+        qty: { type: integer }
+        free: { type: boolean, description: 'true for a Rp0 line (reward / giveaway); the POS never repeats these' }
+    CustomerProfileOrder:
+      type: object
+      required: [id, number, at, outletCode, paymentMethod, total, lines]
+      properties:
+        id: { type: string, format: uuid }
+        number: { type: string }
+        at: { type: string, format: date-time }
+        outletCode: { type: string }
+        paymentMethod: { type: string }
+        total: { type: number, format: double }
+        lines: { type: array, items: { $ref: '#/components/schemas/CustomerProfileOrderLine' } }
+    CustomerProfileFrequentItem:
+      type: object
+      required: [productId, size, name, count]
+      properties:
+        productId: { type: string, format: uuid }
+        size: { type: string }
+        name: { type: string }
+        count: { type: integer, description: 'units bought over the last 12 months' }
+    CustomerProfileNote:
+      type: object
+      required: [at, text, kind]
+      properties:
+        at: { type: string, format: date }
+        text: { type: string }
+        kind: { type: string, enum: [telepon, kunjungan, pesan, catatan] }
+    CustomerProfilePitch:
+      type: object
+      required: [lastItem, lastAt, usualIntervalDays, neverTriedCategories]
+      properties:
+        lastItem: { type: string, nullable: true }
+        lastAt: { type: string, format: date-time, nullable: true }
+        usualIntervalDays: { type: integer, nullable: true, description: 'median gap in days between completed orders; null under 3 orders' }
+        neverTriedCategories: { type: array, items: { type: string } }
+    CustomerProfileHeader:
+      type: object
+      required: [id, name, phone, tier, points, since, orderCount, totalSpend]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        phone: { type: string }
+        tier: { type: string, enum: [Member, Silver, Gold, Platinum] }
+        points: { type: integer }
+        since: { type: string, format: date-time }
+        orderCount: { type: integer }
+        totalSpend: { type: number, format: double }
+    CustomerProfile:
+      type: object
+      required: [customer, rewardsAvailable, lastOrders, frequentItems, notes, pitch]
+      properties:
+        customer: { $ref: '#/components/schemas/CustomerProfileHeader' }
+        rewardsAvailable: { type: integer, description: 'product_reward menus the customer qualifies for with an empty cart (calendar triggers: birthday, member day, first visit); cart-dependent ones appear in the live loyalty preview' }
+        lastOrders: { type: array, items: { $ref: '#/components/schemas/CustomerProfileOrder' } }
+        frequentItems: { type: array, items: { $ref: '#/components/schemas/CustomerProfileFrequentItem' } }
+        notes: { type: array, items: { $ref: '#/components/schemas/CustomerProfileNote' }, description: 'CRM interactions; empty for callers without customer-reader access' }
+        pitch: { $ref: '#/components/schemas/CustomerProfilePitch' }
+    CustomerProfileResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/CustomerProfile' }
     RewardGrantListResponse:
       type: object
       required: [data]
@@ -3731,6 +3801,34 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/RewardGrantListResponse' }
+  /api/v1/sync/customers/{id}/profile:
+    get:
+      operationId: getCustomerProfile
+      tags: [customers]
+      summary: Customer profile for the POS sheet (D-25, B3)
+      description: |
+        Authenticated, any role (the cashier reaches it after finding the customer by phone).
+        A merged-away id resolves to the surviving customer. Callers without customer-reader access
+        (cashiers, A30) must also send `phone`, the customer's own number in any format; without a
+        match the answer is 404, so an id alone (ids leak through discount codes and orders) never
+        reveals a name or number. Order-derived data (last orders,
+        frequent items, pitch) is limited to the caller's outlet scope; the customer identity,
+        points and lifetime totals are brand-wide. Notes are returned only to callers with
+        customer-reader access (A30); cashiers get an empty list. Never cached.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: phone, in: query, schema: { type: string }, description: 'Customer phone, required for phone-only callers (A30)' }
+      responses:
+        '200':
+          description: profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerProfileResponse' }
+        '404':
+          description: unknown customer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /api/v1/customers/dup-candidates:
     get:
       operationId: listDupCandidates

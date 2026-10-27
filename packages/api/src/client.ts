@@ -77,6 +77,7 @@ export type PointTransaction = S['PointTransaction']
 export type AdjustPointsInput = S['AdjustPointsInput']
 export type RewardGrant = S['RewardGrant']
 export type LoyaltyPreviewReward = S['LoyaltyPreviewReward']
+export type CustomerProfile = S['CustomerProfile']
 export type DupCandidate = S['DupCandidate']
 export type SyncReviewItem = S['SyncReviewItem']
 export type SyncReviewResolution = S['SyncReviewResolution']
@@ -314,6 +315,9 @@ export interface Api {
     total: number,
     clientCreatedAt?: string,
   ) => Promise<LoyaltyPreviewReward[]>
+
+  /** B3 (D-25): the POS customer profile. Throws ApiError 404 when the backend predates the endpoint or the customer is unknown, 404 also when a phone-only caller's `phone` does not match (A30). */
+  customerProfile: (customerId: string, phone: string) => Promise<CustomerProfile>
 
   /** A08: online-only. Eligible receive approvers at the caller's outlet (no PIN hash). */
   listReceiveApprovers: () => Promise<ReceiveApprover[]>
@@ -823,6 +827,9 @@ export function createClient(opts: ClientOptions): Api {
         total,
         ...(clientCreatedAt ? { clientCreatedAt } : {}),
       }),
+
+    customerProfile: (customerId, phone) =>
+      data<CustomerProfile>('GET', `${API}/sync/customers/${encodeURIComponent(customerId)}/profile?phone=${encodeURIComponent(phone)}`),
 
     registerDevice: (deviceId) =>
       data<{ code: string }>('POST', `${API}/pos/devices/register`, { deviceId }),

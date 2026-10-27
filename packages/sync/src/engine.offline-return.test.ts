@@ -333,6 +333,22 @@ describe('localReceipts() view', () => {
     expect(JSON.stringify(view)).not.toMatch(/Budi|cust-1|rahasia/)
   })
 
+  it('localReceiptsForCustomer finds only that customer queued sales and never leaks the id into the view', async () => {
+    const { api } = fakeApi()
+    const e = engineOf(api)
+    const mine = await pendingSale(e, 1)
+    await e.enqueue('order', { ...sale(2), customerId: 'cust-2' })
+    await e.enqueue('order', { ...sale(3), customerId: null })
+    expect(e.localReceiptsForCustomer('cust-1').map((r) => r.orderUuid)).toEqual([mine.orderUuid])
+    expect(e.localReceiptsForCustomer('nobody')).toEqual([])
+    expect(e.localReceiptsForCustomer('')).toEqual([])
+    expect(JSON.stringify(e.localReceipts())).not.toMatch(/cust-1|cust-2/)
+    online()
+    await e.flushNow()
+    await e.idle()
+    expect(e.localReceiptsForCustomer('cust-1')).toEqual([]) // acknowledged: the archive keeps no customer link
+  })
+
   it('marks parked sales and flags queued and completed refunds', async () => {
     const parked: OutboxItem = {
       idempotencyKey: 'dev:p1', type: 'order', seq: 1, status: 'failed', attempts: MAX_ATTEMPTS, reviewCode: 'conflict', reviewReason: 'x',

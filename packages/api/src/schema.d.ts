@@ -415,6 +415,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sync/customers/{id}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Customer profile for the POS sheet (D-25, B3)
+         * @description Authenticated, any role (the cashier reaches it after finding the customer by phone).
+         *     A merged-away id resolves to the surviving customer. Callers without customer-reader access
+         *     (cashiers, A30) must also send `phone`, the customer's own number in any format; without a
+         *     match the answer is 404, so an id alone (ids leak through discount codes and orders) never
+         *     reveals a name or number. Order-derived data (last orders,
+         *     frequent items, pitch) is limited to the caller's outlet scope; the customer identity,
+         *     points and lifetime totals are brand-wide. Notes are returned only to callers with
+         *     customer-reader access (A30); cashiers get an empty list. Never cached.
+         */
+        get: operations["getCustomerProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/customers/dup-candidates": {
         parameters: {
             query?: never;
@@ -3861,6 +3888,77 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        CustomerProfileOrderLine: {
+            /** Format: uuid */
+            productId: string;
+            name: string;
+            size: string;
+            qty: number;
+            /** @description true for a Rp0 line (reward / giveaway); the POS never repeats these */
+            free: boolean;
+        };
+        CustomerProfileOrder: {
+            /** Format: uuid */
+            id: string;
+            number: string;
+            /** Format: date-time */
+            at: string;
+            outletCode: string;
+            paymentMethod: string;
+            /** Format: double */
+            total: number;
+            lines: components["schemas"]["CustomerProfileOrderLine"][];
+        };
+        CustomerProfileFrequentItem: {
+            /** Format: uuid */
+            productId: string;
+            size: string;
+            name: string;
+            /** @description units bought over the last 12 months */
+            count: number;
+        };
+        CustomerProfileNote: {
+            /** Format: date */
+            at: string;
+            text: string;
+            /** @enum {string} */
+            kind: "telepon" | "kunjungan" | "pesan" | "catatan";
+        };
+        CustomerProfilePitch: {
+            lastItem: string | null;
+            /** Format: date-time */
+            lastAt: string | null;
+            /** @description median gap in days between completed orders; null under 3 orders */
+            usualIntervalDays: number | null;
+            neverTriedCategories: string[];
+        };
+        CustomerProfileHeader: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            phone: string;
+            /** @enum {string} */
+            tier: "Member" | "Silver" | "Gold" | "Platinum";
+            points: number;
+            /** Format: date-time */
+            since: string;
+            orderCount: number;
+            /** Format: double */
+            totalSpend: number;
+        };
+        CustomerProfile: {
+            customer: components["schemas"]["CustomerProfileHeader"];
+            /** @description product_reward menus the customer qualifies for with an empty cart (calendar triggers: birthday, member day, first visit); cart-dependent ones appear in the live loyalty preview */
+            rewardsAvailable: number;
+            lastOrders: components["schemas"]["CustomerProfileOrder"][];
+            frequentItems: components["schemas"]["CustomerProfileFrequentItem"][];
+            /** @description CRM interactions; empty for callers without customer-reader access */
+            notes: components["schemas"]["CustomerProfileNote"][];
+            pitch: components["schemas"]["CustomerProfilePitch"];
+        };
+        CustomerProfileResponse: {
+            data: components["schemas"]["CustomerProfile"];
+        };
         RewardGrantListResponse: {
             data: components["schemas"]["RewardGrant"][];
         };
@@ -6696,6 +6794,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RewardGrantListResponse"];
+                };
+            };
+        };
+    };
+    getCustomerProfile: {
+        parameters: {
+            query?: {
+                /** @description Customer phone, required for phone-only callers (A30) */
+                phone?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerProfileResponse"];
+                };
+            };
+            /** @description unknown customer */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
         };

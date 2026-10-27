@@ -92,6 +92,12 @@
       "source": "tests/browser/pos-scenarios.ts"
     },
     {
+      "id": "POS-CUSTOMER-PROFILE",
+      "finding": "UX-B3",
+      "description": "Customer chip and Pelanggan sheet: a phone search lists the match with a Profil entry; the profile shows the Bahan obrolan pitch, Ulangi adds the last sale's paid lines (never a Rp0 reward line), the gold bar attaches the customer, Lepas releases it",
+      "source": "tests/browser/pos-scenarios.ts"
+    },
+    {
       "id": "S0A-DIAGNOSTICS",
       "finding": "A02",
       "description": "Rendered repeated export/cancel/share/clipboard failures retain two failed operations",

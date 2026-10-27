@@ -201,6 +201,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Get("/sync/inbound-transfers", h.GetInboundTransfers)
 			r.Get("/sync/outlet-transfers", h.GetOutletTransfers)
 			r.Get("/sync/customers/lookup", h.CustomersLookup)
+			r.Get("/sync/customers/{id}/profile", h.CustomerProfile) // any role (D-25); outside /customers (A30 guard); order data scope(r)-limited
 			r.Post("/sync/loyalty-preview", h.LoyaltyPreview)
 			// A08 online step-up for transfer receive. The mint has its own coarse per-IP
 			// bucket (each call costs an argon2 hash); the real brake is the server-side

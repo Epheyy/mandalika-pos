@@ -8,19 +8,19 @@ const alice = { id: 'a', name: 'Alice Priv', phone: '081234567890', points: 3, t
 function render(over: Partial<Parameters<typeof CustomerPicker>[0]> = {}) {
   return renderToStaticMarkup(
     createElement(CustomerPicker, {
+      open: true,
+      onClose: vi.fn(),
       customers: [],
-      selectedCustomer: null,
+      recent: [],
       customerSearch: '',
       isAddingCustomer: false,
       newCustomerForm: { name: '', phone: '', email: '' },
       isSaving: false,
       onSearchChange: vi.fn(),
       onSelect: vi.fn(),
-      onClear: vi.fn(),
       onToggleAdding: vi.fn(),
       onNewFormChange: vi.fn(),
       onSaveNew: vi.fn(),
-      earnedPoints: 0,
       onAddNewFromSearch: vi.fn(),
       onSubmitSearch: vi.fn(),
       loyaltyEnabled: true,
@@ -90,5 +90,30 @@ describe('CustomerPicker phone-only search', () => {
     const html = render({ customerSearch: '081299998888', customers: [], awaitingSearch: true })
     expect(html).toContain('Tekan Cari')
     expect(html).not.toContain('sebagai pelanggan baru')
+  })
+})
+
+describe('CustomerPicker sections (B3)', () => {
+  it('labels the matches and the customers last served on this tablet', () => {
+    const bob = { ...alice, id: 'b', name: 'Bob Recent' }
+    const html = render({ customerSearch: '081234567890', customers: [alice], recent: [bob] })
+    expect(html).toContain('Cocok dengan nomor ini')
+    expect(html).toContain('Terakhir dilayani di tablet ini')
+    expect(html).toContain('Pilih ›')
+    expect(html).toContain('Bob Recent')
+  })
+
+  it('shows the profile entry only when the screen wires it', () => {
+    expect(render({ customerSearch: '081234567890', customers: [alice] })).not.toContain('Profil Alice Priv')
+    expect(render({ customerSearch: '081234567890', customers: [alice], onOpenProfile: vi.fn() })).toContain('Profil Alice Priv')
+  })
+
+  it('says what offline can do', () => {
+    expect(render({ isOnline: false })).toContain('Offline')
+    expect(render({ isOnline: true })).not.toContain('Offline')
+  })
+
+  it('renders nothing while closed', () => {
+    expect(render({ open: false })).toBe('')
   })
 })
