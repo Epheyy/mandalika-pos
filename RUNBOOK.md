@@ -130,6 +130,11 @@ APK's build commit unless acknowledged (rule 4 below).
   (roll forward) or an APK.
 - With real journal corruption the rollback lands on the previous good bundle or
   the builtin, which hits the same error. The queue is kept (nothing is lost); use `quarantineCorruptRows`.
+- **Receipts and C1 (OTA 2.2.0).** Rolling a tablet back to a bundle older than C1 means that
+  bundle cannot reprint receipts archived in the v2 format (itemised promos, GRATIS, Biaya
+  tambahan, Tukar poin, Pembulatan). It fails closed: the reprint is refused, no money moves and
+  the sale itself is unaffected. Reprint those receipts from the backoffice instead, or roll
+  forward to a bundle at or above 2.2.0.
 
 **Journal rollback-compatibility rule (A35).** Any OTA bundle can be rolled back
 automatically, so every OTA must leave the journal readable, and correctly

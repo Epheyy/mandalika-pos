@@ -13,6 +13,7 @@ import { memo, useState, type ReactNode } from 'react'
 import type { OfflineCapState, WallState } from '@mandalika/sync'
 import type { FailedItem } from '../hooks/useOfflineData'
 import { chipModel } from '../lib/connectionChip'
+import { queueCountsLine } from '../lib/queueGuard'
 import { OFFLINE_LOCKED_MESSAGE, offlineHours, offlineWarnMessage } from '../lib/offlineCap'
 import { Button, Chip, Sheet, StatusBadge, toneClasses } from './ui'
 
@@ -50,9 +51,10 @@ function TechnicalDetail({ children }: { children: ReactNode }) {
 }
 
 /** One parked item: what it is, what the cashier captured (e.g. a refund's order, amount and method), why it is parked. */
-export function ReviewRow({ f }: { f: FailedItem }) {
+export function ReviewRow({ f, onRetry, onAcknowledge }: { f: FailedItem; onRetry?: (key: string) => void; onAcknowledge?: (key: string) => void }) {
+  const label = typeLabel(f.type)
   return (
-    <div className="bg-danger-bg rounded-lg px-3 py-2">
+    <div className="bg-danger-bg rounded-lg px-3 py-2" data-testid="review-row" data-key={f.idempotencyKey}>
       <p className="font-semibold text-danger">
         {typeLabel(f.type)}
         {f.clientCreatedAt && <span className="font-normal"> · {formatTime(f.clientCreatedAt)}</span>}
@@ -64,6 +66,20 @@ export function ReviewRow({ f }: { f: FailedItem }) {
       <TechnicalDetail>
         <p>{f.lastError ?? 'Alasan tidak diketahui'}</p>
       </TechnicalDetail>
+      {(onRetry || onAcknowledge) && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {onRetry && (
+            <Button variant="secondary" aria-label={`Coba lagi: ${label}${f.clientCreatedAt ? ` ${formatTime(f.clientCreatedAt)}` : ''}`} onClick={() => onRetry(f.idempotencyKey)}>
+              Coba lagi
+            </Button>
+          )}
+          {onAcknowledge && (
+            <Button variant="ghost" onClick={() => onAcknowledge(f.idempotencyKey)}>
+              Tandai sudah ditangani
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -109,6 +125,12 @@ interface SyncStatusProps {
   onResync: () => void
   onFlush: () => void
   onRetryFailed: () => void
+  /** C2: re-queue ONE parked item. */
+  onRetryOne?: (idempotencyKey: string) => void
+  /** C2: hide a parked row locally once it was handled; never deletes the stored item. */
+  onAcknowledge?: (idempotencyKey: string) => void
+  /** Parked items marked as handled: their rows are hidden, but they are still parked and counted. */
+  acknowledged?: ReadonlySet<string>
   /** Share diagnostics without resolving or removing failed operations. */
   onExportLog: () => void
   /** Controlled sheet state (lets the Android Back handler close it); falls back to local state. */
@@ -129,6 +151,9 @@ export const SyncStatus = memo(function SyncStatus({
   onResync,
   onFlush,
   onRetryFailed,
+  onRetryOne,
+  onAcknowledge,
+  acknowledged,
   onExportLog,
   open: openProp,
   onOpenChange,
@@ -137,6 +162,8 @@ export const SyncStatus = memo(function SyncStatus({
   const open = openProp ?? innerOpen
   const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setInnerOpen(v))
   const hasFailed = review.length > 0
+  const rows = acknowledged ? review.filter((f) => !acknowledged.has(f.idempotencyKey)) : review
+  const hiddenCount = review.length - rows.length
   // Offline is its own, normal state: never describe it as a server problem.
   const showStuck = isOnline && stuck.length > 0
   const showAccount = isOnline && accountProblem !== null
@@ -183,6 +210,7 @@ export const SyncStatus = memo(function SyncStatus({
           <div className={`rounded-xl px-4 py-3 space-y-1 ${toneClasses(chip.tone)}`}>
             <p className="font-semibold">{chip.text}</p>
             {note && <p className="text-xs">{note}</p>}
+            {(pendingCount > 0 || review.length > 0) && <p className="text-xs font-semibold" data-testid="queue-counts">{queueCountsLine({ pending: pendingCount, parked: review.length }).text}</p>}
           </div>
 
           {pendingCount > 0 && (
@@ -195,7 +223,8 @@ export const SyncStatus = memo(function SyncStatus({
           {hasFailed && (
             <section className="space-y-2">
               <h3 className="font-semibold text-danger">Perlu ditinjau ({review.length})</h3>
-              <div className="space-y-2">{review.map((f) => <ReviewRow key={f.idempotencyKey} f={f} />)}</div>
+              <div className="space-y-2">{rows.map((f) => <ReviewRow key={f.idempotencyKey} f={f} onRetry={onRetryOne} onAcknowledge={onAcknowledge} />)}</div>
+              {hiddenCount > 0 && <p className="text-xs text-ink-500">{hiddenCount} transaksi sudah ditandai ditangani; tetap tersimpan di tablet. Coba lagi mengirimnya lagi.</p>}
               <p className="text-xs text-ink-500">Data tetap tersimpan di perangkat dan tidak dikirim ulang otomatis.</p>
               <Button variant="danger" fullWidth onClick={() => { onRetryFailed(); setOpen(false) }}>
                 Coba lagi

@@ -241,6 +241,31 @@ test('S0B-REFUND-RETENTION denied original refund survives export reconstruction
   await evidence(info, { original, parked, final })
 })
 
+test('C2-PARKED-PER-ITEM Coba lagi on one parked sale leaves the other parked; Tandai sudah ditangani hides without deleting', async ({ page }, info) => {
+  await page.goto(`${POS}/tests/parked-per-item/`)
+  const current = async () => JSON.parse(await page.getByLabel('Per-item evidence').innerText())
+  const keyA = 'synthetic-device:order-a'
+  const keyB = 'synthetic-device:order-b'
+  expect(await current()).toMatchObject({ parked: [keyA, keyB], queued: [], stored: 2 })
+  await page.getByRole('button', { name: '2 perlu ditinjau', exact: true }).click()
+  await expect(page.getByTestId('review-row')).toHaveCount(2)
+  await expect(page.getByTestId('queue-counts')).toContainText('2 perlu ditinjau')
+
+  // Retry only row A.
+  await page.locator(`[data-testid="review-row"][data-key="${keyA}"]`).getByRole('button', { name: /^Coba lagi/ }).click()
+  await expect.poll(async () => (await current()).parked).toEqual([keyB])
+  const afterRetry = await current()
+  expect(afterRetry.stored).toBe(2)
+  expect(afterRetry.queued.concat(afterRetry.parked)).toEqual(expect.arrayContaining([keyA, keyB]))
+
+  // Acknowledge row B: hidden from the sheet, still stored, still parked in the outbox.
+  await page.locator(`[data-testid="review-row"][data-key="${keyB}"]`).getByRole('button', { name: 'Tandai sudah ditangani', exact: true }).click()
+  await expect(page.locator(`[data-testid="review-row"][data-key="${keyB}"]`)).toHaveCount(0)
+  const final = await current()
+  expect(final).toMatchObject({ parked: [keyB], stored: 2, acknowledged: [keyB] })
+  await evidence(info, { afterRetry, final })
+})
+
 test('POS-OFFLINE-RETURN a sale made offline is found after a reload, reprinted once, refunded by uuid and synced in order', async ({ page }, info) => {
   await page.goto(`${POS}/tests/offline-return/`)
   const current = async () => JSON.parse(await page.getByLabel('Offline return evidence').innerText())

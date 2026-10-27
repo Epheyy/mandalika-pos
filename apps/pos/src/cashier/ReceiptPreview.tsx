@@ -1,6 +1,8 @@
 import { memo, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
+import { ReceiptTotals } from './ReceiptTotals'
+import type { TotalRow } from './receiptRows'
 import { receiptRefLabel } from './orderRef'
 import { brand } from '../brand'
 import { variantLabel } from '@mandalika/types'
@@ -20,10 +22,8 @@ interface ReceiptPreviewProps {
   /** Reserved order number (printed on the receipt); falls back to a hash of orderId. */
   orderNumber?: string | null
   items: CartItem[]
-  total: number
-  discountAmount: number
-  promoLabel?: string | null
-  taxAmount: number
+  /** The totals rows the printed receipt shows (receiptRows.quoteTotalRows). */
+  totalRows: TotalRow[]
   paymentMethod: string
   amountPaid: number
   change: number
@@ -48,10 +48,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
   orderId,
   orderNumber,
   items,
-  total,
-  discountAmount,
-  promoLabel,
-  taxAmount,
+  totalRows,
   paymentMethod,
   amountPaid,
   change,
@@ -76,7 +73,6 @@ export const ReceiptPreview = memo(function ReceiptPreview({
   }
   if (!isOpen) return null
 
-  const subtotal = items.reduce((s, i) => s + i.subtotal, 0)
   const now = new Date()
   const timeStr = now.toLocaleString('id-ID', {
     day: '2-digit',
@@ -149,26 +145,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
 
           {/* Totals */}
           <div className="border-t border-dashed border-gray-200 pt-3 space-y-1 text-xs">
-            <div className="flex justify-between text-gray-600">
-              <span>Subtotal</span>
-              <span>{formatRupiah(subtotal)}</span>
-            </div>
-            {discountAmount > 0 && (
-              <div className="flex justify-between text-green-600">
-                <span>{promoLabel ? `Diskon · ${promoLabel}` : 'Diskon'}</span>
-                <span>−{formatRupiah(discountAmount)}</span>
-              </div>
-            )}
-            {settings.taxEnabled && taxAmount > 0 && settings.receipt.showTax && (
-              <div className="flex justify-between text-gray-600">
-                <span>PPN</span>
-                <span>{formatRupiah(taxAmount)}</span>
-              </div>
-            )}
-            <div className="flex justify-between font-bold text-gray-900 text-sm pt-1 border-t border-gray-200">
-              <span>Total</span>
-              <span>{formatRupiah(total)}</span>
-            </div>
+            <ReceiptTotals rows={totalRows} />
             <div className="flex justify-between text-gray-600">
               <span>{PAYMENT_LABELS[paymentMethod] ?? paymentMethod}</span>
               <span>{formatRupiah(amountPaid)}</span>

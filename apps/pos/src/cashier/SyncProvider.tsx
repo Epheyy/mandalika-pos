@@ -21,6 +21,7 @@ import { currentActor } from '../actor'
 import { hideSplash } from '../native'
 import { reportErrors } from '../lib/errorReporter'
 import { reviewResolvedMessage } from '../lib/reviewResolved'
+import { announceParked } from '../lib/parkedSale'
 import { AppLoadingSkeleton } from '../components/Skeleton'
 import { JOURNAL_FALLBACK_MESSAGE, OUTBOX_CORRUPT_MESSAGE, OUTBOX_CORRUPT_UNSECURED_MESSAGE, OUTBOX_CORRUPT_PENDING_MESSAGE } from '../lib/durableSubmit'
 
@@ -81,6 +82,8 @@ export function SyncProvider({
           debug: true,
           // Permanently-failed sync ops → server error log (Backoffice).
           onDeadLetter: (items) => {
+            // C2: a parked sale must be visible to the cashier at once (banner when the cart is empty).
+            announceParked(items.filter((i) => i.type === 'order').map((i) => i.idempotencyKey))
             void reportErrors(
               items.map((i) => ({
                 source: 'sync' as const,

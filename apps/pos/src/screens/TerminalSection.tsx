@@ -11,6 +11,8 @@ import { getKV } from '@mandalika/sync'
 import { useAuth } from '../auth'
 import { SyncContext } from '../cashier/SyncProvider'
 import { readBinding, releaseBlockedReason } from '../terminalBinding'
+import { QueueGuardLine } from '../components/QueueGuardLine'
+import { queueBlockReason } from '../lib/queueGuard'
 
 export function TerminalSection() {
   const engine = use(SyncContext)
@@ -66,6 +68,16 @@ export function TerminalSection() {
         Outlet tablet ini tetap dan tidak bisa diganti dari layar kasir. Melepas terminal mengeluarkan akun dan
         mengosongkan pilihan outlet; hanya bisa saat online dan tidak ada transaksi yang belum terkirim.
       </p>
+      {summary && (
+        <QueueGuardLine
+          pending={summary.pending}
+          parked={summary.parkedStamped + summary.parkedUnstamped}
+          reason={blocked ? queueBlockReason(
+            { pending: summary.pending, parked: summary.parkedStamped + summary.parkedUnstamped, parkedUnstamped: summary.parkedUnstamped },
+            { needsOnline: true, online: engine?.isReachable() },
+          ) : null}
+        />
+      )}
       {blocked && (
         <p role="status" className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           {blocked}

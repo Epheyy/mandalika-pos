@@ -116,6 +116,12 @@
       "source": "apps/pos/tests/refund-permission/main.tsx"
     },
     {
+      "id": "C2-PARKED-PER-ITEM",
+      "finding": "C2",
+      "description": "Two parked sales: Coba lagi on one row re-queues only that item, the other stays parked; Tandai sudah ditangani hides a row without deleting it",
+      "source": "apps/pos/tests/parked-per-item/main.tsx"
+    },
+    {
       "id": "POS-OFFLINE-RETURN",
       "finding": "A41",
       "description": "Offline sale survives a reload, is found by receipt number under Struk di tablet ini, reprinted once without a new outbox entry, refunded by uuid, blocked from a second refund, then synced sale-before-refund and shown as Sudah direfund",

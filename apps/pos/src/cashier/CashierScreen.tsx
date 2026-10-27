@@ -53,10 +53,13 @@ import { LocalReceiptsPanel } from './LocalReceiptsPanel'
 import { localReceiptOrder, localSaleRef, newestReprintable, reprintReceiptData } from './localReceipts'
 import { ShiftRecapPanel } from './ShiftRecapPanel'
 import { SyncStatus } from '../components/SyncStatus'
+import { useParkedBanner } from '../hooks/useParkedBanner'
+import { parkedSaleMessage } from '../lib/parkedSale'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { reserveOrderNo } from './orderRef'
 import { isRedundantPromoCode } from './promotionSelection'
 import { buildPromotionMetadata } from './promotionMetadata'
+import { quoteTotalRows } from './receiptRows'
 import { buildReceiptQuote, receiptFromQuote, type ReceiptQuote } from './receiptQuote'
 import { applyPendingStock, stockFor, oversoldSizes, OVERSELL_WARNING } from './stock'
 import { isLineInBundle, planSizeSwitch, SIZE_SWITCH_BUNDLE_MESSAGE } from './lineSizes'
@@ -282,6 +285,10 @@ export default function CashierScreen() {
   const loyalty = snapshot.loyaltySettings ?? DEFAULT_LOYALTY
 
   const { actions: cartActions, derived } = useCart({ state, dispatch, settings, loyalty })
+  // The totals block of the checkout sheet and of the receipt preview, from the same quote the printer uses.
+  const checkoutRows = state.isCheckoutOpen ? quoteTotalRows(state.cart, derived, { showSubtotal: true, showDiscount: true, showTax: settings.taxEnabled }) : []
+  const receiptRows = state.isSuccessOpen ? quoteTotalRows(state.cart, derived, settings.receipt) : []
+  const parked = useParkedBanner(engine, offlineData.review, derived.totalCartItems === 0)
 
   // Cart panel hides when empty; if the mobile cart tab was active when the
   // last item left, fall back to products so the screen is never blank.
@@ -1034,7 +1041,8 @@ export default function CashierScreen() {
             review={offlineData.review} stuck={offlineData.stuck} accountProblem={offlineData.accountProblem} wall={offlineData.wall}
             offlineCap={offlineCap} isResyncing={offlineData.isResyncing} autoUpdate={offlineData.autoPullAvailable}
             onResync={() => void offlineData.resync()} onFlush={offlineData.flush}
-            onRetryFailed={() => { offlineData.retryFailed().catch(() => showToast('Gagal menyetel ulang antrean. Coba lagi.')) }} onExportLog={() => { void handleExportLog() }}
+            onRetryOne={(k) => { offlineData.retryOne(k).then(() => parked.onRequeued([k])).catch(() => showToast('Gagal menyetel ulang transaksi. Coba lagi.')) }} onAcknowledge={parked.onAcknowledge} acknowledged={parked.acked}
+            onRetryFailed={() => { offlineData.retryFailed().then(() => parked.onRequeued(offlineData.review.map((r) => r.idempotencyKey))).catch(() => showToast('Gagal menyetel ulang antrean. Coba lagi.')) }} onExportLog={() => { void handleExportLog() }}
           />
           <button type="button"
             onClick={() => setShowMenu(true)}
@@ -1042,7 +1050,9 @@ export default function CashierScreen() {
             title="Menu" aria-label="Menu"
           >
             <IconMenu size={24} />
-            {(offlineData.pendingCount > 0 || inbound.length > 0) && (
+            {offlineData.review.length > 0 ? (
+              <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-danger text-white text-[10px] font-bold leading-4 text-center" aria-label={`${offlineData.review.length} perlu ditinjau`}>{offlineData.review.length}</span>
+            ) : (offlineData.pendingCount > 0 || inbound.length > 0) && (
               <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-danger" />
             )}
           </button>
@@ -1051,6 +1061,12 @@ export default function CashierScreen() {
 
       {offlineCap.level === 'locked' && (
         <Banner tone="danger" message={OFFLINE_LOCKED_MESSAGE} action={{ label: 'Cek koneksi', onClick: () => void offlineData.resync() }} />
+      )}
+
+      {parked.banner && (
+        <Banner tone="danger" message={parkedSaleMessage(parked.banner.ref)}
+          action={{ label: 'Lihat', onClick: () => { parked.dismissBanner(parked.banner!.key); setShowConnection(true) } }}
+          onDismiss={() => parked.dismissBanner(parked.banner!.key)} />
       )}
 
       {shift.shiftError && (
@@ -1183,7 +1199,7 @@ export default function CashierScreen() {
 
       <CheckoutPanel
         isOpen={state.isCheckoutOpen} isProcessing={state.isProcessing}
-        derived={derived} settings={settings} paymentMethod={state.paymentMethod}
+        derived={derived} totalRows={checkoutRows} settings={settings} paymentMethod={state.paymentMethod}
         amountPaid={state.amountPaid} selectedCustomer={state.selectedCustomer}
         orderNotes={state.orderNotes}
         salesmen={salesmen} selectedSalesmanId={state.selectedSalesman?.id ?? null}
@@ -1203,7 +1219,6 @@ export default function CashierScreen() {
         onConfirm={() => void handleConfirmPayment()}
         saveError={saleError}
         onClose={() => { setSaleError(null); dispatch({ type: 'CLOSE_CHECKOUT' }) }}
-        discountAmount={derived.discountAmount} taxAmount={derived.taxAmount}
         allowNegativeStock={settings.allowNegativeStock ?? true}
         cartLines={state.cart}
         isOnline={offlineData.isOnline}
@@ -1211,7 +1226,7 @@ export default function CashierScreen() {
 
       <ReceiptPreview
         isOpen={state.isSuccessOpen} orderId={state.lastOrderId} orderNumber={state.lastOrderNumber} items={state.cart}
-        total={derived.total} discountAmount={derived.discountAmount} taxAmount={derived.taxAmount}
+        totalRows={receiptRows}
         paymentMethod={state.paymentMethod}
         amountPaid={tender.amountPaid}
         change={tender.change}
@@ -1220,11 +1235,6 @@ export default function CashierScreen() {
         orderState={state.isSuccessOpen ? orderStateFor(engine.localReceipts(), state.lastOrderId) : 'unknown'}
         onPairPrinter={() => openSettings('printer')}
         canReprint={printer.isPaired} printError={printError}
-        promoLabel={
-          derived.manualDiscountAmount > 0
-            ? null
-            : (state.appliedPromotions[0]?.name ?? state.appliedPromoCodes[0]?.code ?? null)
-        }
         onReprint={handleReprint}
         onClose={() => dispatch({ type: 'CLOSE_SUCCESS' })}
         onNewSale={() => dispatch({ type: 'RESET_SALE' })}
