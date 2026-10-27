@@ -88,3 +88,10 @@ Do not run `make ota-release` for a non-default brand until one of these exists.
 
 - `VITE_BRAND` is not yet an input of `android-release.yml`, and an unknown value only warns at runtime (a typo such as `Flamboyan` ships the Mandalika skin). Consider failing the build in `vite.config.ts` on an unknown non-empty value, and `index.html` still says "Mandalika POS".
 - With a flag off, `loyaltyPreview`, Cart and CustomerPicker still show points; fold `hasFeature('loyalty')` into `loyalty.enabled` at the source before relying on it.
+
+## Owner decisions (2026-10-27)
+
+- Mandalika login screen on brand tokens: accepted.
+- 12 h lock Banner stays a tint (no solid surface): confirmed.
+- Per-brand OTA: separate app ids and deployments (option 1) when a second brand ships.
+- Failing the build on an unknown `VITE_BRAND` and the `android-release.yml` input are deferred until the Mandalika release is done. Goal stays one codebase for all brands.
