@@ -49,6 +49,45 @@ gcloud run services update-traffic mandalika-pos --region asia-southeast2 \
   them). Do not drop or rename a column while an older revision can still
   receive traffic. Contract changes ship in a later release.
 
+### Per-line refund (C4a, migration 0077) release and rollback
+
+- **Release order:** backend deploy (migration 0077 runs at revision start) -> smoke -> promote 100% -> let it soak
+  **24 h** -> only then the C4b POS OTA (the first release that can send item-level refunds), and only after the ERP
+  developer answered E-1..E-3 (Q28-Q30 of `docs/integration/2026-10-21-serah-terima-erp-pos.md`). The backoffice
+  (Cloudflare) can deploy at any time: its totals fall back to `total` when `refundedAmount` is absent.
+- **Until C4b ships no client can create a partial refund** (the legacy payload and the backoffice route refund whole
+  orders only), so the first days are behaviourally identical to before apart from the new refund rows.
+- **Rollback to the previous Cloud Run revision is safe only while no `order_refunds.scope='partial'` row exists.**
+  The old binary ignores the new tables, but it does not write `order_refunds` rows for refunds made during the
+  rollback. Check first:
+
+  ```sql
+  SELECT count(*) FROM order_refunds WHERE scope = 'partial';   -- must be 0
+  ```
+
+  After a rollback, re-sync refunded orders that have no refund row (the catch-up trigger
+  `orders_refunded_legacy_row` already inserts one when an order flips to `refunded`, so this normally returns 0
+  rows; run it after the roll-forward as well):
+
+  ```sql
+  SELECT o.id, o.order_number FROM orders o
+   WHERE o.status = 'refunded'
+     AND NOT EXISTS (SELECT 1 FROM order_refunds r WHERE r.order_id = o.id);
+  ```
+
+- **Do NOT roll back after a partial refund exists.** The old binary would compute shifts and reports without the
+  partial amounts and would treat a `partially_refunded` order as not refundable (correct, but its money readers are
+  wrong). Fix forward instead.
+- **Invariant to spot-check after the deploy** (expect 0 rows, except rows flagged `over_total`):
+
+  ```sql
+  SELECT o.id, o.total, sum(r.amount) AS refunded
+    FROM orders o JOIN order_refunds r ON r.order_id = o.id
+   GROUP BY o.id, o.total
+  HAVING sum(r.amount) > o.total + 1
+     AND bool_and(r.amount_warning IS DISTINCT FROM 'over_total');
+  ```
+
 ### Connection budget
 
 Each instance holds up to `DB_MAX_CONNS` pooled connections (default **10**,
