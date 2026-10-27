@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { StockMovementRow } from '@mandalika/api'
-import { docRefOf } from './documentRef'
+import { docRefOf, refundLabel } from './documentRef'
 
 const base = { refType: 'order' } as StockMovementRow
 const row = (p: Partial<StockMovementRow>): StockMovementRow => ({ ...base, ...p })
@@ -26,5 +26,24 @@ describe('docRefOf', () => {
   it('leaves backfill and unknown types as text', () => {
     expect(docRefOf(row({ refType: 'backfill' }), true)).toBeNull()
     expect(docRefOf(row({ refType: 'transfer' }), true)).toBeNull()
+  })
+})
+
+describe('refund rows', () => {
+  const refund = (p: Partial<StockMovementRow>) => row({ kind: 'refund', refType: 'order', refId: 'o', refNumber: 'INV-1', ...p })
+
+  it('labels the document Refund ke-N from refundSeq (a legacy whole refund is seq 1)', () => {
+    expect(refundLabel(refund({ refundSeq: 2 }))).toBe('Refund ke-2')
+    expect(refundLabel(refund({ refundSeq: 1 }))).toBe('Refund ke-1')
+    expect(refundLabel(refund({}))).toBe('Refund')
+  })
+
+  it('opens the refund (by order id and seq) only for users who may read orders', () => {
+    expect(docRefOf(refund({ refundSeq: 2 }), true)).toEqual({ type: 'refund', id: 'o', seq: 2, label: 'Refund ke-2' })
+    expect(docRefOf(refund({ refundSeq: 2 }), false)).toBeNull()
+  })
+
+  it('leaves non-refund order rows as order documents', () => {
+    expect(docRefOf(row({ kind: 'sale', refType: 'order', refId: 'o', refNumber: 'INV-1' }), true)?.type).toBe('order')
   })
 })

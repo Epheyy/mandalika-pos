@@ -12,6 +12,7 @@ const TITLE: Record<DocRef['type'], string> = {
   count: 'Opname',
   receipt: 'Barang Masuk',
   order: 'Transaksi',
+  refund: 'Refund',
 }
 
 // A document does not change under the reader: no polling.
@@ -123,6 +124,26 @@ function useDocumentBody(doc: DocRef, zone: string) {
           </div>
         )
       }
+      case 'refund': {
+        const o = await api.getOrder(doc.id)
+        const refunds = o.refunds ?? []
+        const r = (doc.seq ? refunds.find((x) => x.seq === doc.seq) : undefined) ?? refunds[refunds.length - 1]
+        return (
+          <div className="space-y-2">
+            <Row k="Struk" v={o.orderNumber} />
+            {r ? (
+              <>
+                <Row k="Refund" v={`ke-${r.seq}`} />
+                <Row k="Jumlah" v={r.amount.toLocaleString('id-ID')} />
+                <Row k="Alasan" v={r.reason || '-'} />
+                <Row k="Oleh" v={`${r.refundedByName ?? '-'} · ${when(r.refundedAt, zone)}`} />
+              </>
+            ) : (
+              <p className="text-sm text-gray-400">Rincian refund tidak ditemukan.</p>
+            )}
+          </div>
+        )
+      }
       case 'order': {
         const o = await api.getOrder(doc.id)
         return (
@@ -136,7 +157,7 @@ function useDocumentBody(doc: DocRef, zone: string) {
         )
       }
     }
-  }, [doc.type, doc.id], NO_POLL_MS)
+  }, [doc.type, doc.id, doc.type === 'refund' ? doc.seq : null], NO_POLL_MS)
 }
 
 interface DocumentModalProps {

@@ -5543,6 +5543,8 @@ export interface components {
              * @description Id of the approved adjustment request behind this row (docNumber is its number); absent for direct adjustments and other kinds.
              */
             requestId?: string;
+            /** @description Refund ke-N of the order (order_refunds.seq) for a refund row; absent for other kinds. reasonText carries the refund reason. */
+            refundSeq?: number;
         };
         StockMovementSummary: {
             /** @description qtyBefore of the first in-range row, or the balance at the last earlier row when the range is empty. */

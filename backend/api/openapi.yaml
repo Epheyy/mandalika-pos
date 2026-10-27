@@ -2979,6 +2979,7 @@ components:
         erpStatus: { type: string, description: "Status of the ERP outbox document that carries this movement, when there is one." }
         isWarranty: { type: boolean, description: "True for a goods receipt row recorded as a warranty replacement (Garansi)." }
         requestId: { type: string, format: uuid, description: "Id of the approved adjustment request behind this row (docNumber is its number); absent for direct adjustments and other kinds." }
+        refundSeq: { type: integer, description: "Refund ke-N of the order (order_refunds.seq) for a refund row; absent for other kinds. reasonText carries the refund reason." }
     StockMovementSummary:
       type: object
       required: [opening, totalIn, totalOut, closing]

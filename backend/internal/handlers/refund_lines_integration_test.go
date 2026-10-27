@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/config"
 	"github.com/mandalika/pos-backend/internal/db"
@@ -1578,6 +1579,38 @@ func TestRefundLinesPostgres(t *testing.T) {
 		}
 		if status(oid) != "refunded" || len(refunds(oid)) != 2 {
 			t.Fatalf("final status %s", status(oid))
+		}
+	})
+
+	// ─────────────────────────────────────────────────────────────────────────────
+	sub("14 Kartu Stok: refund movements carry Refund ke-N and the refund reason; legacy key resolves to seq 1", func(t *testing.T) {
+		o := newOutlet()
+		pA, pB := newProduct(o, 30000), newProduct(o, 70000)
+		oid := sell(o, saleOpt{items: []map[string]any{line(pA, 1, 30000), line(pB, 1, 70000)}})
+		wantOK("R1", rf(o, rp(oid, [2]int{0, 1}), ""))
+		wantOK("R2", rf(o, rp(oid, [2]int{1, 1}), ""))
+		seqOf := func(pid string) (seq int, reason string, n int) {
+			cur.Helper()
+			f := read.MovementFilter{LocationType: "outlet", LocationID: o.id, ProductID: pid, VariantSize: "std", Kinds: []string{"refund"}}
+			if err := rd.ForEachMovement(ctx, f, 0, 50, func(m api.StockMovementRow) error {
+				n++
+				if m.RefundSeq != nil {
+					seq = *m.RefundSeq
+				}
+				if m.ReasonText != nil {
+					reason = *m.ReasonText
+				}
+				return nil
+			}); err != nil {
+				cur.Fatal(err)
+			}
+			return
+		}
+		if sq, rs, n := seqOf(pA); n != 1 || sq != 1 || rs == "" {
+			t.Fatalf("line A refund movement: seq=%d reason=%q n=%d", sq, rs, n)
+		}
+		if sq, rs, n := seqOf(pB); n != 1 || sq != 2 || rs == "" {
+			t.Fatalf("line B refund movement: seq=%d reason=%q n=%d", sq, rs, n)
 		}
 	})
 
