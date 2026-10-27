@@ -1,5 +1,5 @@
 import { test, expect, evidence, POS, BO, type ScenarioPage } from './fixture'
-import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCustomer, posRecap, posAutoPull, posStockDrift } from './pos-scenarios'
+import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCustomer, posRecap, posAutoPull, posStockDrift, posLineSheet } from './pos-scenarios'
 import { setupBackoffice, backofficeChecks, transactionsChecks, qualifyBackoffice, reportsRaces } from './backoffice-scenarios'
 import { reviewResolveFlow } from './backoffice-review-scenarios'
 import { csvImportFlow } from './backoffice-import-scenarios'
@@ -74,6 +74,14 @@ test('POS-STOCKDRIFT a foreign stock bump is pulled once, silently, without a ve
   const p = page as ScenarioPage
   await setupPos(p)
   const result = await posStockDrift(p)
+  expect(result).toHaveLength(2)
+  await evidence(info, result)
+})
+
+test('POS-LINE-SHEET a size row adds one unit in four taps to a cash sale; the line sheet edits qty, size and removal', async ({ page }, info) => {
+  const p = page as ScenarioPage
+  await setupPos(p)
+  const result = await posLineSheet(p)
   expect(result).toHaveLength(2)
   await evidence(info, result)
 })

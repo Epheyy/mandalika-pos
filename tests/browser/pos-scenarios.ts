@@ -364,3 +364,47 @@ export const posStockDrift = async (page: ScenarioPage) => {
   assert(pulls() === n1, 'an own sale acked at local seq + 1 causes no pull');
   return [{ step: 'foreign stock bump', pulls: n1 - n0 }, { step: 'own sale ack', pulls: pulls() - n1 }];
 };
+
+// B1 (POS UX direction, D-10): a multi-size tile opens the variant sheet, a size row adds one unit
+// and closes it; the cart line opens the line sheet (stepper, size switch as remove + add, Hapus).
+// Also measures the "sell one variant product, cash, exact" path: tile → size → Bayar → Konfirmasi.
+export const posLineSheet = async (page: ScenarioPage) => {
+  const out: any[] = []
+  const assert = (v: unknown, m: string) => { if (!v) throw Error(m) }
+  const dialog = page.getByRole('dialog')
+  // formatRupiah separates "Rp" with a non-breaking space; \s matches both.
+  const money = (n: number) => new RegExp(String.raw`Rp\s` + n.toLocaleString('id-ID').replace(/\./g, String.raw`\.`))
+  // Tap 1: the tile. Tap 2: a size row (no quantity to build, no confirm button).
+  await page.getByRole('button', { name: /^Synthetic Scent/ }).first().click()
+  await dialog.getByRole('button', { name: /^Tambah L · / }).waitFor()
+  assert((await dialog.getByRole('button', { name: 'Tambah ke Keranjang', exact: true }).count()) === 0, 'no confirm step in the variant sheet')
+  assert((await dialog.getByRole('button', { name: 'Kurangi', exact: true }).count()) === 0, 'no stepper in the variant sheet')
+  await dialog.getByRole('button', { name: /^Tambah L · / }).click()
+  await page.getByRole('button', { name: 'Ubah Synthetic Scent L', exact: true }).waitFor()
+  assert((await dialog.count()) === 0, 'the variant sheet closes after one tap')
+  // Tap 3: Bayar (cash is the default). Tap 4: Konfirmasi (blank cash = exact total).
+  await page.getByRole('button', { name: 'Bayar', exact: true }).click()
+  await page.getByRole('button', { name: /^Konfirmasi Rp/ }).click()
+  await page.getByRole('heading', { name: 'Pembayaran Berhasil' }).waitFor()
+  out.push({ tapPath: ['tile', 'size row', 'Bayar', 'Konfirmasi'], taps: 4 })
+  await page.getByRole('button', { name: 'Transaksi Baru', exact: true }).click()
+
+  // Line sheet: open from the line body, +1, switch M → L (same qty, L price), −1, Hapus.
+  await page.getByRole('searchbox').fill('SYN-M')
+  await page.getByRole('searchbox').press('Enter')
+  await page.getByRole('button', { name: 'Ubah Synthetic Scent M', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Tambah', exact: true }).click()
+  assert(money(200000).test(await dialog.innerText()), 'line sheet shows the live subtotal after +1')
+  await dialog.getByRole('button', { name: /^L · / }).click()
+  await page.getByRole('button', { name: 'Ubah Synthetic Scent L', exact: true }).waitFor()
+  assert((await page.getByRole('button', { name: 'Ubah Synthetic Scent M', exact: true }).count()) === 0, 'the M line is gone after the switch')
+  assert(money(240000).test(await dialog.innerText()), 'the switched line keeps qty 2 at the L price')
+  await dialog.getByRole('button', { name: 'Kurangi', exact: true }).click()
+  // The unit price and the L chip always read 120.000, so prove the 2-unit subtotal is gone.
+  assert(!money(240000).test(await dialog.innerText()), 'Kurangi takes the line to 1')
+  await dialog.getByRole('button', { name: 'Hapus', exact: true }).click()
+  assert((await dialog.count()) === 0, 'Hapus closes the line sheet')
+  assert((await page.getByRole('button', { name: 'Bayar', exact: true }).count()) === 0, 'Hapus emptied the cart')
+  out.push({ lineSheet: ['open from line body', '+1 → 200.000', 'M→L keeps qty 2 → 240.000', 'Kurangi → 120.000', 'Hapus → cart empty'] })
+  return out
+}
