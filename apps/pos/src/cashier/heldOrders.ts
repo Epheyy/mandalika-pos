@@ -104,7 +104,9 @@ export function heldCustomerRecord(c: HeldCustomer, heldAt: number): Customer {
 
 export const heldOrdersKey = (outletId: string): string => `mandalika.pos.heldOrders.${outletId || 'unbound'}`
 
-export type SaveResult = { ok: true } | { ok: false; reason: 'full' }
+export const HELD_ORDERS_WRITE_MESSAGE = 'Pesanan tidak bisa disimpan di tablet ini. Keranjang tidak diubah.'
+
+export type SaveResult = { ok: true } | { ok: false; reason: 'full' | 'write' }
 
 /** Held orders on one tablet and outlet, newest first. The key holds the whole list; malformed or expired entries are dropped on read. */
 export class HeldOrdersStore {
@@ -130,7 +132,8 @@ export class HeldOrdersStore {
     const current = this.list()
     if (current.length >= HELD_ORDERS_MAX) return { ok: false, reason: 'full' }
     writeJSON(this.kv, this.key, [order, ...current.filter((o) => o.id !== order.id)])
-    return { ok: true }
+    // A full or blocked store swallows the write: only report success once the order reads back.
+    return this.list().some((o) => o.id === order.id) ? { ok: true } : { ok: false, reason: 'write' }
   }
 
   remove(id: string): void {

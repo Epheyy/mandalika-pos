@@ -55,6 +55,10 @@ describe('HeldOrdersStore', () => {
     kv.set('k', '{not json')
     expect(new HeldOrdersStore(kv, 'k', () => NOW).list()).toEqual([])
   })
+  it('refuses a save the storage swallowed (full or blocked) so the cart is not cleared for nothing', () => {
+    const blocked = { get: () => null, set: () => undefined, remove: () => undefined, keys: () => [] } as unknown as KV
+    expect(new HeldOrdersStore(blocked, 'k', () => NOW).save(order('a'))).toEqual({ ok: false, reason: 'write' })
+  })
   it('keys per outlet', () => expect(heldOrdersKey('a')).not.toBe(heldOrdersKey('b')))
 })
 

@@ -1,5 +1,5 @@
 import { useState, type Dispatch } from 'react'
-import { defaultHeldName, getHeldOrders, heldOrderFromState, HELD_ORDERS_FULL_MESSAGE, type HeldOrder } from './heldOrders'
+import { defaultHeldName, getHeldOrders, heldOrderFromState, HELD_ORDERS_FULL_MESSAGE, HELD_ORDERS_WRITE_MESSAGE, type HeldOrder } from './heldOrders'
 import { planHeldRestore, type HeldRestoreEnv } from './heldRestore'
 import type { CashierAction, CashierState } from './state/cashierReducer'
 
@@ -36,7 +36,7 @@ export function useHeldOrders({ outletId, state, dispatch, getEnv, ensureShift, 
     if (!hasCart) return
     const order = heldOrderFromState(state, { id: crypto.randomUUID(), name, now: Date.now() })
     const result = store.save(order)
-    if (!result.ok) { showToast(HELD_ORDERS_FULL_MESSAGE); return }
+    if (!result.ok) { showToast(result.reason === 'full' ? HELD_ORDERS_FULL_MESSAGE : HELD_ORDERS_WRITE_MESSAGE); return }
     dispatch({ type: 'CART_CLEAR' })
     refresh()
     setOpen(false)
@@ -46,10 +46,12 @@ export function useHeldOrders({ outletId, state, dispatch, getEnv, ensureShift, 
   const restore = (order: HeldOrder): void => {
     const plan = planHeldRestore(order, getEnv())
     for (const action of plan.actions) dispatch(action)
-    store.remove(order.id)
+    // Items that could not come back (a size the catalog no longer sells) keep the held order, so nothing is lost for good.
+    if (plan.lossless) store.remove(order.id)
     refresh()
     setOpen(false)
-    showToast(plan.notes.length > 0 ? `Pesanan "${order.name}" dilanjutkan.\n${plan.notes.join('\n')}` : `Pesanan "${order.name}" dilanjutkan`)
+    const head = plan.lossless ? `Pesanan "${order.name}" dilanjutkan` : `Pesanan "${order.name}" dilanjutkan; salinannya tetap tersimpan`
+    showToast(plan.notes.length > 0 ? `${head}.\n${plan.notes.join('\n')}` : head)
   }
 
   const resume = (order: HeldOrder): void => {

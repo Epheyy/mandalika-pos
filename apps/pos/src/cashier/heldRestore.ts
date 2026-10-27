@@ -22,6 +22,8 @@ export interface HeldRestoreEnv {
 export interface HeldRestorePlan {
   /** Reducer actions in dispatch order. The first is CART_CLEAR: restoring REPLACES the current cart. */
   actions: CashierAction[]
+  /** False when a line could not come back: the held order should then be kept. */
+  lossless: boolean
   /** One line per thing that could not come back (retired size, lapsed promo, loyalty to re-pick). */
   notes: string[]
   /** The state the actions produce from a clean sale, for tests and previews. */
@@ -123,5 +125,5 @@ export function planHeldRestore(held: HeldOrder, env: HeldRestoreEnv): HeldResto
   }
   if (held.loyaltyDropped) notes.push('Poin dan Hadiah loyalti perlu dipilih ulang')
 
-  return { actions, notes, result: state }
+  return { actions, notes, result: state, lossless: retired.length === 0 }
 }

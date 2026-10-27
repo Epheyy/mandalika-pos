@@ -365,8 +365,9 @@ function ShiftRecapPanelBody({
   const handleClose = async () => {
     // Counted income is mandatory for every enabled method that took money —
     // the cashier must reconcile each tender before the shift can close.
+    // Blind count requires every enabled field, so the list never hints which methods took money.
     const needCount = paymentMethods.filter(
-      (p) => p.isEnabled && (live?.byMethod[p.id] ?? 0) > 0 && counted[p.id] === undefined,
+      (p) => p.isEnabled && (blindCount || (live?.byMethod[p.id] ?? 0) > 0) && counted[p.id] === undefined,
     )
     if (needCount.length > 0) {
       setCloseError(`Isi Terhitung dulu untuk: ${needCount.map((m) => m.label).join(', ')}`)
@@ -824,7 +825,9 @@ function ShiftRecapPanelBody({
             </>}
           </div>
         ) : selected ? (
-          (() => {
+          blindCount && !revealed && selected.id === currentShift?.id ? (
+            <p className="p-4 text-sm text-gray-500">Angka sistem shift ini tampil setelah semua Terhitung diisi.</p>
+          ) : (() => {
             const b = aggregate(selectedOrders, paymentMethods)
             // A closed shift's snapshot is final: only what the server recorded, never the live queue.
             const histRecap = refundRecap(selected, undefined)

@@ -34,6 +34,11 @@ describe('planHeldRestore', () => {
     expect(plan.result.cart).toHaveLength(1)
     expect(plan.notes).toContain('Tidak bisa dipulihkan: Lama (sudah tidak dijual)')
   })
+  it('is lossless only when every line came back', () => {
+    expect(planHeldRestore(held(), env()).lossless).toBe(true)
+    const gone = held({ lines: [...held().lines, { productId: 'gone', productName: 'Lama', variantSize: 'S', price: 1, quantity: 1, subtotal: 1 }] })
+    expect(planHeldRestore(gone, env()).lossless).toBe(false)
+  })
   it('restores customer, notes and both manual adjustments with their own kinds', () => {
     const plan = planHeldRestore(held({
       customer: { id: 'c1', name: 'Sari', phone: '0811', points: 3 }, notes: 'bungkus',
