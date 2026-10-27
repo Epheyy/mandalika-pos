@@ -8,6 +8,8 @@ Last updated: 2026-10-26 by Claude (Opus 5.5) - INVENTORY CONTROLS LIVE (backend
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-10-27 (late): POS UX FASE A COMPLETE AND MERGED, NOT RELEASED. Direction doc `docs/plans/2026-10-27-pos-ux-direction.md` (owner-approved, D-register answered), Figma mocks https://www.figma.com/design/iMyGehblek8VJXbMIRRPrf, HTML canvas https://claude.ai/artifact/8DTQ6JHC23ZaTF63GyUTLg. Merged to prod-hardening: A1 tokens+kit (#9, c2c439e1), A4 chip/sheet/locks/copy (#10, 9d264adb), A2 catalog+cart (#11, 3d75797b), A3 checkout+receipt (#12, ea9d9e70). Every slice: Opus review + local `browser:ci` + mirror CI 5/5 (origin Actions billing-locked until ~1 Nov; push branches to the `ci` remote and cite run ids). Owner decides the Fase A OTA release in the 2-7 Nov window; on-device checks owed: `lang=id` date/number inputs (revert 1508f12f alone if wrong), LG font setting, 6-column tiles, keypad vs soft keyboard. B1 (variant sheet, tap size = add one) runs in its own session. B2 gains: Android Back during order processing must be ignored (pre-existing bug).
+
 > 2026-10-26 (night): AUDITOR ROUND 2 + ERP WRITE-ENDPOINT CUTOVER LIVE (owner: "go for both, merge and push then
 > deploy"): backend `00141-sow` (tag `aud2erp`, merge commit 9421fbdf, migration 0076 goods_receipts.source) at
 > 100%, rollback `00139-juy`; mirror CI 5/5 green on 9421fbdf. Demo stub redeployed from the same commit as
