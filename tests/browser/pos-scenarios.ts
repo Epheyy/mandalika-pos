@@ -497,3 +497,39 @@ export const posCustomerProfile = async (page: ScenarioPage) => {
   out.push({ release: ['Lepas'] })
   return out
 }
+
+// B4 (D-6): park the cart under a name, find it again from the hamburger menu, restore it and pay.
+export const posHeldOrders = async (page: ScenarioPage) => {
+  const out: any[] = []
+  const assert = (v: unknown, m: string) => { if (!v) throw Error(m) }
+  const sheet = page.getByTestId('held-orders-sheet')
+  await page.getByRole('searchbox').fill('SYN-M')
+  await page.getByRole('searchbox').press('Enter')
+  await page.getByRole('button', { name: 'Ubah Synthetic Scent M', exact: true }).waitFor()
+  // Simpan: name it, save; the cart empties without a confirm (nothing is lost).
+  await page.getByRole('button', { name: 'Simpan keranjang', exact: true }).click()
+  await sheet.waitFor()
+  assert((await sheet.innerText()).includes('Hanya di tablet ini'), 'the sheet says held orders stay on this tablet')
+  await sheet.getByRole('textbox', { name: 'Nama pesanan', exact: true }).fill('Bu Sari')
+  await sheet.getByRole('button', { name: 'Simpan pesanan', exact: true }).click()
+  await sheet.waitFor({ state: 'detached' })
+  assert((await page.getByRole('button', { name: 'Bayar', exact: true }).count()) === 0, 'saving empties the cart')
+  assert((await page.getByRole('button', { name: 'Pesanan tersimpan (1)', exact: true }).count()) === 1, 'the empty catalog keeps a chip to the held order')
+  out.push({ saved: ['name Bu Sari', 'cart emptied', 'chip (1)'] })
+
+  // Restore from the hamburger menu, then pay.
+  await page.getByRole('button', { name: 'Menu', exact: true }).click()
+  await page.getByRole('button', { name: 'Pesanan tersimpan (1)' }).last().click()
+  await sheet.waitFor()
+  assert((await sheet.innerText()).includes('Bu Sari'), 'the held order is listed')
+  await sheet.getByRole('button', { name: 'Lanjutkan Bu Sari', exact: true }).click()
+  await page.getByRole('button', { name: 'Ubah Synthetic Scent M', exact: true }).waitFor()
+  assert((await sheet.count()) === 0, 'Lanjutkan closes the sheet')
+  assert((await page.getByRole('button', { name: /^Pesanan tersimpan \(/ }).count()) === 0, 'a restored order leaves the held list')
+  await page.getByRole('button', { name: 'Bayar', exact: true }).click()
+  await page.getByRole('button', { name: /^Konfirmasi Rp/ }).click()
+  await page.getByRole('heading', { name: 'Pembayaran Berhasil' }).waitFor()
+  out.push({ restored: ['Lanjutkan Bu Sari', 'line back in cart', 'paid in cash'] })
+  await page.getByRole('button', { name: 'Transaksi Baru', exact: true }).click()
+  return out
+}
