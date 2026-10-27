@@ -4,6 +4,7 @@ import {
   EXPORT_MAX_ROWS,
   collectOversellForExport,
   kindLabel,
+  orderStatusLabel,
   oversellCsvRows,
   syncLagLabel,
 } from './oversellLabels'
@@ -87,5 +88,12 @@ describe('collectOversellForExport', () => {
   it('an empty report is not truncated', async () => {
     const out = await collectOversellForExport(async () => page(0, 0))
     expect(out).toEqual({ rows: [], truncated: false })
+  })
+})
+
+describe('orderStatusLabel (C4a)', () => {
+  it('labels the partially refunded state', () => {
+    expect(orderStatusLabel('partially_refunded')).toBe('Sebagian refund')
+    expect(orderStatusLabel('refunded')).toBe('Direfund')
   })
 })

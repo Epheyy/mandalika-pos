@@ -119,7 +119,9 @@ func TestProcessOneRefusesOverCapOrderWithoutEffect(t *testing.T) {
 	e := &Engine{Lookup: &fakeLookup{}, ContactKey: capKey, Now: func() time.Time { return capA }}
 	calls := 0
 	res := e.processOneWithCommands(context.Background(), cashier(), capItem("order", capBase(nil)),
-		func(context.Context, pgx.Tx, service.RefundInput) error { return nil },
+		func(context.Context, pgx.Tx, service.RefundInput) (service.RefundResult, error) {
+			return service.RefundResult{}, nil
+		},
 		func(context.Context, service.CreateOrderInput) (string, bool, bool, error) {
 			calls++
 			return "o", false, false, nil
@@ -135,7 +137,9 @@ func TestProcessOneReplayProbeRunsBeforeOfflineRefusal(t *testing.T) {
 	e := &Engine{Lookup: lk, ContactKey: capKey, Now: func() time.Time { return capA }}
 	calls := 0
 	res := e.processOneWithCommands(context.Background(), cashier(), capItem("order", capBase(nil)),
-		func(context.Context, pgx.Tx, service.RefundInput) error { return nil },
+		func(context.Context, pgx.Tx, service.RefundInput) (service.RefundResult, error) {
+			return service.RefundResult{}, nil
+		},
 		func(context.Context, service.CreateOrderInput) (string, bool, bool, error) {
 			calls++
 			return "o", false, false, nil
@@ -149,7 +153,9 @@ func TestProcessOneReplayProbeFailureIsRetryable(t *testing.T) {
 	lk := &fakeLookup{err: errors.New("connection reset")}
 	e := &Engine{Lookup: lk, ContactKey: capKey, Now: func() time.Time { return capA }}
 	res := e.processOneWithCommands(context.Background(), cashier(), capItem("order", capBase(nil)),
-		func(context.Context, pgx.Tx, service.RefundInput) error { return nil },
+		func(context.Context, pgx.Tx, service.RefundInput) (service.RefundResult, error) {
+			return service.RefundResult{}, nil
+		},
 		func(context.Context, service.CreateOrderInput) (string, bool, bool, error) {
 			return "o", false, false, nil
 		})
@@ -165,7 +171,10 @@ func TestProcessOneAcceptsWithinCapAndRefusesRefundOverCap(t *testing.T) {
 		calls++
 		return "o1", false, false, nil
 	}
-	noRefund := func(context.Context, pgx.Tx, service.RefundInput) error { t.Fatal("refund ran"); return nil }
+	noRefund := func(context.Context, pgx.Tx, service.RefundInput) (service.RefundResult, error) {
+		t.Fatal("refund ran")
+		return service.RefundResult{}, nil
+	}
 	ok := e.processOneWithCommands(context.Background(), cashier(),
 		capItem("order", capBase(func(e *Envelope) { e.OfflineMs = ms(time.Hour) })), noRefund, create)
 	if calls != 1 || ok.Status != "ok" {

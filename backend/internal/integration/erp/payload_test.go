@@ -95,6 +95,21 @@ func TestBuildDocumentRefundLinksOriginalAndNegatesTender(t *testing.T) {
 	}
 }
 
+// C4a: a part refund's tender is the refund row's amount, not the order total.
+func TestBuildDocumentRefundTenderUsesRefundRowAmount(t *testing.T) {
+	m := movement("a", 1)
+	in := input("refund", m)
+	amt := int64(25000)
+	in.Order = &OrderInfo{PaymentMethod: "cash", Total: 90000, LinePrice: map[string]int64{}, RefundAmount: &amt}
+	doc := mustBuild(t, in)
+	if len(doc.Tenders) != 1 || doc.Tenders[0] != (Tender{Method: "cash", Amount: -25000}) {
+		t.Errorf("tenders = %+v, want -25000", doc.Tenders)
+	}
+	if doc.Lines[0].Qty != 1 {
+		t.Errorf("line qty = %d, want the refunded quantity 1", doc.Lines[0].Qty)
+	}
+}
+
 func TestBuildDocumentTransferPairing(t *testing.T) {
 	out := input("transfer_out", movement("a", -10))
 	out.Header.RefType, out.Header.RefID, out.Header.DocumentID = "transfer", "tr-1", "d-out"
@@ -277,5 +292,19 @@ func TestBuildDocumentGiveawayKeyOnlyAffectsSaleKind(t *testing.T) {
 	in.Order = &OrderInfo{PaymentMethod: "cash", Total: 1, LinePrice: map[string]int64{"item-a": 5}}
 	if p := mustBuild(t, in).Lines[0].UnitPrice; p == nil || *p != 5 {
 		t.Errorf("refund price = %v, want the order price", p)
+	}
+}
+
+// C4a: only the legacy whole-order key may fall back to the order total; a per-refund key
+// without its row must error (retryable) instead of freezing a wrong tender.
+func TestLegacyRefundKeyOnlyForWholeOrderKey(t *testing.T) {
+	if !legacyRefundKey("refund:ord-1", "ord-1") {
+		t.Error("refund:<orderId> is the legacy key")
+	}
+	if legacyRefundKey("refund:7f3e-refund-id", "ord-1") || legacyRefundKey("", "ord-1") {
+		t.Error("a per-refund or empty key must not fall back to the order total")
+	}
+	if !errors.Is(fmt.Errorf("%w: x", ErrRefundRowMissing), ErrRefundRowMissing) {
+		t.Error("ErrRefundRowMissing must be wrappable")
 	}
 }

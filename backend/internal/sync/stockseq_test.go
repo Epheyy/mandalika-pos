@@ -28,7 +28,9 @@ func flush(t *testing.T, e *Engine, c Caller, it BatchItem, create func(context.
 	res, err := processBatch(context.Background(), c, []BatchItem{it},
 		func(ctx context.Context, c Caller, it BatchItem) ItemResult {
 			return e.processOneWithSeq(ctx, c, it,
-				func(context.Context, pgx.Tx, service.RefundInput) error { return nil }, create)
+				func(context.Context, pgx.Tx, service.RefundInput) (service.RefundResult, error) {
+					return service.RefundResult{}, nil
+				}, create)
 		},
 		func(context.Context, string) (VersionInfo, error) {
 			return VersionInfo{Version: 3, StockSeq: i64(9)}, nil

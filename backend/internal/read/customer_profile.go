@@ -143,7 +143,7 @@ func (r *Repo) profileLastOrders(ctx context.Context, id string, sc Scope) ([]ap
 	rows, err := r.Pool.Query(ctx, `SELECT o.id::text, o.order_number, COALESCE(o.client_created_at, o.created_at),
 	    COALESCE(NULLIF(ou.code,''), ou.name), o.payment_method, o.total::float8
 	  FROM orders o JOIN outlets ou ON ou.id = o.outlet_id
-	  WHERE o.customer_id=$1 AND `+orderScopeSQL+` AND o.status='completed'
+	  WHERE o.customer_id=$1 AND `+orderScopeSQL+` AND o.status IN ('completed','partially_refunded')
 	  ORDER BY COALESCE(o.client_created_at, o.created_at) DESC, o.id DESC LIMIT $4`,
 		id, sc.CrossAll, sc.OutletID, profileLastOrders)
 	if err != nil {
@@ -193,7 +193,7 @@ func (r *Repo) profileFrequent(ctx context.Context, id string, sc Scope) ([]api.
 	rows, err := r.Pool.Query(ctx, `SELECT oi.product_id::text, oi.variant_size, (array_agg(oi.product_name ORDER BY COALESCE(o.client_created_at, o.created_at) DESC))[1],
 	    sum(oi.quantity)::int AS n
 	  FROM order_items oi JOIN orders o ON o.id = oi.order_id
-	  WHERE o.customer_id=$1 AND `+orderScopeSQL+` AND o.status='completed'
+	  WHERE o.customer_id=$1 AND `+orderScopeSQL+` AND o.status IN ('completed','partially_refunded')
 	    AND oi.subtotal > 0 AND COALESCE(o.client_created_at, o.created_at) >= now() - interval '12 months'
 	  GROUP BY oi.product_id, oi.variant_size
 	  ORDER BY n DESC, max(COALESCE(o.client_created_at, o.created_at)) DESC, oi.product_id, oi.variant_size LIMIT $4`,
@@ -253,7 +253,7 @@ func (r *Repo) profilePitch(ctx context.Context, id string, sc Scope, last []api
 		}
 	}
 	rows, err := r.Pool.Query(ctx, `SELECT COALESCE(o.client_created_at, o.created_at)
-	  FROM orders o WHERE o.customer_id=$1 AND `+orderScopeSQL+` AND o.status='completed'
+	  FROM orders o WHERE o.customer_id=$1 AND `+orderScopeSQL+` AND o.status IN ('completed','partially_refunded')
 	  ORDER BY COALESCE(o.client_created_at, o.created_at) DESC LIMIT $4`,
 		id, sc.CrossAll, sc.OutletID, profileGapOrders)
 	if err != nil {
@@ -279,7 +279,7 @@ func (r *Repo) profilePitch(ctx context.Context, id string, sc Scope, last []api
 	    AND NOT EXISTS (
 	      SELECT 1 FROM order_items oi JOIN orders o ON o.id = oi.order_id
 	      JOIN products p ON p.id = oi.product_id
-	      WHERE o.customer_id=$1 AND `+orderScopeSQL+` AND o.status='completed'
+	      WHERE o.customer_id=$1 AND `+orderScopeSQL+` AND o.status IN ('completed','partially_refunded')
 	        AND oi.subtotal > 0 AND p.category_id = c.id)
 	  ORDER BY c.sort_order NULLS LAST, c.name, c.id LIMIT $4`,
 		id, sc.CrossAll, sc.OutletID, profileNeverTried)

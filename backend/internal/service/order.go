@@ -65,6 +65,12 @@ type OrderItem struct {
 	IsReward          bool   `json:"isReward"`
 	RewardConditionID string `json:"rewardConditionId"`
 	RewardPromotionID string `json:"rewardPromotionId"` // SP-Promo-3b reward fulfillment: the buy_x_get_y promo that gave this line
+
+	// C4a, server-internal (never decoded from JSON): payloadLine is the 0-based index of
+	// this line in the sale payload (stamped at the top of createOrderCore, survives the
+	// reward-line compaction); group marks a validated bundle/BXGY reward line.
+	payloadLine int
+	group       *refundGroupInfo
 }
 
 // CreateOrderInput is the resolved request. Outlet/cashier come from the JWT,
@@ -263,6 +269,9 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 	}
 	// Reward resolution compacts/reprices in place; retain the caller's capture.
 	in.Items = append([]OrderItem(nil), in.Items...)
+	for i := range in.Items {
+		in.Items[i].payloadLine = i // C4a: order_items.line_no = index in the sale payload
+	}
 
 	// SP-Promo-1: validate the applied discount against its stored rules. Subtotal
 	// (pre-discount) is needed for min_purchase; saleTime (outlet-local) for date/hour/day
@@ -361,14 +370,15 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 	for i, it := range in.Items {
 		items[i] = LineItem{ProductID: it.ProductID, VariantSize: it.VariantSize, Price: it.Price, Quantity: it.Quantity, Subtotal: it.Subtotal}
 	}
-	res := Compute(PricingInput{
+	pricingIn := PricingInput{
 		Items: items, ManualDiscount: in.ManualValue, ManualKind: in.ManualKind,
 		Surcharge: in.Surcharge, SurchargeKind: in.SurchargeKind, Promos: promos,
 		TaxEnabled: settings.TaxEnabled, TaxRate: settings.TaxRate,
 		RoundingEnabled: settings.RoundingEnabled, RoundingType: settings.RoundingType,
 		LoyaltyEnabled: loyEnabled, PointsPerK: pointsPerK,
 		HasCustomer: in.CustomerID != "",
-	})
+	}
+	res := Compute(pricingIn)
 	if err := validateSalePricing(res); err != nil {
 		return "", false, false, err
 	}
@@ -596,15 +606,30 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 
 	// A44: item ids are generated here (not RETURNING) so exception rows can name
 	// their order line without changing this Exec into a query.
+	// C4a: per-line refund identity + allocated net. Never fails the sale: on any
+	// allocator problem every line gets NULL and the order is whole-order-refund only.
+	allocLines, allocOK := allocateOrderLines(in.Items, pricingIn, finalTotal)
+	var groupKeys []string
+	if allocOK {
+		groupKeys = refundGroups(in.Items)
+	}
 	itemIDs := make([]string, len(in.Items))
 	for i, it := range in.Items {
 		itemIDs[i] = uuid.NewString()
+		var lineNoArg, netArg any
+		groupArg := any(nil)
+		if allocOK {
+			lineNoArg, netArg = allocLines[i].lineNo, float64(allocLines[i].net)
+			groupArg = nullStr(groupKeys[i])
+		}
 		if _, e := tx.Exec(ctx, `
 			INSERT INTO order_items (id, order_id, product_id, product_name,
-			  variant_size, price, quantity, subtotal, is_bundle)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+			  variant_size, price, quantity, subtotal, is_bundle,
+			  line_no, net_amount, refund_group)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
 			itemIDs[i], orderID, it.ProductID, it.ProductName, it.VariantSize,
-			it.Price, it.Quantity, it.Subtotal, it.IsBundle); e != nil {
+			it.Price, it.Quantity, it.Subtotal, it.IsBundle,
+			lineNoArg, netArg, groupArg); e != nil {
 			return "", false, false, fmt.Errorf("insert item: %w", e)
 		}
 	}

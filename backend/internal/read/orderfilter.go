@@ -36,7 +36,8 @@ type OrderFilter struct {
 	FromInstant, ToInstant *time.Time
 	// DateBasis selects which day DateFrom/DateTo (and the summary's instants) bound:
 	// "" or "sale" = the sale (business_date / created_at); "refund" = the refund
-	// (refund_business_date / refunded_at), and then only refunded rows match (A27).
+	// (order_refunds.refund_business_date / refunded_at), and then only orders with at least one
+	// refund row match (A27, C4a: this includes partially refunded orders).
 	// LegacyFrom/LegacyTo always stay on created_at (POS contract).
 	DateBasis string
 }
@@ -46,12 +47,19 @@ func (f OrderFilter) refundBasis() bool { return f.DateBasis == "refund" }
 
 // buildOrderWhere returns a WHERE clause over `orders o` and its positional args.
 func buildOrderWhere(f OrderFilter) (string, []any) {
-	return appendOrderWhere(f, []any{})
+	return appendOrderWhere(f, []any{}, false)
 }
 
 // appendOrderWhere builds the same clause but numbers its placeholders after the args
 // already collected, so two clauses (sale set and refund set) share one statement.
-func appendOrderWhere(f OrderFilter, args []any) (string, []any) {
+//
+// C4a: on the refund basis the day/instant bounds and the "has a refund" requirement apply to
+// order_refunds rows (alias r), not to orders. refundRows=false (the orders list) renders them
+// as one EXISTS over the order's refund rows, so an order with several refunds appears once
+// and one refund row must satisfy every bound; refundRows=true (the summary's refund set)
+// expects the caller to FROM orders o JOIN order_refunds r ON r.order_id=o.id and renders them
+// as plain conditions on r, giving one row per refund.
+func appendOrderWhere(f OrderFilter, args []any, refundRows bool) (string, []any) {
 	where := "WHERE 1=1"
 	add := func(v any) int {
 		args = append(args, v)
@@ -72,22 +80,39 @@ func appendOrderWhere(f OrderFilter, args []any) (string, []any) {
 	if f.LegacyTo != "" {
 		where += fmt.Sprintf(" AND o.created_at < ($%d::date + interval '1 day')", add(f.LegacyTo))
 	}
-	instantCol, dayCol := "o.created_at", "o.business_date"
 	if f.refundBasis() {
-		instantCol, dayCol = "o.refunded_at", "o.refund_business_date"
-		where += " AND o.status='refunded'"
-	}
-	if f.FromInstant != nil {
-		where += fmt.Sprintf(" AND %s >= $%d", instantCol, add(*f.FromInstant))
-	}
-	if f.ToInstant != nil {
-		where += fmt.Sprintf(" AND %s < $%d", instantCol, add(*f.ToInstant))
-	}
-	if f.DateFrom != "" {
-		where += fmt.Sprintf(" AND %s >= $%d::text::date", dayCol, add(f.DateFrom))
-	}
-	if f.DateTo != "" {
-		where += fmt.Sprintf(" AND %s <= $%d::text::date", dayCol, add(f.DateTo))
+		// Same row must satisfy "exists" and every bound, hence one conjunction.
+		rc := ""
+		if f.FromInstant != nil {
+			rc += fmt.Sprintf(" AND r.refunded_at >= $%d", add(*f.FromInstant))
+		}
+		if f.ToInstant != nil {
+			rc += fmt.Sprintf(" AND r.refunded_at < $%d", add(*f.ToInstant))
+		}
+		if f.DateFrom != "" {
+			rc += fmt.Sprintf(" AND r.refund_business_date >= $%d::text::date", add(f.DateFrom))
+		}
+		if f.DateTo != "" {
+			rc += fmt.Sprintf(" AND r.refund_business_date <= $%d::text::date", add(f.DateTo))
+		}
+		if refundRows {
+			where += rc
+		} else {
+			where += " AND EXISTS (SELECT 1 FROM order_refunds r WHERE r.order_id = o.id" + rc + ")"
+		}
+	} else {
+		if f.FromInstant != nil {
+			where += fmt.Sprintf(" AND o.created_at >= $%d", add(*f.FromInstant))
+		}
+		if f.ToInstant != nil {
+			where += fmt.Sprintf(" AND o.created_at < $%d", add(*f.ToInstant))
+		}
+		if f.DateFrom != "" {
+			where += fmt.Sprintf(" AND o.business_date >= $%d::text::date", add(f.DateFrom))
+		}
+		if f.DateTo != "" {
+			where += fmt.Sprintf(" AND o.business_date <= $%d::text::date", add(f.DateTo))
+		}
 	}
 	if f.Status != "" {
 		where += fmt.Sprintf(" AND o.status=$%d", add(f.Status))

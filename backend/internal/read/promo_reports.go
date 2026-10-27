@@ -48,7 +48,7 @@ type GrantReportFilters struct {
 func (r *Repo) PromoRewardGrantReport(ctx context.Context, f GrantReportFilters, page, limit int) (api.PromoGrantSummary, []api.PromoRewardGrantGroup, int, error) {
 	var sum api.PromoGrantSummary
 	where := `FROM promo_reward_grants g
-		JOIN orders o     ON o.id = g.order_id AND o.status = 'completed'
+		JOIN orders o     ON o.id = g.order_id AND o.status IN ('completed','partially_refunded')
 		JOIN promotions p ON p.id = g.promotion_id
 		WHERE ($1 = '' OR o.business_date >= $1::date)
 		  AND ($2 = '' OR o.business_date <= $2::date)
@@ -129,7 +129,7 @@ func (r *Repo) DiscountCodeReport(ctx context.Context, f CodeReportFilters, page
 		CROSS JOIN LATERAL jsonb_array_elements(COALESCE(o.discount_breakdown, '[]'::jsonb)) b
 		JOIN discount_codes dc ON dc.code = (b->>'label')
 		LEFT JOIN promotions p ON p.id = dc.promotion_id
-		WHERE o.status = 'completed'
+		WHERE o.status IN ('completed','partially_refunded')
 		  AND ($3 = '' OR o.outlet_id::text = $3)
 		  AND ($1 = '' OR o.business_date >= $1::date)
 		  AND ($2 = '' OR o.business_date <= $2::date)`

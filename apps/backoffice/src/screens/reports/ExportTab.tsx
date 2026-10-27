@@ -10,20 +10,14 @@ import { BRAND } from '../../lib/brand'
 import { Button } from '../../ui/Button'
 import { Card } from '../../ui/Card'
 import { Badge } from '../../ui/Badge'
+import { orderIconClasses, orderStatusLabel, orderStatusTone } from '../../lib/orderStatus'
 import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 import { orderFilterParams, type OrderFilters } from './orderQuery'
-import { breakdownRows, canExportRefunds, hasRefundBasis, isNegative, moneyOrDash, refundExportParams, sharePercent } from './exportSummary'
+import { breakdownRows, canExportRefunds, hasRefundBasis, isNegative, moneyOrDash, refundCsvFields, refundExportParams, sharePercent } from './exportSummary'
 import { useOrderReport } from './useOrderReport'
 
-const statusBadge = (st: string) =>
-  st === 'completed' ? (
-    <Badge tone="success">Selesai</Badge>
-  ) : st === 'refunded' ? (
-    <Badge tone="danger">Refund</Badge>
-  ) : (
-    <Badge tone="neutral">{st}</Badge>
-  )
+const statusBadge = (st: string) => <Badge tone={orderStatusTone(st)}>{orderStatusLabel(st)}</Badge>
 
 interface ExportTabProps {
   filters: OrderFilters
@@ -48,12 +42,14 @@ export function ExportTab({ filters, outletId, outlets }: ExportTabProps) {
   const outletName = (oid: string) => outlets.find((o) => o.id === oid)?.name || oid
 
   const csvRows = (all: Order[]) =>
-    all.map((o) => ({
+    all.map((o) => {
+      const rf = refundCsvFields(o)
+      return {
       'No. Order': o.orderNumber,
       Tanggal: format(parseISO(o.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }),
       'Hari Bisnis': o.businessDate ?? '',
-      'Waktu Refund': o.refundedAt ? format(parseISO(o.refundedAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }) : '',
-      'Hari Refund': o.refundBusinessDate ?? '',
+      'Waktu Refund': rf.refundedAt ? format(parseISO(rf.refundedAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }) : '',
+      'Hari Refund': rf.refundBusinessDate ?? '',
       Kasir: o.cashierName,
       Salesman: o.salesmanName || '-',
       Pelanggan: o.customerName || '-',
@@ -62,12 +58,14 @@ export function ExportTab({ filters, outletId, outlets }: ExportTabProps) {
       Diskon: o.discountAmount,
       Pajak: o.taxAmount,
       Total: o.total,
+      'Jumlah Refund': rf.amount,
       'Metode Bayar': o.paymentMethod,
       Status: o.status,
       Catatan: o.notes || '',
-      'Alasan Refund': o.refundReason || '',
+      'Alasan Refund': rf.reason,
       Outlet: outletName(o.outletId),
-    }))
+      }
+    })
 
   const exportName = (prefix: string) =>
     buildExportName(prefix, [
@@ -178,8 +176,8 @@ export function ExportTab({ filters, outletId, outlets }: ExportTabProps) {
             {orders.map((o) => (
               <div key={o.id}>
                 <div className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-pointer" role="button" tabIndex={0} onClick={() => setExpanded(expanded === o.id ? null : o.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(expanded === o.id ? null : o.id) } }}>
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${o.status === 'refunded' ? 'bg-red-50' : 'bg-gold-50'}`}>
-                    <ShoppingBag className={`w-4 h-4 ${o.status === 'refunded' ? 'text-red-400' : 'text-gold-600'}`} />
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${orderIconClasses(o.status).tile}`}>
+                    <ShoppingBag className={`w-4 h-4 ${orderIconClasses(o.status).glyph}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900 text-sm">{o.orderNumber}</p>

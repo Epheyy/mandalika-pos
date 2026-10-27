@@ -66,7 +66,7 @@ type attributionLookup interface {
 	// scope (an outlet id), and the id/status a replay returns (M3). fp is the request
 	// fingerprint of the item being probed; a receipt stored under the same key for a
 	// different payload is service.ErrReceiptKeyConflict, never a replay.
-	Applied(ctx context.Context, typ, key, scope, fp string) (id, status string, ok bool, err error)
+	Applied(ctx context.Context, typ, key, scope, fp string) (id, status, refundState string, ok bool, err error)
 }
 
 type poolLookup struct{ q pgxQuerier }
@@ -111,8 +111,8 @@ func (p poolLookup) Shift(ctx context.Context, outletID, shiftID string) (shiftS
 // Applied implements the already-applied probe: orders via processed_keys, transfer
 // receives via the stored receive key, every other keyed op via its receipt. The scope
 // (outlet) must match what was recorded, like the receipt replay rule.
-func (p poolLookup) Applied(ctx context.Context, typ, key, scope, fp string) (string, string, bool, error) {
-	var id string
+func (p poolLookup) Applied(ctx context.Context, typ, key, scope, fp string) (string, string, string, bool, error) {
+	var id, refundState string
 	var err error
 	status := "ok"
 	switch typ {
@@ -128,24 +128,24 @@ func (p poolLookup) Applied(ctx context.Context, typ, key, scope, fp string) (st
 		err = p.q.QueryRow(ctx, `SELECT outcome, fingerprint FROM operation_receipts WHERE idempotency_key=$1 AND op_type=$2 AND scope=$3`, key, typ, scope).Scan(&outcome, &stored)
 		if err == nil {
 			if stored != fp {
-				return "", "", false, service.ErrReceiptKeyConflict
+				return "", "", "", false, service.ErrReceiptKeyConflict
 			}
 			var o receiptOutcome
 			if json.Unmarshal(outcome, &o) != nil || o.OrderID == "" && typ != "customer_create" {
-				return "", "", false, nil // receipt not completed: not applied
+				return "", "", "", false, nil // receipt not completed: not applied
 			}
-			id = o.OrderID
+			id, refundState = o.OrderID, o.RefundState
 		}
 	default:
-		return "", "", false, nil
+		return "", "", "", false, nil
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", "", false, nil
+		return "", "", "", false, nil
 	}
 	if err != nil {
-		return "", "", false, err
+		return "", "", "", false, err
 	}
-	return id, status, true, nil
+	return id, status, refundState, true, nil
 }
 
 // alreadyApplied is consulted only when attribution is refused: an item that landed
@@ -153,7 +153,7 @@ func (p poolLookup) Applied(ctx context.Context, typ, key, scope, fp string) (st
 // first attempt's result, not go to review, and never apply twice (M3). The replay
 // only holds for the same payload: the key was committed for one operation, and a
 // different payload under it is a key conflict (review), like RunWithReceipt.
-func (e *Engine) alreadyApplied(ctx context.Context, c Caller, it BatchItem) (id, status string, ok bool, err error) {
+func (e *Engine) alreadyApplied(ctx context.Context, c Caller, it BatchItem) (id, status, refundState string, ok bool, err error) {
 	scope := c.OutletID
 	var env Envelope
 	if len(it.Envelope) > 0 && json.Unmarshal(it.Envelope, &env) == nil && env.OutletID != "" {

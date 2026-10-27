@@ -13,10 +13,11 @@ import (
 )
 
 type fakeLookup struct {
-	outlets map[string]bool
-	shifts  map[string]shiftState
-	err     error
-	applied map[string]string // key -> id
+	outlets     map[string]bool
+	shifts      map[string]shiftState
+	err         error
+	applied     map[string]string // key -> id
+	refundState map[string]string // key -> stored refundState of an applied refund
 	// appliedFP is the fingerprint stored with an applied key (receipt-backed types);
 	// a key absent here carries no fingerprint check (orders).
 	appliedFP map[string]string
@@ -29,12 +30,12 @@ func (f *fakeLookup) OutletExists(_ context.Context, id string) (bool, error) {
 	return f.outlets[id], f.err
 }
 
-func (f *fakeLookup) Applied(_ context.Context, _, key, _, fp string) (string, string, bool, error) {
+func (f *fakeLookup) Applied(_ context.Context, _, key, _, fp string) (string, string, string, bool, error) {
 	id, ok := f.applied[key]
 	if want, has := f.appliedFP[key]; ok && has && want != fp {
-		return "", "", false, service.ErrReceiptKeyConflict
+		return "", "", "", false, service.ErrReceiptKeyConflict
 	}
-	return id, "duplicate", ok, f.err
+	return id, "duplicate", f.refundState[key], ok, f.err
 }
 
 func (f *fakeLookup) Shift(_ context.Context, _, id string) (shiftState, error) {
@@ -230,7 +231,10 @@ func TestAppliedProbesRejectAFingerprintMismatch(t *testing.T) {
 	lk := &fakeLookup{applied: map[string]string{"dev:k": "order-A"}, appliedFP: map[string]string{"dev:k": fpA}}
 	e := &Engine{Lookup: lk}
 	refunds := 0
-	refund := func(context.Context, pgx.Tx, service.RefundInput) error { refunds++; return nil }
+	refund := func(context.Context, pgx.Tx, service.RefundInput) (service.RefundResult, error) {
+		refunds++
+		return service.RefundResult{}, nil
+	}
 	conflict := func(t *testing.T, r ItemResult) {
 		t.Helper()
 		if r.Status != "error" || r.Code != string(apperr.KeyConflict) || r.OrderID != "" || r.Retryable == nil || *r.Retryable || refunds != 0 {
@@ -288,7 +292,10 @@ func TestAttributeEnvelopeShiftIDOnlyForKnownShifts(t *testing.T) {
 func TestBatchRefundForwardsAttributedShiftAndUser(t *testing.T) {
 	e := &Engine{Lookup: &fakeLookup{shifts: map[string]shiftState{"s1": shiftOpen}}}
 	var got service.RefundInput
-	refund := func(_ context.Context, _ pgx.Tx, in service.RefundInput) error { got = in; return nil }
+	refund := func(_ context.Context, _ pgx.Tx, in service.RefundInput) (service.RefundResult, error) {
+		got = in
+		return service.RefundResult{}, nil
+	}
 	it := BatchItem{Type: "refund", IdempotencyKey: "dev:1", Payload: json.RawMessage(`{"orderId":"o1","reason":"rusak"}`),
 		Envelope: env(func(e *Envelope) { e.ShiftID = "s1" })}
 	c := cashier()

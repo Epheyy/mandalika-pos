@@ -365,7 +365,12 @@ func TestGiveawayPostgres(t *testing.T) {
 		if n := one(`SELECT count(*) FROM stock_movements WHERE kind='refund' AND ref_id=$1 AND product_id=$2`, oid, bag); n != 0 {
 			t.Fatalf("%d refund movements for the bag, want 0", n)
 		}
-		doc := document("refund:" + oid)
+		// C4a: a refund made through RefundLinesTx keys its ERP document refund:<refundId>.
+		var refundID string
+		if err := pool.QueryRow(ctx, `SELECT id::text FROM order_refunds WHERE order_id=$1`, oid).Scan(&refundID); err != nil {
+			t.Fatal(err)
+		}
+		doc := document("refund:" + refundID)
 		fg := "GW" + bag[len(bag)-6:]
 		for _, l := range doc.Lines {
 			if l.FgCode == fg {

@@ -1967,7 +1967,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Refund + restore stock (a completed order only; a second refund is refused) */
+        /**
+         * Refund + restore stock (a completed order only; a second refund is refused)
+         * @description Legacy whole-order shape only ({reason}). A partially_refunded order returns 409; per-line refunds go through POST /sync/batch.
+         */
         post: operations["refundOrder"];
         delete?: never;
         options?: never;
@@ -4222,6 +4225,57 @@ export interface components {
             rewardPromotionId?: string;
             promotionIds?: string[] | null;
             discountCodes?: string[] | null;
+            /** Format: uuid */
+            readonly id?: string;
+            /** @description Position of the line in the sale; null on orders created before per-line refunds (whole-order refund only). */
+            readonly lineNo?: number | null;
+            /**
+             * Format: double
+             * @description What the customer paid for the line after discounts; null on pre-C4a orders.
+             */
+            readonly netAmount?: number | null;
+            /** @description Lines sharing a key (bundle / buy-X-get-Y) refund all-or-nothing. */
+            readonly refundGroup?: string | null;
+            /** @description Units of the line refunded so far. */
+            readonly refundedQty?: number;
+        };
+        OrderRefundItem: {
+            /** Format: uuid */
+            orderItemId: string;
+            lineNo?: number | null;
+            quantity: number;
+            /** Format: double */
+            amount: number;
+        };
+        OrderRefund: {
+            /** Format: uuid */
+            id: string;
+            seq: number;
+            /** @enum {string} */
+            scope: "full" | "partial" | "legacy_full";
+            /**
+             * Format: double
+             * @description The amount paid out (a captured fact).
+             */
+            amount: number;
+            /**
+             * Format: double
+             * @description What the server computed for the refunded lines.
+             */
+            computedAmount: number;
+            /** @description Set when amount differs from computedAmount. */
+            amountWarning?: string | null;
+            paymentMethod: string;
+            reason: string;
+            reasonCode?: string | null;
+            /** Format: uuid */
+            shiftId?: string | null;
+            refundedByName?: string | null;
+            /** Format: date-time */
+            refundedAt: string;
+            /** Format: date */
+            refundBusinessDate?: string | null;
+            items: components["schemas"]["OrderRefundItem"][];
         };
         Order: {
             /** Format: uuid */
@@ -4280,8 +4334,11 @@ export interface components {
             /** Format: double */
             change: number;
             /** @enum {string} */
-            status: "completed" | "refunded" | "cancelled";
+            status: "completed" | "partially_refunded" | "refunded" | "cancelled";
             notes?: string | null;
+            /** Format: double */
+            refundedAmount?: number;
+            refunds?: components["schemas"]["OrderRefund"][];
             refundReason?: string | null;
             /** Format: date-time */
             refundedAt?: string | null;
@@ -4723,6 +4780,28 @@ export interface components {
         RefundRequest: {
             reason: string;
         };
+        /** @description One of orderId or saleOrderUuid is required (the server resolves the sale by saleOrderUuid alone when orderId is empty). Legacy shape = {orderId, reason, deviceId, ...}: refunds the whole order and is refused (conflict) on a partially_refunded order. Per-line shape adds items (required, non-empty) and optionally refundAmount and reasonCode. Unknown keys (the tablet's display snapshot) are ignored. */
+        SyncRefundPayload: {
+            /** @description Server order id; optional when saleOrderUuid is sent. */
+            orderId?: string;
+            /** @description Client uuid of the sale, for an order not yet synced; optional when orderId is sent. */
+            saleOrderUuid?: string;
+            reason: string;
+            reasonCode?: string;
+            /** @description Per-line refund. Both keys are required on every entry; an empty array is refused. */
+            items?: {
+                lineNo: number;
+                quantity: number;
+            }[];
+            /**
+             * Format: double
+             * @description The amount the tablet paid out (a captured fact; a difference from the computed amount is flagged, not refused).
+             */
+            refundAmount?: number;
+            /** @description Client refund uuid (unique with deviceId). */
+            orderUuid?: string;
+            deviceId?: string;
+        };
         OpenShiftRequest: {
             outletName?: string | null;
             /** Format: double */
@@ -4811,7 +4890,7 @@ export interface components {
             /** @enum {string} */
             type: "order" | "refund" | "shift_open" | "shift_close" | "cash_flow" | "customer_create" | "transfer_receive";
             idempotencyKey: string;
-            /** @description Per-type body. For transfer_receive (A08) it carries transferId, items, discrepancyReason and approvalGrantId (from createTransferReceiveApproval); it never carries a pin, and the server ignores any approverUserId (the approver is the grant's). An item without a usable grant is refused as forbidden and goes to review. */
+            /** @description Per-type body. For transfer_receive (A08) it carries transferId, items, discrepancyReason and approvalGrantId (from createTransferReceiveApproval); it never carries a pin, and the server ignores any approverUserId (the approver is the grant's). An item without a usable grant is refused as forbidden and goes to review. For refund (C4a) see SyncRefundPayload: legacy {orderId, reason} refunds the whole order; the per-line shape adds items [{lineNo, quantity}], refundAmount and reasonCode. */
             payload: {
                 [key: string]: unknown;
             };
@@ -4930,6 +5009,11 @@ export interface components {
             status: "ok" | "duplicate" | "error";
             orderId?: string;
             stockWarning?: boolean;
+            /**
+             * @description C4a: present on a refund ack. "full" = this refund left the order fully refunded, "partial" = it is partially refunded. Optional and NOT nullable; absent from an older server.
+             * @enum {string}
+             */
+            refundState?: "partial" | "full";
             error?: string;
             /**
              * @description Machine-readable outcome, present exactly when status is "error". Clients must treat a missing or unknown code as the pre-contract behaviour (an older server, e.g. after a rollback, omits it). actor_mismatch = the item's capture-time envelope did not match the authenticated caller (A04). offline_expired = the item was captured more than 12 h after the tablet's last online contact (A05); it goes to review.
@@ -5841,7 +5925,8 @@ export interface components {
         WIBDateFrom: string;
         /** @description Inclusive upper bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable. */
         WIBDateTo: string;
-        OrderStatusFilter: "completed" | "refunded" | "cancelled";
+        /** @description `partially_refunded` (C4a): orders with at least one per-line refund that are not yet fully refunded. */
+        OrderStatusFilter: "completed" | "partially_refunded" | "refunded" | "cancelled";
         /**
          * @description `sale` (default) bounds dateFrom/dateTo on the sale business day. `refund` bounds them on the
          *     refund business day, returns only refunded rows and orders them by refundedAt (newest first).
@@ -9330,6 +9415,7 @@ export interface operations {
                 dateFrom?: components["parameters"]["WIBDateFrom"];
                 /** @description Inclusive upper bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable. */
                 dateTo?: components["parameters"]["WIBDateTo"];
+                /** @description `partially_refunded` (C4a): orders with at least one per-line refund that are not yet fully refunded. */
                 status?: components["parameters"]["OrderStatusFilter"];
                 /**
                  * @description `sale` (default) bounds dateFrom/dateTo on the sale business day. `refund` bounds them on the
@@ -9882,6 +9968,7 @@ export interface operations {
                 dateFrom?: components["parameters"]["WIBDateFrom"];
                 /** @description Inclusive upper bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable. */
                 dateTo?: components["parameters"]["WIBDateTo"];
+                /** @description `partially_refunded` (C4a): orders with at least one per-line refund that are not yet fully refunded. */
                 status?: components["parameters"]["OrderStatusFilter"];
                 /** @description Matched case-insensitively after trimming whitespace. */
                 paymentMethod?: components["parameters"]["OrderPaymentMethodFilter"];
@@ -10128,7 +10215,7 @@ export interface operations {
                 content?: never;
             };
             403: components["responses"]["Forbidden"];
-            /** @description already refunded; not completed; or not found at this outlet */
+            /** @description already refunded; partially refunded; not completed; or not found at this outlet */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { Order } from '@mandalika/api'
 import {
   buildTrend,
+  cashierPerformance,
+  computeKpis,
+  paymentBreakdown,
   delta,
   netKpis,
   netPaymentBreakdown,
@@ -140,5 +143,78 @@ describe('delta', () => {
   })
   it('keeps the normal positive-prev behaviour', () => {
     expect(delta(150, 100)).toBe(50)
+  })
+})
+
+describe('partially refunded orders (C4a)', () => {
+  const partial = order({
+    id: 'p', status: 'partially_refunded', total: 100, businessDate: '2026-03-10' as BD,
+    refundedAmount: 40,
+    refunds: [{ id: 'r1', seq: 1, scope: 'partial', amount: 40, computedAmount: 40, paymentMethod: 'cash', reason: 'x', refundedAt: new Date(2026, 2, 12, 14, 30).toISOString(), refundBusinessDate: '2026-03-12', items: [] }],
+    createdAt: new Date(2026, 2, 10, 10, 0).toISOString(),
+  } as Partial<Order>)
+
+  it('is a sale on its sale day and a refund of refundedAmount on the refund day', () => {
+    expect(netKpis([partial], [partial], day(10))).toMatchObject({ gross: 100, refunds: 0, net: 100 })
+    expect(netKpis([partial], [partial], day(12))).toMatchObject({ gross: 0, refunds: 40, refundedCount: 1, net: -40 })
+  })
+
+  it('refundBusinessDayOf falls back to the latest refunds[] entry', () => {
+    expect(refundBusinessDayOf(partial)).toBe('2026-03-12')
+  })
+
+  it('refundSideOrNull accepts partially refunded rows', () => {
+    expect(refundSideOrNull([partial])).toEqual([partial])
+  })
+
+  it('without refundedAmount a refunded row still subtracts its total', () => {
+    expect(netKpis([sale], [sale], day(12)).refunds).toBe(100)
+  })
+})
+
+describe('multi-day refunds (C4a F2)', () => {
+  const rf = (amount: number, d: number) => ({
+    id: String(d), seq: 1, scope: 'partial', amount, computedAmount: amount, paymentMethod: 'cash', reason: 'x',
+    refundedAt: new Date(2026, 2, d, 12, 0).toISOString(), refundBusinessDate: `2026-03-${String(d).padStart(2, '0')}`, items: [],
+  })
+  const multi = order({
+    id: 'm', status: 'partially_refunded', total: 100, businessDate: '2026-03-10' as BD, refundedAmount: 50,
+    refunds: [rf(30, 11), rf(20, 14)], createdAt: new Date(2026, 2, 10, 10, 0).toISOString(),
+  } as Partial<Order>)
+
+  it('nets only the refund rows of the window', () => {
+    expect(netKpis([multi], [multi], span(10, 12))).toMatchObject({ gross: 100, refunds: 30, net: 70 })
+    expect(netKpis([multi], [multi], day(14))).toMatchObject({ gross: 0, refunds: 20, net: -20 })
+    expect(refundsIn([multi], day(12))).toEqual([])
+  })
+
+  it('books each refund row on its own day in the trend', () => {
+    const now = new Date(2026, 2, 14, 18, 0)
+    const pts = buildTrend(salesIn([multi], span(8, 14)), '7d', now, refundsIn([multi], span(8, 14)))
+    const byLabel = Object.fromEntries(pts.map((p) => [p.label, p.revenue]))
+    expect(pts.reduce((s, p) => s + p.revenue, 0)).toBe(50)
+    expect(Object.values(byLabel)).toContain(-20)
+    expect(Object.values(byLabel)).toContain(-30)
+  })
+})
+
+describe('partial refunds in KPI, payment and cashier rollups (C4a)', () => {
+  const part = order({
+    id: 'q', status: 'partially_refunded', total: 100, refundedAmount: 40, cashierId: 'c1', cashierName: 'Ayu',
+    items: [{ productId: 'p', productName: 'P', variantSize: '1', price: 50, quantity: 2, subtotal: 100, refundedQty: 1 }],
+  } as unknown as Partial<Order>)
+  const plain = order({
+    id: 'r', total: 50, cashierId: 'c1', cashierName: 'Ayu',
+    items: [{ productId: 'p', productName: 'P', variantSize: '1', price: 50, quantity: 1, subtotal: 50 }],
+  } as unknown as Partial<Order>)
+
+  it('counts net revenue and units', () => {
+    expect(computeKpis([part, plain])).toMatchObject({ revenue: 110, itemsSold: 2 })
+    expect(paymentBreakdown([part, plain])).toEqual([expect.objectContaining({ method: 'cash', amount: 110 })])
+    expect(cashierPerformance([part, plain])[0]).toMatchObject({ transactions: 2, revenue: 110 })
+  })
+
+  it('is unchanged when the refund fields are absent', () => {
+    expect(computeKpis([plain])).toMatchObject({ revenue: 50, itemsSold: 1 })
   })
 })

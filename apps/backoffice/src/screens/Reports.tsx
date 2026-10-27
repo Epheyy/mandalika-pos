@@ -100,6 +100,7 @@ export default function Reports() {
             >
               <option value="">Semua Status</option>
               <option value="completed">Selesai</option>
+              <option value="partially_refunded">Sebagian refund</option>
               <option value="refunded">Refund</option>
             </Select>
             <Select

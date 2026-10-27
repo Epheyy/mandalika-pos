@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"math"
 	"strings"
 	"time"
 
@@ -57,6 +58,61 @@ type Engine struct {
 // saleResolver resolves a sale by order_uuid within one outlet. A missing sale must
 // return service.ErrRefundOrderNotFound.
 type saleResolver func(ctx context.Context, tx pgx.Tx, outletID, orderUUID string) (id, deviceID string, err error)
+
+// refundPayload is the sync `refund` payload. C4a keys (items, refundAmount, reasonCode,
+// orderUuid) are additive: an old tablet omits them and gets the legacy whole-order refund.
+type refundPayload struct {
+	OrderID       string `json:"orderId"`
+	Reason        string `json:"reason"`
+	SaleOrderUUID string `json:"saleOrderUuid"`
+	DeviceID      string `json:"deviceId"`
+	// Items stays nil when the key is absent or null (legacy shape); `[]` decodes to an empty
+	// non-nil slice, which the service rejects instead of refunding everything.
+	// Item fields are pointers so a missing or misspelled key is detected instead of
+	// silently meaning line 0 / quantity 0.
+	Items []struct {
+		LineNo   *int `json:"lineNo"`
+		Quantity *int `json:"quantity"`
+	} `json:"items"`
+	RefundAmount *float64 `json:"refundAmount"`
+	ReasonCode   string   `json:"reasonCode"`
+	// OrderUUID is the outbox item's client uuid (commitOutbox adds it): the refund's own id.
+	OrderUUID string `json:"orderUuid"`
+}
+
+// input builds the service input. A refundAmount that is not a finite whole-or-fractional
+// rupiah figure becomes -1 so the service flags it instead of trusting it; a client uuid that
+// is not canonical is dropped (it only feeds the defence-in-depth unique row).
+func (p refundPayload) input(c Caller, orderID string) service.RefundInput {
+	in := service.RefundInput{
+		OutletID: c.OutletID, OrderID: orderID, Reason: p.Reason,
+		ShiftID: c.EnvelopeShiftID, UserID: c.UserID, UserName: c.DisplayName,
+		Channel: "sync", ReasonCode: p.ReasonCode, DeviceID: p.DeviceID,
+	}
+	if service.IsCanonicalUUID(p.OrderUUID) {
+		in.ClientRefundUUID = strings.ToLower(p.OrderUUID)
+	}
+	if p.Items != nil {
+		in.Items = make([]service.RefundItemInput, len(p.Items))
+		for i, it := range p.Items {
+			if it.LineNo == nil || it.Quantity == nil {
+				// A malformed item must never become line 0: mark it invalid so the service
+				// rejects the refund as ErrRefundLineUnknown.
+				in.Items[i] = service.RefundItemInput{LineNo: -1, Quantity: 0}
+				continue
+			}
+			in.Items[i] = service.RefundItemInput{LineNo: *it.LineNo, Quantity: *it.Quantity}
+		}
+	}
+	if p.RefundAmount != nil {
+		v := int64(-1)
+		if a := math.Round(*p.RefundAmount); a >= 0 && a <= 1e12 {
+			v = int64(a)
+		}
+		in.RefundAmount = &v
+	}
+	return in
+}
 
 func resolveSaleTx(ctx context.Context, tx pgx.Tx, outletID, orderUUID string) (string, string, error) {
 	if tx == nil {
@@ -111,23 +167,35 @@ func New(p *pgxpool.Pool, rd *read.Repo, os *service.OrderService, wr *write.Rep
 }
 
 func (e *Engine) processOne(ctx context.Context, c Caller, it BatchItem) ItemResult {
-	return e.processOneWithRefund(ctx, c, it, e.Orders.RefundTxLedger)
+	return e.processOneWithRefund(ctx, c, it, e.Orders.RefundLinesTx)
 }
 
 // refundFunc runs a refund inside the transaction that also holds the item's
 // operation receipt.
-type refundFunc func(ctx context.Context, tx pgx.Tx, in service.RefundInput) error
+type refundFunc func(ctx context.Context, tx pgx.Tx, in service.RefundInput) (service.RefundResult, error)
 
 // receiptOutcome is the stored result of a keyed write. Every type replays as
 // status "ok" with the same orderId the first attempt returned.
 type receiptOutcome struct {
 	OrderID string `json:"orderId"`
+	// RefundState ("partial"|"full") is stored for refunds only, so a replay acks the same
+	// state; receipts written before C4a lack it and replay without one.
+	RefundState string `json:"refundState,omitempty"`
 }
 
 // keyed runs effect exactly once for it.IdempotencyKey (A11): a retry after a lost
 // response replays the first attempt's orderId instead of applying the write
 // again. The key is bound to the item type, the caller's outlet and the payload.
 func (e *Engine) keyed(ctx context.Context, c Caller, it BatchItem, effect func(tx pgx.Tx) (string, error)) (string, error) {
+	out, err := e.keyedOutcome(ctx, c, it, func(tx pgx.Tx) (receiptOutcome, error) {
+		id, err := effect(tx)
+		return receiptOutcome{OrderID: id}, err
+	})
+	return out.OrderID, err
+}
+
+// keyedOutcome is keyed for effects that return more than an order id.
+func (e *Engine) keyedOutcome(ctx context.Context, c Caller, it BatchItem, effect func(tx pgx.Tx) (receiptOutcome, error)) (receiptOutcome, error) {
 	run := e.Receipts
 	if run == nil {
 		run = func(_ context.Context, _ service.ReceiptClaim, f service.ReceiptEffect) (json.RawMessage, bool, error) {
@@ -138,34 +206,34 @@ func (e *Engine) keyed(ctx context.Context, c Caller, it BatchItem, effect func(
 	raw, _, err := run(ctx, service.ReceiptClaim{
 		Key: it.IdempotencyKey, OpType: it.Type, Scope: c.OutletID, Payload: it.Payload,
 	}, func(tx pgx.Tx) (json.RawMessage, error) {
-		id, err := effect(tx)
+		out, err := effect(tx)
 		if err != nil {
 			return nil, err
 		}
-		return json.Marshal(receiptOutcome{OrderID: id})
+		return json.Marshal(out)
 	})
 	if err != nil {
-		return "", err
+		return receiptOutcome{}, err
 	}
 	var out receiptOutcome
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return "", err
+		return receiptOutcome{}, err
 	}
-	return out.OrderID, nil
+	return out, nil
 }
 
 // replay is the already-applied probe shared by the attribution and offline-cap
 // refusals: an item whose key already landed returns the first attempt's result. A
 // failed probe is a retryable error, never a refusal.
 func (e *Engine) replay(ctx context.Context, c Caller, it BatchItem, r ItemResult, fail func(error) ItemResult) (ItemResult, bool) {
-	id, status, applied, aerr := e.alreadyApplied(ctx, c, it)
+	id, status, refundState, applied, aerr := e.alreadyApplied(ctx, c, it)
 	if aerr != nil {
 		return fail(aerr), true
 	}
 	if !applied {
 		return r, false
 	}
-	r.Status, r.OrderID = status, id
+	r.Status, r.OrderID, r.RefundState = status, id, refundState
 	return r, true
 }
 
@@ -314,41 +382,33 @@ func (e *Engine) processOneWithSeq(ctx context.Context, c Caller, it BatchItem,
 			// A06: a refund that already committed replays as ok even if the
 			// permission was removed since (M3 rule); only an uncommitted key is
 			// forbidden. A failed probe is a retryable server error, never a review item.
-			id, _, applied, aerr := e.alreadyApplied(ctx, c, it)
+			id, _, state, applied, aerr := e.alreadyApplied(ctx, c, it)
 			if aerr != nil {
 				return fail(aerr)
 			}
 			if applied {
-				r.Status, r.OrderID = "ok", id
+				r.Status, r.OrderID, r.RefundState = "ok", id, state
 				return r
 			}
 			return fail(apperr.New(apperr.Forbidden, "Sinkronisasi refund belum selesai: izin refund pada permintaan ini tidak mencukupi. Operasi tetap tersimpan dan belum terselesaikan. Jika uang sudah dikembalikan, jangan bayar ulang."))
 		}
-		var p struct {
-			OrderID       string `json:"orderId"`
-			Reason        string `json:"reason"`
-			SaleOrderUUID string `json:"saleOrderUuid"`
-			DeviceID      string `json:"deviceId"`
-		}
+		var p refundPayload
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
 			return fail(apperr.Wrap(apperr.Rejected, err))
 		}
-		id, err := e.keyed(ctx, c, it, func(tx pgx.Tx) (string, error) {
+		out, err := e.keyedOutcome(ctx, c, it, func(tx pgx.Tx) (receiptOutcome, error) {
 			orderID, rerr := e.refundSaleID(ctx, tx, c.OutletID, p.OrderID, p.SaleOrderUUID, p.DeviceID)
 			if rerr != nil {
-				return "", rerr
+				return receiptOutcome{}, rerr
 			}
 			// ShiftID is only ever a shift attribute() found at the attributed outlet.
-			return orderID, refund(ctx, tx, service.RefundInput{
-				OutletID: c.OutletID, OrderID: orderID, Reason: p.Reason,
-				ShiftID: c.EnvelopeShiftID, UserID: c.UserID, UserName: c.DisplayName,
-				Channel: "sync",
-			})
+			res, rerr := refund(ctx, tx, p.input(c, orderID))
+			return receiptOutcome{OrderID: orderID, RefundState: res.RefundState}, rerr
 		})
 		if err != nil {
 			return fail(err)
 		}
-		r.Status, r.OrderID = "ok", id
+		r.Status, r.OrderID, r.RefundState = "ok", out.OrderID, out.RefundState
 		return r
 	case "shift_open":
 		p, err := service.DecodeOpenShift(bytes.NewReader(it.Payload))

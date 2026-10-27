@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,10 @@ import (
 // ErrNoMovements marks an outbox row whose document has no stock_movements: it can
 // never be sent, so the relay dead-letters it.
 var ErrNoMovements = errors.New("erp: document has no stock movements")
+
+// ErrRefundRowMissing marks a per-refund document (key refund:<refundId>) whose order_refunds
+// row cannot be found. It is a plain error, so the relay treats it as retryable.
+var ErrRefundRowMissing = errors.New("erp: refund document has no order_refunds row")
 
 // ErrUnknownKind marks a document kind the contract does not define.
 var ErrUnknownKind = errors.New("erp: unknown document kind")
@@ -60,6 +65,10 @@ type OrderInfo struct {
 	PaymentMethod string
 	Total         int64
 	LinePrice     map[string]int64 // order_items.id -> rounded price
+	// RefundAmount is order_refunds.amount (rounded) of the refund this document carries,
+	// found by ledger_document_key. nil on a sale document, or when no refund row matches
+	// (should not happen): the refund tender then falls back to -Total.
+	RefundAmount *int64
 }
 
 // BuildInput is everything BuildDocument needs; it holds no connection.
@@ -212,10 +221,23 @@ func buildTenders(h OutboxHeader, order *OrderInfo) []Tender {
 	case "sale":
 		return []Tender{{Method: order.PaymentMethod, Amount: order.Total}}
 	case "refund":
+		// One refund row = one document. The tender is what that refund paid out (a part refund
+		// is not the order total); the row is found by the document's ledger key.
+		if order.RefundAmount != nil {
+			return []Tender{{Method: order.PaymentMethod, Amount: -*order.RefundAmount}}
+		}
+		// Reached only for the legacy whole-order key: LoadBuildInput returns ErrRefundRowMissing
+		// for any other key without a row.
+		slog.Warn("erp: legacy refund document has no order_refunds row, tender falls back to the order total",
+			"documentId", h.DocumentID, "order", h.RefID)
 		return []Tender{{Method: order.PaymentMethod, Amount: -order.Total}}
 	}
 	return nil
 }
+
+// legacyRefundKey reports whether key is the pre-C4a whole-order refund key "refund:<orderId>",
+// the only refund document that may fall back to -order.Total when its refund row is missing.
+func legacyRefundKey(key, orderID string) bool { return key == "refund:"+orderID }
 
 // Querier is the read side of a pool or transaction.
 type Querier interface {
@@ -240,6 +262,12 @@ FROM stock_movements m WHERE m.document_id=$1 ORDER BY m.seq`
 
 	orderSQL      = `SELECT o.payment_method, round(o.total)::bigint FROM orders o WHERE o.id=$1`
 	orderItemsSQL = `SELECT oi.id::text, round(oi.price)::bigint FROM order_items oi WHERE oi.order_id=$1`
+	// The outbox row's doc_key is the ledger document key (refund:<refundId>, or the legacy
+	// refund:<orderId>), which order_refunds.ledger_document_key mirrors.
+	refundAmountSQL = `SELECT round(r.amount)::bigint FROM erp_outbox ob
+	  JOIN order_refunds r ON r.ledger_document_key = ob.doc_key
+	 WHERE ob.document_id=$1::uuid AND r.order_id=$2`
+	refundDocKeySQL = `SELECT doc_key FROM erp_outbox WHERE document_id=$1::uuid`
 )
 
 // LoadBuildInput reads everything BuildDocument needs for one outbox row. Plain reads
@@ -266,6 +294,27 @@ func LoadBuildInput(ctx context.Context, q Querier, h OutboxHeader, brand string
 	if (h.Kind == "sale" || h.Kind == "refund") && h.RefType == "order" {
 		if in.Order, err = loadOrder(ctx, q, h.RefID); err != nil {
 			return in, err
+		}
+		// Only part 1 carries the tender, so only it needs the refund amount.
+		if h.Kind == "refund" && in.Order != nil && h.Part <= 1 {
+			var amt int64
+			switch err := q.QueryRow(ctx, refundAmountSQL, h.DocumentID, h.RefID).Scan(&amt); {
+			case err == nil:
+				in.Order.RefundAmount = &amt
+			case !errors.Is(err, pgx.ErrNoRows):
+				return in, fmt.Errorf("erp: load refund amount: %w", err)
+			default:
+				// No refund row for this document. Only the legacy whole-order key
+				// (refund:<orderId>) may fall back to -Total; a per-refund key without its row
+				// must stay retryable, not freeze a wrong tender.
+				var key string
+				if kerr := q.QueryRow(ctx, refundDocKeySQL, h.DocumentID).Scan(&key); kerr != nil && !errors.Is(kerr, pgx.ErrNoRows) {
+					return in, fmt.Errorf("erp: load refund doc key: %w", kerr)
+				}
+				if !legacyRefundKey(key, h.RefID) {
+					return in, fmt.Errorf("%w: document %s key %q", ErrRefundRowMissing, h.DocumentID, key)
+				}
+			}
 		}
 	}
 	return in, nil

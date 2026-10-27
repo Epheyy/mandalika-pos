@@ -264,7 +264,7 @@ func (s *OrderService) resolvePromos(ctx context.Context, tx pgx.Tx, promoIDs, c
 			var used int
 			if e := tx.QueryRow(ctx,
 				`SELECT count(*) FROM orders
-				   WHERE customer_id = $1 AND status = 'completed'
+				   WHERE customer_id = $1 AND status IN ('completed','partially_refunded')
 				     AND jsonb_exists(COALESCE(applied_discount_codes, '[]'::jsonb), $2)`,
 				keeper, code).Scan(&used); e != nil {
 				return nil, nil, nil, "", fmt.Errorf("count per-customer redemptions: %w", e)

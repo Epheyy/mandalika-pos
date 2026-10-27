@@ -310,17 +310,29 @@ sold AS (
   SELECT oi.product_id, oi.variant_size, SUM(oi.quantity) AS qty
   FROM order_items oi
   JOIN orders o ON o.id = oi.order_id
-  WHERE o.outlet_id = $1 AND o.status = 'completed' AND oi.is_bundle = false
+  WHERE o.outlet_id = $1 AND o.status IN ('completed','partially_refunded') AND oi.is_bundle = false
     AND o.created_at >= $2 AND o.created_at < $3
   GROUP BY 1,2
 ),
 refunded AS (
-  SELECT oi.product_id, oi.variant_size, SUM(oi.quantity) AS qty
-  FROM order_items oi
-  JOIN orders o ON o.id = oi.order_id
-  WHERE o.outlet_id = $1 AND o.status IN ('refunded','cancelled') AND oi.is_bundle = false
-    AND COALESCE(o.refunded_at, o.created_at) >= $2
-    AND COALESCE(o.refunded_at, o.created_at) < $3
+  -- C4a: refunded units come from order_refund_items (a part refund counts only its units;
+  -- legacy_full rows carry the full quantity and are counted whether or not restocked).
+  -- Cancelled orders keep the old whole-order rule.
+  SELECT x.product_id, x.variant_size, SUM(x.qty) AS qty FROM (
+    SELECT oi.product_id, oi.variant_size, ri.quantity AS qty
+    FROM order_refund_items ri
+    JOIN order_refunds r ON r.id = ri.refund_id
+    JOIN order_items oi ON oi.id = ri.order_item_id
+    WHERE r.outlet_id = $1 AND oi.is_bundle = false
+      AND r.refunded_at >= $2 AND r.refunded_at < $3
+    UNION ALL
+    SELECT oi.product_id, oi.variant_size, oi.quantity AS qty
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    WHERE o.outlet_id = $1 AND o.status = 'cancelled' AND oi.is_bundle = false
+      AND COALESCE(o.refunded_at, o.created_at) >= $2
+      AND COALESCE(o.refunded_at, o.created_at) < $3
+  ) x
   GROUP BY 1,2
 ),
 tin AS (

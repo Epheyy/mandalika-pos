@@ -171,6 +171,7 @@ func (s *OrderService) resolveRewardLines(ctx context.Context, tx pgx.Tx, in *Cr
 		// Server-authoritative repricing: never trust the client reward price.
 		it.Price = net
 		it.Subtotal = math.Round(net * float64(it.Quantity))
+		it.group = &refundGroupInfo{kind: "bxgy", promoID: it.RewardPromotionID, bxgy: cfg}
 		kept = append(kept, it)
 		// Write one grant row per unit (qty-N reward line → N rows) so the audit
 		// table is one-row-per-unit and downstream reporting can count simply.
@@ -304,6 +305,7 @@ func (s *OrderService) resolveBundleLines(ctx context.Context, tx pgx.Tx, in *Cr
 					FullPrice: ln.fullPrice, RewardPrice: net, RewardValue: ln.fullPrice - net,
 				})
 			}
+			it.group = &refundGroupInfo{kind: "bundle", promoID: promoID, bundle: cfg}
 			it.Subtotal = math.Round(sub)
 			if ln.qty > 0 {
 				it.Price = math.Round(sub / float64(ln.qty))

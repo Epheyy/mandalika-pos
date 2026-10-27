@@ -262,7 +262,7 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
                         <td className="px-4 py-3 text-sm text-gray-600">{r.cashierName}</td>
                         <td className="px-4 py-3 text-xs text-gray-600">{channelLabel(r.channel)}</td>
                         <td className="px-4 py-3">
-                          <Badge tone={r.orderStatus === 'completed' ? 'neutral' : 'danger'}>{orderStatusLabel(r.orderStatus)}</Badge>
+                          <Badge tone={r.orderStatus === 'completed' || r.orderStatus === 'partially_refunded' ? 'neutral' : 'danger'}>{orderStatusLabel(r.orderStatus)}</Badge>
                         </td>
                         <td className="px-4 py-3">
                           {r.acknowledgedAt ? <Badge tone="success">Dicek</Badge> : <Badge tone="warning">Belum</Badge>}

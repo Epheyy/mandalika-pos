@@ -23,7 +23,10 @@ type ItemResult struct {
 	Status         string `json:"status"` // ok|duplicate|error
 	OrderID        string `json:"orderId,omitempty"`
 	StockWarning   bool   `json:"stockWarning,omitempty"`
-	Error          string `json:"error,omitempty"`
+	// RefundState is set on a successful refund: "full" when the order is now fully refunded,
+	// else "partial". Additive (C4a); the OpenAPI SyncBatchItemResult needs the field.
+	RefundState string `json:"refundState,omitempty"`
+	Error       string `json:"error,omitempty"`
 	// Code and Retryable are set exactly when Status is "error" (Retryable is a
 	// pointer so false is still serialised). Clients must treat a missing or
 	// unknown Code as the pre-contract behaviour (an older server omits both).

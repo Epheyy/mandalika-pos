@@ -181,27 +181,47 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 		  refunds_paid_by_method = r.by_method,
 		  cash_refunds_paid      = r.cash_paid
 		FROM (
+		  -- C4a: every sale-status order (completed, partially_refunded, refunded) enters the money
+		  -- columns as total minus what was refunded on it (net_sale, UNCLAMPED): total for a
+		  -- completed order, 0 for a legacy full refund, and exactly the cash left in the drawer
+		  -- even when a refund's amount of record differs from the computed share (D-39).
+		  -- total_sales + total_refunds stays gross and expected cash = sales buckets minus
+		  -- other-shift refunds paid still balances. total_orders counts only completed and
+		  -- partially_refunded orders (is_sale). total_refunds attributes to the SALE's shift
+		  -- (orders.shift_id), whichever shift paid the refund. Cancelled orders have NULL net_sale.
 		  SELECT
-		    sum(total) FILTER (WHERE status='completed') AS total_sales,
-		    count(*)   FILTER (WHERE status='completed') AS total_orders,
-		    sum(total) FILTER (WHERE status='refunded')  AS total_refunds,
-		    sum(total) FILTER (WHERE status='completed' AND payment_method = ANY($5::text[])) AS cash_sales,
-		    sum(total) FILTER (WHERE status='completed' AND payment_method='card' AND NOT (payment_method = ANY($5::text[])))     AS card_sales,
-		    sum(total) FILTER (WHERE status='completed' AND payment_method='transfer' AND NOT (payment_method = ANY($5::text[]))) AS transfer_sales,
-		    sum(total) FILTER (WHERE status='completed' AND payment_method='qris' AND NOT (payment_method = ANY($5::text[])))     AS qris_sales
-		  FROM orders WHERE shift_id=$1
+		    sum(net_sale)                        AS total_sales,
+		    count(*)      FILTER (WHERE is_sale) AS total_orders,
+		    sum(refunded)                        AS total_refunds,
+		    sum(net_sale) FILTER (WHERE payment_method = ANY($5::text[])) AS cash_sales,
+		    sum(net_sale) FILTER (WHERE payment_method='card' AND NOT (payment_method = ANY($5::text[])))     AS card_sales,
+		    sum(net_sale) FILTER (WHERE payment_method='transfer' AND NOT (payment_method = ANY($5::text[]))) AS transfer_sales,
+		    sum(net_sale) FILTER (WHERE payment_method='qris' AND NOT (payment_method = ANY($5::text[])))     AS qris_sales
+		  FROM (
+		    SELECT o.payment_method,
+		           o.status IN ('completed','partially_refunded') AS is_sale,
+		           x.refunded,
+		           CASE WHEN o.status IN ('completed','partially_refunded','refunded')
+		                THEN o.total - x.refunded END AS net_sale
+		      FROM orders o
+		      CROSS JOIN LATERAL (SELECT COALESCE(sum(r.amount),0) AS refunded
+		                            FROM order_refunds r WHERE r.order_id = o.id) x
+		     WHERE o.shift_id=$1
+		  ) ord
 		) a,
 		-- A06/Q2b: refunds this shift paid out for sales of OTHER shifts. A refund of
 		-- this shift's own sale is already out of its sales and in total_refunds, so
 		-- it is excluded here (no double subtraction). Late refunds (after close)
-		-- never touch this snapshot.
+		-- never touch this snapshot. C4a: read from order_refunds (shift_id = the
+		-- REFUNDING shift), one row per refund, so a partial refund counts too.
 		(
 		  SELECT COALESCE(jsonb_object_agg(payment_method, amount), '{}'::jsonb) AS by_method,
 		         COALESCE(sum(amount) FILTER (WHERE payment_method = ANY($5::text[])), 0) AS cash_paid
 		  FROM (
-		    SELECT payment_method, sum(total) AS amount FROM orders
-		     WHERE refund_shift_id=$1 AND status='refunded' AND shift_id IS DISTINCT FROM $1
-		     GROUP BY payment_method
+		    SELECT r.payment_method, sum(r.amount) AS amount
+		      FROM order_refunds r JOIN orders o ON o.id = r.order_id
+		     WHERE r.shift_id=$1 AND o.shift_id IS DISTINCT FROM $1
+		     GROUP BY r.payment_method
 		  ) x
 		) r
 		WHERE s.id=$1 AND s.outlet_id=$2`,
@@ -209,8 +229,8 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 	return err
 }
 
-// shiftCashMethodIDs lists the payment method ids on this shift's completed orders,
-// and on refunds this shift paid out (refund_shift_id), that are cash at close time
+// shiftCashMethodIDs lists the payment method ids on this shift's completed, partially refunded and refunded orders,
+// and on refunds this shift paid out (order_refunds.shift_id), that are cash at close time
 // (the flag in force now decides; closed shifts are a snapshot and never change).
 // The UPDATE aggregates cash_sales and cash_refunds_paid and excludes these ids from
 // the card/transfer/qris buckets, so nothing is counted twice. Custom non-cash
@@ -222,8 +242,10 @@ func shiftCashMethodIDs(ctx context.Context, tx pgx.Tx, shiftID string) ([]strin
 		return nil, err
 	}
 	rows, err := tx.Query(ctx,
-		`SELECT DISTINCT payment_method FROM orders
-		  WHERE (shift_id=$1 AND status='completed') OR (refund_shift_id=$1 AND status='refunded')`, shiftID)
+		`SELECT payment_method FROM orders
+		  WHERE shift_id=$1 AND status IN ('completed','partially_refunded','refunded')
+		 UNION
+		 SELECT payment_method FROM order_refunds WHERE shift_id=$1`, shiftID)
 	if err != nil {
 		return nil, err
 	}

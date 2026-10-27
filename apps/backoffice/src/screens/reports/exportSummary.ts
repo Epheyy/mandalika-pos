@@ -1,4 +1,28 @@
-import type { ListOrdersParams, ReportSummary } from '@mandalika/api'
+import type { ListOrdersParams, Order, ReportSummary } from '@mandalika/api'
+import { isRefundedStatus, refundedMoney } from './reportTotals'
+
+export interface RefundCsvFields {
+  /** Money refunded on the order; '' for an order that is not refunded. */
+  amount: number | ''
+  refundedAt: string | null | undefined
+  refundBusinessDate: string | null | undefined
+  reason: string
+}
+
+/**
+ * Refund columns of the order CSV (C4a). A partially refunded order has NULL order-level refund
+ * columns, so they fall back to the latest refunds[] entry; an older backend (no refunds[]) keeps
+ * the order-level values unchanged. The per-refund CSV is slice C4c.
+ */
+export function refundCsvFields(o: Order): RefundCsvFields {
+  const last = o.refunds && o.refunds.length > 0 ? o.refunds[o.refunds.length - 1] : undefined
+  return {
+    amount: isRefundedStatus(o.status) ? refundedMoney(o) : '',
+    refundedAt: o.refundedAt ?? last?.refundedAt,
+    refundBusinessDate: o.refundBusinessDate ?? last?.refundBusinessDate,
+    reason: o.refundReason || last?.reason || '',
+  }
+}
 
 /** A money figure the server may not have sent (backend not yet deployed): a dash, never 0. */
 export function moneyOrDash(n: number | undefined, format: (n: number) => string): string {
