@@ -1038,11 +1038,11 @@ export default function CashierScreen() {
           <SyncStatus
             open={showConnection} onOpenChange={setShowConnection}
             isOnline={offlineData.isOnline} pendingCount={offlineData.pendingCount}
-            review={parked.review} stuck={offlineData.stuck} accountProblem={offlineData.accountProblem} wall={offlineData.wall}
+            review={offlineData.review} stuck={offlineData.stuck} accountProblem={offlineData.accountProblem} wall={offlineData.wall}
             offlineCap={offlineCap} isResyncing={offlineData.isResyncing} autoUpdate={offlineData.autoPullAvailable}
             onResync={() => void offlineData.resync()} onFlush={offlineData.flush}
-            onRetryOne={(k) => { offlineData.retryOne(k).catch(() => showToast('Gagal menyetel ulang transaksi. Coba lagi.')) }} onAcknowledge={parked.onAcknowledge} acknowledgedCount={parked.acknowledgedCount}
-            onRetryFailed={() => { offlineData.retryFailed().catch(() => showToast('Gagal menyetel ulang antrean. Coba lagi.')) }} onExportLog={() => { void handleExportLog() }}
+            onRetryOne={(k) => { offlineData.retryOne(k).then(() => parked.onRequeued([k])).catch(() => showToast('Gagal menyetel ulang transaksi. Coba lagi.')) }} onAcknowledge={parked.onAcknowledge} acknowledged={parked.acked}
+            onRetryFailed={() => { offlineData.retryFailed().then(() => parked.onRequeued(offlineData.review.map((r) => r.idempotencyKey))).catch(() => showToast('Gagal menyetel ulang antrean. Coba lagi.')) }} onExportLog={() => { void handleExportLog() }}
           />
           <button type="button"
             onClick={() => setShowMenu(true)}
@@ -1050,8 +1050,8 @@ export default function CashierScreen() {
             title="Menu" aria-label="Menu"
           >
             <IconMenu size={24} />
-            {parked.review.length > 0 ? (
-              <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-danger text-white text-[10px] font-bold leading-4 text-center" aria-label={`${parked.review.length} perlu ditinjau`}>{parked.review.length}</span>
+            {offlineData.review.length > 0 ? (
+              <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-danger text-white text-[10px] font-bold leading-4 text-center" aria-label={`${offlineData.review.length} perlu ditinjau`}>{offlineData.review.length}</span>
             ) : (offlineData.pendingCount > 0 || inbound.length > 0) && (
               <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-danger" />
             )}

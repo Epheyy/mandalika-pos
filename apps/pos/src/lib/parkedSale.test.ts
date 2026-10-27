@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { ACK_STORAGE_KEY, acknowledge, announceParked, announcedParkedKeys, dismissParkedAlert, nextParkedAlert, parkedSaleMessage, readAcknowledged, resetParkedAlerts, visibleReview } from './parkedSale'
+import { ACK_STORAGE_KEY, acknowledge, announceParked, announcedParkedKeys, releaseParked, unacknowledge, dismissParkedAlert, nextParkedAlert, parkedSaleMessage, readAcknowledged, resetParkedAlerts, visibleReview } from './parkedSale'
 
 const store = new Map<string, string>()
 beforeEach(() => {
@@ -65,4 +65,22 @@ describe('acknowledged set', () => {
 
 it('uses the glossary message', () => {
   expect(parkedSaleMessage('BSD-G0007')).toBe('Transaksi #BSD-G0007 belum bisa terkirim. Hubungi admin. Transaksi aman di tablet ini.')
+})
+
+describe('re-queue and storage-denied behaviour', () => {
+  it('releaseParked lets a re-parked key announce again, and unacknowledge shows its row again', () => {
+    announceParked(['k1']); dismissParkedAlert('k1')
+    releaseParked(['k1'])
+    expect(announcedParkedKeys()).toEqual([])
+    announceParked(['k1'])
+    expect(announcedParkedKeys()).toEqual(['k1'])
+    acknowledge('k1'); acknowledge('k2')
+    expect([...unacknowledge(['k1'])]).toEqual(['k2'])
+    expect([...readAcknowledged()]).toEqual(['k2'])
+  })
+  it('acks accumulate on the caller state when storage is denied', () => {
+    ;(globalThis as { localStorage?: unknown }).localStorage = { getItem: () => null, setItem: () => { throw new Error('denied') } }
+    const one = acknowledge('a', new Set())
+    expect([...acknowledge('b', one)]).toEqual(['a', 'b'])
+  })
 })

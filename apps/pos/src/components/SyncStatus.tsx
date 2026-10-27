@@ -129,8 +129,8 @@ interface SyncStatusProps {
   onRetryOne?: (idempotencyKey: string) => void
   /** C2: hide a parked row locally once it was handled; never deletes the stored item. */
   onAcknowledge?: (idempotencyKey: string) => void
-  /** Parked items hidden as handled (still stored on the tablet). */
-  acknowledgedCount?: number
+  /** Parked items marked as handled: their rows are hidden, but they are still parked and counted. */
+  acknowledged?: ReadonlySet<string>
   /** Share diagnostics without resolving or removing failed operations. */
   onExportLog: () => void
   /** Controlled sheet state (lets the Android Back handler close it); falls back to local state. */
@@ -153,7 +153,7 @@ export const SyncStatus = memo(function SyncStatus({
   onRetryFailed,
   onRetryOne,
   onAcknowledge,
-  acknowledgedCount = 0,
+  acknowledged,
   onExportLog,
   open: openProp,
   onOpenChange,
@@ -162,6 +162,8 @@ export const SyncStatus = memo(function SyncStatus({
   const open = openProp ?? innerOpen
   const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setInnerOpen(v))
   const hasFailed = review.length > 0
+  const rows = acknowledged ? review.filter((f) => !acknowledged.has(f.idempotencyKey)) : review
+  const hiddenCount = review.length - rows.length
   // Offline is its own, normal state: never describe it as a server problem.
   const showStuck = isOnline && stuck.length > 0
   const showAccount = isOnline && accountProblem !== null
@@ -221,16 +223,13 @@ export const SyncStatus = memo(function SyncStatus({
           {hasFailed && (
             <section className="space-y-2">
               <h3 className="font-semibold text-danger">Perlu ditinjau ({review.length})</h3>
-              <div className="space-y-2">{review.map((f) => <ReviewRow key={f.idempotencyKey} f={f} onRetry={onRetryOne} onAcknowledge={onAcknowledge} />)}</div>
+              <div className="space-y-2">{rows.map((f) => <ReviewRow key={f.idempotencyKey} f={f} onRetry={onRetryOne} onAcknowledge={onAcknowledge} />)}</div>
+              {hiddenCount > 0 && <p className="text-xs text-ink-500">{hiddenCount} transaksi sudah ditandai ditangani; tetap tersimpan di tablet. Coba lagi mengirimnya lagi.</p>}
               <p className="text-xs text-ink-500">Data tetap tersimpan di perangkat dan tidak dikirim ulang otomatis.</p>
               <Button variant="danger" fullWidth onClick={() => { onRetryFailed(); setOpen(false) }}>
                 Coba lagi
               </Button>
             </section>
-          )}
-
-          {!hasFailed && acknowledgedCount > 0 && (
-            <p className="text-xs text-ink-500">{acknowledgedCount} transaksi sudah ditandai ditangani; tetap tersimpan di tablet.</p>
           )}
 
           {showStuck && (

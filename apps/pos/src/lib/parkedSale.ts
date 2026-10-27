@@ -29,8 +29,8 @@ export function readAcknowledged(): Set<string> {
 }
 
 /** Add a key and persist; the newest ACK_MAX keys are kept so the list cannot grow without bound. */
-export function acknowledge(key: string): Set<string> {
-  const next = new Set(readAcknowledged()).add(key)
+export function acknowledge(key: string, base: ReadonlySet<string> = readAcknowledged()): Set<string> {
+  const next = new Set(base).add(key)
   const kept = new Set([...next].slice(-ACK_MAX))
   try {
     localStorage.setItem(ACK_STORAGE_KEY, JSON.stringify([...kept]))
@@ -43,6 +43,17 @@ export function acknowledge(key: string): Set<string> {
 /** Rows still to show: parked items the cashier has not marked as handled. */
 export function visibleReview<T extends { idempotencyKey: string }>(review: readonly T[], acked: ReadonlySet<string>): T[] {
   return review.filter((r) => !acked.has(r.idempotencyKey))
+}
+
+/** Drop keys from the acknowledged set (they were re-queued, so a new park must show again). */
+export function unacknowledge(keys: readonly string[], base: ReadonlySet<string> = readAcknowledged()): Set<string> {
+  const next = new Set([...base].filter((k) => !keys.includes(k)))
+  try {
+    localStorage.setItem(ACK_STORAGE_KEY, JSON.stringify([...next]))
+  } catch {
+    // Storage denied: the caller's state still shows the rows again this session.
+  }
+  return next
 }
 
 // ---- parked-sale alerts (session) ----
@@ -63,6 +74,13 @@ export function announceParked(keys: readonly string[]): void {
 export function dismissParkedAlert(key: string): void {
   if (dismissed.has(key)) return
   dismissed.add(key)
+  emit()
+}
+
+/** Forget these keys' alert state (they were re-queued): a later park of the same key may announce again. */
+export function releaseParked(keys: readonly string[]): void {
+  announced = announced.filter((k) => !keys.includes(k))
+  keys.forEach((k) => dismissed.delete(k))
   emit()
 }
 

@@ -60,9 +60,21 @@ describe('on-screen totals match the printed receipt (C1 follow-up)', () => {
     expect(rows.map((r) => [r.label, r.amount])).toEqual([['Subtotal', 100000], ['Diskon', -10000], ['TOTAL', 90000]])
   })
 
-  it('honours the receipt print settings the printer honours', () => {
-    const rows = quoteTotalRows(cart, full, { showSubtotal: false, showDiscount: false, showTax: false })
-    expect(rows.map((r) => r.kind)).toEqual(['surcharge', 'points', 'rounding', 'total'])
+  it('an itemised slip keeps its discount and PPN rows even when the print toggles are off (as the printer does)', () => {
+    const off = { showSubtotal: false, showDiscount: false, showTax: false }
+    const rows = quoteTotalRows(cart, full, off)
+    expect(rows.map((r) => r.kind)).toEqual(['promo', 'promo', 'promo', 'surcharge', 'points', 'tax', 'rounding', 'total'])
+    const lines = slip(buildReceipt(receiptFromQuote(buildReceiptQuote({ cart, derived: full, tender: { amountPaid: 250000, change: 12000 }, refVersion: 0 }), extras), Object.assign({}, settings, off) as never))
+    for (const r of rows) {
+      const label = r.kind === 'promo' ? `- ${r.label}` : r.label
+      expect(lines.some((l) => l.startsWith(label)), `printed ${r.label}`).toBe(true)
+    }
+    expect(lines.some((l) => l.startsWith('Subtotal'))).toBe(false)
+  })
+
+  it('a pre-C1 receipt still follows the print toggles', () => {
+    const legacy = { subtotal: 100000, discountAmount: 10000, discounts: undefined, surcharge: undefined, pointsRedeemed: undefined, rounding: undefined, taxAmount: 9000, total: 99000 }
+    expect(receiptTotalRows(legacy, { showSubtotal: true, showDiscount: false, showTax: false }).map((r) => r.kind)).toEqual(['subtotal', 'total'])
   })
 
   it('renders one named row per promo with the promo colour', () => {

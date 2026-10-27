@@ -23,8 +23,11 @@ type TotalsInput = Pick<ReceiptData, 'subtotal' | 'discountAmount' | 'discounts'
  */
 export function receiptTotalRows(data: TotalsInput, settings: Pick<ReceiptSettings, 'showSubtotal' | 'showDiscount' | 'showTax'>): TotalRow[] {
   const rows: TotalRow[] = []
+  // As the printer: an itemised (C1) slip always shows its deductions and PPN, since hiding a row that is
+  // inside TOTAL would make it not add up. The Pengaturan toggles only govern pre-C1 receipts.
+  const itemised = data.discounts !== undefined
   if (settings.showSubtotal !== false) rows.push({ key: 'subtotal', kind: 'subtotal', label: 'Subtotal', amount: data.subtotal })
-  if (settings.showDiscount !== false) {
+  if (itemised || settings.showDiscount !== false) {
     if (data.discounts) {
       data.discounts.forEach((d, i) => {
         if (d.amount > 0) rows.push({ key: `promo-${i}`, kind: 'promo', label: d.label, amount: -d.amount })
@@ -37,7 +40,7 @@ export function receiptTotalRows(data: TotalsInput, settings: Pick<ReceiptSettin
   if (data.pointsRedeemed && data.pointsRedeemed.amount > 0) {
     rows.push({ key: 'points', kind: 'points', label: `Tukar poin (${data.pointsRedeemed.points})`, amount: -data.pointsRedeemed.amount })
   }
-  if (settings.showTax && data.taxAmount > 0) rows.push({ key: 'tax', kind: 'tax', label: 'PPN', amount: data.taxAmount })
+  if ((itemised || settings.showTax) && data.taxAmount > 0) rows.push({ key: 'tax', kind: 'tax', label: 'PPN', amount: data.taxAmount })
   if (data.rounding) rows.push({ key: 'rounding', kind: 'rounding', label: 'Pembulatan', amount: data.rounding })
   rows.push({ key: 'total', kind: 'total', label: 'TOTAL', amount: data.total })
   return rows

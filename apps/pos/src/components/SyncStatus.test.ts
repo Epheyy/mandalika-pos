@@ -97,8 +97,16 @@ describe('Koneksi & antrean sheet', () => {
     expect(html).toContain('2 transaksi tersimpan di tablet, 2 perlu ditinjau')
     expect(html).toContain('data-key="a"')
   })
-  it('C2: notes hidden rows that are still stored on the tablet', () => {
-    expect(open({ acknowledgedCount: 2 })).toContain('2 transaksi sudah ditandai ditangani; tetap tersimpan di tablet.')
+  it('C2: an acknowledged row is hidden but still counted; the chip, Coba lagi and Bagikan log stay', () => {
+    const html = open({ review: [item('a'), item('b')], acknowledged: new Set(['a']), onRetryOne: vi.fn(), onAcknowledge: vi.fn() })
+    expect(html).not.toContain('data-key="a"')
+    expect(html).toContain('data-key="b"')
+    expect(html).toContain('Perlu ditinjau (2)')
+    expect(html).toContain('1 transaksi sudah ditandai ditangani; tetap tersimpan di tablet.')
+    const all = open({ review: [item('a')], acknowledged: new Set(['a']) })
+    expect(all).toContain('1 perlu ditinjau')
+    expect(all).toContain('Bagikan log')
+    expect(all).toContain('>Coba lagi<')
   })
   it('puts the data versions under Detail teknis', () => {
     expect(open({})).toContain('Versi data lokal 1 · server 1')

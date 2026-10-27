@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { SyncEngine, type KV } from '@mandalika/sync'
 import { SyncStatus } from '../../src/components/SyncStatus'
-import { acknowledge, readAcknowledged, visibleReview } from '../../src/lib/parkedSale'
+import { acknowledge, readAcknowledged } from '../../src/lib/parkedSale'
 
 const store = new Map<string, string>()
 const kv: KV = {
@@ -27,12 +27,11 @@ function Harness() {
   const refresh = () => tick((n) => n + 1)
   return <main>
     <h1>C2 synthetic parked-sale check</h1>
-    <SyncStatus isOnline={true} pendingCount={engine.pendingCount()} review={visibleReview(engine.reviewItems(), acked)} stuck={[]}
-      acknowledgedCount={engine.reviewItems().length - visibleReview(engine.reviewItems(), acked).length}
+    <SyncStatus isOnline={true} pendingCount={engine.pendingCount()} review={engine.reviewItems()} stuck={[]} acknowledged={acked}
       wall={engine.getWall()} isResyncing={false} onResync={() => {}} onFlush={() => {}}
       onRetryFailed={() => { void engine.retryFailed().then(refresh) }}
       onRetryOne={(key) => { void engine.retryDeadLettered(key).then(refresh) }}
-      onAcknowledge={(key) => { setAcked(acknowledge(key)) }}
+      onAcknowledge={(key) => { setAcked((p) => acknowledge(key, p)) }}
       onExportLog={() => {}} />
     <button type="button" onClick={refresh}>Refresh evidence</button>
     <pre aria-label="Per-item evidence">{JSON.stringify({
