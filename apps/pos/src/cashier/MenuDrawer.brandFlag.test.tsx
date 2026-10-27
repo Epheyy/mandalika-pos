@@ -20,6 +20,8 @@ const render = (canRequestStock: boolean) =>
       shiftActive: true,
       pendingSync: false,
       isSyncing: false,
+      heldCount: 0,
+      onHeldOrders: noop,
       onHistory: noop,
       onLocalReceipts: noop,
       onRecap: noop,

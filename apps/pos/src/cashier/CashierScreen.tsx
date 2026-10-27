@@ -65,6 +65,9 @@ import { resolveConfirmGuard } from './confirmGuard'
 import { cashierBackLayer } from './backGuard'
 import { customerAttachImpact, customerAttachMessage } from './customerAttachImpact'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { Button } from '../components/ui/Button'
+import { HeldOrdersSheet } from './HeldOrdersSheet'
+import { useHeldOrders } from './useHeldOrders'
 import { planPromotionFulfillment, invalidPhysicalPromotionIds, type PromotionOwner, type PendingFulfillment } from './promotionFulfillment'
 import type { BxgyRewardPick } from './BxgyRewardModal'
 import type { BundleAssignment } from './bundle'
@@ -324,6 +327,14 @@ export default function CashierScreen() {
   // reconnects. Evaluated at action time (never cached) and the engine itself never refuses.
   const offlineCap = useOfflineCap(engine)
   const offlineLock = (): string | null => offlineLockMessage(engine.offlineState())
+
+  // D-6: carts parked on this tablet (never queued, never sent). Restore re-validates promos against the live catalog.
+  const heldOrders = useHeldOrders({
+    outletId: authStore.outletId ?? '', state, dispatch, ensureShift, offlineLock, showToast,
+    askConfirm: (c) => setConfirm(c),
+    getEnv: () => ({ products: displayProducts, promotions, discountCodes, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }),
+  })
+  const { open: heldOpen, setOpen: setHeldOpen } = heldOrders
 
   // A44 owner decision 2026-10-16: an out-of-stock item is never blocked. The line is
   // added and the cashier is warned; the server records the oversell. Returns true when
@@ -943,6 +954,7 @@ export default function CashierScreen() {
       })
       if (layer === 'ignore-busy') return true
       if (layer === 'close-confirm') { confirm?.onCancel?.(); setConfirm(null); return true }
+      if (heldOpen) { setHeldOpen(false); return true }
       if (profileCustomer) { setProfileCustomer(null); return true }
       if (showCustomerSheet) { closeCustomerSheet(); return true }
       if (lineBackRef.current?.()) return true
@@ -969,7 +981,7 @@ export default function CashierScreen() {
   }, [
     showConnection, showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRequisitions, showRecap, refundOrder,
     state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment, state.isProcessing, pendingFulfillment, confirm,
-    state.activeTab, profileCustomer, showCustomerSheet,
+    state.activeTab, profileCustomer, showCustomerSheet, heldOpen,
   ])
 
   if (!user) return null
@@ -1064,6 +1076,13 @@ export default function CashierScreen() {
         {/* Product panel */}
         <div className={`flex-1 min-w-0 overflow-hidden sm:block ${state.activeTab === 'cart' ? 'hidden' : 'block'}`}>
           {derived.totalCartItems === 0 && customerChip}
+          {derived.totalCartItems === 0 && heldOrders.held.length > 0 && (
+            <div className="px-3 pt-2">
+              <Button variant="secondary" onClick={() => heldOrders.setOpen(true)} className="min-h-11">
+                Pesanan tersimpan ({heldOrders.held.length})
+              </Button>
+            </div>
+          )}
           <ProductGrid
             products={displayProducts} categories={categories}
             selectedCategoryId={selectedCategoryId} searchQuery={searchQuery}
@@ -1088,6 +1107,7 @@ export default function CashierScreen() {
               products={displayProducts}
               onRemove={cartActions.removeItem} onSetQty={cartActions.setQty}
               onSwitchSize={handleSwitchSize} lineBackRef={lineBackRef}
+              heldCount={heldOrders.held.length} onOpenHeld={() => heldOrders.setOpen(true)}
               onClear={() => setConfirm({ message: 'Kosongkan keranjang? Pelanggan, promo dan catatan ikut terhapus.', confirmLabel: 'Kosongkan', tone: 'danger', run: cartActions.clearCart })}
               onCheckout={handleCheckout}
               onOpenAdjustment={(panel) => { setPendingFulfillment(null); dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel }) }}
@@ -1206,6 +1226,12 @@ export default function CashierScreen() {
         onNewSale={() => dispatch({ type: 'RESET_SALE' })}
       />
 
+      <HeldOrdersSheet
+        open={heldOrders.open} onClose={() => heldOrders.setOpen(false)} held={heldOrders.held}
+        canSave={heldOrders.hasCart} defaultName={heldOrders.suggestedName}
+        onSave={heldOrders.save} onResume={heldOrders.resume} onDelete={heldOrders.remove}
+      />
+
       <ShiftRecapPanel
         isOpen={showRecap}
         onClose={() => { setShowRecap(false); setCloseIntent(false) }}
@@ -1233,6 +1259,8 @@ export default function CashierScreen() {
         lastSyncedLabel={offlineData.lastSyncedAt
           ? new Date(offlineData.lastSyncedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
           : null}
+        heldCount={heldOrders.held.length}
+        onHeldOrders={() => heldOrders.setOpen(true)}
         onHistory={() => setShowHistory(true)}
         onLocalReceipts={() => setShowLocalReceipts(true)}
         onRecap={() => setShowRecap(true)}
