@@ -1,5 +1,5 @@
 import { test, expect, evidence, POS, BO, type ScenarioPage } from './fixture'
-import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCustomer, posRecap, posAutoPull, posStockDrift, posLineSheet, posPromoSheet, posCustomerProfile } from './pos-scenarios'
+import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCustomer, posRecap, posAutoPull, posStockDrift, posLineSheet, posPromoSheet, posCustomerProfile, posHeldOrders } from './pos-scenarios'
 import { setupBackoffice, backofficeChecks, transactionsChecks, qualifyBackoffice, reportsRaces } from './backoffice-scenarios'
 import { reviewResolveFlow } from './backoffice-review-scenarios'
 import { csvImportFlow } from './backoffice-import-scenarios'
@@ -98,6 +98,14 @@ test('POS-CUSTOMER-PROFILE the chip, the Profil Pelanggan sheet and Ulangi add t
   const p = page as ScenarioPage
   await setupPos(p)
   const result = await posCustomerProfile(p)
+  expect(result).toHaveLength(2)
+  await evidence(info, result)
+})
+
+test('POS-HELD-ORDERS a cart is saved under a name, found again from the menu, restored and paid', async ({ page }, info) => {
+  const p = page as ScenarioPage
+  await setupPos(p)
+  const result = await posHeldOrders(p)
   expect(result).toHaveLength(2)
   await evidence(info, result)
 })

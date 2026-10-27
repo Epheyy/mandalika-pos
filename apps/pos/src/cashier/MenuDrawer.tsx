@@ -35,6 +35,9 @@ interface MenuDrawerProps {
   pendingSync: boolean
   isSyncing: boolean
   lastSyncedLabel?: string | null
+  /** D-6 Pesanan tersimpan: how many carts are parked on this tablet, and the door to them. */
+  heldCount: number
+  onHeldOrders: () => void
   onHistory: () => void
   onLocalReceipts: () => void
   onRecap: () => void
@@ -81,6 +84,8 @@ export const MenuDrawer = memo(function MenuDrawer({
   pendingSync,
   isSyncing,
   lastSyncedLabel,
+  heldCount,
+  onHeldOrders,
   onHistory,
   onLocalReceipts,
   onRecap,
@@ -101,6 +106,7 @@ export const MenuDrawer = memo(function MenuDrawer({
   const initial = (user.displayName || '?').charAt(0).toUpperCase()
 
   const opItems: Item[] = [
+    { Icon: InboxIcon, label: heldCount > 0 ? `Pesanan tersimpan (${heldCount})` : 'Pesanan tersimpan', onClick: () => { onClose(); onHeldOrders() } },
     { Icon: HistoryIcon, label: 'Riwayat', onClick: () => { onClose(); onHistory() } },
     { Icon: HistoryIcon, label: 'Struk di Tablet Ini', onClick: () => { onClose(); onLocalReceipts() } },
     { Icon: RecapIcon, label: 'Rekap Shift', onClick: () => { onClose(); onRecap() } },

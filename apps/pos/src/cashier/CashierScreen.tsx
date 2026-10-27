@@ -65,6 +65,9 @@ import { resolveConfirmGuard } from './confirmGuard'
 import { cashierBackLayer } from './backGuard'
 import { customerAttachImpact, customerAttachMessage } from './customerAttachImpact'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { Button } from '../components/ui/Button'
+import { HeldOrdersSheet } from './HeldOrdersSheet'
+import { useHeldOrders } from './useHeldOrders'
 import { planPromotionFulfillment, invalidPhysicalPromotionIds, type PromotionOwner, type PendingFulfillment } from './promotionFulfillment'
 import type { BxgyRewardPick } from './BxgyRewardModal'
 import type { BundleAssignment } from './bundle'
@@ -126,6 +129,8 @@ export default function CashierScreen() {
   const [showPrice, setShowPrice] = useState(() => readCardPref('pos_cardPrice', true))
   const [showStock, setShowStock] = useState(() => readCardPref('pos_cardStock', true))
   const [showVariants, setShowVariants] = useState(() => readCardPref('pos_cardVariants', false))
+  // D-4 blind count at Tutup Shift: off unless switched on in Pengaturan.
+  const [blindCount, setBlindCount] = useState(() => readCardPref('pos_blindCount', false))
   const [showSettings, setShowSettings] = useState(false)
   // Which settings section to scroll to when opened from a drawer shortcut.
   const [settingsSection, setSettingsSection] = useState<SettingsSection | undefined>(undefined)
@@ -208,6 +213,7 @@ export default function CashierScreen() {
   const [showTransferHistory, setShowTransferHistory] = useState(false)
   const [showRequisitions, setShowRequisitions] = useState(false)
   const requisitionBackRef = useRef<(() => boolean) | null>(null)
+  const recapBackRef = useRef<(() => boolean) | null>(null)
   const variantBackRef = useRef<(() => boolean) | null>(null)
   const lineBackRef = useRef<(() => boolean) | null>(null)
   const [pendingReceive, setPendingReceive] = useState<null | { transferId: string; items: { productId: string; variantSize: string; receivedQty: number }[]; reason: string; orderUuid: string; receiptKey: string }>(null)
@@ -324,6 +330,14 @@ export default function CashierScreen() {
   // reconnects. Evaluated at action time (never cached) and the engine itself never refuses.
   const offlineCap = useOfflineCap(engine)
   const offlineLock = (): string | null => offlineLockMessage(engine.offlineState())
+
+  // D-6: carts parked on this tablet (never queued, never sent). Restore re-validates promos against the live catalog.
+  const heldOrders = useHeldOrders({
+    outletId: authStore.outletId ?? '', state, dispatch, ensureShift, offlineLock, showToast,
+    askConfirm: (c) => setConfirm(c),
+    getEnv: () => ({ products: displayProducts, promotions, discountCodes, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }),
+  })
+  const { open: heldOpen, setOpen: setHeldOpen } = heldOrders
 
   // A44 owner decision 2026-10-16: an out-of-stock item is never blocked. The line is
   // added and the cashier is warned; the server records the oversell. Returns true when
@@ -912,6 +926,7 @@ export default function CashierScreen() {
   const handleShowPrice = (v: boolean) => { setShowPrice(v); localStorage.setItem('pos_cardPrice', v ? '1' : '0') }
   const handleShowStock = (v: boolean) => { setShowStock(v); localStorage.setItem('pos_cardStock', v ? '1' : '0') }
   const handleShowVariants = (v: boolean) => { setShowVariants(v); localStorage.setItem('pos_cardVariants', v ? '1' : '0') }
+  const handleBlindCount = (v: boolean) => { setBlindCount(v); localStorage.setItem('pos_blindCount', v ? '1' : '0') }
 
   // Drawer shortcut: open Settings scrolled to a section.
   const openSettings = (section?: SettingsSection) => { setSettingsSection(section); setShowSettings(true) }
@@ -943,6 +958,7 @@ export default function CashierScreen() {
       })
       if (layer === 'ignore-busy') return true
       if (layer === 'close-confirm') { confirm?.onCancel?.(); setConfirm(null); return true }
+      if (heldOpen) { setHeldOpen(false); return true }
       if (profileCustomer) { setProfileCustomer(null); return true }
       if (showCustomerSheet) { closeCustomerSheet(); return true }
       if (lineBackRef.current?.()) return true
@@ -954,7 +970,7 @@ export default function CashierScreen() {
       if (showLocalReceipts) { setShowLocalReceipts(false); return true }
       if (showTransferHistory) { setShowTransferHistory(false); return true }
       if (showRequisitions) { if (!requisitionBackRef.current?.()) setShowRequisitions(false); return true }
-      if (showRecap) { setShowRecap(false); return true }
+      if (showRecap) { if (!recapBackRef.current?.()) setShowRecap(false); return true }
       if (refundOrder) { setRefundOrder(null); setRefundSale(null); return true }
       if (layer === 'close-picker') { setPendingFulfillment(null); return true }
       if (layer === 'close-success') { dispatch({ type: 'CLOSE_SUCCESS' }); return true }
@@ -969,7 +985,7 @@ export default function CashierScreen() {
   }, [
     showConnection, showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRequisitions, showRecap, refundOrder,
     state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment, state.isProcessing, pendingFulfillment, confirm,
-    state.activeTab, profileCustomer, showCustomerSheet,
+    state.activeTab, profileCustomer, showCustomerSheet, heldOpen,
   ])
 
   if (!user) return null
@@ -1064,6 +1080,13 @@ export default function CashierScreen() {
         {/* Product panel */}
         <div className={`flex-1 min-w-0 overflow-hidden sm:block ${state.activeTab === 'cart' ? 'hidden' : 'block'}`}>
           {derived.totalCartItems === 0 && customerChip}
+          {derived.totalCartItems === 0 && heldOrders.held.length > 0 && (
+            <div className="px-3 pt-2">
+              <Button variant="secondary" onClick={() => heldOrders.setOpen(true)} className="min-h-11">
+                Pesanan tersimpan ({heldOrders.held.length})
+              </Button>
+            </div>
+          )}
           <ProductGrid
             products={displayProducts} categories={categories}
             selectedCategoryId={selectedCategoryId} searchQuery={searchQuery}
@@ -1088,6 +1111,7 @@ export default function CashierScreen() {
               products={displayProducts}
               onRemove={cartActions.removeItem} onSetQty={cartActions.setQty}
               onSwitchSize={handleSwitchSize} lineBackRef={lineBackRef}
+              heldCount={heldOrders.held.length} onOpenHeld={() => heldOrders.setOpen(true)}
               onClear={() => setConfirm({ message: 'Kosongkan keranjang? Pelanggan, promo dan catatan ikut terhapus.', confirmLabel: 'Kosongkan', tone: 'danger', run: cartActions.clearCart })}
               onCheckout={handleCheckout}
               onOpenAdjustment={(panel) => { setPendingFulfillment(null); dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel }) }}
@@ -1206,6 +1230,12 @@ export default function CashierScreen() {
         onNewSale={() => dispatch({ type: 'RESET_SALE' })}
       />
 
+      <HeldOrdersSheet
+        open={heldOrders.open} onClose={() => heldOrders.setOpen(false)} held={heldOrders.held}
+        canSave={heldOrders.hasCart} defaultName={heldOrders.suggestedName}
+        onSave={heldOrders.save} onResume={heldOrders.resume} onDelete={heldOrders.remove}
+      />
+
       <ShiftRecapPanel
         isOpen={showRecap}
         onClose={() => { setShowRecap(false); setCloseIntent(false) }}
@@ -1221,6 +1251,9 @@ export default function CashierScreen() {
         isOpeningShift={shift.isOpeningShift}
         isClosingShift={shift.isClosingShift}
         queuedRefunds={engine.queuedRefunds()}
+        blindCount={blindCount}
+        heldCount={heldOrders.held.length}
+        backRef={recapBackRef}
       />
 
       <MenuDrawer
@@ -1233,6 +1266,8 @@ export default function CashierScreen() {
         lastSyncedLabel={offlineData.lastSyncedAt
           ? new Date(offlineData.lastSyncedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
           : null}
+        heldCount={heldOrders.held.length}
+        onHeldOrders={() => heldOrders.setOpen(true)}
         onHistory={() => setShowHistory(true)}
         onLocalReceipts={() => setShowLocalReceipts(true)}
         onRecap={() => setShowRecap(true)}
@@ -1349,6 +1384,7 @@ export default function CashierScreen() {
           onFontSizeChange={handleFontSize} onGridColsChange={handleGridCols}
           onShowPriceChange={handleShowPrice} onShowStockChange={handleShowStock}
           onShowVariantsChange={handleShowVariants}
+          blindCount={blindCount} onBlindCountChange={handleBlindCount}
           onClose={() => { setShowSettings(false); setSettingsSection(undefined) }}
         />
       )}

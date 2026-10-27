@@ -8,7 +8,7 @@
  * All data is server-sourced. Brand gold comes free — index.css remaps the
  * indigo palette to gold, so the indigo-* classes here render gold.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
 import { isCashMethod } from '@mandalika/types'
 import type { components } from '@mandalika/api'
 import type { RecapData } from '@mandalika/printer'
@@ -18,6 +18,9 @@ import { usePrinter } from '../printer'
 import { formatRupiah } from './pricing'
 import { freshCurrentRecap, loadCurrentRecap, loadRecapHistory, loadHistoricalRecap, RECAP_STALE_NOTICE } from './recapData'
 import { Skeleton } from '../components/Skeleton'
+import { Button } from '../components/ui/Button'
+import { DenominationSheet } from './DenominationSheet'
+import { isCountRevealed } from './countRules'
 import { applyRefundRecap, recapFigures, refundRecap, type RefundRecap } from './refundRecap'
 import { RecapLoadGate, ownsFlags, startRefresh, switchTab } from './recapRefresh'
 
@@ -101,6 +104,12 @@ interface ShiftRecapPanelProps {
   isClosingShift: boolean
   /** Refunds on this device not yet acknowledged by the server (incl. parked), from the sync engine. */
   queuedRefunds: readonly QueuedRefund[]
+  /** D-4: hide the system's expected amounts until every Terhitung is entered (Pengaturan). */
+  blindCount?: boolean
+  /** D-6: carts held on this tablet; they stay across shifts, so this is information only. */
+  heldCount?: number
+  /** Android Back closes the denomination sheet before the recap (returns true when it did). */
+  backRef?: MutableRefObject<(() => boolean) | null>
 }
 
 const HISTORY_PAGE_SIZE = 20
@@ -160,6 +169,9 @@ function ShiftRecapPanelBody({
   isOpeningShift,
   isClosingShift,
   queuedRefunds,
+  blindCount = false,
+  heldCount = 0,
+  backRef,
 }: Omit<ShiftRecapPanelProps, 'isOpen'>) {
   const printer = usePrinter()
   const [printMsg, setPrintMsg] = useState<string | null>(null)
@@ -207,6 +219,8 @@ function ShiftRecapPanelBody({
   // Per-method cash the cashier physically counted (reconciliation "Terhitung").
   // Keyed by payment-method id; only filled keys are sent on close.
   const [counted, setCounted] = useState<Record<string, number>>({})
+  // D-5: the payment method whose Terhitung the denomination counter is filling.
+  const [denomFor, setDenomFor] = useState<string | null>(null)
 
   // Rekapan and Riwayat share the loading/stale/error flags, so each tab has its own ordering gate and
   // only the visible tab may touch the flags. (Ordering rules: RecapLoadGate.)
@@ -351,8 +365,9 @@ function ShiftRecapPanelBody({
   const handleClose = async () => {
     // Counted income is mandatory for every enabled method that took money —
     // the cashier must reconcile each tender before the shift can close.
+    // Blind count requires every enabled field, so the list never hints which methods took money.
     const needCount = paymentMethods.filter(
-      (p) => p.isEnabled && (live?.byMethod[p.id] ?? 0) > 0 && counted[p.id] === undefined,
+      (p) => p.isEnabled && (blindCount || (live?.byMethod[p.id] ?? 0) > 0) && counted[p.id] === undefined,
     )
     if (needCount.length > 0) {
       setCloseError(`Isi Terhitung dulu untuk: ${needCount.map((m) => m.label).join(', ')}`)
@@ -367,6 +382,10 @@ function ShiftRecapPanelBody({
     setClosingCash('')
     setTimeout(() => void loadRekap(), 1700)
   }
+
+  // D-4: with blind count on, the system's amounts wait until every Terhitung field has a value.
+  const countFieldIds = currentShift ? paymentMethods.filter((p) => p.isEnabled).map((p) => p.id) : []
+  const revealed = isCountRevealed(blindCount, countFieldIds, counted)
 
   const cashIn = currentFlows.filter((f) => !isCashOut(f.type)).reduce((s, f) => s + f.amount, 0)
   const cashOut = currentFlows.filter((f) => isCashOut(f.type)).reduce((s, f) => s + f.amount, 0)
@@ -493,6 +512,11 @@ function ShiftRecapPanelBody({
           </div>
         ) : tab === 'rekapan' ? (
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {heldCount > 0 && (
+              <p className="text-xs text-gray-600 bg-white border border-gray-200 rounded-xl px-3 py-2">
+                {heldCount} pesanan tersimpan di tablet ini. Tetap ada setelah shift ditutup.
+              </p>
+            )}
             <div className="flex gap-2.5 bg-indigo-50 border border-indigo-100 rounded-xl p-3">
               <div className="w-4 h-4 mt-0.5 rounded-full bg-indigo-400 flex items-center justify-center flex-shrink-0">
                 <span className="text-white text-[10px] font-black">i</span>
@@ -521,9 +545,11 @@ function ShiftRecapPanelBody({
                   <div key={pm.id} className="bg-white rounded-xl border border-gray-200 px-4 py-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-gray-700">{pm.label}</span>
-                      <span className="text-xs text-gray-400">
-                        Tercatat <span className="font-bold text-gray-600">{formatRupiah(recorded)}</span>
-                      </span>
+                      {revealed && (
+                        <span className="text-xs text-gray-400">
+                          Tercatat <span className="font-bold text-gray-600">{formatRupiah(recorded)}</span>
+                        </span>
+                      )}
                     </div>
                     {currentShift && (
                       <>
@@ -542,11 +568,14 @@ function ShiftRecapPanelBody({
                                 return next
                               })
                             }}
-                            placeholder={String(recorded)}
+                            placeholder={revealed ? String(recorded) : '0'}
                             className="flex-1 min-w-0 px-3 py-1.5 bg-gray-50 border border-gray-200 focus:border-indigo-500 rounded-lg text-sm font-bold text-right focus:outline-none"
                           />
                         </div>
-                        {hasC && diff !== 0 && (
+                        {isCashMethod(paymentMethods, pm.id) && (
+                          <Button variant="secondary" onClick={() => setDenomFor(pm.id)} className="mt-2 min-h-11 w-full">Hitung lembar</Button>
+                        )}
+                        {revealed && hasC && diff !== 0 && (
                           <p className={`mt-1 text-[11px] font-bold text-right ${diff > 0 ? 'text-amber-600' : 'text-red-600'}`}>
                             Selisih {diff > 0 ? '+' : ''}{formatRupiah(diff)}
                           </p>
@@ -567,21 +596,29 @@ function ShiftRecapPanelBody({
                 ? 'text-indigo-700' : diffTotal > 0 ? 'text-amber-600' : 'text-red-600'
               return (
                 <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-indigo-800">Total Tercatat</span>
-                    <span className="text-sm font-black text-indigo-700">{formatRupiah(recordedTotal)}</span>
-                  </div>
-                  <RefundRecapNotes rec={curRecap} />
+                  {revealed && (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-indigo-800">Total Tercatat</span>
+                        <span className="text-sm font-black text-indigo-700">{formatRupiah(recordedTotal)}</span>
+                      </div>
+                      <RefundRecapNotes rec={curRecap} />
+                    </>
+                  )}
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold text-indigo-800">Total Terhitung</span>
                     <span className="text-sm font-black text-indigo-700">{hasCounted ? formatRupiah(countedTotal) : '—'}</span>
                   </div>
-                  <div className="flex items-center justify-between border-t border-indigo-200 pt-2">
-                    <span className="text-sm font-semibold text-indigo-800">Selisih</span>
-                    <span className={`text-sm font-black ${diffCls}`}>
-                      {hasCounted ? `${diffTotal > 0 ? '+' : ''}${formatRupiah(diffTotal)}` : '—'}
-                    </span>
-                  </div>
+                  {revealed ? (
+                    <div className="flex items-center justify-between border-t border-indigo-200 pt-2">
+                      <span className="text-sm font-semibold text-indigo-800">Selisih</span>
+                      <span className={`text-sm font-black ${diffCls}`}>
+                        {hasCounted ? `${diffTotal > 0 ? '+' : ''}${formatRupiah(diffTotal)}` : '—'}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="border-t border-indigo-200 pt-2 text-xs text-indigo-700">Angka sistem dan Selisih tampil setelah semua Terhitung diisi.</p>
+                  )}
                 </div>
               )
             })()}
@@ -624,8 +661,8 @@ function ShiftRecapPanelBody({
                   className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all">
                   {isClosingShift ? 'Menutup…' : 'Tutup Shift'}
                 </button>
-                <button type="button" onClick={() => void handlePrintRecap(buildCurrentRecap())}
-                  className="w-full py-2.5 border border-indigo-200 text-indigo-700 font-bold text-sm rounded-xl hover:bg-indigo-50 transition-all flex items-center justify-center gap-2">
+                <button type="button" onClick={() => void handlePrintRecap(buildCurrentRecap())} disabled={!revealed}
+                  className="w-full disabled:opacity-40 py-2.5 border border-indigo-200 text-indigo-700 font-bold text-sm rounded-xl hover:bg-indigo-50 transition-all flex items-center justify-center gap-2">
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>
                   Cetak Rekap
                 </button>
@@ -762,6 +799,7 @@ function ShiftRecapPanelBody({
               <div className="border-t border-gray-100">{sumRow('Total', formatRupiah(cashOut), true)}</div>
             </div>
 
+            {revealed && <>
             <div>
               <p className="text-xs font-black text-gray-900 mb-2">Ringkasan Penjualan</p>
               <div className="flex justify-between text-xs font-black text-gray-400 uppercase tracking-wider border-b border-gray-200 pb-1 mb-1">
@@ -784,9 +822,12 @@ function ShiftRecapPanelBody({
               {sumRow('Pajak', formatRupiah(live?.tax ?? 0))}
               {sumRow('Total Penjualan', formatRupiah(live?.totalSales ?? 0), true)}
             </div>
+            </>}
           </div>
         ) : selected ? (
-          (() => {
+          blindCount && !revealed && selected.id === currentShift?.id ? (
+            <p className="p-4 text-sm text-gray-500">Angka sistem shift ini tampil setelah semua Terhitung diisi.</p>
+          ) : (() => {
             const b = aggregate(selectedOrders, paymentMethods)
             // A closed shift's snapshot is final: only what the server recorded, never the live queue.
             const histRecap = refundRecap(selected, undefined)
@@ -958,6 +999,13 @@ function ShiftRecapPanelBody({
           </div>
         )}
       </div>
+      {denomFor !== null && (
+        <DenominationSheet
+          backRef={backRef}
+          onClose={() => setDenomFor(null)}
+          onApply={(total) => { setCounted((prev) => ({ ...prev, [denomFor]: total })); setDenomFor(null) }}
+        />
+      )}
     </div>
   )
 }

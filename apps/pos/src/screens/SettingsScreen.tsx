@@ -44,11 +44,14 @@ interface SettingsScreenProps {
   showPrice: boolean
   showStock: boolean
   showVariants: boolean
+  /** D-4: hide the system's expected amounts at Tutup Shift until every Terhitung is entered. */
+  blindCount: boolean
   onFontSizeChange: (size: FontSize) => void
   onGridColsChange: (cols: GridCols) => void
   onShowPriceChange: (v: boolean) => void
   onShowStockChange: (v: boolean) => void
   onShowVariantsChange: (v: boolean) => void
+  onBlindCountChange: (v: boolean) => void
   onClose: () => void
 }
 
@@ -79,11 +82,13 @@ export const SettingsScreen = memo(function SettingsScreen({
   showPrice,
   showStock,
   showVariants,
+  blindCount,
   onFontSizeChange,
   onGridColsChange,
   onShowPriceChange,
   onShowStockChange,
   onShowVariantsChange,
+  onBlindCountChange,
   onClose,
 }: SettingsScreenProps) {
   const engine = use(SyncContext)
@@ -242,6 +247,14 @@ export const SettingsScreen = memo(function SettingsScreen({
                   <Toggle label="Tampilkan Stok" checked={showStock} onChange={onShowStockChange} />
                   <Toggle label="Tampilkan Varian" checked={showVariants} onChange={onShowVariantsChange} />
                 </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-600 font-semibold mb-1">Tutup Shift</p>
+                <div className="divide-y divide-gray-100">
+                  <Toggle label="Tutup Shift: sembunyikan angka sistem" checked={blindCount} onChange={onBlindCountChange} />
+                </div>
+                <p className="mt-1 text-[11px] text-gray-500">Angka Tercatat dan Selisih baru tampil setelah semua Terhitung diisi.</p>
               </div>
             </div>
           )}

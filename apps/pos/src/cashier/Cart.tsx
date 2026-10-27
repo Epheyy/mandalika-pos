@@ -35,6 +35,9 @@ interface CartProps {
   onSwitchSize: (productId: string, fromSize: string, toSize: string) => boolean
   /** Filled while the line sheet is open so Android Back closes it first (returns true when it did). */
   lineBackRef?: MutableRefObject<(() => boolean) | null>
+  /** D-6: parked carts on this tablet; the header keeps a chip to them and a Simpan button for this cart. */
+  heldCount: number
+  onOpenHeld: () => void
   onClear: () => void
   onCheckout: () => void
   onOpenAdjustment: (panel: 'notes' | 'promo') => void
@@ -81,6 +84,8 @@ export const Cart = memo(function Cart({
   onSetQty,
   onSwitchSize,
   lineBackRef,
+  heldCount,
+  onOpenHeld,
   onClear,
   onCheckout,
   onOpenAdjustment,
@@ -153,11 +158,24 @@ export const Cart = memo(function Cart({
             </span>
           )}
         </h2>
-        {!isEmpty && (
-          <Button variant="ghost" onClick={onClear} className="min-h-11 px-2">
-            Kosongkan
-          </Button>
-        )}
+        <div className="flex items-center">
+          {heldCount > 0 && (
+            <Button variant="ghost" onClick={onOpenHeld} className="min-h-11 px-2">
+              Tersimpan ({heldCount})
+            </Button>
+          )}
+          {!isEmpty && (
+            <>
+              {/* aria-label differs from the visible text so exact "Simpan" (customer form) stays unambiguous. */}
+              <Button variant="ghost" onClick={onOpenHeld} aria-label="Simpan keranjang" className="min-h-11 px-2">
+                Simpan
+              </Button>
+              <Button variant="ghost" onClick={onClear} className="min-h-11 px-2">
+                Kosongkan
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Items */}

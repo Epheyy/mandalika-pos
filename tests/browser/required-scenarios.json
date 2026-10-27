@@ -98,6 +98,12 @@
       "source": "tests/browser/pos-scenarios.ts"
     },
     {
+      "id": "POS-HELD-ORDERS",
+      "finding": "UX-B4",
+      "description": "Pesanan tersimpan: Simpan keranjang names and parks the cart (no confirm, cart empties, chip shows the count), the hamburger entry opens the list, Lanjutkan restores the line and the sale is paid in cash",
+      "source": "tests/browser/pos-scenarios.ts"
+    },
+    {
       "id": "S0A-DIAGNOSTICS",
       "finding": "A02",
       "description": "Rendered repeated export/cancel/share/clipboard failures retain two failed operations",
