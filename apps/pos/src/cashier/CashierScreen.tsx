@@ -939,7 +939,7 @@ export default function CashierScreen() {
         successOpen: state.isSuccessOpen, checkoutOpen: state.isCheckoutOpen, adjustmentOpen: !!state.activeAdjustment, cartTabActive: state.activeTab === 'cart',
       })
       if (layer === 'ignore-busy') return true
-      if (layer === 'close-confirm') { dismissConfirm(); return true }
+      if (layer === 'close-confirm') { confirm?.onCancel?.(); setConfirm(null); return true }
       if (lineBackRef.current?.()) return true
       if (variantBackRef.current?.()) return true
       if (showConnection) { setShowConnection(false); return true }
