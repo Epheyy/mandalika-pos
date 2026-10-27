@@ -20,6 +20,16 @@ export interface ReceiptLine {
   unitPrice: number
   /** Line total in whole Rupiah. */
   amount: number
+  /** C1: a promo/loyalty giveaway line. Absent on receipts archived before C1. */
+  isReward?: boolean
+  /** C1: optional tag naming the reward (e.g. the promo); printed after the name. */
+  rewardLabel?: string
+}
+
+/** C1: one deduction row (a promo, a code or the manual discount), already in whole Rupiah. */
+export interface ReceiptDiscountRow {
+  label: string
+  amount: number
 }
 
 /** Everything needed to render a slip, online or offline-queued. */
@@ -30,7 +40,17 @@ export interface ReceiptData {
   dateTime: Date
   lines: ReceiptLine[]
   subtotal: number
+  /** Total deduction. Kept for old callers; the printer prefers `discounts` when present. */
   discountAmount: number
+  /** C1: one row per applied promo / code / manual discount. Absent on pre-C1 archived receipts
+   *  (the printer then falls back to a single "Diskon" row from `discountAmount`). */
+  discounts?: ReceiptDiscountRow[]
+  /** C1: "Biaya tambahan", already inside `total`. null/absent = none. */
+  surcharge?: number | null
+  /** C1: "Tukar poin" redemption, already deducted from `total`. null/absent = none. */
+  pointsRedeemed?: { points: number; amount: number } | null
+  /** C1: cash/total rounding delta (signed) so the slip still adds up when rounding is on. */
+  rounding?: number | null
   taxAmount: number
   total: number
   paymentLabel: string
@@ -74,6 +94,32 @@ function pad(left: string, right: string): string {
   const keep = Math.max(0, COLS - right.length - 1)
   return left.slice(0, keep) + ' ' + right
 }
+
+/** Wrap `text` into at most `maxLines` lines of COLS characters (word-aware, hard-cut the rest). */
+function wrap(text: string, maxLines: number): string[] {
+  const out: string[] = []
+  let rest = text.trim()
+  while (rest.length > 0 && out.length < maxLines) {
+    if (rest.length <= COLS) { out.push(rest); rest = ''; break }
+    let cut = rest.lastIndexOf(' ', COLS)
+    if (cut <= 0) cut = COLS
+    out.push(rest.slice(0, cut))
+    rest = rest.slice(cut).trim()
+  }
+  return out
+}
+
+/** A labelled amount row; a label too long to sit beside its amount wraps (2 lines max) and the amount
+ *  goes right-aligned on its own line, so neither is ever clipped. */
+function labelRow(b: Buf, label: string, amount: string): void {
+  if (label.length + 1 + amount.length <= COLS) { b.line(pad(label, amount)); return }
+  const parts = wrap(label, 2)
+  for (const l of parts) b.line(l)
+  b.line(pad('', amount))
+}
+
+/** "-Rp10.000" style deduction amount (ASCII hyphen: Latin-1 safe). */
+const minusRp = (n: number): string => '-Rp' + money(n)
 
 function center(text: string): string {
   if (text.length >= COLS) return text.slice(0, COLS)
@@ -154,19 +200,32 @@ export function buildReceipt(
   b.divider()
 
   for (const item of data.lines) {
-    b.line(item.name.slice(0, COLS))
+    const tag = item.isReward ? ` [${(item.rewardLabel ?? 'HADIAH').toUpperCase()}]` : ''
+    for (const l of wrap(item.name + tag, 2)) b.line(l)
     if (item.variant) b.line(`  ${item.variant}`.slice(0, COLS))
-    b.line(pad(`  ${item.qty} x ${money(item.unitPrice)}`, money(item.amount)))
+    // A giveaway at Rp0 prints GRATIS (as the screen does), never a bare "0".
+    const amountText = item.isReward && item.amount === 0 ? 'GRATIS' : money(item.amount)
+    b.line(pad(`  ${item.qty} x ${money(item.unitPrice)}`, amountText))
   }
   b.divider()
 
   if (settings.showSubtotal !== false) b.line(pad('Subtotal', money(data.subtotal)))
-  if (settings.showDiscount !== false && data.discountAmount > 0) {
-    b.line(pad('Diskon', '-' + money(data.discountAmount)))
+  if (settings.showDiscount !== false) {
+    if (data.discounts) {
+      for (const d of data.discounts) if (d.amount > 0) labelRow(b, `- ${d.label}`, minusRp(d.amount))
+    } else if (data.discountAmount > 0) {
+      // Pre-C1 archived receipt: no per-promo detail, keep today's single row.
+      b.line(pad('Diskon', '-' + money(data.discountAmount)))
+    }
+  }
+  if (data.surcharge && data.surcharge > 0) b.line(pad('Biaya tambahan', money(data.surcharge)))
+  if (data.pointsRedeemed && data.pointsRedeemed.amount > 0) {
+    b.line(pad(`Tukar poin (${data.pointsRedeemed.points})`, minusRp(data.pointsRedeemed.amount)))
   }
   if (settings.showTax && data.taxAmount > 0) {
     b.line(pad('PPN', money(data.taxAmount)))
   }
+  if (data.rounding) b.line(pad('Pembulatan', (data.rounding > 0 ? '+' : '') + money(data.rounding)))
   b.raw(BOLD_ON).line(pad('TOTAL', money(data.total))).raw(BOLD_OFF)
   b.line(pad(data.paymentLabel, money(data.amountPaid)))
   if (settings.showChange !== false && data.change > 0) {
@@ -303,7 +362,7 @@ export function buildRecap(data: RecapData, settings: ReceiptSettings): Uint8Arr
   b.line(pad('Penjualan Kotor', money(data.gross)))
   if (data.refundTotal > 0) b.line(pad('Pengembalian Kotor', '-' + money(data.refundTotal)))
   if (data.discount > 0) b.line(pad('Diskon', '-' + money(data.discount)))
-  if (data.surcharge > 0) b.line(pad('Surcharge', money(data.surcharge)))
+  if (data.surcharge > 0) b.line(pad('Biaya tambahan', money(data.surcharge)))
   b.line(pad('Penjualan Bersih', money(data.net)))
   if (data.tax > 0) b.line(pad('Pajak', money(data.tax)))
   b.raw(BOLD_ON).line(pad('TOTAL', money(data.totalSales))).raw(BOLD_OFF)
