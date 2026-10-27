@@ -151,6 +151,51 @@ def port_open(port: int) -> bool:
         return s.connect_ex(("127.0.0.1", port)) == 0
 
 
+PORT_WAIT_TRIES = 10
+PORT_WAIT_DELAY = 1.0
+TAIL_LINES = 80
+RETRYABLE_START = ("address already in use", "port is already allocated", "already occupied",
+                   "readiness deadline exceeded")
+
+
+def port_free(port: int) -> bool:
+    """Closed to connects AND bindable: a releasing docker proxy can refuse a bind while connects fail."""
+    if port_open(port):
+        return False
+    with socket.socket() as s:
+        if os.name != "nt":
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+    return True
+
+
+def wait_port_free(port: int, tries: int = PORT_WAIT_TRIES, delay: float = PORT_WAIT_DELAY) -> bool:
+    """Bounded wait (tries x delay) for a previous container to release the port."""
+    for attempt in range(tries):
+        if port_free(port):
+            return True
+        if attempt < tries - 1:
+            time.sleep(delay)
+    return port_free(port)
+
+
+def failure_diagnostics(raw: str, password: str) -> dict:
+    """Failing test names and the tail of the go test -json stream, so a CI artifact is self-diagnosing."""
+    failed = []
+    for line in raw.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict) and event.get("Action") == "fail" and event.get("Test"):
+            failed.append(event["Test"])
+    tail = chr(10).join(raw.splitlines()[-TAIL_LINES:])
+    return {"failed_tests": sorted(set(failed)), "output_tail": sanitize(tail, password)}
+
+
 def named_result(raw: str, name: str, exit_code: int) -> dict:
     """Exit zero/no-tests-to-run/skip are never evidence of a named PASS."""
     events = []
@@ -201,7 +246,7 @@ class Fixture:
                        env=self.env, timeout=timeout)
 
     def start(self):
-        if port_open(self.port):
+        if not wait_port_free(self.port):
             raise GateError("expected fixture port already occupied; no existing target used")
         if self.args.runtime == "docker":
             self.created = True  # cleanup by unique owned name even if create response is lost
@@ -307,7 +352,7 @@ class Fixture:
             shutil.rmtree(directory)
             if directory.exists():
                 raise GateError("fixture files survived removal")
-        if port_open(self.port):
+        if not wait_port_free(self.port):
             raise GateError("fixture port still occupied after teardown")
         self.evidence["cleanup"] = "removed-and-port-closed"
 
@@ -389,9 +434,21 @@ def run(args) -> int:
             fixture = Fixture(args, gate, item)
             t0 = time.monotonic()
             try:
-                fixture.start()
-                item["stage"] = "readiness"
-                fixture.ready()
+                for attempt in (1, 2):
+                    try:
+                        item["stage"] = "start"
+                        fixture.start()
+                        item["stage"] = "readiness"
+                        fixture.ready()
+                        break
+                    except (GateError, subprocess.TimeoutExpired) as exc:
+                        # Start-stage only (never a test failure): retry once with a fresh container.
+                        if attempt == 2 or not any(m in str(exc).lower() for m in RETRYABLE_START):
+                            raise
+                        item.setdefault("start_retries", []).append(
+                            {"attempt": attempt, "stage": item["stage"], "reason": sanitize(str(exc), fixture.password)[-500:]})
+                        fixture.cleanup()
+                        fixture = Fixture(args, gate, item)
                 item["stage"] = "identity"
                 fixture.identify()
                 item["stage"] = "test"
@@ -407,6 +464,8 @@ def run(args) -> int:
                 save(args.output, report)
                 result = command(cmd, env=test_env, timeout=args.test_timeout + 60, cwd=ROOT / "backend")
                 item["result"] = named_result(result.stdout, gate[1], result.returncode)
+                if item["result"]["status"] != "pass":
+                    item["result"].update(failure_diagnostics(result.stdout, fixture.password))
                 log = args.output.parent / f"{gate[0]}.go-test.jsonl"
                 log.write_text(sanitize(result.stdout, fixture.password), encoding="utf-8")
                 item["log"] = log.name
