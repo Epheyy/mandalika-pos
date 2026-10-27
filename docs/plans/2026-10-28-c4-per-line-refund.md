@@ -392,7 +392,7 @@ Consequence to state plainly: with a PIN, **no refund can be made offline**. Tod
 
 ## 3. D-register (owner decisions, continues the UX plan's D-1..D-30)
 
-**Owner decisions, 2026-10-28:** D-31 = **no PIN** (keep `process_refund` permission only, as today; refunds stay offline-capable; slice C4p is dropped). D-32 is moot. **D-33 to D-48 = the recommended defaults below.** The ERP questions E-1..E-5 (section 2.10) are still open and gate the C4b OTA, not C4a.
+**Owner decisions, 2026-10-28:** D-31 = **no PIN** (keep `process_refund` permission only, as today; refunds stay offline-capable; slice C4p is dropped). D-32 is moot. **D-33 to D-48 = the recommended defaults below.** **D-49 (2026-10-28):** the refund amount of record is capped at what the order still has left to refund (`orders.total` minus earlier refunds); the tablet's claimed amount and the `amount_mismatch`/`over_total` flags stay as information; built in C4c before the C4b OTA. The ERP questions E-1..E-5 (section 2.10) are still open and gate the C4b OTA, not C4a.
 
 | ID | Question | Recommended default |
 |---|---|---|
