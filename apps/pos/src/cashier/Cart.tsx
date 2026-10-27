@@ -1,17 +1,25 @@
-import { memo } from 'react'
+import { memo, useEffect, useState, type MutableRefObject } from 'react'
 import type { components } from '@mandalika/api'
 import type { CartDerived } from '../hooks/useCart'
 import { formatRupiah } from './pricing'
 import { variantLabel } from '@mandalika/types'
 import type { AppliedPromoCode } from './promoValidate'
-import { IconClock, IconClose } from '../components/ui/icons'
+import { IconChevronRight, IconClock, IconClose } from '../components/ui/icons'
 import { Button } from '../components/ui/Button'
 import { Stepper } from '../components/ui/Stepper'
+import { LineSheet } from './LineSheet'
+import { sizeOptions } from './lineSizes'
 
 type CartItem = components['schemas']['CartItem']
 type AppSettings = components['schemas']['AppSettings']
 type Customer = components['schemas']['Customer']
 type Promotion = components['schemas']['Promotion']
+type Product = components['schemas']['Product']
+
+interface LineKey {
+  productId: string
+  variantSize: string
+}
 
 interface CartProps {
   cart: CartItem[]
@@ -19,8 +27,14 @@ interface CartProps {
   settings: AppSettings
   selectedCustomer: Customer | null
   pendingSync: boolean
+  /** Catalog (pending-adjusted) for the line sheet's size switch. */
+  products: Product[]
   onRemove: (productId: string, variantSize: string) => void
   onSetQty: (productId: string, variantSize: string, qty: number) => void
+  /** B1 size switch; returns true when the line was moved (false = blocked, nothing changed). */
+  onSwitchSize: (productId: string, fromSize: string, toSize: string) => boolean
+  /** Filled while the line sheet is open so Android Back closes it first (returns true when it did). */
+  lineBackRef?: MutableRefObject<(() => boolean) | null>
   onClear: () => void
   onCheckout: () => void
   onOpenAdjustment: (panel: 'notes' | 'discount' | 'promo') => void
@@ -63,8 +77,11 @@ export const Cart = memo(function Cart({
   settings,
   selectedCustomer,
   pendingSync,
+  products,
   onRemove,
   onSetQty,
+  onSwitchSize,
+  lineBackRef,
   onClear,
   onCheckout,
   onOpenAdjustment,
@@ -84,6 +101,46 @@ export const Cart = memo(function Cart({
   const rewardLines = cart.filter((i) => i.isReward).length
   const hasPromo = appliedPromotions.length > 0 || appliedPromoCodes.length > 0
   const hasManual = discountRunning > 0 || surchargeRunning > 0
+
+  // B1 line sheet: keyed by the paid line it edits; derived from the live cart so the
+  // quantity and subtotal follow the reducer, and the sheet is simply gone once the line is.
+  const [lineKey, setLineKey] = useState<LineKey | null>(null)
+  const openLine = lineKey
+    ? cart.find((i) => i.productId === lineKey.productId && i.variantSize === lineKey.variantSize && !i.isReward) ?? null
+    : null
+  // A key whose line is gone is dropped at once (state adjusted during render, no effect),
+  // so re-adding that product+size later can never pop the sheet open by itself.
+  if (lineKey && !openLine) setLineKey(null)
+  const closeLine = () => setLineKey(null)
+
+  // Android Back closes the line sheet before anything underneath.
+  useEffect(() => {
+    if (!lineBackRef) return
+    lineBackRef.current = openLine ? () => { setLineKey(null); return true } : null
+    return () => { lineBackRef.current = null }
+  }, [openLine, lineBackRef])
+
+  const handleLineQty = (qty: number) => {
+    if (!openLine) return
+    onSetQty(openLine.productId, openLine.variantSize, qty)
+    if (qty <= 0) closeLine()
+  }
+  const handleLineRemove = () => {
+    if (!openLine) return
+    onRemove(openLine.productId, openLine.variantSize)
+    closeLine()
+  }
+  const handleLineSwitch = (toSize: string) => {
+    if (!openLine) return
+    // Follow the line to its new size only when the switch went through.
+    if (onSwitchSize(openLine.productId, openLine.variantSize, toSize)) {
+      setLineKey({ productId: openLine.productId, variantSize: toSize })
+    }
+  }
+  const handleLineNotes = () => {
+    closeLine()
+    onOpenAdjustment('notes')
+  }
 
   return (
     <div className="flex h-full flex-col border-l border-paper-2 bg-white">
@@ -133,16 +190,27 @@ export const Cart = memo(function Cart({
               key={`${item.productId}-${item.variantSize}-${item.isReward ? item.rewardPromotionId ?? item.rewardConditionId ?? 'r' : ''}`}
               className="flex min-h-16 flex-wrap items-center gap-x-3 gap-y-1 border-b border-paper-2 py-2 lg:flex-nowrap"
             >
-              <div className="order-1 min-w-0 flex-1 basis-[calc(100%-4rem)] lg:basis-auto">
-                <p className="flex items-center gap-2 text-[0.9375rem] font-semibold text-ink-900">
-                  <span className="truncate">{item.productName}</span>
-                  {item.isReward && <Tag tone="reward">HADIAH</Tag>}
-                </p>
-                {variantLabel(item.variantSize) && <p className="text-[0.8125rem] text-ink-500">{variantLabel(item.variantSize)}</p>}
-                {item.isReward && (
+              {item.isReward ? (
+                <div className="order-1 min-w-0 flex-1 basis-[calc(100%-4rem)] lg:basis-auto">
+                  <p className="flex items-center gap-2 text-[0.9375rem] font-semibold text-ink-900">
+                    <span className="truncate">{item.productName}</span>
+                    <Tag tone="reward">HADIAH</Tag>
+                  </p>
+                  {variantLabel(item.variantSize) && <p className="text-[0.8125rem] text-ink-500">{variantLabel(item.variantSize)}</p>}
                   <p className="text-[0.8125rem] text-ink-500">{item.rewardPromotionId ? 'Hadiah Promo' : 'Hadiah Loyalti'}</p>
-                )}
-              </div>
+                </div>
+              ) : (
+                /* B1: the line body opens the line sheet (qty, size switch, Hapus). */
+                <button
+                  type="button"
+                  onClick={() => setLineKey({ productId: item.productId, variantSize: item.variantSize })}
+                  aria-label={`Ubah ${item.productName}${variantLabel(item.variantSize) ? ' ' + variantLabel(item.variantSize) : ''}`}
+                  className="order-1 min-h-12 min-w-0 flex-1 basis-[calc(100%-4rem)] rounded-control text-left active:bg-paper-1 lg:basis-auto"
+                >
+                  <span className="block truncate text-[0.9375rem] font-semibold text-ink-900">{item.productName}</span>
+                  {variantLabel(item.variantSize) && <span className="block text-[0.8125rem] text-ink-500">{variantLabel(item.variantSize)}</span>}
+                </button>
+              )}
               {item.isReward ? (
                 <>
                   <span className="tnum order-2 flex h-9 min-w-9 items-center justify-center rounded-lg bg-paper-1 px-2 text-base font-semibold text-ink-900">
@@ -164,13 +232,15 @@ export const Cart = memo(function Cart({
                     <p className="tnum text-base font-bold text-ink-900">{formatRupiah(item.subtotal)}</p>
                     <p className="tnum text-xs text-ink-500">{formatRupiah(item.price)}</p>
                   </div>
+                  {/* Visual "›" affordance for the same sheet; the body button carries the accessible name. */}
                   <button
                     type="button"
-                    onClick={() => onRemove(item.productId, item.variantSize)}
-                    aria-label="Hapus"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    onClick={() => setLineKey({ productId: item.productId, variantSize: item.variantSize })}
                     className="touch order-2 -mr-2 inline-flex lg:order-4 items-center justify-center rounded-control text-ink-500 active:bg-paper-1"
                   >
-                    <IconClose size={20} />
+                    <IconChevronRight size={20} />
                   </button>
                 </>
               )}
@@ -178,6 +248,17 @@ export const Cart = memo(function Cart({
           ))
         )}
       </div>
+
+      <LineSheet
+        line={openLine}
+        sizes={openLine ? sizeOptions(products.find((p) => p.id === openLine.productId), openLine.variantSize) : []}
+        hasOrderNotes={orderNotes !== ''}
+        onSetQty={handleLineQty}
+        onRemove={handleLineRemove}
+        onSwitchSize={handleLineSwitch}
+        onOpenNotes={handleLineNotes}
+        onClose={closeLine}
+      />
 
       {/* Adjustments row */}
       {!isEmpty && (

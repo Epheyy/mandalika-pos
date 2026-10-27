@@ -54,6 +54,7 @@ import { effectivePromotionSelection, isRedundantPromoCode } from './promotionSe
 import { buildPromotionMetadata } from './promotionMetadata'
 import { buildReceiptQuote, receiptFromQuote, type ReceiptQuote } from './receiptQuote'
 import { applyPendingStock, stockFor, oversoldSizes, OVERSELL_WARNING } from './stock'
+import { isLineInBundle, planSizeSwitch, SIZE_SWITCH_BUNDLE_MESSAGE } from './lineSizes'
 import { decideApplyCode, validatePromo, validateCode, violationMessage } from './promoValidate'
 import { calcPromoDiscount, bxgyRewardDue } from './pricing'
 import { planPromotionFulfillment, invalidPhysicalPromotionIds, type PromotionOwner, type FulfillmentPlan } from './promotionFulfillment'
@@ -196,6 +197,7 @@ export default function CashierScreen() {
   const [showRequisitions, setShowRequisitions] = useState(false)
   const requisitionBackRef = useRef<(() => boolean) | null>(null)
   const variantBackRef = useRef<(() => boolean) | null>(null)
+  const lineBackRef = useRef<(() => boolean) | null>(null)
   const [pendingReceive, setPendingReceive] = useState<null | { transferId: string; items: { productId: string; variantSize: string; receivedQty: number }[]; reason: string; orderUuid: string; receiptKey: string }>(null)
   // Raised when the cashier tries to sell with no open shift → forces the
   // ShiftBar open-shift modal (selling without a shift is not allowed).
@@ -367,6 +369,33 @@ export default function CashierScreen() {
     variantQtys: Record<string, number>,
   ) => {
     if (addWithStockWarning(product, variantQtys) === 'oversold') showToast(OVERSELL_WARNING)
+  }
+
+  // B1 line sheet size switch: the existing remove + add actions (planSizeSwitch), through
+  // the same add path as a tile tap so the oversell warning applies. The add's own gates
+  // (open shift, offline lock) are checked FIRST so a blocked add never strands the removal.
+  // Returns true only when the line moved.
+  const handleSwitchSize = (productId: string, fromSize: string, toSize: string): boolean => {
+    const product = displayProducts.find((p) => p.id === productId)
+    const line = state.cart.find((i) => i.productId === productId && i.variantSize === fromSize && !i.isReward)
+    if (!product || !line) return false
+    const plan = planSizeSwitch(line, product, toSize)
+    if (!plan) return false
+    if (isLineInBundle(state.bundleFreed, productId, fromSize)) {
+      // CART_REMOVE_ITEM would evict the bundle and its moved units would not follow the switch.
+      showToast(SIZE_SWITCH_BUNDLE_MESSAGE)
+      return false
+    }
+    if (!ensureShift()) return false
+    const lockedMsg = offlineLock()
+    if (lockedMsg) {
+      showToast(lockedMsg)
+      return false
+    }
+    cartActions.removeItem(plan.productId, plan.fromSize)
+    const result = addWithStockWarning(product, plan.variantQtys)
+    if (result === 'oversold') showToast(OVERSELL_WARNING)
+    return result !== 'blocked'
   }
 
   // Scan-to-cart: resolve the code to a variant, add 1 respecting stock.
@@ -951,6 +980,7 @@ export default function CashierScreen() {
   // Android hardware Back: close the top-most surface instead of exiting.
   useEffect(() => {
     setBackHandler(() => {
+      if (lineBackRef.current?.()) return true
       if (variantBackRef.current?.()) return true
       if (showConnection) { setShowConnection(false); return true }
       if (showMenu) { setShowMenu(false); return true }
@@ -1093,7 +1123,9 @@ export default function CashierScreen() {
               cart={state.cart} derived={derived} settings={settings}
               selectedCustomer={state.selectedCustomer}
               pendingSync={offlineData.pendingCount > 0}
+              products={displayProducts}
               onRemove={cartActions.removeItem} onSetQty={cartActions.setQty}
+              onSwitchSize={handleSwitchSize} lineBackRef={lineBackRef}
               onClear={cartActions.clearCart}
               onCheckout={handleCheckout}
               onOpenAdjustment={(panel) => dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel })}

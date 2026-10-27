@@ -80,6 +80,12 @@
       "source": "tests/browser/pos-scenarios.ts"
     },
     {
+      "id": "POS-LINE-SHEET",
+      "finding": "UX-B1",
+      "description": "Variant sheet: a size row adds one unit and closes (D-10), cash sale in four taps; line sheet edits quantity, switches size (remove + add, same qty) and removes the line",
+      "source": "tests/browser/pos-scenarios.ts"
+    },
+    {
       "id": "S0A-DIAGNOSTICS",
       "finding": "A02",
       "description": "Rendered repeated export/cancel/share/clipboard failures retain two failed operations",
