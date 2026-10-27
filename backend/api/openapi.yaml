@@ -1604,9 +1604,10 @@ components:
         id: { type: string, format: uuid }
         seq: { type: integer }
         scope: { type: string, enum: [full, partial, legacy_full] }
-        amount: { type: number, format: double, description: 'The amount paid out (a captured fact).' }
+        amount: { type: number, format: double, description: 'The amount of record: the amount paid out, never more than the order had left to refund (D-49).' }
         computedAmount: { type: number, format: double, description: 'What the server computed for the refunded lines.' }
-        amountWarning: { type: string, nullable: true, description: 'Set when amount differs from computedAmount.' }
+        claimedAmount: { type: number, format: double, nullable: true, description: 'The amount the tablet claimed, kept as information when it was capped (D-49); null when no claim was sent.' }
+        amountWarning: { type: string, nullable: true, description: 'amount_mismatch (claim differs from computedAmount) or over_total (claim exceeded what the order had left).' }
         paymentMethod: { type: string }
         reason: { type: string }
         reasonCode: { type: string, nullable: true }

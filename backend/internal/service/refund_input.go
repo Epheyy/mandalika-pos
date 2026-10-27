@@ -149,19 +149,24 @@ func ValidateRefundExtras(items []RefundItemInput, reasonCode string) (string, e
 	return reasonCode, nil
 }
 
-// ResolveRefundAmount picks the amount of record for a refund (D-39, A09 style): the
-// tablet's claimed amount when present, else the computed one, and never an error. warning
-// is "" or RefundWarnAmountMismatch (claimed differs from computed by more than Rp1, or the
-// claim is out of range and was ignored). priorAmounts is the sum of the order's earlier
-// refunds' amounts of record; when the running total exceeds orderTotal by more than Rp1 the
-// warning is RefundWarnOverTotal, which wins over a mismatch.
-func ResolveRefundAmount(claimed *int64, computed, priorAmounts, orderTotal int64) (amount int64, warning string) {
+// ResolveRefundAmount picks the amount of record for a refund (D-39, A09 style, bounded by
+// D-49) and never returns an error. Within the bound the tablet's claimed amount is the fact
+// (it was paid out at the till), else the computed one. The bound: the amount of record never
+// exceeds what the order still has left to refund, max(0, orderTotal - priorAmounts), so no
+// money reader (cash, shift, reports, ERP tender) can sum past the order total. warning is ""
+// or RefundWarnAmountMismatch (claimed differs from computed by more than Rp1, or the claim is
+// out of range and was ignored); when the running total would exceed orderTotal by more than
+// Rp1 it is RefundWarnOverTotal, which wins over a mismatch. claimedKept is the claim as sent
+// (nil when absent or ignored), stored beside the capped amount as information only.
+func ResolveRefundAmount(claimed *int64, computed, priorAmounts, orderTotal int64) (amount int64, warning string, claimedKept *int64) {
 	amount = computed
 	if claimed != nil {
 		if *claimed < 0 || *claimed > maxRefundAmountRp {
 			warning = RefundWarnAmountMismatch // malformed claim: keep the computed figure
 		} else {
-			amount = *claimed
+			v := *claimed
+			claimedKept = &v
+			amount = v
 			if d := amount - computed; d > refundAmountToleranceRp || -d > refundAmountToleranceRp {
 				warning = RefundWarnAmountMismatch
 			}
@@ -170,7 +175,10 @@ func ResolveRefundAmount(claimed *int64, computed, priorAmounts, orderTotal int6
 	if priorAmounts+amount > orderTotal+refundAmountToleranceRp {
 		warning = RefundWarnOverTotal
 	}
-	return amount, warning
+	if remaining := max(orderTotal-priorAmounts, 0); amount > remaining {
+		amount = remaining
+	}
+	return amount, warning, claimedKept
 }
 
 // ClawTarget is the cumulative share of points to take back (or restore) once refundedComputed

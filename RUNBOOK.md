@@ -78,14 +78,15 @@ gcloud run services update-traffic mandalika-pos --region asia-southeast2 \
 - **Do NOT roll back after a partial refund exists.** The old binary would compute shifts and reports without the
   partial amounts and would treat a `partially_refunded` order as not refundable (correct, but its money readers are
   wrong). Fix forward instead.
-- **Invariant to spot-check after the deploy** (expect 0 rows, except rows flagged `over_total`):
+- **Invariant to spot-check after the deploy** (D-49: expect 0 rows, no exception; the amount of record is capped at
+  what the order still had left, the tablet's claim is kept in `claimed_amount`. Rows written before migration 0078
+  and the D-49 deploy may still show up, those are the only ones that can):
 
   ```sql
   SELECT o.id, o.total, sum(r.amount) AS refunded
     FROM orders o JOIN order_refunds r ON r.order_id = o.id
    GROUP BY o.id, o.total
-  HAVING sum(r.amount) > o.total + 1
-     AND bool_and(r.amount_warning IS DISTINCT FROM 'over_total');
+  HAVING sum(r.amount) > o.total + 1;
   ```
 
 ### Connection budget

@@ -4255,7 +4255,7 @@ export interface components {
             scope: "full" | "partial" | "legacy_full";
             /**
              * Format: double
-             * @description The amount paid out (a captured fact).
+             * @description The amount of record: the amount paid out, never more than the order had left to refund (D-49).
              */
             amount: number;
             /**
@@ -4263,7 +4263,12 @@ export interface components {
              * @description What the server computed for the refunded lines.
              */
             computedAmount: number;
-            /** @description Set when amount differs from computedAmount. */
+            /**
+             * Format: double
+             * @description The amount the tablet claimed, kept as information when it was capped (D-49); null when no claim was sent.
+             */
+            claimedAmount?: number | null;
+            /** @description amount_mismatch (claim differs from computedAmount) or over_total (claim exceeded what the order had left). */
             amountWarning?: string | null;
             paymentMethod: string;
             reason: string;

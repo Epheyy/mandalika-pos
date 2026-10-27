@@ -69,22 +69,32 @@ func TestResolveRefundAmount(t *testing.T) {
 		computed, prior, total int64
 		wantAmount             int64
 		wantWarn               string
+		wantClaimed            *int64
 	}{
-		{"no claim uses computed", nil, 1000, 0, 5000, 1000, ""},
-		{"claim equal", i64(1000), 1000, 0, 5000, 1000, ""},
-		{"claim within Rp1", i64(1001), 1000, 0, 5000, 1001, ""},
-		{"claim off by 2", i64(1002), 1000, 0, 5000, 1002, RefundWarnAmountMismatch},
-		{"claim lower by 2", i64(998), 1000, 0, 5000, 998, RefundWarnAmountMismatch},
-		{"negative claim ignored", i64(-5), 1000, 0, 5000, 1000, RefundWarnAmountMismatch},
-		{"huge claim ignored", i64(maxRefundAmountRp + 1), 1000, 0, 5000, 1000, RefundWarnAmountMismatch},
-		{"over total wins", i64(4500), 1000, 1000, 5000, 4500, RefundWarnOverTotal},
-		{"sum exactly total+1 ok", i64(2001), 2000, 3000, 5000, 2001, ""},
-		{"sum total+2 flagged", i64(2002), 2002, 3000, 5000, 2002, RefundWarnOverTotal},
+		{"no claim uses computed", nil, 1000, 0, 5000, 1000, "", nil},
+		{"claim equal", i64(1000), 1000, 0, 5000, 1000, "", i64(1000)},
+		{"claim within Rp1", i64(1001), 1000, 0, 5000, 1001, "", i64(1001)},
+		{"claim off by 2", i64(1002), 1000, 0, 5000, 1002, RefundWarnAmountMismatch, i64(1002)},
+		{"claim lower by 2", i64(998), 1000, 0, 5000, 998, RefundWarnAmountMismatch, i64(998)},
+		{"negative claim ignored", i64(-5), 1000, 0, 5000, 1000, RefundWarnAmountMismatch, nil},
+		{"huge claim ignored", i64(maxRefundAmountRp + 1), 1000, 0, 5000, 1000, RefundWarnAmountMismatch, nil},
+		// D-49: the amount of record never exceeds what the order still has left (total - prior);
+		// the claim is kept as information and the flag still says why.
+		{"claim above remaining is capped", i64(4500), 1000, 1000, 5000, 4000, RefundWarnOverTotal, i64(4500)},
+		{"claim within remaining stays the fact", i64(800), 1000, 1000, 5000, 800, RefundWarnAmountMismatch, i64(800)},
+		{"claim = remaining+1 capped, no flag", i64(2001), 2000, 3000, 5000, 2000, "", i64(2001)},
+		{"claim remaining+2 capped and flagged", i64(2002), 2002, 3000, 5000, 2000, RefundWarnOverTotal, i64(2002)},
+		{"order already over-refunded earlier: record 0", i64(300), 300, 6000, 5000, 0, RefundWarnOverTotal, i64(300)},
+		{"computed above remaining is capped too", nil, 2500, 3000, 5000, 2000, RefundWarnOverTotal, nil},
+		{"two refunds whose sum would exceed", i64(3000), 3000, 3000, 5000, 2000, RefundWarnOverTotal, i64(3000)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			a, w := ResolveRefundAmount(tc.claimed, tc.computed, tc.prior, tc.total)
+			a, w, c := ResolveRefundAmount(tc.claimed, tc.computed, tc.prior, tc.total)
 			if a != tc.wantAmount || w != tc.wantWarn {
 				t.Fatalf("got %d,%q want %d,%q", a, w, tc.wantAmount, tc.wantWarn)
+			}
+			if (c == nil) != (tc.wantClaimed == nil) || (c != nil && *c != *tc.wantClaimed) {
+				t.Fatalf("claimed kept = %v want %v", c, tc.wantClaimed)
 			}
 		})
 	}

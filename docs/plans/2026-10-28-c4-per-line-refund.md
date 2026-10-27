@@ -296,7 +296,7 @@ Cash leaves the drawer before the server sees the refund (offline queue). Follow
 - The payload carries `refundAmount`, the number the tablet showed and paid out. The server computes `computed_amount` (2.4).
 - `amount` (the amount of record, used by shift, reports, ERP tender and points share) = `refundAmount` when present, otherwise `computed_amount`. Old payloads have no `refundAmount`, so their amount = `orders.total`, as today.
 - If `|refundAmount − computed_amount| > Rp1`, set `amount_warning`, record the claimed value, and show it in the backoffice. The refund still commits.
-- If `refundAmount` would make `Σ amount > orders.total + Rp1`, the refund still commits (the money is gone), flagged `over_total`. The backoffice lists these for follow-up (D-39).
+- If `refundAmount` would make `Σ amount > orders.total + Rp1`, the refund still commits (the money is gone), flagged `over_total`, **and the amount of record is capped at `max(0, orders.total − Σ earlier amounts)` (D-49)**; the tablet's claim is kept in `claimed_amount`. The backoffice lists these for follow-up (D-39).
 - Quantities are the authority for stock. The amount never changes stock.
 
 ### 2.9 Back-compat and rollback
@@ -414,6 +414,7 @@ Consequence to state plainly: with a PIN, **no refund can be made offline**. Tod
 | D-46 | Refund time window (none today) | **Keep none** (owner may set, e.g., 30 days, later) |
 | D-47 | Backoffice admin per-line refund | **Yes, C4c** (until then the backoffice refunds whole orders with no prior refund) |
 | D-48 | Tax in refunds | **Refunds are tax-inclusive (PPN inside the net); no separate PPN refund line** |
+| D-49 | Cap of the amount of record (owner, 2026-10-28; refines D-39) | **The amount of record never exceeds `max(0, orders.total − Σ earlier refund amounts)`, resolved under the order `FOR UPDATE`. Within that bound the claimed (paid-out) amount stays the fact. The tablet's claim is kept in `order_refunds.claimed_amount` (migration 0078) and the `amount_mismatch` / `over_total` flags stay as information. Cash, shift, reports, the ERP tender and the points share all read the capped amount, so an `over_total` document needs no ERP hold. Σ amount ≤ orders.total always (new rows).** |
 
 ---
 

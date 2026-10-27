@@ -32,7 +32,7 @@ const orderObj = `json_build_object('id',o.id,'orderNumber',o.order_number,
   -- used total for a refunded order read this instead, so a partial refund is not a full one.
   'refundedAmount',(SELECT sum(r.amount) FROM order_refunds r WHERE r.order_id=o.id),
   'refunds',(SELECT json_agg(json_build_object(
-     'id',r.id,'seq',r.seq,'scope',r.scope,'amount',r.amount,'computedAmount',r.computed_amount,
+     'id',r.id,'seq',r.seq,'scope',r.scope,'amount',r.amount,'computedAmount',r.computed_amount,'claimedAmount',r.claimed_amount,
      'amountWarning',r.amount_warning,'paymentMethod',r.payment_method,
      'reason',r.reason,'reasonCode',r.reason_code,'shiftId',r.shift_id,
      'refundedByName',r.refunded_by_name,'refundedAt',r.refunded_at,
