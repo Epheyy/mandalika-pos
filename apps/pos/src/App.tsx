@@ -78,7 +78,7 @@ function LoginScreen() {
               placeholder="nama@mandalika.com"
               autoComplete="username"
               type="email"
-              className="w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition"
+              className="w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition"
             />
           </div>
 
@@ -94,7 +94,7 @@ function LoginScreen() {
               type={showPassword ? 'text' : 'password'}
               placeholder="••••••••"
               autoComplete="current-password"
-              className="w-full pl-10 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition"
+              className="w-full pl-10 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition"
             />
             <button
               type="button"
@@ -117,7 +117,7 @@ function LoginScreen() {
           <button
             disabled={busy}
             type="submit"
-            className="w-full mt-5 py-3 bg-amber-700 hover:bg-amber-800 active:bg-amber-900 text-white font-bold rounded-xl shadow-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full mt-5 py-3 bg-brand active:bg-brand-pressed text-white font-bold rounded-xl shadow-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {busy ? 'Masuk…' : 'Masuk'}
           </button>
@@ -143,7 +143,7 @@ function OutletUnassignedScreen() {
           Akun {user?.displayName ?? ''} belum memiliki outlet, jadi tidak bisa dipakai untuk transaksi di kasir.
           Hubungi admin untuk menetapkan outlet pada akun ini, lalu masuk kembali.
         </p>
-        <button type="button" onClick={logout} className="mt-5 text-sm font-semibold text-amber-700 hover:text-amber-800 underline">
+        <button type="button" onClick={logout} className="mt-5 text-sm font-semibold text-brand hover:text-brand-pressed underline">
           Keluar
         </button>
       </div>

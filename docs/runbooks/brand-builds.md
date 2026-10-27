@@ -27,8 +27,9 @@ What the variable selects (registry: `apps/pos/src/brand/brands.ts`):
 and the overrides on `<html>`. Non-Mandalika skins also re-derive the legacy `indigo-*` scale from the
 primary (160 usages still use it); Mandalika sets nothing, so its CSS is unchanged. The brand also picks
 the logo, the `displayName` (login panel, receipt preview, header alt text) and the fallback receipt
-header (`receiptHeader`, used only until the backend `appSettings.receipt.headerText` loads; the backend
-value wins, and the printed receipt in `packages/printer` is untouched).
+header (`receiptHeader`, used only when the pulled snapshot has no `appSettings`; the backend value wins
+as a whole object, so a backend header of '' stays empty. `packages/printer` code is untouched, but it prints
+this same settings object, so the fallback would reach paper in that rare no-settings case).
 
 Logos: UI uses 240 px webp copies (`brands/*-logo-240.webp`, about 9 KB each); the 2000 px originals stay
 in `assets/brands/` for print and marketing and are not imported. Vite emits every imported logo in every
@@ -41,7 +42,7 @@ build (about 46 KB total); that is accepted rather than adding per-brand dynamic
   stands in for a state. Cashiers moving between brands keep the same meaning of red, amber, green.
 - Flamboyan purple would collide with promo plum, so in that skin only `promo` becomes blue and `info` slate.
 - Performance red would collide with danger, so in that skin only the *solid* danger surfaces
-  (`bg-danger-solid`: Button `danger`, Refund confirm, the shift-error bar) become `ink-900`; danger
+  (`bg-danger-solid`: Button `danger`, Refund confirm, the shift-error and outbox-corrupt bars, outlet-mismatch/terminal/requisition confirm buttons) become `ink-900`; danger
   badges and text keep `#b42318` on the `danger-bg` tint. Badges stay colour + icon + word.
 - New solid danger fills must use `bg-danger-solid`, never `bg-danger` or `bg-red-*`.
 
@@ -82,3 +83,8 @@ paint it Mandalika, and a brand bundle would repaint a Mandalika tablet. Two way
 
 Do not run `make ota-release` for a non-default brand until one of these exists. APK builds use origin
 (`android-release.yml`), so push first.
+
+## Known gaps
+
+- `VITE_BRAND` is not yet an input of `android-release.yml`, and an unknown value only warns at runtime (a typo such as `Flamboyan` ships the Mandalika skin). Consider failing the build in `vite.config.ts` on an unknown non-empty value, and `index.html` still says "Mandalika POS".
+- With a flag off, `loyaltyPreview`, Cart and CustomerPicker still show points; fold `hasFeature('loyalty')` into `loyalty.enabled` at the source before relying on it.

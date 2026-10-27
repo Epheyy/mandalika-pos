@@ -293,7 +293,7 @@ export function RequisitionPanel({ onClose, onOpenReceive, isOnline, products, u
               <p className="font-bold text-gray-900">{confirm.title}</p>
               <p className="text-sm text-gray-500">{confirm.body}</p>
               <div className="flex gap-2">
-                <button type="button" onClick={() => { const go = confirm.action; setConfirm(null); go() }} className="flex-1 bg-red-600 text-white rounded-lg py-2 text-sm font-bold">{confirm.label}</button>
+                <button type="button" onClick={() => { const go = confirm.action; setConfirm(null); go() }} className="flex-1 bg-danger-solid text-white rounded-lg py-2 text-sm font-bold">{confirm.label}</button>
                 <button type="button" onClick={() => setConfirm(null)} className="flex-1 border rounded-lg py-2 text-sm font-bold text-gray-600">Tetap di sini</button>
               </div>
             </div>

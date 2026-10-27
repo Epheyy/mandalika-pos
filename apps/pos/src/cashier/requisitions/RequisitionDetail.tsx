@@ -80,7 +80,7 @@ export function RequisitionDetail({ pb, busy, message, onRetry, onEdit, onSubmit
           <p className="text-sm text-amber-800">Batalkan {pb.number}? Permintaan yang dibatalkan tidak bisa dibuka lagi.</p>
           <div className="flex gap-2">
             <button type="button" disabled={busy} onClick={() => { setConfirmCancel(false); onCancel() }}
-              className="flex-1 bg-red-600 text-white rounded-lg py-2 text-sm font-bold disabled:opacity-50">Batalkan Permintaan</button>
+              className="flex-1 bg-danger-solid text-white rounded-lg py-2 text-sm font-bold disabled:opacity-50">Batalkan Permintaan</button>
             <button type="button" onClick={() => setConfirmCancel(false)} className="flex-1 border rounded-lg py-2 text-sm font-bold text-gray-600">Kembali</button>
           </div>
         </div>

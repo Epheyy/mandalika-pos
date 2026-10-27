@@ -82,7 +82,7 @@ export default function OutletMismatchScreen() {
           type="button"
           disabled={blocked !== null || busy}
           onClick={() => void release()}
-          className="mt-5 w-full py-2.5 bg-red-600 text-white rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-red-700 transition-colors"
+          className="mt-5 w-full py-2.5 bg-danger-solid text-white rounded-xl text-sm font-semibold disabled:opacity-40 active:opacity-90 transition-colors"
         >
           {busy ? 'Melepas…' : 'Lepas terminal'}
         </button>
