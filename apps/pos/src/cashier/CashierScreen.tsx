@@ -57,6 +57,7 @@ import { applyPendingStock, stockFor, oversoldSizes, OVERSELL_WARNING } from './
 import { isLineInBundle, planSizeSwitch, SIZE_SWITCH_BUNDLE_MESSAGE } from './lineSizes'
 import { decideApplyCode } from './promoValidate'
 import { resolveConfirmGuard } from './confirmGuard'
+import { cashierBackLayer } from './backGuard'
 import { customerAttachImpact, customerAttachMessage } from './customerAttachImpact'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { planPromotionFulfillment, invalidPhysicalPromotionIds, type PromotionOwner, type PendingFulfillment } from './promotionFulfillment'
@@ -930,6 +931,13 @@ export default function CashierScreen() {
   // Android hardware Back: close the top-most surface instead of exiting.
   useEffect(() => {
     setBackHandler(() => {
+      // Mid-commit the checkout must stay put: closing it would expose the catalog while the order is enqueued.
+      const layer = cashierBackLayer({
+        isBusy: state.isProcessing || saleGate.current.isBusy(), confirmOpen: confirm !== null, pickerOpen: pendingFulfillment !== null,
+        successOpen: state.isSuccessOpen, checkoutOpen: state.isCheckoutOpen, adjustmentOpen: !!state.activeAdjustment, cartTabActive: state.activeTab === 'cart',
+      })
+      if (layer === 'ignore-busy') return true
+      if (layer === 'close-confirm') { setConfirm(null); return true }
       if (lineBackRef.current?.()) return true
       if (variantBackRef.current?.()) return true
       if (showConnection) { setShowConnection(false); return true }
@@ -941,12 +949,11 @@ export default function CashierScreen() {
       if (showRequisitions) { if (!requisitionBackRef.current?.()) setShowRequisitions(false); return true }
       if (showRecap) { setShowRecap(false); return true }
       if (refundOrder) { setRefundOrder(null); setRefundSale(null); return true }
-      if (state.isSuccessOpen) { dispatch({ type: 'CLOSE_SUCCESS' }); return true }
-      if (state.isCheckoutOpen) { dispatch({ type: 'CLOSE_CHECKOUT' }); return true }
-      if (confirm) { setConfirm(null); return true }
-      if (pendingFulfillment) { setPendingFulfillment(null); return true }
-      if (state.activeAdjustment) { closePromoSheet(); return true }
-      if (state.activeTab === 'cart') { dispatch({ type: 'SET_ACTIVE_TAB', tab: 'products' }); return true }
+      if (layer === 'close-picker') { setPendingFulfillment(null); return true }
+      if (layer === 'close-success') { dispatch({ type: 'CLOSE_SUCCESS' }); return true }
+      if (layer === 'close-checkout') { dispatch({ type: 'CLOSE_CHECKOUT' }); return true }
+      if (layer === 'close-adjustment') { closePromoSheet(); return true }
+      if (layer === 'cart-to-products') { dispatch({ type: 'SET_ACTIVE_TAB', tab: 'products' }); return true }
       // Nothing to navigate back to — still consume it. A POS must never be
       // closed/minimized by a stray Back press; only "Keluar" logs out.
       return true
@@ -954,7 +961,7 @@ export default function CashierScreen() {
     return () => setBackHandler(null)
   }, [
     showConnection, showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRequisitions, showRecap, refundOrder,
-    state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment, pendingFulfillment, confirm,
+    state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment, state.isProcessing, pendingFulfillment, confirm,
     state.activeTab,
   ])
 
@@ -1078,7 +1085,7 @@ export default function CashierScreen() {
               products={displayProducts}
               onRemove={cartActions.removeItem} onSetQty={cartActions.setQty}
               onSwitchSize={handleSwitchSize} lineBackRef={lineBackRef}
-              onClear={cartActions.clearCart}
+              onClear={() => setConfirm({ message: 'Kosongkan keranjang? Pelanggan, promo dan catatan ikut terhapus.', confirmLabel: 'Kosongkan', tone: 'danger', run: cartActions.clearCart })}
               onCheckout={handleCheckout}
               onOpenAdjustment={(panel) => dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel })}
               discountRunning={state.discountRunning} discountType={state.appliedDiscountType}
