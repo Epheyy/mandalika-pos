@@ -356,7 +356,7 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 		if clawed > 0 {
 			clawReason := fmt.Sprintf("Pembatalan poin dari refund %s", o.orderNumber)
 			if forgiven > 0 {
-				clawReason += fmt.Sprintf(" (%d poin dimaafkan)", forgiven)
+				clawReason += fmt.Sprintf(" (%d poin tidak cukup saldo, ditagih di refund berikutnya jika ada)", forgiven)
 			}
 			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
 				CustomerID: *o.custID, Type: "refund", Points: -int(clawed),

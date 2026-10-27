@@ -36,7 +36,7 @@ func planRefund(lines []refundLine, items []RefundItemInput) (picks []refundPick
 			if l.Qty <= 0 {
 				continue
 			}
-			amt := l.Subtotal
+			amt := max(l.Subtotal, 0) // CHECK(amount >= 0): an import artefact may be negative
 			if l.Net != nil {
 				amt = RefundAmountForUnits(*l.Net, l.Qty, 0, l.Qty)
 			}

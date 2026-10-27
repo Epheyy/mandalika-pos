@@ -68,9 +68,11 @@ type refundPayload struct {
 	DeviceID      string `json:"deviceId"`
 	// Items stays nil when the key is absent or null (legacy shape); `[]` decodes to an empty
 	// non-nil slice, which the service rejects instead of refunding everything.
+	// Item fields are pointers so a missing or misspelled key is detected instead of
+	// silently meaning line 0 / quantity 0.
 	Items []struct {
-		LineNo   int `json:"lineNo"`
-		Quantity int `json:"quantity"`
+		LineNo   *int `json:"lineNo"`
+		Quantity *int `json:"quantity"`
 	} `json:"items"`
 	RefundAmount *float64 `json:"refundAmount"`
 	ReasonCode   string   `json:"reasonCode"`
@@ -93,7 +95,13 @@ func (p refundPayload) input(c Caller, orderID string) service.RefundInput {
 	if p.Items != nil {
 		in.Items = make([]service.RefundItemInput, len(p.Items))
 		for i, it := range p.Items {
-			in.Items[i] = service.RefundItemInput{LineNo: it.LineNo, Quantity: it.Quantity}
+			if it.LineNo == nil || it.Quantity == nil {
+				// A malformed item must never become line 0: mark it invalid so the service
+				// rejects the refund as ErrRefundLineUnknown.
+				in.Items[i] = service.RefundItemInput{LineNo: -1, Quantity: 0}
+				continue
+			}
+			in.Items[i] = service.RefundItemInput{LineNo: *it.LineNo, Quantity: *it.Quantity}
 		}
 	}
 	if p.RefundAmount != nil {
@@ -218,14 +226,14 @@ func (e *Engine) keyedOutcome(ctx context.Context, c Caller, it BatchItem, effec
 // refusals: an item whose key already landed returns the first attempt's result. A
 // failed probe is a retryable error, never a refusal.
 func (e *Engine) replay(ctx context.Context, c Caller, it BatchItem, r ItemResult, fail func(error) ItemResult) (ItemResult, bool) {
-	id, status, applied, aerr := e.alreadyApplied(ctx, c, it)
+	id, status, refundState, applied, aerr := e.alreadyApplied(ctx, c, it)
 	if aerr != nil {
 		return fail(aerr), true
 	}
 	if !applied {
 		return r, false
 	}
-	r.Status, r.OrderID = status, id
+	r.Status, r.OrderID, r.RefundState = status, id, refundState
 	return r, true
 }
 
@@ -374,12 +382,12 @@ func (e *Engine) processOneWithSeq(ctx context.Context, c Caller, it BatchItem,
 			// A06: a refund that already committed replays as ok even if the
 			// permission was removed since (M3 rule); only an uncommitted key is
 			// forbidden. A failed probe is a retryable server error, never a review item.
-			id, _, applied, aerr := e.alreadyApplied(ctx, c, it)
+			id, _, state, applied, aerr := e.alreadyApplied(ctx, c, it)
 			if aerr != nil {
 				return fail(aerr)
 			}
 			if applied {
-				r.Status, r.OrderID = "ok", id
+				r.Status, r.OrderID, r.RefundState = "ok", id, state
 				return r
 			}
 			return fail(apperr.New(apperr.Forbidden, "Sinkronisasi refund belum selesai: izin refund pada permintaan ini tidak mencukupi. Operasi tetap tersimpan dan belum terselesaikan. Jika uang sudah dikembalikan, jangan bayar ulang."))

@@ -1,8 +1,11 @@
 package sync
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
+
+	"github.com/mandalika/pos-backend/internal/service"
 )
 
 func decodeRefundPayload(t *testing.T, raw string) refundPayload {
@@ -48,5 +51,32 @@ func TestRefundPayloadEdgeCases(t *testing.T) {
 	}
 	if in := decodeRefundPayload(t, `{"orderUuid":"not-a-uuid"}`).input(Caller{}, "o"); in.ClientRefundUUID != "" {
 		t.Fatal("bad uuid must be dropped")
+	}
+}
+
+// A missing or misspelled item key must never become line 0 / a valid quantity.
+func TestRefundPayloadMalformedItemIsInvalid(t *testing.T) {
+	for _, raw := range []string{
+		`{"items":[{"lineNr":0,"quantity":1}]}`,
+		`{"items":[{"lineNo":0}]}`,
+		`{"items":[{}]}`,
+	} {
+		in := decodeRefundPayload(t, raw).input(Caller{}, "o")
+		if len(in.Items) != 1 {
+			t.Fatalf("%s: items %+v", raw, in.Items)
+		}
+		if _, err := service.ValidateRefundExtras(in.Items, ""); err != service.ErrRefundLineUnknown {
+			t.Fatalf("%s: err=%v, want ErrRefundLineUnknown", raw, err)
+		}
+	}
+}
+
+func TestReplayCarriesRefundState(t *testing.T) {
+	lk := &fakeLookup{applied: map[string]string{"k": "order-1"}, refundState: map[string]string{"k": "partial"}}
+	e := &Engine{Lookup: lk}
+	r, replayed := e.replay(context.Background(), Caller{OutletID: "X"}, BatchItem{Type: "refund", IdempotencyKey: "k", Payload: json.RawMessage(`{}`)},
+		ItemResult{IdempotencyKey: "k"}, func(error) ItemResult { return ItemResult{} })
+	if !replayed || r.RefundState != "partial" || r.OrderID != "order-1" {
+		t.Fatalf("%+v replayed=%v", r, replayed)
 	}
 }

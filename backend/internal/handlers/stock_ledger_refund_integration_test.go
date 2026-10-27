@@ -204,8 +204,13 @@ func slRefund(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		t.Fatalf("refund o2: %d", code)
 	}
 	var linked bool
+	var refundID2 string
+	if err := pool.QueryRow(ctx, `SELECT id::text FROM order_refunds WHERE order_id=$1`, o2).Scan(&refundID2); err != nil {
+		t.Fatal(err)
+	}
+	// C4a line dedupe key: refund:<refundId>:<orderItemId>.
 	if err := pool.QueryRow(ctx, `SELECT refund_of_movement_id = $1::uuid FROM stock_movements WHERE dedupe_key=$2`,
-		ledger.MovementID("sale:"+i2), "refund:"+i2).Scan(&linked); err != nil || !linked {
+		ledger.MovementID("sale:"+i2), "refund:"+refundID2+":"+i2).Scan(&linked); err != nil || !linked {
 		t.Fatalf("refund must link to the sale movement (linked=%v err=%v)", linked, err)
 	}
 	assertLedgerInvariant(t, ctx, pool)

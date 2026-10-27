@@ -181,11 +181,17 @@ func ClawTarget(points, refundedComputed, orderTotal int64, complete bool) int64
 	if points <= 0 {
 		return 0
 	}
-	if complete || orderTotal <= 0 || refundedComputed >= orderTotal {
+	if complete {
 		return points
 	}
-	if refundedComputed <= 0 {
+	// A Rp0 order (fully paid with points) has no value to apportion by: a partial refund
+	// must not hand back or claw all points while the customer keeps the other items. Only
+	// the completing refund settles, with the full amount.
+	if orderTotal <= 0 || refundedComputed <= 0 {
 		return 0
+	}
+	if refundedComputed >= orderTotal {
+		return points
 	}
 	hi, lo := bits.Mul64(uint64(points), uint64(refundedComputed)) // refunded < total, so hi < total
 	q, _ := bits.Div64(hi, lo, uint64(orderTotal))

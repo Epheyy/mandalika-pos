@@ -102,7 +102,8 @@ func TestClawTarget(t *testing.T) {
 		{100, 1000, 1000, false, 100},
 		{100, 10, 1000, true, 100},
 		{0, 500, 1000, false, 0},
-		{100, 500, 0, false, 100},
+		{100, 500, 0, false, 0},   // Rp0 order: partial settles nothing
+		{100, 500, 0, true, 100},  // ...the completing refund settles all
 	} {
 		if got := ClawTarget(tc.points, tc.refunded, tc.total, tc.complete); got != tc.want {
 			t.Errorf("ClawTarget(%d,%d,%d,%v)=%d want %d", tc.points, tc.refunded, tc.total, tc.complete, got, tc.want)
@@ -244,5 +245,38 @@ func TestRefundComputedAmountAbsorbsDrift(t *testing.T) {
 func TestRefundScope(t *testing.T) {
 	if refundScope(true, 0) != "full" || refundScope(true, 2) != "partial" || refundScope(false, 0) != "partial" {
 		t.Fatal("scope rules")
+	}
+}
+
+// A Rp0 order paid entirely with 500 redeemed points, two items: the first (partial) refund
+// restores nothing, the final one restores all 500.
+func TestZeroTotalOrderPointsSettleOnlyOnCompletion(t *testing.T) {
+	lines := []refundLine{
+		{ID: "a", LineNo: ip(0), Net: i64(0), Subtotal: 300, Qty: 1},
+		{ID: "b", LineNo: ip(1), Net: i64(0), Subtotal: 200, Qty: 1},
+	}
+	picks, completes, err := planRefund(lines, []RefundItemInput{{0, 1}})
+	if err != nil || completes {
+		t.Fatalf("partial: %v %v", completes, err)
+	}
+	computed := refundComputedAmount(picks, completes, 0, 0)
+	if got := ClawTarget(500, computed, 0, completes); got != 0 {
+		t.Fatalf("partial restores %d, want 0", got)
+	}
+	lines[0].Prior = 1
+	picks, completes, err = planRefund(lines, []RefundItemInput{{1, 1}})
+	if err != nil || !completes {
+		t.Fatalf("final: %v %v", completes, err)
+	}
+	computed = refundComputedAmount(picks, completes, 0, 0)
+	if got := ClawTarget(500, computed, 0, completes); got != 500 {
+		t.Fatalf("final restores %d, want 500", got)
+	}
+}
+
+func TestPlanRefundClampsNegativeLegacySubtotal(t *testing.T) {
+	picks, _, err := planRefund([]refundLine{{ID: "x", Subtotal: -50, Qty: 1}}, nil)
+	if err != nil || picks[0].Amount != 0 {
+		t.Fatalf("%+v %v", picks, err)
 	}
 }

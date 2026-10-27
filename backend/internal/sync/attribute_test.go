@@ -17,6 +17,7 @@ type fakeLookup struct {
 	shifts  map[string]shiftState
 	err     error
 	applied map[string]string // key -> id
+	refundState map[string]string // key -> stored refundState of an applied refund
 	// appliedFP is the fingerprint stored with an applied key (receipt-backed types);
 	// a key absent here carries no fingerprint check (orders).
 	appliedFP map[string]string
@@ -29,12 +30,12 @@ func (f *fakeLookup) OutletExists(_ context.Context, id string) (bool, error) {
 	return f.outlets[id], f.err
 }
 
-func (f *fakeLookup) Applied(_ context.Context, _, key, _, fp string) (string, string, bool, error) {
+func (f *fakeLookup) Applied(_ context.Context, _, key, _, fp string) (string, string, string, bool, error) {
 	id, ok := f.applied[key]
 	if want, has := f.appliedFP[key]; ok && has && want != fp {
-		return "", "", false, service.ErrReceiptKeyConflict
+		return "", "", "", false, service.ErrReceiptKeyConflict
 	}
-	return id, "duplicate", ok, f.err
+	return id, "duplicate", f.refundState[key], ok, f.err
 }
 
 func (f *fakeLookup) Shift(_ context.Context, _, id string) (shiftState, error) {
