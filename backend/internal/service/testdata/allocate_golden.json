@@ -1,25 +1,532 @@
 {
-  "description": "AllocateNet + RefundAmountForUnits golden vectors. Integers only (whole rupiah). Shared with the TypeScript twin (apps/pos/src/cashier/allocate.ts). allocations: lines[].base is the line subtotal as priced, components[] are order-level discounts applied in order (eligible = line indices, null = every line), total is the stored order total (after tax, surcharge, rounding, redeemed points). expectedNets is aligned to lines; ok=false means no valid allocation (expectedNets omitted). refunds: steps[] are units returned per refund in sequence of a line with the given net/qty; expectedAmounts[i] = cum(prior+k)-cum(prior), cum(n) = n==qty ? net : floor(net*n/qty).",
-  "allocations": [
-    {"name": "no discount, no tax", "lines": [{"lineNo": 0, "base": 100000}, {"lineNo": 1, "base": 50000}], "components": [], "total": 150000, "ok": true, "expectedNets": [100000, 50000]},
-    {"name": "tax 11 percent spread proportionally", "lines": [{"lineNo": 0, "base": 100000}, {"lineNo": 1, "base": 50000}], "components": [], "total": 166500, "ok": true, "expectedNets": [111000, 55500]},
-    {"name": "tiered 10 percent over every line", "lines": [{"lineNo": 0, "base": 60000}, {"lineNo": 1, "base": 40000}], "components": [{"amount": 10000, "eligible": null}], "total": 90000, "ok": true, "expectedNets": [54000, 36000]},
-    {"name": "scoped promo only discounts its line", "lines": [{"lineNo": 0, "base": 100000}, {"lineNo": 1, "base": 100000}], "components": [{"amount": 20000, "eligible": [0]}], "total": 180000, "ok": true, "expectedNets": [80000, 100000]},
-    {"name": "stacked codes plus manual, remainder to lowest line", "lines": [{"lineNo": 0, "base": 100000}, {"lineNo": 1, "base": 100000}, {"lineNo": 2, "base": 50000}], "components": [{"amount": 25000, "eligible": [0, 1]}, {"amount": 15000, "eligible": null}], "total": 210000, "ok": true, "expectedNets": [81666, 81667, 46667]},
-    {"name": "redeem points reduce total (negative residual) with tie-break", "lines": [{"lineNo": 0, "base": 100}, {"lineNo": 1, "base": 100}, {"lineNo": 2, "base": 100}], "components": [], "total": 100, "ok": true, "expectedNets": [33, 33, 34]},
-    {"name": "zero priced line stays zero under surcharge", "lines": [{"lineNo": 0, "base": 0}, {"lineNo": 1, "base": 100000}], "components": [], "total": 110000, "ok": true, "expectedNets": [0, 110000]},
-    {"name": "rounding up spreads one rupiah-block with tie to lowest line", "lines": [{"lineNo": 0, "base": 33000}, {"lineNo": 1, "base": 33000}, {"lineNo": 2, "base": 33000}], "components": [], "total": 100000, "ok": true, "expectedNets": [33334, 33333, 33333]},
-    {"name": "bxgy same-set discount over counted lines only", "lines": [{"lineNo": 0, "base": 100000}, {"lineNo": 1, "base": 50000}, {"lineNo": 2, "base": 80000}], "components": [{"amount": 25000, "eligible": [1, 2]}], "total": 205000, "ok": true, "expectedNets": [100000, 40385, 64615]},
-    {"name": "bundle or bxgy separate-set repriced lines carry their own base", "lines": [{"lineNo": 0, "base": 150000}, {"lineNo": 1, "base": 0}, {"lineNo": 2, "base": 80000}], "components": [], "total": 230000, "ok": true, "expectedNets": [150000, 0, 80000]},
-    {"name": "component above eligible base is clamped", "lines": [{"lineNo": 0, "base": 30000}, {"lineNo": 1, "base": 70000}], "components": [{"amount": 50000, "eligible": [0]}], "total": 70000, "ok": true, "expectedNets": [0, 70000]},
-    {"name": "non-contiguous line numbers keep tie order by lineNo", "lines": [{"lineNo": 5, "base": 100}, {"lineNo": 2, "base": 100}], "components": [], "total": 201, "ok": true, "expectedNets": [100, 101]},
-    {"name": "all lines free but positive total has no allocation", "lines": [{"lineNo": 0, "base": 0}, {"lineNo": 1, "base": 0}], "components": [], "total": 500, "ok": false}
-  ],
-  "refunds": [
-    {"name": "three units one at a time, last settles remainder", "net": 100000, "qty": 3, "steps": [1, 1, 1], "expectedAmounts": [33333, 33333, 33334]},
-    {"name": "two then one", "net": 10, "qty": 3, "steps": [2, 1], "expectedAmounts": [6, 4]},
-    {"name": "all at once", "net": 100, "qty": 4, "steps": [4], "expectedAmounts": [100]},
-    {"name": "free line refunds zero", "net": 0, "qty": 2, "steps": [1, 1], "expectedAmounts": [0, 0]},
-    {"name": "single unit", "net": 12345, "qty": 1, "steps": [1], "expectedAmounts": [12345]}
-  ]
+ "description": "AllocateNet + RefundAmountForUnits golden vectors. Integers only (whole rupiah). Shared with the TypeScript twin (apps/pos/src/cashier/allocate.ts). allocations: lines[].base is the line subtotal as priced, components[] are order-level discounts applied in order (eligible = line indices, null = every line), total is the stored order total (after tax, surcharge, rounding, redeemed points). expectedNets is aligned to lines; ok=false means no valid allocation (expectedNets omitted). refunds: steps[] are units returned per refund in sequence of a line with the given net/qty; expectedAmounts[i] = cum(prior+k)-cum(prior), cum(n) = n==qty ? net : floor(net*n/qty). Component eligible entries are ARRAY POSITIONS into lines[], not lineNo values; lineNo is only the remainder tie-break key (lower lineNo wins). eligible null or absent = every line; eligible [] = no line (the component is a no-op and its amount falls through to the residual spread).",
+ "allocations": [
+  {
+   "name": "no discount, no tax",
+   "lines": [
+    {
+     "lineNo": 0,
+     "base": 100000
+    },
+    {
+     "lineNo": 1,
+     "base": 50000
+    }
+   ],
+   "components": [],
+   "total": 150000,
+   "ok": true,
+   "expectedNets": [
+    100000,
+    50000
+   ]
+  },
+  {
+   "name": "tax 11 percent spread proportionally",
+   "lines": [
+    {
+     "lineNo": 0,
+     "base": 100000
+    },
+    {
+     "lineNo": 1,
+     "base": 50000
+    }
+   ],
+   "components": [],
+   "total": 166500,
+   "ok": true,
+   "expectedNets": [
+    111000,
+    55500
+   ]
+  },
+  {
+   "name": "tiered 10 percent over every line",
+   "lines": [
+    {
+     "lineNo": 0,
+     "base": 60000
+    },
+    {
+     "lineNo": 1,
+     "base": 40000
+    }
+   ],
+   "components": [
+    {
+     "amount": 10000,
+     "eligible": null
+    }
+   ],
+   "total": 90000,
+   "ok": true,
+   "expectedNets": [
+    54000,
+    36000
+   ]
+  },
+  {
+   "name": "scoped promo only discounts its line",
+   "lines": [
+    {
+     "lineNo": 0,
+     "base": 100000
+    },
+    {
+     "lineNo": 1,
+     "base": 100000
+    }
+   ],
+   "components": [
+    {
+     "amount": 20000,
+     "eligible": [
+      0
+     ]
+    }
+   ],
+   "total": 180000,
+   "ok": true,
+   "expectedNets": [
+    80000,
+    100000
+   ]
+  },
+  {
+   "name": "stacked codes plus manual, remainder to lowest line",
+   "lines": [
+    {
+     "lineNo": 0,
+     "base": 100000
+    },
+    {
+     "lineNo": 1,
+     "base": 100000
+    },
+    {
+     "lineNo": 2,
+     "base": 50000
+    }
+   ],
+   "components": [
+    {
+     "amount": 25000,
+     "eligible": [
+      0,
+      1
+     ]
+    },
+    {
+     "amount": 15000,
+     "eligible": null
+    }
+   ],
+   "total": 210000,
+   "ok": true,
+   "expectedNets": [
+    81666,
+    81667,
+    46667
+   ]
+  },
+  {
+   "name": "redeem points reduce total (negative residual) with tie-break",
+   "lines": [
+    {
+     "lineNo": 0,
+     "base": 100
+    },
+    {
+     "lineNo": 1,
+     "base": 100
+    },
+    {
+     "lineNo": 2,
+     "base": 100
+    }
+   ],
+   "components": [],
+   "total": 100,
+   "ok": true,
+   "expectedNets": [
+    33,
+    33,
+    34
+   ]
+  },
+  {
+   "name": "zero priced line stays zero under surcharge",
+   "lines": [
+    {
+     "lineNo": 0,
+     "base": 0
+    },
+    {
+     "lineNo": 1,
+     "base": 100000
+    }
+   ],
+   "components": [],
+   "total": 110000,
+   "ok": true,
+   "expectedNets": [
+    0,
+    110000
+   ]
+  },
+  {
+   "name": "rounding up spreads one rupiah-block with tie to lowest line",
+   "lines": [
+    {
+     "lineNo": 0,
+     "base": 33000
+    },
+    {
+     "lineNo": 1,
+     "base": 33000
+    },
+    {
+     "lineNo": 2,
+     "base": 33000
+    }
+   ],
+   "components": [],
+   "total": 100000,
+   "ok": true,
+   "expectedNets": [
+    33334,
+    33333,
+    33333
+   ]
+  },
+  {
+   "name": "bxgy same-set discount over counted lines only",
+   "lines": [
+    {
+     "lineNo": 0,
+     "base": 100000
+    },
+    {
+     "lineNo": 1,
+     "base": 50000
+    },
+    {
+     "lineNo": 2,
+     "base": 80000
+    }
+   ],
+   "components": [
+    {
+     "amount": 25000,
+     "eligible": [
+      1,
+      2
+     ]
+    }
+   ],
+   "total": 205000,
+   "ok": true,
+   "expectedNets": [
+    100000,
+    40385,
+    64615
+   ]
+  },
+  {
+   "name": "bundle or bxgy separate-set repriced lines carry their own base",
+   "lines": [
+    {
+     "lineNo": 0,
+     "base": 150000
+    },
+    {
+     "lineNo": 1,
+     "base": 0
+    },
+    {
+     "lineNo": 2,
+     "base": 80000
+    }
+   ],
+   "components": [],
+   "total": 230000,
+   "ok": true,
+   "expectedNets": [
+    150000,
+    0,
+    80000
+   ]
+  },
+  {
+   "name": "component above eligible base is clamped",
+   "lines": [
+    {
+     "lineNo": 0,
+     "base": 30000
+    },
+    {
+     "lineNo": 1,
+     "base": 70000
+    }
+   ],
+   "components": [
+    {
+     "amount": 50000,
+     "eligible": [
+      0
+     ]
+    }
+   ],
+   "total": 70000,
+   "ok": true,
+   "expectedNets": [
+    0,
+    70000
+   ]
+  },
+  {
+   "name": "non-contiguous line numbers keep tie order by lineNo",
+   "lines": [
+    {
+     "lineNo": 5,
+     "base": 100
+    },
+    {
+     "lineNo": 2,
+     "base": 100
+    }
+   ],
+   "components": [],
+   "total": 201,
+   "ok": true,
+   "expectedNets": [
+    100,
+    101
+   ]
+  },
+  {
+   "name": "all lines free but positive total has no allocation",
+   "lines": [
+    {
+     "lineNo": 0,
+     "base": 0
+    },
+    {
+     "lineNo": 1,
+     "base": 0
+    }
+   ],
+   "components": [],
+   "total": 500,
+   "ok": false
+  },
+  {
+   "name": "large vector: products exceed int64 and 2^53, needs big-int math",
+   "lines": [
+    {
+     "lineNo": 0,
+     "base": 4000000000000000
+    },
+    {
+     "lineNo": 1,
+     "base": 5000000000000000
+    }
+   ],
+   "components": [
+    {
+     "amount": 1234567890123457,
+     "eligible": null
+    }
+   ],
+   "total": 7765432109876543,
+   "ok": true,
+   "expectedNets": [
+    3451303159945130,
+    4314128949931413
+   ]
+  },
+  {
+   "name": "eligible empty array: component affects no line",
+   "lines": [
+    {
+     "lineNo": 0,
+     "base": 100
+    },
+    {
+     "lineNo": 1,
+     "base": 100
+    }
+   ],
+   "components": [
+    {
+     "amount": 50,
+     "eligible": []
+    }
+   ],
+   "total": 200,
+   "ok": true,
+   "expectedNets": [
+    100,
+    100
+   ]
+  },
+  {
+   "name": "eligible null means every line (same amount as the empty-array case)",
+   "lines": [
+    {
+     "lineNo": 0,
+     "base": 100
+    },
+    {
+     "lineNo": 1,
+     "base": 100
+    }
+   ],
+   "components": [
+    {
+     "amount": 50,
+     "eligible": null
+    }
+   ],
+   "total": 150,
+   "ok": true,
+   "expectedNets": [
+    75,
+    75
+   ]
+  },
+  {
+   "name": "eligible key absent means every line",
+   "lines": [
+    {
+     "lineNo": 0,
+     "base": 100
+    },
+    {
+     "lineNo": 1,
+     "base": 100
+    }
+   ],
+   "components": [
+    {
+     "amount": 50
+    }
+   ],
+   "total": 150,
+   "ok": true,
+   "expectedNets": [
+    75,
+    75
+   ]
+  },
+  {
+   "name": "non-contiguous lineNo with scoped component: eligible are positions, tie goes to lower lineNo",
+   "lines": [
+    {
+     "lineNo": 7,
+     "base": 100
+    },
+    {
+     "lineNo": 3,
+     "base": 100
+    },
+    {
+     "lineNo": 5,
+     "base": 100
+    }
+   ],
+   "components": [
+    {
+     "amount": 5,
+     "eligible": [
+      0,
+      1
+     ]
+    }
+   ],
+   "total": 295,
+   "ok": true,
+   "expectedNets": [
+    98,
+    97,
+    100
+   ]
+  }
+ ],
+ "refunds": [
+  {
+   "name": "three units one at a time, last settles remainder",
+   "net": 100000,
+   "qty": 3,
+   "steps": [
+    1,
+    1,
+    1
+   ],
+   "expectedAmounts": [
+    33333,
+    33333,
+    33334
+   ]
+  },
+  {
+   "name": "two then one",
+   "net": 10,
+   "qty": 3,
+   "steps": [
+    2,
+    1
+   ],
+   "expectedAmounts": [
+    6,
+    4
+   ]
+  },
+  {
+   "name": "all at once",
+   "net": 100,
+   "qty": 4,
+   "steps": [
+    4
+   ],
+   "expectedAmounts": [
+    100
+   ]
+  },
+  {
+   "name": "free line refunds zero",
+   "net": 0,
+   "qty": 2,
+   "steps": [
+    1,
+    1
+   ],
+   "expectedAmounts": [
+    0,
+    0
+   ]
+  },
+  {
+   "name": "single unit",
+   "net": 12345,
+   "qty": 1,
+   "steps": [
+    1
+   ],
+   "expectedAmounts": [
+    12345
+   ]
+  }
+ ],
+ "notes": [
+  "Beyond the pure allocator, the TS twin must reproduce these server rules (service/allocate.go).",
+  "Component order: each promo/code in stack order (calcPromotionDiscount amounts), then the manual discount last.",
+  "Cumulative cap: the running sum of component amounts is capped at the cart subtotal, so a cap overflow trims the LAST components (manual) first.",
+  "Each component amount and each line base is rounded to whole rupiah with Math.round semantics of Go math.Round (half away from zero; use sign-aware rounding in JS, not Math.round for negatives).",
+  "Whole-rupiah skip: if the stored order total differs from its rounded value by more than 0.004, or a line index is duplicated/negative/above 32767, no allocation is made (line data stays null, order is whole-order refund only).",
+  "Eligibility: scoped percentage/fixed/BOGO promos match lines by productId in applicableProductIds (not variant-aware); BXGY same-set matches buyProductIds via pid or pid|size, empty list = every line; tiered, whole-cart promos and manual = every line. Bundle and BXGY separate-set promos contribute 0 (their repricing is already in the line base).",
+  "refund_group keys: only validated bundle / BXGY separate-set reward lines start a group, key '<kind>:<promotionId>:1' (kind bundle|bxgy). Paid lines join a group when they match a bundle slot, or the BXGY buy set (empty buy list = any line outside the get set). Groups that share a paid line MERGE into one group; every member gets the lexicographically smallest of the merged keys. Loyalty reward lines get no group. The C3 giveaway is not a line.",
+  "line_no is the 0-based index in the sale payload items (before reward-line compaction)."
+ ]
 }

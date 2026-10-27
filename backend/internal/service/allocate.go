@@ -352,20 +352,21 @@ type refundGroupInfo struct {
 }
 
 // refundGroups returns, aligned to items, the refund_group of each line ("" = none).
-// One group per validated promo per order: key "<kind>:<promotionId>:1", holding that
-// promo's reward line(s) plus every paid line on its buy side (all-or-nothing, D-34).
+// One group per validated promo per order, key "<kind>:<promotionId>:1", holding that
+// promo's reward line(s) plus every paid line on its buy side (all-or-nothing, D-34):
 //   - bundle: paid lines matching a slot (the freed unit and its anchors go back together);
 //   - bxgy separate-set: paid lines in the buy set (empty buy list = any line outside the
 //     get set, as bxgyBuyUnits).
 //
-// Conservative by design: extra paid units of the same product are in the group too, which
-// can only make a return stricter, never let a free line be kept while its anchor goes
-// back. A paid line matching several groups goes to the first (reward-line order). Loyalty
+// Groups that share a paid line are merged (union-find) into ONE group whose key is the
+// lexicographically smallest of the merged keys, so a paid anchor can never be returned
+// while any reward line it helped earn is kept. Conservative by design: extra paid units
+// of the same product are in the group too, which only makes a return stricter. Loyalty
 // reward lines carry no group and stay independent (D-35); the C3 giveaway is not a line.
 func refundGroups(items []OrderItem) []string {
 	out := make([]string, len(items))
 	var groups []*refundGroupInfo
-	byPromo := map[string]*refundGroupInfo{}
+	byPromo := map[string]int{} // promoID -> index into groups
 	for _, it := range items {
 		g := it.group
 		if !it.IsReward || g == nil {
@@ -376,24 +377,57 @@ func refundGroups(items []OrderItem) []string {
 		}
 		cp := *g
 		cp.groupKey = fmt.Sprintf("%s:%s:%d", g.kind, g.promoID, 1)
-		byPromo[g.promoID] = &cp
+		byPromo[g.promoID] = len(groups)
 		groups = append(groups, &cp)
 	}
 	if len(groups) == 0 {
 		return out
 	}
+	parent := make([]int, len(groups))
+	for i := range parent {
+		parent[i] = i
+	}
+	var find func(int) int
+	find = func(x int) int {
+		for parent[x] != x {
+			parent[x] = parent[parent[x]]
+			x = parent[x]
+		}
+		return x
+	}
+	// matches[i] = groups a paid line i belongs to; union every group it touches.
+	matches := make([][]int, len(items))
+	for i, it := range items {
+		if it.IsReward {
+			continue
+		}
+		for gi, g := range groups {
+			if paidLineInGroup(g, it) {
+				matches[i] = append(matches[i], gi)
+			}
+		}
+		for _, gi := range matches[i][min(1, len(matches[i])):] {
+			parent[find(gi)] = find(matches[i][0])
+		}
+	}
+	// merged key = smallest groupKey in the component.
+	rootKey := map[int]string{}
+	for gi, g := range groups {
+		r := find(gi)
+		if k, ok := rootKey[r]; !ok || g.groupKey < k {
+			rootKey[r] = g.groupKey
+		}
+	}
+	keyOf := func(gi int) string { return rootKey[find(gi)] }
 	for i, it := range items {
 		if it.IsReward {
 			if it.group != nil {
-				out[i] = byPromo[it.group.promoID].groupKey
+				out[i] = keyOf(byPromo[it.group.promoID])
 			}
 			continue
 		}
-		for _, g := range groups {
-			if paidLineInGroup(g, it) {
-				out[i] = g.groupKey
-				break
-			}
+		if len(matches[i]) > 0 {
+			out[i] = keyOf(matches[i][0])
 		}
 	}
 	return out
