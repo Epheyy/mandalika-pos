@@ -10,6 +10,7 @@ import { BRAND } from '../../lib/brand'
 import { Button } from '../../ui/Button'
 import { Card } from '../../ui/Card'
 import { Badge } from '../../ui/Badge'
+import { orderStatusLabel, orderStatusTone } from '../../lib/orderStatus'
 import { IconButton } from '../../ui/IconButton'
 import { EmptyState } from '../../ui/EmptyState'
 import { tagChipClasses } from './tagColors'
@@ -180,7 +181,7 @@ export function PurchaseHistoryCard({ orders, loading, expanded, setExpanded }: 
                   <p className="text-xs text-gray-400">{format(parseISO(o.createdAt), 'dd MMM yyyy HH:mm', { locale: idLocale })} · <span className="capitalize">{o.paymentMethod}</span></p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <Badge tone={o.status === 'refunded' ? 'danger' : 'success'}>{o.status === 'refunded' ? 'Refund' : 'Selesai'}</Badge>
+                  <Badge tone={orderStatusTone(o.status)}>{orderStatusLabel(o.status)}</Badge>
                   <p className="font-black text-gray-900 text-sm">{BRAND.currency.format(o.total)}</p>
                   {expanded === o.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                 </div>

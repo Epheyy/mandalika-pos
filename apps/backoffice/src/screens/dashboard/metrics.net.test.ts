@@ -142,3 +142,29 @@ describe('delta', () => {
     expect(delta(150, 100)).toBe(50)
   })
 })
+
+describe('partially refunded orders (C4a)', () => {
+  const partial = order({
+    id: 'p', status: 'partially_refunded', total: 100, businessDate: '2026-03-10' as BD,
+    refundedAmount: 40,
+    refunds: [{ id: 'r1', seq: 1, scope: 'partial', amount: 40, computedAmount: 40, paymentMethod: 'cash', reason: 'x', refundedAt: new Date(2026, 2, 12, 14, 30).toISOString(), refundBusinessDate: '2026-03-12', items: [] }],
+    createdAt: new Date(2026, 2, 10, 10, 0).toISOString(),
+  } as Partial<Order>)
+
+  it('is a sale on its sale day and a refund of refundedAmount on the refund day', () => {
+    expect(netKpis([partial], [partial], day(10))).toMatchObject({ gross: 100, refunds: 0, net: 100 })
+    expect(netKpis([partial], [partial], day(12))).toMatchObject({ gross: 0, refunds: 40, refundedCount: 1, net: -40 })
+  })
+
+  it('refundBusinessDayOf falls back to the latest refunds[] entry', () => {
+    expect(refundBusinessDayOf(partial)).toBe('2026-03-12')
+  })
+
+  it('refundSideOrNull accepts partially refunded rows', () => {
+    expect(refundSideOrNull([partial])).toEqual([partial])
+  })
+
+  it('without refundedAmount a refunded row still subtracts its total', () => {
+    expect(netKpis([sale], [sale], day(12)).refunds).toBe(100)
+  })
+})

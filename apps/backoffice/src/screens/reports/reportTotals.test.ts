@@ -64,3 +64,34 @@ describe('refund-day recognition (A27)', () => {
     expect(reportTotals([order('cancelled', 900, 'cash')], [order('cancelled', 900, 'cash')])).toMatchObject({ gross: 0, refunds: 0, net: 0 })
   })
 })
+
+// C4a: partially_refunded is a sale; refunds read refundedAmount and fall back to total when absent.
+describe('reportTotals with partial refunds (C4a)', () => {
+  const part = (total: number, refundedAmount: number | undefined, pay = 'cash') =>
+    ({ status: 'partially_refunded', total, paymentMethod: pay, refundedAmount }) as unknown as Order
+
+  it('counts a partially refunded sale in gross and net revenue, refunds by refundedAmount', () => {
+    const p = part(100, 30)
+    const t = reportTotals([order('completed', 50, 'cash'), p], [p])
+    expect(t.gross).toBe(150)
+    expect(t.grossCount).toBe(2)
+    expect(t.revenue).toBe(120)
+    expect(t.completedCount).toBe(2)
+    expect(t.byPay).toEqual({ cash: 120 })
+    expect(t.refunds).toBe(30)
+    expect(t.refundedCount).toBe(1)
+    expect(t.refundsByPay).toEqual({ cash: 30 })
+    expect(t.net).toBe(120)
+  })
+
+  it('uses refundedAmount for a refunded row and falls back to total when absent', () => {
+    const withAmt = { ...order('refunded', 100, 'cash'), refundedAmount: 80 } as Order
+    expect(reportTotals([withAmt], [withAmt]).refunds).toBe(80)
+    expect(reportTotals([order('refunded', 100, 'cash')], [order('refunded', 100, 'cash')]).refunds).toBe(100)
+  })
+
+  it('treats an absent refundedAmount on a partial row as nothing refunded from revenue', () => {
+    const t = reportTotals([part(100, undefined)], [])
+    expect(t.revenue).toBe(100)
+  })
+})

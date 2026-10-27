@@ -34,6 +34,7 @@ export function channelLabel(channel: string): string {
 
 export function orderStatusLabel(status: string): string {
   if (status === 'completed') return 'Selesai'
+  if (status === 'partially_refunded') return 'Sebagian refund'
   if (status === 'refunded') return 'Direfund'
   if (status === 'cancelled') return 'Dibatalkan'
   return status

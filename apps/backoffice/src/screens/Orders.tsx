@@ -21,6 +21,7 @@ import { Pagination } from '../ui/Pagination'
 import { canViewSummary, lastDaysRange, orderFilterParams, transaksiFilters, transaksiHeader } from './reports/orderQuery'
 import { useOrderReport } from './reports/useOrderReport'
 import { refundedByLine } from './refundDisplay'
+import { canRefundWholeOrder, orderStatusLabel, orderStatusTone } from '../lib/orderStatus'
 import { quoteWarningTitle, receiptTotalLine } from './quoteDisplay'
 
 const TENDER_WARNING_TITLES: Record<string, string> = {
@@ -30,10 +31,8 @@ const TENDER_WARNING_TITLES: Record<string, string> = {
 const tenderWarningTitle = (reason?: string | null) =>
   reason ? (TENDER_WARNING_TITLES[reason] ?? reason) : undefined
 
-const badgeTone = (st: string): 'success' | 'danger' | 'neutral' =>
-  st === 'completed' ? 'success' : st === 'refunded' ? 'danger' : 'neutral'
-const label = (st: string) =>
-  st === 'completed' ? 'Selesai' : st === 'refunded' ? 'Refund' : st === 'cancelled' ? 'Dibatalkan' : st
+const badgeTone = orderStatusTone
+const label = orderStatusLabel
 
 /** The transactions list/table/search/refund UI — no page header. */
 export function OrdersPanel() {
@@ -174,6 +173,7 @@ export function OrdersPanel() {
         <Select value={fStatus} onChange={(e) => { setFStatus(e.target.value); setPage(1) }} className="w-auto" aria-label="Filter status">
           <option value="">Semua Status</option>
           <option value="completed">Selesai</option>
+          <option value="partially_refunded">Sebagian refund</option>
           <option value="refunded">Refund</option>
           <option value="cancelled">Dibatalkan</option>
         </Select>
@@ -328,7 +328,22 @@ export function OrdersPanel() {
                           )}
                         </div>
                       )}
-                      {user?.role === 'admin' && o.status === 'completed' && (
+                      {o.status === 'partially_refunded' && (
+                        <div className="bg-amber-50 rounded-xl p-3 space-y-1">
+                          <p className="text-xs font-black text-amber-700">
+                            Sebagian refund{o.refundedAmount !== undefined ? ` · ${BRAND.currency.format(o.refundedAmount)}` : ''}
+                          </p>
+                          {(o.refunds ?? []).map((r) => (
+                            <p key={r.id} className="text-xs text-amber-800">
+                              Refund ke-{r.seq} · {BRAND.currency.format(r.amount)} · {r.reason}
+                            </p>
+                          ))}
+                          {user?.role === 'admin' && (
+                            <p className="text-xs text-amber-700">Refund seluruh transaksi tidak tersedia untuk transaksi yang sudah sebagian di-refund.</p>
+                          )}
+                        </div>
+                      )}
+                      {user?.role === 'admin' && canRefundWholeOrder(o.status) && (
                         <div>
                           {refundingId === o.id ? (
                             <div className="space-y-2">

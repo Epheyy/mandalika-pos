@@ -10,7 +10,7 @@ import {
 } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { localDay } from '../../lib/businessDay'
-import { reportTotals } from '../reports/reportTotals'
+import { isRefundedStatus, refundedMoney, reportTotals, stillSoldMoney } from '../reports/reportTotals'
 
 export type Period = 'today' | '7d' | '30d' | 'all'
 
@@ -79,23 +79,23 @@ export function dashboardFetchWindow(period: Period, now = new Date()): { dateFr
   return { dateFrom: localDay(start), dateTo: localDay(now) }
 }
 
-/** Completed orders whose business day falls in the interval (inclusive of both end days). */
+/** Completed (and C4a partially refunded) orders whose business day falls in the interval (inclusive of both end days). */
 export function completedIn(orders: Order[], iv: Interval): Order[] {
   const from = localDay(iv.start)
   const to = localDay(iv.end)
   return orders.filter((o) => {
-    if (o.status !== 'completed') return false
+    if (o.status !== 'completed' && o.status !== 'partially_refunded') return false
     const day = businessDayOf(o)
     return day !== '' && day >= from && day <= to
   })
 }
 
-/** Sales (completed + refunded, never cancelled) whose SALE business day falls in the interval. */
+/** Sales (completed + partially refunded + refunded, never cancelled) whose SALE business day falls in the interval. */
 export function salesIn(orders: readonly Order[], iv: Interval): Order[] {
   const from = localDay(iv.start)
   const to = localDay(iv.end)
   return orders.filter((o) => {
-    if (o.status !== 'completed' && o.status !== 'refunded') return false
+    if (o.status !== 'completed' && o.status !== 'partially_refunded' && o.status !== 'refunded') return false
     const day = businessDayOf(o)
     return day !== '' && day >= from && day <= to
   })
@@ -103,24 +103,29 @@ export function salesIn(orders: readonly Order[], iv: Interval): Order[] {
 
 /**
  * The business day a refund is recognised on (A27): the server's refundBusinessDate, else the
- * browser-local day of refundedAt. Empty when neither exists.
+ * browser-local day of refundedAt. A partially refunded order has neither on the order row, so the
+ * latest refunds[] entry stands in (the server summary splits a multi-day order exactly; this
+ * client oracle books it whole on the last refund day). Empty when nothing exists.
  */
 export function refundBusinessDayOf(o: Order): string {
-  if (o.refundBusinessDate) return o.refundBusinessDate
-  if (!o.refundedAt) return ''
+  const last = o.refunds && o.refunds.length > 0 ? o.refunds[o.refunds.length - 1] : undefined
+  const bd = o.refundBusinessDate ?? last?.refundBusinessDate
+  if (bd) return bd
+  const at = o.refundedAt ?? last?.refundedAt
+  if (!at) return ''
   try {
-    return localDay(parseISO(o.refundedAt))
+    return localDay(parseISO(at))
   } catch {
     return ''
   }
 }
 
-/** Refunded rows whose REFUND business day falls in the interval. */
+/** Refunded and partially refunded rows whose REFUND business day falls in the interval. */
 export function refundsIn(orders: readonly Order[], iv: Interval): Order[] {
   const from = localDay(iv.start)
   const to = localDay(iv.end)
   return orders.filter((o) => {
-    if (o.status !== 'refunded') return false
+    if (!isRefundedStatus(o.status)) return false
     const day = refundBusinessDayOf(o)
     return day !== '' && day >= from && day <= to
   })
@@ -133,7 +138,9 @@ export function refundsIn(orders: readonly Order[], iv: Interval): Order[] {
  */
 export function refundSideOrNull(rows: readonly Order[]): Order[] | null {
   for (const o of rows) {
-    if (o.status !== 'refunded' || o.refundBusinessDate === undefined) return null
+    if (!isRefundedStatus(o.status)) return null
+    // A partially refunded row carries its days in refunds[]; a refunded row keeps the A27 key.
+    if (o.status === 'refunded' && o.refundBusinessDate === undefined) return null
   }
   return [...rows]
 }
@@ -165,7 +172,7 @@ export function computeKpis(completed: Order[]): Kpis {
   let itemsSold = 0
   const customers = new Set<string>()
   for (const o of completed) {
-    revenue += o.total
+    revenue += stillSoldMoney(o)
     for (const it of o.items) itemsSold += it.quantity
     if (o.customerId) customers.add(o.customerId)
   }
@@ -206,7 +213,7 @@ export function buildTrend(
       buckets[h].revenue += o.total
       buckets[h].orders += 1
     }
-    for (const o of refunds) buckets[parseISO(o.refundedAt ?? o.createdAt).getHours()].revenue -= o.total
+    for (const o of refunds) buckets[parseISO(o.refundedAt ?? o.refunds?.[o.refunds.length - 1]?.refundedAt ?? o.createdAt).getHours()].revenue -= refundedMoney(o)
     return buckets
   }
 
@@ -235,7 +242,7 @@ export function buildTrend(
     }
     for (const o of refunds) {
       const p = byMonth.get(refundBusinessDayOf(o).slice(0, 7))
-      if (p) p.revenue -= o.total
+      if (p) p.revenue -= refundedMoney(o)
     }
     return points
   }
@@ -261,7 +268,7 @@ export function buildTrend(
   }
   for (const o of refunds) {
     const p = byDay.get(refundBusinessDayOf(o))
-    if (p) p.revenue -= o.total
+    if (p) p.revenue -= refundedMoney(o)
   }
   return points
 }
@@ -280,7 +287,7 @@ export function productRanking(completed: Order[]): ProductRow[] {
       const name = `${it.productName}${it.variantSize ? ` ${it.variantSize}` : ''}`.trim()
       const key = `${it.productId}|${it.variantSize}`
       const row = map.get(key) ?? { key, name, qty: 0 }
-      row.qty += it.quantity
+      row.qty += o.status === 'partially_refunded' ? Math.max(it.quantity - (it.refundedQty ?? 0), 0) : it.quantity
       map.set(key, row)
     }
   }

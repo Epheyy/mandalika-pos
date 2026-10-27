@@ -10,20 +10,14 @@ import { BRAND } from '../../lib/brand'
 import { Button } from '../../ui/Button'
 import { Card } from '../../ui/Card'
 import { Badge } from '../../ui/Badge'
+import { orderStatusLabel, orderStatusTone } from '../../lib/orderStatus'
 import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 import { orderFilterParams, type OrderFilters } from './orderQuery'
 import { breakdownRows, canExportRefunds, hasRefundBasis, isNegative, moneyOrDash, refundExportParams, sharePercent } from './exportSummary'
 import { useOrderReport } from './useOrderReport'
 
-const statusBadge = (st: string) =>
-  st === 'completed' ? (
-    <Badge tone="success">Selesai</Badge>
-  ) : st === 'refunded' ? (
-    <Badge tone="danger">Refund</Badge>
-  ) : (
-    <Badge tone="neutral">{st}</Badge>
-  )
+const statusBadge = (st: string) => <Badge tone={orderStatusTone(st)}>{orderStatusLabel(st)}</Badge>
 
 interface ExportTabProps {
   filters: OrderFilters

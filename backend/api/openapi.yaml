@@ -50,7 +50,8 @@ components:
       name: status
       in: query
       required: false
-      schema: { type: string, enum: [completed, refunded, cancelled] }
+      description: '`partially_refunded` (C4a): orders with at least one per-line refund that are not yet fully refunded.'
+      schema: { type: string, enum: [completed, partially_refunded, refunded, cancelled] }
     OrderDateBasis:
       name: dateBasis
       in: query
@@ -1581,6 +1582,39 @@ components:
         rewardPromotionId: { type: string }
         promotionIds: { type: array, items: { type: string }, nullable: true }
         discountCodes: { type: array, items: { type: string }, nullable: true }
+        # C4a response-only fields (Order.items). Ignored by the server when sent as sale input.
+        # NOT nullable-$ref: all inline types.
+        id: { type: string, format: uuid, readOnly: true }
+        lineNo: { type: integer, nullable: true, readOnly: true, description: 'Position of the line in the sale; null on orders created before per-line refunds (whole-order refund only).' }
+        netAmount: { type: number, format: double, nullable: true, readOnly: true, description: 'What the customer paid for the line after discounts; null on pre-C4a orders.' }
+        refundGroup: { type: string, nullable: true, readOnly: true, description: 'Lines sharing a key (bundle / buy-X-get-Y) refund all-or-nothing.' }
+        refundedQty: { type: integer, readOnly: true, description: 'Units of the line refunded so far.' }
+    OrderRefundItem:
+      type: object
+      required: [orderItemId, quantity, amount]
+      properties:
+        orderItemId: { type: string, format: uuid }
+        lineNo: { type: integer, nullable: true }
+        quantity: { type: integer }
+        amount: { type: number, format: double }
+    OrderRefund:
+      type: object
+      required: [id, seq, scope, amount, computedAmount, paymentMethod, reason, refundedAt, items]
+      properties:
+        id: { type: string, format: uuid }
+        seq: { type: integer }
+        scope: { type: string, enum: [full, partial, legacy_full] }
+        amount: { type: number, format: double, description: 'The amount paid out (a captured fact).' }
+        computedAmount: { type: number, format: double, description: 'What the server computed for the refunded lines.' }
+        amountWarning: { type: string, nullable: true, description: 'Set when amount differs from computedAmount.' }
+        paymentMethod: { type: string }
+        reason: { type: string }
+        reasonCode: { type: string, nullable: true }
+        shiftId: { type: string, format: uuid, nullable: true }
+        refundedByName: { type: string, nullable: true }
+        refundedAt: { type: string, format: date-time }
+        refundBusinessDate: { type: string, format: date, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/OrderRefundItem' } }
     Order:
       type: object
       required: [id, orderNumber, outletId, cashierId, cashierName, items, subtotal, discountAmount, taxAmount, total, paymentMethod, amountPaid, change, status, createdAt]
@@ -1625,8 +1659,12 @@ components:
         paymentMethod: { type: string, description: configured payment method id (free-form since migration 0005) }
         amountPaid: { type: number, format: double }
         change: { type: number, format: double }
-        status: { type: string, enum: [completed, refunded, cancelled] }
+        status: { type: string, enum: [completed, partially_refunded, refunded, cancelled] }
         notes: { type: string, nullable: true }
+        # C4a: sum of all refund rows; absent when the order was never refunded. Money readers use
+        # refundedAmount (falling back to total for a legacy refunded row).
+        refundedAmount: { type: number, format: double }
+        refunds: { type: array, items: { $ref: '#/components/schemas/OrderRefund' } }
         refundReason: { type: string, nullable: true }
         refundedAt: { type: string, format: date-time, nullable: true }
         # A27: the refund's business day (refund shift's opening day, else the outlet-zone day of refundedAt).
@@ -2091,6 +2129,33 @@ components:
       required: [reason]
       properties:
         reason: { type: string, minLength: 1, maxLength: 500 }
+    # C4a: documented shape of SyncBatchItem.payload for type "refund" (the payload itself stays
+    # free-form, so this schema is reference-only and not wired into any operation).
+    SyncRefundPayload:
+      type: object
+      required: [orderId, reason]
+      description: >-
+        Legacy shape = {orderId, reason, deviceId, ...}: refunds the whole order and is refused
+        (conflict) on a partially_refunded order. Per-line shape adds items (required, non-empty)
+        and optionally refundAmount and reasonCode. Unknown keys (the tablet's display snapshot)
+        are ignored.
+      properties:
+        orderId: { type: string }
+        saleOrderUuid: { type: string, description: 'Client uuid of the sale, for an order not yet synced.' }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        reasonCode: { type: string, maxLength: 40, pattern: '^[a-z0-9_-]+$' }
+        items:
+          type: array
+          description: Per-line refund. Both keys are required on every entry.
+          items:
+            type: object
+            required: [lineNo, quantity]
+            properties:
+              lineNo: { type: integer }
+              quantity: { type: integer, minimum: 1 }
+        refundAmount: { type: number, format: double, description: 'The amount the tablet paid out (a captured fact; a difference from the computed amount is flagged, not refused).' }
+        orderUuid: { type: string, description: 'Client refund uuid (unique with deviceId).' }
+        deviceId: { type: string }
     OpenShiftRequest:
       type: object
       required: [startingCash]
@@ -2217,6 +2282,8 @@ components:
             never carries a pin, and the server ignores any approverUserId (the approver is the
             grant's). An item without a
             usable grant is refused as forbidden and goes to review.
+            For refund (C4a) see SyncRefundPayload: legacy {orderId, reason} refunds the whole
+            order; the per-line shape adds items [{lineNo, quantity}], refundAmount and reasonCode.
         # Optional and NOT nullable: openapi-typescript drops nullable on $ref schemas, so
         # "absent" is the only legacy/unset form (A04). Sibling of payload, never inside it.
         envelope: { $ref: '#/components/schemas/SyncEnvelope' }
@@ -2354,6 +2421,12 @@ components:
         status: { type: string, enum: [ok, duplicate, error] }
         orderId: { type: string }
         stockWarning: { type: boolean }
+        refundState:
+          type: string
+          enum: [partial, full]
+          description: >-
+            C4a: present on a refund ack. "full" = this refund left the order fully refunded,
+            "partial" = it is partially refunded. Optional and NOT nullable; absent from an older server.
         error: { type: string }
         code:
           type: string
@@ -5662,6 +5735,7 @@ paths:
       operationId: refundOrder
       tags: [sales]
       summary: Refund + restore stock (a completed order only; a second refund is refused)
+      description: Legacy whole-order shape only ({reason}). A partially_refunded order returns 409; per-line refunds go through POST /sync/batch.
       parameters:
         - $ref: '#/components/parameters/OutletHeader'
       requestBody:
@@ -5677,7 +5751,7 @@ paths:
               schema: { $ref: '#/components/schemas/OrderResponse' }
         '400': { description: "invalid order id or reason (trimmed, 1-500 characters)" }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { description: "already refunded; not completed; or not found at this outlet" }
+        '409': { description: "already refunded; partially refunded; not completed; or not found at this outlet" }
   /api/v1/shifts/{id}/close:
     parameters:
       - name: id
