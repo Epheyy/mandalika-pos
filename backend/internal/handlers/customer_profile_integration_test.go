@@ -146,7 +146,7 @@ func TestCustomerProfilePostgres(t *testing.T) {
 	}
 
 	t.Run("cashier sees only their outlet's completed orders, no notes", func(t *testing.T) {
-		p := fetch(cashier, "/sync/customers/"+custKeep+"/profile")
+		p := fetch(cashier, "/sync/customers/"+custKeep+"/profile?phone=0812-0000-9999")
 		if p.Data.Customer.Tier != "Gold" || p.Data.Customer.OrderCount != 4 {
 			t.Fatalf("header = %+v", p.Data.Customer)
 		}
@@ -194,9 +194,27 @@ func TestCustomerProfilePostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("a phone-only caller needs the customer's own phone (A30): an id alone is a 404", func(t *testing.T) {
+		for _, q := range []string{"", "?phone=", "?phone=081200000000", "?phone=12"} {
+			code, body := get(cashier, "/sync/customers/"+custKeep+"/profile"+q)
+			if code != http.StatusNotFound || strings.Contains(body, "Rina") || strings.Contains(body, "0812") {
+				t.Errorf("cashier %q = %d %s", q, code, body)
+			}
+		}
+		if code, _ := get(admin, "/sync/customers/"+custKeep+"/profile"); code != http.StatusOK {
+			t.Errorf("a customer reader needs no phone, got %d", code)
+		}
+	})
+
 	t.Run("a merged-away id answers with the keeper", func(t *testing.T) {
-		if got := fetch(cashier, "/sync/customers/"+custOld+"/profile").Data.Customer.Id; got != custKeep {
+		if got := fetch(cashier, "/sync/customers/"+custOld+"/profile?phone=081200009999").Data.Customer.Id; got != custKeep {
 			t.Fatalf("merged id resolved to %s", got)
+		}
+	})
+
+	t.Run("a malformed outletId is a 400, not a 500", func(t *testing.T) {
+		if code, _ := get(admin, "/sync/customers/"+custKeep+"/profile?outletId=urn:uuid:"+oA); code != http.StatusBadRequest {
+			t.Errorf("urn outletId = %d", code)
 		}
 	})
 
@@ -211,8 +229,12 @@ func TestCustomerProfilePostgres(t *testing.T) {
 
 	t.Run("a user without an outlet sees no orders", func(t *testing.T) {
 		tk := issue(uNoOut, "cashier", "", "create_order")
-		if n := len(fetch(tk, "/sync/customers/"+custKeep+"/profile").Data.LastOrders); n != 0 {
+		if n := len(fetch(tk, "/sync/customers/"+custKeep+"/profile?phone=081200009999").Data.LastOrders); n != 0 {
 			t.Fatalf("outlet-less caller saw %d orders", n)
+		}
+		_, body := get(tk, "/sync/customers/"+custKeep+"/profile?phone=081200009999")
+		if !strings.Contains(body, `"lastAt":null`) || !strings.Contains(body, `"lastItem":null`) || !strings.Contains(body, `"usualIntervalDays":null`) {
+			t.Errorf("an empty pitch must be null, not zero values: %s", body)
 		}
 	})
 }

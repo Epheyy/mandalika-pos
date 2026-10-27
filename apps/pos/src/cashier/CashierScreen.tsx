@@ -290,7 +290,7 @@ export default function CashierScreen() {
     customerId: state.selectedCustomer?.id ?? null, enabled: loyalty.enabled, online: offlineData.isOnline, cart: state.cart, total: derived.total,
   })
 
-  const customerProfile = useCustomerProfile(profileCustomer?.id ?? null, offlineData.isOnline)
+  const customerProfile = useCustomerProfile(profileCustomer, offlineData.isOnline)
 
   // Pending picker context has no effect on the sale until confirmed.
   // Open confirm dialog (customer change, Kosongkan); Back and Batal dismiss it.
@@ -983,6 +983,7 @@ export default function CashierScreen() {
     <CustomerChip
       customer={state.selectedCustomer}
       loyaltyEnabled={loyalty.enabled && hasFeature('loyalty')}
+      earnedPoints={derived.earnedPoints}
       rewards={chipRewards({ loyaltyEnabled: loyalty.enabled && hasFeature('loyalty'), online: offlineData.isOnline, loading: rewardsLoading, count: rewardsAvailableCount(rewards, state.cart) })}
       onOpenProfile={hasFeature('customerProfile') && attached ? () => openProfile(attached) : null}
       onOpenPicker={() => setShowCustomerSheet(true)}
@@ -1111,7 +1112,7 @@ export default function CashierScreen() {
         customerSearch={state.customerSearch} isAddingCustomer={isAddingCustomer}
         newCustomerForm={newCustomerForm} isSaving={isSavingCustomer}
         onSearchChange={(q) => dispatch({ type: 'SET_CUSTOMER_SEARCH', search: q })}
-        onSelect={(c) => { getKnownCustomers().remember(c); setShowCustomerSheet(false); requestSetCustomer(c) }}
+        onSelect={(c) => { getKnownCustomers().remember(c); closeCustomerSheet(); requestSetCustomer(c) }}
         onToggleAdding={() => { setIsAddingCustomer((v) => !v); setCustomerError(null) }}
         onNewFormChange={(f, v) => setNewCustomerForm((prev) => ({ ...prev, [f]: v }))}
         onSaveNew={() => void handleAddCustomer()}
@@ -1133,7 +1134,7 @@ export default function CashierScreen() {
         now={profileNow}
         onRepeat={(lines) => addPlanned(planRepeat(lines, displayProducts))}
         onAddOne={(item) => addPlanned(planOne(item, displayProducts))}
-        onSelect={(c) => { getKnownCustomers().remember(c); setProfileCustomer(null); setShowCustomerSheet(false); requestSetCustomer(c) }}
+        onSelect={(c) => { getKnownCustomers().remember(c); setProfileCustomer(null); closeCustomerSheet(); requestSetCustomer(c) }}
         onClose={() => setProfileCustomer(null)}
       />
 
@@ -1165,7 +1166,7 @@ export default function CashierScreen() {
         onSelectSalesman={(s) => dispatch({ type: 'SET_SALESMAN', salesman: s })}
         loyaltyEnabled={loyalty.enabled}
         customerPoints={state.selectedCustomer?.points ?? 0}
-        rewards={rewards}
+        rewards={rewardsLoading ? [] : rewards}
         rewardsLoading={rewardsLoading}
         stockProducts={displayProducts}
         pickedRewards={pickedRewards}

@@ -41,6 +41,12 @@ describe('CustomerChip', () => {
     expect(off).not.toContain('hadiah')
   })
 
+  it('shows the provisional earned points only with loyalty on', () => {
+    expect(chip({ earnedPoints: 12 })).toContain('+12 poin (tampilan sementara)')
+    expect(chip({ earnedPoints: 0 })).not.toContain('tampilan sementara')
+    expect(chip({ earnedPoints: 12, loyaltyEnabled: false, rewards: { kind: 'hidden' } })).not.toContain('tampilan sementara')
+  })
+
   it('words the reward states', () => {
     expect(rewardChipText({ kind: 'offline' })).toBe('Hadiah: Butuh internet')
     expect(rewardChipText({ kind: 'loading' })).toBe('Memeriksa hadiah…')

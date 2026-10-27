@@ -3,16 +3,19 @@ package handlers
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/httpx"
+	"github.com/mandalika/pos-backend/internal/phone"
 	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/service"
 )
+
+// isUUID: the canonical 36-character form only (uuid.Parse also takes urn: and braces, which Postgres rejects).
+func isUUID(s string) bool { _, err := uuid.Parse(s); return err == nil && len(s) == 36 }
 
 // CustomerProfile serves the POS profile sheet (D-25). Any authenticated role: the cashier
 // reaches a customer by phone and then asks for the profile by id. Order-derived data is
@@ -20,21 +23,17 @@ import (
 // data and follow customerScope. A merged-away id answers with the keeper.
 func (h *Handlers) CustomerProfile(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	if _, err := uuid.Parse(id); err != nil {
+	if !isUUID(id) {
 		httpx.Err(w, http.StatusNotFound, "pelanggan tidak ditemukan")
 		return
 	}
 	withNotes := customerScope(r) == CustomerAll
-	// A30: a phone-only caller spends the same per-terminal budget as a phone lookup, so the
-	// profile (reached by an unguessable id after a phone match) cannot be used to sweep ids.
-	if !withNotes {
-		if retryAfter, ok := h.lookupAllowed(r); !ok {
-			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
-			httpx.Err(w, http.StatusTooManyRequests, "terlalu banyak pencarian, coba lagi nanti")
-			return
-		}
+	sc := scope(r)
+	if sc.OutletID != "" && !isUUID(sc.OutletID) {
+		httpx.Err(w, http.StatusBadRequest, "outletId tidak valid")
+		return
 	}
-	data, err := h.Repo.CustomerProfile(r.Context(), id, scope(r), withNotes)
+	data, err := h.Repo.CustomerProfile(r.Context(), id, sc, withNotes, phone.Normalize(r.URL.Query().Get("phone")))
 	if errors.Is(err, read.ErrNotFound) {
 		httpx.Err(w, http.StatusNotFound, "pelanggan tidak ditemukan")
 		return
@@ -47,11 +46,10 @@ func (h *Handlers) CustomerProfile(w http.ResponseWriter, r *http.Request) {
 	p.Customer.Tier = api.CustomerProfileHeaderTier(service.CustomerTier(data.TotalSpend))
 	c, _ := h.caller(r)
 	rewards, err := h.OrderSvc.PreviewRewards(r.Context(), p.Customer.Id.String(), nil, 0, nil, c.outletID)
-	if err != nil {
-		writeErr(w, r, http.StatusInternalServerError, err)
-		return
+	// The count is advisory: a failed preview must not hide the profile.
+	if err == nil {
+		p.RewardsAvailable = len(rewards)
 	}
-	p.RewardsAvailable = len(rewards)
 	w.Header().Set("Cache-Control", "no-store")
 	// writeJSON: CustomerProfileResponse already carries the {data:...} envelope.
 	writeJSON(w, http.StatusOK, api.CustomerProfileResponse{Data: p})

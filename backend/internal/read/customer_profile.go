@@ -88,10 +88,22 @@ const orderScopeSQL = `($2::bool OR o.outlet_id = NULLIF($3,'')::uuid)`
 // row (identity, points, lifetime totals) is brand-wide like every customer read; the
 // order-derived parts (last orders, frequent items, pitch) only see orders inside scope.
 // Notes are CRM data: withNotes false (a cashier, A30) returns none.
-func (r *Repo) CustomerProfile(ctx context.Context, id string, sc Scope, withNotes bool) (CustomerProfileData, error) {
+func (r *Repo) CustomerProfile(ctx context.Context, id string, sc Scope, withNotes bool, phoneNorm string) (CustomerProfileData, error) {
 	keeper, err := r.resolveKeeper(ctx, id)
 	if err != nil {
 		return CustomerProfileData{}, err
+	}
+	if !withNotes {
+		// A30: a phone-only caller may only open a customer whose phone they hold. Ids leak to cashiers
+		// (discount-code customerId, order customerId), so the id alone must never answer.
+		var ok bool
+		if err := r.Pool.QueryRow(ctx, `SELECT $2::text <> '' AND EXISTS (SELECT 1 FROM customers WHERE id = ANY($1::uuid[]) AND phone_norm = $2::text)`,
+			[]string{id, keeper}, phoneNorm).Scan(&ok); err != nil {
+			return CustomerProfileData{}, fmt.Errorf("profile phone gate: %w", err)
+		}
+		if !ok {
+			return CustomerProfileData{}, ErrNotFound
+		}
 	}
 	var out CustomerProfileData
 	p := &out.Profile
@@ -178,13 +190,13 @@ func (r *Repo) profileLastOrders(ctx context.Context, id string, sc Scope) ([]ap
 }
 
 func (r *Repo) profileFrequent(ctx context.Context, id string, sc Scope) ([]api.CustomerProfileFrequentItem, error) {
-	rows, err := r.Pool.Query(ctx, `SELECT oi.product_id::text, oi.variant_size, (array_agg(oi.product_name ORDER BY o.created_at DESC))[1],
+	rows, err := r.Pool.Query(ctx, `SELECT oi.product_id::text, oi.variant_size, (array_agg(oi.product_name ORDER BY COALESCE(o.client_created_at, o.created_at) DESC))[1],
 	    sum(oi.quantity)::int AS n
 	  FROM order_items oi JOIN orders o ON o.id = oi.order_id
 	  WHERE o.customer_id=$1 AND `+orderScopeSQL+` AND o.status='completed'
-	    AND oi.subtotal > 0 AND o.created_at >= now() - interval '12 months'
+	    AND oi.subtotal > 0 AND COALESCE(o.client_created_at, o.created_at) >= now() - interval '12 months'
 	  GROUP BY oi.product_id, oi.variant_size
-	  ORDER BY n DESC, max(o.created_at) DESC, oi.product_id LIMIT $4`,
+	  ORDER BY n DESC, max(COALESCE(o.client_created_at, o.created_at)) DESC, oi.product_id, oi.variant_size LIMIT $4`,
 		id, sc.CrossAll, sc.OutletID, profileFrequentItems)
 	if err != nil {
 		return nil, fmt.Errorf("profile frequent: %w", err)
@@ -226,6 +238,10 @@ func (r *Repo) profileNotes(ctx context.Context, id string) ([]api.CustomerProfi
 
 func (r *Repo) profilePitch(ctx context.Context, id string, sc Scope, last []api.CustomerProfileOrder) (api.CustomerProfilePitch, error) {
 	pitch := api.CustomerProfilePitch{NeverTriedCategories: []string{}}
+	// nullable.Nullable marshals an unset value as its zero value, so say null explicitly.
+	pitch.LastAt.SetNull()
+	pitch.LastItem.SetNull()
+	pitch.UsualIntervalDays.SetNull()
 	if len(last) > 0 {
 		at := last[0].At
 		pitch.LastAt.Set(at)
@@ -259,13 +275,13 @@ func (r *Repo) profilePitch(ctx context.Context, id string, sc Scope, last []api
 		pitch.UsualIntervalDays.Set(*d)
 	}
 	cats, err := r.Pool.Query(ctx, `SELECT c.name FROM categories c
-	  WHERE EXISTS (SELECT 1 FROM products p WHERE p.category_id = c.id AND p.is_active)
+	  WHERE EXISTS (SELECT 1 FROM products p WHERE p.category_id = c.id AND p.is_active AND p.sellable)
 	    AND NOT EXISTS (
 	      SELECT 1 FROM order_items oi JOIN orders o ON o.id = oi.order_id
 	      JOIN products p ON p.id = oi.product_id
 	      WHERE o.customer_id=$1 AND `+orderScopeSQL+` AND o.status='completed'
 	        AND oi.subtotal > 0 AND p.category_id = c.id)
-	  ORDER BY c.sort_order NULLS LAST, c.name LIMIT $4`,
+	  ORDER BY c.sort_order NULLS LAST, c.name, c.id LIMIT $4`,
 		id, sc.CrossAll, sc.OutletID, profileNeverTried)
 	if err != nil {
 		return pitch, fmt.Errorf("profile categories: %w", err)

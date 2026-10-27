@@ -425,7 +425,10 @@ export interface paths {
         /**
          * Customer profile for the POS sheet (D-25, B3)
          * @description Authenticated, any role (the cashier reaches it after finding the customer by phone).
-         *     A merged-away id resolves to the surviving customer. Order-derived data (last orders,
+         *     A merged-away id resolves to the surviving customer. Callers without customer-reader access
+         *     (cashiers, A30) must also send `phone`, the customer's own number in any format; without a
+         *     match the answer is 404, so an id alone (ids leak through discount codes and orders) never
+         *     reveals a name or number. Order-derived data (last orders,
          *     frequent items, pitch) is limited to the caller's outlet scope; the customer identity,
          *     points and lifetime totals are brand-wide. Notes are returned only to callers with
          *     customer-reader access (A30); cashiers get an empty list. Never cached.
@@ -6797,7 +6800,10 @@ export interface operations {
     };
     getCustomerProfile: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Customer phone, required for phone-only callers (A30) */
+                phone?: string;
+            };
             header?: never;
             path: {
                 id: string;

@@ -8,6 +8,8 @@ interface CustomerChipProps {
   customer: Customer | null
   loyaltyEnabled: boolean
   rewards: ChipState['rewards']
+  /** Points this sale would earn (provisional), shown under the rewards. */
+  earnedPoints?: number
   /** Opens the Profil Pelanggan sheet (null when the brand has no profile feature: the name is plain text). */
   onOpenProfile: (() => void) | null
   /** Opens the Pelanggan sheet (empty state "+ Pelanggan", and "Ganti"). */
@@ -18,7 +20,7 @@ interface CustomerChipProps {
 
 /** A2/B3 customer chip: "+ Pelanggan" when empty; otherwise name · tier · points and the reward count, with
  *  Ganti and Lepas. Tapping the name opens the profile. */
-export function CustomerChip({ customer, loyaltyEnabled, rewards, onOpenProfile, onOpenPicker, onRelease }: CustomerChipProps) {
+export function CustomerChip({ customer, loyaltyEnabled, rewards, earnedPoints = 0, onOpenProfile, onOpenPicker, onRelease }: CustomerChipProps) {
   if (!customer) {
     return (
       <button
@@ -53,6 +55,7 @@ export function CustomerChip({ customer, loyaltyEnabled, rewards, onOpenProfile,
         ) : (
           <div>{body}</div>
         )}
+        {loyaltyEnabled && earnedPoints > 0 && <p className="truncate text-[0.8125rem] text-ok">+{earnedPoints} poin (tampilan sementara)</p>}
         {rewardText && <p className={`truncate text-[0.8125rem] font-semibold ${rewards.kind === 'count' && rewards.n > 0 ? 'text-reward' : 'text-ink-500'}`}>{rewardText}</p>}
       </div>
       <button type="button" onClick={onOpenPicker} className="touch flex-shrink-0 rounded-control px-2 text-[0.9375rem] font-semibold text-ink-700 active:bg-paper-2">Ganti</button>
