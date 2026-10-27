@@ -106,7 +106,7 @@ export function reportTotals(saleRows: readonly Order[], refundRows: readonly Or
     add(t.grossByPay, o.paymentMethod, o.total)
     const sold = stillSoldMoney(o)
     if (o.status === 'completed' || o.status === 'partially_refunded') t.completedCount += 1
-    if (sold !== 0) {
+    if (o.status === 'completed' || o.status === 'partially_refunded' || sold !== 0) {
       t.revenue += sold
       add(t.byPay, o.paymentMethod, sold)
     }

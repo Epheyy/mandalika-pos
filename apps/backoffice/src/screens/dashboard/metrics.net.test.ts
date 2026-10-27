@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { Order } from '@mandalika/api'
 import {
   buildTrend,
+  cashierPerformance,
+  computeKpis,
+  paymentBreakdown,
   delta,
   netKpis,
   netPaymentBreakdown,
@@ -192,5 +195,26 @@ describe('multi-day refunds (C4a F2)', () => {
     expect(pts.reduce((s, p) => s + p.revenue, 0)).toBe(50)
     expect(Object.values(byLabel)).toContain(-20)
     expect(Object.values(byLabel)).toContain(-30)
+  })
+})
+
+describe('partial refunds in KPI, payment and cashier rollups (C4a)', () => {
+  const part = order({
+    id: 'q', status: 'partially_refunded', total: 100, refundedAmount: 40, cashierId: 'c1', cashierName: 'Ayu',
+    items: [{ productId: 'p', productName: 'P', variantSize: '1', price: 50, quantity: 2, subtotal: 100, refundedQty: 1 }],
+  } as unknown as Partial<Order>)
+  const plain = order({
+    id: 'r', total: 50, cashierId: 'c1', cashierName: 'Ayu',
+    items: [{ productId: 'p', productName: 'P', variantSize: '1', price: 50, quantity: 1, subtotal: 50 }],
+  } as unknown as Partial<Order>)
+
+  it('counts net revenue and units', () => {
+    expect(computeKpis([part, plain])).toMatchObject({ revenue: 110, itemsSold: 2 })
+    expect(paymentBreakdown([part, plain])).toEqual([expect.objectContaining({ method: 'cash', amount: 110 })])
+    expect(cashierPerformance([part, plain])[0]).toMatchObject({ transactions: 2, revenue: 110 })
+  })
+
+  it('is unchanged when the refund fields are absent', () => {
+    expect(computeKpis([plain])).toMatchObject({ revenue: 50, itemsSold: 1 })
   })
 })

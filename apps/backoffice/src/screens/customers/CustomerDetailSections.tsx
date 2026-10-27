@@ -10,7 +10,7 @@ import { BRAND } from '../../lib/brand'
 import { Button } from '../../ui/Button'
 import { Card } from '../../ui/Card'
 import { Badge } from '../../ui/Badge'
-import { orderStatusLabel, orderStatusTone } from '../../lib/orderStatus'
+import { orderIconClasses, orderStatusLabel, orderStatusTone } from '../../lib/orderStatus'
 import { IconButton } from '../../ui/IconButton'
 import { EmptyState } from '../../ui/EmptyState'
 import { tagChipClasses } from './tagColors'
@@ -173,8 +173,8 @@ export function PurchaseHistoryCard({ orders, loading, expanded, setExpanded }: 
                   }
                 }}
               >
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${o.status === 'refunded' ? 'bg-red-50' : 'bg-gold-50'}`}>
-                  <ShoppingBag className={`w-4 h-4 ${o.status === 'refunded' ? 'text-red-400' : 'text-gold-600'}`} />
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${orderIconClasses(o.status).tile}`}>
+                  <ShoppingBag className={`w-4 h-4 ${orderIconClasses(o.status).glyph}`} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-gray-900 text-sm">{o.orderNumber}</p>

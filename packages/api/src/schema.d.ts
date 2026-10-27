@@ -4780,14 +4780,15 @@ export interface components {
         RefundRequest: {
             reason: string;
         };
-        /** @description Legacy shape = {orderId, reason, deviceId, ...}: refunds the whole order and is refused (conflict) on a partially_refunded order. Per-line shape adds items (required, non-empty) and optionally refundAmount and reasonCode. Unknown keys (the tablet's display snapshot) are ignored. */
+        /** @description One of orderId or saleOrderUuid is required (the server resolves the sale by saleOrderUuid alone when orderId is empty). Legacy shape = {orderId, reason, deviceId, ...}: refunds the whole order and is refused (conflict) on a partially_refunded order. Per-line shape adds items (required, non-empty) and optionally refundAmount and reasonCode. Unknown keys (the tablet's display snapshot) are ignored. */
         SyncRefundPayload: {
-            orderId: string;
-            /** @description Client uuid of the sale, for an order not yet synced. */
+            /** @description Server order id; optional when saleOrderUuid is sent. */
+            orderId?: string;
+            /** @description Client uuid of the sale, for an order not yet synced; optional when orderId is sent. */
             saleOrderUuid?: string;
             reason: string;
             reasonCode?: string;
-            /** @description Per-line refund. Both keys are required on every entry. */
+            /** @description Per-line refund. Both keys are required on every entry; an empty array is refused. */
             items?: {
                 lineNo: number;
                 quantity: number;

@@ -21,7 +21,8 @@ import { Pagination } from '../ui/Pagination'
 import { canViewSummary, lastDaysRange, orderFilterParams, transaksiFilters, transaksiHeader } from './reports/orderQuery'
 import { useOrderReport } from './reports/useOrderReport'
 import { refundedByLine } from './refundDisplay'
-import { canRefundWholeOrder, orderStatusLabel, orderStatusTone } from '../lib/orderStatus'
+import { refundedMoney } from './reports/reportTotals'
+import { canRefundWholeOrder, orderIconClasses, orderStatusLabel, orderStatusTone } from '../lib/orderStatus'
 import { quoteWarningTitle, receiptTotalLine } from './quoteDisplay'
 
 const TENDER_WARNING_TITLES: Record<string, string> = {
@@ -118,6 +119,7 @@ export function OrdersPanel() {
           .join('; '),
         Pajak: o.taxAmount,
         Total: o.total,
+        'Jumlah Refund': o.status === 'refunded' || o.status === 'partially_refunded' ? refundedMoney(o) : '',
       }))
       const scope = outletId ? (ctxOutlets.find((o) => o.id === outletId)?.name ?? null) : 'semua-outlet'
       const name = buildExportName('transaksi', [scope, fStatus || undefined, fPay || undefined, query.trim() || undefined])
@@ -218,8 +220,8 @@ export function OrdersPanel() {
                     }
                   }}
                 >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${o.status === 'refunded' ? 'bg-red-50' : 'bg-gold-50'}`}>
-                    <ShoppingBag className={`w-4 h-4 ${o.status === 'refunded' ? 'text-red-400' : 'text-gold-600'}`} />
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${orderIconClasses(o.status).tile}`}>
+                    <ShoppingBag className={`w-4 h-4 ${orderIconClasses(o.status).glyph}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900 text-sm">{o.orderNumber}</p>

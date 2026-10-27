@@ -1,6 +1,7 @@
-import { expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import type { Order } from '@mandalika/api'
 import { BRAND } from '../../lib/brand'
-import { breakdownRows, canExportRefunds, hasRefundBasis, isNegative, moneyOrDash, refundExportParams, sharePercent } from './exportSummary'
+import { breakdownRows, canExportRefunds, hasRefundBasis, isNegative, moneyOrDash, refundCsvFields, refundExportParams, sharePercent } from './exportSummary'
 
 it('renders a negative net with a minus sign and flags it', () => {
   expect(BRAND.currency.format(-100)).toContain('-')
@@ -47,5 +48,29 @@ it('computes shares of gross', () => {
 it('refund export pages the refund-day list with the same filter', () => {
   expect(refundExportParams({ dateFrom: '2026-02-01', status: 'refunded', q: 'x' })).toEqual({
     dateFrom: '2026-02-01', status: 'refunded', q: 'x', dateBasis: 'refund',
+  })
+})
+
+describe('refundCsvFields (C4a)', () => {
+  const base = { total: 100, status: 'completed' } as unknown as Order
+
+  it('is empty for a completed order', () => {
+    expect(refundCsvFields(base).amount).toBe('')
+  })
+
+  it('keeps the old-backend output: total for a refunded order, order-level columns', () => {
+    const o = { ...base, status: 'refunded', refundedAt: '2026-03-02T05:00:00Z', refundBusinessDate: '2026-03-02', refundReason: 'rusak' } as unknown as Order
+    expect(refundCsvFields(o)).toEqual({ amount: 100, refundedAt: '2026-03-02T05:00:00Z', refundBusinessDate: '2026-03-02', reason: 'rusak' })
+  })
+
+  it('fills a partially refunded order from the latest refunds[] entry and refundedAmount', () => {
+    const o = {
+      ...base, status: 'partially_refunded', refundedAmount: 50, refundedAt: null, refundBusinessDate: null, refundReason: null,
+      refunds: [
+        { refundedAt: '2026-03-02T05:00:00Z', refundBusinessDate: '2026-03-02', reason: 'a' },
+        { refundedAt: '2026-03-05T05:00:00Z', refundBusinessDate: '2026-03-05', reason: 'b' },
+      ],
+    } as unknown as Order
+    expect(refundCsvFields(o)).toEqual({ amount: 50, refundedAt: '2026-03-05T05:00:00Z', refundBusinessDate: '2026-03-05', reason: 'b' })
   })
 })

@@ -2133,25 +2133,27 @@ components:
     # free-form, so this schema is reference-only and not wired into any operation).
     SyncRefundPayload:
       type: object
-      required: [orderId, reason]
+      required: [reason]
       description: >-
-        Legacy shape = {orderId, reason, deviceId, ...}: refunds the whole order and is refused
-        (conflict) on a partially_refunded order. Per-line shape adds items (required, non-empty)
-        and optionally refundAmount and reasonCode. Unknown keys (the tablet's display snapshot)
-        are ignored.
+        One of orderId or saleOrderUuid is required (the server resolves the sale by
+        saleOrderUuid alone when orderId is empty). Legacy shape = {orderId, reason, deviceId, ...}:
+        refunds the whole order and is refused (conflict) on a partially_refunded order. Per-line
+        shape adds items (required, non-empty) and optionally refundAmount and reasonCode. Unknown
+        keys (the tablet's display snapshot) are ignored.
       properties:
-        orderId: { type: string }
-        saleOrderUuid: { type: string, description: 'Client uuid of the sale, for an order not yet synced.' }
+        orderId: { type: string, description: 'Server order id; optional when saleOrderUuid is sent.' }
+        saleOrderUuid: { type: string, description: 'Client uuid of the sale, for an order not yet synced; optional when orderId is sent.' }
         reason: { type: string, minLength: 1, maxLength: 500 }
         reasonCode: { type: string, maxLength: 40, pattern: '^[a-z0-9_-]+$' }
         items:
           type: array
-          description: Per-line refund. Both keys are required on every entry.
+          minItems: 1
+          description: Per-line refund. Both keys are required on every entry; an empty array is refused.
           items:
             type: object
             required: [lineNo, quantity]
             properties:
-              lineNo: { type: integer }
+              lineNo: { type: integer, minimum: 0, maximum: 32767 }
               quantity: { type: integer, minimum: 1 }
         refundAmount: { type: number, format: double, description: 'The amount the tablet paid out (a captured fact; a difference from the computed amount is flagged, not refused).' }
         orderUuid: { type: string, description: 'Client refund uuid (unique with deviceId).' }

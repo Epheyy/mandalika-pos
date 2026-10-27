@@ -150,3 +150,9 @@ describe('reportTotals refund windows and residuals (C4a F2)', () => {
     expect(t.net).toBe(5)
   })
 })
+
+it('keeps a {method: 0} byPay key for a Rp0 completed order (server parity)', () => {
+  const t = reportTotals([order('completed', 0, 'cash')], [])
+  expect(t.byPay).toEqual({ cash: 0 })
+  expect(t.completedCount).toBe(1)
+})

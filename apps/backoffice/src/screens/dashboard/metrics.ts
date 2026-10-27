@@ -180,13 +180,17 @@ export interface Kpis {
   customers: number
 }
 
+/** Units of a line still sold: a partially refunded order gives back its refundedQty. */
+const soldQty = (o: Order, it: Order['items'][number]): number =>
+  o.status === 'partially_refunded' ? Math.max(it.quantity - (it.refundedQty ?? 0), 0) : it.quantity
+
 export function computeKpis(completed: Order[]): Kpis {
   let revenue = 0
   let itemsSold = 0
   const customers = new Set<string>()
   for (const o of completed) {
     revenue += stillSoldMoney(o)
-    for (const it of o.items) itemsSold += it.quantity
+    for (const it of o.items) itemsSold += soldQty(o, it)
     if (o.customerId) customers.add(o.customerId)
   }
   return { revenue, orders: completed.length, itemsSold, customers: customers.size }
@@ -311,7 +315,7 @@ export function productRanking(completed: Order[]): ProductRow[] {
       const name = `${it.productName}${it.variantSize ? ` ${it.variantSize}` : ''}`.trim()
       const key = `${it.productId}|${it.variantSize}`
       const row = map.get(key) ?? { key, name, qty: 0 }
-      row.qty += o.status === 'partially_refunded' ? Math.max(it.quantity - (it.refundedQty ?? 0), 0) : it.quantity
+      row.qty += soldQty(o, it)
       map.set(key, row)
     }
   }
@@ -397,7 +401,7 @@ export interface PayRow {
 
 export function paymentBreakdown(completed: Order[]): PayRow[] {
   const map = new Map<string, number>()
-  for (const o of completed) map.set(o.paymentMethod, (map.get(o.paymentMethod) ?? 0) + o.total)
+  for (const o of completed) map.set(o.paymentMethod, (map.get(o.paymentMethod) ?? 0) + stillSoldMoney(o))
   return [...map.entries()]
     .map(([method, amount]) => ({
       method,
@@ -441,7 +445,7 @@ export function cashierPerformance(completed: Order[], limit = 8): CashierRow[] 
       revenue: 0,
     }
     row.transactions += 1
-    row.revenue += o.total
+    row.revenue += stillSoldMoney(o)
     map.set(o.cashierId, row)
   }
   return [...map.values()].sort((a, b) => b.transactions - a.transactions).slice(0, limit)
