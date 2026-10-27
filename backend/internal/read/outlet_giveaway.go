@@ -69,3 +69,41 @@ func OutletGiveawayOn(ctx context.Context, q RowQuerier, outletID string) (api.O
 	}
 	return out, nil
 }
+
+// PullGiveaway is the outlet giveaway as the tablet's pull bundle carries it (C3).
+type PullGiveaway struct {
+	ProductID   string `json:"productId"`
+	VariantSize string `json:"variantSize"`
+	ProductName string `json:"productName"`
+	Stock       int    `json:"stock"`
+}
+
+// OutletGiveawayForPull returns the giveaway the sale path will actually take for this
+// outlet, or nil: enabled, the variant still exists and the outlet has a stock row for it
+// (the same three tests lockStockRowsSorted/giveawayLine apply, so the POS never shows a
+// giveaway the server would skip). No row, disabled or skipped is nil, not an error.
+func OutletGiveawayForPull(ctx context.Context, q RowQuerier, outletID string) (*PullGiveaway, error) {
+	oid, err := uuid.Parse(outletID)
+	if err != nil {
+		return nil, nil
+	}
+	var g PullGiveaway
+	var pid uuid.UUID
+	err = q.QueryRow(ctx,
+		`SELECT g.product_id, g.variant_size, p.name, s.stock
+		   FROM outlet_giveaways g
+		   JOIN products p ON p.id = g.product_id
+		   JOIN outlet_variant_stock s
+		     ON s.outlet_id = g.outlet_id AND s.product_id = g.product_id AND s.variant_size = g.variant_size
+		  WHERE g.outlet_id = $1 AND g.enabled
+		    AND EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = g.product_id AND pv.size = g.variant_size)`,
+		oid).Scan(&pid, &g.VariantSize, &g.ProductName, &g.Stock)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+	g.ProductID = pid.String()
+	return &g, nil
+}

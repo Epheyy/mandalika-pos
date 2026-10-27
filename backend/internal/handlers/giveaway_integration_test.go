@@ -516,6 +516,35 @@ func TestGiveawayPostgres(t *testing.T) {
 		assertLedgerInvariant(t, ctx, pool)
 	})
 
+	t.Run("pull-carries-the-giveaway-the-sale-takes", func(t *testing.T) {
+		// C3: only an enabled setting whose variant and stock row exist reaches the tablet.
+		g, err := read.OutletGiveawayForPull(ctx, pool, outA)
+		if err != nil || g == nil || g.ProductID != bag || g.VariantSize != size || g.ProductName == "" || g.Stock != stockOf(outA, bag) {
+			t.Fatalf("outlet A pull giveaway = %+v, %v; want the bag at stock %d", g, err, stockOf(outA, bag))
+		}
+		for name, outlet := range map[string]string{"disabled": outB, "vanished variant": outD} {
+			if g, err := read.OutletGiveawayForPull(ctx, pool, outlet); err != nil || g != nil {
+				t.Fatalf("%s outlet pull giveaway = %+v, %v; want none", name, g, err)
+			}
+		}
+		if g, err := read.OutletGiveawayForPull(ctx, pool, "not-a-uuid"); err != nil || g != nil {
+			t.Fatalf("bad outlet id pull giveaway = %+v, %v; want none", g, err)
+		}
+		// A change moves only that outlet's content version, so its tablets pull it.
+		version := func(outlet string) int {
+			return one(`SELECT version FROM content_versions WHERE outlet_id=$1`, outlet)
+		}
+		exec(`INSERT INTO content_versions(outlet_id) VALUES($1) ON CONFLICT DO NOTHING`, outA)
+		exec(`INSERT INTO content_versions(outlet_id) VALUES($1) ON CONFLICT DO NOTHING`, outD)
+		a0, d0 := version(outA), version(outD)
+		if code, body := put(outA, setting(bag, true), "gw-k-pull-bump"); code != 200 {
+			t.Fatalf("PUT: %d %s", code, body)
+		}
+		if version(outA) != a0+1 || version(outD) != d0 {
+			t.Fatalf("content version A %d->%d (want +1), D %d->%d (want unchanged)", a0, version(outA), d0, version(outD))
+		}
+	})
+
 	t.Run("ledger-invariant-holds", func(t *testing.T) {
 		bad, err := ledger.InvariantViolations(ctx, pool)
 		if err != nil || len(bad) != 0 {

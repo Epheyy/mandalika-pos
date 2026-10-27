@@ -2164,6 +2164,21 @@ components:
           type: string
           enum: [Asia/Jakarta, Asia/Makassar, Asia/Jayapura]
           description: The outlet's timezone; promo hours, active days and start/end dates are evaluated on this clock. Absent (older servers) means Asia/Jakarta.
+        outletGiveaway:
+          type: object
+          required: [productId, variantSize, productName]
+          description: >-
+            C3: this outlet's per-sale giveaway item, present only while it is enabled and the
+            item still has a stock row here (the same test the sale path applies before it
+            takes one unit per completed order). The POS shows it as a GRATIS line and subtracts
+            it in the displayed stock; it never sends it as an order line. Absent = no giveaway
+            (older servers too). `stock` is the outlet stock at pull time, a fallback for an item
+            that is not in the sellable catalog.
+          properties:
+            productId: { type: string, format: uuid }
+            variantSize: { type: string }
+            productName: { type: string }
+            stock: { type: integer }
         products: { type: array, items: { $ref: '#/components/schemas/Product' } }
         categories: { type: array, items: { $ref: '#/components/schemas/Category' } }
         bundles: { type: array, items: { $ref: '#/components/schemas/Bundle' } }

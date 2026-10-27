@@ -87,6 +87,11 @@ func (r *Repo) SetOutletGiveawayTx(ctx context.Context, tx pgx.Tx, outletID, act
 		outletID, in.ProductID, in.VariantSize, in.Enabled, actor); err != nil {
 		return fmt.Errorf("save giveaway setting: %w", err)
 	}
+	// C3: the tablets of this outlet carry the giveaway in their pull bundle, so a change must
+	// move this outlet's content version (only this outlet: the setting is per outlet).
+	if err := bumpVersionOutlets(ctx, tx, "outlet_giveaway", []string{outletID}); err != nil {
+		return fmt.Errorf("bump giveaway version: %w", err)
+	}
 	raw, err := json.Marshal(data)
 	if err != nil {
 		return err
