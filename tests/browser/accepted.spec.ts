@@ -1,5 +1,5 @@
 import { test, expect, evidence, POS, BO, type ScenarioPage } from './fixture'
-import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCustomer, posRecap, posAutoPull, posStockDrift, posLineSheet, posPromoSheet, posCustomerProfile, posHeldOrders } from './pos-scenarios'
+import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCustomer, posRecap, posAutoPull, posStockDrift, posLineSheet, posPromoSheet, posCustomerProfile, posHeldOrders, posGiveaway } from './pos-scenarios'
 import { setupBackoffice, backofficeChecks, transactionsChecks, qualifyBackoffice, reportsRaces } from './backoffice-scenarios'
 import { reviewResolveFlow } from './backoffice-review-scenarios'
 import { csvImportFlow } from './backoffice-import-scenarios'
@@ -99,6 +99,14 @@ test('POS-CUSTOMER-PROFILE the chip, the Profil Pelanggan sheet and Ulangi add t
   await setupPos(p)
   const result = await posCustomerProfile(p)
   expect(result).toHaveLength(2)
+  await evidence(info, result)
+})
+
+test('POS-GIVEAWAY the outlet giveaway is a HADIAH/GRATIS cart and receipt line, not an order line, and the bag tile stock drops by one', async ({ page }, info) => {
+  const p = page as ScenarioPage
+  await setupPos(p, { giveaway: { stock: 50 } })
+  const result = await posGiveaway(p)
+  expect(result).toHaveLength(3)
   await evidence(info, result)
 })
 

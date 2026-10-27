@@ -91,6 +91,25 @@ describe('C1 receipt rows', () => {
     expect(amt(row(lines, 'TOTAL'))).toBe(200000)
   })
 
+  it('C3 outlet giveaway line: HADIAH + GRATIS as the last item, the slip still adds up', () => {
+    const data: ReceiptData = {
+      ...base,
+      lines: [
+        { name: 'Parfum A', qty: 1, unitPrice: 100000, amount: 100000, isReward: false },
+        { name: 'Tote Bag', variant: 'STD', qty: 1, unitPrice: 0, amount: 0, isReward: true },
+      ],
+      subtotal: 100000, discounts: [], total: 100000, amountPaid: 100000, change: 0,
+    }
+    const lines = slip(buildReceipt(data, settings))
+    expect(lines.every((l) => l.length <= COLS)).toBe(true)
+    const bag = lines.findIndex((l) => l.startsWith('Tote Bag'))
+    expect(bag).toBeGreaterThan(lines.findIndex((l) => l.startsWith('Parfum A')))
+    expect(lines[bag]).toContain('[HADIAH]')
+    expect(lines.slice(bag, bag + 3).some((l) => /GRATIS$/.test(l))).toBe(true)
+    expect(amt(row(lines, 'Subtotal'))).toBe(100000)
+    expect(amt(row(lines, 'TOTAL'))).toBe(100000)
+  })
+
   it('wraps a long item name onto at most two lines', () => {
     const data: ReceiptData = {
       ...base,

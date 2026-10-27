@@ -61,21 +61,24 @@ type PullBundle struct {
 	// StockSeq is the outlet stock counter as of the moment Version() was read, which
 	// is BEFORE the products below are read: the stock in this bundle covers every
 	// change up to StockSeq (a change committing in between only causes one extra pull).
-	StockSeq          *int64 `json:"stockSeq,omitempty"`
-	OutletCode        string `json:"outletCode"`
-	OutletName        string `json:"outletName"`
-	OutletTimezone    string `json:"outletTimezone,omitempty"`
-	Products          any    `json:"products"`
-	Categories        any    `json:"categories"`
-	Bundles           any    `json:"bundles"`
-	Customers         any    `json:"customers"`
-	Promotions        any    `json:"promotions"`
-	DiscountCodes     any    `json:"discountCodes"`
-	LoyaltyConditions any    `json:"loyaltyConditions"`
-	LoyaltySettings   any    `json:"loyaltySettings"`
-	AppSettings       any    `json:"appSettings"`
-	Users             any    `json:"users"`
-	ReceiveApprovers  any    `json:"receiveApprovers"`
+	StockSeq       *int64 `json:"stockSeq,omitempty"`
+	OutletCode     string `json:"outletCode"`
+	OutletName     string `json:"outletName"`
+	OutletTimezone string `json:"outletTimezone,omitempty"`
+	// OutletGiveaway (C3) is the outlet's enabled per-sale giveaway so the POS can show and count
+	// it offline; nil (omitted) = none. The sale path still decides what is taken.
+	OutletGiveaway    *read.PullGiveaway `json:"outletGiveaway,omitempty"`
+	Products          any                `json:"products"`
+	Categories        any                `json:"categories"`
+	Bundles           any                `json:"bundles"`
+	Customers         any                `json:"customers"`
+	Promotions        any                `json:"promotions"`
+	DiscountCodes     any                `json:"discountCodes"`
+	LoyaltyConditions any                `json:"loyaltyConditions"`
+	LoyaltySettings   any                `json:"loyaltySettings"`
+	AppSettings       any                `json:"appSettings"`
+	Users             any                `json:"users"`
+	ReceiveApprovers  any                `json:"receiveApprovers"`
 }
 
 func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (PullBundle, error) {
@@ -105,6 +108,11 @@ func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (Pull
 		if name != nil {
 			b.OutletName = *name
 		}
+	}
+	// Like every other read here a failure fails the pull: the tablet then keeps its last good
+	// snapshot instead of swapping in one that silently lacks the giveaway.
+	if b.OutletGiveaway, err = read.OutletGiveawayForPull(ctx, e.Pool, outletID); err != nil {
+		return b, err
 	}
 	// Outlet-scoped: POS receives this outlet's resolved stock/price, only products
 	// available here, and only customer-sellable ones (sc.OutletID = cashier outlet).

@@ -4779,6 +4779,14 @@ export interface components {
              * @enum {string}
              */
             outletTimezone?: "Asia/Jakarta" | "Asia/Makassar" | "Asia/Jayapura";
+            /** @description C3: this outlet's per-sale giveaway item, present only while it is enabled and its variant still exists (the test the sale path applies before it takes one unit per completed order; an outlet without a stock row yet counts as stock 0). The POS shows it as a GRATIS line and subtracts it in the displayed stock; it never sends it as an order line. Absent = no giveaway (older servers too). `stock` is the outlet stock at pull time, a fallback for an item that is not in the sellable catalog. */
+            outletGiveaway?: {
+                /** Format: uuid */
+                productId: string;
+                variantSize: string;
+                productName: string;
+                stock?: number;
+            };
             products?: components["schemas"]["Product"][];
             categories?: components["schemas"]["Category"][];
             bundles?: components["schemas"]["Bundle"][];

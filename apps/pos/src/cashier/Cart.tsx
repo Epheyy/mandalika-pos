@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button'
 import { Stepper } from '../components/ui/Stepper'
 import { LineSheet } from './LineSheet'
 import { sizeOptions } from './lineSizes'
+import { GIVEAWAY_CAPTION, GIVEAWAY_OUT_OF_STOCK, type GiveawayLine } from './giveaway'
 
 type CartItem = components['schemas']['CartItem']
 type AppSettings = components['schemas']['AppSettings']
@@ -22,6 +23,8 @@ interface LineKey {
 
 interface CartProps {
   cart: CartItem[]
+  /** C3: the display-only giveaway line (never part of `cart`), or null. */
+  giveaway: GiveawayLine | null
   derived: CartDerived
   settings: AppSettings
   /** The customer chip (B3), pinned above the lines. */
@@ -75,6 +78,7 @@ function RemoveButton({ label, onClick }: { label: string; onClick: () => void }
 
 export const Cart = memo(function Cart({
   cart,
+  giveaway,
   derived,
   settings,
   customerSlot,
@@ -247,6 +251,28 @@ export const Cart = memo(function Cart({
               )}
             </div>
           ))
+        )}
+        {giveaway && (
+          <div
+            data-testid="giveaway-line"
+            className="flex min-h-16 flex-wrap items-center gap-x-3 gap-y-1 border-b border-paper-2 py-2 lg:flex-nowrap"
+          >
+            <div className="order-1 min-w-0 flex-1 basis-[calc(100%-4rem)] lg:basis-auto">
+              <p className="flex items-center gap-2 text-[0.9375rem] font-semibold text-ink-900">
+                <span className="truncate">
+                  {giveaway.productName}
+                  {variantLabel(giveaway.variantSize) ? ` · ${variantLabel(giveaway.variantSize)}` : ''}
+                </span>
+                <Tag tone="reward">HADIAH</Tag>
+              </p>
+              <p className="text-[0.8125rem] text-ink-500">{GIVEAWAY_CAPTION}</p>
+              {giveaway.outOfStock && <p className="text-[0.8125rem] font-semibold text-warn">{GIVEAWAY_OUT_OF_STOCK}</p>}
+            </div>
+            <span className="tnum order-2 flex h-9 min-w-9 items-center justify-center rounded-lg bg-paper-1 px-2 text-base font-semibold text-ink-900">
+              {giveaway.quantity}
+            </span>
+            <p className="tnum order-3 ml-auto min-w-20 text-right text-base font-bold text-reward">GRATIS</p>
+          </div>
         )}
       </div>
 
