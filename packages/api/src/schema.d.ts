@@ -4860,6 +4860,11 @@ export interface components {
         RefundRequest: {
             reason: string;
             reasonCode?: string;
+            /**
+             * Format: uuid
+             * @description Optional replay key: the same uuid from the same user returns the earlier refund instead of paying out twice.
+             */
+            clientRefundUuid?: string;
             /** @description Per-line refund (admin, C4c). Absent = the whole order (only while it has no earlier refund). */
             items?: {
                 lineNo: number;

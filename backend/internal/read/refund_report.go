@@ -59,9 +59,10 @@ func (r *Repo) RefundReport(ctx context.Context, f RefundReportFilters, page, li
 		return sum, nil, 0, fmt.Errorf("refund report summary: %w", err)
 	}
 	args = append(args, limit, off(page, limit))
-	rows, total, err := listJSON[api.RefundReportRow](ctx, r.Pool,
+	rows, _, err := listJSON[api.RefundReportRow](ctx, r.Pool,
 		fmt.Sprintf(`SELECT %s, count(*) OVER() AS total %s
 		  ORDER BY r.refunded_at DESC, r.id DESC LIMIT $%d OFFSET $%d`,
 			refundReportObj, where, len(args)-1, len(args)), args...)
-	return sum, rows, total, err
+	// The total comes from the summary query (same WHERE) so a page past the end still reports it.
+	return sum, rows, sum.Count, err
 }

@@ -2178,6 +2178,7 @@ components:
       properties:
         reason: { type: string, minLength: 1, maxLength: 500 }
         reasonCode: { type: string, maxLength: 40, pattern: '^[a-z0-9_-]+$' }
+        clientRefundUuid: { type: string, format: uuid, description: 'Optional replay key: the same uuid from the same user returns the earlier refund instead of paying out twice.' }
         items:
           type: array
           minItems: 1

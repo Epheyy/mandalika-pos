@@ -1570,12 +1570,20 @@ func TestRefundLinesPostgres(t *testing.T) {
 		if len(rs) != 1 || rs[0].scope != "partial" || rs[0].amount != 30000 || rs[0].claimed != -1 || status(oid) != "partially_refunded" {
 			t.Fatalf("direct partial row: %+v status=%s", rs, status(oid))
 		}
-		// the remaining line, then nothing is left
-		if code, b := post(map[string]any{"reason": "rusak", "items": []map[string]int{{"lineNo": 1, "quantity": 1}}}); code != 201 {
-			t.Fatalf("second direct refund: %d %s", code, b)
+		// a retry with the same client uuid is a replay, never a second payout
+		key := "0e0e0e0e-1111-4222-8333-" + fmt.Sprintf("%012d", time.Now().UnixNano()%1_000_000_000_000)
+		keyed := map[string]any{"reason": "rusak", "clientRefundUuid": key, "items": []map[string]int{{"lineNo": 1, "quantity": 1}}}
+		if code, b := post(keyed); code != 201 {
+			t.Fatalf("keyed direct refund: %d %s", code, b)
+		}
+		if code, b := post(keyed); code != 201 || len(refunds(oid)) != 2 {
+			t.Fatalf("keyed replay must not add a refund: %d %s rows=%d", code, b, len(refunds(oid)))
+		}
+		if code, _ := post(map[string]any{"reason": "rusak", "clientRefundUuid": "nope", "items": []map[string]int{{"lineNo": 1, "quantity": 1}}}); code != 400 {
+			t.Fatalf("bad clientRefundUuid must be 400, got %d", code)
 		}
 		if code, _ := post(map[string]any{"reason": "rusak", "items": []map[string]int{{"lineNo": 1, "quantity": 1}}}); code != 409 {
-			t.Fatalf("third must conflict, got %d", code)
+			t.Fatalf("an unkeyed repeat must conflict, got %d", code)
 		}
 		if status(oid) != "refunded" || len(refunds(oid)) != 2 {
 			t.Fatalf("final status %s", status(oid))
@@ -1583,7 +1591,7 @@ func TestRefundLinesPostgres(t *testing.T) {
 	})
 
 	// ─────────────────────────────────────────────────────────────────────────────
-	sub("14 Kartu Stok: refund movements carry Refund ke-N and the refund reason; legacy key resolves to seq 1", func(t *testing.T) {
+	sub("14 Kartu Stok: refund movements carry Refund ke-N and the refund reason (new keys and the legacy refund:<orderId> key)", func(t *testing.T) {
 		o := newOutlet()
 		pA, pB := newProduct(o, 30000), newProduct(o, 70000)
 		oid := sell(o, saleOpt{items: []map[string]any{line(pA, 1, 30000), line(pB, 1, 70000)}})
@@ -1611,6 +1619,16 @@ func TestRefundLinesPostgres(t *testing.T) {
 		}
 		if sq, rs, n := seqOf(pB); n != 1 || sq != 2 || rs == "" {
 			t.Fatalf("line B refund movement: seq=%d reason=%q n=%d", sq, rs, n)
+		}
+		// legacy key shape: refund row key refund:<orderId>, movement dedupe key refund:<itemId>
+		lp := newProduct(o, 40000)
+		lo := legacyOrder(o, "completed", lp, 40000, "")
+		exec(`UPDATE orders SET status='refunded', refund_reason='lama', refunded_at=now() WHERE id=$1`, lo)
+		li := str(`SELECT id::text FROM order_items WHERE order_id=$1`, lo)
+		exec(`INSERT INTO stock_movements(kind, location_type, location_id, product_id, variant_size, qty, qty_before, qty_after, ref_type, ref_id, dedupe_key, document_id, occurred_at)
+			SELECT 'refund','outlet',$1::uuid,$2::uuid,'std',1,0,1,'order',$3::uuid,'refund:'||$4,gen_random_uuid(),now()`, o.id, lp, lo, li)
+		if sq, _, n := seqOf(lp); n != 1 || sq != 1 {
+			t.Fatalf("legacy refund movement: seq=%d n=%d", sq, n)
 		}
 	})
 
