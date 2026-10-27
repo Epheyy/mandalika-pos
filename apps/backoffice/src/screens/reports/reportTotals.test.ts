@@ -95,3 +95,58 @@ describe('reportTotals with partial refunds (C4a)', () => {
     expect(t.revenue).toBe(100)
   })
 })
+
+// F2: refund totals sum only the refunds[] rows inside the window; sale-side residual is
+// total - sum(all refunds) when refunds[] is present, with the old logic as the fallback.
+describe('reportTotals refund windows and residuals (C4a F2)', () => {
+  const rf = (amount: number, day: string) => ({
+    id: day, seq: 1, scope: 'partial', amount, computedAmount: amount, paymentMethod: 'cash', reason: 'x',
+    refundedAt: `${day}T05:00:00Z`, refundBusinessDate: day, items: [],
+  })
+  const multi = {
+    status: 'partially_refunded', total: 100, paymentMethod: 'cash', refundedAmount: 50,
+    refunds: [rf(30, '2026-03-02'), rf(20, '2026-03-05')],
+  } as unknown as Order
+
+  it('sums only in-window refund rows (30 on D2, 20 on D5, window D2..D3 = 30)', () => {
+    const t = reportTotals([multi], [multi], { from: '2026-03-02', to: '2026-03-03' })
+    expect(t.refunds).toBe(30)
+    expect(t.refundedCount).toBe(1)
+    expect(t.refundsByPay).toEqual({ cash: 30 })
+    expect(t.revenue).toBe(50)
+  })
+
+  it('skips an order with no refund row inside the window', () => {
+    const t = reportTotals([multi], [multi], { from: '2026-03-03', to: '2026-03-04' })
+    expect(t.refunds).toBe(0)
+    expect(t.refundedCount).toBe(0)
+  })
+
+  it('without a window sums every refund row', () => {
+    expect(reportTotals([multi], [multi]).refunds).toBe(50)
+  })
+
+  it('falls back to refundedAmount ?? total when refunds[] is absent, ignoring the window', () => {
+    const legacyPartial = { status: 'partially_refunded', total: 100, paymentMethod: 'cash', refundedAmount: 40 } as unknown as Order
+    const legacyFull = { status: 'refunded', total: 100, paymentMethod: 'cash' } as unknown as Order
+    const w = { from: '2026-03-02', to: '2026-03-03' }
+    expect(reportTotals([legacyPartial], [legacyPartial], w).refunds).toBe(40)
+    expect(reportTotals([legacyFull], [legacyFull], w).refunds).toBe(100)
+    expect(reportTotals([legacyFull], [], w).revenue).toBe(0)
+    expect(reportTotals([legacyPartial], [], w).revenue).toBe(60)
+  })
+
+  it('keeps total - sum(refunds) as revenue for a refunded order whose refunds differ from total (100 total, 25+70)', () => {
+    const o = {
+      status: 'refunded', total: 100, paymentMethod: 'cash', refundedAmount: 95,
+      refunds: [rf(25, '2026-03-02'), rf(70, '2026-03-03')],
+    } as unknown as Order
+    const t = reportTotals([o], [o])
+    expect(t.revenue).toBe(5)
+    expect(t.byPay).toEqual({ cash: 5 })
+    expect(t.completedCount).toBe(0)
+    expect(t.gross).toBe(100)
+    expect(t.refunds).toBe(95)
+    expect(t.net).toBe(5)
+  })
+})

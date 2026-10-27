@@ -168,3 +168,29 @@ describe('partially refunded orders (C4a)', () => {
     expect(netKpis([sale], [sale], day(12)).refunds).toBe(100)
   })
 })
+
+describe('multi-day refunds (C4a F2)', () => {
+  const rf = (amount: number, d: number) => ({
+    id: String(d), seq: 1, scope: 'partial', amount, computedAmount: amount, paymentMethod: 'cash', reason: 'x',
+    refundedAt: new Date(2026, 2, d, 12, 0).toISOString(), refundBusinessDate: `2026-03-${String(d).padStart(2, '0')}`, items: [],
+  })
+  const multi = order({
+    id: 'm', status: 'partially_refunded', total: 100, businessDate: '2026-03-10' as BD, refundedAmount: 50,
+    refunds: [rf(30, 11), rf(20, 14)], createdAt: new Date(2026, 2, 10, 10, 0).toISOString(),
+  } as Partial<Order>)
+
+  it('nets only the refund rows of the window', () => {
+    expect(netKpis([multi], [multi], span(10, 12))).toMatchObject({ gross: 100, refunds: 30, net: 70 })
+    expect(netKpis([multi], [multi], day(14))).toMatchObject({ gross: 0, refunds: 20, net: -20 })
+    expect(refundsIn([multi], day(12))).toEqual([])
+  })
+
+  it('books each refund row on its own day in the trend', () => {
+    const now = new Date(2026, 2, 14, 18, 0)
+    const pts = buildTrend(salesIn([multi], span(8, 14)), '7d', now, refundsIn([multi], span(8, 14)))
+    const byLabel = Object.fromEntries(pts.map((p) => [p.label, p.revenue]))
+    expect(pts.reduce((s, p) => s + p.revenue, 0)).toBe(50)
+    expect(Object.values(byLabel)).toContain(-20)
+    expect(Object.values(byLabel)).toContain(-30)
+  })
+})

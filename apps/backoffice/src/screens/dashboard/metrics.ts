@@ -10,7 +10,7 @@ import {
 } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { localDay } from '../../lib/businessDay'
-import { isRefundedStatus, refundedMoney, reportTotals, stillSoldMoney } from '../reports/reportTotals'
+import { hasRefundIn, isRefundedStatus, refundedMoney, refundSlices, reportTotals, stillSoldMoney, type RefundWindow } from '../reports/reportTotals'
 
 export type Period = 'today' | '7d' | '30d' | 'all'
 
@@ -120,12 +120,25 @@ export function refundBusinessDayOf(o: Order): string {
   }
 }
 
+const intervalWindow = (iv: Interval): RefundWindow => ({ from: localDay(iv.start), to: localDay(iv.end) })
+
+/**
+ * What a refund order subtracts and where: one entry per refunds[] row on its own day, or (older
+ * backend, no refunds[]) the whole refundedAmount ?? total on the row's refund day.
+ */
+function refundDeltas(o: Order): Array<{ day: string; at: string; amount: number }> {
+  const slices = refundSlices(o)
+  if (slices) return slices.map((s) => ({ day: s.day, at: s.at ?? o.createdAt, amount: s.amount }))
+  return [{ day: refundBusinessDayOf(o), at: o.refundedAt ?? o.createdAt, amount: refundedMoney(o) }]
+}
+
 /** Refunded and partially refunded rows whose REFUND business day falls in the interval. */
 export function refundsIn(orders: readonly Order[], iv: Interval): Order[] {
   const from = localDay(iv.start)
   const to = localDay(iv.end)
   return orders.filter((o) => {
     if (!isRefundedStatus(o.status)) return false
+    if (o.refunds) return hasRefundIn(o, { from, to })
     const day = refundBusinessDayOf(o)
     return day !== '' && day >= from && day <= to
   })
@@ -156,7 +169,7 @@ export interface NetKpis {
 
 /** Net sales for the interval: sales by sale day minus refunds by refund day (same as Ekspor "Bersih"). */
 export function netKpis(saleRows: readonly Order[], refundRows: readonly Order[], iv: Interval): NetKpis {
-  const t = reportTotals(salesIn(saleRows, iv), refundsIn(refundRows, iv))
+  const t = reportTotals(salesIn(saleRows, iv), refundsIn(refundRows, iv), intervalWindow(iv))
   return { gross: t.gross, grossCount: t.grossCount, refunds: t.refunds, refundedCount: t.refundedCount, net: t.net }
 }
 
@@ -213,7 +226,14 @@ export function buildTrend(
       buckets[h].revenue += o.total
       buckets[h].orders += 1
     }
-    for (const o of refunds) buckets[parseISO(o.refundedAt ?? o.refunds?.[o.refunds.length - 1]?.refundedAt ?? o.createdAt).getHours()].revenue -= refundedMoney(o)
+    const today = localDay(now)
+    for (const o of refunds) {
+      for (const d of refundDeltas(o)) {
+        // Only refund rows of today land in the hourly view; an older backend row is booked whole.
+        if (o.refunds && d.day !== today) continue
+        buckets[parseISO(d.at).getHours()].revenue -= d.amount
+      }
+    }
     return buckets
   }
 
@@ -241,8 +261,10 @@ export function buildTrend(
       }
     }
     for (const o of refunds) {
-      const p = byMonth.get(refundBusinessDayOf(o).slice(0, 7))
-      if (p) p.revenue -= refundedMoney(o)
+      for (const d of refundDeltas(o)) {
+        const p = byMonth.get(d.day.slice(0, 7))
+        if (p) p.revenue -= d.amount
+      }
     }
     return points
   }
@@ -267,8 +289,10 @@ export function buildTrend(
     }
   }
   for (const o of refunds) {
-    const p = byDay.get(refundBusinessDayOf(o))
-    if (p) p.revenue -= refundedMoney(o)
+    for (const d of refundDeltas(o)) {
+      const p = byDay.get(d.day)
+      if (p) p.revenue -= d.amount
+    }
   }
   return points
 }
@@ -389,7 +413,7 @@ export function netPaymentBreakdown(
   refundRows: readonly Order[],
   iv: Interval,
 ): PayRow[] {
-  const t = reportTotals(salesIn(saleRows, iv), refundsIn(refundRows, iv))
+  const t = reportTotals(salesIn(saleRows, iv), refundsIn(refundRows, iv), intervalWindow(iv))
   const methods = new Set([...Object.keys(t.grossByPay), ...Object.keys(t.refundsByPay)])
   return [...methods]
     .map((method) => ({
