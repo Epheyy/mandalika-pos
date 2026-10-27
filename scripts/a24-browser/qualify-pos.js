@@ -12,7 +12,7 @@ async(page)=>{
   await (owner==='direct'?direct(kind):code(kind));
   assert(await page.getByRole('button',{name:'Batal',exact:true}).count()===1,owner+kind+' opens picker');
   await page.getByRole('button',{name:'Batal',exact:true}).click();
-  await page.getByRole('heading',{name:'Promo & Kode Diskon'}).locator('..').getByRole('button',{name:'×',exact:true}).click();
+  await page.getByRole('heading',{name:'Promo & Diskon'}).locator('..').getByRole('button',{name:'Tutup',exact:true}).click();
   assert((await body())===before,'cancel must preserve cart and selection');
   await(owner==='direct'?direct(kind):code(kind));await confirm(kind);
   assert((await body()).includes('Hadiah Promo'),'confirm physical reward');
@@ -26,7 +26,7 @@ async(page)=>{
   const remove=page.getByRole('button',{name:/Hapus promo|Hapus kode/});
   if(await remove.count())await remove.first().click();
   else await page.getByRole('button',{name:/Hapus semua/}).last().click();
-  if(await page.getByRole('heading',{name:'Promo & Kode Diskon'}).count())await page.getByRole('heading',{name:'Promo & Kode Diskon'}).locator('..').getByRole('button',{name:'×',exact:true}).click();
+  if(await page.getByRole('heading',{name:'Promo & Diskon'}).count())await page.getByRole('heading',{name:'Promo & Diskon'}).locator('..').getByRole('button',{name:'Tutup',exact:true}).click();
   assert(!(await body()).includes('Hadiah Promo'),'removal clears reward');
   result.push({kind,owner,removed:await body()});
  }

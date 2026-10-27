@@ -29,7 +29,6 @@ interface PromoPanelProps {
   onPromoCodeChange: (value: string) => void
   onApplyPromoCode: () => void
   onRemovePromoCode: (code: string) => void
-  onClose: () => void
   promoCodeError: string | null
   onClearPromoCodeError: () => void
 }
@@ -107,7 +106,6 @@ export const PromoPanel = memo(function PromoPanel({
   onPromoCodeChange,
   onApplyPromoCode,
   onRemovePromoCode,
-  onClose,
   promoCodeError,
   onClearPromoCodeError,
 }: PromoPanelProps) {
@@ -148,22 +146,70 @@ export const PromoPanel = memo(function PromoPanel({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4">
-      <div
-        className="bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[80vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h3 className="font-bold text-gray-900">Promo &amp; Kode Promo</h3>
-          <button type="button"
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
-          >
-            ×
-          </button>
-        </div>
+    <div className="space-y-4">
+          {/* Promo code input */}
+          <div>
+            <p className="text-[11px] font-bold text-gray-500 tracking-wide uppercase mb-2">
+              Kode Promo
+            </p>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-indigo-400 uppercase placeholder:normal-case"
+                placeholder="Masukkan kode…"
+                aria-label="Kode promo"
+                value={promoCodeInput}
+                onChange={(e) => {
+                  onClearPromoCodeError()
+                  onPromoCodeChange(e.target.value.toUpperCase())
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') onApplyPromoCode()
+                }}
+              />
+              <button type="button"
+                onClick={onApplyPromoCode}
+                disabled={isValidating || !promoCodeInput.trim()}
+                className="px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold disabled:opacity-40 hover:bg-indigo-700 transition-colors"
+              >
+                {isValidating ? '…' : 'Pakai'}
+              </button>
+            </div>
+            {promoCodeError && (
+              <p className="text-[10px] text-red-500 mt-1.5 font-semibold">
+                {promoCodeError}
+              </p>
+            )}
+            {/* Hint: codes matching the typed prefix */}
+            {promoCodeInput.length >= 2 && (
+              <div className="mt-1.5 space-y-1">
+                {discountCodes
+                  .filter(
+                    (dc) =>
+                      dc.isActive &&
+                      dc.code.toUpperCase().startsWith(promoCodeInput.toUpperCase()),
+                  )
+                  .slice(0, 3)
+                  .map((dc) => (
+                    <button type="button"
+                      key={dc.id}
+                      onClick={() => onPromoCodeChange(dc.code)}
+                      className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs bg-gray-50 hover:bg-indigo-50 rounded text-gray-700"
+                    >
+                      <span className="font-semibold">{dc.code}</span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-gray-500">
+                          {dc.type === 'percentage'
+                            ? `${dc.value}%`
+                            : formatRupiah(dc.value)}
+                        </span>
+                        <CombinableTag combinable={!!dc.combinable} />
+                      </span>
+                    </button>
+                  ))}
+              </div>
+            )}
+          </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Applied state — each item with its computed savings */}
           {hasApplied && (
             <div className="rounded-xl border border-green-200 bg-green-50 overflow-hidden">
@@ -232,69 +278,6 @@ export const PromoPanel = memo(function PromoPanel({
               </div>
             </div>
           )}
-
-          {/* Promo code input */}
-          <div>
-            <p className="text-[11px] font-bold text-gray-500 tracking-wide uppercase mb-2">
-              Kode Promo
-            </p>
-            <div className="flex gap-2">
-              <input
-                className="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-indigo-400 uppercase placeholder:normal-case"
-                placeholder="Masukkan kode…"
-                aria-label="Kode promo"
-                value={promoCodeInput}
-                onChange={(e) => {
-                  onClearPromoCodeError()
-                  onPromoCodeChange(e.target.value.toUpperCase())
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') onApplyPromoCode()
-                }}
-              />
-              <button type="button"
-                onClick={onApplyPromoCode}
-                disabled={isValidating || !promoCodeInput.trim()}
-                className="px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold disabled:opacity-40 hover:bg-indigo-700 transition-colors"
-              >
-                {isValidating ? '…' : 'Pakai'}
-              </button>
-            </div>
-            {promoCodeError && (
-              <p className="text-[10px] text-red-500 mt-1.5 font-semibold">
-                {promoCodeError}
-              </p>
-            )}
-            {/* Hint: codes matching the typed prefix */}
-            {promoCodeInput.length >= 2 && (
-              <div className="mt-1.5 space-y-1">
-                {discountCodes
-                  .filter(
-                    (dc) =>
-                      dc.isActive &&
-                      dc.code.toUpperCase().startsWith(promoCodeInput.toUpperCase()),
-                  )
-                  .slice(0, 3)
-                  .map((dc) => (
-                    <button type="button"
-                      key={dc.id}
-                      onClick={() => onPromoCodeChange(dc.code)}
-                      className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs bg-gray-50 hover:bg-indigo-50 rounded text-gray-700"
-                    >
-                      <span className="font-semibold">{dc.code}</span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="text-gray-500">
-                          {dc.type === 'percentage'
-                            ? `${dc.value}%`
-                            : formatRupiah(dc.value)}
-                        </span>
-                        <CombinableTag combinable={!!dc.combinable} />
-                      </span>
-                    </button>
-                  ))}
-              </div>
-            )}
-          </div>
 
           {/* Available promotions — multi-toggle */}
           {activePromos.length > 0 && (
@@ -410,11 +393,9 @@ export const PromoPanel = memo(function PromoPanel({
 
           {activePromos.length === 0 && (
             <p className="text-xs text-gray-400 text-center py-4">
-              Tidak ada promosi aktif
+              Tidak ada promo aktif
             </p>
           )}
-        </div>
-      </div>
     </div>
   )
 })

@@ -1,5 +1,6 @@
 /**
- * Renders the three adjustment panels (notes, discount, promo) as floating modals.
+ * Renders the order-level adjustment surfaces: the Catatan modal and the single
+ * "Promo & Diskon" side sheet (B2), which also hosts the BXGY/bundle pickers.
  * Extracted from CashierScreen to keep the orchestrator lean.
  */
 
@@ -7,7 +8,12 @@ import { memo } from 'react'
 import type { components } from '@mandalika/api'
 import type { CashierState, CashierAction } from './state/cashierReducer'
 import { PromoPanel } from './PromoPanel'
-import { promotionPreviewCart } from './promotionFulfillment'
+import { PromoSheet } from './PromoSheet'
+import { ManualDiscountSection } from './ManualDiscountSection'
+import { BxgyRewardModal, type BxgyRewardPick } from './BxgyRewardModal'
+import { BundleSlotPicker } from './BundleSlotPicker'
+import type { BundleAssignment } from './bundle'
+import { promotionPreviewCart, type PendingFulfillment } from './promotionFulfillment'
 import { Sheet } from '../components/ui/Sheet'
 
 type Promotion = components['schemas']['Promotion']
@@ -28,6 +34,17 @@ interface AdjustmentDrawerProps {
   onApplySurcharge: () => void
   promoCodeError: string | null
   onClearPromoCodeError: () => void
+  /** A picker waiting for a choice; shown inside the sheet in place of the list. */
+  pendingFulfillment: PendingFulfillment | null
+  stockFor: (productId: string, variantSize: string) => number | null
+  /** Live (pending-adjusted) catalog for the stock shown in the BXGY picker. */
+  stockProducts: components['schemas']['Product'][]
+  onBxgyConfirm: (picks: BxgyRewardPick[]) => void
+  onBundleConfirm: (assignment: BundleAssignment) => void
+  /** "‹ Kembali" / Batal in a picker: back to the list, nothing applied. */
+  onCancelPicker: () => void
+  /** Closes the whole sheet (also drops any pending picker). */
+  onClosePromo: () => void
 }
 
 export const AdjustmentDrawer = memo(function AdjustmentDrawer({
@@ -45,6 +62,13 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
   onApplySurcharge,
   promoCodeError,
   onClearPromoCodeError,
+  pendingFulfillment,
+  stockFor,
+  stockProducts,
+  onBxgyConfirm,
+  onBundleConfirm,
+  onCancelPicker,
+  onClosePromo,
 }: AdjustmentDrawerProps) {
   if (!state.activeAdjustment) return null
 
@@ -75,87 +99,61 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
     )
   }
 
-  if (state.activeAdjustment === 'discount') {
-    return (
-      <Sheet open variant="center" z={40} maxWidth="max-w-sm" panelClassName="p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-gray-900">Diskon manual / Biaya tambahan</h3>
-            <button type="button" onClick={close} className="text-gray-400 hover:text-gray-600">×</button>
-          </div>
-          <div className="flex gap-2 mb-3">
-            {(['percentage', 'fixed'] as const).map((t) => (
-              <button type="button"
-                key={t}
-                onClick={() => dispatch({ type: 'SET_DISCOUNT_TYPE', discountType: t })}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border ${
-                  state.discountType === t
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'border-gray-200 text-gray-600'
-                }`}
-              >
-                {t === 'percentage' ? 'Persen (%)' : 'Nominal (Rp)'}
-              </button>
-            ))}
-          </div>
-          <input
-            type="number"
-            inputMode="numeric"
-            value={state.adjustInputStr}
-            onChange={(e) => dispatch({ type: 'SET_ADJUST_INPUT', value: e.target.value })}
-            placeholder={state.discountType === 'percentage' ? 'Contoh: 10' : 'Contoh: 5000'}
-            aria-label="Nilai diskon atau surcharge"
-            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 mb-3"
-          />
-          <div className="flex gap-2">
-            <button type="button"
-              onClick={onApplyDiscount}
-              className="flex-1 py-2 bg-green-600 text-white rounded-xl text-sm font-semibold"
-            >
-              Diskon −
-            </button>
-            <button type="button"
-              onClick={onApplySurcharge}
-              className="flex-1 py-2 bg-orange-500 text-white rounded-xl text-sm font-semibold"
-            >
-              Biaya tambahan +
-            </button>
-          </div>
-          {(state.discountRunning > 0 || state.surchargeRunning > 0) && (
-            <button type="button"
-              onClick={() => dispatch({ type: 'CLEAR_DISCOUNT' })}
-              className="w-full mt-2 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-lg"
-            >
-              Hapus semua
-            </button>
-          )}
-      </Sheet>
-    )
-  }
+  const picker =
+    pendingFulfillment?.kind === 'bxgy-picker' ? (
+      <BxgyRewardModal
+        inline
+        promo={pendingFulfillment.promo}
+        options={pendingFulfillment.options}
+        due={pendingFulfillment.due}
+        stockProducts={stockProducts}
+        onConfirm={onBxgyConfirm}
+        onCancel={onCancelPicker}
+      />
+    ) : pendingFulfillment?.kind === 'bundle-picker' ? (
+      <BundleSlotPicker
+        inline
+        cfg={pendingFulfillment.cfg}
+        cart={pendingFulfillment.cart}
+        promoName={pendingFulfillment.promo.name}
+        stockFor={stockFor}
+        onConfirm={onBundleConfirm}
+        onCancel={onCancelPicker}
+      />
+    ) : null
 
   return (
-    <PromoPanel
-      promotions={promotions}
-      discountCodes={discountCodes}
-      appliedPromotions={state.appliedPromotions}
-      appliedPromoCodes={state.appliedPromoCodes}
-      cart={state.cart}
-      bundleFreed={state.bundleFreed}
-      selectionCart={(promo) => promotionPreviewCart(state, promo)}
-      promoCodeInput={state.promoCodeInput}
-      isValidating={isValidatingCode}
-      subtotal={subtotal}
-      outletId={outletId}
-      timezone={timezone}
-      hasCustomer={state.selectedCustomer !== null}
-      onSelectPromotion={onSelectPromotion}
-      onRemovePromotion={(id) => dispatch({ type: 'REMOVE_PROMOTION', id })}
-      onClearPromotion={() => dispatch({ type: 'CLEAR_PROMOTIONS' })}
-      onPromoCodeChange={(v) => dispatch({ type: 'SET_PROMO_CODE_INPUT', value: v })}
-      onApplyPromoCode={onApplyPromoCode}
-      onRemovePromoCode={(code) => dispatch({ type: 'REMOVE_PROMO_CODE', code })}
-      onClose={close}
-      promoCodeError={promoCodeError}
-      onClearPromoCodeError={onClearPromoCodeError}
-    />
+    <PromoSheet onClose={onClosePromo} picker={picker}>
+      <PromoPanel
+        promotions={promotions}
+        discountCodes={discountCodes}
+        appliedPromotions={state.appliedPromotions}
+        appliedPromoCodes={state.appliedPromoCodes}
+        cart={state.cart}
+        bundleFreed={state.bundleFreed}
+        selectionCart={(promo) => promotionPreviewCart(state, promo)}
+        promoCodeInput={state.promoCodeInput}
+        isValidating={isValidatingCode}
+        subtotal={subtotal}
+        outletId={outletId}
+        timezone={timezone}
+        hasCustomer={state.selectedCustomer !== null}
+        onSelectPromotion={onSelectPromotion}
+        onRemovePromotion={(id) => dispatch({ type: 'REMOVE_PROMOTION', id })}
+        onClearPromotion={() => dispatch({ type: 'CLEAR_PROMOTIONS' })}
+        onPromoCodeChange={(v) => dispatch({ type: 'SET_PROMO_CODE_INPUT', value: v })}
+        onApplyPromoCode={onApplyPromoCode}
+        onRemovePromoCode={(code) => dispatch({ type: 'REMOVE_PROMO_CODE', code })}
+        promoCodeError={promoCodeError}
+        onClearPromoCodeError={onClearPromoCodeError}
+      />
+      <ManualDiscountSection
+        state={state}
+        dispatch={dispatch}
+        onApplyDiscount={onApplyDiscount}
+        onApplySurcharge={onApplySurcharge}
+        initiallyOpen={state.activeAdjustment === 'discount'}
+      />
+    </PromoSheet>
   )
 })

@@ -8,6 +8,13 @@ Last updated: 2026-10-27 by Claude (Fable 5.1) - POS UX FASE A OTA 2.2.0 LIVE; e
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-10-27 (B2, PR open, NOT merged/released): one "Promo & Diskon" door + safe clears + Back guard (branch claude/b2-promo-door-3cab03).
+> SHIPPED IN PR: single side Sheet (code field, applied list, promo cards, collapsed manual Diskon/Biaya tambahan; BXGY/bundle pickers swap in via `inline`, "‹ Kembali"); per-promo drop at confirm (`cashier/confirmGuard.ts`, survivors re-validated once; toast per item);
+> customer-change confirm (`customerAttachImpact.ts`, mirrors SET_CUSTOMER; covers attach, replace, release); Kosongkan confirm (`components/ui/ConfirmDialog.tsx`, z-70); Back ignored while committing (`backGuard.ts` ordering).
+> Reducer, promoValidate.ts, packages/sync, stock.ts UNCHANGED. New required scenario POS-PROMO-SHEET; specs now use "Promo & Diskon" heading + "Tutup" close and confirm Kosongkan / customer release.
+> OWNER DECIDES: (1) reducer APPLY_PROMOTION/APPLY_PROMO_CODE still close the sheet after each pick (multi-promo = reopen; keeping the sheet open needs a reducer change, left out); (2) cancelling the customer confirm after "+ Baru" leaves the new customer saved but unselected (toast says so);
+> (3) the OTA/APK question: POS web layer only, so an OTA is enough. NEXT SLICE INHERITS: ConfirmDialog + backGuard are reusable (B3 profile sheet should route its Back through cashierBackLayer); LOW review items left: customer-confirm message is computed at tap time (wedge scan while open), second pass can drop a code that a restored bundle would have satisfied.
+>
 > 2026-10-27 (night): BRAND SKINS + FEATURE FLAGS (D-24/D-27/D-28/D-29) code-complete on branch claude/brand-skins-d29, PR open, NOT merged/OTA'd/APK'd.
 > `VITE_BRAND=mandalika|flamboyan|performance` (default mandalika; unknown warns once) -> apps/pos/src/brand registry; `applyBrand()` in main.tsx sets
 > --color-brand/-pressed, promo/info overrides (Flamboyan), --color-danger-solid -> ink-900 (Performance); non-Mandalika also re-derives the indigo-* scale.

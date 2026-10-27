@@ -46,6 +46,8 @@ interface BundleSlotPickerProps {
   stockFor: (productId: string, variantSize: string) => number | null
   onConfirm: (assignment: BundleAssignment) => void
   onCancel: () => void
+  /** B2: render as the content of the Promo & Diskon sheet (back arrow) instead of a z-60 overlay. */
+  inline?: boolean
 }
 
 function lineKey(l: { productId: string; variantSize: string }): string {
@@ -82,6 +84,7 @@ export function BundleSlotPicker({
   stockFor,
   onConfirm,
   onCancel,
+  inline = false,
 }: BundleSlotPickerProps) {
   const slots = buildSlotViews(cfg, cart)
   const ambiguousSlots = slots.filter((s) => s.ambiguous)
@@ -131,28 +134,30 @@ export function BundleSlotPicker({
     onConfirm(assignment)
   }
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <button
-        type="button"
-        aria-label="Tutup"
-        tabIndex={-1}
-        className="absolute inset-0 bg-black/50"
-        onClick={onCancel}
-      />
-      <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[80vh] flex flex-col">
+  const panel = (
+      <div className={inline ? 'flex h-full min-h-0 flex-col' : 'relative bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[80vh] flex flex-col'}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="min-w-0">
             <h3 className="font-bold text-gray-900 truncate"><IconPackage size={16} className="inline-block align-[-0.125em]" /> Pilih Item Paket</h3>
             <p className="text-[11px] text-gray-500 truncate">{promoName}</p>
           </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
-          >
-            ×
-          </button>
+          {inline ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="touch -mr-2 rounded-control px-2 text-sm font-semibold text-ink-700 active:bg-paper-1"
+            >
+              ‹ Kembali
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+            >
+              ×
+            </button>
+          )}
         </div>
 
         <div className="px-5 py-2 border-b border-indigo-100 bg-indigo-50">
@@ -259,6 +264,18 @@ export function BundleSlotPicker({
           </button>
         </div>
       </div>
+  )
+  if (inline) return panel
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <button
+        type="button"
+        aria-label="Tutup"
+        tabIndex={-1}
+        className="absolute inset-0 bg-black/50"
+        onClick={onCancel}
+      />
+      {panel}
     </div>
   )
 }

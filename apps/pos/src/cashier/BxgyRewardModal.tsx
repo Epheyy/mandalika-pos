@@ -37,6 +37,8 @@ interface BxgyRewardModalProps {
   stockProducts: Product[]
   onConfirm: (picks: BxgyRewardPick[]) => void
   onCancel: () => void
+  /** B2: render as the content of the Promo & Diskon sheet (back arrow) instead of a z-60 overlay. */
+  inline?: boolean
 }
 
 function optionKey(o: { productId: string; variantSize: string }): string {
@@ -50,6 +52,7 @@ export function BxgyRewardModal({
   stockProducts,
   onConfirm,
   onCancel,
+  inline = false,
 }: BxgyRewardModalProps) {
   // Each entry is one chosen reward unit (the same variant may appear more than
   // once). Length is capped at `due`.
@@ -95,28 +98,30 @@ export function BxgyRewardModal({
     return picks.reduce((n, p) => (optionKey(p) === key ? n + 1 : n), 0)
   }
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <button
-        type="button"
-        aria-label="Tutup"
-        tabIndex={-1}
-        className="absolute inset-0 bg-black/50"
-        onClick={onCancel}
-      />
-      <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[80vh] flex flex-col">
+  const panel = (
+      <div className={inline ? 'flex h-full min-h-0 flex-col' : 'relative bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[80vh] flex flex-col'}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="min-w-0">
             <h3 className="font-bold text-gray-900 truncate"><IconGift size={16} className="inline-block align-[-0.125em]" /> Pilih Hadiah</h3>
             <p className="text-[11px] text-gray-500 truncate">{promo.name}</p>
           </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
-          >
-            ×
-          </button>
+          {inline ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="touch -mr-2 rounded-control px-2 text-sm font-semibold text-ink-700 active:bg-paper-1"
+            >
+              ‹ Kembali
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+            >
+              ×
+            </button>
+          )}
         </div>
 
         <div className="px-5 py-2 border-b border-amber-100 bg-amber-50">
@@ -201,6 +206,18 @@ export function BxgyRewardModal({
           </button>
         </div>
       </div>
+  )
+  if (inline) return panel
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <button
+        type="button"
+        aria-label="Tutup"
+        tabIndex={-1}
+        className="absolute inset-0 bg-black/50"
+        onClick={onCancel}
+      />
+      {panel}
     </div>
   )
 }
