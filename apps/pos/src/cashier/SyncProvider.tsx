@@ -246,7 +246,7 @@ export function SyncProvider({
             </div>
           )}
           {corruption && (
-            <div role="alert" className="bg-red-700 text-white text-sm font-bold px-4 py-2 text-center">
+            <div role="alert" className="bg-danger-solid text-white text-sm font-bold px-4 py-2 text-center">
               {quarantineOk === null
                 ? OUTBOX_CORRUPT_PENDING_MESSAGE
                 : quarantineOk ? OUTBOX_CORRUPT_MESSAGE : OUTBOX_CORRUPT_UNSECURED_MESSAGE}

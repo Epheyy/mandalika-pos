@@ -384,7 +384,7 @@ export const SettingsScreen = memo(function SettingsScreen({
                   onClick={() => setCashFlowType('out')}
                   className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                     cashFlowType === 'out'
-                      ? 'bg-red-600 text-white border-red-600'
+                      ? 'bg-danger-solid text-white border-danger-solid'
                       : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                   }`}
                 >

@@ -87,7 +87,7 @@ export const RefundDialog = memo(function RefundDialog({
           <button type="button"
             onClick={handleConfirm}
             disabled={isProcessing || !canSubmitRefundReason(reason)}
-            className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-semibold text-sm disabled:opacity-40 hover:bg-red-700 transition-colors"
+            className="flex-1 py-2.5 bg-danger-solid text-white rounded-xl font-semibold text-sm disabled:opacity-40 active:opacity-90 transition-colors"
           >
             {isProcessing ? 'Memproses…' : 'Konfirmasi Refund'}
           </button>

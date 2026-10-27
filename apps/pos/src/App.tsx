@@ -5,7 +5,7 @@ import { SyncProvider } from './cashier/SyncProvider'
 import CashierScreen from './cashier/CashierScreen'
 import OutletPickScreen from './screens/OutletPickScreen'
 import OutletMismatchScreen from './screens/OutletMismatchScreen'
-import logoGold from './assets/logo-gold.png'
+import { brand } from './brand'
 
 function LoginScreen() {
   const { login } = useAuth()
@@ -32,33 +32,33 @@ function LoginScreen() {
     <div className="min-h-screen flex bg-white safe-top safe-bottom">
       {/* Brand panel — lg+ only. Dark luxury, gold glow accents. */}
       <div className="hidden lg:flex lg:w-[44%] relative overflow-hidden bg-[#1a1008] text-white flex-col justify-between p-12">
-        <div className="absolute -top-28 -right-28 w-96 h-96 rounded-full bg-amber-500/20 blur-3xl" />
-        <div className="absolute -bottom-28 -left-28 w-96 h-96 rounded-full bg-amber-700/10 blur-3xl" />
-        <img src={logoGold} alt="Mandalika" className="relative h-12 w-auto object-contain self-start" />
+        <div className="absolute -top-28 -right-28 w-96 h-96 rounded-full bg-brand/20 blur-3xl" />
+        <div className="absolute -bottom-28 -left-28 w-96 h-96 rounded-full bg-brand/10 blur-3xl" />
+        <img src={brand.logo} alt={brand.displayName} className="relative h-12 w-auto object-contain self-start" />
         <div className="relative space-y-3">
           <h1 className="text-4xl font-black leading-tight tracking-tight">Point of Sale</h1>
-          <p className="text-amber-200/70 text-sm max-w-xs leading-relaxed">
+          <p className="text-white/70 text-sm max-w-xs leading-relaxed">
             Kelola penjualan, pelanggan, dan stok dalam satu aplikasi — online maupun offline.
           </p>
           <div className="flex gap-8 pt-5">
             <div>
-              <p className="text-2xl font-black text-amber-300">30+</p>
-              <p className="text-[11px] text-amber-100/50">Outlet aktif</p>
+              <p className="text-2xl font-black text-white">30+</p>
+              <p className="text-[11px] text-white/50">Outlet aktif</p>
             </div>
             <div>
-              <p className="text-2xl font-black text-amber-300">Offline</p>
-              <p className="text-[11px] text-amber-100/50">Siap pakai</p>
+              <p className="text-2xl font-black text-white">Offline</p>
+              <p className="text-[11px] text-white/50">Siap pakai</p>
             </div>
           </div>
         </div>
-        <p className="relative text-[11px] text-amber-100/40">© Mandalika · Your Trusted Scent</p>
+        <p className="relative text-[11px] text-white/40">© {brand.displayName}{brand.tagline ? ` · ${brand.tagline}` : ''}</p>
       </div>
 
       {/* Form panel */}
       <div className="flex-1 flex items-center justify-center p-6">
         <form onSubmit={onSubmit} className="w-full max-w-sm">
           <div className="lg:hidden flex flex-col items-center mb-8">
-            <img src={logoGold} alt="Mandalika" className="h-14 w-auto object-contain" />
+            <img src={brand.logo} alt={brand.displayName} className="h-14 w-auto object-contain" />
           </div>
 
           <div className="mb-7">
@@ -78,7 +78,7 @@ function LoginScreen() {
               placeholder="nama@mandalika.com"
               autoComplete="username"
               type="email"
-              className="w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition"
+              className="w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition"
             />
           </div>
 
@@ -94,7 +94,7 @@ function LoginScreen() {
               type={showPassword ? 'text' : 'password'}
               placeholder="••••••••"
               autoComplete="current-password"
-              className="w-full pl-10 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition"
+              className="w-full pl-10 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition"
             />
             <button
               type="button"
@@ -117,7 +117,7 @@ function LoginScreen() {
           <button
             disabled={busy}
             type="submit"
-            className="w-full mt-5 py-3 bg-amber-700 hover:bg-amber-800 active:bg-amber-900 text-white font-bold rounded-xl shadow-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full mt-5 py-3 bg-brand active:bg-brand-pressed text-white font-bold rounded-xl shadow-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {busy ? 'Masuk…' : 'Masuk'}
           </button>
@@ -143,7 +143,7 @@ function OutletUnassignedScreen() {
           Akun {user?.displayName ?? ''} belum memiliki outlet, jadi tidak bisa dipakai untuk transaksi di kasir.
           Hubungi admin untuk menetapkan outlet pada akun ini, lalu masuk kembali.
         </p>
-        <button type="button" onClick={logout} className="mt-5 text-sm font-semibold text-amber-700 hover:text-amber-800 underline">
+        <button type="button" onClick={logout} className="mt-5 text-sm font-semibold text-brand hover:text-brand-pressed underline">
           Keluar
         </button>
       </div>

@@ -19,7 +19,6 @@ vi.mock('./cashier/SyncProvider', () => ({ SyncProvider: () => null }))
 vi.mock('./cashier/CashierScreen', () => ({ default: () => null }))
 vi.mock('./screens/OutletPickScreen', () => ({ default: () => null }))
 vi.mock('./screens/OutletMismatchScreen', () => ({ default: () => null }))
-vi.mock('./assets/logo-gold.png', () => ({ default: '' }))
 
 beforeEach(() => {
   h.notify.mockClear()
