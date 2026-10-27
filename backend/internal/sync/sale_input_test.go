@@ -27,7 +27,7 @@ func TestSaleInputBatchMappingAndIndependentResults(t *testing.T) {
 	r, err := processBatch(context.Background(), Caller{OutletID: "trusted-outlet", UserID: "trusted-user"}, items,
 		func(ctx context.Context, c Caller, it BatchItem) ItemResult {
 			return (&Engine{Lookup: &fakeLookup{}}).processOneWithCommands(ctx, c, it,
-				func(context.Context, pgx.Tx, service.RefundInput) error { refundCalls++; return nil },
+				func(context.Context, pgx.Tx, service.RefundInput) (service.RefundResult, error) { refundCalls++; return service.RefundResult{}, nil },
 				func(_ context.Context, in service.CreateOrderInput) (string, bool, bool, error) {
 					calls++
 					if in.OutletID != "trusted-outlet" || in.CashierID != "trusted-user" || !in.Offline {
