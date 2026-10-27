@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildReceiptQuote, receiptFromQuote } from './receiptQuote'
+import { buildReceiptQuote, receiptAddsUp, receiptFromQuote } from './receiptQuote'
 
 const derived = { subtotal: 210000, discountAmount: 10000, surchargeAmount: 0, taxAmount: 20000, redeemAmount: 5000, total: 215000 }
 const tender = { amountPaid: 250000, change: 35000 }
@@ -14,7 +14,7 @@ describe('A10 buildReceiptQuote', () => {
   it('quotes the derived total and records the money exactly as shown', () => {
     const q = buildReceiptQuote({ cart, derived, tender, refVersion: 42 })
     expect(q.quotedTotal).toBe(215000)
-    expect(q.receiptSnapshot).toMatchObject({ v: 1, refVersion: 42, subtotal: 210000, discountAmount: 10000, surchargeAmount: 0, taxAmount: 20000, redeemAmount: 5000, total: 215000, amountPaid: 250000, change: 35000 })
+    expect(q.receiptSnapshot).toMatchObject({ v: 2, refVersion: 42, subtotal: 210000, discountAmount: 10000, surchargeAmount: 0, taxAmount: 20000, redeemAmount: 5000, total: 215000, amountPaid: 250000, change: 35000 })
   })
 
   it('keeps the lines as displayed, flagging reward and bundle lines only when set', () => {
@@ -58,3 +58,46 @@ describe('A10 buildReceiptQuote', () => {
     expect(cart[0]!.quantity).toBe(2)
   })
 })
+
+describe('C1 receipt parity', () => {
+  const c1Derived = {
+    subtotal: 210000, discountAmount: 30000, surchargeAmount: 5000, taxAmount: 19800, redeemAmount: 20000,
+    discountParts: [{ label: 'Promo Akhir Pekan', amount: 20000 }, { label: 'Diskon manual', amount: 10000 }],
+    redeemedPoints: 20, roundingAmount: -200, total: 184600,
+  }
+
+  it('fills itemised discounts, biaya tambahan, poin, rounding and reward flags from the checkout totals', () => {
+    const q = buildReceiptQuote({ cart, derived: c1Derived, tender: { amountPaid: 200000, change: 15400 }, refVersion: 1 })
+    const r = receiptFromQuote(q, extras)
+    expect(r.discounts).toEqual(c1Derived.discountParts)
+    expect(r.surcharge).toBe(5000)
+    expect(r.pointsRedeemed).toEqual({ points: 20, amount: 20000 })
+    expect(r.rounding).toBe(-200)
+    expect(r.lines.map((l) => l.isReward)).toEqual([false, true, false])
+    expect(receiptAddsUp(r)).toBe(true)
+  })
+
+  it('degrades a missing itemisation to a single Diskon row', () => {
+    const q = buildReceiptQuote({ cart, derived, tender, refVersion: 1 })
+    expect(receiptFromQuote(q, extras).discounts).toEqual([{ label: 'Diskon', amount: 10000 }])
+  })
+
+  it('a pre-C1 (v1) archived snapshot gets no itemised fields, so the printer falls back', () => {
+    const q = buildReceiptQuote({ cart, derived, tender, refVersion: 1 })
+    const v1 = { ...q, receiptSnapshot: { ...q.receiptSnapshot, v: 1 as const } }
+    const r = receiptFromQuote(v1, extras)
+    expect(r.discounts).toBeUndefined()
+    expect(r.surcharge).toBeUndefined()
+    expect(r.pointsRedeemed).toBeUndefined()
+    expect(r.lines.every((l) => l.isReward === undefined)).toBe(true)
+  })
+
+  it('receiptAddsUp rejects a slip whose rows do not reach the total', () => {
+    const q = buildReceiptQuote({ cart, derived: c1Derived, tender: { amountPaid: 200000, change: 15400 }, refVersion: 1 })
+    const r = receiptFromQuote(q, extras)
+    expect(receiptAddsUp({ ...r, total: r.total + 1 })).toBe(false)
+    expect(receiptAddsUp({ ...r, surcharge: null })).toBe(false)
+    expect(receiptAddsUp({ ...r, lines: [] })).toBe(false)
+  })
+})
+

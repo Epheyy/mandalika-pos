@@ -352,3 +352,32 @@ describe('bundle primitives (parity with Go bundleApplications/bundleAllocate)',
     expect(calcPromoDiscount(promo, [item('p110', 1)], 200)).toBe(0)
   })
 })
+
+describe('C1 discountParts / roundingAmount feed a slip that adds up', () => {
+  const promo = (id: string, name: string, value: number): Promotion => ({ id, name, type: 'percentage', value, isActive: true, createdAt: '' })
+  const settingsOn = { taxEnabled: true, taxRate: 10, roundingEnabled: true, roundingType: 'nearest_500' } as PricingInput['settings']
+
+  it('names every deduction and the parts sum to discountAmount, then slip == total', () => {
+    const input: PricingInput = {
+      ...base, appliedPromotions: [promo('a', 'Promo A', 10), promo('b', 'Promo B', 5)],
+      appliedPromoCodes: [{ code: 'HEMAT', value: 2000, type: 'fixed' }],
+      discountRunning: 3000, settings: settingsOn, surchargeRunning: 1234, surchargeType: 'fixed',
+      loyalty: { enabled: true, pointsPerThousand: 1, redemptionRate: 100 } as PricingInput['loyalty'],
+      hasCustomer: true, pointsRedeemed: 30, customerPoints: 100,
+    }
+    const p = computePricing(input)
+    expect(p.discountParts.map((d) => d.label)).toEqual(['Promo A', 'Promo B', 'Kode HEMAT', 'Diskon manual'])
+    expect(p.discountParts.reduce((s, d) => s + d.amount, 0)).toBe(p.discountAmount)
+    const beforeRounding = p.subtotal - p.discountAmount + p.taxAmount + p.surchargeAmount
+    expect(beforeRounding + p.roundingAmount - p.redeemAmount).toBe(p.total)
+  })
+
+  it('clamps rows when the discount is capped at the subtotal', () => {
+    const p = computePricing({
+      ...base, appliedPromotions: [promo('a', 'Promo A', 80), promo('b', 'Promo B', 80)], appliedPromoCodes: [], discountRunning: 5000,
+    })
+    expect(p.discountAmount).toBe(100000)
+    expect(p.discountParts.reduce((s, d) => s + d.amount, 0)).toBe(100000)
+    expect(p.discountParts).toEqual([{ label: 'Promo A', amount: 80000 }, { label: 'Promo B', amount: 20000 }])
+  })
+})
