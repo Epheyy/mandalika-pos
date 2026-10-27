@@ -11,6 +11,7 @@ import { Sheet } from '../components/ui/Sheet'
 import { Button } from '../components/ui/Button'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import type { OrderState } from './orderState'
+import type { GiveawayLine } from './giveaway'
 import { IconCheck, IconWarning, IconPrinter } from '../components/ui/icons'
 
 type AppSettings = components['schemas']['AppSettings']
@@ -22,6 +23,8 @@ interface ReceiptPreviewProps {
   /** Reserved order number (printed on the receipt); falls back to a hash of orderId. */
   orderNumber?: string | null
   items: CartItem[]
+  /** C3: the giveaway row, the same line the paper prints when it was given. */
+  giveaway?: GiveawayLine | null
   /** The totals rows the printed receipt shows (receiptRows.quoteTotalRows). */
   totalRows: TotalRow[]
   paymentMethod: string
@@ -48,6 +51,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
   orderId,
   orderNumber,
   items,
+  giveaway,
   totalRows,
   paymentMethod,
   amountPaid,
@@ -141,6 +145,17 @@ export const ReceiptPreview = memo(function ReceiptPreview({
                 </span>
               </div>
             ))}
+            {giveaway && (
+              <div className="flex justify-between text-xs" data-testid="receipt-giveaway">
+                <span className="text-gray-700 flex-1 mr-2">
+                  {giveaway.productName}
+                  <span className="text-gray-400 ml-1">
+                    {variantLabel(giveaway.variantSize) ? `${variantLabel(giveaway.variantSize)} ×1` : '×1'}
+                  </span>
+                </span>
+                <span className="flex-shrink-0 font-medium text-green-600">GRATIS</span>
+              </div>
+            )}
           </div>
 
           {/* Totals */}

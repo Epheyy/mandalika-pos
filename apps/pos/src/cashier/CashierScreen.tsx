@@ -62,6 +62,7 @@ import { buildPromotionMetadata } from './promotionMetadata'
 import { quoteTotalRows } from './receiptRows'
 import { buildReceiptQuote, receiptFromQuote, type ReceiptQuote } from './receiptQuote'
 import { applyPendingStock, stockFor, oversoldSizes, OVERSELL_WARNING } from './stock'
+import { giveawayLine, giveawayStock } from './giveaway'
 import { isLineInBundle, planSizeSwitch, SIZE_SWITCH_BUNDLE_MESSAGE } from './lineSizes'
 import { decideApplyCode } from './promoValidate'
 import { resolveConfirmGuard } from './confirmGuard'
@@ -285,6 +286,9 @@ export default function CashierScreen() {
   const loyalty = snapshot.loyaltySettings ?? DEFAULT_LOYALTY
 
   const { actions: cartActions, derived } = useCart({ state, dispatch, settings, loyalty })
+  // C3: the outlet giveaway the server adds to every sale, shown as a derived Rp0 line (never in state.cart).
+  const giveawayConfig = hasFeature('giveaway') ? snapshot.outletGiveaway : undefined
+  const giveaway = giveawayLine(state.cart, giveawayConfig, giveawayConfig ? giveawayStock(giveawayConfig, displayProducts, pendingStockDeltas) : 0)
   // The totals block of the checkout sheet and of the receipt preview, from the same quote the printer uses.
   const checkoutRows = state.isCheckoutOpen ? quoteTotalRows(state.cart, derived, { showSubtotal: true, showDiscount: true, showTax: settings.taxEnabled }) : []
   const receiptRows = state.isSuccessOpen ? quoteTotalRows(state.cart, derived, settings.receipt) : []
@@ -723,7 +727,7 @@ export default function CashierScreen() {
         }
         // A10: the receipt money and lines are built ONCE here; the same object is
         // queued as the quote and printed below (printed == quoted by construction).
-        const quote = buildReceiptQuote({ cart: state.cart, derived, tender, refVersion: engine.referenceVersion() })
+        const quote = buildReceiptQuote({ cart: giveaway ? [...state.cart, giveaway] : state.cart, derived, tender, refVersion: engine.referenceVersion() })
         quoteHolder.current = quote
         return engine.enqueue('order', {
         orderNumber: orderNo,
@@ -1121,7 +1125,7 @@ export default function CashierScreen() {
         {derived.totalCartItems > 0 && (
           <div className={`w-full sm:w-80 lg:w-[486px] flex-shrink-0 flex-col sm:flex pb-20 sm:pb-0 ${state.activeTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
             <Cart
-              cart={state.cart} derived={derived} settings={settings}
+              cart={state.cart} giveaway={giveaway} derived={derived} settings={settings}
               customerSlot={customerChip}
               pendingSync={offlineData.pendingCount > 0}
               products={displayProducts}
@@ -1225,7 +1229,7 @@ export default function CashierScreen() {
       />
 
       <ReceiptPreview
-        isOpen={state.isSuccessOpen} orderId={state.lastOrderId} orderNumber={state.lastOrderNumber} items={state.cart}
+        isOpen={state.isSuccessOpen} orderId={state.lastOrderId} orderNumber={state.lastOrderNumber} items={state.cart} giveaway={giveaway}
         totalRows={receiptRows}
         paymentMethod={state.paymentMethod}
         amountPaid={tender.amountPaid}
