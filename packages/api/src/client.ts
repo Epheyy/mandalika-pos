@@ -352,8 +352,9 @@ export interface Api {
   // orders / shifts
   listOrders: (params?: ListOrdersParams) => Promise<ListResult<Order>>
   getOrder: (id: string) => Promise<Order>
-  /** Whole order when `items` is omitted (only while it has no earlier refund); else a per-line refund (admin, C4c). */
-  refundOrder: (id: string, reason: string, opts?: { reasonCode?: string; items?: { lineNo: number; quantity: number }[] }) => Promise<Order>
+  /** Whole order when `items` is omitted (only while it has no earlier refund); else a per-line refund (admin, C4c).
+   *  `clientRefundUuid` is the replay key: the same uuid returns the earlier refund instead of paying out twice. */
+  refundOrder: (id: string, reason: string, opts?: { reasonCode?: string; items?: { lineNo: number; quantity: number }[]; clientRefundUuid?: string }) => Promise<Order>
   listShifts: (params?: ListShiftsParams) => Promise<ListResult<Shift>>
   listErrorLogs: (params?: Record<string, string | number>) => Promise<ListResult<ErrorLog>>
   listSyncReviewItems: (params: SyncReviewListParams) => Promise<SyncReviewItemList>
@@ -871,7 +872,7 @@ export function createClient(opts: ClientOptions): Api {
     listOrders: (params) => list<Order>(`${API}/orders`, params),
     getOrder: (id) => data<Order>('GET', `${API}/orders/${id}`),
     refundOrder: (id, reason, opts) =>
-      data<Order>('POST', `${API}/orders/${id}/refund`, { reason, ...(opts?.reasonCode ? { reasonCode: opts.reasonCode } : {}), ...(opts?.items ? { items: opts.items } : {}) }),
+      data<Order>('POST', `${API}/orders/${id}/refund`, { reason, ...(opts?.reasonCode ? { reasonCode: opts.reasonCode } : {}), ...(opts?.items ? { items: opts.items } : {}), ...(opts?.clientRefundUuid ? { clientRefundUuid: opts.clientRefundUuid } : {}) }),
     listShifts: (params) => list<Shift>(`${API}/shifts`, params),
     listErrorLogs: (params) => list<ErrorLog>(`${API}/error-logs`, params),
     listErpOutbox: async (params) => {

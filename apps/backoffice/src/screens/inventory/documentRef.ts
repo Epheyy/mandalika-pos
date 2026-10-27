@@ -6,10 +6,13 @@ export type DocRef =
   /** A refund ledger row: id is the ORDER id; seq picks the refund inside order.refunds. */
   | { type: 'refund'; id: string; seq: number | null; label: string }
 
-/** "Refund ke-N" for a refund row (legacy whole-order refunds are seq 1); the order number
- *  and plain "Refund" are the fallbacks when the server could not resolve the refund row. */
+/** "<order number> · Refund ke-N" for a refund row (legacy whole-order refunds are seq 1); just
+ *  "Refund ke-N" without an order number, and the order number or plain "Refund" when the server
+ *  could not resolve the refund row. */
 export function refundLabel(m: Pick<StockMovementRow, 'refundSeq' | 'refNumber'>): string {
-  return m.refundSeq ? `Refund ke-${m.refundSeq}` : 'Refund'
+  if (!m.refundSeq) return m.refNumber ?? 'Refund'
+  const ke = `Refund ke-${m.refundSeq}`
+  return m.refNumber ? `${m.refNumber} · ${ke}` : ke
 }
 
 /** Which ledger ref types open which document. A direct adjustment (no request), an opening

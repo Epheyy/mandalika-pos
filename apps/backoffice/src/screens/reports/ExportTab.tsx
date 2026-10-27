@@ -14,7 +14,7 @@ import { orderIconClasses, orderStatusLabel, orderStatusTone } from '../../lib/o
 import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 import { orderFilterParams, type OrderFilters } from './orderQuery'
-import { breakdownRows, canExportRefunds, hasRefundBasis, isNegative, moneyOrDash, refundCsvFields, sharePercent } from './exportSummary'
+import { breakdownRows, hasRefundBasis, isNegative, moneyOrDash, refundCsvFields, sharePercent } from './exportSummary'
 import { refundCsvRows } from './refundReport'
 import { useOrderReport } from './useOrderReport'
 
@@ -110,11 +110,12 @@ export function ExportTab({ filters, outletId, outlets }: ExportTabProps) {
       )}
       {exportError && <p role="alert" className="text-sm text-red-600">{exportError}</p>}
       {(sq.loading || lq.loading) && <p role="status">Memuat data…</p>}
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-end items-center gap-2">
+        <span className="text-xs text-gray-400">CSV refund memakai rentang tanggal dan outlet saja.</span>
         <Button
           variant="secondary"
           onClick={() => void runExport('refund')}
-          disabled={exporting || !!lq.error || !canExportRefunds(summary)}
+          disabled={exporting || sq.loading || lq.loading}
           icon={<Download className="w-4 h-4" />}
         >
           {exporting ? 'Menyiapkan…' : 'Export Refund CSV'}

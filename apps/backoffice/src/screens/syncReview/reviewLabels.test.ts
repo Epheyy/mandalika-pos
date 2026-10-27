@@ -75,6 +75,7 @@ describe('refund review texts', () => {
   it('summarises per-line refund items and the claimed amount', () => {
     const rows = payloadSummary('refund', { orderNumber: 'A', items: [{ lineNo: 2, quantity: 1, productName: 'Oud' }, { lineNo: 3, quantity: 2 }], refundAmount: 50000, total: 99 })
     expect(rows[1]).toEqual(['Barang', 'Baris 2 (Oud) × 1, Baris 3 × 2'])
+    expect(rows[2][0]).toBe('Jumlah diklaim tablet')
     expect(rows[2][1]).toContain('50.000')
   })
 })

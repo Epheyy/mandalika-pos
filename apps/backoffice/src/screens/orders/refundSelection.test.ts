@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  buildReason, canPartialRefundStatus, estimateRefund, lineLockReason, refundErrorMessage, refundFlagLabel,
+  buildReason, canPartialRefundStatus, estimateRefund, isUncertainRefundStatus, lineLockReason, refundErrorMessage, refundFlagLabel,
   remainingRefundable, selectionToItems, setLineQty, EMPTY_SELECTION, type RefundableItem,
 } from './refundSelection'
 
@@ -25,7 +25,7 @@ describe('setLineQty', () => {
     expect(setLineQty(part, EMPTY_SELECTION, 3, 1)).toEqual({})
   })
   it('locks legacy lines and fully refunded lines', () => {
-    expect(lineLockReason(legacy, items)).toMatch(/Order lama/)
+    expect(lineLockReason(legacy, items)).toMatch(/Transaksi lama/)
     expect(lineLockReason({ ...solo, refundedQty: 3 }, items)).toMatch(/Sudah/)
     expect(setLineQty(items, EMPTY_SELECTION, 1, 1)).toEqual({ 1: 1 })
   })
@@ -67,7 +67,12 @@ describe('display helpers', () => {
     expect(refundFlagLabel(null)).toBeNull()
     expect(canPartialRefundStatus('completed')).toBe(true)
     expect(canPartialRefundStatus('refunded')).toBe(false)
-    expect(refundErrorMessage(409, 'x')).toMatch(/refund lain/)
+    expect(refundErrorMessage(409, '')).toMatch(/refund lain/)
+    expect(refundErrorMessage(409, 'Refund lain. Jangan bayar ulang.')).toBe('Refund lain. Jangan bayar ulang.')
     expect(refundErrorMessage(400, 'bad')).toBe('bad')
+    expect(refundErrorMessage(0, 'Failed to fetch')).toMatch(/belum pasti/)
+    expect(refundErrorMessage(502, 'x')).toMatch(/belum pasti/)
+    expect(isUncertainRefundStatus(undefined)).toBe(true)
+    expect(isUncertainRefundStatus(400)).toBe(false)
   })
 })

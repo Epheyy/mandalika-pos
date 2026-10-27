@@ -191,7 +191,10 @@ export const adminPartialRefundFlow = async (page: ScenarioPage) => {
   await page.getByRole('button', { name: 'Refund', exact: true }).last().click()
   await page.getByText('Refund ke-1').waitFor()
   check(posts.length === 1 && posts[0].path.endsWith(`/orders/${uuid(1000)}/refund`), 'one refund post to the order')
-  check(JSON.stringify(posts[0].body) === JSON.stringify({ reason: 'Rusak/cacat', reasonCode: 'rusak_cacat', items: [{ lineNo: 0, quantity: 1 }] }), `refund body ${JSON.stringify(posts[0].body)}`)
+  const body = posts[0].body as { clientRefundUuid?: string }
+  check(/^[0-9a-f-]{36}$/.test(body.clientRefundUuid ?? ''), `refund body carries a replay uuid ${JSON.stringify(body)}`)
+  const { clientRefundUuid: _uuid, ...rest } = posts[0].body as Record<string, unknown>
+  check(JSON.stringify(rest) === JSON.stringify({ reason: 'Rusak/cacat', reasonCode: 'rusak_cacat', items: [{ lineNo: 0, quantity: 1 }] }), `refund body ${JSON.stringify(posts[0].body)}`)
   await page.getByText('Refund sebagian').waitFor()
   await page.getByText(/Sisa bisa direfund/).filter({ hasText: '350.000' }).waitFor()
   await page.getByText(/Total direfund/).filter({ hasText: '100.000' }).waitFor()

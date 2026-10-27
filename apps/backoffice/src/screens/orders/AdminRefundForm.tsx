@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Order } from '@mandalika/api'
 import { ApiError } from '@mandalika/api'
 import { variantLabel } from '@mandalika/types'
@@ -9,8 +9,8 @@ import { Button } from '../../ui/Button'
 import { Select, Textarea } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
 import {
-  EMPTY_SELECTION, REASON_PRESETS, buildReason, canPartialRefundStatus, estimateRefund, lineLockReason,
-  refundErrorMessage, remainingQty, selectionToItems, setLineQty, type Selection,
+  EMPTY_SELECTION, REASON_PRESETS, buildReason, canPartialRefundStatus, estimateRefund, isUncertainRefundStatus, lineLockReason,
+  refundErrorMessage, remainingQty, remainingRefundable, selectionToItems, setLineQty, type Selection,
 } from './refundSelection'
 
 const money = (n: number) => BRAND.currency.format(n)
@@ -31,6 +31,8 @@ export function AdminRefundForm({ order, onDone }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // Replay key: one uuid per confirmed attempt, reused when the same selection+reason is retried.
+  const attempt = useRef<{ key: string; uuid: string } | null>(null)
 
   if (!canPartialRefundStatus(order.status)) return null
 
@@ -38,12 +40,14 @@ export function AdminRefundForm({ order, onDone }: Props) {
   const hadRefund = (order.refunds ?? []).length > 0 || order.status === 'partially_refunded'
   if (legacy && hadRefund) return null
 
-  const reset = () => { setOpen(false); setSel(EMPTY_SELECTION); setCode(''); setText(''); setConfirming(false); setErr(null) }
+  const reset = () => { attempt.current = null; setOpen(false); setSel(EMPTY_SELECTION); setCode(''); setText(''); setConfirming(false); setErr(null) }
   const picked = selectionToItems(sel)
   const reasonRes = buildReason(code, text)
   // A legacy order has no lines to pick: the whole order is refunded.
   const readyItems = legacy || picked.length > 0
-  const estimate = legacy ? order.total : estimateRefund(order.items, sel)
+  const rawEstimate = legacy ? order.total : estimateRefund(order.items, sel)
+  const remaining = remainingRefundable(order)
+  const estimate = remaining === null ? rawEstimate : Math.min(rawEstimate, remaining)
 
   const askConfirm = () => {
     if (!readyItems) { setErr('Pilih minimal satu item untuk di-refund'); return }
@@ -55,18 +59,22 @@ export function AdminRefundForm({ order, onDone }: Props) {
   const submit = async () => {
     if (!reasonRes.ok) return
     setBusy(true)
+    const key = JSON.stringify([legacy ? null : picked, reasonRes.reasonCode, reasonRes.reason])
+    if (attempt.current?.key !== key) attempt.current = { key, uuid: crypto.randomUUID() }
     try {
       await api.refundOrder(order.id, reasonRes.reason, {
         reasonCode: reasonRes.reasonCode,
         ...(legacy ? {} : { items: picked }),
+        clientRefundUuid: attempt.current.uuid,
       })
       reset()
       await onDone()
     } catch (e: unknown) {
-      const status = e instanceof ApiError ? e.status : undefined
+      const status = e instanceof ApiError ? e.status : 0
       setConfirming(false)
       setErr(refundErrorMessage(status, e instanceof Error ? e.message : ''))
-      if (status === 409) await onDone()
+      if (status === 409) setSel(EMPTY_SELECTION)
+      if (status === 409 || isUncertainRefundStatus(status)) await onDone()
     } finally {
       setBusy(false)
     }
@@ -88,7 +96,7 @@ export function AdminRefundForm({ order, onDone }: Props) {
   return (
     <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
       {legacy ? (
-        <p className="text-xs text-amber-700">Order lama tanpa nomor baris: hanya bisa refund seluruh transaksi ({money(order.total)}).</p>
+        <p className="text-xs text-amber-700">Transaksi lama tanpa nomor baris: hanya bisa refund seluruh transaksi ({money(order.total)}).</p>
       ) : (
         <div className="space-y-1.5">
           <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Pilih item yang di-refund</p>
@@ -116,7 +124,7 @@ export function AdminRefundForm({ order, onDone }: Props) {
               </div>
             )
           })}
-          <p className="text-xs text-gray-400">Tas giveaway tidak direfund</p>
+          <p className="text-xs text-gray-400">Tas hadiah tidak ikut direfund</p>
         </div>
       )}
       <Select label="Alasan Refund *" value={code} onChange={(e) => setCode(e.target.value)}>

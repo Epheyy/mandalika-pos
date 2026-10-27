@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { api } from '../../api'
+import { BRAND } from '../../lib/brand'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { Button } from '../../ui/Button'
 import { Modal } from '../../ui/Modal'
@@ -127,19 +128,24 @@ function useDocumentBody(doc: DocRef, zone: string) {
       case 'refund': {
         const o = await api.getOrder(doc.id)
         const refunds = o.refunds ?? []
-        const r = (doc.seq ? refunds.find((x) => x.seq === doc.seq) : undefined) ?? refunds[refunds.length - 1]
+        // No seq = the server could not resolve which refund: never guess the latest one.
+        const r = doc.seq ? refunds.find((x) => x.seq === doc.seq) : undefined
         return (
           <div className="space-y-2">
             <Row k="Struk" v={o.orderNumber} />
             {r ? (
               <>
                 <Row k="Refund" v={`ke-${r.seq}`} />
-                <Row k="Jumlah" v={r.amount.toLocaleString('id-ID')} />
+                <Row k="Jumlah" v={BRAND.currency.format(r.amount)} />
                 <Row k="Alasan" v={r.reason || '-'} />
                 <Row k="Oleh" v={`${r.refundedByName ?? '-'} · ${when(r.refundedAt, zone)}`} />
               </>
             ) : (
-              <p className="text-sm text-gray-400">Rincian refund tidak ditemukan.</p>
+              <>
+                <p className="text-sm text-gray-400">Refund mana yang dimaksud baris ini tidak dapat dipastikan; berikut ringkasan refund transaksi.</p>
+                <Row k="Jumlah refund" v={`${refunds.length}×`} />
+                <Row k="Total direfund" v={BRAND.currency.format(o.refundedAmount ?? refunds.reduce((s, x) => s + x.amount, 0))} />
+              </>
             )}
           </div>
         )

@@ -128,7 +128,7 @@ export function payloadSummary(type: string, p: Record<string, unknown>): Array<
       return [
         ['Struk', str(p.orderNumber)],
         ['Barang', refundItemsLine(p.items)],
-        ['Jumlah', idr(p.refundAmount ?? p.total)],
+        [p.refundAmount != null ? 'Jumlah diklaim tablet' : 'Jumlah', idr(p.refundAmount ?? p.total)],
         ['Metode', str(p.paymentMethod)],
         ['Alasan', str(p.reason)],
       ]

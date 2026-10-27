@@ -39,11 +39,11 @@ const groupMembers = (items: readonly RefundableItem[], group: string): Refundab
 
 /** Why a line cannot be picked (null = selectable). */
 export function lineLockReason(it: RefundableItem, items: readonly RefundableItem[]): string | null {
-  if (it.lineNo == null) return 'Order lama: hanya refund seluruh transaksi'
+  if (it.lineNo == null) return 'Transaksi lama: hanya refund seluruh transaksi'
   if (remainingQty(it) === 0) return 'Sudah direfund semua'
   if (it.refundGroup) {
     const members = groupMembers(items, it.refundGroup)
-    if (members.some((m) => m.lineNo == null)) return 'Order lama: hanya refund seluruh transaksi'
+    if (members.some((m) => m.lineNo == null)) return 'Transaksi lama: hanya refund seluruh transaksi'
     if (members.some((m) => (m.refundedQty ?? 0) > 0)) {
       return 'Paket/grup sudah sebagian direfund, tidak bisa dipilih sebagian'
     }
@@ -132,9 +132,18 @@ export const refundScopeLabel = (scope: string): string =>
 export const refundFlagLabel = (flag?: string | null): string | null =>
   flag === 'amount_mismatch' ? 'Jumlah beda' : flag === 'over_total' ? 'Melebihi total' : flag ? flag : null
 
+export const UNCERTAIN_REFUND_MESSAGE =
+  'Hasil refund belum pasti: data transaksi dimuat ulang, periksa daftar refund sebelum mengulang.'
+
+/** True when the refund outcome is unknown (network error / 5xx): the caller must reload before retrying. */
+export const isUncertainRefundStatus = (status: number | undefined): boolean =>
+  status === undefined || status === 0 || status >= 500
+
 /** Readable message for a failed refund call. */
 export function refundErrorMessage(status: number | undefined, message: string): string {
-  if (status === 409) return 'Ada refund lain yang baru saja terjadi pada order ini. Data dimuat ulang, silakan cek lagi.'
+  // The 409 text from the server carries a "jangan bayar ulang" warning: keep it.
+  if (status === 409) return message || 'Ada refund lain yang baru saja terjadi pada transaksi ini. Data dimuat ulang, silakan cek lagi.'
+  if (isUncertainRefundStatus(status)) return UNCERTAIN_REFUND_MESSAGE
   if (status === 400) return message || 'Permintaan refund tidak valid.'
   return message || 'Gagal memproses refund.'
 }

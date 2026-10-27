@@ -33,13 +33,15 @@ describe('refund rows', () => {
   const refund = (p: Partial<StockMovementRow>) => row({ kind: 'refund', refType: 'order', refId: 'o', refNumber: 'INV-1', ...p })
 
   it('labels the document Refund ke-N from refundSeq (a legacy whole refund is seq 1)', () => {
-    expect(refundLabel(refund({ refundSeq: 2 }))).toBe('Refund ke-2')
-    expect(refundLabel(refund({ refundSeq: 1 }))).toBe('Refund ke-1')
-    expect(refundLabel(refund({}))).toBe('Refund')
+    expect(refundLabel(refund({ refundSeq: 2 }))).toBe('INV-1 · Refund ke-2')
+    expect(refundLabel(refund({ refundSeq: 1 }))).toBe('INV-1 · Refund ke-1')
+    expect(refundLabel(refund({ refundSeq: 2, refNumber: undefined }))).toBe('Refund ke-2')
+    expect(refundLabel(refund({}))).toBe('INV-1')
+    expect(refundLabel(refund({ refNumber: undefined }))).toBe('Refund')
   })
 
   it('opens the refund (by order id and seq) only for users who may read orders', () => {
-    expect(docRefOf(refund({ refundSeq: 2 }), true)).toEqual({ type: 'refund', id: 'o', seq: 2, label: 'Refund ke-2' })
+    expect(docRefOf(refund({ refundSeq: 2 }), true)).toEqual({ type: 'refund', id: 'o', seq: 2, label: 'INV-1 · Refund ke-2' })
     expect(docRefOf(refund({ refundSeq: 2 }), false)).toBeNull()
   })
 
