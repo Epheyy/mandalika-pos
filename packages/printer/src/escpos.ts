@@ -210,7 +210,10 @@ export function buildReceipt(
   b.divider()
 
   if (settings.showSubtotal !== false) b.line(pad('Subtotal', money(data.subtotal)))
-  if (settings.showDiscount !== false) {
+  // An itemised (C1) slip always prints its deductions and PPN: hiding a row that is inside TOTAL would
+  // make the slip not add up. The Pengaturan toggles still govern pre-C1 receipts.
+  const itemised = data.discounts !== undefined
+  if (itemised || settings.showDiscount !== false) {
     if (data.discounts) {
       for (const d of data.discounts) if (d.amount > 0) labelRow(b, `- ${d.label}`, minusRp(d.amount))
     } else if (data.discountAmount > 0) {
@@ -222,7 +225,7 @@ export function buildReceipt(
   if (data.pointsRedeemed && data.pointsRedeemed.amount > 0) {
     b.line(pad(`Tukar poin (${data.pointsRedeemed.points})`, minusRp(data.pointsRedeemed.amount)))
   }
-  if (settings.showTax && data.taxAmount > 0) {
+  if ((itemised || settings.showTax) && data.taxAmount > 0) {
     b.line(pad('PPN', money(data.taxAmount)))
   }
   if (data.rounding) b.line(pad('Pembulatan', (data.rounding > 0 ? '+' : '') + money(data.rounding)))

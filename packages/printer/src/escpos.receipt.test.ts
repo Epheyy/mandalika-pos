@@ -136,4 +136,14 @@ describe('C1 receipt rows', () => {
     expect(lines.some((l) => l.includes('GRATIS') || l.includes('HADIAH'))).toBe(false)
     expect(amt(row(lines, 'Subtotal')) - 10000).toBe(amt(row(lines, 'TOTAL')))
   })
+
+  it('an itemised slip prints discounts and PPN even when the display toggles are off (it must add up)', () => {
+    const data: ReceiptData = {
+      ...base, lines: [{ name: 'A', qty: 1, unitPrice: 100000, amount: 100000 }], subtotal: 100000, discountAmount: 10000,
+      discounts: [{ label: 'Kode X', amount: 10000 }], taxAmount: 9000, total: 99000, amountPaid: 100000, change: 1000,
+    }
+    const lines = slip(buildReceipt(data, { ...settings, showDiscount: false, showTax: false } as ReceiptSettings))
+    expect(amt(row(lines, 'PPN'))).toBe(9000)
+    expect(lines.some((l) => l.startsWith('- Kode X'))).toBe(true)
+  })
 })
