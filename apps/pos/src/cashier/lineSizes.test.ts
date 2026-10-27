@@ -1,6 +1,6 @@
 import type { components } from '@mandalika/api'
 import { describe, expect, it } from 'vitest'
-import { planSizeSwitch, sizeOptions } from './lineSizes'
+import { isLineInBundle, planSizeSwitch, sizeOptions } from './lineSizes'
 
 type Product = components['schemas']['Product']
 
@@ -39,5 +39,15 @@ describe('planSizeSwitch', () => {
   })
   it('refuses a line that belongs to another product', () => {
     expect(planSizeSwitch({ ...line, productId: 'p2' }, product, '110ml')).toBeNull()
+  })
+})
+
+describe('isLineInBundle', () => {
+  const freed = { bundleA: [{ productId: 'p1', variantSize: '50ml', quantity: 1 }] }
+  it('is true only for a product+size an applied bundle moved units from', () => {
+    expect(isLineInBundle(freed, 'p1', '50ml')).toBe(true)
+    expect(isLineInBundle(freed, 'p1', '110ml')).toBe(false)
+    expect(isLineInBundle(freed, 'p2', '50ml')).toBe(false)
+    expect(isLineInBundle({}, 'p1', '50ml')).toBe(false)
   })
 })

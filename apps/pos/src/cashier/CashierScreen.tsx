@@ -54,7 +54,7 @@ import { effectivePromotionSelection, isRedundantPromoCode } from './promotionSe
 import { buildPromotionMetadata } from './promotionMetadata'
 import { buildReceiptQuote, receiptFromQuote, type ReceiptQuote } from './receiptQuote'
 import { applyPendingStock, stockFor, oversoldSizes, OVERSELL_WARNING } from './stock'
-import { planSizeSwitch } from './lineSizes'
+import { isLineInBundle, planSizeSwitch, SIZE_SWITCH_BUNDLE_MESSAGE } from './lineSizes'
 import { decideApplyCode, validatePromo, validateCode, violationMessage } from './promoValidate'
 import { calcPromoDiscount, bxgyRewardDue } from './pricing'
 import { planPromotionFulfillment, invalidPhysicalPromotionIds, type PromotionOwner, type FulfillmentPlan } from './promotionFulfillment'
@@ -372,22 +372,30 @@ export default function CashierScreen() {
   }
 
   // B1 line sheet size switch: the existing remove + add actions (planSizeSwitch), through
-  // the same add path as a tile tap so the offline lock and the oversell warning apply.
-  // Returns true when the line moved. Nothing is removed when the add would be blocked.
+  // the same add path as a tile tap so the oversell warning applies. The add's own gates
+  // (open shift, offline lock) are checked FIRST so a blocked add never strands the removal.
+  // Returns true only when the line moved.
   const handleSwitchSize = (productId: string, fromSize: string, toSize: string): boolean => {
     const product = displayProducts.find((p) => p.id === productId)
     const line = state.cart.find((i) => i.productId === productId && i.variantSize === fromSize && !i.isReward)
     if (!product || !line) return false
     const plan = planSizeSwitch(line, product, toSize)
     if (!plan) return false
+    if (isLineInBundle(state.bundleFreed, productId, fromSize)) {
+      // CART_REMOVE_ITEM would evict the bundle and its moved units would not follow the switch.
+      showToast(SIZE_SWITCH_BUNDLE_MESSAGE)
+      return false
+    }
+    if (!ensureShift()) return false
     const lockedMsg = offlineLock()
     if (lockedMsg) {
       showToast(lockedMsg)
       return false
     }
     cartActions.removeItem(plan.productId, plan.fromSize)
-    if (addWithStockWarning(product, plan.variantQtys) === 'oversold') showToast(OVERSELL_WARNING)
-    return true
+    const result = addWithStockWarning(product, plan.variantQtys)
+    if (result === 'oversold') showToast(OVERSELL_WARNING)
+    return result !== 'blocked'
   }
 
   // Scan-to-cart: resolve the code to a variant, add 1 respecting stock.

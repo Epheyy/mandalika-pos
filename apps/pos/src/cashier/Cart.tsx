@@ -108,6 +108,9 @@ export const Cart = memo(function Cart({
   const openLine = lineKey
     ? cart.find((i) => i.productId === lineKey.productId && i.variantSize === lineKey.variantSize && !i.isReward) ?? null
     : null
+  // A key whose line is gone is dropped at once (state adjusted during render, no effect),
+  // so re-adding that product+size later can never pop the sheet open by itself.
+  if (lineKey && !openLine) setLineKey(null)
   const closeLine = () => setLineKey(null)
 
   // Android Back closes the line sheet before anything underneath.
@@ -204,8 +207,8 @@ export const Cart = memo(function Cart({
                   aria-label={`Ubah ${item.productName}${variantLabel(item.variantSize) ? ' ' + variantLabel(item.variantSize) : ''}`}
                   className="order-1 min-h-12 min-w-0 flex-1 basis-[calc(100%-4rem)] rounded-control text-left active:bg-paper-1 lg:basis-auto"
                 >
-                  <p className="truncate text-[0.9375rem] font-semibold text-ink-900">{item.productName}</p>
-                  {variantLabel(item.variantSize) && <p className="text-[0.8125rem] text-ink-500">{variantLabel(item.variantSize)}</p>}
+                  <span className="block truncate text-[0.9375rem] font-semibold text-ink-900">{item.productName}</span>
+                  {variantLabel(item.variantSize) && <span className="block text-[0.8125rem] text-ink-500">{variantLabel(item.variantSize)}</span>}
                 </button>
               )}
               {item.isReward ? (

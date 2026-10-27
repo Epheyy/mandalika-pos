@@ -17,6 +17,22 @@ export function sizeOptions(product: Product | undefined, currentSize: string): 
   return product.variants.map((v) => ({ size: v.size, price: v.price, stock: v.stock, current: v.size === currentSize }))
 }
 
+/** Shown when a size switch is refused because an applied bundle owns the line. */
+export const SIZE_SWITCH_BUNDLE_MESSAGE = 'Lepas paket dulu, baru ganti ukuran.'
+
+/** True when an applied bundle moved units of this product+size into a reward line.
+ *  Removing such a line evicts the bundle and restores its units first, so a size
+ *  switch would silently move fewer units than the sheet shows; the switch is refused. */
+export function isLineInBundle(
+  bundleFreed: Record<string, { productId: string; variantSize: string }[]>,
+  productId: string,
+  variantSize: string,
+): boolean {
+  return Object.values(bundleFreed).some((freed) =>
+    freed.some((f) => f.productId === productId && f.variantSize === variantSize),
+  )
+}
+
 export interface SizeSwitchPlan {
   productId: string
   fromSize: string
