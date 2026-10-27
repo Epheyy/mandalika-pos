@@ -331,7 +331,11 @@ components:
         refund_of_movement_id:
           type: string
           format: uuid
-          description: Refund lines only. The `movement_id` of the sale line being refunded.
+          description: >-
+            Refund lines only. The `movement_id` of the sale line being refunded. Since C4a (2026-10-28) a refund may be
+            partial: one `refund` document per refund (key `refund:<refund id>`, legacy `refund:<order id>`), `qty` is the
+            refunded quantity and the tender is the refunded amount (negative, net of discounts), so several `refund`
+            documents can share one `ref.id`. Open ERP questions E-1..E-4 (Q28-Q31 of the handover) gate partial refunds.
         expected_qty:
           type: integer
           format: int64
