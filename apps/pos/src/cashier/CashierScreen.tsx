@@ -50,13 +50,15 @@ import { ShiftRecapPanel } from './ShiftRecapPanel'
 import { SyncStatus } from '../components/SyncStatus'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { reserveOrderNo } from './orderRef'
-import { effectivePromotionSelection, isRedundantPromoCode } from './promotionSelection'
+import { isRedundantPromoCode } from './promotionSelection'
 import { buildPromotionMetadata } from './promotionMetadata'
 import { buildReceiptQuote, receiptFromQuote, type ReceiptQuote } from './receiptQuote'
 import { applyPendingStock, stockFor, oversoldSizes, OVERSELL_WARNING } from './stock'
 import { isLineInBundle, planSizeSwitch, SIZE_SWITCH_BUNDLE_MESSAGE } from './lineSizes'
-import { decideApplyCode, validatePromo, validateCode, violationMessage } from './promoValidate'
-import { calcPromoDiscount, bxgyRewardDue } from './pricing'
+import { decideApplyCode } from './promoValidate'
+import { resolveConfirmGuard } from './confirmGuard'
+import { customerAttachImpact, customerAttachMessage } from './customerAttachImpact'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { planPromotionFulfillment, invalidPhysicalPromotionIds, type PromotionOwner, type PendingFulfillment } from './promotionFulfillment'
 import type { BxgyRewardPick } from './BxgyRewardModal'
 import type { BundleAssignment } from './bundle'
@@ -278,6 +280,8 @@ export default function CashierScreen() {
   const [rewardsLoading, setRewardsLoading] = useState(false)
 
   // Pending picker context has no effect on the sale until confirmed.
+  // Open confirm dialog (customer change, Kosongkan); Back and Batal dismiss it.
+  const [confirm, setConfirm] = useState<{ message: string; confirmLabel: string; tone: 'danger' | 'primary'; run: () => void } | null>(null)
   const [pendingFulfillment, setPendingFulfillment] = useState<PendingFulfillment | null>(null)
   // Background reference pull (auto-pull): the engine may swap the catalog only while nothing is in flight.
   useAutoPullGate(engine, {
@@ -507,6 +511,15 @@ export default function CashierScreen() {
 
   const handleSelectPromotion = (promotion: components['schemas']['Promotion']) => applySelection({ kind: 'direct', promotion })
 
+  // A customer change silently strips reward lines and bundle/giveaway promos (SET_CUSTOMER), so
+  // confirm first when that would actually remove something. The reducer's semantics are unchanged.
+  const requestSetCustomer = (customer: components['schemas']['Customer'] | null) => {
+    const names = customerAttachImpact(state)
+    if (names.length === 0) { dispatch({ type: 'SET_CUSTOMER', customer }); return }
+    const change = customer === null ? 'release' : state.selectedCustomer ? 'replace' : 'attach'
+    setConfirm({ message: customerAttachMessage(names, change), confirmLabel: 'Lanjutkan', tone: 'primary', run: () => dispatch({ type: 'SET_CUSTOMER', customer }) })
+  }
+
   // Closing the Promo & Diskon sheet (x, backdrop, Back) also drops a picker that was open in it.
   const closePromoSheet = () => {
     setPendingFulfillment(null)
@@ -571,7 +584,7 @@ export default function CashierScreen() {
     }
     setLocalCustomers((prev) => [created, ...prev])
     getKnownCustomers().remember(created)
-    dispatch({ type: 'SET_CUSTOMER', customer: created })
+    requestSetCustomer(created)
     setIsAddingCustomer(false)
     setNewCustomerForm({ name: '', phone: '', email: '' })
   }
@@ -639,95 +652,27 @@ export default function CashierScreen() {
       showToast('Promo tidak berlaku lagi (syarat barang berubah). Dihapus dari keranjang.')
       return
     }
-    const { appliedPromotions, appliedPromoCodes } = effectivePromotionSelection(state.appliedPromotions, state.appliedPromoCodes)
-    // Re-guard: a promo/code valid when picked can lapse while the cart sits open
-    // (hour/day boundary) or fall below min_purchase (items removed). Block + clear
-    // the offending discount so the cashier re-confirms a clean total. This keeps
-    // the server-side discount_warning flag a true rarity.
-    const guardCtx = {
-      now: new Date(),
-      outletId: authStore.outletId ?? '',
-      timezone: outletTimezone,
-      subtotal: derived.subtotal,
-      hasCustomer: state.selectedCustomer !== null,
-      customerId: state.selectedCustomer?.id,
+    // Re-guard: a promo/code valid when picked can lapse while the cart sits open (hour/day
+    // boundary) or fall below min_purchase (items removed). Drop ONLY what failed (B2) and keep the
+    // rest; the cashier re-confirms a clean total. This keeps the server-side discount_warning rare.
+    const guard = resolveConfirmGuard({
+      state,
+      discountCodes,
+      promotions,
+      ctx: {
+        now: new Date(),
+        outletId: authStore.outletId ?? '',
+        timezone: outletTimezone,
+        hasCustomer: state.selectedCustomer !== null,
+        customerId: state.selectedCustomer?.id,
+      },
+    })
+    if (guard.drops.length > 0) {
+      for (const action of guard.actions) dispatch(action)
+      showToast(guard.messages.join('\n'))
+      return
     }
-    for (const p of appliedPromotions) {
-      const vs = validatePromo(p, guardCtx)
-      if (vs.length > 0) {
-        showToast(`Promo tidak berlaku lagi (${violationMessage(vs[0])}). Dihapus dari keranjang.`)
-        dispatch({ type: 'CLEAR_PROMOTIONS' })
-        return
-      }
-      // buy_x_get_y has a cart precondition that gating can't see: if the cart
-      // no longer satisfies the buy/get criteria (items removed after applying),
-      // drop it so it isn't recorded as applied in history. SEPARATE-SET earns a
-      // reward (calcPromoDiscount is always 0), so check bxgyRewardDue over PAID
-      // lines and also strip the reward lines so they don't linger. SAME-SET
-      // discounts in place → check the discount.
-      if (p.type === 'buy_x_get_y') {
-        const cfg = p.bxgyConfig
-        const isSeparateSet = (cfg?.getProductIds ?? []).length > 0
-        const unmet = isSeparateSet
-          ? bxgyRewardDue(cfg, state.cart.filter((c) => !c.isReward)) < 1
-          : calcPromoDiscount(p, state.cart, derived.subtotal) <= 0
-        if (unmet) {
-          showToast('Promo tidak berlaku lagi (syarat beli belum terpenuhi). Dihapus dari keranjang.')
-          if (isSeparateSet)
-            dispatch({ type: 'CART_REMOVE_PROMO_REWARDS', rewardPromotionId: p.id })
-          dispatch({ type: 'CLEAR_PROMOTIONS' })
-          return
-        }
-      }
-    }
-    // Precompute O(1) lookups once (the re-guard scans the full catalog per
-    // applied code → O(n²) otherwise). Keep FIRST occurrence to match .find().
-    const activeCodeByName = new Map<string, (typeof discountCodes)[number]>()
-    for (const d of discountCodes) {
-      if (!d.isActive) continue
-      const key = d.code.toUpperCase()
-      if (!activeCodeByName.has(key)) activeCodeByName.set(key, d)
-    }
-    const activePromoById = new Map<string, (typeof promotions)[number]>()
-    for (const p of promotions) {
-      if (!p.isActive) continue
-      if (!activePromoById.has(p.id)) activePromoById.set(p.id, p)
-    }
-    for (const c of appliedPromoCodes) {
-      const dc = activeCodeByName.get(c.code.toUpperCase())
-      if (!dc) {
-        showToast('Kode Promo tidak berlaku lagi (kode tidak ditemukan). Dihapus dari keranjang.')
-        dispatch({ type: 'CLEAR_PROMOTIONS' })
-        return
-      }
-      const vs = validateCode(dc, guardCtx)
-      if (vs.length > 0) {
-        showToast(`Kode Promo tidak berlaku lagi (${violationMessage(vs[0])}). Dihapus dari keranjang.`)
-        dispatch({ type: 'REMOVE_PROMO_CODE', code: c.code })
-        return
-      }
-      // SP-Promo-3c: for linked codes, also re-validate the linked promotion
-      // (mirrors decideApplyCode's intersection rule)
-      if (c.promotion) {
-        const linkedPromo = activePromoById.get(c.promotion.id)
-        if (!linkedPromo) {
-          showToast('Kode Promo tidak berlaku lagi (promo tertaut tidak tersedia). Dihapus dari keranjang.')
-          dispatch({ type: 'CLEAR_PROMOTIONS' })
-          return
-        }
-        const promoVs = validatePromo(linkedPromo, guardCtx)
-        if (promoVs.length > 0) {
-          showToast(`Kode Promo tidak berlaku lagi (${violationMessage(promoVs[0])}). Dihapus dari keranjang.`)
-          dispatch({ type: 'CLEAR_PROMOTIONS' })
-          return
-        }
-      }
-    }
-    if (
-      appliedPromotions.length + appliedPromoCodes.length > 1 &&
-      (appliedPromotions.some((p) => !p.combinable) ||
-        appliedPromoCodes.some((c) => !c.combinable))
-    ) {
+    if (guard.clearAll) {
       showToast('Promo/Kode Promo tidak berlaku lagi (tidak bisa digabung). Dihapus dari keranjang.')
       dispatch({ type: 'CLEAR_PROMOTIONS' })
       return
@@ -998,6 +943,7 @@ export default function CashierScreen() {
       if (refundOrder) { setRefundOrder(null); setRefundSale(null); return true }
       if (state.isSuccessOpen) { dispatch({ type: 'CLOSE_SUCCESS' }); return true }
       if (state.isCheckoutOpen) { dispatch({ type: 'CLOSE_CHECKOUT' }); return true }
+      if (confirm) { setConfirm(null); return true }
       if (pendingFulfillment) { setPendingFulfillment(null); return true }
       if (state.activeAdjustment) { closePromoSheet(); return true }
       if (state.activeTab === 'cart') { dispatch({ type: 'SET_ACTIVE_TAB', tab: 'products' }); return true }
@@ -1008,7 +954,7 @@ export default function CashierScreen() {
     return () => setBackHandler(null)
   }, [
     showConnection, showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRequisitions, showRecap, refundOrder,
-    state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment, pendingFulfillment,
+    state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment, pendingFulfillment, confirm,
     state.activeTab,
   ])
 
@@ -1095,8 +1041,8 @@ export default function CashierScreen() {
             customerSearch={state.customerSearch} isAddingCustomer={isAddingCustomer}
             newCustomerForm={newCustomerForm} isSaving={isSavingCustomer}
             onSearchChange={(q) => dispatch({ type: 'SET_CUSTOMER_SEARCH', search: q })}
-            onSelect={(c) => { getKnownCustomers().remember(c); dispatch({ type: 'SET_CUSTOMER', customer: c }) }}
-            onClear={() => dispatch({ type: 'SET_CUSTOMER', customer: null })}
+            onSelect={(c) => { getKnownCustomers().remember(c); requestSetCustomer(c) }}
+            onClear={() => requestSetCustomer(null)}
             onToggleAdding={() => { setIsAddingCustomer((v) => !v); setCustomerError(null) }}
             onNewFormChange={(f, v) => setNewCustomerForm((prev) => ({ ...prev, [f]: v }))}
             onSaveNew={() => void handleAddCustomer()}
@@ -1336,8 +1282,17 @@ export default function CashierScreen() {
         />
       )}
 
+      <ConfirmDialog
+        open={confirm !== null}
+        message={confirm?.message ?? ''}
+        confirmLabel={confirm?.confirmLabel ?? ''}
+        tone={confirm?.tone}
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => { const run = confirm?.run; setConfirm(null); run?.() }}
+      />
+
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-gray-900 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lg safe-bottom">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] whitespace-pre-line text-center bg-gray-900 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lg safe-bottom">
           {toast}
         </div>
       )}

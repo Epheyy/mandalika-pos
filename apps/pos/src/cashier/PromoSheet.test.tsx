@@ -11,13 +11,13 @@ const html = (el: Parameters<typeof renderToStaticMarkup>[0]) => renderToStaticM
 
 describe('PromoSheet', () => {
   it('shows the Promo & Diskon heading and the list when no picker is pending', () => {
-    const out = html(createElement(PromoSheet, { onClose: noop }, createElement('p', null, 'LIST-BODY')))
+    const out = html(createElement(PromoSheet, { onClose: noop, children: createElement('p', null, 'LIST-BODY') }))
     expect(out).toContain('Promo &amp; Diskon')
     expect(out).toContain('LIST-BODY')
   })
 
   it('replaces the list with the picker instead of stacking it', () => {
-    const out = html(createElement(PromoSheet, { onClose: noop, picker: createElement('p', null, 'PICKER') }, createElement('p', null, 'LIST-BODY')))
+    const out = html(createElement(PromoSheet, { onClose: noop, picker: createElement('p', null, 'PICKER'), children: createElement('p', null, 'LIST-BODY') }))
     expect(out).toContain('PICKER')
     expect(out).not.toContain('LIST-BODY')
     expect(out).not.toContain('Promo &amp; Diskon')
