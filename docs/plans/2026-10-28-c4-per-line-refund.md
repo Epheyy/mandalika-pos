@@ -407,7 +407,7 @@ Consequence to state plainly: with a PIN, **no refund can be made offline**. Tod
 | D-39 | Refund amount of record when the tablet's amount differs from the server's | **The amount paid out at the till; flag differences > Rp1 (and Σ > total) for head office, never reject** |
 | D-40 | "Stok: Kembalikan / Tidak" choice in W4 | **v1 always restocks; damaged goods via Penyesuaian Stok**; per-line "Tidak" later (needs E-4 and the approval switch) |
 | D-41 | C3 giveaway bag on refund | **Never refunded or restocked; not selectable; note shown** |
-| D-42 | Customer `total_spent` / `visit_count` are never reversed on refund today | **C4a subtracts the refund amount from `total_spent`; `visit_count` unchanged** |
+| D-42 | Customer `total_spent` / `visit_count` are never reversed on refund today | **C4a subtracts the refund's COMPUTED amount from `total_spent` (implementation note 2026-10-28: not the claimed amount of record, so a bad tablet claim flagged `over_total` cannot erase other orders' spend or the tier; Σ computed = the order total, so a full refund restores the pre-order value). Trade-off: an under-claim leaves the customer with a little less net spend than cash kept. Owner may switch to the amount of record.** `visit_count` unchanged |
 | D-43 | Reason presets | **Rusak/cacat · Salah varian · Berubah pikiran · Tidak cocok/alergi · Lainnya (teks)** |
 | D-44 | Several partial refunds per order | **Allowed up to the sold quantity; while one is queued on this tablet the order is blocked until it is sent** |
 | D-45 | New order state shown in the backoffice | **"Sebagian refund" badge + filter; reports count it as a sale with refunds on their own days** |

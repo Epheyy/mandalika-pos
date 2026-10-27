@@ -229,7 +229,7 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 	return err
 }
 
-// shiftCashMethodIDs lists the payment method ids on this shift's completed orders,
+// shiftCashMethodIDs lists the payment method ids on this shift's completed, partially refunded and refunded orders,
 // and on refunds this shift paid out (order_refunds.shift_id), that are cash at close time
 // (the flag in force now decides; closed shifts are a snapshot and never change).
 // The UPDATE aggregates cash_sales and cash_refunds_paid and excludes these ids from

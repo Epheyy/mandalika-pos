@@ -231,7 +231,7 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 	// Points (D-37), computed now (the customer row is locked) and applied after the order
 	// writes: the cumulative proportional share of the computed value refunded so far (the
 	// completing refund settles exactly), minus what earlier refunds actually took. The floor
-	// at 0 / forgiveness is per refund, as before C4.
+	// at 0 applies per refund; a shortfall is not lost: the next refund's target minus what was actually taken re-claws it.
 	var clawed, restored, afterClaw, newBal int64
 	var forgiven int64
 	if o.custID != nil && *o.custID != "" {
@@ -356,7 +356,7 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 		if clawed > 0 {
 			clawReason := fmt.Sprintf("Pembatalan poin dari refund %s", o.orderNumber)
 			if forgiven > 0 {
-				clawReason += fmt.Sprintf(" (%d poin tidak cukup saldo)", forgiven)
+				clawReason += fmt.Sprintf(" (%d poin tidak cukup saldo, ditagih di refund berikutnya jika ada)", forgiven)
 			}
 			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
 				CustomerID: *o.custID, Type: "refund", Points: -int(clawed),
