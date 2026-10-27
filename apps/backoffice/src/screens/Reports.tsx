@@ -11,6 +11,7 @@ import { ExportTab } from './reports/ExportTab'
 import { ShiftsTab } from './reports/ShiftsTab'
 import { PromoGrantsTab } from './reports/PromoGrantsTab'
 import { DiscountCodeReportTab } from './reports/DiscountCodeReportTab'
+import { RefundReportTab } from './reports/RefundReportTab'
 import { OversellTab } from './reports/OversellTab'
 import { useOversellOpenCount } from './reports/useOversellOpenCount'
 import { Input, Select } from '../ui/Field'
@@ -18,7 +19,7 @@ import { Card } from '../ui/Card'
 import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
 
-type ReportTab = 'orders' | 'export' | 'shifts' | 'grants' | 'codeReport' | 'oversell'
+type ReportTab = 'orders' | 'export' | 'shifts' | 'grants' | 'codeReport' | 'refund' | 'oversell'
 
 export default function Reports() {
   const { user } = useAuth()
@@ -39,6 +40,7 @@ export default function Reports() {
     if (canViewReports) t.push({ id: 'shifts', label: 'Shift' })
     if (canViewReports) t.push({ id: 'grants', label: 'Hadiah Promo' })
     if (canViewReports) t.push({ id: 'codeReport', label: 'Kode Diskon' })
+    if (canViewReports) t.push({ id: 'refund', label: 'Refund' })
     if (canViewReports) t.push({ id: 'oversell', label: oversellOpen > 0 ? `Stok Minus (${oversellOpen})` : 'Stok Minus' })
     return t
   }, [canViewTransactions, canViewReports, oversellOpen])
@@ -120,6 +122,8 @@ export default function Reports() {
       {tab === 'grants' && <PromoGrantsTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
 
       {tab === 'codeReport' && <DiscountCodeReportTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
+
+      {tab === 'refund' && <RefundReportTab key={`${outletId}|${dateFrom}|${dateTo}`} dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
 
       {tab === 'oversell' && (
         <OversellTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} canAcknowledge={canAcknowledgeOversell} />

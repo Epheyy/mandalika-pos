@@ -14,7 +14,8 @@ import { orderIconClasses, orderStatusLabel, orderStatusTone } from '../../lib/o
 import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 import { orderFilterParams, type OrderFilters } from './orderQuery'
-import { breakdownRows, canExportRefunds, hasRefundBasis, isNegative, moneyOrDash, refundCsvFields, refundExportParams, sharePercent } from './exportSummary'
+import { breakdownRows, canExportRefunds, hasRefundBasis, isNegative, moneyOrDash, refundCsvFields, sharePercent } from './exportSummary'
+import { refundCsvRows } from './refundReport'
 import { useOrderReport } from './useOrderReport'
 
 const statusBadge = (st: string) => <Badge tone={orderStatusTone(st)}>{orderStatusLabel(st)}</Badge>
@@ -76,15 +77,20 @@ export function ExportTab({ filters, outletId, outlets }: ExportTabProps) {
       filters.dateTo ? `sd-${filters.dateTo}` : undefined,
     ])
 
-  /** Pages the whole filtered set (sale day, or refund day for the refund CSV) and downloads it. */
+  /** Pages the whole filtered set and downloads it: orders by sale day, or one row per refund
+   * (same builder as Laporan > Refund) by refund day. */
   const runExport = async (basis: 'sale' | 'refund') => {
     setExporting(true)
     setExportError(null)
     try {
-      const base = orderFilterParams(filters)
-      const params = basis === 'refund' ? refundExportParams(base) : base
-      const all: Order[] = await fetchAllPages((p, limit) => api.listOrders({ ...params, page: p, limit }))
-      exportToCSV(csvRows(all), exportName(basis === 'refund' ? 'laporan-refund' : 'laporan-transaksi'))
+      if (basis === 'refund') {
+        const all = await fetchAllPages((p, limit) =>
+          api.listRefundReport({ dateFrom: filters.dateFrom, dateTo: filters.dateTo, outletId: outletId || undefined, page: p, limit }))
+        exportToCSV(refundCsvRows(all), exportName('laporan-refund'))
+      } else {
+        const all: Order[] = await fetchAllPages((p, limit) => api.listOrders({ ...orderFilterParams(filters), page: p, limit }))
+        exportToCSV(csvRows(all), exportName('laporan-transaksi'))
+      }
     } catch (e: unknown) {
       setExportError(e instanceof Error ? e.message : 'Gagal mengekspor data lengkap.')
     } finally {
