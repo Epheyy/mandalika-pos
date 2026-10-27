@@ -181,26 +181,28 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 		  refunds_paid_by_method = r.by_method,
 		  cash_refunds_paid      = r.cash_paid
 		FROM (
-		  -- C4a: sale side counts partially_refunded as a sale. Like a fully refunded order
-		  -- (already out of total_sales, in total_refunds), a part-refunded order enters the
-		  -- sales buckets NET of what has been refunded on it (net_sale), so
+		  -- C4a: every sale-status order (completed, partially_refunded, refunded) enters the money
+		  -- columns as total minus what was refunded on it (net_sale, UNCLAMPED): total for a
+		  -- completed order, 0 for a legacy full refund, and exactly the cash left in the drawer
+		  -- even when a refund's amount of record differs from the computed share (D-39).
 		  -- total_sales + total_refunds stays gross and expected cash = sales buckets minus
-		  -- other-shift refunds paid still balances. total_refunds attributes to the SALE's
-		  -- shift (orders.shift_id), whichever shift paid the refund.
+		  -- other-shift refunds paid still balances. total_orders counts only completed and
+		  -- partially_refunded orders (is_sale). total_refunds attributes to the SALE's shift
+		  -- (orders.shift_id), whichever shift paid the refund. Cancelled orders have NULL net_sale.
 		  SELECT
-		    sum(net_sale) FILTER (WHERE is_sale) AS total_sales,
+		    sum(net_sale)                        AS total_sales,
 		    count(*)      FILTER (WHERE is_sale) AS total_orders,
 		    sum(refunded)                        AS total_refunds,
-		    sum(net_sale) FILTER (WHERE is_sale AND payment_method = ANY($5::text[])) AS cash_sales,
-		    sum(net_sale) FILTER (WHERE is_sale AND payment_method='card' AND NOT (payment_method = ANY($5::text[])))     AS card_sales,
-		    sum(net_sale) FILTER (WHERE is_sale AND payment_method='transfer' AND NOT (payment_method = ANY($5::text[]))) AS transfer_sales,
-		    sum(net_sale) FILTER (WHERE is_sale AND payment_method='qris' AND NOT (payment_method = ANY($5::text[])))     AS qris_sales
+		    sum(net_sale) FILTER (WHERE payment_method = ANY($5::text[])) AS cash_sales,
+		    sum(net_sale) FILTER (WHERE payment_method='card' AND NOT (payment_method = ANY($5::text[])))     AS card_sales,
+		    sum(net_sale) FILTER (WHERE payment_method='transfer' AND NOT (payment_method = ANY($5::text[]))) AS transfer_sales,
+		    sum(net_sale) FILTER (WHERE payment_method='qris' AND NOT (payment_method = ANY($5::text[])))     AS qris_sales
 		  FROM (
 		    SELECT o.payment_method,
 		           o.status IN ('completed','partially_refunded') AS is_sale,
 		           x.refunded,
-		           CASE WHEN o.status='completed' THEN o.total
-		                WHEN o.status='partially_refunded' THEN GREATEST(o.total - x.refunded, 0) END AS net_sale
+		           CASE WHEN o.status IN ('completed','partially_refunded','refunded')
+		                THEN o.total - x.refunded END AS net_sale
 		      FROM orders o
 		      CROSS JOIN LATERAL (SELECT COALESCE(sum(r.amount),0) AS refunded
 		                            FROM order_refunds r WHERE r.order_id = o.id) x

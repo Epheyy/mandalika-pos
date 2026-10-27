@@ -20,9 +20,11 @@ import (
 // products stay still-sold amounts by sale day; gross = all of sb; refunds = all of rb;
 // net = gross - refunds. NEVER totalSales - totalRefunds: a refunded sale is already missing from
 // totalSales, so that would subtract it twice. C4a: a partially_refunded order is a sale that is
-// still counted (totalOrders), but it enters totalSales/byPayment/products NET of what was
-// refunded on it (net_total, refunded item quantities), exactly as a fully refunded order leaves
-// them, so totalSales + the refunds of those orders stays equal to gross. Cancelled rows are
+// still counted (totalOrders), but every sale-set order enters totalSales/byPayment/dailySales
+// as net_total = total - sum of its refund rows, UNCLAMPED: total for a completed order, 0 for a
+// legacy full refund, and the real remainder when a refund's amount of record differs from the
+// computed share (D-39). products use refunded item quantities. grossSales is unchanged.
+// Cancelled rows are
 // never money; status=completed empties rb (a completed order has no refund row).
 // sb/rb select only the columns the CTEs below use (full rows are ~800 bytes each).
 // sum(dailySales[].netSales) == netSales depends on every refund row having a
@@ -36,10 +38,7 @@ func (r *Repo) ReportSummary(ctx context.Context, f OrderFilter) (api.ReportSumm
 	sql := fmt.Sprintf(`
 WITH sb AS (
   SELECT o.id, o.total, o.status, o.payment_method, o.business_date,
-         CASE WHEN o.status='completed' THEN o.total
-              WHEN o.status='partially_refunded' THEN GREATEST(o.total - COALESCE(
-                (SELECT SUM(r.amount) FROM order_refunds r WHERE r.order_id = o.id), 0), 0)
-              ELSE 0 END AS net_total
+         o.total - COALESCE((SELECT SUM(r.amount) FROM order_refunds r WHERE r.order_id = o.id), 0) AS net_total
   FROM orders o %s
 ),
 rb AS (
@@ -48,7 +47,7 @@ rb AS (
 ),
 agg AS (
   SELECT
-    COALESCE(SUM(net_total) FILTER (WHERE status IN ('completed','partially_refunded')),0) AS total_sales,
+    COALESCE(SUM(net_total),0)                                                             AS total_sales,
     COUNT(*) FILTER (WHERE status IN ('completed','partially_refunded'))                   AS total_orders,
     COALESCE(SUM(total),0)                                                                 AS gross_sales,
     COUNT(*)                                                                               AS gross_orders
@@ -60,7 +59,8 @@ ragg AS (
 pay AS (
   SELECT COALESCE(json_object_agg(payment_method, s),'{}'::json) AS by_pm
   FROM (SELECT payment_method, SUM(net_total) AS s FROM sb
-        WHERE status IN ('completed','partially_refunded') GROUP BY payment_method) t
+        WHERE status IN ('completed','partially_refunded') OR net_total <> 0
+        GROUP BY payment_method) t
 ),
 gpay AS (
   SELECT COALESCE(json_object_agg(payment_method, s),'{}'::json) AS by_pm
@@ -76,7 +76,8 @@ prod AS (
            'quantity',qty,'revenue',rev) ORDER BY rev DESC),'[]'::json) AS top
   FROM (SELECT x.product_id, MIN(x.product_name) AS product_name,
                SUM(x.quantity - x.rq) AS qty,
-               SUM(CASE WHEN x.quantity > 0 THEN x.subtotal * (x.quantity - x.rq) / x.quantity ELSE 0 END) AS rev
+               SUM(CASE WHEN x.rq = 0 THEN x.subtotal
+                        ELSE x.subtotal * (x.quantity - x.rq) / x.quantity END) AS rev
         FROM (SELECT it.product_id, it.product_name, it.quantity, it.subtotal,
                      -- units already refunded on a part-refunded order; 0 for a completed one
                      CASE WHEN b.status='partially_refunded' THEN COALESCE(
@@ -84,16 +85,19 @@ prod AS (
                        ELSE 0 END AS rq
                 FROM order_items it JOIN sb b ON b.id=it.order_id
                 WHERE b.status IN ('completed','partially_refunded')) x
-        GROUP BY x.product_id HAVING SUM(x.quantity - x.rq) > 0 ORDER BY rev DESC LIMIT 10) p
+        WHERE x.rq = 0 OR x.quantity > x.rq  -- a fully returned line of a part-refunded order is gone
+        GROUP BY x.product_id ORDER BY rev DESC LIMIT 10) p
 ),
 sd AS (
   SELECT business_date AS d,
-         SUM(net_total) FILTER (WHERE status IN ('completed','partially_refunded')) AS s,
+         SUM(net_total) AS s,
          COUNT(*) FILTER (WHERE status IN ('completed','partially_refunded'))       AS n,
          SUM(total) AS g, COUNT(*) AS gn
   FROM sb GROUP BY business_date
 ),
 rd AS (
+  -- refundedOrders is distinct per day: summing dailySales[].refundedOrders can exceed the
+  -- top-level refundedOrders when one order is refunded on two days.
   SELECT refund_business_date AS d, SUM(amount) AS r, COUNT(DISTINCT order_id) AS rn
   FROM rb WHERE refund_business_date IS NOT NULL GROUP BY refund_business_date
 ),

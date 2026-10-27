@@ -27,7 +27,8 @@ const orderObj = `json_build_object('id',o.id,'orderNumber',o.order_number,
   'refundedAt',o.refunded_at,'refundBusinessDate',o.refund_business_date,'shiftId',o.shift_id,'createdAt',o.created_at,'businessDate',o.business_date,
   'refundShiftId',o.refund_shift_id,'refundedBy',o.refunded_by,'refundedByName',o.refunded_by_name,
   'pointsRedeemed',o.points_redeemed,
-  -- C4a: sum of every refund row (NULL = never refunded; the key is then omitted). Readers that
+  -- C4a: sum of every refund row (SQL emits null when never refunded; Go omitempty then drops
+  -- the key). Readers that
   -- used total for a refunded order read this instead, so a partial refund is not a full one.
   'refundedAmount',(SELECT sum(r.amount) FROM order_refunds r WHERE r.order_id=o.id),
   'refunds',(SELECT json_agg(json_build_object(

@@ -294,3 +294,17 @@ func TestBuildDocumentGiveawayKeyOnlyAffectsSaleKind(t *testing.T) {
 		t.Errorf("refund price = %v, want the order price", p)
 	}
 }
+
+// C4a: only the legacy whole-order key may fall back to the order total; a per-refund key
+// without its row must error (retryable) instead of freezing a wrong tender.
+func TestLegacyRefundKeyOnlyForWholeOrderKey(t *testing.T) {
+	if !legacyRefundKey("refund:ord-1", "ord-1") {
+		t.Error("refund:<orderId> is the legacy key")
+	}
+	if legacyRefundKey("refund:7f3e-refund-id", "ord-1") || legacyRefundKey("", "ord-1") {
+		t.Error("a per-refund or empty key must not fall back to the order total")
+	}
+	if !errors.Is(fmt.Errorf("%w: x", ErrRefundRowMissing), ErrRefundRowMissing) {
+		t.Error("ErrRefundRowMissing must be wrappable")
+	}
+}
