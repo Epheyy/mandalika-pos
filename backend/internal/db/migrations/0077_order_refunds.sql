@@ -1,4 +1,8 @@
 SET LOCAL lock_timeout = '5s';
+-- Take the strongest locks up front: the FKs below need SHARE ROW EXCLUSIVE and the ALTERs later
+-- need ACCESS EXCLUSIVE, and upgrading inside one tx can deadlock with an old-revision refund
+-- (SELECT ... FOR UPDATE on the order) that is still being served during the deploy smoke.
+LOCK TABLE orders, order_items IN ACCESS EXCLUSIVE MODE;
 -- C4a per-line refund. A refund becomes a row (order_refunds) with its refunded lines
 -- (order_refund_items) instead of single-valued columns on orders, so one order can carry
 -- several partial refunds. Additive: the orders.refund_* columns stay (written by the refund
@@ -95,3 +99,37 @@ SELECT r.id, oi.id, oi.quantity, oi.subtotal,
   FROM order_refunds r
   JOIN order_items oi ON oi.order_id = r.order_id
  WHERE r.scope = 'legacy_full' AND oi.quantity > 0;
+
+-- Catch-up trigger (the old revision keeps serving traffic until promotion, and fixtures /
+-- fsmigrate / a rollback write status='refunded' directly): an order that becomes refunded with
+-- no order_refunds row gets the same legacy_full row the backfill above creates, so every money
+-- reader that switches to order_refunds still sees it. RefundLinesTx inserts its own refund row
+-- BEFORE it flips orders.status, so this never fires for new-code refunds. restocked here and in
+-- the backfill means "has a ledger movement"; never filter legacy_full rows on it.
+CREATE OR REPLACE FUNCTION orders_refunded_legacy_row() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+  v_refund uuid;
+BEGIN
+  IF EXISTS (SELECT 1 FROM order_refunds r WHERE r.order_id = NEW.id) THEN
+    RETURN NULL;
+  END IF;
+  INSERT INTO order_refunds (order_id, outlet_id, seq, scope, amount, computed_amount, payment_method,
+                             reason, shift_id, refunded_by, refunded_by_name, ledger_document_key,
+                             refunded_at, refund_business_date)
+  VALUES (NEW.id, NEW.outlet_id, 1, 'legacy_full', NEW.total, NEW.total, NEW.payment_method,
+          COALESCE(NEW.refund_reason, ''), NEW.refund_shift_id, NEW.refunded_by, NEW.refunded_by_name,
+          'refund:' || NEW.id, COALESCE(NEW.refunded_at, now()), NEW.refund_business_date)
+  RETURNING id INTO v_refund;
+  INSERT INTO order_refund_items (refund_id, order_item_id, quantity, amount, restocked)
+  SELECT v_refund, oi.id, oi.quantity, oi.subtotal,
+         EXISTS (SELECT 1 FROM stock_movements m WHERE m.dedupe_key = 'refund:' || oi.id)
+    FROM order_items oi
+   WHERE oi.order_id = NEW.id AND oi.quantity > 0;
+  RETURN NULL;
+END
+$$;
+CREATE TRIGGER trg_orders_refunded_legacy_row AFTER INSERT OR UPDATE OF status ON orders
+  FOR EACH ROW
+  WHEN (NEW.status = 'refunded')
+  EXECUTE FUNCTION orders_refunded_legacy_row();
