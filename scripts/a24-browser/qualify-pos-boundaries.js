@@ -16,6 +16,6 @@ async(page)=>{
  await fresh();await page.getByRole('button',{name:'Promo',exact:true}).click();if(await page.getByRole('button').filter({hasText:'Invalid Legacy'}).last().isEnabled())throw Error('invalid direct enabled');
  await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill('Raw-Invalid');await page.getByRole('button',{name:'Pakai',exact:true}).click();
  if(await page.getByRole('button',{name:'Terapkan',exact:true}).count())throw Error('invalid linked picker');
- await page.getByRole('heading',{name:'Promo & Kode Diskon'}).locator('..').getByRole('button',{name:'×',exact:true}).click();const invalid=await page.locator('body').innerText();if(invalid.includes('Hadiah Promo')||invalid.includes('Kode:'))throw Error('invalid effect');out.push({invalidRefused:invalid});
+ await page.getByRole('heading',{name:'Promo & Diskon'}).locator('..').getByRole('button',{name:'Tutup',exact:true}).click();const invalid=await page.locator('body').innerText();if(invalid.includes('Hadiah Promo')||invalid.includes('Kode:'))throw Error('invalid effect');out.push({invalidRefused:invalid});
  page.__a24.posBoundaries=out;return out;
 }

@@ -3,9 +3,9 @@ async(page)=>{
  const box=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('mandalika.pos.outbox')||'[]'));
  const fresh=async()=>{await page.reload();await page.getByRole('button',{name:'S Synthetic Scent',exact:true}).waitFor();await page.getByRole('searchbox').fill('SYN-M');await page.getByRole('searchbox').press('Enter');};
  const select=async()=>{await page.getByRole('textbox',{name:'Cari nama atau nomor telepon pelanggan'}).fill('Synthetic');await page.getByRole('button').filter({hasText:'Synthetic Customer'}).click();};
- const clear=async()=>{await page.getByText('Synthetic Customer',{exact:true}).first().locator('../..').getByRole('button',{name:'×',exact:true}).click();};
+ const clear=async()=>{await page.getByText('Synthetic Customer',{exact:true}).first().locator('../..').getByRole('button',{name:'×',exact:true}).click();const ok=page.getByRole('dialog').getByRole('button',{name:'Lanjutkan',exact:true});if(await ok.count())await ok.click();};
  const panel=()=>page.getByRole('button',{name:/^Promo(?: |$)/}).first().click();
- const closePanel=()=>page.getByRole('heading',{name:'Promo & Kode Diskon'}).locator('..').getByRole('button',{name:'×',exact:true}).click();
+ const closePanel=()=>page.getByRole('heading',{name:'Promo & Diskon'}).locator('..').getByRole('button',{name:'Tutup',exact:true}).click();
  const applyCode=async(code)=>{await panel();await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill(code);await page.getByRole('button',{name:'Pakai',exact:true}).click();};
  const capture=async(name,method='qris',registered=false)=>{
   const before=(await box()).length;await page.getByRole('button',{name:'Bayar',exact:true}).click();
