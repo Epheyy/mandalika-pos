@@ -129,6 +129,8 @@ export default function CashierScreen() {
   const [showPrice, setShowPrice] = useState(() => readCardPref('pos_cardPrice', true))
   const [showStock, setShowStock] = useState(() => readCardPref('pos_cardStock', true))
   const [showVariants, setShowVariants] = useState(() => readCardPref('pos_cardVariants', false))
+  // D-4 blind count at Tutup Shift: off unless switched on in Pengaturan.
+  const [blindCount, setBlindCount] = useState(() => readCardPref('pos_blindCount', false))
   const [showSettings, setShowSettings] = useState(false)
   // Which settings section to scroll to when opened from a drawer shortcut.
   const [settingsSection, setSettingsSection] = useState<SettingsSection | undefined>(undefined)
@@ -211,6 +213,7 @@ export default function CashierScreen() {
   const [showTransferHistory, setShowTransferHistory] = useState(false)
   const [showRequisitions, setShowRequisitions] = useState(false)
   const requisitionBackRef = useRef<(() => boolean) | null>(null)
+  const recapBackRef = useRef<(() => boolean) | null>(null)
   const variantBackRef = useRef<(() => boolean) | null>(null)
   const lineBackRef = useRef<(() => boolean) | null>(null)
   const [pendingReceive, setPendingReceive] = useState<null | { transferId: string; items: { productId: string; variantSize: string; receivedQty: number }[]; reason: string; orderUuid: string; receiptKey: string }>(null)
@@ -923,6 +926,7 @@ export default function CashierScreen() {
   const handleShowPrice = (v: boolean) => { setShowPrice(v); localStorage.setItem('pos_cardPrice', v ? '1' : '0') }
   const handleShowStock = (v: boolean) => { setShowStock(v); localStorage.setItem('pos_cardStock', v ? '1' : '0') }
   const handleShowVariants = (v: boolean) => { setShowVariants(v); localStorage.setItem('pos_cardVariants', v ? '1' : '0') }
+  const handleBlindCount = (v: boolean) => { setBlindCount(v); localStorage.setItem('pos_blindCount', v ? '1' : '0') }
 
   // Drawer shortcut: open Settings scrolled to a section.
   const openSettings = (section?: SettingsSection) => { setSettingsSection(section); setShowSettings(true) }
@@ -966,7 +970,7 @@ export default function CashierScreen() {
       if (showLocalReceipts) { setShowLocalReceipts(false); return true }
       if (showTransferHistory) { setShowTransferHistory(false); return true }
       if (showRequisitions) { if (!requisitionBackRef.current?.()) setShowRequisitions(false); return true }
-      if (showRecap) { setShowRecap(false); return true }
+      if (showRecap) { if (!recapBackRef.current?.()) setShowRecap(false); return true }
       if (refundOrder) { setRefundOrder(null); setRefundSale(null); return true }
       if (layer === 'close-picker') { setPendingFulfillment(null); return true }
       if (layer === 'close-success') { dispatch({ type: 'CLOSE_SUCCESS' }); return true }
@@ -1247,6 +1251,9 @@ export default function CashierScreen() {
         isOpeningShift={shift.isOpeningShift}
         isClosingShift={shift.isClosingShift}
         queuedRefunds={engine.queuedRefunds()}
+        blindCount={blindCount}
+        heldCount={heldOrders.held.length}
+        backRef={recapBackRef}
       />
 
       <MenuDrawer
@@ -1377,6 +1384,7 @@ export default function CashierScreen() {
           onFontSizeChange={handleFontSize} onGridColsChange={handleGridCols}
           onShowPriceChange={handleShowPrice} onShowStockChange={handleShowStock}
           onShowVariantsChange={handleShowVariants}
+          blindCount={blindCount} onBlindCountChange={handleBlindCount}
           onClose={() => { setShowSettings(false); setSettingsSection(undefined) }}
         />
       )}
