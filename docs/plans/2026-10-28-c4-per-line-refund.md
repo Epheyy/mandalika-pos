@@ -392,6 +392,8 @@ Consequence to state plainly: with a PIN, **no refund can be made offline**. Tod
 
 ## 3. D-register (owner decisions, continues the UX plan's D-1..D-30)
 
+**Owner decisions, 2026-10-28:** D-31 = **no PIN** (keep `process_refund` permission only, as today; refunds stay offline-capable; slice C4p is dropped). D-32 is moot. **D-33 to D-48 = the recommended defaults below.** The ERP questions E-1..E-5 (section 2.10) are still open and gate the C4b OTA, not C4a.
+
 | ID | Question | Recommended default |
 |---|---|---|
 | D-31 | Refund PIN (D-14 assumed it exists; it does not). Require an online approver PIN for every refund, only above an amount, or none? | **PIN for every refund, online step-up (A08 pattern); offline refunds blocked** ("Refund butuh internet"). Build as slice C4p. Alternative: no PIN, keep `process_refund` permission only (today's behaviour, offline-capable). |
@@ -481,7 +483,7 @@ Model routing (memory `model-routing-policy`, `AGENTS.md`): Opus plans and revie
 - **Release:** OTA (web layer). No APK is needed.
 - **Rollback:** a previous bundle is safe (2.9). Rolled-back tablets hide refunds for part-refunded orders and may mark them "Sudah direfund" after acking a queued partial.
 
-### C4p: refund PIN (only if D-31 = yes; before or with C4b)
+### C4p: refund PIN (DROPPED: owner chose D-31 = no PIN on 2026-10-28; kept for reference)
 **Implement: Sonnet, high. Review: Opus, high** (auth, lockout).
 - **Files:** a grant table migration (0078) or a generalized `approval_grants`; `write/refund_approval.go` (mirrors `receive_approval.go`); a `/sync/refund-approvals` handler with its own rate bucket; redemption inside `RefundLinesTx`; POS `PinStepUpModal` reuse; the `refund_approver_roles` setting UI.
 - **Tests:** lockout table tests; a Postgres gate (port 56477) covering grant fingerprint mismatch, expiry, single use, and replay after the grant expires; the browser offline-block message.
