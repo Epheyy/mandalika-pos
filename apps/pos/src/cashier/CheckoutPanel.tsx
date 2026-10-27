@@ -11,6 +11,8 @@ import { quickCashAmounts } from '../lib/quickCash'
 import { applyKey } from '../lib/cashKeypad'
 import { hasFeature } from '../brand'
 import { Sheet } from '../components/ui/Sheet'
+import { ReceiptTotals } from './ReceiptTotals'
+import type { TotalRow } from './receiptRows'
 import { Chip } from '../components/ui/Chip'
 import { Button } from '../components/ui/Button'
 import { IconUser, IconGift, IconWarning } from '../components/ui/icons'
@@ -26,6 +28,8 @@ interface CheckoutPanelProps {
   isOpen: boolean
   isProcessing: boolean
   derived: CartDerived
+  /** The same rows the printed receipt will show (C1 follow-up), from receiptRows.quoteTotalRows. */
+  totalRows: TotalRow[]
   settings: AppSettings
   paymentMethod: PaymentMethod
   amountPaid: string
@@ -54,8 +58,6 @@ interface CheckoutPanelProps {
   /** Persistent error shown when the sale could not be stored on the device. */
   saveError?: string | null
   onClose: () => void
-  discountAmount: number
-  taxAmount: number
   allowNegativeStock: boolean
   cartLines: CartLineLike[]
   /** False while the device cannot reach the server: loyalty rewards need it. Defaults to true. */
@@ -71,6 +73,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   isOpen,
   isProcessing,
   derived,
+  totalRows,
   settings,
   paymentMethod,
   amountPaid,
@@ -94,8 +97,6 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   onConfirm,
   saveError,
   onClose,
-  discountAmount,
-  taxAmount,
   allowNegativeStock,
   cartLines,
   isOnline = true,
@@ -174,38 +175,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* Totals summary */}
         <div className="bg-paper-1 rounded-control p-4 space-y-2 text-sm">
-          <div className="flex justify-between text-ink-700">
-            <span>Subtotal</span>
-            <span className="tnum">{formatRupiah(derived.subtotal)}</span>
-          </div>
-          {discountAmount > 0 && (
-            <div className="flex justify-between text-ok">
-              <span>Diskon</span>
-              <span className="tnum">−{formatRupiah(discountAmount)}</span>
-            </div>
-          )}
-          {derived.surchargeAmount > 0 && (
-            <div className="flex justify-between text-ink-700">
-              <span>Biaya tambahan</span>
-              <span className="tnum">+{formatRupiah(derived.surchargeAmount)}</span>
-            </div>
-          )}
-          {settings.taxEnabled && taxAmount > 0 && (
-            <div className="flex justify-between text-ink-700">
-              <span>PPN {settings.taxRate}%</span>
-              <span className="tnum">{formatRupiah(taxAmount)}</span>
-            </div>
-          )}
-          {derived.redeemAmount > 0 && (
-            <div className="flex justify-between text-reward">
-              <span>Tukar Poin ({derived.redeemedPoints})</span>
-              <span className="tnum">−{formatRupiah(derived.redeemAmount)}</span>
-            </div>
-          )}
-          <div className="flex justify-between font-bold text-ink-900 text-base pt-2 border-t border-paper-2">
-            <span>Total</span>
-            <span className="tnum">{formatRupiah(derived.total)}</span>
-          </div>
+          <ReceiptTotals rows={totalRows} />
         </div>
 
         {/* Customer info */}

@@ -59,6 +59,7 @@ import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { reserveOrderNo } from './orderRef'
 import { isRedundantPromoCode } from './promotionSelection'
 import { buildPromotionMetadata } from './promotionMetadata'
+import { quoteTotalRows } from './receiptRows'
 import { buildReceiptQuote, receiptFromQuote, type ReceiptQuote } from './receiptQuote'
 import { applyPendingStock, stockFor, oversoldSizes, OVERSELL_WARNING } from './stock'
 import { isLineInBundle, planSizeSwitch, SIZE_SWITCH_BUNDLE_MESSAGE } from './lineSizes'
@@ -284,6 +285,9 @@ export default function CashierScreen() {
   const loyalty = snapshot.loyaltySettings ?? DEFAULT_LOYALTY
 
   const { actions: cartActions, derived } = useCart({ state, dispatch, settings, loyalty })
+  // The totals block of the checkout sheet and of the receipt preview, from the same quote the printer uses.
+  const checkoutRows = state.isCheckoutOpen ? quoteTotalRows(state.cart, derived, { showSubtotal: true, showDiscount: true, showTax: settings.taxEnabled }) : []
+  const receiptRows = state.isSuccessOpen ? quoteTotalRows(state.cart, derived, settings.receipt) : []
   const parked = useParkedBanner(engine, offlineData.review, derived.totalCartItems === 0)
 
   // Cart panel hides when empty; if the mobile cart tab was active when the
@@ -1195,7 +1199,7 @@ export default function CashierScreen() {
 
       <CheckoutPanel
         isOpen={state.isCheckoutOpen} isProcessing={state.isProcessing}
-        derived={derived} settings={settings} paymentMethod={state.paymentMethod}
+        derived={derived} totalRows={checkoutRows} settings={settings} paymentMethod={state.paymentMethod}
         amountPaid={state.amountPaid} selectedCustomer={state.selectedCustomer}
         orderNotes={state.orderNotes}
         salesmen={salesmen} selectedSalesmanId={state.selectedSalesman?.id ?? null}
@@ -1215,7 +1219,6 @@ export default function CashierScreen() {
         onConfirm={() => void handleConfirmPayment()}
         saveError={saleError}
         onClose={() => { setSaleError(null); dispatch({ type: 'CLOSE_CHECKOUT' }) }}
-        discountAmount={derived.discountAmount} taxAmount={derived.taxAmount}
         allowNegativeStock={settings.allowNegativeStock ?? true}
         cartLines={state.cart}
         isOnline={offlineData.isOnline}
@@ -1223,7 +1226,7 @@ export default function CashierScreen() {
 
       <ReceiptPreview
         isOpen={state.isSuccessOpen} orderId={state.lastOrderId} orderNumber={state.lastOrderNumber} items={state.cart}
-        total={derived.total} discountAmount={derived.discountAmount} taxAmount={derived.taxAmount}
+        totalRows={receiptRows}
         paymentMethod={state.paymentMethod}
         amountPaid={tender.amountPaid}
         change={tender.change}
@@ -1232,11 +1235,6 @@ export default function CashierScreen() {
         orderState={state.isSuccessOpen ? orderStateFor(engine.localReceipts(), state.lastOrderId) : 'unknown'}
         onPairPrinter={() => openSettings('printer')}
         canReprint={printer.isPaired} printError={printError}
-        promoLabel={
-          derived.manualDiscountAmount > 0
-            ? null
-            : (state.appliedPromotions[0]?.name ?? state.appliedPromoCodes[0]?.code ?? null)
-        }
         onReprint={handleReprint}
         onClose={() => dispatch({ type: 'CLOSE_SUCCESS' })}
         onNewSale={() => dispatch({ type: 'RESET_SALE' })}
