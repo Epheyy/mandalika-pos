@@ -2,7 +2,7 @@
 // (plan §6). Transport-agnostic: buildReceipt → PrinterTransport → bytes.
 
 export { buildReceipt, buildRecap, buildTandaTerima, COLS } from './escpos'
-export type { ReceiptData, ReceiptLine, RecapData, RecapMethodRow, TandaTerimaData, TandaTerimaLine } from './escpos'
+export type { ReceiptData, ReceiptDiscountRow, ReceiptLine, RecapData, RecapMethodRow, TandaTerimaData, TandaTerimaLine } from './escpos'
 export { NoopTransport } from './transport'
 export type { PrinterTransport, PrinterDevice, PrinterKind } from './transport'
 export { CapacitorBleTransport } from './ble'

@@ -78,6 +78,15 @@ export interface PricingResult {
   redeemedPoints: number
   total: number
   earnedPoints: number
+  /** C1: named deduction rows (promos, codes, manual) that add up to exactly `discountAmount`. */
+  discountParts: DiscountPart[]
+  /** C1: signed total-rounding delta (total after rounding minus before), 0 when rounding is off. */
+  roundingAmount: number
+}
+
+export interface DiscountPart {
+  label: string
+  amount: number
 }
 
 function bxgyVariantKey(productId: string, size: string): string {
@@ -352,30 +361,43 @@ export function computePricing(input: PricingInput): PricingResult {
         : surchargeRunning
       : 0
 
-  const promoDiscountAmount =
-    appliedPromotions.reduce((sum, p) => sum + calcPromoDiscount(p, cart, subtotal), 0) +
-    appliedPromoCodes.reduce((sum, c) => {
+  const rawParts: DiscountPart[] = [
+    ...appliedPromotions.map((p) => ({ label: p.name, amount: calcPromoDiscount(p, cart, subtotal) })),
+    ...appliedPromoCodes.map((c) => ({
+      label: `Kode ${c.code}`,
       // SP-Promo-3c: linked codes carry a promotion snapshot; delegate to the
       // same calcPromoDiscount used for appliedPromotions so BOGO/scoping work.
-      if (c.promotion) {
-        return sum + calcPromoDiscount(linkedPromoShape(c), cart, subtotal)
-      }
-      // Unlinked code: flat percentage or fixed discount off the whole cart
-      return sum + (c.type === 'percentage'
-        ? Math.round(subtotal * (c.value / 100))
-        : Math.min(c.value, subtotal))
-    }, 0)
+      // Unlinked code: flat percentage or fixed discount off the whole cart.
+      amount: c.promotion
+        ? calcPromoDiscount(linkedPromoShape(c), cart, subtotal)
+        : c.type === 'percentage'
+          ? Math.round(subtotal * (c.value / 100))
+          : Math.min(c.value, subtotal),
+    })),
+  ]
+  const promoDiscountAmount = rawParts.reduce((sum, p) => sum + p.amount, 0)
 
   const discountAmount = Math.min(
     manualDiscountAmount + promoDiscountAmount,
     subtotal,
   )
+
+  // C1: itemise the deduction for the printed slip. The cap above can shrink the
+  // sum, so clamp rows in order against what is left: rows always add to discountAmount.
+  let remaining = discountAmount
+  const discountParts: DiscountPart[] = []
+  for (const part of [...rawParts, { label: 'Diskon manual', amount: manualDiscountAmount }]) {
+    const amount = Math.min(part.amount, remaining)
+    remaining -= amount
+    if (amount > 0) discountParts.push({ label: part.label, amount })
+  }
   const taxableAmount = subtotal - discountAmount
   const taxAmount = settings.taxEnabled
     ? Math.round(taxableAmount * (settings.taxRate / 100))
     : 0
 
   let total = taxableAmount + taxAmount + surchargeAmount
+  const preRounding = total
   if (settings.roundingEnabled) {
     const roundTo =
       settings.roundingType === 'nearest_1000'
@@ -385,6 +407,8 @@ export function computePricing(input: PricingInput): PricingResult {
           : 1
     total = Math.round(total / roundTo) * roundTo
   }
+
+  const roundingAmount = total - preRounding
 
   const earnedPoints =
     loyalty.enabled && hasCustomer
@@ -415,6 +439,8 @@ export function computePricing(input: PricingInput): PricingResult {
     redeemedPoints,
     total,
     earnedPoints,
+    discountParts,
+    roundingAmount,
   }
 }
 

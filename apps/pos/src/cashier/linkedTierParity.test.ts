@@ -5,6 +5,9 @@ import { computePricing, linkedPromoShape, type PricingInput } from './pricing'
 import { decideApplyCode, type PromoEvalContext, type AppliedPromoCode } from './promoValidate'
 import { cashierReducer, CASHIER_INITIAL_STATE } from './state/cashierReducer'
 
+// C1: a linked code's slip row is labelled "Kode X" while a direct promotion shows its name, so parity compares the money.
+const moneyOnly = <T extends { discountParts: { amount: number }[] }>(r: T) => ({ ...r, discountParts: r.discountParts.map((d) => d.amount) })
+
 type Promotion = components['schemas']['Promotion']
 type Code = components['schemas']['DiscountCode']
 type Golden = { name: string; subtotal: number; config?: Promotion['tieredConfig']; discount: number; total: number }
@@ -29,7 +32,7 @@ it('LP01 real selection gives the same Rp90000 as direct promotion', () => {
   const linked = computePricing({ ...input(100000), appliedPromoCodes: [selected] })
   expect(direct.total).toBe(90000)
   expect(linked.total).toBe(90000)
-  expect(linked).toEqual(direct)
+  expect(moneyOnly(linked)).toEqual(moneyOnly(direct))
 })
 
 describe('LP02–04/08 shared Go and TypeScript golden cases through selection', () => {
@@ -38,7 +41,7 @@ describe('LP02–04/08 shared Go and TypeScript golden cases through selection',
     const direct = computePricing({ ...input(subtotal), appliedPromotions: [p] })
     const linked = computePricing({ ...input(subtotal), appliedPromoCodes: [selected] })
     expect(linkedPromoShape(selected).tieredConfig).toEqual(config ?? null)
-    expect(linked).toEqual(direct)
+    expect(moneyOnly(linked)).toEqual(moneyOnly(direct))
     expect(linked.promoDiscountAmount).toBe(discount)
     expect(linked.total).toBe(total)
   })

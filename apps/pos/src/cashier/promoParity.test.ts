@@ -4,6 +4,9 @@ import type { components } from '@mandalika/api'
 import { computePricing, type PricingInput } from './pricing'
 import { decideApplyCode, type PromoEvalContext, type AppliedPromoCode } from './promoValidate'
 
+// C1: a linked code's slip row is labelled "Kode X" while a direct promotion shows its name, so parity compares the money.
+const moneyOnly = <T extends { discountParts: { amount: number }[] }>(r: T) => ({ ...r, discountParts: r.discountParts.map((d) => d.amount) })
+
 type Promotion = components['schemas']['Promotion']
 type Code = components['schemas']['DiscountCode']
 type Golden = {
@@ -54,6 +57,6 @@ describe('shared Go and TypeScript promo parity matrix', () => {
       expect(r.taxAmount).toBe(g.expected.taxAmount)
       expect(r.total).toBe(g.expected.total)
     }
-    expect(linked).toEqual(direct)
+    expect(moneyOnly(linked)).toEqual(moneyOnly(direct))
   })
 })

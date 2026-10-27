@@ -86,7 +86,7 @@ describe('reprintReceiptData', () => {
   })
   it('is null when the snapshot is missing or malformed (nothing to print)', () => {
     expect(reprintReceiptData(receipt({ receiptSnapshot: null }))).toBeNull()
-    expect(reprintReceiptData(receipt({ receiptSnapshot: { v: 2, lines: [] } }))).toBeNull()
+    expect(reprintReceiptData(receipt({ receiptSnapshot: { v: 3, lines: [] } }))).toBeNull()
     expect(reprintReceiptData(receipt({ receiptSnapshot: { v: 1, lines: 'x' } }))).toBeNull()
     expect(reprintReceiptData(receipt({ quotedTotal: null }))).toBeNull()
   })

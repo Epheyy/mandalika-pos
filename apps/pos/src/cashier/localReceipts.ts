@@ -33,7 +33,7 @@ export function localSaleRef(r: Pick<LocalReceipt, 'orderUuid' | 'serverOrderId'
 const isSnapshot = (v: unknown): v is ReceiptSnapshot => {
   if (!v || typeof v !== 'object') return false
   const s = v as Partial<ReceiptSnapshot>
-  return s.v === 1 && Array.isArray(s.lines)
+  return (s.v === 1 || s.v === 2) && Array.isArray(s.lines)
 }
 
 /** The order the refund dialog shows for a local receipt. Its id is the sale uuid (the dialog's identity);

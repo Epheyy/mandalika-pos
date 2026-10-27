@@ -29,8 +29,15 @@ export interface ReceiptSnapshotLine {
   isBundle?: boolean
 }
 
+/** One named deduction on the slip (C1). Same shape the printer takes. */
+export interface SnapshotDiscount {
+  label: string
+  amount: number
+}
+
+/** v1 = pre-C1 (single discount total, no itemisation); v2 = C1 (itemised, adds up line by line). */
 export interface ReceiptSnapshot {
-  v: 1
+  v: 1 | 2
   /** Reference-data version (snapshot localVersion()) the sale was priced against. */
   refVersion: number
   subtotal: number
@@ -42,6 +49,12 @@ export interface ReceiptSnapshot {
   amountPaid: number
   change: number
   lines: ReceiptSnapshotLine[]
+  /** v2: one row per promo / code / manual discount; sums to discountAmount. */
+  discounts?: SnapshotDiscount[]
+  /** v2: points spent on this sale (redeemAmount is their Rupiah value). */
+  redeemedPoints?: number
+  /** v2: signed rounding delta between the pre-rounding total and `total`. */
+  roundingAmount?: number
 }
 
 export interface ReceiptQuote {
@@ -56,6 +69,10 @@ export interface QuoteDerived {
   taxAmount: number
   redeemAmount: number
   total: number
+  /** C1: itemised deductions; when absent a single "Diskon" row is derived from discountAmount. */
+  discountParts?: SnapshotDiscount[]
+  redeemedPoints?: number
+  roundingAmount?: number
 }
 
 export function buildReceiptQuote(input: {
@@ -68,7 +85,7 @@ export function buildReceiptQuote(input: {
   return {
     quotedTotal: derived.total,
     receiptSnapshot: {
-      v: 1,
+      v: 2,
       refVersion,
       subtotal: derived.subtotal,
       discountAmount: derived.discountAmount,
@@ -78,6 +95,9 @@ export function buildReceiptQuote(input: {
       total: derived.total,
       amountPaid: tender.amountPaid,
       change: tender.change,
+      discounts: derived.discountParts ?? (derived.discountAmount > 0 ? [{ label: 'Diskon', amount: derived.discountAmount }] : []),
+      redeemedPoints: derived.redeemedPoints ?? 0,
+      roundingAmount: derived.roundingAmount ?? 0,
       lines: cart.map((c) => ({
         productId: c.productId,
         variantSize: c.variantSize,
@@ -92,13 +112,28 @@ export function buildReceiptQuote(input: {
   }
 }
 
+/**
+ * C1: does the slip add up? subtotal - discounts + biaya tambahan - tukar poin + PPN + pembulatan = total,
+ * and the line amounts add to the subtotal. A pre-C1 receipt (no `discounts`) has no itemisation to check
+ * and is reported as adding up only when its legacy totals do.
+ */
+export function receiptAddsUp(data: ReceiptData): boolean {
+  const lineSum = data.lines.reduce((sum, l) => sum + l.amount, 0)
+  if (lineSum !== data.subtotal) return false
+  const discount = data.discounts ? data.discounts.reduce((sum, d) => sum + d.amount, 0) : data.discountAmount
+  const expected =
+    data.subtotal - discount + (data.surcharge ?? 0) - (data.pointsRedeemed?.amount ?? 0) + data.taxAmount + (data.rounding ?? 0)
+  return expected === data.total
+}
+
 /** The printed receipt: money and lines come ONLY from the quote. */
 export function receiptFromQuote(
   quote: ReceiptQuote,
   extras: Pick<ReceiptData, 'orderRef' | 'dateTime' | 'paymentLabel' | 'customerName' | 'customerPhone' | 'cashierName'>,
 ): ReceiptData {
   const s = quote.receiptSnapshot
-  return {
+  const itemised = s.v >= 2
+  const data: ReceiptData = {
     ...extras,
     pending: false, // client-authoritative number; matches history
     lines: s.lines.map((l) => ({
@@ -107,12 +142,26 @@ export function receiptFromQuote(
       qty: l.qty,
       unitPrice: l.unitPrice,
       amount: l.amount,
+      ...(itemised ? { isReward: l.isReward === true } : {}),
     })),
     subtotal: s.subtotal,
     discountAmount: s.discountAmount,
+    // v1 archives lack these: leave them undefined so the printer falls back to its legacy rows.
+    ...(itemised
+      ? {
+          discounts: s.discounts ?? [],
+          surcharge: s.surchargeAmount > 0 ? s.surchargeAmount : null,
+          pointsRedeemed: s.redeemAmount > 0 ? { points: s.redeemedPoints ?? 0, amount: s.redeemAmount } : null,
+          rounding: s.roundingAmount ? s.roundingAmount : null,
+        }
+      : {}),
     taxAmount: s.taxAmount,
     total: quote.quotedTotal,
     amountPaid: s.amountPaid,
     change: s.change,
   }
+  if (import.meta.env.DEV && itemised && !receiptAddsUp(data)) {
+    console.warn('[receipt] slip does not add up', data.orderRef, data)
+  }
+  return data
 }
