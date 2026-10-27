@@ -1183,14 +1183,24 @@ export class SyncEngine {
   }
 
   /** Manual retry of parked items. Rejects if the reset could not be stored. */
-  async retryFailed(): Promise<void> {
+  retryFailed(): Promise<void> {
+    return this.requeueParked(() => true)
+  }
+
+  /** C2: re-queue ONE parked item ("Coba lagi" on a single row). Same path, same attempt reset and
+   *  same actor rule as retryFailed; an unknown key, or an item that is not parked, is a no-op. */
+  retryDeadLettered(idempotencyKey: string): Promise<void> {
+    return this.requeueParked((i) => i.idempotencyKey === idempotencyKey)
+  }
+
+  private async requeueParked(pick: (i: OutboxItem) => boolean): Promise<void> {
     this.resetBackoff()
     // Another account's parked items stay parked: re-sending them would only be refused
     // again (actor_mismatch). Items without an envelope are retried as before.
     const me = this.actorProvider?.()?.userId
     const requeued: string[] = []
     await this.outbox.retryDeadLettered((i) => {
-      const mine = !i.envelope || !me || i.envelope.userId === me
+      const mine = pick(i) && (!i.envelope || !me || i.envelope.userId === me)
       if (mine) requeued.push(i.idempotencyKey)
       return mine
     })
