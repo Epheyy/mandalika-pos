@@ -467,7 +467,7 @@ export const posCustomerProfile = async (page: ScenarioPage) => {
     frequentItems: [{ productId: scent.id, size: 'M', name: 'Synthetic Scent', count: 6 }],
     notes: [], pitch: { lastItem: 'Synthetic Scent', lastAt: new Date(Date.now() - 21 * 86400000).toISOString(), usualIntervalDays: 30, neverTriedCategories: ['Woody'] },
   }
-  await page.route('http://127.0.0.1:59999/api/v1/sync/customers/*/profile', (route) => route.fulfill({ status: 200, json: { data: profile } }))
+  await page.route(/\/api\/v1\/sync\/customers\/[^/]+\/profile(\?|$)/, (route) => route.fulfill({ status: 200, json: { data: profile } }))
   // Empty state: "+ Pelanggan" opens the Pelanggan sheet; a phone search lists the match with a Profil entry.
   await page.getByRole('button', { name: '+ Pelanggan', exact: true }).click()
   await page.getByRole('heading', { name: 'Pelanggan', exact: true }).waitFor()
