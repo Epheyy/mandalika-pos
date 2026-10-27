@@ -55,4 +55,14 @@ describe('SyncEngine.retryDeadLettered (C2 per-item retry)', () => {
     await engine.retryDeadLettered('d:theirs')
     expect(engine.deadLettered().map((i) => i.idempotencyKey)).toEqual(['d:theirs'])
   })
+
+  it('re-queues an own-account item and reports the new queue size', async () => {
+    const onOutboxChange = vi.fn()
+    const engine = new SyncEngine(api(vi.fn().mockRejectedValue(new TypeError('offline'))), { onOutboxChange }, controllableKV().kv, { actor: () => ({ outletId: 'o', userId: 'me' }) })
+    await engine.outbox.add('order', 'd:mine', { total: 1 }, { v: 1, outletId: 'o', userId: 'me', deviceId: 'd', capturedAt: 'x' } as never)
+    await engine.outbox.settle([{ key: 'd:mine', op: 'review', code: 'rejected', reason: 'x' }])
+    await engine.retryDeadLettered('d:mine')
+    expect(engine.deadLettered()).toHaveLength(0)
+    expect(onOutboxChange).toHaveBeenLastCalledWith(1)
+  })
 })
