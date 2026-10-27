@@ -237,4 +237,17 @@ func TestCustomerProfilePostgres(t *testing.T) {
 			t.Errorf("an empty pitch must be null, not zero values: %s", body)
 		}
 	})
+
+	t.Run("a phone-only caller is rate limited on profile reads, a reader is not", func(t *testing.T) {
+		var last int
+		for i := 0; i < profilePerMinute+2; i++ {
+			last, _ = get(cashier, "/sync/customers/"+custKeep+"/profile?phone=000000000000")
+		}
+		if last != http.StatusTooManyRequests {
+			t.Errorf("cashier after %d reads = %d, want 429", profilePerMinute+2, last)
+		}
+		if code, _ := get(admin, "/sync/customers/"+custKeep+"/profile"); code != http.StatusOK {
+			t.Errorf("reader = %d", code)
+		}
+	})
 }
