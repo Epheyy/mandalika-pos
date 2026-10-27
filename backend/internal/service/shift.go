@@ -243,7 +243,7 @@ func shiftCashMethodIDs(ctx context.Context, tx pgx.Tx, shiftID string) ([]strin
 	}
 	rows, err := tx.Query(ctx,
 		`SELECT payment_method FROM orders
-		  WHERE shift_id=$1 AND status IN ('completed','partially_refunded')
+		  WHERE shift_id=$1 AND status IN ('completed','partially_refunded','refunded')
 		 UNION
 		 SELECT payment_method FROM order_refunds WHERE shift_id=$1`, shiftID)
 	if err != nil {

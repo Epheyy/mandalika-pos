@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -603,15 +604,23 @@ func TestRefundLinesPostgres(t *testing.T) {
 		start := make(chan struct{})
 		var wg sync.WaitGroup
 		results := make([]map[string]any, 2)
+		// Everything that touches shared test state (nextID, env) is built BEFORE the goroutines
+		// start, so they only send: no data race, and two distinct client refund uuids.
+		bodies := make([][]byte, 2)
+		for i := range bodies {
+			item := map[string]any{"type": "refund", "idempotencyKey": fmt.Sprintf("%s:conc-%d", device, i), "payload": rp(oid, [2]int{0, 2}), "envelope": env(o, "")}
+			raw, err := json.Marshal(map[string]any{"items": []any{item}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			bodies[i] = raw
+		}
 		for i := range results {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				<-start
-				// own request, own key (no shared closure state beyond the safe helpers)
-				p := rp(oid, [2]int{0, 2})
-				item := map[string]any{"type": "refund", "idempotencyKey": fmt.Sprintf("%s:conc-%d", device, i), "payload": p, "envelope": env(o, "")}
-				raw, _ := json.Marshal(map[string]any{"items": []any{item}})
+				raw := bodies[i]
 				r := httptest.NewRequest("POST", "/sync/batch", bytes.NewReader(raw))
 				r.Header.Set("Authorization", "Bearer "+o.tok)
 				w := httptest.NewRecorder()
@@ -1022,6 +1031,71 @@ func TestRefundLinesPostgres(t *testing.T) {
 	})
 
 	// ─────────────────────────────────────────────────────────────────────────────
+	sub("7b total_spent drops by the COMPUTED share, never by a wild claimed amount (D-42)", func(t *testing.T) {
+		o := newOutlet()
+		pA, pB, pC := newProduct(o, 100000), newProduct(o, 150000), newProduct(o, 300000)
+		cu := newCustomer(0)
+		other := sell(o, saleOpt{customer: cu, items: []map[string]any{line(pC, 1, 300000)}})
+		oid := sell(o, saleOpt{customer: cu, items: []map[string]any{line(pA, 1, 100000), line(pB, 1, 150000)}})
+		if total(oid) != 250000 || total(other) != 300000 || custRow(cu).spent != 550000 {
+			t.Fatalf("fixture: %d %d %+v", total(oid), total(other), custRow(cu))
+		}
+		p := rp(oid, [2]int{0, 1})
+		p["refundAmount"] = 25000000
+		wantOK("wild claim", rf(o, p, ""))
+		r1 := refunds(oid)[0]
+		if r1.amount != 25000000 || r1.computed != 100000 || r1.warn != "over_total" {
+			t.Fatalf("amount of record keeps the claim, flagged: %+v", r1)
+		}
+		if got := custRow(cu).spent; got != 550000-r1.computed || got < total(other) {
+			t.Fatalf("total_spent %d must drop by computed %d only (=450000), never below the other order's %d", got, r1.computed, total(other))
+		}
+		wantOK("completing refund", rf(o, rp(oid, [2]int{1, 1}), ""))
+		if got := custRow(cu).spent; got != total(other) || status(oid) != "refunded" {
+			t.Fatalf("after the final refund total_spent=%d want exactly the other order's %d", got, total(other))
+		}
+	})
+
+	// ─────────────────────────────────────────────────────────────────────────────
+	sub("7c a fully refunded cash order whose refunds paid no/other shift still shows its residual in the cash bucket", func(t *testing.T) {
+		// service/shift.go: net_sale = total - sum(order_refunds.amount) = 100000 - 95000 = 5000 for a
+		// refunded order; cash_sales = sum(net_sale) FILTER (payment_method = ANY(cash ids)); the cash
+		// ids now include the methods of 'refunded' orders, so the 5000 lands in cash_sales even when no
+		// refund row names this shift. total_sales = 5000, total_refunds = 95000, total_orders = 0, and
+		// the shift paid no other-shift refund (by_method {}, cash_refunds_paid 0).
+		run := func(name string, paidByOtherShift bool) {
+			o := newOutlet()
+			pA, pB := newProduct(o, 30000), newProduct(o, 70000)
+			s := newShift(o, time.Now())
+			paying := ""
+			if paidByOtherShift {
+				paying = nextID("1100")
+				exec(`INSERT INTO shifts(id,outlet_id,cashier_id,cashier_name,status,opened_at,closed_at,starting_cash) VALUES($1,$2,$3,'RL other','closed',$4,$4,0)`, paying, o.id, o.user, time.Now().Add(-time.Hour))
+			}
+			oid := sell(o, saleOpt{shift: s, items: []map[string]any{line(pA, 1, 30000), line(pB, 1, 70000)}})
+			c1 := rp(oid, [2]int{0, 1})
+			c1["refundAmount"] = 25000
+			c2 := rp(oid, [2]int{1, 1})
+			c2["refundAmount"] = 70000
+			wantOK(name+" R1", rf(o, c1, paying))
+			wantOK(name+" R2", rf(o, c2, paying))
+			if status(oid) != "refunded" || num(`SELECT count(*) FROM order_refunds WHERE order_id=$1 AND shift_id IS NOT DISTINCT FROM NULLIF($2::text,'')::uuid`, oid, paying) != 2 {
+				t.Fatalf("%s: status=%s", name, status(oid))
+			}
+			closeShift(o, s)
+			sr := readShift(s)
+			if sr.totalSales != 5000 || sr.cashSales != 5000 || sr.totalRefunds != 95000 || sr.totalOrders != 0 || sr.cashRefundsPaid != 0 || !jsonEq(sr.byMethod, `{}`) {
+				t.Fatalf("%s: shift close %+v", name, sr)
+			}
+			if sm := summaryOf(o.id, ""); sm.TotalSales != float64(sr.totalSales) || sm.TotalRefunds != float64(sr.totalRefunds) || sm.GrossSales != 100000 || sm.ByPay["cash"] != 5000 {
+				t.Fatalf("%s: report %+v disagrees with the shift", name, sm)
+			}
+		}
+		run("no refund shift", false)
+		run("paid by another shift", true)
+	})
+
+	// ─────────────────────────────────────────────────────────────────────────────
 	sub("8 cross-shift partial refunds and refund-business-day reports", func(t *testing.T) {
 		o := newOutlet()
 		pA, pB := newProduct(o, 60000), newProduct(o, 40000)
@@ -1199,8 +1273,20 @@ func TestRefundLinesPostgres(t *testing.T) {
 			}
 		}
 		const m77 = "0077_order_refunds.sql"
+		ents, err := os.ReadDir("../db/migrations")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var held []string // every migration that sorts >= 0077: a future 0078 must not run onto a 0076 schema
+		for _, e := range ents {
+			if strings.HasSuffix(e.Name(), ".sql") && e.Name() >= m77 {
+				held = append(held, e.Name())
+			}
+		}
 		sx(`CREATE TABLE schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`)
-		sx(`INSERT INTO schema_migrations(name) VALUES($1)`, m77) // stop at schema 0076
+		for _, n := range held {
+			sx(`INSERT INTO schema_migrations(name) VALUES($1)`, n) // stop at schema 0076
+		}
 		if err := (&db.DB{Pool: stage}).Migrate(ctx); err != nil {
 			t.Fatal(err)
 		}
@@ -1215,15 +1301,34 @@ func TestRefundLinesPostgres(t *testing.T) {
 		sx(`INSERT INTO users(id,email,password_hash,display_name,role,outlet_id) VALUES($1,'stage@example.invalid','x','RL','cashier',$2)`, su, so)
 		sx(`INSERT INTO products(id,name) VALUES($1,'RL stage product')`, sp)
 		sx(`INSERT INTO shifts(id,outlet_id,cashier_id,cashier_name,status,opened_at,starting_cash) VALUES($1,$2,$3,'RL','open',now(),0)`, ss, so, su)
-		for i, st := range []string{"completed", "refunded", "refunded", "cancelled"} {
+		// A second outlet + open shift B: a LEGACY cross-shift refund (sale in shift A, refund paid by
+		// shift B). One open shift per outlet, so B lives at another outlet; the readers join on ids only.
+		so2, ss2 := nextID("1610"), nextID("1611")
+		sx(`INSERT INTO outlets(id,name) VALUES($1,'RL stage 2')`, so2)
+		sx(`INSERT INTO shifts(id,outlet_id,cashier_id,cashier_name,status,opened_at,starting_cash) VALUES($1,$2,$3,'RL','open',now(),0)`, ss2, so2, su)
+		var restockedItem string
+		for i, f := range []struct {
+			status, refundShift string
+			total               int
+		}{{"completed", "", 1000}, {"refunded", ss, 2000}, {"refunded", ss, 3000}, {"cancelled", "", 4000}, {"refunded", ss2, 7000}} {
 			id := nextID("1604")
 			sx(`INSERT INTO orders(id,order_number,order_uuid,idempotency_key,outlet_id,cashier_id,cashier_name,subtotal,total,payment_method,status,shift_id,refund_reason,refunded_at,refund_shift_id)
-				VALUES($1,$2,gen_random_uuid(),$3,$4,$5,'RL',$6,$6,'cash',$7,$8,NULLIF($9,''),CASE WHEN $7='refunded' THEN now() END,CASE WHEN $7='refunded' THEN $8::uuid END)`,
-				id, fmt.Sprintf("RLS-%d", i), fmt.Sprintf("rls-%d", i), so, su, 1000*(i+1), st, ss, map[bool]string{true: "old", false: ""}[st == "refunded"])
-			sx(`INSERT INTO order_items(order_id,product_id,product_name,variant_size,price,quantity,subtotal) VALUES($1,$2,'p','M',500,2,$3)`, id, sp, 1000*(i+1))
+				VALUES($1,$2,gen_random_uuid(),$3,$4,$5,'RL',$6,$6,'cash',$7,$8,NULLIF($9,''),CASE WHEN $7='refunded' THEN now() END,NULLIF($10::text,'')::uuid)`,
+				id, fmt.Sprintf("RLS-%d", i), fmt.Sprintf("rls-%d", i), so, su, f.total, f.status, ss,
+				map[bool]string{true: "old", false: ""}[f.status == "refunded"], f.refundShift)
+			item := nextID("1605")
+			sx(`INSERT INTO order_items(id,order_id,product_id,product_name,variant_size,price,quantity,subtotal) VALUES($1,$2,$3,'p','M',500,2,$4)`, item, id, sp, f.total)
+			if i == 1 {
+				restockedItem = item
+			}
 		}
-		// legacy expectations at 0076: refunded orders are 2000 + 3000 = 5000, the completed one 1000 stays sold
-		sx(`DELETE FROM schema_migrations WHERE name=$1`, m77)
+		// the first refunded order's line was restocked by a refund stock movement (ledger era)
+		sx(`INSERT INTO stock_movements(document_id,dedupe_key,kind,location_type,location_id,product_id,variant_size,qty,qty_before,qty_after,ref_type,occurred_at)
+			VALUES(gen_random_uuid(),$1,'refund','outlet',$2,$3,'M',2,0,2,'order',now())`, "refund:"+restockedItem, so, sp)
+		// legacy expectations at 0076: refunded orders are 2000 + 3000 + 7000 = 12000, the completed one 1000 stays sold
+		for _, n := range held {
+			sx(`DELETE FROM schema_migrations WHERE name=$1`, n)
+		}
 		if err := (&db.DB{Pool: stage}).Migrate(ctx); err != nil {
 			t.Fatalf("applying 0077 over existing refunded orders: %v", err)
 		}
@@ -1234,8 +1339,10 @@ func TestRefundLinesPostgres(t *testing.T) {
 			}
 			return
 		}
-		if cnt(`SELECT count(*) FROM order_refunds`) != 2 || cnt(`SELECT count(*) FROM order_refunds WHERE scope='legacy_full' AND seq=1 AND amount=computed_amount AND ledger_document_key='refund:'||order_id AND shift_id IS NOT NULL`) != 2 ||
-			cnt(`SELECT round(sum(amount))::bigint FROM order_refunds`) != 5000 || cnt(`SELECT count(*) FROM order_refund_items`) != 2 ||
+		if cnt(`SELECT count(*) FROM order_refunds`) != 3 || cnt(`SELECT count(*) FROM order_refunds WHERE scope='legacy_full' AND seq=1 AND amount=computed_amount AND ledger_document_key='refund:'||order_id AND shift_id IS NOT NULL`) != 3 ||
+			cnt(`SELECT round(sum(amount))::bigint FROM order_refunds`) != 12000 || cnt(`SELECT count(*) FROM order_refund_items`) != 3 ||
+			cnt(`SELECT count(*) FROM order_refund_items WHERE restocked`) != 1 ||
+			cnt(`SELECT count(*) FROM order_refund_items WHERE restocked AND order_item_id='`+restockedItem+`'::uuid`) != 1 ||
 			cnt(`SELECT count(*) FROM order_refunds r JOIN orders o ON o.id=r.order_id WHERE o.status<>'refunded'`) != 0 {
 			t.Fatal("backfill: exactly one legacy_full row (+ items) per refunded order")
 		}
@@ -1243,18 +1350,33 @@ func TestRefundLinesPostgres(t *testing.T) {
 		if err := stageSvc.CloseShift(ctx, so, ss, 0, nil); err != nil {
 			t.Fatal(err)
 		}
+		if err := stageSvc.CloseShift(ctx, so2, ss2, 0, nil); err != nil {
+			t.Fatal(err)
+		}
 		var ts, tr, cs, tor int64
 		if err := stage.QueryRow(ctx, `SELECT round(total_sales)::bigint, round(total_refunds)::bigint, round(cash_sales)::bigint, total_orders FROM shifts WHERE id=$1`, ss).Scan(&ts, &tr, &cs, &tor); err != nil {
 			t.Fatal(err)
 		}
-		if ts != 1000 || tr != 5000 || cs != 1000 || tor != 1 {
-			t.Fatalf("post-backfill shift close: sales=%d refunds=%d cash=%d orders=%d (legacy expectation 1000/5000/1000/1)", ts, tr, cs, tor)
+		// Shift A (sales shift of all five orders): the completed 1000 stays sold; every refunded
+		// order is net 0 in sales and its full total (2000+3000+7000) is in total_refunds, whichever
+		// shift paid it (refunded orders attribute to the sale's shift).
+		if ts != 1000 || tr != 12000 || cs != 1000 || tor != 1 {
+			t.Fatalf("post-backfill shift A close: sales=%d refunds=%d cash=%d orders=%d (legacy expectation 1000/12000/1000/1)", ts, tr, cs, tor)
+		}
+		// Shift B paid the 7000 refund of A's sale: legacy = a cash refund paid by another shift.
+		var bPaid, bRefunds, bSales int64
+		var bBy string
+		if err := stage.QueryRow(ctx, `SELECT round(cash_refunds_paid)::bigint, round(total_refunds)::bigint, round(total_sales)::bigint, refunds_paid_by_method::text FROM shifts WHERE id=$1`, ss2).Scan(&bPaid, &bRefunds, &bSales, &bBy); err != nil {
+			t.Fatal(err)
+		}
+		if bPaid != 7000 || bRefunds != 0 || bSales != 0 || !jsonEq(bBy, `{"cash":7000}`) {
+			t.Fatalf("post-backfill shift B close: cash_refunds_paid=%d total_refunds=%d sales=%d by=%s (legacy expectation 7000/0/0/{cash:7000})", bPaid, bRefunds, bSales, bBy)
 		}
 		sm, err := read.New(stage).ReportSummary(ctx, read.OrderFilter{Scope: read.Scope{CrossAll: true}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if sm.GrossSales != 6000 || sm.TotalRefunds != 5000 || sm.TotalSales != 1000 || sm.NetSales != 1000 || sm.RefundedOrders != 2 {
+		if sm.GrossSales != 13000 || sm.TotalRefunds != 12000 || sm.TotalSales != 1000 || sm.NetSales != 1000 || sm.RefundedOrders != 3 {
 			t.Fatalf("post-backfill report: %+v", sm)
 		}
 	})

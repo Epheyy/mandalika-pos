@@ -35,7 +35,10 @@ func runUUIDRefund(t *testing.T, payload string, resolver saleResolver) (ItemRes
 	var got []service.RefundInput
 	res := e.processOneWithRefund(context.Background(), Caller{OutletID: "outlet-a", UserID: "u1", CanRefund: true},
 		BatchItem{Type: "refund", IdempotencyKey: "k-refund", Payload: json.RawMessage(payload)},
-		func(_ context.Context, _ pgx.Tx, in service.RefundInput) (service.RefundResult, error) { got = append(got, in); return service.RefundResult{}, nil })
+		func(_ context.Context, _ pgx.Tx, in service.RefundInput) (service.RefundResult, error) {
+			got = append(got, in)
+			return service.RefundResult{}, nil
+		})
 	return res, got, calls
 }
 

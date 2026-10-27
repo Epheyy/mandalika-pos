@@ -102,8 +102,8 @@ func TestClawTarget(t *testing.T) {
 		{100, 1000, 1000, false, 100},
 		{100, 10, 1000, true, 100},
 		{0, 500, 1000, false, 0},
-		{100, 500, 0, false, 0},   // Rp0 order: partial settles nothing
-		{100, 500, 0, true, 100},  // ...the completing refund settles all
+		{100, 500, 0, false, 0},  // Rp0 order: partial settles nothing
+		{100, 500, 0, true, 100}, // ...the completing refund settles all
 	} {
 		if got := ClawTarget(tc.points, tc.refunded, tc.total, tc.complete); got != tc.want {
 			t.Errorf("ClawTarget(%d,%d,%d,%v)=%d want %d", tc.points, tc.refunded, tc.total, tc.complete, got, tc.want)

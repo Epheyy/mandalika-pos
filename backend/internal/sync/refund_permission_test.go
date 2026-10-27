@@ -34,7 +34,10 @@ func TestRefundPermissionParityRegression(t *testing.T) {
 	result := e.processOneWithRefund(ctx, Caller{OutletID: "outlet-original", UserID: "cashier-original"}, BatchItem{
 		Type: "refund", IdempotencyKey: "refund-original-key",
 		Payload: json.RawMessage(`{"orderId":"order-original","reason":"sealed return"}`),
-	}, func(context.Context, pgx.Tx, service.RefundInput) (service.RefundResult, error) { batchCalls++; return service.RefundResult{}, nil })
+	}, func(context.Context, pgx.Tx, service.RefundInput) (service.RefundResult, error) {
+		batchCalls++
+		return service.RefundResult{}, nil
+	})
 	if result.Status != "error" || result.IdempotencyKey != "refund-original-key" || batchCalls != 0 {
 		t.Fatalf("batch must deny before refund mutation: result=%+v refundCalls=%d", result, batchCalls)
 	}
@@ -115,7 +118,10 @@ func TestMixedBatchPreservesIndependentResults(t *testing.T) {
 		func(ctx context.Context, caller Caller, item BatchItem) ItemResult {
 			seen = append(seen, item.IdempotencyKey)
 			if item.Type == "refund" {
-				return (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(ctx, caller, item, func(context.Context, pgx.Tx, service.RefundInput) (service.RefundResult, error) { refundCalls++; return service.RefundResult{}, nil })
+				return (&Engine{Lookup: &fakeLookup{}}).processOneWithRefund(ctx, caller, item, func(context.Context, pgx.Tx, service.RefundInput) (service.RefundResult, error) {
+					refundCalls++
+					return service.RefundResult{}, nil
+				})
 			}
 			// Independent successes are synthetic, not order/customer DB coverage.
 			return ItemResult{IdempotencyKey: item.IdempotencyKey, Status: "ok"}
@@ -187,7 +193,10 @@ func TestRefundForbiddenReplaysACommittedKey(t *testing.T) {
 	item := BatchItem{Type: "refund", IdempotencyKey: "dev:committed", Payload: json.RawMessage(`{"orderId":"order-1","reason":"rusak"}`)}
 	caller := Caller{OutletID: "outlet-1", UserID: "u1", CanRefund: false}
 	refunds := 0
-	refund := func(context.Context, pgx.Tx, service.RefundInput) (service.RefundResult, error) { refunds++; return service.RefundResult{}, nil }
+	refund := func(context.Context, pgx.Tx, service.RefundInput) (service.RefundResult, error) {
+		refunds++
+		return service.RefundResult{}, nil
+	}
 
 	applied := (&Engine{Lookup: &fakeLookup{applied: map[string]string{"dev:committed": "order-1"}}}).
 		processOneWithRefund(context.Background(), caller, item, refund)
@@ -215,7 +224,9 @@ func TestRefundForbiddenProbeUsesEnvelopeOutlet(t *testing.T) {
 		Envelope: json.RawMessage(`{"v":1,"outletId":"X","userId":"u1","deviceId":"dev","capturedAt":"2026-01-01T00:00:00Z"}`)}
 	lk.outlets = map[string]bool{"X": true}
 	(&Engine{Lookup: lk}).processOneWithRefund(context.Background(), Caller{OutletID: "Y", UserID: "u1", Role: "admin"}, item,
-		func(context.Context, pgx.Tx, service.RefundInput) (service.RefundResult, error) { return service.RefundResult{}, nil })
+		func(context.Context, pgx.Tx, service.RefundInput) (service.RefundResult, error) {
+			return service.RefundResult{}, nil
+		})
 	if gotType != "refund" || gotScope != "X" {
 		t.Fatalf("probe type=%q scope=%q", gotType, gotScope)
 	}

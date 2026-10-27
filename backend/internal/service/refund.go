@@ -356,7 +356,7 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 		if clawed > 0 {
 			clawReason := fmt.Sprintf("Pembatalan poin dari refund %s", o.orderNumber)
 			if forgiven > 0 {
-				clawReason += fmt.Sprintf(" (%d poin tidak cukup saldo, ditagih di refund berikutnya jika ada)", forgiven)
+				clawReason += fmt.Sprintf(" (%d poin tidak cukup saldo)", forgiven)
 			}
 			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
 				CustomerID: *o.custID, Type: "refund", Points: -int(clawed),
@@ -380,10 +380,13 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 				return RefundResult{}, fmt.Errorf("update points on refund: %w", e)
 			}
 		}
-		// D-42: give back the amount paid out (floor 0); visit_count stays (the visit happened).
+		// D-42: give back the COMPUTED share of spend (floor 0); visit_count stays (the visit happened).
+		// Not the claimed amount: a bad client claim (flagged over_total) must never erase spend that
+		// belongs to other orders and drive the customer tier; cash, reports and the ERP tender keep
+		// the amount of record (D-39).
 		if _, e := tx.Exec(ctx,
 			`UPDATE customers SET total_spent = GREATEST(total_spent - $2, 0) WHERE id=$1`,
-			*o.custID, amount); e != nil {
+			*o.custID, computed); e != nil {
 			return RefundResult{}, fmt.Errorf("reverse customer total_spent: %w", e)
 		}
 	}
