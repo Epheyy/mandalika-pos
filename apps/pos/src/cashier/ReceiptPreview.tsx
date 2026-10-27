@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
 import { receiptRefLabel } from './orderRef'
@@ -6,7 +6,10 @@ import logoGold from '../assets/logo-gold.png'
 import { variantLabel } from '@mandalika/types'
 import { PAYMENT_LABELS } from '../lib/paymentLabels'
 import { Sheet } from '../components/ui/Sheet'
-import { IconCheck, IconClock, IconWarning, IconPrinter } from '../components/ui/icons'
+import { Button } from '../components/ui/Button'
+import { StatusBadge } from '../components/ui/StatusBadge'
+import type { OrderState } from './orderState'
+import { IconCheck, IconWarning, IconPrinter } from '../components/ui/icons'
 
 type AppSettings = components['schemas']['AppSettings']
 type CartItem = components['schemas']['CartItem']
@@ -27,12 +30,16 @@ interface ReceiptPreviewProps {
   customerName: string | null
   cashierName: string
   settings: AppSettings
+  /** Sync state of THIS sale from the engine's local receipts; 'unknown' falls back to isPendingSync. */
+  orderState: OrderState
   isPendingSync: boolean
   canReprint: boolean
   printError: string | null
   onReprint: () => void
   onClose: () => void
   onNewSale: () => void
+  /** Opens Pengaturan Cetakan; when absent the no-printer line shows without a Pasangkan button. */
+  onPairPrinter?: () => void
 }
 
 
@@ -51,13 +58,22 @@ export const ReceiptPreview = memo(function ReceiptPreview({
   customerName,
   cashierName,
   settings,
+  orderState,
   isPendingSync,
   canReprint,
   printError,
   onReprint,
   onClose,
   onNewSale,
+  onPairPrinter,
 }: ReceiptPreviewProps) {
+  const [printerLineDismissed, setPrinterLineDismissed] = useState(false)
+  // A new success view starts with the no-printer line visible again.
+  const [wasOpen, setWasOpen] = useState(isOpen)
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen)
+    if (isOpen) setPrinterLineDismissed(false)
+  }
   if (!isOpen) return null
 
   const subtotal = items.reduce((s, i) => s + i.subtotal, 0)
@@ -70,23 +86,28 @@ export const ReceiptPreview = memo(function ReceiptPreview({
     minute: '2-digit',
   })
 
+  const refLabel = receiptRefLabel(orderNumber, orderId)
+  // Per-order state from the engine's local receipts; 'unknown' keeps the old global-pending behaviour.
+  const syncBadge =
+    orderState === 'synced' ? (
+      <StatusBadge tone="ok" size="md" label={`Terkirim · ${refLabel}`} />
+    ) : orderState === 'parked' ? (
+      <StatusBadge tone="danger" size="md" label="Perlu ditinjau · hubungi admin" />
+    ) : orderState === 'queued' || isPendingSync ? (
+      <StatusBadge tone="warn" size="md" label="Tersimpan di tablet · akan terkirim otomatis" />
+    ) : (
+      <p className="text-xs text-ink-500">{refLabel}</p>
+    )
+
   return (
     <Sheet open variant="center" maxWidth="max-w-sm" panelClassName="max-h-[90vh] flex flex-col">
         {/* Success header */}
-        <div className="flex flex-col items-center pt-6 pb-4 border-b border-gray-100 px-5">
-          <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mb-3">
-            <span className="text-green-600 text-xl"><IconCheck size={20} /></span>
+        <div className="flex flex-col items-center pt-6 pb-4 border-b border-paper-2 px-5">
+          <div className="w-14 h-14 rounded-full bg-ok-bg flex items-center justify-center mb-3">
+            <span className="text-ok"><IconCheck size={28} /></span>
           </div>
-          <h3 className="font-bold text-gray-900 text-lg">Pembayaran Berhasil</h3>
-          {isPendingSync ? (
-            <p className="text-xs text-amber-600 mt-1">
-              <IconClock size={12} className="inline-block align-[-0.125em]" /> Tersimpan di tablet · akan terkirim otomatis
-            </p>
-          ) : (
-            <p className="text-xs text-gray-500 mt-1">
-              {receiptRefLabel(orderNumber, orderId)}
-            </p>
-          )}
+          <h3 className="font-bold text-ink-900 text-lg">Pembayaran Berhasil</h3>
+          <div className="mt-2">{syncBadge}</div>
         </div>
 
         {/* Receipt body */}
@@ -175,33 +196,37 @@ export const ReceiptPreview = memo(function ReceiptPreview({
 
         {/* Actions */}
         {printError && (
-          <p className="px-5 text-xs text-red-600 mb-1 flex-shrink-0">
+          <p className="px-5 text-xs text-danger mb-1 flex-shrink-0">
             <IconWarning size={12} className="inline-block align-[-0.125em]" /> {printError}
           </p>
         )}
-        {canReprint && (
-          <div className="px-5 pb-2 flex-shrink-0">
-            <button type="button"
-              onClick={onReprint}
-              className="w-full py-2 border border-indigo-200 text-indigo-700 rounded-xl text-sm font-semibold hover:bg-indigo-50 transition-colors"
-            >
-              <IconPrinter size={14} className="inline-block align-[-0.125em]" /> Cetak Ulang Struk
-            </button>
+        {!canReprint && !printerLineDismissed && (
+          <div className="mx-5 mb-2 flex items-center gap-2 rounded-control bg-paper-1 px-3 py-2 flex-shrink-0">
+            <p className="flex-1 text-xs text-ink-700">Struk tidak dicetak: printer belum dipasangkan</p>
+            {onPairPrinter && (
+              <Button variant="secondary" onClick={onPairPrinter}>
+                Pasangkan
+              </Button>
+            )}
+            <Button variant="ghost" onClick={() => setPrinterLineDismissed(true)}>
+              Lewati
+            </Button>
           </div>
         )}
-        <div className="px-5 pb-5 flex gap-2 flex-shrink-0">
-          <button type="button"
-            onClick={onClose}
-            className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            Tutup
-          </button>
-          <button type="button"
-            onClick={onNewSale}
-            className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors"
-          >
+        {canReprint && (
+          <div className="px-5 pb-2 flex-shrink-0">
+            <Button variant="secondary" fullWidth onClick={onReprint} leading={<IconPrinter size={14} />}>
+              Cetak Ulang Struk
+            </Button>
+          </div>
+        )}
+        <div className="px-5 pb-5 space-y-2 flex-shrink-0">
+          <Button size="lg" fullWidth onClick={onNewSale}>
             Transaksi Baru
-          </button>
+          </Button>
+          <Button variant="ghost" fullWidth onClick={onClose}>
+            Tutup
+          </Button>
         </div>
     </Sheet>
   )

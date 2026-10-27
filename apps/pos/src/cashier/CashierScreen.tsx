@@ -40,6 +40,7 @@ import { ReceiveTransferPanel } from './receive/ReceiveTransferPanel'
 import { ReceiveApprovalModal } from './receive/ReceiveApprovalModal'
 import { ShiftBar } from './ShiftBar'
 import { ReceiptPreview } from './ReceiptPreview'
+import { orderStateFor } from './orderState'
 import { RefundDialog } from './RefundDialog'
 import { REFUND_DONE, REFUND_QUEUED, planRefundSubmit, refundGateProps, type LocalSaleRef } from './refundView'
 import { OrderHistoryPanel } from './OrderHistoryPanel'
@@ -1148,6 +1149,7 @@ export default function CashierScreen() {
         discountAmount={derived.discountAmount} taxAmount={derived.taxAmount}
         allowNegativeStock={settings.allowNegativeStock ?? true}
         cartLines={state.cart}
+        isOnline={offlineData.isOnline}
       />
 
       <ReceiptPreview
@@ -1158,6 +1160,8 @@ export default function CashierScreen() {
         change={tender.change}
         customerName={state.selectedCustomer?.name ?? null} cashierName={user.displayName}
         settings={settings} isPendingSync={offlineData.pendingCount > 0}
+        orderState={state.isSuccessOpen ? orderStateFor(engine.localReceipts(), state.lastOrderId) : 'unknown'}
+        onPairPrinter={() => openSettings('printer')}
         canReprint={printer.isPaired} printError={printError}
         promoLabel={
           derived.manualDiscountAmount > 0
