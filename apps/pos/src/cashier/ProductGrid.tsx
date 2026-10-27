@@ -17,12 +17,10 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { formatRupiah } from './pricing'
-import { nextVariantQty, oversoldSizes } from './stock'
 import { variantLabel } from '@mandalika/types'
 import { IconHeart, IconScan } from '../components/ui/icons'
 import { Chip } from '../components/ui/Chip'
-import { Sheet } from '../components/ui/Sheet'
-import { Stepper } from '../components/ui/Stepper'
+import { VariantSheet } from './VariantSheet'
 import { STOCK_DOT_CLASS, STOCK_TEXT_CLASS, stockLabel, stockTone, type StockTone } from './stockTone'
 
 type Product = components['schemas']['Product']
@@ -246,7 +244,6 @@ export const ProductGrid = memo(function ProductGrid({
   variantBackRef,
 }: ProductGridProps) {
   const [variantPopup, setVariantPopup] = useState<Product | null>(null)
-  const [variantQtys, setVariantQtys] = useState<Record<string, number>>({})
   const [order, setOrder] = useState<string[]>(loadOrder)
 
   // Android Back closes the variant sheet before anything underneath.
@@ -295,24 +292,15 @@ export const ProductGrid = memo(function ProductGrid({
       onProductTap(product, { [product.variants[0].size]: 1 })
       return
     }
-    const qtys: Record<string, number> = {}
-    product.variants.forEach((v) => { qtys[v.size] = 0 })
-    setVariantQtys(qtys)
     setVariantPopup(product)
   }, [onProductTap])
 
-  const handleVariantChange = (size: string, delta: number) => {
-    if (!variantPopup) return
-    if (!variantPopup.variants.some((v) => v.size === size)) return
-    // Not capped by stock (A44 owner decision 2026-10-16); the popup warns instead.
-    setVariantQtys((prev) => ({ ...prev, [size]: nextVariantQty(prev[size] || 0, delta) }))
-  }
-
-  const handleConfirmVariants = () => {
-    if (!variantPopup) return
-    onProductTap(variantPopup, variantQtys)
+  // B1 (D-10): a size row adds one unit through the same add path as a single-size tile
+  // (the screen fires the oversell warning there) and the sheet closes.
+  const handlePickVariant = useCallback((product: Product, size: string) => {
+    onProductTap(product, { [size]: 1 })
     setVariantPopup(null)
-  }
+  }, [onProductTap])
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-paper-0">
@@ -386,49 +374,8 @@ export const ProductGrid = memo(function ProductGrid({
         )}
       </div>
 
-      {/* Variant sheet */}
-      <Sheet
-        open={variantPopup !== null}
-        onClose={() => setVariantPopup(null)}
-        variant="center"
-        z={50}
-        panelClassName="overflow-hidden"
-        title={<span className="block px-5 pt-5 pb-2 text-lg text-ink-900">{variantPopup?.name}</span>}
-      >
-        {variantPopup && (
-          <div className="px-5 pb-5">
-            <div className="divide-y divide-paper-2">
-              {variantPopup.variants.map((v) => (
-                <div key={v.size} className="flex min-h-16 items-center justify-between gap-3 py-2">
-                  <div className="min-w-0">
-                    {variantLabel(v.size) && <p className="text-base font-semibold text-ink-900">{variantLabel(v.size)}</p>}
-                    <p className="tnum text-[0.9375rem] text-ink-700">{formatRupiah(v.price)}</p>
-                    <p className={`tnum text-[0.8125rem] font-semibold ${STOCK_TEXT_CLASS[stockTone(v.stock)]}`}>{stockLabel(v.stock)}</p>
-                  </div>
-                  <Stepper
-                    value={variantQtys[v.size] || 0}
-                    min={0}
-                    onDecrement={() => handleVariantChange(v.size, -1)}
-                    onIncrement={() => handleVariantChange(v.size, 1)}
-                  />
-                </div>
-              ))}
-            </div>
-            {oversoldSizes(variantPopup, variantQtys, () => 0).length > 0 && (
-              <p role="status" className="mt-3 rounded-control bg-warn-bg px-3 py-2 text-xs font-semibold text-warn">
-                Jumlah melebihi stok. Tetap bisa ditambahkan; penjualan dicatat sebagai stok minus.
-              </p>
-            )}
-            <button type="button"
-              onClick={handleConfirmVariants}
-              disabled={Object.values(variantQtys).reduce((a, b) => a + b, 0) === 0}
-              className="mt-4 min-h-14 w-full rounded-control bg-ink-900 text-base font-bold text-white disabled:opacity-40 active:opacity-90"
-            >
-              Tambah ke Keranjang
-            </button>
-          </div>
-        )}
-      </Sheet>
+      {/* Variant sheet (B1): tap a size = add one */}
+      <VariantSheet product={variantPopup} onPick={handlePickVariant} onClose={() => setVariantPopup(null)} />
     </div>
   )
 })
