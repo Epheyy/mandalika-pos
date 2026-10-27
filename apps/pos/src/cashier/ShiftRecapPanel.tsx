@@ -18,6 +18,8 @@ import { usePrinter } from '../printer'
 import { formatRupiah } from './pricing'
 import { freshCurrentRecap, loadCurrentRecap, loadRecapHistory, loadHistoricalRecap, RECAP_STALE_NOTICE } from './recapData'
 import { Skeleton } from '../components/Skeleton'
+import { QueueGuardLine } from '../components/QueueGuardLine'
+import { useQueueCounts } from '../hooks/useQueueCounts'
 import { Button } from '../components/ui/Button'
 import { DenominationSheet } from './DenominationSheet'
 import { isCountRevealed } from './countRules'
@@ -173,6 +175,7 @@ function ShiftRecapPanelBody({
   heldCount = 0,
   backRef,
 }: Omit<ShiftRecapPanelProps, 'isOpen'>) {
+  const queue = useQueueCounts()
   const printer = usePrinter()
   const [printMsg, setPrintMsg] = useState<string | null>(null)
   const [closeError, setCloseError] = useState<string | null>(null)
@@ -657,6 +660,7 @@ function ShiftRecapPanelBody({
                 {shiftError && (
                   <p role="alert" className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{shiftError}</p>
                 )}
+                {queue && <QueueGuardLine pending={queue.pending} parked={queue.parked} />}
                 <button type="button" onClick={() => void handleClose()} disabled={isClosingShift}
                   className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all">
                   {isClosingShift ? 'Menutup…' : 'Tutup Shift'}

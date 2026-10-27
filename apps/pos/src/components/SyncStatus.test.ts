@@ -89,6 +89,17 @@ describe('Koneksi & antrean sheet', () => {
     expect(html).toContain('Bagikan log')
     expect(html.indexOf('Detail teknis')).toBeLessThan(html.indexOf('boom 500'))
   })
+  it('C2: per-row Coba lagi / Tandai sudah ditangani only when wired, plus the count line', () => {
+    expect(open({ review: [item('a')] })).not.toContain('Tandai sudah ditangani')
+    const html = open({ review: [item('a'), item('b')], pendingCount: 2, onRetryOne: vi.fn(), onAcknowledge: vi.fn() })
+    expect(html.match(/Tandai sudah ditangani/g)).toHaveLength(2)
+    expect(html.match(/aria-label="Coba lagi: Penjualan/g)).toHaveLength(2)
+    expect(html).toContain('2 transaksi tersimpan di tablet, 2 perlu ditinjau')
+    expect(html).toContain('data-key="a"')
+  })
+  it('C2: notes hidden rows that are still stored on the tablet', () => {
+    expect(open({ acknowledgedCount: 2 })).toContain('2 transaksi sudah ditandai ditangani; tetap tersimpan di tablet.')
+  })
   it('puts the data versions under Detail teknis', () => {
     expect(open({})).toContain('Versi data lokal 1 · server 1')
   })

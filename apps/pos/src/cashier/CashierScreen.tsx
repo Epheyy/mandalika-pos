@@ -53,6 +53,8 @@ import { LocalReceiptsPanel } from './LocalReceiptsPanel'
 import { localReceiptOrder, localSaleRef, newestReprintable, reprintReceiptData } from './localReceipts'
 import { ShiftRecapPanel } from './ShiftRecapPanel'
 import { SyncStatus } from '../components/SyncStatus'
+import { useParkedBanner } from '../hooks/useParkedBanner'
+import { parkedSaleMessage } from '../lib/parkedSale'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { reserveOrderNo } from './orderRef'
 import { isRedundantPromoCode } from './promotionSelection'
@@ -282,6 +284,7 @@ export default function CashierScreen() {
   const loyalty = snapshot.loyaltySettings ?? DEFAULT_LOYALTY
 
   const { actions: cartActions, derived } = useCart({ state, dispatch, settings, loyalty })
+  const parked = useParkedBanner(engine, offlineData.review, derived.totalCartItems === 0)
 
   // Cart panel hides when empty; if the mobile cart tab was active when the
   // last item left, fall back to products so the screen is never blank.
@@ -1031,9 +1034,10 @@ export default function CashierScreen() {
           <SyncStatus
             open={showConnection} onOpenChange={setShowConnection}
             isOnline={offlineData.isOnline} pendingCount={offlineData.pendingCount}
-            review={offlineData.review} stuck={offlineData.stuck} accountProblem={offlineData.accountProblem} wall={offlineData.wall}
+            review={parked.review} stuck={offlineData.stuck} accountProblem={offlineData.accountProblem} wall={offlineData.wall}
             offlineCap={offlineCap} isResyncing={offlineData.isResyncing} autoUpdate={offlineData.autoPullAvailable}
             onResync={() => void offlineData.resync()} onFlush={offlineData.flush}
+            onRetryOne={(k) => { offlineData.retryOne(k).catch(() => showToast('Gagal menyetel ulang transaksi. Coba lagi.')) }} onAcknowledge={parked.onAcknowledge} acknowledgedCount={parked.acknowledgedCount}
             onRetryFailed={() => { offlineData.retryFailed().catch(() => showToast('Gagal menyetel ulang antrean. Coba lagi.')) }} onExportLog={() => { void handleExportLog() }}
           />
           <button type="button"
@@ -1042,7 +1046,9 @@ export default function CashierScreen() {
             title="Menu" aria-label="Menu"
           >
             <IconMenu size={24} />
-            {(offlineData.pendingCount > 0 || inbound.length > 0) && (
+            {parked.review.length > 0 ? (
+              <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-danger text-white text-[10px] font-bold leading-4 text-center" aria-label={`${parked.review.length} perlu ditinjau`}>{parked.review.length}</span>
+            ) : (offlineData.pendingCount > 0 || inbound.length > 0) && (
               <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-danger" />
             )}
           </button>
@@ -1051,6 +1057,12 @@ export default function CashierScreen() {
 
       {offlineCap.level === 'locked' && (
         <Banner tone="danger" message={OFFLINE_LOCKED_MESSAGE} action={{ label: 'Cek koneksi', onClick: () => void offlineData.resync() }} />
+      )}
+
+      {parked.banner && (
+        <Banner tone="danger" message={parkedSaleMessage(parked.banner.ref)}
+          action={{ label: 'Lihat', onClick: () => { parked.dismissBanner(parked.banner!.key); setShowConnection(true) } }}
+          onDismiss={() => parked.dismissBanner(parked.banner!.key)} />
       )}
 
       {shift.shiftError && (
