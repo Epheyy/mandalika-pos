@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -24,6 +25,15 @@ func (h *Handlers) CustomerProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	withNotes := customerScope(r) == CustomerAll
+	// A30: a phone-only caller spends the same per-terminal budget as a phone lookup, so the
+	// profile (reached by an unguessable id after a phone match) cannot be used to sweep ids.
+	if !withNotes {
+		if retryAfter, ok := h.lookupAllowed(r); !ok {
+			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+			httpx.Err(w, http.StatusTooManyRequests, "terlalu banyak pencarian, coba lagi nanti")
+			return
+		}
+	}
 	data, err := h.Repo.CustomerProfile(r.Context(), id, scope(r), withNotes)
 	if errors.Is(err, read.ErrNotFound) {
 		httpx.Err(w, http.StatusNotFound, "pelanggan tidak ditemukan")
