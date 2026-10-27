@@ -18,7 +18,7 @@ const reward = { ...paid, isReward: true, price: 0, subtotal: 0 }
 const catalog = (stock: number): Product[] => [{ id: 'bag', name: 'Tote Bag', variants: [{ size: 'std', price: 0, stock, sku: 'B' }] } as unknown as Product]
 
 describe('C3 giveawayLine', () => {
-  it('is a Rp0 reward line for the configured item when the cart has a paid line', () => {
+  it('is a Rp0 reward line for the configured item when the cart has a line', () => {
     expect(giveawayLine([paid], config, 5)).toEqual({
       productId: 'bag', productName: 'Tote Bag', variantSize: 'std', quantity: 1, price: 0, subtotal: 0, isReward: true, outOfStock: false,
     })
@@ -26,10 +26,13 @@ describe('C3 giveawayLine', () => {
 
   it.each([
     ['empty cart', []],
-    ['only reward lines', [reward]],
     ['a zero-quantity line', [{ ...paid, quantity: 0 }]],
   ])('is null for %s', (_n, cart) => {
     expect(giveawayLine(cart, config, 5)).toBeNull()
+  })
+
+  it('still shows for a reward-only cart: the server gives one per completed order', () => {
+    expect(giveawayLine([reward], config, 5)).not.toBeNull()
   })
 
   it('is null without a configured giveaway', () => {

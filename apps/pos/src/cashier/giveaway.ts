@@ -44,14 +44,15 @@ export function giveawayStock(
   return (config.stock ?? 0) - (pendingDeltas[`${config.productId}|${config.variantSize}`] ?? 0)
 }
 
-/** The giveaway line for this cart, or null: no giveaway configured, or no paid line in the cart. */
+/** The giveaway line for this cart, or null: no giveaway configured, or nothing in the cart. The server gives one
+ *  per completed order whatever the cart holds (a reward-only order included), so any line counts. */
 export function giveawayLine(
   cart: readonly CartLineLike[],
   config: GiveawayConfig | null | undefined,
   stock: number,
 ): GiveawayLine | null {
   if (!config) return null
-  if (!cart.some((c) => !c.isReward && c.quantity > 0)) return null
+  if (!cart.some((c) => c.quantity > 0)) return null
   return {
     productId: config.productId,
     productName: config.productName,

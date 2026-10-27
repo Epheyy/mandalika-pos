@@ -530,6 +530,14 @@ func TestGiveawayPostgres(t *testing.T) {
 		if g, err := read.OutletGiveawayForPull(ctx, pool, "not-a-uuid"); err != nil || g != nil {
 			t.Fatalf("bad outlet id pull giveaway = %+v, %v; want none", g, err)
 		}
+		// The sale path creates a missing stock row at zero, so a never-stocked giveaway still shows (stock 0).
+		unstocked := product(outB, -1, false)
+		if code, body := put(outB, setting(unstocked, true), "gw-k-pull-unstocked"); code != 200 {
+			t.Fatalf("PUT unstocked: %d %s", code, body)
+		}
+		if g, err := read.OutletGiveawayForPull(ctx, pool, outB); err != nil || g == nil || g.ProductID != unstocked || g.Stock != 0 {
+			t.Fatalf("outlet B never-stocked giveaway = %+v, %v; want it at stock 0", g, err)
+		}
 		// A change moves only that outlet's content version, so its tablets pull it.
 		version := func(outlet string) int {
 			return one(`SELECT version FROM content_versions WHERE outlet_id=$1`, outlet)

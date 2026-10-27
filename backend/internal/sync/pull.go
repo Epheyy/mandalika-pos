@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 
 	"github.com/jackc/pgx/v5"
 
@@ -110,12 +109,10 @@ func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (Pull
 			b.OutletName = *name
 		}
 	}
-	// A lookup failure must not fail the whole pull (the tablet's lifeline): log and omit, the
-	// POS then simply shows no giveaway line until the next pull.
-	if g, gerr := read.OutletGiveawayForPull(ctx, e.Pool, outletID); gerr != nil {
-		slog.Warn("pull: outlet giveaway lookup failed", "outlet", outletID, "err", gerr)
-	} else {
-		b.OutletGiveaway = g
+	// Like every other read here a failure fails the pull: the tablet then keeps its last good
+	// snapshot instead of swapping in one that silently lacks the giveaway.
+	if b.OutletGiveaway, err = read.OutletGiveawayForPull(ctx, e.Pool, outletID); err != nil {
+		return b, err
 	}
 	// Outlet-scoped: POS receives this outlet's resolved stock/price, only products
 	// available here, and only customer-sellable ones (sc.OutletID = cashier outlet).

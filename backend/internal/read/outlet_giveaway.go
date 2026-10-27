@@ -80,8 +80,9 @@ type PullGiveaway struct {
 
 // OutletGiveawayForPull returns the giveaway the sale path will actually take for this
 // outlet, or nil: enabled, the variant still exists and the outlet has a stock row for it
-// (the same three tests lockStockRowsSorted/giveawayLine apply, so the POS never shows a
-// giveaway the server would skip). No row, disabled or skipped is nil, not an error.
+// (the sale path skips only a vanished variant: a missing stock row is created at zero and
+// goes negative, so the stock row is LEFT-joined and absent counts as stock 0). No row,
+// disabled or variant gone is nil, not an error.
 func OutletGiveawayForPull(ctx context.Context, q RowQuerier, outletID string) (*PullGiveaway, error) {
 	oid, err := uuid.Parse(outletID)
 	if err != nil {
@@ -90,10 +91,10 @@ func OutletGiveawayForPull(ctx context.Context, q RowQuerier, outletID string) (
 	var g PullGiveaway
 	var pid uuid.UUID
 	err = q.QueryRow(ctx,
-		`SELECT g.product_id, g.variant_size, p.name, s.stock
+		`SELECT g.product_id, g.variant_size, p.name, COALESCE(s.stock, 0)
 		   FROM outlet_giveaways g
 		   JOIN products p ON p.id = g.product_id
-		   JOIN outlet_variant_stock s
+		   LEFT JOIN outlet_variant_stock s
 		     ON s.outlet_id = g.outlet_id AND s.product_id = g.product_id AND s.variant_size = g.variant_size
 		  WHERE g.outlet_id = $1 AND g.enabled
 		    AND EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = g.product_id AND pv.size = g.variant_size)`,

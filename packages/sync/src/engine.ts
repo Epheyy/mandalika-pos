@@ -1008,7 +1008,7 @@ export class SyncEngine {
     // C3: the server takes one unit of the outlet's giveaway item for every completed order (ledger hook),
     // on top of the order's own lines, so each sale counted here also counts one giveaway unit. The giveaway
     // is the snapshot's (this outlet's), absent = none; a sale queued before the config arrived is still
-    // counted once it is known, since the server applies the setting at sale time either way.
+    // counted once it is known: the server applies the setting when it processes the sync.
     const giveaway = this.snapshot.get().outletGiveaway
     const addGiveaway = () => {
       if (giveaway) add([{ productId: giveaway.productId, variantSize: giveaway.variantSize, qty: 1 }])
