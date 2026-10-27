@@ -988,7 +988,8 @@ export class SyncEngine {
 
   /** SP-CRM-9c: sum unsynced order quantities per `${productId}|${variantSize}` so
    *  the POS can optimistically decrement displayed stock. Includes reward lines
-   *  because they decrement stock server-side too. Parked (needs-review) orders are included until head
+   *  because they decrement stock server-side too, and (C3) one unit of the outlet's giveaway item per
+   *  counted order, as the server's ledger hook takes it. Parked (needs-review) orders are included until head
    *  office resolves them, and A15 adds acked orders until a pull sent after the ack. */
   pendingStockDeltas(): Record<string, number> {
     const deltas: Record<string, number> = {}
@@ -1004,13 +1005,27 @@ export class SyncEngine {
         deltas[key] = (deltas[key] ?? 0) + l.qty
       }
     }
+    // C3: the server takes one unit of the outlet's giveaway item for every completed order (ledger hook),
+    // on top of the order's own lines, so each sale counted here also counts one giveaway unit. The giveaway
+    // is the snapshot's (this outlet's), absent = none; a sale queued before the config arrived is still
+    // counted once it is known, since the server applies the setting at sale time either way.
+    const giveaway = this.snapshot.get().outletGiveaway
+    const addGiveaway = () => {
+      if (giveaway) add([{ productId: giveaway.productId, variantSize: giveaway.variantSize, qty: 1 }])
+    }
     for (const item of unacked) {
-      if (item.type === 'order' && inScope(item.envelope?.outletId)) add(orderDebitLines(item))
+      if (item.type === 'order' && inScope(item.envelope?.outletId)) {
+        add(orderDebitLines(item))
+        addGiveaway()
+      }
     }
     // A15: acked orders until a pull sent after the ack. Skip one only while its item is still unacked
     // (a failed settle write); an acked row left behind by a skipped prune must NOT hide it.
     for (const e of this.settling.list()) {
-      if (!unackedKeys.has(e.key) && inScope(e.outletId)) add(e.lines)
+      if (!unackedKeys.has(e.key) && inScope(e.outletId)) {
+        add(e.lines)
+        addGiveaway()
+      }
     }
     return deltas
   }
