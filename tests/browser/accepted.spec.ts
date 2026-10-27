@@ -4,6 +4,7 @@ import { setupBackoffice, backofficeChecks, transactionsChecks, qualifyBackoffic
 import { reviewResolveFlow } from './backoffice-review-scenarios'
 import { csvImportFlow } from './backoffice-import-scenarios'
 import { stockCardFlow } from './backoffice-stockcard-scenarios'
+import { refundReportFlow, adminPartialRefundFlow } from './backoffice-refund-scenarios'
 import { posRequisition } from './pos-requisition-scenarios'
 
 test('BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate toggle', async ({ page }, info) => {
@@ -140,6 +141,18 @@ test('BO-CSV-IMPORT preview errors block apply, a clean preview applies with an 
 test('BO-STOCK-CARD summary row opens the kartu stok, rows page, Hadiah chip filters, CSV downloads', async ({ page }, info) => {
   const result = await stockCardFlow(page as ScenarioPage)
   expect(result).toHaveLength(9)
+  await evidence(info, result)
+})
+
+test('BO-REFUND-LIST Laporan Refund shows one row per refund with claimed amount and warning, flag and paging reach the API, per-refund CSV downloads', async ({ page }, info) => {
+  const result = await refundReportFlow(page as ScenarioPage)
+  expect(result).toHaveLength(4)
+  await evidence(info, result)
+})
+
+test('BO-REFUND-ADMIN-PARTIAL admin picks one unit on one line, confirms, and posts the per-line shape; the order shows Refund ke-1 and the remainder', async ({ page }, info) => {
+  const result = await adminPartialRefundFlow(page as ScenarioPage)
+  expect(result).toHaveLength(3)
   await evidence(info, result)
 })
 

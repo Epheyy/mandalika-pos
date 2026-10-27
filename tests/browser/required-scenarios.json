@@ -230,6 +230,18 @@
       "source": "tests/browser/backoffice-stockcard-scenarios.ts"
     },
     {
+      "id": "BO-REFUND-LIST",
+      "finding": "C4c",
+      "description": "Laporan > Refund: one row per refund with Refund ke-N, amount of record, claimed amount and warning badge; flag select sends flag to the API, paging sends page/limit, Export Refund CSV pages at limit=200 and downloads the per-refund CSV",
+      "source": "tests/browser/backoffice-refund-scenarios.ts"
+    },
+    {
+      "id": "BO-REFUND-ADMIN-PARTIAL",
+      "finding": "C4c",
+      "description": "Admin per-line refund on Transaksi: bundle group is all-or-nothing, pick qty 1 on a line, reason preset, confirm modal states item and estimate, POST body is {reason, reasonCode, items:[{lineNo,quantity}]}, order then shows Refund ke-1 and the remaining refundable amount",
+      "source": "tests/browser/backoffice-refund-scenarios.ts"
+    },
+    {
       "id": "POS-REQUISITION",
       "finding": "inventory-controls-S6",
       "description": "Cashier Permintaan Barang: menu hidden without request_stock; create sends Idempotency-Key and outlet; a failed submit retries with the same key; transfer chain shows Dikirim and Buka Terima Transfer opens the receive panel; cancel a draft; a lost create answer then an edit replays the old key (one PB, then one update) and is resolved when the panel next opens online; offline refuses the save with no request leaving the tablet; zero approve/reject/fulfil requests across the run",
