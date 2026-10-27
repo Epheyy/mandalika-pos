@@ -497,6 +497,33 @@ func (h *Handlers) DiscountCodeReport(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, api.DiscountCodeReport{Summary: summary, Data: rows, Meta: *meta(total, p, l)})
 }
 
+// RefundReport returns one row per refund with its lines, filterable by refund business day,
+// outlet (scope-clamped) and amount flag. Gated on view_reports.
+func (h *Handlers) RefundReport(w http.ResponseWriter, r *http.Request) {
+	p, l := pageLimit(r)
+	q := r.URL.Query()
+	if !dayRange(w, q.Get("dateFrom"), q.Get("dateTo")) {
+		return
+	}
+	flag := q.Get("flag")
+	if flag != "" && !read.RefundReportFlags[flag] {
+		httpx.Err(w, http.StatusBadRequest, "flag tidak valid (any, amount_mismatch, over_total)")
+		return
+	}
+	f := read.RefundReportFilters{
+		DateFrom: q.Get("dateFrom"),
+		DateTo:   q.Get("dateTo"),
+		OutletID: scope(r).OutletID, // scope-clamped; "" = all outlets (admin)
+		Flag:     flag,
+	}
+	summary, rows, total, err := h.Repo.RefundReport(r.Context(), f, p, l)
+	if err != nil {
+		writeErr(w, r, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.RefundReport{Summary: summary, Data: rows, Meta: *meta(total, p, l)})
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

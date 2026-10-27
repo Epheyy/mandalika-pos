@@ -1616,6 +1616,53 @@ components:
         refundedAt: { type: string, format: date-time }
         refundBusinessDate: { type: string, format: date, nullable: true }
         items: { type: array, items: { $ref: '#/components/schemas/OrderRefundItem' } }
+    RefundReportItem:
+      type: object
+      required: [orderItemId, productName, variantSize, quantity, amount]
+      properties:
+        orderItemId: { type: string, format: uuid }
+        lineNo: { type: integer, nullable: true }
+        productName: { type: string }
+        variantSize: { type: string }
+        quantity: { type: integer }
+        amount: { type: number, format: double }
+    RefundReportRow:
+      type: object
+      required: [id, orderId, orderNumber, outletId, outletName, cashierName, seq, scope, amount, computedAmount, paymentMethod, reason, refundedAt, items]
+      properties:
+        id: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        orderNumber: { type: string }
+        outletId: { type: string, format: uuid }
+        outletName: { type: string }
+        cashierName: { type: string, description: 'Cashier of the sale.' }
+        seq: { type: integer, description: 'Refund ke-N of the order.' }
+        scope: { type: string, enum: [full, partial, legacy_full] }
+        amount: { type: number, format: double, description: 'Amount of record (capped, D-49).' }
+        computedAmount: { type: number, format: double }
+        claimedAmount: { type: number, format: double, nullable: true }
+        amountWarning: { type: string, nullable: true, description: 'amount_mismatch or over_total.' }
+        paymentMethod: { type: string }
+        reason: { type: string }
+        reasonCode: { type: string, nullable: true }
+        refundedByName: { type: string, nullable: true }
+        refundedAt: { type: string, format: date-time }
+        refundBusinessDate: { type: string, format: date, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/RefundReportItem' } }
+    RefundReportSummary:
+      type: object
+      required: [count, totalAmount, flaggedCount]
+      properties:
+        count: { type: integer }
+        totalAmount: { type: number, format: double }
+        flaggedCount: { type: integer, description: 'Refunds with an amount_mismatch or over_total flag.' }
+    RefundReport:
+      type: object
+      required: [summary, data, meta]
+      properties:
+        summary: { $ref: '#/components/schemas/RefundReportSummary' }
+        data: { type: array, items: { $ref: '#/components/schemas/RefundReportRow' } }
+        meta: { $ref: '#/components/schemas/Meta' }
     Order:
       type: object
       required: [id, orderNumber, outletId, cashierId, cashierName, items, subtotal, discountAmount, taxAmount, total, paymentMethod, amountPaid, change, status, createdAt]
@@ -4264,6 +4311,24 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DiscountCodeReport' }
+  /api/v1/refund-report:
+    get:
+      operationId: listRefundReport
+      tags: [reports]
+      summary: One row per refund (newest first), view_reports; outlet-scoped like the other reports
+      parameters:
+        - { name: dateFrom, in: query, description: "Inclusive refund business day (YYYY-MM-DD). 400 when unparseable.", schema: { type: string } }
+        - { name: dateTo, in: query, description: "Inclusive refund business day (YYYY-MM-DD). 400 when unparseable.", schema: { type: string } }
+        - { name: outletId, in: query, schema: { type: string } }
+        - { name: flag, in: query, description: 'any | amount_mismatch | over_total; 400 otherwise.', schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RefundReport' }
   /api/v1/oversell-report:
     get:
       operationId: listOversellReport

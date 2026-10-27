@@ -103,6 +103,7 @@ func TestRefundLinesPostgres(t *testing.T) {
 	router.With(authWrap).Get("/shifts/{id}", h.Shift)
 	router.With(authWrap).Get("/shifts/current", h.CurrentShift)
 	router.With(authWrap).Get("/reports/summary", h.ReportSummary)
+	router.With(authWrap).Get("/refund-report", h.RefundReport)
 
 	issue := func(user, role, outlet string, perms ...string) string {
 		tok, err := auth.IssueAccess(secret, time.Hour, user, role, outlet, perms)
@@ -1478,6 +1479,67 @@ func TestRefundLinesPostgres(t *testing.T) {
 		r2 := refunds(o2)
 		if r2[0].clawed+r2[1].clawed != earned || r2[0].restor+r2[1].restor != redeemed || custRow(cu2).points != 1000 {
 			t.Fatalf("o2: %+v points=%d", r2, custRow(cu2).points)
+		}
+	})
+
+	// ─────────────────────────────────────────────────────────────────────────────
+	sub("12 refund report: one row per refund with lines, flag filter, outlet scope, 400s", func(t *testing.T) {
+		o, other := newOutlet(), newOutlet()
+		pA, pB := newProduct(o, 30000), newProduct(o, 70000)
+		pC := newProduct(other, 50000)
+		oid := sell(o, saleOpt{items: []map[string]any{line(pA, 1, 30000), line(pB, 1, 70000)}})
+		claim := func(p map[string]any, amount int) map[string]any { p["refundAmount"] = amount; return p }
+		wantOK("R1", rf(o, rp(oid, [2]int{0, 1}), ""))
+		wantOK("R2 over claim", rf(o, claim(rp(oid, [2]int{1, 1}), 90000), ""))
+		oid2 := sell(other, saleOpt{items: []map[string]any{line(pC, 1, 50000)}})
+		wantOK("other outlet refund", rf(other, rp(oid2, [2]int{0, 1}), ""))
+
+		report := func(token, q string) (sum map[string]any, rows []map[string]any, total float64) {
+			cur.Helper()
+			code, raw := call("GET", "/refund-report"+q, token, nil)
+			var out struct {
+				Summary map[string]any          `json:"summary"`
+				Data    []map[string]any        `json:"data"`
+				Meta    struct{ Total float64 } `json:"meta"`
+			}
+			if code != 200 || json.Unmarshal(raw, &out) != nil {
+				cur.Fatalf("GET /refund-report%s: %d %s", q, code, raw)
+			}
+			return out.Summary, out.Data, out.Meta.Total
+		}
+		sum, rows, total := report(adminAll, "?outletId="+o.id)
+		if total != 2 || len(rows) != 2 || sum["count"] != float64(2) || sum["totalAmount"] != float64(100000) || sum["flaggedCount"] != float64(1) {
+			t.Fatalf("outlet report: total=%v rows=%d sum=%v", total, len(rows), sum)
+		}
+		// newest first: R2 (capped 70000 of a 90000 claim, 1 line) then R1
+		r2, r1 := rows[0], rows[1]
+		items2, _ := r2["items"].([]any)
+		if r2["seq"] != float64(2) || r2["amount"] != float64(70000) || r2["claimedAmount"] != float64(90000) || r2["amountWarning"] != "over_total" ||
+			r2["orderId"] != oid || r2["outletName"] == "" || r2["cashierName"] == "" || len(items2) != 1 ||
+			items2[0].(map[string]any)["quantity"] != float64(1) || r1["seq"] != float64(1) {
+			t.Fatalf("report rows: %v", rows)
+		}
+		if _, f, ft := report(adminAll, "?outletId="+o.id+"&flag=over_total"); ft != 1 || len(f) != 1 || f[0]["seq"] != float64(2) {
+			t.Fatalf("flag filter over_total: %d rows", len(f))
+		}
+		if _, f, _ := report(adminAll, "?outletId="+o.id+"&flag=amount_mismatch"); len(f) != 0 {
+			t.Fatalf("flag filter amount_mismatch: %d rows", len(f))
+		}
+		if _, p1, pt := report(adminAll, "?outletId="+o.id+"&limit=1&page=2"); pt != 2 || len(p1) != 1 || p1[0]["seq"] != float64(1) {
+			t.Fatalf("paging: total=%v rows=%v", pt, p1)
+		}
+		if _, _, dt := report(adminAll, "?outletId="+o.id+"&dateFrom=2001-01-01&dateTo=2001-01-02"); dt != 0 {
+			t.Fatalf("date filter should exclude: %v", dt)
+		}
+		// a cashier of the other outlet only ever sees their own outlet, even asking for another
+		_, mine, mt := report(other.tok, "?outletId="+o.id)
+		if mt != 1 || len(mine) != 1 || mine[0]["outletId"] != other.id {
+			t.Fatalf("scope clamp leaked: total=%v rows=%v", mt, mine)
+		}
+		for _, q := range []string{"?flag=bogus", "?dateFrom=nope"} {
+			if code, _ := call("GET", "/refund-report"+q, adminAll, nil); code != 400 {
+				t.Fatalf("%s should be 400, got %d", q, code)
+			}
 		}
 	})
 

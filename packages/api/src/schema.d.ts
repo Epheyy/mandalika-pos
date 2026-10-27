@@ -754,6 +754,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/refund-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One row per refund (newest first), view_reports; outlet-scoped like the other reports */
+        get: operations["listRefundReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/oversell-report": {
         parameters: {
             query?: never;
@@ -4282,6 +4299,64 @@ export interface components {
             refundBusinessDate?: string | null;
             items: components["schemas"]["OrderRefundItem"][];
         };
+        RefundReportItem: {
+            /** Format: uuid */
+            orderItemId: string;
+            lineNo?: number | null;
+            productName: string;
+            variantSize: string;
+            quantity: number;
+            /** Format: double */
+            amount: number;
+        };
+        RefundReportRow: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            orderId: string;
+            orderNumber: string;
+            /** Format: uuid */
+            outletId: string;
+            outletName: string;
+            /** @description Cashier of the sale. */
+            cashierName: string;
+            /** @description Refund ke-N of the order. */
+            seq: number;
+            /** @enum {string} */
+            scope: "full" | "partial" | "legacy_full";
+            /**
+             * Format: double
+             * @description Amount of record (capped, D-49).
+             */
+            amount: number;
+            /** Format: double */
+            computedAmount: number;
+            /** Format: double */
+            claimedAmount?: number | null;
+            /** @description amount_mismatch or over_total. */
+            amountWarning?: string | null;
+            paymentMethod: string;
+            reason: string;
+            reasonCode?: string | null;
+            refundedByName?: string | null;
+            /** Format: date-time */
+            refundedAt: string;
+            /** Format: date */
+            refundBusinessDate?: string | null;
+            items: components["schemas"]["RefundReportItem"][];
+        };
+        RefundReportSummary: {
+            count: number;
+            /** Format: double */
+            totalAmount: number;
+            /** @description Refunds with an amount_mismatch or over_total flag. */
+            flaggedCount: number;
+        };
+        RefundReport: {
+            summary: components["schemas"]["RefundReportSummary"];
+            data: components["schemas"]["RefundReportRow"][];
+            meta: components["schemas"]["Meta"];
+        };
         Order: {
             /** Format: uuid */
             id: string;
@@ -7597,6 +7672,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiscountCodeReport"];
+                };
+            };
+        };
+    };
+    listRefundReport: {
+        parameters: {
+            query?: {
+                /** @description Inclusive refund business day (YYYY-MM-DD). 400 when unparseable. */
+                dateFrom?: string;
+                /** @description Inclusive refund business day (YYYY-MM-DD). 400 when unparseable. */
+                dateTo?: string;
+                outletId?: string;
+                /** @description any | amount_mismatch | over_total; 400 otherwise. */
+                flag?: string;
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundReport"];
                 };
             };
         };
