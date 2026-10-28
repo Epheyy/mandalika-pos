@@ -134,6 +134,18 @@
       "source": "apps/pos/tests/offline-return/main.tsx"
     },
     {
+      "id": "POS-REFUND-LOCAL-PARTIAL",
+      "finding": "C4b",
+      "description": "Per-line offline sale: one unit refunded by uuid, second refund blocked while queued, synced as a partial (Sebagian direfund, sisa Rp 250.000), then the remainder refunded to Sudah direfund",
+      "source": "apps/pos/tests/offline-return/main.tsx"
+    },
+    {
+      "id": "POS-REFUND-GROUP-GUEST",
+      "finding": "C4b",
+      "description": "Guest sale with a bundle group and giveaway bag: one group box selects both members without a stepper, the bag has no checkbox, and the group refunds together",
+      "source": "apps/pos/tests/offline-return/main.tsx"
+    },
+    {
       "id": "HOOK-01",
       "finding": "A31",
       "description": "01 B success then A success",

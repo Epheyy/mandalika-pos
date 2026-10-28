@@ -322,11 +322,14 @@ test('POS-OFFLINE-RETURN a sale made offline is found after a reload, reprinted 
 
   // Refund the unsynced sale: it queues by uuid with an empty server id.
   await row.getByRole('button', { name: 'Refund Transaksi Ini', exact: true }).click()
-  await page.getByLabel('Alasan Refund *').fill('salah beli')
-  await page.getByRole('button', { name: 'Konfirmasi Refund', exact: true }).click()
+  await expect(page.getByText('Transaksi lama: refund seluruhnya')).toBeVisible()
+  await page.getByRole('button', { name: 'Lainnya', exact: true }).click()
+  await page.getByLabel('Tulis alasan').fill('salah beli')
+  await page.getByRole('button', { name: /Konfirmasi Refund/ }).click()
   await expect.poll(async () => (await current()).outboxRefunds.length).toBe(1)
   const queued = await current()
   expect(queued.outboxRefunds[0]).toMatchObject({ orderId: '', reason: 'salah beli' })
+  expect(queued.outboxRefunds[0].items).toBeUndefined()
   expect(typeof queued.outboxRefunds[0].saleOrderUuid).toBe('string')
   expect(queued).toMatchObject({ pending: 2, outboxOrders: 1 })
 
@@ -356,6 +359,112 @@ test('POS-OFFLINE-RETURN a sale made offline is found after a reload, reprinted 
   await evidence(info, { afterReload, printed, queued, synced })
 })
 
+test('POS-REFUND-LOCAL-PARTIAL a per-line sale made offline is part-refunded by uuid, blocked meanwhile, synced, then the remainder is refunded', async ({ page }, info) => {
+  await page.goto(`${POS}/tests/offline-return/`)
+  const current = async () => JSON.parse(await page.getByLabel('Offline return evidence').innerText())
+  const panel = page.getByTestId('local-receipts')
+  const open = async () => { await page.getByRole('button', { name: 'Buka Struk di tablet ini', exact: true }).click() }
+
+  await page.getByRole('button', { name: 'Jual offline per baris (simulasi)', exact: true }).click()
+  await expect.poll(async () => (await current()).pending).toBe(1)
+  await page.reload()
+  expect(await current()).toMatchObject({ net: false, pending: 1, outboxOrders: 1 })
+
+  // Part refund: one unit of the first line (net 100000 of 3 x 100000).
+  await open()
+  const row = panel.getByTestId('local-receipt-row')
+  await expect(row).toContainText('HAR-0002')
+  await row.getByRole('button', { name: 'Refund Transaksi Ini', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Refund Order' })).toBeVisible()
+  await page.getByRole('button', { name: /^Tambah Mandalika Oud/ }).click()
+  await expect(page.getByTestId('refund-amount')).toHaveText(/Rp\s*100\.000/)
+  await page.getByRole('button', { name: 'Rusak/cacat', exact: true }).click()
+  await page.getByRole('button', { name: /Konfirmasi Refund/ }).click()
+  await expect.poll(async () => (await current()).outboxRefunds.length).toBe(1)
+  const queued = await current()
+  expect(queued.outboxRefunds[0]).toMatchObject({
+    orderId: '', reasonCode: 'rusak_cacat', refundAmount: 100000, items: [{ lineNo: 0, quantity: 1 }],
+  })
+  expect(typeof queued.outboxRefunds[0].saleOrderUuid).toBe('string')
+
+  // A second refund is blocked while the first waits on this tablet.
+  await open()
+  await expect(panel.getByTestId('local-receipt-row')).toContainText('Refund tersimpan di tablet')
+  await expect(panel.getByRole('button', { name: 'Refund Transaksi Ini', exact: true })).toHaveCount(0)
+  await panel.getByRole('button', { name: 'Tutup', exact: true }).click()
+
+  // Online: sale first, then the part refund.
+  await page.getByRole('button', { name: 'Sambungkan jaringan', exact: true }).click()
+  await page.getByRole('button', { name: 'Kirim sekarang', exact: true }).click()
+  await expect.poll(async () => (await current()).pending).toBe(0)
+  const afterPartial = await current()
+  expect(afterPartial.batches).toEqual([['order'], ['refund']])
+  expect(afterPartial.serverStatuses).toEqual(['partially_refunded'])
+  expect(afterPartial.serverRefunds[0]).toMatchObject({ state: 'partial', refundAmount: 100000, items: [{ lineNo: 0, quantity: 1 }] })
+
+  await open()
+  await expect(row).toContainText(/Sebagian direfund · sisa Rp\s*250\.000/)
+  const again = row.getByRole('button', { name: 'Refund Transaksi Ini', exact: true })
+  await expect(again).toBeEnabled()
+
+  // Refund the rest: "Pilih semua" settles the remainder exactly.
+  await again.click()
+  await page.getByRole('button', { name: 'Pilih semua', exact: true }).click()
+  await expect(page.getByTestId('refund-amount')).toHaveText(/Rp\s*250\.000/)
+  await page.getByRole('button', { name: 'Rusak/cacat', exact: true }).click()
+  await page.getByRole('button', { name: /Konfirmasi Refund/ }).click()
+  await expect.poll(async () => (await current()).outboxRefunds.length).toBe(1)
+  await page.getByRole('button', { name: 'Kirim sekarang', exact: true }).click()
+  await expect.poll(async () => (await current()).pending).toBe(0)
+  const final = await current()
+  expect(final.serverStatuses).toEqual(['refunded'])
+  expect(final.serverRefunds).toHaveLength(2)
+  expect(final.serverRefunds[1]).toMatchObject({ state: 'full', refundAmount: 250000 })
+
+  await open()
+  await expect(panel.getByTestId('local-receipt-row')).toContainText('Sudah direfund')
+  await expect(panel.getByRole('button', { name: 'Refund Transaksi Ini', exact: true })).toHaveCount(0)
+  await evidence(info, { queued, afterPartial, final })
+})
+
+test('POS-REFUND-GROUP-GUEST a guest sale with a bundle group and a giveaway bag refunds the group together and never the bag', async ({ page }, info) => {
+  await page.goto(`${POS}/tests/offline-return/`)
+  const current = async () => JSON.parse(await page.getByLabel('Offline return evidence').innerText())
+  await page.getByRole('button', { name: 'Jual offline paket + tas (simulasi)', exact: true }).click()
+  await expect.poll(async () => (await current()).pending).toBe(1)
+
+  await page.getByRole('button', { name: 'Buka Struk di tablet ini', exact: true }).click()
+  const panel = page.getByTestId('local-receipts')
+  await panel.getByTestId('local-receipt-row').getByRole('button', { name: 'Refund Transaksi Ini', exact: true }).click()
+
+  // One group box; the bag is listed but has no checkbox.
+  await expect(page.getByTestId('refund-group')).toHaveCount(1)
+  await expect(page.getByTestId('refund-group').getByRole('checkbox')).toHaveCount(2)
+  await expect(page.getByText(/Tas hadiah tidak ikut direfund/)).toBeVisible()
+  await expect(page.getByRole('checkbox', { name: /Tas/ })).toHaveCount(0)
+
+  // Picking one member picks both and shows no stepper.
+  await page.getByRole('checkbox', { name: /^Pilih Paket Oud/ }).click()
+  await expect(page.getByRole('checkbox', { name: /^Pilih Paket Oud/ })).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByRole('checkbox', { name: /^Pilih Paket Musk/ })).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByRole('button', { name: /^(Tambah|Kurangi) / })).toHaveCount(0)
+  await expect(page.getByTestId('refund-amount')).toHaveText(/Rp\s*100\.000/)
+
+  await page.getByRole('button', { name: 'Berubah pikiran', exact: true }).click()
+  await page.getByRole('button', { name: /Konfirmasi Refund/ }).click()
+  await expect.poll(async () => (await current()).outboxRefunds.length).toBe(1)
+  const queued = await current()
+  expect(queued.outboxRefunds[0]).toMatchObject({ orderId: '', refundAmount: 100000 })
+  expect(queued.outboxRefunds[0].items).toEqual([{ lineNo: 0, quantity: 1 }, { lineNo: 1, quantity: 1 }])
+
+  await page.getByRole('button', { name: 'Sambungkan jaringan', exact: true }).click()
+  await page.getByRole('button', { name: 'Kirim sekarang', exact: true }).click()
+  await expect.poll(async () => (await current()).pending).toBe(0)
+  const synced = await current()
+  expect(synced.batches).toEqual([['order'], ['refund']])
+  expect(synced.serverStatuses).toEqual(['refunded'])
+  await evidence(info, { queued, synced })
+})
 
 test('POS-REQUISITION cashier raises, submits with a stable key, tracks and cancels a requisition and never reaches the warehouse actions', async ({ page }, info) => {
   const result = await posRequisition(page as ScenarioPage)

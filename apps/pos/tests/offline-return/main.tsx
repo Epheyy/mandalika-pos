@@ -106,6 +106,24 @@ function Harness() {
     })
     update()
   }
+  // C4b: a guest sale (no customer) with a promo bundle group (two lines) and the C3 giveaway bag as an extra snapshot line.
+  const sellGroup = async () => {
+    const items = [
+      { productId: 'p3', productName: 'Paket Oud', variantSize: '30ml', price: 60000, quantity: 1, subtotal: 60000, netAmount: 60000, refundGroup: 'bundle:b1:1' },
+      { productId: 'p4', productName: 'Paket Musk', variantSize: '30ml', price: 40000, quantity: 1, subtotal: 40000, netAmount: 40000, refundGroup: 'bundle:b1:1' },
+    ]
+    const bag = { productId: 'bag', productName: 'Tas Hadiah', variantSize: '-', price: 0, quantity: 1, subtotal: 0 }
+    const quote = buildReceiptQuote({
+      cart: [...items, bag],
+      derived: { subtotal: 100000, discountAmount: 0, surchargeAmount: 0, taxAmount: 0, redeemAmount: 0, total: 100000 },
+      tender: { amountPaid: 100000, change: 0 }, refVersion: 1,
+    })
+    await engine.enqueue('order', {
+      orderNumber: 'HAR-0003', paymentMethod: 'cash', amountPaid: 100000, items, shiftId: SHIFT_ID,
+      quotedTotal: quote.quotedTotal, receiptSnapshot: quote.receiptSnapshot,
+    })
+    update()
+  }
   const connect = () => { localStorage.setItem(NET_KEY, 'on'); update() }
   const flush = async () => { await engine.flushNow(); await engine.idle(); update() }
   const reprint = (r: LocalReceipt) => {
@@ -142,6 +160,7 @@ function Harness() {
     <p>Synthetic API and memory-only printer. No live database or native durability claim.</p>
     <button onClick={() => { void sell() }}>Jual offline (simulasi)</button>
     <button onClick={() => { void sellLines() }}>Jual offline per baris (simulasi)</button>
+    <button onClick={() => { void sellGroup() }}>Jual offline paket + tas (simulasi)</button>
     <button onClick={() => setOpen(true)}>Buka Struk di tablet ini</button>
     <button onClick={connect}>Sambungkan jaringan</button>
     <button onClick={() => { void flush() }}>Kirim sekarang</button>
