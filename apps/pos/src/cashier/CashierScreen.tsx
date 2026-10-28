@@ -55,7 +55,7 @@ import { ShiftRecapPanel } from './ShiftRecapPanel'
 import { SyncStatus } from '../components/SyncStatus'
 import { useParkedBanner } from '../hooks/useParkedBanner'
 import { useOtaUpdate } from '../hooks/useOtaUpdate'
-import { otaBlockReason, otaGate, type OtaGateInput } from '../lib/otaApplyGate'
+import { OTA_BLOCK_COPY, otaBlockReason, otaGate, type OtaGateInput } from '../lib/otaApplyGate'
 import { parkedSaleMessage } from '../lib/parkedSale'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { reserveOrderNo } from './orderRef'
@@ -336,13 +336,18 @@ export default function CashierScreen() {
     refundActive: !!refundOrder || !!refundSale || isRefunding,
   }
   // Display (render): state-derived only. Tap (event handler): also the live gate refs.
-  const otaRenderBlock = otaBlockReason({ ...otaGateBase, writesInFlight: isSavingCustomer })
+  const otaStateWrites = isSavingCustomer || shift.isOpeningShift || shift.isClosingShift
+  const otaRenderBlock = otaBlockReason({ ...otaGateBase, writesInFlight: otaStateWrites })
   // The tap reads the gate through a ref set in a layout effect: it sees the latest render AND the live gate refs.
   const otaGateRef = useRef<() => OtaGateInput>(() => ({ ...otaGateBase, writesInFlight: true }))
   useLayoutEffect(() => {
-    otaGateRef.current = () => otaGate(otaGateBase, isSavingCustomer, [saleGate, refundGate, customerGate, receiveGate])
+    otaGateRef.current = () => otaGate(otaGateBase, otaStateWrites, [saleGate, refundGate, customerGate, receiveGate])
   })
-  const handleOtaRestart = () => { void ota.controller.restart(() => otaGateRef.current()) }
+  const handleOtaRestart = () => {
+    void ota.controller.restart(() => otaGateRef.current()).then((r) => {
+      if (r === 'blocked') showToast(OTA_BLOCK_COPY[otaBlockReason(otaGateRef.current()) ?? 'saving'])
+    })
+  }
 
   const enabledMethods = settings.paymentMethods.filter((m) => m.isEnabled)
   const defaultMethod = enabledMethods[0]?.id ?? 'cash'

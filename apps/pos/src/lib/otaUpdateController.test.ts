@@ -65,7 +65,7 @@ describe('OTA update controller (C5)', () => {
     expect(t.c.getSnapshot().applying).toBe(true)
     expect(await t.c.restart(() => idle)).toBe('busy')
     release()
-    expect(await first).toBe('applied')
+    expect(await first).toBe('not-reloaded')
     expect(t.reload).toHaveBeenCalledTimes(1)
   })
   it('surfaces a failed reload and allows a retry', async () => {

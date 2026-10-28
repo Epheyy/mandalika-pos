@@ -35,11 +35,11 @@ export function otaBlockReason(f: OtaGateInput): OtaBlockReason | null {
 
 export const otaCanApply = (f: OtaGateInput): boolean => otaBlockReason(f) === null
 
-/** The tap-time gate: the render-derived flags plus the live single-flight refs (a sale started after the last render). */
+/** The tap-time gate: the render-derived flags (customer/shift saves are React state) plus the live single-flight refs (a sale started after the last render). */
 export function otaGate(
   base: Omit<OtaGateInput, 'writesInFlight'>,
-  isSavingCustomer: boolean,
+  hasStateWrite: boolean,
   gates: ReadonlyArray<{ current: { isBusy(): boolean } }>,
 ): OtaGateInput {
-  return { ...base, writesInFlight: isSavingCustomer || gates.some((g) => g.current.isBusy()) }
+  return { ...base, writesInFlight: hasStateWrite || gates.some((g) => g.current.isBusy()) }
 }

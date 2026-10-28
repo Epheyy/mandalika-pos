@@ -11,7 +11,7 @@ export interface OtaUpdateState {
   error: string | null
 }
 
-export type OtaRestartResult = 'none' | 'busy' | 'blocked' | 'failed' | 'applied'
+export type OtaRestartResult = 'none' | 'busy' | 'blocked' | 'failed' | 'not-reloaded'
 
 export const OTA_RESTART_ERROR = 'Gagal memulai ulang. Coba lagi.'
 
@@ -75,7 +75,7 @@ export function createOtaUpdateController(deps: { watch: OtaWatch; reload: () =>
         await deps.reload()
         // Reaching here means the WebView was not replaced (web, or the plugin declined): not applied.
         set({ ...state, applying: false })
-        return 'applied'
+        return 'not-reloaded'
       } catch {
         set({ ...state, applying: false, error: OTA_RESTART_ERROR })
         return 'failed'
