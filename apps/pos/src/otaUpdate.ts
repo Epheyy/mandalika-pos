@@ -12,9 +12,14 @@
 // condition is persisted natively but cleared on every launch (load() and onDestroy run checkCancelDelay
 // KILLED), so it is re-armed from JS on every launch, and again on each `updateAvailable`. reload() does not
 // look at delay conditions, so the "Mulai ulang sekarang" path still applies the queued bundle.
-// Consequence (verified in the 8.50.2 source): installNext on background is the ONLY automatic apply, and a
-// cold start applies nothing, so a queued bundle is applied only by the button. The prompt reappears on every
-// launch while one is queued. (directUpdateFinish also ignores delays; unused here: no `directUpdate`.)
+// Consequence (verified in the 8.50.2 source): installNext on background is the ONLY automatic apply and a
+// cold start applies nothing, so with the delay armed a queued bundle would wait for the button forever.
+// startupOta() therefore applies it ONCE on a cold start, from boot() before storage hydrate and before any
+// UI or cart exists (the app was fully closed): an update applies on the next launch, or when the cashier
+// taps the button, never on backgrounding. Guards: nothing usable queued, the queued id is the running one,
+// the current bundle is not yet confirmed (status != success), or a persistent per-bundle marker says an
+// apply was already tried (a failed native reload re-loads the WebView and would otherwise loop).
+// (directUpdateFinish also ignores delays; unused here: no `directUpdate`.)
 
 import { Capacitor } from '@capacitor/core'
 
@@ -23,6 +28,54 @@ export interface OtaPending {
 }
 
 export type OtaWatch = (onReady: (pending: OtaPending) => void) => Promise<() => void>
+
+interface BundleView {
+  id: string
+  status?: string
+}
+
+export type ColdApplyDecision = 'apply' | 'none' | 'builtin' | 'unusable' | 'same' | 'current-unconfirmed' | 'already-tried'
+
+/** Pure: may the queued bundle be applied now, at a cold start? */
+export function decideColdApply(o: { next: BundleView | null | undefined; current: BundleView | null | undefined; triedId: string | null }): ColdApplyDecision {
+  const { next, current, triedId } = o
+  if (!next?.id) return 'none'
+  if (next.id === BUILTIN_BUNDLE_ID) return 'builtin'
+  if (next.status !== 'pending' && next.status !== 'success') return 'unusable'
+  if (!current?.id) return 'current-unconfirmed'
+  if (next.id === current.id) return 'same'
+  // A freshly applied bundle is `pending` until notifyAppReady; reloading away from it is not ours to decide.
+  if (current.id !== BUILTIN_BUNDLE_ID && current.status !== 'success') return 'current-unconfirmed'
+  if (triedId === next.id) return 'already-tried'
+  return 'apply'
+}
+
+const TRIED_KEY = 'mandalika.pos.otaColdApplyTried'
+const STEP_TIMEOUT_MS = 1500
+const RELOAD_WAIT_MS = 4000
+const RELOAD_SETTLE_MS = 2000
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+/** Bound a bridge call: boot must never hang on the updater. */
+const bounded = <T>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
+  Promise.race([p.catch(() => fallback), sleep(ms).then(() => fallback)])
+
+/** The bundle id a cold apply was already attempted for. `undefined` = storage unavailable (then never apply). */
+function readTried(): string | null | undefined {
+  try {
+    return globalThis.localStorage.getItem(TRIED_KEY)
+  } catch {
+    return undefined
+  }
+}
+function writeTried(id: string): boolean {
+  try {
+    globalThis.localStorage.setItem(TRIED_KEY, id)
+    return globalThis.localStorage.getItem(TRIED_KEY) === id
+  } catch {
+    return false
+  }
+}
 
 const BUILTIN_BUNDLE_ID = 'builtin'
 const noop = () => {}
@@ -35,6 +88,30 @@ export async function armOtaKillDelay(): Promise<void> {
     await CapacitorUpdater.setMultiDelay({ delayConditions: [{ kind: 'kill' }] })
   } catch {
     /* plugin absent or older shell: the old background-apply rule stays */
+  }
+}
+
+/**
+ * Boot step, first thing in boot(): arm the kill delay, then apply a bundle queued by an earlier session once.
+ * Always resolves (bounded), never throws, no-op off-device. If it requests a reload it waits for the WebView
+ * to be replaced instead of continuing into storage hydrate; if the reload does not happen, boot continues.
+ */
+export async function startupOta(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return
+  await bounded(armOtaKillDelay(), STEP_TIMEOUT_MS, undefined)
+  try {
+    const { CapacitorUpdater } = await import('@capgo/capacitor-updater')
+    const probe = Promise.all([CapacitorUpdater.getNextBundle(), CapacitorUpdater.current()]).then(([next, cur]) => ({ next, current: cur.bundle }))
+    const seen = await bounded(probe, STEP_TIMEOUT_MS, null)
+    const triedId = readTried()
+    if (!seen || triedId === undefined) return
+    if (decideColdApply({ next: seen.next, current: seen.current, triedId }) !== 'apply') return
+    // Marker BEFORE the reload: if the native reload fails and re-enters boot(), this id is never retried.
+    if (!writeTried(seen.next!.id)) return
+    const flow = CapacitorUpdater.reload().then(() => sleep(RELOAD_SETTLE_MS), () => {})
+    await Promise.race([flow, sleep(RELOAD_WAIT_MS)])
+  } catch {
+    /* the updater is unavailable or errored: boot normally */
   }
 }
 
