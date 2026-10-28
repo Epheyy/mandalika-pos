@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { components } from '@mandalika/api'
-import { aggregate } from './ShiftRecapPanel'
+import { aggregate } from './recapAggregate'
 
 type Order = components['schemas']['Order']
 

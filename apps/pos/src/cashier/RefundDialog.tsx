@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
 import { MAX_REFUND_REASON_CHARS } from '@mandalika/types'
@@ -102,20 +102,18 @@ function LinesList({ basis, sel, setSel }: { basis: Extract<RefundBasis, { kind:
   )
 }
 
-export const RefundDialog = memo(function RefundDialog({ order, cache, isProcessing, error, onConfirm, onClose }: RefundDialogProps) {
+/** Opens for an order. The body is keyed by the order, so a different order starts with no pick, reason or text
+ *  carried over from the previous refund (no state-reset effect needed). */
+export const RefundDialog = memo(function RefundDialog(props: RefundDialogProps) {
+  return props.order ? <RefundDialogBody key={props.order.id} {...props} order={props.order} /> : null
+})
+
+function RefundDialogBody({ order, cache, isProcessing, error, onConfirm, onClose }: RefundDialogProps & { order: Order }) {
   const [sel, setSel] = useState<Selection>(EMPTY_SELECTION)
   const [code, setCode] = useState<string | null>(null)
   const [text, setText] = useState('')
 
-  // A different order (or a closed dialog) starts clean: no pick, reason or text bleeds into the next refund.
-  useEffect(() => {
-    setSel(EMPTY_SELECTION)
-    setCode(null)
-    setText('')
-  }, [order?.id])
-
-  const basis = useMemo(() => (order ? buildRefundBasis(order, cache) : null), [order, cache])
-  if (!order || !basis) return null
+  const basis = useMemo(() => buildRefundBasis(order, cache), [order, cache])
 
   const reason = buildReason(code, text)
   const perLine = basis.kind === 'lines'
@@ -199,4 +197,4 @@ export const RefundDialog = memo(function RefundDialog({ order, cache, isProcess
       </div>
     </Sheet>
   )
-})
+}

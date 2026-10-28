@@ -235,6 +235,11 @@ export function refundGateProps(i: {
   }
 }
 
+/** Every id that may name this order in the tablet's refund memory (server id, sale uuid, mapped uuid). */
+export function refundOrderKeys(i: Pick<RefundAvailabilityInput, 'sale' | 'serverIdToSaleUuid'> & { order: Pick<Order, 'id'> }): string[] {
+  return [i.order.id, i.sale?.orderUuid, i.sale?.serverOrderId, i.serverIdToSaleUuid?.get(i.order.id)].filter((k): k is string => !!k)
+}
+
 export interface RefundSummary {
   seq: number
   amount: number

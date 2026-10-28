@@ -1,6 +1,6 @@
 import type { components } from '@mandalika/api'
 import { StatusBadge } from '../components/ui'
-import { REFUND_DONE, partialGateFor, refundAvailability, type RefundAvailabilityInput } from './refundView'
+import { REFUND_DONE, partialGateFor, refundAvailability, refundOrderKeys, type RefundAvailabilityInput } from './refundView'
 import type { RefundCache } from './refundSelection'
 
 type Order = components['schemas']['Order']
@@ -10,11 +10,6 @@ interface RefundActionProps extends Omit<RefundAvailabilityInput, 'partial'> {
   onRefund: (order: Order) => void
   /** C4b: units and money this tablet saw acknowledged for an order named by any of these ids. */
   refundCache?: (ids: readonly string[]) => RefundCache
-}
-
-/** Every id that may name this order in the tablet's refund memory (server id, sale uuid, mapped uuid). */
-export function refundOrderKeys(i: Pick<RefundAvailabilityInput, 'sale' | 'serverIdToSaleUuid'> & { order: Pick<Order, 'id'> }): string[] {
-  return [i.order.id, i.sale?.orderUuid, i.sale?.serverOrderId, i.serverIdToSaleUuid?.get(i.order.id)].filter((k): k is string => !!k)
 }
 
 /** "Refund Transaksi Ini" for a refundable order, or a muted line saying why it is not offered. A part-refunded
