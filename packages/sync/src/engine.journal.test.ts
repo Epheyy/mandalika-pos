@@ -5,6 +5,7 @@ import { JournalOutboxStore } from './journalOutboxStore'
 import { createFakeJournal, type FakeJournal } from './testFixtures/fakeJournal'
 import { controllableKV } from './testFixtures/controllableKV'
 import { OUTBOX_KEY } from './outbox'
+import { PARTIAL_REFUNDS_KEY } from './partialRefunds'
 
 // Phase B / T5 + T7: the engine over the journal store, and synced refunds that are durable BEFORE the
 // acked refund row is pruned (a crash between the two self-heals).
@@ -107,7 +108,8 @@ describe('synced refunds are durable before the acked refund row is pruned (T7)'
     await first.flushNow()
     await store.idle?.()
     expect(first.outbox.all().map((i) => i.status)).toEqual(['acked']) // not pruned
-    expect(first.syncedRefundOrderIds().size).toBe(0)
+    // 2.4.1: the kept acked row already counts, so the refund button does not come back even before the restart.
+    expect([...first.syncedRefundOrderIds()]).toEqual(['o1'])
     expect(fj.persisted.rows.size).toBe(1)
 
     vi.stubGlobal('navigator', { onLine: false })
@@ -256,5 +258,60 @@ describe('receipt archive over the journal store (A41)', () => {
     await again.idle()
     expect(fj2.persisted.rows.size).toBe(0)
     expect(archived(fj2)).toHaveLength(2)
+  })
+})
+
+// 2.4.0 shipped the per-line refund memory without its journal meta key: every write was refused, so the
+// dialog offered refunded units again and no acked row was ever pruned (found on a tablet, 2026-10-29).
+describe('per-line refunds over the journal store (C4b, 2.4.1)', () => {
+  const okWithIds = vi.fn(async (_m: string, _p: string, body: Body) => ({
+    data: { processed: body.items.length, version: 0, results: body.items.map((i) => ({ idempotencyKey: i.idempotencyKey, status: 'ok', orderId: `srv-${i.idempotencyKey}` })) },
+  }))
+  const saleBody = { orderNumber: 'ORD-1', paymentMethod: 'cash', quotedTotal: 450000, receiptSnapshot: { total: 450000 } }
+  const partial = { orderId: 'srv-1', reason: 'Berubah pikiran', reasonCode: 'berubah_pikiran', items: [{ lineNo: 0, quantity: 1 }], refundAmount: 225000 }
+  const rowTypes = (fj: FakeJournal) => [...fj.persisted.rows.values()].map((r) => JSON.parse(r.json).type)
+  const stored = (fj: FakeJournal) => JSON.parse(fj.persisted.meta.get(PARTIAL_REFUNDS_KEY) ?? '[]') as { orderIds: string[]; lines: { lineNo: number; qty: number }[] }[]
+
+  it('stores the memory in the journal meta, counts it, and prunes the acked rows (later sales too)', async () => {
+    const fj = createFakeJournal()
+    const { engine } = await engineOver(fj, undefined, okWithIds)
+    await engine.enqueue('refund', partial)
+    online()
+    await engine.flushNow()
+    expect(stored(fj)).toMatchObject([{ orderIds: expect.arrayContaining(['srv-1']), lines: [{ lineNo: 0, qty: 1 }] }])
+    expect(fj.persisted.rows.size).toBe(0)
+    expect(engine.partialRefundedQty(['srv-1']).get(0)).toBe(1)
+    expect(engine.syncedRefundOrderIds().has('srv-1')).toBe(false) // a partial never marks the order done
+
+    vi.stubGlobal('navigator', { onLine: false })
+    await engine.enqueue('order', saleBody)
+    online()
+    await engine.flushNow()
+    expect(fj.persisted.rows.size).toBe(0)
+  })
+
+  it('a failing memory write keeps the acked rows, still counts the refund, and a restart stores it once', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const fj = createFakeJournal()
+    const apply = fj.plugin.apply.bind(fj.plugin)
+    fj.plugin.apply = (req) =>
+      req.meta && PARTIAL_REFUNDS_KEY in req.meta ? Promise.reject(new Error('partial memory write failed (synthetic)')) : apply(req)
+    const { engine } = await engineOver(fj, undefined, okWithIds)
+    await engine.enqueue('order', saleBody)
+    await engine.enqueue('refund', partial)
+    online()
+    await engine.flushNow()
+    expect(rowTypes(fj).sort()).toEqual(['order', 'refund']) // both folds gate the prune: the rows wait
+    expect(engine.partialRefundedQty(['srv-1']).get(0)).toBe(1) // never offered again while it waits
+    expect(engine.partialRefundedAmount(['srv-1'])).toBe(225000)
+    expect(engine.queuedRefundOrderIds().size).toBe(0)
+
+    vi.stubGlobal('navigator', { onLine: false })
+    const fj2 = fj.restart() // the next bundle start: the write works again
+    const { engine: again } = await engineOver(fj2, undefined, okWithIds)
+    await again.idle()
+    expect(stored(fj2)).toHaveLength(1)
+    expect(again.partialRefundedQty(['srv-1']).get(0)).toBe(1) // stored and still queued: counted once
+    expect(again.partialRefundedAmount(['srv-1'])).toBe(225000)
   })
 })

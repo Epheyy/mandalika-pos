@@ -414,17 +414,9 @@ export class SyncEngine {
    *  refunded); `extraPartial` = the per-line refunds acked in this batch.
    *  Resolves false, never rejects, when a write failed: the caller must then keep the rows. */
   private foldAckedRefunds(extra: readonly string[] = [], extraPartial: readonly PartialRefundEntry[] = []): Promise<boolean> {
-    const ids = new Set(extra)
-    const partial = [...extraPartial]
-    for (const i of this.outbox.all()) {
-      if (i.type !== 'refund' || i.status !== 'acked') continue
-      const entry = partialRefundFromPayload(i.idempotencyKey, i.payload, i.ackedOrderId ? [i.ackedOrderId] : [], Date.now(), this.fullRefundKeys.has(i.idempotencyKey) ? 'full' : undefined)
-      if (entry) {
-        partial.push(entry)
-        continue
-      }
-      for (const id of [i.payload.orderId, i.payload.saleOrderUuid, i.ackedOrderId]) if (typeof id === 'string') ids.add(id)
-    }
+    const queued = this.ackedQueuedRefunds()
+    const ids = new Set([...extra, ...queued.wholeOrderIds])
+    const partial = [...extraPartial, ...queued.partial]
     ids.delete('')
     if (!ids.size && !partial.length) return Promise.resolve(true)
     return Promise.all([this.syncedRefunds.addMany([...ids]), this.partialRefunds.addMany(partial)]).then(
@@ -434,6 +426,31 @@ export class SyncEngine {
         return false
       },
     )
+  }
+
+  /** The acknowledged refunds still sitting in the queue (not pruned yet): per-line ones as partial-memory
+   *  entries, whole-order ones as order ids. Until a fold has stored them they exist only here, so the readers
+   *  below count them too (an acked per-line refund must never be offered again while its row waits). */
+  private ackedQueuedRefunds(): { wholeOrderIds: string[]; partial: PartialRefundEntry[] } {
+    const wholeOrderIds: string[] = []
+    const partial: PartialRefundEntry[] = []
+    for (const i of this.outbox.all()) {
+      if (i.type !== 'refund' || i.status !== 'acked') continue
+      const entry = partialRefundFromPayload(i.idempotencyKey, i.payload, i.ackedOrderId ? [i.ackedOrderId] : [], Date.now(), this.fullRefundKeys.has(i.idempotencyKey) ? 'full' : undefined)
+      if (entry) {
+        partial.push(entry)
+        continue
+      }
+      for (const id of [i.payload.orderId, i.payload.saleOrderUuid, i.ackedOrderId]) if (typeof id === 'string' && id !== '') wholeOrderIds.push(id)
+    }
+    return { wholeOrderIds, partial }
+  }
+
+  /** Stored per-line refunds plus the acked ones still queued that the store does not hold yet (one per key). */
+  private knownPartialRefunds(): PartialRefundEntry[] {
+    const stored = this.partialRefunds.entries()
+    const keys = new Set(stored.map((e) => e.refundKey))
+    return [...stored, ...this.ackedQueuedRefunds().partial.filter((e) => !keys.has(e.refundKey))]
   }
 
   /** What the archive prune must respect, read from the live outbox: the unacknowledged sales (they
@@ -1092,20 +1109,36 @@ export class SyncEngine {
 
   /** Orders whose refund this tablet saw the server acknowledge (persistent, bounded). */
   syncedRefundOrderIds(): Set<string> {
-    // A per-line refund the server reported as the last one counts as "done" too.
-    return new Set([...this.syncedRefunds.ids(), ...this.partialRefunds.fullOrderIds()])
+    // A per-line refund the server reported as the last one counts as "done" too; so does an acked refund
+    // still queued (its memory write may not have landed).
+    const queued = this.ackedQueuedRefunds()
+    return new Set([
+      ...this.syncedRefunds.ids(),
+      ...this.partialRefunds.fullOrderIds(),
+      ...queued.wholeOrderIds,
+      ...queued.partial.filter((e) => e.refundState === 'full').flatMap((e) => e.orderIds),
+    ])
   }
 
   /** C4b: units this tablet saw the server acknowledge as refunded, per sale line, for the order named by any of
-   *  `orderIds` (server id and/or the sale's client uuid). A bounded convenience cache; the server's
-   *  `refundedQty` wins whenever it is known. */
+   *  `orderIds` (server id and/or the sale's client uuid): the stored memory plus acked refunds still queued.
+   *  A bounded convenience cache; the server's `refundedQty` wins whenever it is known. */
   partialRefundedQty(orderIds: readonly string[]): Map<number, number> {
-    return this.partialRefunds.refundedQty(orderIds)
+    const ids = new Set(orderIds.filter(Boolean))
+    const out = new Map<number, number>()
+    if (!ids.size) return out
+    for (const e of this.knownPartialRefunds()) {
+      if (!e.orderIds.some((id) => ids.has(id))) continue
+      for (const l of e.lines) out.set(l.lineNo, (out.get(l.lineNo) ?? 0) + l.qty)
+    }
+    return out
   }
 
   /** C4b: the amount paid out across those acknowledged per-line refunds (display only). */
   partialRefundedAmount(orderIds: readonly string[]): number {
-    return this.partialRefunds.refundedAmount(orderIds)
+    const ids = new Set(orderIds.filter(Boolean))
+    if (!ids.size) return 0
+    return this.knownPartialRefunds().filter((e) => e.orderIds.some((id) => ids.has(id))).reduce((s, e) => s + e.amount, 0)
   }
 
   /** Orders that already have an unacknowledged refund (incl. parked): no second refund may start. */
