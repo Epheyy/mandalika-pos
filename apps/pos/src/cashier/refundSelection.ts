@@ -60,6 +60,10 @@ export interface RefundCache {
   amount?: number
 }
 
+/** This tablet saw an earlier per-line refund of the order. */
+export const cacheHasRefunds = (c: RefundCache | undefined): boolean =>
+  !!c && ((c.amount ?? 0) > 0 || [...(c.qtyByLine?.values() ?? [])].some((q) => q > 0))
+
 /** Build the dialog's basis from an order. Whole-order only when ANY line has no stored net/position (a sale
  *  from before per-line refunds, or a local receipt without line data): D-33. */
 export function buildRefundBasis(order: Order, cache: RefundCache = {}): RefundBasis {
@@ -158,8 +162,10 @@ export interface RefundAmount {
   settlesRemainder: boolean
 }
 
-/** What to pay the customer for this selection: each line at its net share (`cum(prior+k) - cum(prior)`), and when
- *  the refund returns the last remaining unit of the order, `total - paid so far` so the refunds add up exactly. */
+/** What to pay the customer for this selection: each line at its net share (`cum(prior+k) - cum(prior)`). When the
+ *  refund returns the last remaining unit of the order it pays `total - paid so far` so the refunds add up exactly,
+ *  but NEVER more than the sum of the picked units' own shares: "paid so far" is the larger of the server row and this
+ *  tablet's cache (not their union), so it can understate earlier payouts and must not be allowed to overpay. */
 export function refundAmountFor(basis: Extract<RefundBasis, { kind: 'lines' }>, sel: Selection): RefundAmount {
   const items = selectionToItems(basis.lines, sel)
   let sum = 0
@@ -169,7 +175,7 @@ export function refundAmountFor(basis: Extract<RefundBasis, { kind: 'lines' }>, 
   }
   const picked = new Map(items.map((i) => [i.lineNo, i.quantity]))
   const settles = items.length > 0 && basis.lines.every((l) => l.remainingQty - (picked.get(l.lineNo) ?? 0) === 0)
-  return { amount: settles ? Math.max(0, basis.total - basis.priorAmount) : sum, settlesRemainder: settles }
+  return { amount: settles ? Math.min(sum, Math.max(0, basis.total - basis.priorAmount)) : sum, settlesRemainder: settles }
 }
 
 /** Sold - refunded for the whole order, for the "Sebagian direfund" chip. */

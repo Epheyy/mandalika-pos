@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { components } from '@mandalika/api'
 import {
-  REFUND_CHANGED, REFUND_DONE, REFUND_QUEUED, partialGateFor, planRefundSubmit, prepareRefund, refundAvailability, refundDetail, refundPartialNote,
+  REFUND_CHANGED, REFUND_DONE, REFUND_QUEUED, REFUND_USE_HISTORY, partialGateFor, planRefundSubmit, prepareRefund, refundAvailability, refundDetail, refundPartialNote,
   type RefundAvailabilityInput, type RefundPayload,
 } from './refundView'
 
@@ -163,5 +163,25 @@ describe('refundSummaries (history shows which lines came back)', () => {
   it('is empty for an order without refunds', async () => {
     const { refundSummaries } = await import('./refundView')
     expect(refundSummaries(order([line(0, 1, 10)]))).toEqual([])
+  })
+})
+
+describe('C4b review fixes: a struk without line data that this tablet already part-refunded', () => {
+  const noLines = order([line(undefined, 1, undefined)])
+  const cache = { qtyByLine: new Map([[0, 1]]), amount: 50000 }
+
+  it('blocks a whole-order refund (it would pay the part already refunded twice) and points to Riwayat', () => {
+    const partial = partialGateFor(noLines, cache)
+    expect(partial).toEqual({ any: true, exhausted: false, remaining: null, wholeBlocked: true })
+    expect(refundAvailability(gate(noLines, { partial }))).toEqual({ kind: 'blocked', reason: REFUND_USE_HISTORY })
+  })
+
+  it('planRefundSubmit refuses it too, even if the button were somehow reachable', () => {
+    const plan = planRefundSubmit({ refundOrder: noLines, orderId: 'o1', reason: 'x', reasonCode: 'lainnya', cache, canRefund: true, shiftId: 'sh' })
+    expect(plan).toEqual({ kind: 'error', message: REFUND_USE_HISTORY })
+  })
+
+  it('without any earlier per-line refund the whole-order refund stays available', () => {
+    expect(refundAvailability(gate(noLines, { partial: partialGateFor(noLines, {}) }))).toEqual({ kind: 'allowed' })
   })
 })

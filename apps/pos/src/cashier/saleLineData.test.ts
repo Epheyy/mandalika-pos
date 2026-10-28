@@ -156,3 +156,12 @@ describe('parity with the Go allocator scenarios', () => {
     expect(comps.map((c) => c.eligible)).toEqual([null, [0], null])
   })
 })
+
+describe('withSaleLineData never fails the sale', () => {
+  it('returns null (whole-order refund only) instead of throwing on a malformed promotion config', () => {
+    const bad = promo('b1', 'bundle', { bundleConfig: { slots: [{ quantity: 1 } as never], bundlePrice: 1 } })
+    const cart = [line('a', 1000), line('b', 0, 1, { isReward: true, rewardPromotionId: 'b1' })]
+    expect(() => withSaleLineData(base({ cart, appliedPromotions: [bad], total: 1000 }))).not.toThrow()
+    expect(withSaleLineData(base({ cart, appliedPromotions: [bad], total: 1000 }))).toBeNull()
+  })
+})

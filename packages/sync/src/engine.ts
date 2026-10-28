@@ -303,6 +303,8 @@ export class SyncEngine {
   private readonly syncedRefunds: SyncedRefunds
   /** C4b: acknowledged per-line refunds (a partial refund is NOT a whole-order "done" marker). */
   private readonly partialRefunds: PartialRefunds
+  /** Refund keys the server acked as leaving the order fully refunded: the outbox row cannot carry that (guarded file), so a retried fold reads it here. */
+  private readonly fullRefundKeys = new Set<string>()
   private refundMemory: Promise<boolean> = Promise.resolve(true)
   /** Local receipts of acknowledged sales (A41); follows the outbox store like the refund memory. */
   private readonly receiptArchive: ReceiptArchive
@@ -414,7 +416,7 @@ export class SyncEngine {
     const partial = [...extraPartial]
     for (const i of this.outbox.all()) {
       if (i.type !== 'refund' || i.status !== 'acked') continue
-      const entry = partialRefundFromPayload(i.idempotencyKey, i.payload, i.ackedOrderId ? [i.ackedOrderId] : [])
+      const entry = partialRefundFromPayload(i.idempotencyKey, i.payload, i.ackedOrderId ? [i.ackedOrderId] : [], Date.now(), this.fullRefundKeys.has(i.idempotencyKey))
       if (entry) {
         partial.push(entry)
         continue
@@ -1088,7 +1090,8 @@ export class SyncEngine {
 
   /** Orders whose refund this tablet saw the server acknowledge (persistent, bounded). */
   syncedRefundOrderIds(): Set<string> {
-    return this.syncedRefunds.ids()
+    // A per-line refund the server reported as the last one counts as "done" too.
+    return new Set([...this.syncedRefunds.ids(), ...this.partialRefunds.fullOrderIds()])
   }
 
   /** C4b: units this tablet saw the server acknowledge as refunded, per sale line, for the order named by any of
@@ -1133,7 +1136,7 @@ export class SyncEngine {
   localReceipts(): LocalReceipt[] {
     const outlet = this.actorProvider?.()?.outletId
     const inScope = (o: string | undefined) => !outlet || !o || o === outlet
-    const refunded = this.syncedRefunds.ids()
+    const refunded = this.syncedRefundOrderIds()
     const queuedRefunds = new Set<string>()
     for (const r of this.queuedRefunds()) {
       if (r.orderId) queuedRefunds.add(r.orderId)
@@ -1627,10 +1630,14 @@ export class SyncEngine {
         if (type === 'refund') {
           // The acked refund leaves the outbox: remember its order so a stale history row cannot offer it again.
           const acked = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)
-          const partial = acked ? partialRefundFromPayload(res.idempotencyKey, acked.payload, res.orderId ? [res.orderId] : []) : null
+          const full = res.refundState === 'full'
+          if (full) this.fullRefundKeys.add(res.idempotencyKey)
+          const partial = acked ? partialRefundFromPayload(res.idempotencyKey, acked.payload, res.orderId ? [res.orderId] : [], Date.now(), full) : null
           if (partial) ackedPartialRefunds.push(partial)
-          // A per-line refund marks the order done only when the server says it left nothing to refund.
-          if (!partial || res.refundState === 'full') {
+          // The server's word decides: 'full' marks the order done, 'partial' never does. Only an ack without
+          // refundState (a whole-order refund, or an older server) falls back to the payload shape.
+          const markDone = res.refundState ? full : !partial
+          if (markDone) {
             for (const id of [acked?.payload.orderId, acked?.payload.saleOrderUuid, res.orderId]) {
               if (typeof id === 'string') ackedRefundOrderIds.push(id)
             }

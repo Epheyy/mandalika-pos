@@ -185,3 +185,43 @@ describe('partialRefundFromPayload', () => {
     })
   })
 })
+
+describe('C4b review fixes: the server\'s refundState decides, and "full" survives a failed write', () => {
+  it('a full ack of a per-line refund shows the sale as refunded in the local receipts and the done set', async () => {
+    const { engine } = await sendRefund(answer('full'), partialPayload())
+    expect(engine.syncedRefundOrderIds().has('srv-1')).toBe(true)
+    expect(new PartialRefunds(controllableKV().kv).fullOrderIds().size).toBe(0)
+  })
+
+  it('"full" is remembered on the stored entry (so it needs no outbox row later)', async () => {
+    const { kv, store } = controllableKV()
+    await sendRefund(answer('full'), partialPayload(), kv)
+    const stored = JSON.parse(store.get(PARTIAL_REFUNDS_KEY) as string) as PartialRefundEntry[]
+    expect(stored).toHaveLength(1)
+    expect(stored[0].full).toBe(true)
+    expect(new PartialRefunds(kv).fullOrderIds().has('srv-1')).toBe(true)
+  })
+
+  it('a failed write followed by a retry fold in the same session keeps "full"', async () => {
+    const { kv, ctl, store } = controllableKV()
+    ctl.modeFor = (key) => (key === PARTIAL_REFUNDS_KEY ? 'reject' : undefined)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { engine } = await sendRefund(answer('full'), partialPayload(), kv)
+    expect(store.has(PARTIAL_REFUNDS_KEY)).toBe(false)
+    ctl.modeFor = undefined
+    await engine.rehydrate()
+    const stored = JSON.parse(store.get(PARTIAL_REFUNDS_KEY) as string) as PartialRefundEntry[]
+    expect(stored[0].full).toBe(true)
+    expect(engine.syncedRefundOrderIds().has('srv-1')).toBe(true)
+  })
+
+  it('a later "full" learned for a key already stored upgrades it, never duplicates it', async () => {
+    const s = new PartialRefunds(controllableKV().kv)
+    const e: PartialRefundEntry = { refundKey: 'k', orderIds: ['o'], lines: [{ lineNo: 0, qty: 1 }], amount: 5, at: Date.now() }
+    await s.addMany([e])
+    await s.addMany([{ ...e, full: true }])
+    expect(s.entries()).toHaveLength(1)
+    expect(s.fullOrderIds().has('o')).toBe(true)
+    expect(s.refundedQty(['o']).get(0)).toBe(1)
+  })
+})

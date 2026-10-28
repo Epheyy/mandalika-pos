@@ -20,6 +20,8 @@ export interface PartialRefundEntry {
   lines: PartialRefundLine[]
   /** The amount the tablet paid out for this refund (display only; the server Order read wins when online). */
   amount: number
+  /** The server said this refund left the order fully refunded (ack `refundState: 'full'`). Optional: absent = partial/unknown. */
+  full?: true
   at: number
 }
 
@@ -63,10 +65,12 @@ export class PartialRefunds {
     if (!fresh.length) return Promise.resolve()
     const run = this.chain.then(() => {
       const kept = this.read()
-      const known = new Set(kept.map((e) => e.refundKey))
-      const added = fresh.filter((e, i) => !known.has(e.refundKey) && fresh.findIndex((x) => x.refundKey === e.refundKey) === i)
-      if (!added.length) return undefined
-      return this.kv.setDurable(PARTIAL_REFUNDS_KEY, JSON.stringify(this.live([...kept, ...added])))
+      const byKey = new Map(kept.map((e) => [e.refundKey, e]))
+      // A key already stored is left as it was, except that learning it was the FULL refund is never lost.
+      const upgraded = kept.map((e) => (!e.full && fresh.some((f) => f.refundKey === e.refundKey && f.full) ? { ...e, full: true as const } : e))
+      const added = fresh.filter((e, i) => !byKey.has(e.refundKey) && fresh.findIndex((x) => x.refundKey === e.refundKey) === i)
+      if (!added.length && upgraded.every((e, i) => e === kept[i])) return undefined
+      return this.kv.setDurable(PARTIAL_REFUNDS_KEY, JSON.stringify(this.live([...upgraded, ...added])))
     })
     this.chain = run.catch(() => {})
     return run
@@ -79,6 +83,11 @@ export class PartialRefunds {
 
   entries(): PartialRefundEntry[] {
     return this.live(this.read())
+  }
+
+  /** Every id of an order whose refunds the server reported as leaving it fully refunded. */
+  fullOrderIds(): Set<string> {
+    return new Set(this.entries().filter((e) => e.full).flatMap((e) => e.orderIds))
   }
 
   /** Units refunded per lineNo across every refund that names any of `orderIds`. */
@@ -108,6 +117,7 @@ export function partialRefundFromPayload(
   payload: Readonly<Record<string, unknown>>,
   extraOrderIds: readonly string[] = [],
   at: number = Date.now(),
+  full = false,
 ): PartialRefundEntry | null {
   const items = payload.items
   if (!Array.isArray(items) || items.length === 0 || !refundKey) return null
@@ -119,5 +129,5 @@ export function partialRefundFromPayload(
   const orderIds = [...new Set([payload.orderId, payload.saleOrderUuid, ...extraOrderIds].filter((v): v is string => typeof v === 'string' && v !== ''))]
   if (!orderIds.length) return null
   const amount = typeof payload.refundAmount === 'number' && Number.isFinite(payload.refundAmount) ? payload.refundAmount : 0
-  return { refundKey, orderIds, lines, amount, at }
+  return { refundKey, orderIds, lines, amount, ...(full ? { full: true as const } : {}), at }
 }

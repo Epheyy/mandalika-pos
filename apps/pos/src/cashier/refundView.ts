@@ -3,7 +3,7 @@ import { MAX_REFUND_REASON_CHARS, canRefund as userCanRefund, variantLabel } fro
 import { formatRupiah } from './pricing'
 import { PAYMENT_LABELS } from '../lib/paymentLabels'
 import {
-  buildRefundBasis, isExhausted, pickedUnits, refundAmountFor, remainingAmount, selectionToItems,
+  buildRefundBasis, cacheHasRefunds, isExhausted, pickedUnits, refundAmountFor, remainingAmount, selectionToItems,
   type RefundCache, type RefundItemInput, type Selection,
 } from './refundSelection'
 
@@ -21,6 +21,8 @@ export const REFUND_NO_SHIFT = 'Buka shift dulu'
 export const REFUND_DONE = 'Sudah direfund'
 export const REFUND_SHIFT_UNSYNCED = 'Shift masih tersimpan di tablet'
 export const REFUND_CHANGED = 'Data refund berubah. Tutup lalu coba lagi.'
+/** A struk without line data was already part-refunded from this tablet: only the history row knows what is left. */
+export const REFUND_USE_HISTORY = 'Sebagian direfund · lanjutkan lewat Riwayat'
 
 /** Info chip for an order that already had a per-line refund (shown beside the enabled button, never a block). */
 export const refundPartialNote = (remaining: number | null): string =>
@@ -45,12 +47,16 @@ export interface PartialGate {
   exhausted: boolean
   /** Money still refundable; null when it cannot be known (an order without line data). */
   remaining: number | null
+  /** No line data to refund per line, yet this tablet already refunded part of it: a whole-order refund would pay twice. */
+  wholeBlocked?: boolean
 }
 
 /** The partial-refund state of an order for the gate. An order without line data (pre-C4a) has none. */
 export function partialGateFor(order: Order, cache: RefundCache = {}): PartialGate {
   const basis = buildRefundBasis(order, cache)
-  if (basis.kind !== 'lines') return { any: false, exhausted: false, remaining: null }
+  if (basis.kind !== 'lines') {
+    return cacheHasRefunds(cache) ? { any: true, exhausted: false, remaining: null, wholeBlocked: true } : { any: false, exhausted: false, remaining: null }
+  }
   return {
     any: basis.priorAmount > 0 || basis.lines.some((l) => l.refundedQty > 0),
     exhausted: isExhausted(basis),
@@ -85,6 +91,7 @@ export function refundAvailability(i: RefundAvailabilityInput): RefundAvailabili
   const keys = [i.order.id, i.sale?.orderUuid, i.sale?.serverOrderId, i.serverIdToSaleUuid?.get(i.order.id)].filter((k): k is string => !!k)
   if (i.syncedRefundOrderIds && keys.some((k) => i.syncedRefundOrderIds!.has(k))) return { kind: 'blocked', reason: REFUND_DONE }
   if (i.partial?.exhausted) return { kind: 'blocked', reason: REFUND_DONE }
+  if (i.partial?.wholeBlocked) return { kind: 'blocked', reason: REFUND_USE_HISTORY }
   if (!i.canRefund) return { kind: 'blocked', reason: REFUND_NO_PERMISSION }
   // D-44: while one refund of the order is queued here the order stays blocked, so the dialog never has to add up queued quantities.
   if (keys.some((k) => i.queuedOrderIds.has(k) || i.queuedSaleUuids?.has(k))) return { kind: 'blocked', reason: REFUND_QUEUED }
@@ -199,6 +206,7 @@ export function planRefundSubmit(i: {
     return { kind: 'error', message: 'Transaksi refund tidak cocok. Tutup lalu coba lagi.' }
   }
   const basis = buildRefundBasis(i.refundOrder, i.cache)
+  if (basis.kind === 'whole' && cacheHasRefunds(i.cache)) return { kind: 'error', message: REFUND_USE_HISTORY }
   let lines: { items: RefundItemInput[]; amount: number } | undefined
   if (basis.kind === 'lines') {
     const selection = i.selection ?? {}

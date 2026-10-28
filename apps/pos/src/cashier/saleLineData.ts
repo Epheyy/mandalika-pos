@@ -135,6 +135,15 @@ export function refundGroups(cart: readonly CartItem[], promoById: (id: string) 
 /** The cart with `netAmount` / `refundGroup` on every line, ready for the sale payload, or null when no valid
  *  allocation exists (a sale that then refunds whole-order only, exactly as the server decides for its own). */
 export function withSaleLineData(i: SaleLineDataInput): CartItem[] | null {
+  // Optional extra data: a malformed promotion config must never fail the sale it rides on.
+  try {
+    return buildSaleLineData(i)
+  } catch {
+    return null
+  }
+}
+
+function buildSaleLineData(i: SaleLineDataInput): CartItem[] | null {
   const lines = i.cart.map((l, idx) => ({ lineNo: idx, base: roundRupiah(l.subtotal) }))
   const total = Number.isFinite(i.total) && Math.abs(i.total - Math.round(i.total)) <= 0.004 ? Math.round(i.total) : NaN
   if (!Number.isSafeInteger(total)) return null

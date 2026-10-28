@@ -170,3 +170,26 @@ describe('RefundLine shape', () => {
     expect(l.isReward).toBe(true)
   })
 })
+
+describe('C4b review fixes', () => {
+  it('the last refund never pays more than the picked units are worth, even when the prior payout is understated', () => {
+    // Two units were refunded earlier (33333 + 33333) but only one earlier payout reached this tablet's view
+    // (max of server row and cache, not their union), so prior is 33333.
+    const b = lines(order([item(0, 'A', 3, 100000, { refundedQty: 2 })], { total: 100000, refundedAmount: 33333 }))
+    expect(refundAmountFor(b, { 0: 1 })).toEqual({ amount: 33334, settlesRemainder: true })
+  })
+
+  it('the last refund still pays less when earlier refunds were paid generously', () => {
+    const b = lines(order([item(0, 'A', 3, 100000, { refundedQty: 2 })], { total: 100000, refundedAmount: 70000 }))
+    expect(refundAmountFor(b, { 0: 1 })).toEqual({ amount: 30000, settlesRemainder: true })
+  })
+
+  it('cacheHasRefunds sees units or money', async () => {
+    const { cacheHasRefunds } = await import('./refundSelection')
+    expect(cacheHasRefunds(undefined)).toBe(false)
+    expect(cacheHasRefunds({})).toBe(false)
+    expect(cacheHasRefunds({ qtyByLine: new Map([[0, 0]]), amount: 0 })).toBe(false)
+    expect(cacheHasRefunds({ qtyByLine: new Map([[2, 1]]) })).toBe(true)
+    expect(cacheHasRefunds({ amount: 10 })).toBe(true)
+  })
+})
