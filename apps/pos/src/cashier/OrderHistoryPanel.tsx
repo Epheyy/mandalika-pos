@@ -10,7 +10,7 @@ import { cacheRead, cacheWrite, OFFLINE_NOTICE } from '../lib/offlineCache'
 import { ListSkeleton } from '../components/Skeleton'
 import { variantLabel } from '@mandalika/types'
 import { RefundAction } from './RefundAction'
-import { PAYMENT_LABELS } from './refundView'
+import { PAYMENT_LABELS, refundSummaries } from './refundView'
 import type { RefundCache } from './refundSelection'
 import { PAGE_SIZE, businessToday, defaultHistoryDay, orderHistoryQuery } from './orderHistoryQuery'
 import { Sheet } from '../components/ui/Sheet'
@@ -229,12 +229,15 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
                   {expanded && (
                     <div className="px-3 pb-3 pt-1 border-t border-gray-100 bg-gray-50">
                       <div className="space-y-1 py-2">
-                        {o.items.map((it) => (
+                        {o.items.map((it, n) => (
                           <div
-                            key={`${it.productId}-${it.variantSize}`}
+                            key={`${it.lineNo ?? n}-${it.productId}-${it.variantSize}`}
                             className="flex justify-between text-xs text-gray-700"
                           >
-                            <span>{it.productName}{variantLabel(it.variantSize) ? ` ${variantLabel(it.variantSize)}` : ''} ×{it.quantity}</span>
+                            <span>
+                              {it.productName}{variantLabel(it.variantSize) ? ` ${variantLabel(it.variantSize)}` : ''} ×{it.quantity}
+                              {(it.refundedQty ?? 0) > 0 ? <span className="text-red-600"> · {it.refundedQty} direfund</span> : null}
+                            </span>
                             <span>{formatRupiah(it.subtotal)}</span>
                           </div>
                         ))}
@@ -290,6 +293,12 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
                           Direfund {formatRupiah(o.refundedAmount ?? 0)}{o.status === 'partially_refunded' ? ` · sisa ${formatRupiah(Math.max(0, o.total - (o.refundedAmount ?? 0)))}` : ''}
                         </p>
                       )}
+                      {refundSummaries(o).map((r) => (
+                        <div key={r.seq} className="text-[11px] text-gray-600 mt-1" data-testid="history-refund">
+                          <p className="font-semibold">Refund ke-{r.seq} · {formatRupiah(r.amount)} · {r.reason}</p>
+                          {r.lines.map((l, i) => <p key={i} className="pl-3">− {l.name} ×{l.quantity} ({formatRupiah(l.amount)})</p>)}
+                        </div>
+                      ))}
                       {o.refundReason && (
                         <p className="text-[11px] text-red-600 mt-2">
                           Refund: {o.refundReason}

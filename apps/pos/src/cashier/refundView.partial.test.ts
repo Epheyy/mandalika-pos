@@ -145,3 +145,23 @@ describe('planRefundSubmit re-derives the refund from the order and the pick', (
     expect(plan.kind === 'enqueue' && plan.payload.total).toBe(150000)
   })
 })
+
+describe('refundSummaries (history shows which lines came back)', () => {
+  it('names the refunded lines from the order and orders refunds by seq', async () => {
+    const { refundSummaries } = await import('./refundView')
+    const o = order([line(0, 2, 100000), line(1, 1, 50000)], {
+      refunds: [
+        { id: 'r2', seq: 2, scope: 'full', amount: 100000, computedAmount: 100000, paymentMethod: 'cash', reason: 'Salah varian', refundedAt: '', items: [{ orderItemId: 'x', lineNo: 0, quantity: 1, amount: 50000 }, { orderItemId: 'y', lineNo: 9, quantity: 1, amount: 50000 }] },
+        { id: 'r1', seq: 1, scope: 'partial', amount: 50000, computedAmount: 50000, paymentMethod: 'cash', reason: 'Rusak/cacat', items: [{ orderItemId: 'z', lineNo: 1, quantity: 1, amount: 50000 }] },
+      ],
+    } as never)
+    const s = refundSummaries(o)
+    expect(s.map((r) => r.seq)).toEqual([1, 2])
+    expect(s[0].lines).toEqual([{ name: 'P1', quantity: 1, amount: 50000 }])
+    expect(s[1].lines.map((l) => l.name)).toEqual(['P0', 'Baris 10'])
+  })
+  it('is empty for an order without refunds', async () => {
+    const { refundSummaries } = await import('./refundView')
+    expect(refundSummaries(order([line(0, 1, 10)]))).toEqual([])
+  })
+})

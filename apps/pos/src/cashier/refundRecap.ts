@@ -26,6 +26,8 @@ export interface RefundRecap {
 const sum = (m: Record<string, number>) => Object.values(m).reduce((a, b) => a + b, 0)
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 const add = (m: Record<string, number>, k: string, v: number) => { m[k] = (m[k] ?? 0) + v }
+/** What a queued refund pays out: the per-line amount (C4b), else the whole-order snapshot total. */
+const refundAmountOf = (payload: Readonly<Record<string, unknown>>): number | null => num(payload.refundAmount) ?? num(payload.total)
 
 /** `queued` = unacknowledged refunds from the engine (acked ones are already in the server map).
  *  `orders` = this shift's loaded orders (the same set `byMethod` was built from); omit for a closed
@@ -49,7 +51,7 @@ export function refundRecap(
   // A shift without a server id (offline-opened) stamps nothing, so nothing can belong to it.
   for (const r of shiftId === '' ? [] : (queued ?? [])) {
     if (r.shiftId !== shiftId) continue
-    const total = num(r.payload.total)
+    const total = refundAmountOf(r.payload)
     if (r.parked) {
       parkedCount += 1
       parkedTotal += total ?? 0
@@ -57,8 +59,9 @@ export function refundRecap(
     }
     const loaded = byId.get(r.orderId)
     if (loaded) {
-      // Server truth: still completed = still in byMethod, take it out; refunded = already out.
-      if (loaded.status === 'completed') add(ownPendingByMethod, loaded.paymentMethod, loaded.total)
+      // Server truth: still completed (or part-refunded) = its unrefunded money is still in byMethod, take this
+      // refund out; fully refunded = already out. A whole-order refund takes out the loaded order's total (not a snapshot); a per-line one only what it pays.
+      if (loaded.status === 'completed' || loaded.status === 'partially_refunded') add(ownPendingByMethod, loaded.paymentMethod, Array.isArray(r.payload.items) ? (num(r.payload.refundAmount) ?? total ?? 0) : loaded.total)
       continue
     }
     const method = r.payload.paymentMethod

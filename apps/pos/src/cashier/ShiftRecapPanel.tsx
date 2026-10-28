@@ -47,7 +47,7 @@ interface Breakdown {
   net: number
 }
 
-function aggregate(orders: Order[], methods: PaymentMethodCfg[]): Breakdown {
+export function aggregate(orders: Order[], methods: PaymentMethodCfg[]): Breakdown {
   const b: Breakdown = {
     byMethod: {}, totalSales: 0, totalOrders: 0, refundCount: 0,
     refundTotal: 0, refundItems: 0, cashSales: 0, gross: 0, discount: 0,
@@ -55,16 +55,21 @@ function aggregate(orders: Order[], methods: PaymentMethodCfg[]): Breakdown {
   }
   for (const o of orders) {
     if (o.status === 'cancelled') continue
-    if (o.status === 'refunded') {
+    // C4b: money back to customers, from the server's refund rows. A fully refunded order without the field is
+    // a whole refund (older server); a part-refunded one without it is unknown, so it is not guessed.
+    const refunded = o.refundedAmount ?? (o.status === 'refunded' ? o.total : 0)
+    if (refunded > 0) {
       b.refundCount += 1
-      b.refundTotal += o.total
-      b.refundItems += o.items.reduce((s, i) => s + i.quantity, 0)
-      continue
+      b.refundTotal += refunded
+      b.refundItems += o.status === 'refunded' ? o.items.reduce((s, i) => s + i.quantity, 0) : o.items.reduce((s, i) => s + (i.refundedQty ?? 0), 0)
     }
-    b.totalSales += o.total
+    if (o.status === 'refunded') continue
+    // Sales are what the drawer kept: the total less what was refunded (a part-refunded order is still a sale).
+    const kept = o.total - refunded
+    b.totalSales += kept
     b.totalOrders += 1
-    b.byMethod[o.paymentMethod] = (b.byMethod[o.paymentMethod] ?? 0) + o.total
-    if (isCashMethod(methods, o.paymentMethod)) b.cashSales += o.total
+    b.byMethod[o.paymentMethod] = (b.byMethod[o.paymentMethod] ?? 0) + kept
+    if (isCashMethod(methods, o.paymentMethod)) b.cashSales += kept
     b.gross += o.subtotal
     b.discount += o.discountAmount
     b.tax += o.taxAmount
@@ -845,10 +850,13 @@ function ShiftRecapPanelBody({
             for (const o of selectedOrders) {
               if (o.status === 'refunded' || o.status === 'cancelled') continue
               for (const it of o.items) {
+                // A part-refunded order sold only what was not returned.
+                const left = Math.max(0, it.quantity - (it.refundedQty ?? 0))
+                if (left === 0) continue
                 const key = `${it.productName}|${it.variantSize ?? ''}`
                 const cur = soldMap.get(key) ?? { name: it.productName, variant: it.variantSize ?? '', qty: 0, amount: 0 }
-                cur.qty += it.quantity
-                cur.amount += it.subtotal
+                cur.qty += left
+                cur.amount += left === it.quantity ? it.subtotal : Math.round((it.subtotal * left) / it.quantity)
                 soldMap.set(key, cur)
               }
             }

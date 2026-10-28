@@ -1,5 +1,5 @@
 import type { components } from '@mandalika/api'
-import { MAX_REFUND_REASON_CHARS, canRefund as userCanRefund } from '@mandalika/types'
+import { MAX_REFUND_REASON_CHARS, canRefund as userCanRefund, variantLabel } from '@mandalika/types'
 import { formatRupiah } from './pricing'
 import { PAYMENT_LABELS } from '../lib/paymentLabels'
 import {
@@ -233,4 +233,32 @@ export function refundGateProps(i: {
     serverIdToSaleUuid: i.serverIdToSaleUuid,
     refundCache: i.refundCache,
   }
+}
+
+export interface RefundSummary {
+  seq: number
+  amount: number
+  reason: string
+  /** Lines returned in this refund, named from the order's own lines (a line the order no longer lists is shown by number). */
+  lines: { name: string; quantity: number; amount: number }[]
+}
+
+/** The refunds of an order as the history shows them: "Refund ke-N", what was paid out, why, and which lines came back. */
+export function refundSummaries(order: Pick<Order, 'items' | 'refunds'>): RefundSummary[] {
+  const byLine = new Map<number, string>()
+  for (const it of order.items ?? []) {
+    if (typeof it.lineNo === 'number') byLine.set(it.lineNo, [it.productName, variantLabel(it.variantSize)].filter(Boolean).join(' '))
+  }
+  return [...(order.refunds ?? [])]
+    .sort((a, b) => a.seq - b.seq)
+    .map((r) => ({
+      seq: r.seq,
+      amount: r.amount,
+      reason: r.reason,
+      lines: (r.items ?? []).map((i) => ({
+        name: typeof i.lineNo === 'number' ? (byLine.get(i.lineNo) ?? `Baris ${i.lineNo + 1}`) : 'Barang',
+        quantity: i.quantity,
+        amount: i.amount,
+      })),
+    }))
 }
