@@ -14,7 +14,9 @@ Every claim about current behaviour cites `path:line` on adb07723. ERP claims ci
    - The sync `order` case decodes with plain `json.Unmarshal` (`backend/internal/sync/sync.go:313-316`) into `orderPayload` (`:575-602`), which has one `PaymentMethod` and one `AmountPaid` (`:584-585`). An unknown `tenders` key is silently dropped.
    - The direct route is the same (`handlers/orders.go:55` → `decodeWrite` → `httpx.DecodeLoose`, `handlers/writes.go:34-41`).
    - So a split sale that reaches a server without C6a (an old revision, or a rollback) is stored as one method, with no error and no flag.
-   - The plan therefore gates the POS UI on a **server-delivered setting** (`splitTenderEnabled`, default off). An old server never sends it, so the POS hides split payment. The usual release order (server first) and a no-rollback rule (section 4) come on top of that.
+   - The plan therefore gates the POS UI on a **server-delivered setting** (`splitTenderEnabled`, default off). An old server never sends it, so a tablet that pulled from one hides split payment.
+   - Tablets cache the setting until the next content change, so after enabling, a rollback must turn the setting off first (2.5).
+   - The usual release order (server first) and a no-rollback rule (2.5) come on top of that.
 2. **Money readers must move in the backend slice, not later** (the same lesson as C4a).
    - Every by-method reader keys on the single `orders.payment_method` column: shift close, reports, order filter, ERP, POS recap and backoffice totals (section 1.4).
    - They switch to tender lines in C6a, before any tablet can send a split. Only display, CSV and the admin UI wait for C6c.
@@ -256,7 +258,7 @@ Comparisons are in whole cents with the Rp1 tolerance (`tender.go:14`). `due = f
 | Invariant | POS UI (C6b) | TS twin `cashier/tenderSplit.ts` | Server `service/tender_split.go` (authoritative) |
 |---|---|---|---|
 | 1 ≤ lines ≤ N | "+ Tambah pembayaran" hidden at N | rejects | structural reject (D-54) |
-| No zero/negative/non-finite/oversize line (a single 0 line allowed only when due = 0) | amount ≥ Rp1 to add a line | rejects | structural reject (`saleMoney` per line, `order_input.go:44-49`) |
+| No negative/non-finite/oversize line (both shapes); no zero line **when there are two or more lines** | amount ≥ Rp1 to add a line | rejects | structural reject (`saleMoney` per line, `order_input.go:44-49`). A **single** line keeps the legacy rule: a non-cash 0 is stored and flagged (owner 8c Q3), so one-line parity holds |
 | Method non-blank, ≤ 64, not `split` | chips from config only | rejects | structural reject |
 | At most one cash line | a second cash entry is **added into** the existing cash line | rejects two | structural reject |
 | Change only from cash: Σ non-cash ≤ due | non-cash amount capped at "Sisa" | flags | flag `noncash_overpay` (both routes, as slice 8 Q5 "non-cash mismatch: flag only") |
@@ -294,6 +296,9 @@ For a set of sale orders and a method `m`:
 - **R2 cash ids (`shift.go:239-262`).** UNION in the tender-line methods, so a cash line inside a `split` order is recognised as cash.
 - **R3 reports (`reports.go:38-71`).** `pay` and `gpay` read tender lines; `rpay` is unchanged.
   - Net by method can go negative for a method, e.g. a QRIS sale refunded in cash shows negative net cash. That is truthful and only possible on split orders under D-56.
+  - **The `pay` filter moves to the per-method row.** Today it is per order: `status IN ('completed','partially_refunded') OR net_total <> 0` (`reports.go:62`).
+  - It becomes "sale status OR the per-(order, method) net ≠ 0". Otherwise a fully refunded split order (QRIS 751k + cash 500k, all paid back in cash) would hide its +751k QRIS / −751k cash rows, because its order net is 0.
+  - For pre-C6 orders the two filters select the same rows (one line, net equal to the order net).
 - **R4 filter.** `EXISTS (tender line with lower(btrim(method)) = …)`. A "QRIS" filter then includes split orders that have a QRIS line. Today's filter on `payment_method = 'split'` keeps working.
 - **R5 / R6.**
   - `read/orders.go` adds `'tenders'` (a `json_agg` over the lateral, ordered by `seq`) and `refunds[].payoutSource`.
@@ -324,6 +329,11 @@ For a set of sale orders and a method `m`:
   - **Rule: no backend rollback below C6a once `SELECT count(*) FROM orders WHERE payment_method = 'split'` > 0 or any `payout_source = 'chosen'` row exists; fix forward.**
   - Until the owner enables the setting, no split can exist, so C6a stays freely rollback-able during its soak.
 - **Kill switch.** Turning `splitTenderEnabled` off hides split payment on the next settings pull. It does **not** make the server refuse split payloads: sales captured while it was on and still queued must be accepted.
+  - A settings save bumps the content version through the write helper (`write/repo.go:59-68`), so tablets pull the change.
+- **Tablets cache the setting.** `appSettings` arrives in the pull bundle (`openapi.yaml:2321`) and is read from the cached snapshot (`CashierScreen.tsx:270, 292`). A tablet re-pulls only when the content version changes (`sync/pull.go:29-53`).
+  - So a backend rollback alone leaves tablets offering split payment against an old server.
+  - **Emergency rollback after enabling:** turn the setting off first; wait until the tablets have pulled (or bump `content_versions` by SQL) and their queues are empty; then roll back.
+  - The no-rollback rule above still applies once a split order exists.
 
 ### 2.6 Refund payout on split orders
 - **Single-method orders** (every line has the same method, which includes all pre-C6 orders): `payout = orders.payment_method`, `payout_source = 'sale'`. Any `payoutMethod` sent is ignored. This is today's rule (D-56 alternative: honour it everywhere).
