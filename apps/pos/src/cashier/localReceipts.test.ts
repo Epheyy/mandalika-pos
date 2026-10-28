@@ -22,7 +22,7 @@ describe('localBadge', () => {
     expect(localBadge(receipt({ state: 'synced' })).label).toBe('Terkirim')
     expect(localBadge(receipt({ state: 'synced', refundQueued: true })).label).toBe('Refund tersimpan di tablet')
     expect(localBadge(receipt({ state: 'synced', refunded: true })).label).toBe('Sudah direfund')
-    expect(LOCAL_BADGE).toEqual(['Tersimpan di tablet', 'Perlu ditinjau', 'Terkirim', 'Refund tersimpan di tablet', 'Sudah direfund'])
+    expect(LOCAL_BADGE).toEqual(['Tersimpan di tablet', 'Perlu ditinjau', 'Terkirim', 'Refund tersimpan di tablet', 'Sudah direfund', 'Sebagian direfund'])
   })
 
   it('a completed refund wins over a queued one, and a queued refund wins over the sale state', () => {
@@ -94,5 +94,42 @@ describe('reprintReceiptData', () => {
     const rows = [receipt({ orderUuid: 'a', receiptSnapshot: null }), receipt({ orderUuid: 'b' }), receipt({ orderUuid: 'c' })]
     expect(newestReprintable(rows)?.orderUuid).toBe('b')
     expect(newestReprintable([])).toBeNull()
+  })
+})
+
+describe('C4b local receipt lines for a per-line refund', () => {
+  const base = (over: Record<string, unknown> = {}) => receipt({
+    receiptSnapshot: {
+      v: 2, total: 150000, lines: [
+        { productId: 'a', variantSize: '50ml', name: 'A', qty: 2, unitPrice: 50000, amount: 100000 },
+        { productId: 'g', variantSize: '', name: 'Gratis', qty: 1, unitPrice: 0, amount: 0, isReward: true },
+        { productId: 'tas', variantSize: '', name: 'Tas', qty: 1, unitPrice: 0, amount: 0, isReward: true },
+      ],
+    },
+    quotedTotal: 100000, lineNets: [100000, 0], lineGroups: [null, 'bxgy:p:1'], ...over,
+  } as never)
+
+  it('gives sale lines their position, net share and group, and marks the trailing bag as the giveaway', () => {
+    const o = localReceiptOrder(base()) as unknown as { items: Record<string, unknown>[] }
+    expect(o.items.map((i) => i.lineNo)).toEqual([0, 1, undefined])
+    expect(o.items.map((i) => i.netAmount)).toEqual([100000, 0, undefined])
+    expect(o.items[1].refundGroup).toBe('bxgy:p:1')
+    expect(o.items[2].isGiveaway).toBe(true)
+  })
+
+  it('without line data the order stays whole-refund only (no lineNo / net on any line)', () => {
+    const o = localReceiptOrder(base({ lineNets: undefined, lineGroups: undefined })) as unknown as { items: Record<string, unknown>[] }
+    expect(o.items.every((i) => i.lineNo === undefined && i.netAmount === undefined)).toBe(true)
+  })
+
+  it('ignores line data that does not fit the snapshot (never guesses a mapping)', () => {
+    const o = localReceiptOrder(base({ lineNets: [1, 2, 3, 4] })) as unknown as { items: Record<string, unknown>[] }
+    expect(o.items.every((i) => i.lineNo === undefined)).toBe(true)
+  })
+
+  it('badges a part-refunded sale and a sale whose every unit is back', () => {
+    expect(localBadge(receipt({ state: 'synced' }), { any: true, exhausted: false, remaining: 500 }).label).toBe('Sebagian direfund')
+    expect(localBadge(receipt({ state: 'synced' }), { any: true, exhausted: true, remaining: 0 }).label).toBe('Sudah direfund')
+    expect(localBadge(receipt({ state: 'synced', refundQueued: true }), { any: true, exhausted: false, remaining: 500 }).label).toBe('Refund tersimpan di tablet')
   })
 })

@@ -10,16 +10,28 @@ import { cacheRead, cacheWrite, OFFLINE_NOTICE } from '../lib/offlineCache'
 import { ListSkeleton } from '../components/Skeleton'
 import { variantLabel } from '@mandalika/types'
 import { RefundAction } from './RefundAction'
-import { PAYMENT_LABELS } from './refundView'
-import { PAGE_SIZE, businessToday, defaultHistoryDay, orderHistoryQuery } from './orderHistoryQuery'
+import { PAYMENT_LABELS, refundSummaries } from './refundView'
+import type { RefundCache } from './refundSelection'
+import { PAGE_SIZE, businessToday, defaultHistoryDay, historyWindowFor, orderHistoryQuery, withPinnedOrder } from './orderHistoryQuery'
 import { Sheet } from '../components/ui/Sheet'
 import { IconPrinter } from '../components/ui/icons'
 
 type Order = components['schemas']['Order']
 type OrderListResponse = components['schemas']['OrderListResponse']
 
+/** Open on one sale: its day window, its number in the search box, its row expanded. The parent keys the panel by it. */
+export interface HistoryFocus {
+  orderId: string
+  orderNumber: string
+  capturedAt: string
+  /** Distinguishes two openings on the same order, so the panel starts fresh each time. */
+  nonce: number
+}
+
 interface OrderHistoryPanelProps {
   isOpen: boolean
+  /** C4b: a synced local receipt without line data is refunded from here; the panel opens on that order. */
+  focus?: HistoryFocus | null
   onClose: () => void
   onRefund: (order: Order) => void
   /** Reprint this order's sales receipt with the REPRINT marker. */
@@ -36,32 +48,39 @@ interface OrderHistoryPanelProps {
   queuedRefundOrderIds: ReadonlySet<string>
   /** Orders whose refund already synced from this tablet (stale cached rows may still say completed). */
   syncedRefundOrderIds?: ReadonlySet<string>
+  /** Sales (by uuid) with a queued or parked linked refund. */
+  queuedSaleUuids?: ReadonlySet<string>
+  /** Server id -> sale uuid for sales this tablet made, so a refund queued under the uuid blocks the server row too. */
+  serverIdToSaleUuid?: ReadonlyMap<string, string>
+  /** C4b: units and money this tablet saw acknowledged for earlier per-line refunds of an order. */
+  refundCache?: (ids: readonly string[]) => RefundCache
   /** Outlet timezone from the sync bundle (A28); absent = Asia/Jakarta. Decides "today". */
   timezone?: string | null
   /** ISO open time of the shown shift; its business day is the default day (A28). */
   shiftOpenedAt?: string | null
 }
 const STATUS_LABELS: Record<string, string> = {
-  completed: 'Selesai', refunded: 'Refund', cancelled: 'Batal',
+  completed: 'Selesai', partially_refunded: 'Sebagian refund', refunded: 'Refund', cancelled: 'Batal',
 }
 const STATUS_STYLES: Record<string, string> = {
   completed: 'bg-green-100 text-green-700',
+  partially_refunded: 'bg-amber-100 text-amber-800',
   refunded: 'bg-red-100 text-red-700',
   cancelled: 'bg-gray-100 text-gray-500',
 }
 
-export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, timezone, shiftOpenedAt }: OrderHistoryPanelProps) {
-  const [from, setFrom] = useState(() => defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
-  const [to, setTo] = useState(() => defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
-  // Once the cashier picks a day, a late-arriving timezone/shift no longer moves it.
-  const [pickedDay, setPickedDay] = useState(false)
+export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, timezone, shiftOpenedAt }: OrderHistoryPanelProps) {
+  const [from, setFrom] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).from : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
+  const [to, setTo] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).to : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
+  // Once the cashier picks a day (or the panel opened on a given sale), a late-arriving timezone/shift no longer moves it.
+  const [pickedDay, setPickedDay] = useState(!!focus)
   useEffect(() => {
     if (pickedDay) return
     const day = defaultHistoryDay(new Date(), timezone, shiftOpenedAt)
     setFrom(day)
     setTo(day)
   }, [pickedDay, timezone, shiftOpenedAt])
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(focus?.orderNumber ?? '')
   const [page, setPage] = useState(1)
   const [orders, setOrders] = useState<Order[]>([])
   const [total, setTotal] = useState(0)
@@ -69,7 +88,9 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
   const [error, setError] = useState<string | null>(null)
   // true when the rows shown came from the offline cache, not a live fetch.
   const [isStale, setIsStale] = useState(false)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(focus?.orderId ?? null)
+  // The order the cashier came for, fetched by id: the day listing is filtered by the shift's business day and may miss it.
+  const [pinned, setPinned] = useState<Order | null>(null)
 
   const load = useCallback(async () => {
     setIsLoading(true)
@@ -83,12 +104,18 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
       setOrders(data)
       setTotal(t)
       setIsStale(false)
+      if (focus && !data.some((o) => o.id === focus.orderId)) {
+        try { setPinned(await api.getOrder(focus.orderId)) } catch { setPinned(null) }
+      }
       // A search is never cached (A30); only the plain day listing is.
       if (cacheKey) cacheWrite(cacheKey, { orders: data, total: t }, 'orders:last')
     } catch (e: unknown) {
       // Offline / transient: fall back to the last data seen while online so
       // the cashier still sees their history instead of "Failed to fetch".
-      const cached = cacheKey
+      // A focused search is never cached, and the last unfiltered day listing would show unrelated sales under it: no fallback.
+      const cached = focus && term
+        ? null
+        : cacheKey
         ? cacheRead<{ orders: Order[]; total: number }>(cacheKey, 'orders:last')
         : cacheRead<{ orders: Order[]; total: number }>('orders:last')
       if (cached) {
@@ -105,7 +132,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
     } finally {
       setIsLoading(false)
     }
-  }, [from, to, page, search])
+  }, [from, to, page, search, focus])
 
   // Debounced so typing a phone/name doesn't fire a request per keystroke.
   useEffect(() => {
@@ -121,7 +148,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
 
   if (!isOpen) return null
 
-  const filtered = orders
+  const filtered = withPinnedOrder(orders, focus ? pinned : null)
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
@@ -221,12 +248,15 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
                   {expanded && (
                     <div className="px-3 pb-3 pt-1 border-t border-gray-100 bg-gray-50">
                       <div className="space-y-1 py-2">
-                        {o.items.map((it) => (
+                        {o.items.map((it, n) => (
                           <div
-                            key={`${it.productId}-${it.variantSize}`}
+                            key={`${it.lineNo ?? n}-${it.productId}-${it.variantSize}`}
                             className="flex justify-between text-xs text-gray-700"
                           >
-                            <span>{it.productName}{variantLabel(it.variantSize) ? ` ${variantLabel(it.variantSize)}` : ''} ×{it.quantity}</span>
+                            <span>
+                              {it.productName}{variantLabel(it.variantSize) ? ` ${variantLabel(it.variantSize)}` : ''} ×{it.quantity}
+                              {(it.refundedQty ?? 0) > 0 ? <span className="text-red-600"> · {it.refundedQty} direfund</span> : null}
+                            </span>
                             <span>{formatRupiah(it.subtotal)}</span>
                           </div>
                         ))}
@@ -277,6 +307,17 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
                           <span>Total</span><span>{formatRupiah(o.total)}</span>
                         </div>
                       </div>
+                      {(o.refundedAmount ?? 0) > 0 && (
+                        <p className="text-[11px] text-red-600 mt-2" data-testid="history-refunded-amount">
+                          Direfund {formatRupiah(o.refundedAmount ?? 0)}{o.status === 'partially_refunded' ? ` · sisa ${formatRupiah(Math.max(0, o.total - (o.refundedAmount ?? 0)))}` : ''}
+                        </p>
+                      )}
+                      {refundSummaries(o).map((r) => (
+                        <div key={r.seq} className="text-[11px] text-gray-600 mt-1" data-testid="history-refund">
+                          <p className="font-semibold">Refund ke-{r.seq} · {formatRupiah(r.amount)} · {r.reason}</p>
+                          {r.lines.map((l, i) => <p key={i} className="pl-3">− {l.name} ×{l.quantity} ({formatRupiah(l.amount)})</p>)}
+                        </div>
+                      ))}
                       {o.refundReason && (
                         <p className="text-[11px] text-red-600 mt-2">
                           Refund: {o.refundReason}
@@ -297,6 +338,9 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
                         shiftUnsynced={shiftUnsynced}
                         queuedOrderIds={queuedRefundOrderIds}
                         syncedRefundOrderIds={syncedRefundOrderIds}
+                        queuedSaleUuids={queuedSaleUuids}
+                        serverIdToSaleUuid={serverIdToSaleUuid}
+                        refundCache={refundCache}
                         onRefund={onRefund}
                       />
                     </div>

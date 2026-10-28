@@ -23,6 +23,12 @@ export interface ReceiptEntry {
   /** The A10 receipt snapshot, verbatim. */
   receiptSnapshot: unknown
   archivedAt: number
+  /** C4b: per sale line (payload order), what the line is worth after discounts: the TS allocator's share, used
+   *  ONLY for a refund of a sale that has not synced. Optional and additive (no snapshot version bump); absent
+   *  on sales archived before C4b, which then refund whole-order only. */
+  lineNets?: number[]
+  /** C4b: per sale line, the promo group key ("bundle:<id>:1" / "bxgy:<id>:1") or null. Same rules as lineNets. */
+  lineGroups?: (string | null)[]
 }
 
 /** An unacknowledged sale still in the outbox: counts toward the newest-500 floor. */
@@ -40,6 +46,21 @@ export interface ReceiptContext {
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null)
+
+/** The per-line facts the sale payload carries (`items[i].netAmount` / `refundGroup`). Both or nothing: a sale
+ *  where any line lacks a whole-rupiah net keeps no line data and refunds whole-order only. */
+export function lineDataFromItems(items: unknown): { lineNets: number[]; lineGroups: (string | null)[] } | null {
+  if (!Array.isArray(items) || items.length === 0) return null
+  const lineNets: number[] = []
+  const lineGroups: (string | null)[] = []
+  for (const it of items) {
+    const net = (it as { netAmount?: unknown } | null)?.netAmount
+    if (typeof net !== 'number' || !Number.isSafeInteger(net) || net < 0) return null
+    lineNets.push(net)
+    lineGroups.push(str((it as { refundGroup?: unknown }).refundGroup))
+  }
+  return { lineNets, lineGroups }
+}
 
 /** The receipt facts of an acked order item, or null when it is not a usable sale. */
 export function receiptEntryFromItem(item: OutboxItem): ReceiptEntry | null {
@@ -60,6 +81,8 @@ export function receiptEntryFromItem(item: OutboxItem): ReceiptEntry | null {
     receiptSnapshot: p.receiptSnapshot ?? null,
     archivedAt: Date.now(),
   }
+  const lines = lineDataFromItems(p.items)
+  if (lines) Object.assign(entry, lines)
   const serverId = str((item as OutboxItem & { ackedOrderId?: unknown }).ackedOrderId)
   if (serverId) entry.serverOrderId = serverId
   return entry
