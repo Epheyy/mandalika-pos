@@ -1,6 +1,6 @@
 import type { components } from '@mandalika/api'
 import { StatusBadge } from '../components/ui'
-import { REFUND_DONE, REFUND_USE_HISTORY, partialGateFor, refundAvailability, refundOrderKeys, type RefundAvailabilityInput } from './refundView'
+import { REFUND_DONE, partialGateFor, refundAvailability, refundOrderKeys, type RefundAvailabilityInput } from './refundView'
 import type { RefundCache } from './refundSelection'
 
 type Order = components['schemas']['Order']
@@ -19,11 +19,11 @@ interface RefundActionProps extends Omit<RefundAvailabilityInput, 'partial'> {
  *  order keeps the button and adds the "Sebagian direfund · sisa Rp X" chip. */
 export function RefundAction({ order, onRefund, refundCache, viaHistory, ...gate }: RefundActionProps) {
   const partial = partialGateFor(order, refundCache?.(refundOrderKeys({ order, ...gate })))
-  const a = refundAvailability({ order, partial, ...gate })
+  // A receipt that must be refunded from Riwayat is judged on the plain gates (permission, shift, queue, already done):
+  // earlier partial refunds make no difference to it, they are why it goes to Riwayat.
+  const a = refundAvailability(viaHistory ? { order, ...gate } : { order, partial, ...gate })
   if (a.kind === 'hidden') return null
-  // Riwayat is the way forward for this receipt, so "continue in Riwayat" is not a block here.
-  const route = viaHistory && (a.kind === 'allowed' || (a.kind === 'blocked' && a.reason === REFUND_USE_HISTORY))
-  if (route) {
+  if (viaHistory && a.kind === 'allowed') {
     if (!viaHistory.online) return <StatusBadge tone="warn" size="md" label={viaHistory.offlineMessage} className="mt-2 w-full justify-center" />
     return (
       <button type="button" onClick={viaHistory.onOpen}

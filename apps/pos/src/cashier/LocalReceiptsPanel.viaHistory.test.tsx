@@ -62,3 +62,14 @@ describe('a synced receipt without line data is refunded from Riwayat', () => {
     expect(render([synced()], { onOpenInHistory: undefined })).toContain('Refund Transaksi Ini')
   })
 })
+
+describe('a partly refunded receipt without line data keeps the plain gates in front of Riwayat', () => {
+  const part = { refundCache: () => ({ qtyByLine: new Map([[0, 1]]), amount: 50000 }) }
+  it('no refund permission, no shift and a queued refund are shown as such, not as the Riwayat button', () => {
+    expect(render([synced()], { ...part, canRefund: false })).toContain('Butuh izin refund')
+    expect(render([synced()], { ...part, hasOpenShift: false })).toContain('Buka shift dulu')
+    const queued = render([synced({ refundQueued: true })], { ...part, queuedSaleUuids: new Set(['u-1']) })
+    expect(queued).toContain('Refund tersimpan di tablet')
+    for (const html of [render([synced()], { ...part, canRefund: false }), queued]) expect(html).not.toContain('Refund lewat Riwayat')
+  })
+})

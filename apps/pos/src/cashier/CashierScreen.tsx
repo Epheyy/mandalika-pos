@@ -1318,7 +1318,7 @@ export default function CashierScreen() {
       />
 
       <OrderHistoryPanel
-        key={historyFocus ? `focus:${historyFocus.orderId}` : 'plain'}
+        key={historyFocus ? `focus:${historyFocus.orderId}:${historyFocus.nonce}` : 'plain'}
         focus={historyFocus}
         isOpen={showHistory}
         onClose={() => setShowHistory(false)}
@@ -1339,7 +1339,7 @@ export default function CashierScreen() {
         isOnline={offlineData.isOnline}
         onOpenInHistory={(r) => {
           if (!r.serverOrderId) return
-          setHistoryFocus({ orderId: r.serverOrderId, orderNumber: r.orderNumber, capturedAt: r.capturedAt })
+          setHistoryFocus({ orderId: r.serverOrderId, orderNumber: r.orderNumber, capturedAt: r.capturedAt, nonce: Date.now() })
           setShowLocalReceipts(false)
           setShowHistory(true)
         }}

@@ -12,7 +12,7 @@ import { variantLabel } from '@mandalika/types'
 import { RefundAction } from './RefundAction'
 import { PAYMENT_LABELS, refundSummaries } from './refundView'
 import type { RefundCache } from './refundSelection'
-import { PAGE_SIZE, businessToday, defaultHistoryDay, historyWindowFor, orderHistoryQuery } from './orderHistoryQuery'
+import { PAGE_SIZE, businessToday, defaultHistoryDay, historyWindowFor, orderHistoryQuery, withPinnedOrder } from './orderHistoryQuery'
 import { Sheet } from '../components/ui/Sheet'
 import { IconPrinter } from '../components/ui/icons'
 
@@ -24,6 +24,8 @@ export interface HistoryFocus {
   orderId: string
   orderNumber: string
   capturedAt: string
+  /** Distinguishes two openings on the same order, so the panel starts fresh each time. */
+  nonce: number
 }
 
 interface OrderHistoryPanelProps {
@@ -87,6 +89,8 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
   // true when the rows shown came from the offline cache, not a live fetch.
   const [isStale, setIsStale] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(focus?.orderId ?? null)
+  // The order the cashier came for, fetched by id: the day listing is filtered by the shift's business day and may miss it.
+  const [pinned, setPinned] = useState<Order | null>(null)
 
   const load = useCallback(async () => {
     setIsLoading(true)
@@ -100,12 +104,18 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
       setOrders(data)
       setTotal(t)
       setIsStale(false)
+      if (focus && !data.some((o) => o.id === focus.orderId)) {
+        try { setPinned(await api.getOrder(focus.orderId)) } catch { setPinned(null) }
+      }
       // A search is never cached (A30); only the plain day listing is.
       if (cacheKey) cacheWrite(cacheKey, { orders: data, total: t }, 'orders:last')
     } catch (e: unknown) {
       // Offline / transient: fall back to the last data seen while online so
       // the cashier still sees their history instead of "Failed to fetch".
-      const cached = cacheKey
+      // A focused search is never cached, and the last unfiltered day listing would show unrelated sales under it: no fallback.
+      const cached = focus && term
+        ? null
+        : cacheKey
         ? cacheRead<{ orders: Order[]; total: number }>(cacheKey, 'orders:last')
         : cacheRead<{ orders: Order[]; total: number }>('orders:last')
       if (cached) {
@@ -122,7 +132,7 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
     } finally {
       setIsLoading(false)
     }
-  }, [from, to, page, search])
+  }, [from, to, page, search, focus])
 
   // Debounced so typing a phone/name doesn't fire a request per keystroke.
   useEffect(() => {
@@ -138,7 +148,7 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
 
   if (!isOpen) return null
 
-  const filtered = orders
+  const filtered = withPinnedOrder(orders, focus ? pinned : null)
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (

@@ -33,7 +33,16 @@ export function historyWindowFor(capturedAt: string, now: Date, timezone?: strin
   const day = zoneParts(at, timezone).dateStr
   const shift = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
   const to = shift(day, 1)
-  return { from: shift(day, -1), to: to > today ? today : to }
+  const cappedTo = to > today ? today : to
+  // A tablet clock that was ahead when the sale was made can put the capture day after today: never an empty range.
+  const from = shift(day, -1)
+  return { from: from > cappedTo ? cappedTo : from, to: cappedTo }
+}
+
+/** The rows to show: the order the cashier came for first (fetched by id when the day listing did not hold it), then the
+ *  listing without a duplicate of it. */
+export function withPinnedOrder<T extends { id: string }>(rows: readonly T[], pinned: T | null): T[] {
+  return pinned && !rows.some((r) => r.id === pinned.id) ? [pinned, ...rows] : [...rows]
 }
 
 /** `cacheKey` is null for a search: what the cashier typed (a phone or a name) is never written into storage, in a key or
