@@ -147,7 +147,7 @@ Every claim about current behaviour cites `path:line` on adb07723. ERP claims ci
 | R1 | Shift close buckets | `sum(net_sale) FILTER (payment_method …)` per order, `net_sale = total − refunded` (`service/shift.go:171-209`; cash `:196`, qris `:199`) | C6a |
 | R2 | Shift cash ids | `orders.payment_method UNION order_refunds.payment_method` (`shift.go:239-262`) | C6a |
 | R3 | Report by method, net and gross | `sb` CTE carries `o.payment_method` (`read/reports.go:40`); `pay` (`:59-63`) and `gpay` (`:65-67`) group per order | C6a |
-| R4 | Order filter | `lower(btrim(o.payment_method)) = …` (`read/orderfilter.go:120-121`, handler `order_filter.go:63, 87`) | C6a (EXISTS on tender lines) |
+| R4 | Order filter, shared by the order list and the report summary | `lower(btrim(o.payment_method)) = …` (`read/orderfilter.go:62, 120-121`, handler `order_filter.go:63, 87`; summary `read/reports.go:35, 37`) | C6a: two rules (list = EXISTS on tender lines; summary = money limited to the method, D-66; `split` = the order column) |
 | R5 | Order read | one method + `amountPaid`/`change` (`read/orders.go:25`) | C6a (+ `tenders[]`) |
 | R6 | Customer profile | `o.payment_method, o.total` per order (`read/customer_profile.go:144, 157`) | C6a (+ tender label) |
 | R7 | ERP sale/refund tender | `orderSQL` single method (`erp/payload.go:263`), `buildTenders` one element (`:216-236`), refund uses the **order** method (`:227`) | C6a |
@@ -336,7 +336,21 @@ For a set of sale orders and a method `m`:
     - Refunds = refund rows **paid out** in that method (the refund set is filtered on `order_refunds.payment_method`, not on the order).
     - Order count = orders with a line in that method.
     - Otherwise a QRIS-filtered report would show the cash half of every split order as QRIS sales.
-  - For pre-C6 orders both rules select the same rows as today.
+  - **What a method filter does to each field `ReportSummary` emits** (`read/reports.go:117-127`):
+
+    | Field | Under the D-66 rule |
+    |---|---|
+    | `totalSales`, `grossSales` | that method's lines (net / gross) |
+    | `totalOrders`, `grossOrders` | orders with a line in that method |
+    | `totalRefunds`, `refundedOrders` | refund rows paid out in that method |
+    | `netSales`, `avgOrderValue` | derived from the limited figures |
+    | the three by-method maps | only the filtered key |
+    | `dailySales[]` | the same limiting in both `sd` and `rd` (`:91-104`), so the documented invariant Σ daily `netSales` = `netSales` (`:30-31`) still holds |
+    | `topProducts` (`:73-89`) | **cannot be limited**: sale lines are not allocated across payments. It lists the products of orders with a line in that method at full line revenue, so its total can exceed the limited `totalSales`. The UI labels it "produk dari transaksi yang memakai metode ini" |
+
+  - **The `split` filter value ("Campuran")** is a special case on both rules: `o.payment_method = 'split'`, whole-order money. Tender lines are never `split`, so EXISTS would match nothing.
+  - **The client oracle must apply the same rule.** `reportTotals.ts` sums the filtered order list, and so does any parity check (e.g. `scripts/a31-browser/reports-races.js`). C6a updates `reportTotals.ts` to limit by `o.tenders` and `o.refunds[].paymentMethod` under a method filter, or the oracle and the server disagree.
+  - For pre-C6 orders both rules select the same rows as today, so every field is unchanged.
 - **R5 / R6.**
   - `read/orders.go` adds `'tenders'` (a `json_agg` over the lateral, ordered by `seq`) and `refunds[].payoutSource`.
   - The customer profile adds `tenders` (or the label) per order.
@@ -467,23 +481,23 @@ For a set of sale orders and a method `m`:
 
 | ID | Question | Recommended default |
 |---|---|---|
-| D-50 | How is split payment switched on? | **Server setting `splitTenderEnabled`, default off; backoffice toggle in C6c; enable only after the demo and once every active tablet runs the C6b bundle.** Turning it off is the kill switch (UI only; queued splits are still accepted). |
-| D-51 | Maximum payment lines per sale | **4** (cash + QRIS + 2 cards). The ERP allows 20. |
-| D-52 | Cash lines | **At most one cash line; a second cash entry is added into it; only the cash line gives change.** On the batch route two cash lines (possible after an admin changes a method's "Tunai" flag while a sale is queued) are merged and flagged, never sent to review. |
-| D-53 | May a non-cash line exceed the remaining amount (overpay on EDC/QRIS)? | **No: the POS caps it at Sisa. The server flags `noncash_overpay` and never rejects** (slice 8 Q5). |
+| D-50 | How is split payment switched on? | **Server setting `splitTenderEnabled`, default off; backoffice toggle in C6c; enable only after the demo and once every active tablet runs the C6b bundle.** Turning it off is the kill switch (UI only; queued splits are still accepted). Alternative: always on once C6b ships (no toggle; no kill switch). |
+| D-51 | Maximum payment lines per sale | **4** (cash + QRIS + 2 cards). The ERP allows 20. Alternatives: 3 (simpler screen) or 6. |
+| D-52 | Cash lines | **At most one cash line; a second cash entry is added into it; only the cash line gives change.** On the batch route two cash lines (possible after an admin changes a method's "Tunai" flag while a sale is queued) are merged and flagged, never sent to review. Alternative: allow several cash lines, with the change taken from the last one. |
+| D-53 | May a non-cash line exceed the remaining amount (overpay on EDC/QRIS)? | **No: the POS caps it at Sisa. The server flags `noncash_overpay` and never rejects** (slice 8 Q5). Alternative: allow it and pay the excess back as cash change (the drawer then pays out money that came in on the EDC). |
 | D-54 | A structurally invalid tender list (a negative or non-finite line, a zero line among two or more, more than 4 lines, blank or `split` method, a scalar `split` without lines, Σ over the money cap) | **Reject on both routes (the batch item goes to review), the same as a negative `amountPaid` today (A09-input-numeric).** A correct POS cannot produce one. A single line keeps the legacy rules, and two cash lines are merged on batch (D-52). Alternative: accept and flag. |
 | D-55 | Shortfall or drift (server total ≠ what was collected) on a split sale: which method carries the difference? | **Keep Σ applied = order total.** The cash line carries it if there is one (exactly today's `cash_short`: expected cash includes the gap and the flag explains it); otherwise the last line. The captured amount is kept verbatim in `tendered` and the order is flagged. Reports by method then always add up to total sales, as today. On the direct route any split shortfall is a 422; batch always accepts and flags (2.3). Alternative: store applied = captured and show a separate "Selisih pembayaran" row in reports and the shift recap. |
 | D-56 | Refund payout method on a split order | **The cashier picks one per refund from the sale's methods plus cash. Default: cash if the sale had cash, else the largest line.** Single-method orders keep today's rule (refund = sale method, no choice). Alternative: allow choosing on every order, so a QRIS sale refunded in cash is recorded as cash. |
 | D-57 | Per-method refund cap (e.g. cash refund ≤ cash paid) | **None; only the D-49 order cap.** Stores refund in cash whatever the customer paid with. Alternative: flag `payout_exceeds_tender` as information. |
-| D-58 | Refund of a split order from an old bundle, the APK builtin, the old backoffice form or a raw status write (no payout method) | **The server uses the D-56 default (`payout_source='default'`); the 0077 trigger function is replaced to match.** |
-| D-59 | Reference number (D-21) | **Optional "No. referensi" per non-cash line, up to 64 characters, printed on the receipt and shown in the backoffice; never required.** Single-method sales get it too. |
-| D-60 | Label for a sale paid with several methods | **"Campuran"** (POS lists, backoffice list and CSV, customer profile); detail views show each line. |
-| D-61 | ERP tender methods: today only the ids `cash/card/transfer/qris` pass, so **`tunai` (the live cash id) and custom ids send no tender** | **C6a maps every cash-identified id to `cash`, keeps `card/transfer/qris`, and still omits other custom ids.** The owner lists any custom id that should map (e.g. `edc` → `card`). Tenders are information only (E-2), so the risk is low. |
+| D-58 | Refund of a split order from an old bundle, the APK builtin, the old backoffice form or a raw status write (no payout method) | **The server uses the D-56 default (`payout_source='default'`); the 0077 trigger function is replaced to match.** Alternative: refuse such a refund (conflict → review, "Perbarui aplikasi"), which blocks refunds of split orders from un-updated tablets. |
+| D-59 | Reference number (D-21) | **Optional "No. referensi" per non-cash line, up to 64 characters, printed on the receipt and shown in the backoffice; never required.** Single-method sales get it too. Alternatives: required for Kartu/EDC (stronger reconciliation, slower checkout), or leave D-21 out of C6. |
+| D-60 | Label for a sale paid with several methods | **"Campuran"** (POS lists, backoffice list and CSV, customer profile); detail views show each line. Alternatives: "Terpisah", or list the methods inline ("QRIS + Tunai"). |
+| D-61 | ERP tender methods: today only the ids `cash/card/transfer/qris` pass, so **`tunai` (the live cash id) and custom ids send no tender** | **C6a maps every cash-identified id to `cash`, keeps `card/transfer/qris`, and still omits other custom ids.** The owner lists any custom id that should map (e.g. `edc` → `card`). Tenders are information only (E-2), so the risk is low. Alternative: leave the relay filter as it is and fix it in its own slice (cash sales keep sending no tender). |
 | D-62 | Keep an unfinished split payment if the app is killed (EDC/QRIS app switch) | **Yes: auto-save a draft when the first non-cash line is added; restore prompt on the next start (B4 held-orders store). The draft fixes the sale's order uuid from the start, so it can never become a second sale (2.7).** Alternative: accept the risk; the cashier re-enters the payment and checks the EDC slip. |
-| D-63 | Removing a charged line or leaving checkout with lines | **A confirm that reminds the cashier to cancel it on the EDC/QRIS machine.** |
-| D-64 | Held orders (D-6) and payment lines | **Held orders never store payment lines (only the D-62 draft does).** |
-| D-65 | Release timing | **After the 2 Nov demo**: C6a deploy → 24 h soak → C6b OTA → fleet on C6b → C6c → enable (D-50). The owner may pull C6a forward, since with the setting off it changes no behaviour apart from D-61 and the D-66 filter rule. |
-| D-66 | What a payment-method filter means in Laporan (the report summary) once one sale can have several methods | **Money limited to that method: its tender lines as sales, refunds paid out in that method, the count of orders with a line in that method.** The order list keeps "orders containing this method", and "Campuran" lists split orders. Alternative: keep the summary on the order's single `payment_method` (a QRIS filter then excludes split orders). |
+| D-63 | Removing a charged line or leaving checkout with lines | **A confirm that reminds the cashier to cancel it on the EDC/QRIS machine.** Alternative: no confirm (faster, but an EDC charge is easy to forget). |
+| D-64 | Held orders (D-6) and payment lines | **Held orders never store payment lines (only the D-62 draft does).** Alternative: keep the lines in a held order (a part-paid order can then be parked, with the risk of forgetting it). |
+| D-65 | Release timing | **After the 2 Nov demo**: C6a deploy → 24 h soak → C6b OTA → fleet on C6b → C6c → enable (D-50). The owner may pull C6a forward, since with the setting off it changes no behaviour apart from D-61 and the D-66 filter rule. Alternative: ship C6a before the demo (low risk, but no soak margin before 2 Nov). |
+| D-66 | What a payment-method filter means in Laporan (the report summary) once one sale can have several methods | **Money limited to that method: its tender lines as sales, refunds paid out in that method, the count of orders with a line in that method** (field table in 2.4 R4). The order list keeps "orders containing this method", and "Campuran" lists split orders. **Trade-off:** "Produk terlaris" cannot be limited (items are not allocated to payments), so under a filter it shows those orders' products at full revenue and no longer adds up to the limited total; the client oracle needs the same rule. **Alternative (simpler, fully consistent):** keep the summary on the order's single `payment_method`. A QRIS filter then excludes split orders entirely, and their money shows only under "Campuran". |
 ---
 
 ## 4. Slices
@@ -707,6 +721,7 @@ SELECT count(*) FROM orders WHERE payment_method = 'split';                   --
 
 ## 6. Known gaps (not fixed by C6)
 - **Custom non-cash method ids** still land in no shift bucket (`shift.go:196-199`), only in `total_sales`. They need their own slice: a per-method jsonb sales map on `shifts`.
+- **A method flipped from cash to non-cash between capture and replay.** The batch merge covers the reverse case (D-52). Here the replayed split has no cash line, so the server flags a non-cash overpay and stores no change, while the cashier did hand out change. It is flagged, and the money taken is still in `tendered`. Admins should not change a method's "Tunai" flag while sales are queued (RUNBOOK note in C6a).
 - **Tender method ids** are still not checked against the configured methods (`order_input.go:110-113`; "supported payment semantics" in A09 T07 stays open).
 - **Refunds of single-method orders** keep the sale's method even when paid back differently (D-56 alternative).
 - **No payment-method promo** (e.g. a bank card promo) exists. One would need tender-aware promo rules.
