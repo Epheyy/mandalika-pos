@@ -12,15 +12,24 @@ import { variantLabel } from '@mandalika/types'
 import { RefundAction } from './RefundAction'
 import { PAYMENT_LABELS, refundSummaries } from './refundView'
 import type { RefundCache } from './refundSelection'
-import { PAGE_SIZE, businessToday, defaultHistoryDay, orderHistoryQuery } from './orderHistoryQuery'
+import { PAGE_SIZE, businessToday, defaultHistoryDay, historyWindowFor, orderHistoryQuery } from './orderHistoryQuery'
 import { Sheet } from '../components/ui/Sheet'
 import { IconPrinter } from '../components/ui/icons'
 
 type Order = components['schemas']['Order']
 type OrderListResponse = components['schemas']['OrderListResponse']
 
+/** Open on one sale: its day window, its number in the search box, its row expanded. The parent keys the panel by it. */
+export interface HistoryFocus {
+  orderId: string
+  orderNumber: string
+  capturedAt: string
+}
+
 interface OrderHistoryPanelProps {
   isOpen: boolean
+  /** C4b: a synced local receipt without line data is refunded from here; the panel opens on that order. */
+  focus?: HistoryFocus | null
   onClose: () => void
   onRefund: (order: Order) => void
   /** Reprint this order's sales receipt with the REPRINT marker. */
@@ -58,18 +67,18 @@ const STATUS_STYLES: Record<string, string> = {
   cancelled: 'bg-gray-100 text-gray-500',
 }
 
-export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, timezone, shiftOpenedAt }: OrderHistoryPanelProps) {
-  const [from, setFrom] = useState(() => defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
-  const [to, setTo] = useState(() => defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
-  // Once the cashier picks a day, a late-arriving timezone/shift no longer moves it.
-  const [pickedDay, setPickedDay] = useState(false)
+export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, timezone, shiftOpenedAt }: OrderHistoryPanelProps) {
+  const [from, setFrom] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).from : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
+  const [to, setTo] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).to : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
+  // Once the cashier picks a day (or the panel opened on a given sale), a late-arriving timezone/shift no longer moves it.
+  const [pickedDay, setPickedDay] = useState(!!focus)
   useEffect(() => {
     if (pickedDay) return
     const day = defaultHistoryDay(new Date(), timezone, shiftOpenedAt)
     setFrom(day)
     setTo(day)
   }, [pickedDay, timezone, shiftOpenedAt])
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(focus?.orderNumber ?? '')
   const [page, setPage] = useState(1)
   const [orders, setOrders] = useState<Order[]>([])
   const [total, setTotal] = useState(0)
@@ -77,7 +86,7 @@ export function OrderHistoryPanel({ isOpen, onClose, onRefund, onReprint, canRep
   const [error, setError] = useState<string | null>(null)
   // true when the rows shown came from the offline cache, not a live fetch.
   const [isStale, setIsStale] = useState(false)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(focus?.orderId ?? null)
 
   const load = useCallback(async () => {
     setIsLoading(true)

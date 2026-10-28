@@ -3,6 +3,7 @@ import type { ReceiptData } from '@mandalika/printer'
 import type { LocalReceipt } from '@mandalika/sync'
 import { PAYMENT_LABELS, type LocalSaleRef, type PartialGate } from './refundView'
 import { receiptFromQuote, type ReceiptSnapshot } from './receiptQuote'
+import { buildRefundBasis, type RefundCache } from './refundSelection'
 
 type Order = components['schemas']['Order']
 
@@ -62,6 +63,16 @@ export function localReceiptOrder(r: LocalReceipt): Order {
     })),
   } as unknown as Order
 }
+
+/** A synced sale whose receipt carries no per-line data (archived before per-line refunds, or its allocation failed):
+ *  this tablet cannot tell what is left to refund (another tablet or the backoffice may have part-refunded it), so the
+ *  refund is made from Riwayat, which reads the server order. Unsynced sales and receipts with line data are unaffected. */
+export function refundViaHistory(r: Pick<LocalReceipt, 'serverOrderId'>, order: Order, cache?: RefundCache): boolean {
+  return !!r.serverOrderId && buildRefundBasis(order, cache).kind === 'whole'
+}
+
+/** Shown instead of a refund button when the cashier is offline and the refund must go through Riwayat. */
+export const REFUND_VIA_HISTORY_OFFLINE = 'Refund struk ini lewat Riwayat saat online.'
 
 /** The slip for a reprint from a local receipt, built from the stored A10 snapshot only. Null when there is
  *  nothing trustworthy to print (no snapshot, or no quoted total). Never touches the outbox. */

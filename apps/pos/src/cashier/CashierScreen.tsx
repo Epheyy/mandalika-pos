@@ -48,6 +48,7 @@ import { ReceiptPreview } from './ReceiptPreview'
 import { orderStateFor } from './orderState'
 import { RefundDialog, type RefundConfirmInput } from './RefundDialog'
 import type { RefundCache } from './refundSelection'
+import type { HistoryFocus } from './OrderHistoryPanel'
 import { withSaleLineData } from './saleLineData'
 import { REFUND_DONE, REFUND_QUEUED, planRefundSubmit, refundGateProps, type LocalSaleRef } from './refundView'
 import { OrderHistoryPanel } from './OrderHistoryPanel'
@@ -207,6 +208,8 @@ export default function CashierScreen() {
   const [isRefunding, setIsRefunding] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showLocalReceipts, setShowLocalReceipts] = useState(false)
+  // C4b: set when Riwayat is opened from a local receipt that must be refunded there (no line data, already synced).
+  const [historyFocus, setHistoryFocus] = useState<HistoryFocus | null>(null)
   // Set while the refund dialog is open for a sale made on this tablet (a local receipt): its identity rides into the payload.
   const [refundSale, setRefundSale] = useState<LocalSaleRef | null>(null)
   const [showRecap, setShowRecap] = useState(false)
@@ -1298,7 +1301,7 @@ export default function CashierScreen() {
           : null}
         heldCount={heldOrders.held.length}
         onHeldOrders={() => heldOrders.setOpen(true)}
-        onHistory={() => setShowHistory(true)}
+        onHistory={() => { setHistoryFocus(null); setShowHistory(true) }}
         onLocalReceipts={() => setShowLocalReceipts(true)}
         onRecap={() => setShowRecap(true)}
         onCashFlow={() => openSettings('cashflow')}
@@ -1315,6 +1318,8 @@ export default function CashierScreen() {
       />
 
       <OrderHistoryPanel
+        key={historyFocus ? `focus:${historyFocus.orderId}` : 'plain'}
+        focus={historyFocus}
         isOpen={showHistory}
         onClose={() => setShowHistory(false)}
         onRefund={(o) => { setShowHistory(false); setRefundSale(null); setRefundOrder(o) }}
@@ -1331,6 +1336,13 @@ export default function CashierScreen() {
         receipts={localReceipts}
         canReprint={printer.isPaired}
         onReprint={reprintLocal}
+        isOnline={offlineData.isOnline}
+        onOpenInHistory={(r) => {
+          if (!r.serverOrderId) return
+          setHistoryFocus({ orderId: r.serverOrderId, orderNumber: r.orderNumber, capturedAt: r.capturedAt })
+          setShowLocalReceipts(false)
+          setShowHistory(true)
+        }}
         onRefund={(r) => { setShowLocalReceipts(false); setRefundSale(localSaleRef(r)); setRefundOrder(localReceiptOrder(r)) }}
         {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId, refundCache: refundCacheFor })}
       />
