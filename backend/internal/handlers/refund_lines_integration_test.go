@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/config"
 	"github.com/mandalika/pos-backend/internal/db"
@@ -32,6 +33,7 @@ type rlRefundRow struct {
 	id, scope, warn, key             string
 	seq                              int
 	amount, computed, clawed, restor int64
+	claimed                          int64 // -1 = no claim stored
 }
 
 type rlLine struct {
@@ -102,6 +104,7 @@ func TestRefundLinesPostgres(t *testing.T) {
 	router.With(authWrap).Get("/shifts/{id}", h.Shift)
 	router.With(authWrap).Get("/shifts/current", h.CurrentShift)
 	router.With(authWrap).Get("/reports/summary", h.ReportSummary)
+	router.With(authWrap).Get("/refund-report", h.RefundReport)
 
 	issue := func(user, role, outlet string, perms ...string) string {
 		tok, err := auth.IssueAccess(secret, time.Hour, user, role, outlet, perms)
@@ -286,7 +289,8 @@ func TestRefundLinesPostgres(t *testing.T) {
 	refunds := func(order string) (out []rlRefundRow) {
 		cur.Helper()
 		rows, err := pool.Query(ctx, `SELECT id::text, seq, scope, COALESCE(amount_warning,''), ledger_document_key,
-			round(amount)::bigint, round(computed_amount)::bigint, points_clawed, points_restored
+			round(amount)::bigint, round(computed_amount)::bigint, points_clawed, points_restored,
+			COALESCE(round(claimed_amount)::bigint,-1)
 			FROM order_refunds WHERE order_id=$1 ORDER BY seq`, order)
 		if err != nil {
 			cur.Fatal(err)
@@ -294,7 +298,7 @@ func TestRefundLinesPostgres(t *testing.T) {
 		defer rows.Close()
 		for rows.Next() {
 			var r rlRefundRow
-			if err := rows.Scan(&r.id, &r.seq, &r.scope, &r.warn, &r.key, &r.amount, &r.computed, &r.clawed, &r.restor); err != nil {
+			if err := rows.Scan(&r.id, &r.seq, &r.scope, &r.warn, &r.key, &r.amount, &r.computed, &r.clawed, &r.restor, &r.claimed); err != nil {
 				cur.Fatal(err)
 			}
 			out = append(out, r)
@@ -972,7 +976,7 @@ func TestRefundLinesPostgres(t *testing.T) {
 	})
 
 	// ─────────────────────────────────────────────────────────────────────────────
-	sub("7 the amount is a captured fact (D-39) and shift/report totals agree (F1 fixture)", func(t *testing.T) {
+	sub("7 the amount is a captured fact (D-39, capped by D-49) and shift/report totals agree (F1 fixture)", func(t *testing.T) {
 		o := newOutlet()
 		pA, pB := newProduct(o, 30000), newProduct(o, 70000)
 		s := newShift(o, time.Now())
@@ -1014,19 +1018,75 @@ func TestRefundLinesPostgres(t *testing.T) {
 		if r := refunds(o4)[0]; r.amount != 30001 || r.warn != "" {
 			t.Fatalf("Rp1 slack: %+v", r)
 		}
-		// completing refund pushes the sum over the total: still commits, flagged over_total
+		// completing refund claims more than is left: still commits, flagged over_total, capped (D-49)
 		o2 := sell(o, saleOpt{items: []map[string]any{line(pA, 1, 30000), line(pB, 1, 70000)}})
 		wantOK("o2 R1", rf(o, claim(rp(o2, [2]int{0, 1}), 30000), ""))
 		wantOK("o2 R2 over total", rf(o, claim(rp(o2, [2]int{1, 1}), 80000), ""))
 		r2 := refunds(o2)
-		if len(r2) != 2 || r2[0].warn != "" || r2[1].warn != "over_total" || r2[1].amount != 80000 || status(o2) != "refunded" {
+		// D-49: the claim (80000) is kept, the amount of record is capped at what was left (70000)
+		if len(r2) != 2 || r2[0].warn != "" || r2[1].warn != "over_total" || r2[1].amount != 70000 || r2[1].claimed != 80000 || status(o2) != "refunded" {
 			t.Fatalf("over_total on the completing refund: %+v status=%s", r2, status(o2))
 		}
-		// a first partial that alone exceeds the total
+		// a first partial whose claim alone exceeds the total
 		o3 := sell(o, saleOpt{items: []map[string]any{line(pA, 1, 30000), line(pB, 1, 70000)}})
 		wantOK("o3 huge claim", rf(o, claim(rp(o3, [2]int{0, 1}), 200000), ""))
-		if r := refunds(o3)[0]; r.warn != "over_total" || r.amount != 200000 || status(o3) != "partially_refunded" {
+		if r := refunds(o3)[0]; r.warn != "over_total" || r.amount != 100000 || r.claimed != 200000 || status(o3) != "partially_refunded" {
 			t.Fatalf("over_total on a partial: %+v status=%s", r, status(o3))
+		}
+		// D-49: ... and the next refund of that order has nothing left to record
+		wantOK("o3 R2 after a capped claim", rf(o, rp(o3, [2]int{1, 1}), ""))
+		if r := refunds(o3); len(r) != 2 || r[1].amount != 0 || r[1].warn != "over_total" || status(o3) != "refunded" {
+			t.Fatalf("nothing left after a capped claim: %+v status=%s", r, status(o3))
+		}
+	})
+
+	// ─────────────────────────────────────────────────────────────────────────────
+	sub("7d D-49 cap: two refunds whose claims would exceed the total; shift, report and ERP use the capped amount", func(t *testing.T) {
+		o := newOutlet()
+		pA, pB := newProduct(o, 30000), newProduct(o, 70000)
+		s := newShift(o, time.Now())
+		oid := sell(o, saleOpt{shift: s, items: []map[string]any{line(pA, 1, 30000), line(pB, 1, 70000)}})
+		claim := func(p map[string]any, amount int) map[string]any { p["refundAmount"] = amount; return p }
+		// a claim within what is left stays the fact (60000 is paid out although the line is worth 30000)
+		wantOK("R1 claims 60000", rf(o, claim(rp(oid, [2]int{0, 1}), 60000), s))
+		// the second claim (70000) would take the sum to 130000: the record stops at the 40000 left
+		wantOK("R2 claims 70000", rf(o, claim(rp(oid, [2]int{1, 1}), 70000), s))
+		rs := refunds(oid)
+		if len(rs) != 2 ||
+			rs[0].amount != 60000 || rs[0].claimed != 60000 || rs[0].computed != 30000 || rs[0].warn != "amount_mismatch" ||
+			rs[1].amount != 40000 || rs[1].claimed != 70000 || rs[1].computed != 70000 || rs[1].warn != "over_total" || status(oid) != "refunded" {
+			t.Fatalf("capped refund rows: %+v status=%s", rs, status(oid))
+		}
+		od := getData(adminAll, "/orders/"+oid)
+		if od["refundedAmount"] != float64(100000) {
+			t.Fatalf("order read refundedAmount=%v want 100000", od["refundedAmount"])
+		}
+		rd2, _ := od["refunds"].([]any)
+		if len(rd2) != 2 || rd2[1].(map[string]any)["claimedAmount"] != float64(70000) || rd2[1].(map[string]any)["amount"] != float64(40000) {
+			t.Fatalf("order read refunds[]: %v", od["refunds"])
+		}
+		closeShift(o, s)
+		sr := readShift(s)
+		if sr.totalSales != 0 || sr.totalRefunds != 100000 || sr.cashRefundsPaid != 0 {
+			t.Fatalf("shift close uses the capped amounts: %+v", sr)
+		}
+		sm := summaryOf(o.id, "")
+		if sm.GrossSales != 100000 || sm.TotalRefunds != 100000 || sm.NetSales != 0 || sm.RefundsBy["cash"] != 100000 {
+			t.Fatalf("report summary uses the capped amounts: %+v", sm)
+		}
+		var hd erp.OutboxHeader
+		if err := pool.QueryRow(ctx, `SELECT id::text, document_id::text, kind, location_type, location_id::text, ref_type, ref_id::text,
+		    coalesce(ref_number,''), part, part_count, created_at FROM erp_outbox WHERE doc_key=$1`, rs[1].key).
+			Scan(&hd.ID, &hd.DocumentID, &hd.Kind, &hd.LocationType, &hd.LocationID, &hd.RefType, &hd.RefID, &hd.RefNumber, &hd.Part, &hd.PartCount, &hd.CreatedAt); err != nil {
+			t.Fatalf("outbox row: %v", err)
+		}
+		in, err := erp.LoadBuildInput(ctx, pool, hd, "mandalika")
+		if err != nil {
+			t.Fatal(err)
+		}
+		doc, hold, err := erp.BuildDocument(in)
+		if err != nil || hold != "" || len(doc.Tenders) != 1 || doc.Tenders[0].Amount != -40000 {
+			t.Fatalf("ERP tender must be the capped amount, not held: hold=%q err=%v tenders=%+v", hold, err, doc.Tenders)
 		}
 	})
 
@@ -1044,8 +1104,8 @@ func TestRefundLinesPostgres(t *testing.T) {
 		p["refundAmount"] = 25000000
 		wantOK("wild claim", rf(o, p, ""))
 		r1 := refunds(oid)[0]
-		if r1.amount != 25000000 || r1.computed != 100000 || r1.warn != "over_total" {
-			t.Fatalf("amount of record keeps the claim, flagged: %+v", r1)
+		if r1.amount != 250000 || r1.claimed != 25000000 || r1.computed != 100000 || r1.warn != "over_total" {
+			t.Fatalf("amount of record is capped at the order total, the claim kept, flagged (D-49): %+v", r1)
 		}
 		if got := custRow(cu).spent; got != 550000-r1.computed || got < total(other) {
 			t.Fatalf("total_spent %d must drop by computed %d only (=450000), never below the other order's %d", got, r1.computed, total(other))
@@ -1424,10 +1484,159 @@ func TestRefundLinesPostgres(t *testing.T) {
 	})
 
 	// ─────────────────────────────────────────────────────────────────────────────
-	sub("11 invariant: sum(order_refunds.amount) <= orders.total + 1 unless flagged over_total", func(t *testing.T) {
+	sub("12 refund report: one row per refund with lines, flag filter, outlet scope, 400s", func(t *testing.T) {
+		o, other := newOutlet(), newOutlet()
+		pA, pB := newProduct(o, 30000), newProduct(o, 70000)
+		pC := newProduct(other, 50000)
+		oid := sell(o, saleOpt{items: []map[string]any{line(pA, 1, 30000), line(pB, 1, 70000)}})
+		claim := func(p map[string]any, amount int) map[string]any { p["refundAmount"] = amount; return p }
+		wantOK("R1", rf(o, rp(oid, [2]int{0, 1}), ""))
+		wantOK("R2 over claim", rf(o, claim(rp(oid, [2]int{1, 1}), 90000), ""))
+		oid2 := sell(other, saleOpt{items: []map[string]any{line(pC, 1, 50000)}})
+		wantOK("other outlet refund", rf(other, rp(oid2, [2]int{0, 1}), ""))
+
+		report := func(token, q string) (sum map[string]any, rows []map[string]any, total float64) {
+			cur.Helper()
+			code, raw := call("GET", "/refund-report"+q, token, nil)
+			var out struct {
+				Summary map[string]any          `json:"summary"`
+				Data    []map[string]any        `json:"data"`
+				Meta    struct{ Total float64 } `json:"meta"`
+			}
+			if code != 200 || json.Unmarshal(raw, &out) != nil {
+				cur.Fatalf("GET /refund-report%s: %d %s", q, code, raw)
+			}
+			return out.Summary, out.Data, out.Meta.Total
+		}
+		sum, rows, total := report(adminAll, "?outletId="+o.id)
+		if total != 2 || len(rows) != 2 || sum["count"] != float64(2) || sum["totalAmount"] != float64(100000) || sum["flaggedCount"] != float64(1) {
+			t.Fatalf("outlet report: total=%v rows=%d sum=%v", total, len(rows), sum)
+		}
+		// newest first: R2 (capped 70000 of a 90000 claim, 1 line) then R1
+		r2, r1 := rows[0], rows[1]
+		items2, _ := r2["items"].([]any)
+		if r2["seq"] != float64(2) || r2["amount"] != float64(70000) || r2["claimedAmount"] != float64(90000) || r2["amountWarning"] != "over_total" ||
+			r2["orderId"] != oid || r2["outletName"] == "" || r2["cashierName"] == "" || len(items2) != 1 ||
+			items2[0].(map[string]any)["quantity"] != float64(1) || r1["seq"] != float64(1) {
+			t.Fatalf("report rows: %v", rows)
+		}
+		if _, f, ft := report(adminAll, "?outletId="+o.id+"&flag=over_total"); ft != 1 || len(f) != 1 || f[0]["seq"] != float64(2) {
+			t.Fatalf("flag filter over_total: %d rows", len(f))
+		}
+		if _, f, _ := report(adminAll, "?outletId="+o.id+"&flag=amount_mismatch"); len(f) != 0 {
+			t.Fatalf("flag filter amount_mismatch: %d rows", len(f))
+		}
+		if _, p1, pt := report(adminAll, "?outletId="+o.id+"&limit=1&page=2"); pt != 2 || len(p1) != 1 || p1[0]["seq"] != float64(1) {
+			t.Fatalf("paging: total=%v rows=%v", pt, p1)
+		}
+		if _, _, dt := report(adminAll, "?outletId="+o.id+"&dateFrom=2001-01-01&dateTo=2001-01-02"); dt != 0 {
+			t.Fatalf("date filter should exclude: %v", dt)
+		}
+		// a cashier of the other outlet only ever sees their own outlet, even asking for another
+		_, mine, mt := report(other.tok, "?outletId="+o.id)
+		if mt != 1 || len(mine) != 1 || mine[0]["outletId"] != other.id {
+			t.Fatalf("scope clamp leaked: total=%v rows=%v", mt, mine)
+		}
+		for _, q := range []string{"?flag=bogus", "?dateFrom=nope"} {
+			if code, _ := call("GET", "/refund-report"+q, adminAll, nil); code != 400 {
+				t.Fatalf("%s should be 400, got %d", q, code)
+			}
+		}
+	})
+
+	// ─────────────────────────────────────────────────────────────────────────────
+	sub("13 direct route per-line (admin refund, C4c): items shape, no claim, server rules unchanged", func(t *testing.T) {
+		o := newOutlet()
+		pA, pB := newProduct(o, 30000), newProduct(o, 70000)
+		oid := sell(o, saleOpt{items: []map[string]any{line(pA, 1, 30000), line(pB, 1, 70000)}})
+		post := func(body map[string]any) (int, string) {
+			cur.Helper()
+			code, raw := call("POST", "/orders/"+oid+"/refund", o.tok, body)
+			return code, string(raw)
+		}
+		if code, b := post(map[string]any{"reason": "rusak", "items": []map[string]int{}}); code != 400 {
+			t.Fatalf("empty items must be refused, got %d %s", code, b)
+		}
+		if code, b := post(map[string]any{"reason": "rusak", "items": []map[string]int{{"lineNo": 0, "quantity": 2}}}); code != 409 || !strings.Contains(b, "jangan bayar ulang") {
+			t.Fatalf("over quantity: %d %s", code, b)
+		}
+		if code, b := post(map[string]any{"reason": "rusak", "reasonCode": "Bad Code", "items": []map[string]int{{"lineNo": 0, "quantity": 1}}}); code != 400 {
+			t.Fatalf("bad reason code: %d %s", code, b)
+		}
+		if code, b := post(map[string]any{"reason": "rusak", "reasonCode": "rusak", "items": []map[string]int{{"lineNo": 0, "quantity": 1}}}); code != 201 {
+			t.Fatalf("per-line direct refund: %d %s", code, b)
+		}
+		rs := refunds(oid)
+		if len(rs) != 1 || rs[0].scope != "partial" || rs[0].amount != 30000 || rs[0].claimed != -1 || status(oid) != "partially_refunded" {
+			t.Fatalf("direct partial row: %+v status=%s", rs, status(oid))
+		}
+		// a retry with the same client uuid is a replay, never a second payout
+		key := "0e0e0e0e-1111-4222-8333-" + fmt.Sprintf("%012d", time.Now().UnixNano()%1_000_000_000_000)
+		keyed := map[string]any{"reason": "rusak", "clientRefundUuid": key, "items": []map[string]int{{"lineNo": 1, "quantity": 1}}}
+		if code, b := post(keyed); code != 201 {
+			t.Fatalf("keyed direct refund: %d %s", code, b)
+		}
+		if code, b := post(keyed); code != 201 || len(refunds(oid)) != 2 {
+			t.Fatalf("keyed replay must not add a refund: %d %s rows=%d", code, b, len(refunds(oid)))
+		}
+		if code, _ := post(map[string]any{"reason": "rusak", "clientRefundUuid": "nope", "items": []map[string]int{{"lineNo": 1, "quantity": 1}}}); code != 400 {
+			t.Fatalf("bad clientRefundUuid must be 400, got %d", code)
+		}
+		if code, _ := post(map[string]any{"reason": "rusak", "items": []map[string]int{{"lineNo": 1, "quantity": 1}}}); code != 409 {
+			t.Fatalf("an unkeyed repeat must conflict, got %d", code)
+		}
+		if status(oid) != "refunded" || len(refunds(oid)) != 2 {
+			t.Fatalf("final status %s", status(oid))
+		}
+	})
+
+	// ─────────────────────────────────────────────────────────────────────────────
+	sub("14 Kartu Stok: refund movements carry Refund ke-N and the refund reason (new keys and the legacy refund:<orderId> key)", func(t *testing.T) {
+		o := newOutlet()
+		pA, pB := newProduct(o, 30000), newProduct(o, 70000)
+		oid := sell(o, saleOpt{items: []map[string]any{line(pA, 1, 30000), line(pB, 1, 70000)}})
+		wantOK("R1", rf(o, rp(oid, [2]int{0, 1}), ""))
+		wantOK("R2", rf(o, rp(oid, [2]int{1, 1}), ""))
+		seqOf := func(pid string) (seq int, reason string, n int) {
+			cur.Helper()
+			f := read.MovementFilter{LocationType: "outlet", LocationID: o.id, ProductID: pid, VariantSize: "std", Kinds: []string{"refund"}}
+			if err := rd.ForEachMovement(ctx, f, 0, 50, func(m api.StockMovementRow) error {
+				n++
+				if m.RefundSeq != nil {
+					seq = *m.RefundSeq
+				}
+				if m.ReasonText != nil {
+					reason = *m.ReasonText
+				}
+				return nil
+			}); err != nil {
+				cur.Fatal(err)
+			}
+			return
+		}
+		if sq, rs, n := seqOf(pA); n != 1 || sq != 1 || rs == "" {
+			t.Fatalf("line A refund movement: seq=%d reason=%q n=%d", sq, rs, n)
+		}
+		if sq, rs, n := seqOf(pB); n != 1 || sq != 2 || rs == "" {
+			t.Fatalf("line B refund movement: seq=%d reason=%q n=%d", sq, rs, n)
+		}
+		// legacy key shape: refund row key refund:<orderId>, movement dedupe key refund:<itemId>
+		lp := newProduct(o, 40000)
+		lo := legacyOrder(o, "completed", lp, 40000, "")
+		exec(`UPDATE orders SET status='refunded', refund_reason='lama', refunded_at=now() WHERE id=$1`, lo)
+		li := str(`SELECT id::text FROM order_items WHERE order_id=$1`, lo)
+		exec(`INSERT INTO stock_movements(kind, location_type, location_id, product_id, variant_size, qty, qty_before, qty_after, ref_type, ref_id, dedupe_key, document_id, occurred_at)
+			SELECT 'refund','outlet',$1::uuid,$2::uuid,'std',1,0,1,'order',$3::uuid,'refund:'||$4,gen_random_uuid(),now()`, o.id, lp, lo, li)
+		if sq, _, n := seqOf(lp); n != 1 || sq != 1 {
+			t.Fatalf("legacy refund movement: seq=%d n=%d", sq, n)
+		}
+	})
+
+	// ─────────────────────────────────────────────────────────────────────────────
+	sub("11 invariant (D-49): sum(order_refunds.amount) <= orders.total + 1, always", func(t *testing.T) {
 		rows, err := pool.Query(ctx, `SELECT o.id::text FROM orders o JOIN order_refunds r ON r.order_id=o.id
 			GROUP BY o.id, o.total
-			HAVING sum(r.amount) > o.total + 1 AND bool_and(r.amount_warning IS DISTINCT FROM 'over_total')`)
+			HAVING sum(r.amount) > o.total + 1`)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1441,7 +1650,7 @@ func TestRefundLinesPostgres(t *testing.T) {
 		}
 		rows.Close()
 		if len(bad) != 0 {
-			t.Fatalf("orders refunded beyond their total without an over_total flag: %v", bad)
+			t.Fatalf("orders whose refund amounts of record sum past their total: %v", bad)
 		}
 		if num(`SELECT count(*) FROM order_refunds WHERE amount_warning='over_total'`) < 2 {
 			t.Fatal("subtest 7 must have produced flagged rows, or the invariant is vacuous")

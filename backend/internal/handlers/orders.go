@@ -163,9 +163,28 @@ func refundHTTPError(err error) (int, string) {
 	return http.StatusInternalServerError, "Terjadi kesalahan server, silakan coba lagi"
 }
 
+// directRefundDevice is the device_id of a backoffice refund's replay key: "backoffice:<user>", or ""
+// (no replay key) when the caller sent no client uuid.
+func directRefundDevice(userID, clientUUID string) string {
+	if clientUUID == "" {
+		return ""
+	}
+	return "backoffice:" + userID
+}
+
 func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Reason string `json:"reason"`
+		Reason     string `json:"reason"`
+		ReasonCode string `json:"reasonCode"`
+		// ClientRefundUUID makes a retry of the same admin refund a replay (UNIQUE(device_id,
+		// client_refund_uuid)) instead of a second payout when the response was lost. Optional.
+		ClientRefundUUID string `json:"clientRefundUuid"`
+		// Items is the per-line shape (C4c admin refund). Absent = the whole order; a present
+		// but empty array stays non-nil so the service refuses it instead of refunding everything.
+		Items []struct {
+			LineNo   int `json:"lineNo"`
+			Quantity int `json:"quantity"`
+		} `json:"items"`
 	}
 	if err := httpx.DecodeLoose(r, &body); err != nil {
 		if isBodyTooLarge(err) {
@@ -173,6 +192,17 @@ func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		httpx.Err(w, http.StatusBadRequest, "Isi permintaan refund tidak valid.")
+		return
+	}
+	var items []service.RefundItemInput
+	if body.Items != nil {
+		items = make([]service.RefundItemInput, 0, len(body.Items))
+		for _, it := range body.Items {
+			items = append(items, service.RefundItemInput{LineNo: it.LineNo, Quantity: it.Quantity})
+		}
+	}
+	if body.ClientRefundUUID != "" && !service.IsCanonicalUUID(body.ClientRefundUUID) {
+		httpx.Err(w, http.StatusBadRequest, "clientRefundUuid tidak valid.")
 		return
 	}
 	id := chi.URLParam(r, "id")
@@ -209,6 +239,8 @@ func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		return h.OrderSvc.Refund(r.Context(), service.RefundInput{
 			OutletID: outlet, OrderID: id, Reason: body.Reason,
 			UserID: c.userID, UserName: c.name,
+			Items: items, ReasonCode: body.ReasonCode,
+			DeviceID: directRefundDevice(c.userID, body.ClientRefundUUID), ClientRefundUUID: body.ClientRefundUUID,
 		})
 	}); err != nil {
 		fail(err)

@@ -1604,9 +1604,10 @@ components:
         id: { type: string, format: uuid }
         seq: { type: integer }
         scope: { type: string, enum: [full, partial, legacy_full] }
-        amount: { type: number, format: double, description: 'The amount paid out (a captured fact).' }
+        amount: { type: number, format: double, description: 'The amount of record: the amount paid out, never more than the order had left to refund (D-49).' }
         computedAmount: { type: number, format: double, description: 'What the server computed for the refunded lines.' }
-        amountWarning: { type: string, nullable: true, description: 'Set when amount differs from computedAmount.' }
+        claimedAmount: { type: number, format: double, nullable: true, description: 'The amount the tablet claimed, kept as information when it was capped (D-49); null when no claim was sent.' }
+        amountWarning: { type: string, nullable: true, description: 'amount_mismatch (claim differs from computedAmount) or over_total (claim exceeded what the order had left).' }
         paymentMethod: { type: string }
         reason: { type: string }
         reasonCode: { type: string, nullable: true }
@@ -1615,6 +1616,53 @@ components:
         refundedAt: { type: string, format: date-time }
         refundBusinessDate: { type: string, format: date, nullable: true }
         items: { type: array, items: { $ref: '#/components/schemas/OrderRefundItem' } }
+    RefundReportItem:
+      type: object
+      required: [orderItemId, productName, variantSize, quantity, amount]
+      properties:
+        orderItemId: { type: string, format: uuid }
+        lineNo: { type: integer, nullable: true }
+        productName: { type: string }
+        variantSize: { type: string }
+        quantity: { type: integer }
+        amount: { type: number, format: double }
+    RefundReportRow:
+      type: object
+      required: [id, orderId, orderNumber, outletId, outletName, cashierName, seq, scope, amount, computedAmount, paymentMethod, reason, refundedAt, items]
+      properties:
+        id: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        orderNumber: { type: string }
+        outletId: { type: string, format: uuid }
+        outletName: { type: string }
+        cashierName: { type: string, description: 'Cashier of the sale.' }
+        seq: { type: integer, description: 'Refund ke-N of the order.' }
+        scope: { type: string, enum: [full, partial, legacy_full] }
+        amount: { type: number, format: double, description: 'Amount of record (capped, D-49).' }
+        computedAmount: { type: number, format: double }
+        claimedAmount: { type: number, format: double, nullable: true }
+        amountWarning: { type: string, nullable: true, description: 'amount_mismatch or over_total.' }
+        paymentMethod: { type: string }
+        reason: { type: string }
+        reasonCode: { type: string, nullable: true }
+        refundedByName: { type: string, nullable: true }
+        refundedAt: { type: string, format: date-time }
+        refundBusinessDate: { type: string, format: date, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/RefundReportItem' } }
+    RefundReportSummary:
+      type: object
+      required: [count, totalAmount, flaggedCount]
+      properties:
+        count: { type: integer }
+        totalAmount: { type: number, format: double }
+        flaggedCount: { type: integer, description: 'Refunds with an amount_mismatch or over_total flag.' }
+    RefundReport:
+      type: object
+      required: [summary, data, meta]
+      properties:
+        summary: { $ref: '#/components/schemas/RefundReportSummary' }
+        data: { type: array, items: { $ref: '#/components/schemas/RefundReportRow' } }
+        meta: { $ref: '#/components/schemas/Meta' }
     Order:
       type: object
       required: [id, orderNumber, outletId, cashierId, cashierName, items, subtotal, discountAmount, taxAmount, total, paymentMethod, amountPaid, change, status, createdAt]
@@ -2129,6 +2177,18 @@ components:
       required: [reason]
       properties:
         reason: { type: string, minLength: 1, maxLength: 500 }
+        reasonCode: { type: string, maxLength: 40, pattern: '^[a-z0-9_-]+$' }
+        clientRefundUuid: { type: string, format: uuid, description: 'Optional replay key: the same uuid from the same user returns the earlier refund instead of paying out twice.' }
+        items:
+          type: array
+          minItems: 1
+          description: Per-line refund (admin, C4c). Absent = the whole order (only while it has no earlier refund).
+          items:
+            type: object
+            required: [lineNo, quantity]
+            properties:
+              lineNo: { type: integer, minimum: 0, maximum: 32767 }
+              quantity: { type: integer, minimum: 1 }
     # C4a: documented shape of SyncBatchItem.payload for type "refund" (the payload itself stays
     # free-form, so this schema is reference-only and not wired into any operation).
     SyncRefundPayload:
@@ -2920,6 +2980,7 @@ components:
         erpStatus: { type: string, description: "Status of the ERP outbox document that carries this movement, when there is one." }
         isWarranty: { type: boolean, description: "True for a goods receipt row recorded as a warranty replacement (Garansi)." }
         requestId: { type: string, format: uuid, description: "Id of the approved adjustment request behind this row (docNumber is its number); absent for direct adjustments and other kinds." }
+        refundSeq: { type: integer, description: "Refund ke-N of the order (order_refunds.seq) for a refund row; absent for other kinds. reasonText carries the refund reason." }
     StockMovementSummary:
       type: object
       required: [opening, totalIn, totalOut, closing]
@@ -4263,6 +4324,24 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DiscountCodeReport' }
+  /api/v1/refund-report:
+    get:
+      operationId: listRefundReport
+      tags: [reports]
+      summary: One row per refund (newest first), view_reports; outlet-scoped like the other reports
+      parameters:
+        - { name: dateFrom, in: query, description: "Inclusive refund business day (YYYY-MM-DD). 400 when unparseable.", schema: { type: string } }
+        - { name: dateTo, in: query, description: "Inclusive refund business day (YYYY-MM-DD). 400 when unparseable.", schema: { type: string } }
+        - { name: outletId, in: query, schema: { type: string } }
+        - { name: flag, in: query, description: 'any | amount_mismatch | over_total; 400 otherwise.', schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RefundReport' }
   /api/v1/oversell-report:
     get:
       operationId: listOversellReport

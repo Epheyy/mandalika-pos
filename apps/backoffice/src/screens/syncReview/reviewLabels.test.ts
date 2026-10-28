@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { REASON_FILTERS, isStale, payloadSummary, reasonLabel, shouldStepBack, typeLabel } from './reviewLabels'
+import { REASON_FILTERS, amountFlagLabel, refundReviewLabel, isStale, payloadSummary, reasonLabel, shouldStepBack, typeLabel } from './reviewLabels'
 
 describe('reviewLabels', () => {
   it('maps reason codes to plain Indonesian', () => {
@@ -26,7 +26,8 @@ describe('reviewLabels', () => {
   it('summarises a refund and tolerates missing fields', () => {
     const rows = payloadSummary('refund', { orderNumber: 'BSD-G0007', total: 225000, paymentMethod: 'cash', reason: 'rusak' })
     expect(rows[0]).toEqual(['Struk', 'BSD-G0007'])
-    expect(rows[1][1]).toContain('225.000')
+    expect(rows[1][1]).toBe('Semua barang (refund seluruhnya)')
+    expect(rows[2][1]).toContain('225.000')
     expect(payloadSummary('order', {})).toEqual([['Struk', '—'], ['Barang', '—'], ['Metode', '—'], ['Dibayar', '—']])
     expect(payloadSummary('unknown', { a: 1 })).toEqual([])
   })
@@ -44,5 +45,37 @@ describe('shouldStepBack', () => {
   it('offers offline_expired as a review filter', () => {
     expect(REASON_FILTERS).toContainEqual({ id: 'offline_expired', label: 'Offline lebih dari 12 jam' })
     expect(REASON_FILTERS).toContainEqual({ id: 'sale_in_review', label: 'Penjualan asal refund sedang ditinjau' })
+  })
+})
+
+describe('refund review texts', () => {
+  const warn = ' Data tetap tersimpan. Jika uang sudah dikembalikan, jangan bayar ulang.'
+  it.each([
+    ['Jumlah refund melebihi sisa barang yang belum direfund.', 'melebihi sisa barang'],
+    ['Sebagian transaksi ini sudah direfund dari tablet lain. Perbarui aplikasi lalu refund sisa barang.', 'perbarui aplikasi'],
+    ['Barang promo paket/beli-gratis harus direfund bersamaan seluruhnya.', 'bersamaan seluruhnya'],
+    ['Transaksi lama hanya bisa direfund seluruhnya.', 'seluruhnya'],
+    ['Baris barang refund tidak dikenal, ganda, atau jumlahnya tidak valid.', 'tidak dikenal'],
+    ['Kode alasan refund tidak valid.', 'Kode alasan'],
+  ])('labels %s and keeps the do-not-pay-again note', (text, frag) => {
+    const label = refundReviewLabel(text + warn)
+    expect(label?.toLowerCase()).toContain(frag.toLowerCase())
+    expect(label).toContain('jangan bayar ulang')
+    expect(refundReviewLabel(text)).not.toContain('jangan bayar ulang')
+  })
+  it('returns null for unknown or empty text', () => {
+    expect(refundReviewLabel('sesuatu lain')).toBeNull()
+    expect(refundReviewLabel(null)).toBeNull()
+  })
+  it('labels the amount flags as information', () => {
+    expect(amountFlagLabel('amount_mismatch')).toContain('informasi')
+    expect(amountFlagLabel('over_total')).toContain('informasi')
+    expect(amountFlagLabel('x')).toBeNull()
+  })
+  it('summarises per-line refund items and the claimed amount', () => {
+    const rows = payloadSummary('refund', { orderNumber: 'A', items: [{ lineNo: 2, quantity: 1, productName: 'Oud' }, { lineNo: 3, quantity: 2 }], refundAmount: 50000, total: 99 })
+    expect(rows[1]).toEqual(['Barang', 'Baris 2 (Oud) × 1, Baris 3 × 2'])
+    expect(rows[2][0]).toBe('Jumlah diklaim tablet')
+    expect(rows[2][1]).toContain('50.000')
   })
 })

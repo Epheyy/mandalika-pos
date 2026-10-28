@@ -754,6 +754,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/refund-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One row per refund (newest first), view_reports; outlet-scoped like the other reports */
+        get: operations["listRefundReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/oversell-report": {
         parameters: {
             query?: never;
@@ -4255,7 +4272,7 @@ export interface components {
             scope: "full" | "partial" | "legacy_full";
             /**
              * Format: double
-             * @description The amount paid out (a captured fact).
+             * @description The amount of record: the amount paid out, never more than the order had left to refund (D-49).
              */
             amount: number;
             /**
@@ -4263,7 +4280,12 @@ export interface components {
              * @description What the server computed for the refunded lines.
              */
             computedAmount: number;
-            /** @description Set when amount differs from computedAmount. */
+            /**
+             * Format: double
+             * @description The amount the tablet claimed, kept as information when it was capped (D-49); null when no claim was sent.
+             */
+            claimedAmount?: number | null;
+            /** @description amount_mismatch (claim differs from computedAmount) or over_total (claim exceeded what the order had left). */
             amountWarning?: string | null;
             paymentMethod: string;
             reason: string;
@@ -4276,6 +4298,64 @@ export interface components {
             /** Format: date */
             refundBusinessDate?: string | null;
             items: components["schemas"]["OrderRefundItem"][];
+        };
+        RefundReportItem: {
+            /** Format: uuid */
+            orderItemId: string;
+            lineNo?: number | null;
+            productName: string;
+            variantSize: string;
+            quantity: number;
+            /** Format: double */
+            amount: number;
+        };
+        RefundReportRow: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            orderId: string;
+            orderNumber: string;
+            /** Format: uuid */
+            outletId: string;
+            outletName: string;
+            /** @description Cashier of the sale. */
+            cashierName: string;
+            /** @description Refund ke-N of the order. */
+            seq: number;
+            /** @enum {string} */
+            scope: "full" | "partial" | "legacy_full";
+            /**
+             * Format: double
+             * @description Amount of record (capped, D-49).
+             */
+            amount: number;
+            /** Format: double */
+            computedAmount: number;
+            /** Format: double */
+            claimedAmount?: number | null;
+            /** @description amount_mismatch or over_total. */
+            amountWarning?: string | null;
+            paymentMethod: string;
+            reason: string;
+            reasonCode?: string | null;
+            refundedByName?: string | null;
+            /** Format: date-time */
+            refundedAt: string;
+            /** Format: date */
+            refundBusinessDate?: string | null;
+            items: components["schemas"]["RefundReportItem"][];
+        };
+        RefundReportSummary: {
+            count: number;
+            /** Format: double */
+            totalAmount: number;
+            /** @description Refunds with an amount_mismatch or over_total flag. */
+            flaggedCount: number;
+        };
+        RefundReport: {
+            summary: components["schemas"]["RefundReportSummary"];
+            data: components["schemas"]["RefundReportRow"][];
+            meta: components["schemas"]["Meta"];
         };
         Order: {
             /** Format: uuid */
@@ -4779,6 +4859,17 @@ export interface components {
         };
         RefundRequest: {
             reason: string;
+            reasonCode?: string;
+            /**
+             * Format: uuid
+             * @description Optional replay key: the same uuid from the same user returns the earlier refund instead of paying out twice.
+             */
+            clientRefundUuid?: string;
+            /** @description Per-line refund (admin, C4c). Absent = the whole order (only while it has no earlier refund). */
+            items?: {
+                lineNo: number;
+                quantity: number;
+            }[];
         };
         /** @description One of orderId or saleOrderUuid is required (the server resolves the sale by saleOrderUuid alone when orderId is empty). Legacy shape = {orderId, reason, deviceId, ...}: refunds the whole order and is refused (conflict) on a partially_refunded order. Per-line shape adds items (required, non-empty) and optionally refundAmount and reasonCode. Unknown keys (the tablet's display snapshot) are ignored. */
         SyncRefundPayload: {
@@ -5457,6 +5548,8 @@ export interface components {
              * @description Id of the approved adjustment request behind this row (docNumber is its number); absent for direct adjustments and other kinds.
              */
             requestId?: string;
+            /** @description Refund ke-N of the order (order_refunds.seq) for a refund row; absent for other kinds. reasonText carries the refund reason. */
+            refundSeq?: number;
         };
         StockMovementSummary: {
             /** @description qtyBefore of the first in-range row, or the balance at the last earlier row when the range is empty. */
@@ -7592,6 +7685,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiscountCodeReport"];
+                };
+            };
+        };
+    };
+    listRefundReport: {
+        parameters: {
+            query?: {
+                /** @description Inclusive refund business day (YYYY-MM-DD). 400 when unparseable. */
+                dateFrom?: string;
+                /** @description Inclusive refund business day (YYYY-MM-DD). 400 when unparseable. */
+                dateTo?: string;
+                outletId?: string;
+                /** @description any | amount_mismatch | over_total; 400 otherwise. */
+                flag?: string;
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundReport"];
                 };
             };
         };

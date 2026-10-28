@@ -13,7 +13,7 @@ import { Select, fieldClass } from '../../ui/Field'
 import { MOVEMENT_KIND_LABEL, MOVEMENT_KINDS, formatMovementTime, daysAgoDay, isRecordedLate, type MovementKind } from './stockCardFormat'
 import { useLocations, type LocationType } from './useLocations'
 import { DocumentModal } from './DocumentModal'
-import { docRefOf, type DocRef } from './documentRef'
+import { docRefOf, refundLabel, type DocRef } from './documentRef'
 import { GoodsInModal } from '../warehouses/GoodsInModal'
 import { AdjustModal } from '../warehouses/AdjustModal'
 
@@ -339,6 +339,7 @@ interface MovementTableRowProps {
 
 function MovementTableRow({ m, zone, showProduct, doc, onOpenDoc }: MovementTableRowProps) {
   const cell = 'px-4 py-3 text-sm text-gray-700 whitespace-nowrap'
+  const docText = m.kind === 'refund' ? refundLabel(m) : (m.refNumber ?? m.refType)
   return (
     <tr className="hover:bg-gray-50">
       <td className={cell}>{formatMovementTime(m.occurredAt, zone)}</td>
@@ -350,10 +351,10 @@ function MovementTableRow({ m, zone, showProduct, doc, onOpenDoc }: MovementTabl
       <td className={`${cell} font-mono`}>
         {doc ? (
           <button type="button" className="font-mono text-gold-700 underline underline-offset-2 hover:text-gold-900" onClick={() => onOpenDoc(doc)}>
-            {m.refNumber ?? m.refType}
+            {docText}
           </button>
         ) : (
-          (m.refNumber ?? m.refType)
+          docText
         )}
         {m.requisitionNumber && <span className="block text-xs text-gray-400">dari {m.requisitionNumber}</span>}
       </td>

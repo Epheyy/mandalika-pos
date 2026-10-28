@@ -31,6 +31,37 @@ export function reasonLabel(code: string | null | undefined): string {
   return REASONS[code] ?? `Ditolak (${code})`
 }
 
+/** The server's refund review texts (backend/internal/service/refund_input.go) all end with the
+ *  same "jangan bayar ulang" warning and ride in reviewReason/lastError, not in reviewCode (that
+ *  is the generic conflict/rejected). Matched by their stable lead phrase, longest-specific first. */
+const REFUND_DO_NOT_PAY_AGAIN = 'Jika uang sudah dikembalikan, jangan bayar ulang.'
+const REFUND_REASONS: ReadonlyArray<{ match: string; label: string }> = [
+  { match: 'melebihi sisa barang', label: 'Refund melebihi sisa barang yang belum direfund (bisa jadi refund ganda)' },
+  { match: 'Sebagian transaksi ini sudah direfund dari tablet lain', label: 'Tablet versi lama me-refund transaksi yang sebagian sudah direfund; perbarui aplikasi lalu refund sisa barang' },
+  { match: 'promo paket/beli-gratis', label: 'Barang promo paket/beli-gratis harus direfund bersamaan seluruhnya' },
+  { match: 'Transaksi lama hanya bisa direfund seluruhnya', label: 'Transaksi lama hanya bisa direfund seluruhnya' },
+  { match: 'tidak dikenal, ganda', label: 'Baris barang refund tidak dikenal, ganda, atau jumlahnya tidak valid' },
+  { match: 'Kode alasan refund tidak valid', label: 'Kode alasan refund tidak valid' },
+]
+
+/** Short readable label for a refund review text, with the do-not-pay-again note kept whenever the
+ *  server text carried it. null = not a known refund text (show the raw text instead). */
+export function refundReviewLabel(text: string | null | undefined): string | null {
+  if (!text) return null
+  const hit = REFUND_REASONS.find((r) => text.includes(r.match))
+  if (!hit) return null
+  return text.includes(REFUND_DO_NOT_PAY_AGAIN) ? `${hit.label}. ${REFUND_DO_NOT_PAY_AGAIN}` : hit.label
+}
+
+const AMOUNT_FLAGS: Record<string, string> = {
+  amount_mismatch: 'Jumlah refund dari tablet berbeda dengan hitungan server (informasi; tercatat sesuai hitungan server)',
+  over_total: 'Jumlah refund dari tablet melebihi sisa transaksi (informasi; tercatat maksimal sisa transaksi)',
+}
+
+export function amountFlagLabel(flag: string | null | undefined): string | null {
+  return flag ? (AMOUNT_FLAGS[flag] ?? null) : null
+}
+
 const TYPES: Record<string, string> = {
   order: 'Penjualan',
   refund: 'Refund',
@@ -78,11 +109,29 @@ function itemsLine(v: unknown): string {
     .join(', ')
 }
 
+function refundItemsLine(v: unknown): string {
+  if (!Array.isArray(v) || v.length === 0) return 'Semua barang (refund seluruhnya)'
+  return v
+    .map((it) => {
+      const o = (it ?? {}) as Record<string, unknown>
+      const line = typeof o.lineNo === 'number' ? `Baris ${o.lineNo}` : str(o.productName ?? o.name)
+      const name = typeof o.lineNo === 'number' && typeof (o.productName ?? o.name) === 'string' ? ` (${String(o.productName ?? o.name)})` : ''
+      return `${line}${name} × ${typeof o.quantity === 'number' ? o.quantity : '?'}`
+    })
+    .join(', ')
+}
+
 /** Human summary of a review item's payload, per type. Unknown types → []. */
 export function payloadSummary(type: string, p: Record<string, unknown>): Array<[string, string]> {
   switch (type) {
     case 'refund':
-      return [['Struk', str(p.orderNumber)], ['Jumlah', idr(p.total)], ['Metode', str(p.paymentMethod)], ['Alasan', str(p.reason)]]
+      return [
+        ['Struk', str(p.orderNumber)],
+        ['Barang', refundItemsLine(p.items)],
+        [p.refundAmount != null ? 'Jumlah diklaim tablet' : 'Jumlah', idr(p.refundAmount ?? p.total)],
+        ['Metode', str(p.paymentMethod)],
+        ['Alasan', str(p.reason)],
+      ]
     case 'order':
       return [['Struk', str(p.orderNumber)], ['Barang', itemsLine(p.items)], ['Metode', str(p.paymentMethod)], ['Dibayar', idr(p.amountPaid)]]
     case 'shift_open':

@@ -226,7 +226,7 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 		// The legacy payload carries no amount: the whole order's total, exactly as before C4.
 		claimed = nil
 	}
-	amount, amountWarning := ResolveRefundAmount(claimed, computed, priorAmount, o.total)
+	amount, amountWarning, claimedKept := ResolveRefundAmount(claimed, computed, priorAmount, o.total)
 
 	// Points (D-37), computed now (the customer row is locked) and applied after the order
 	// writes: the cumulative proportional share of the computed value refunded so far (the
@@ -251,12 +251,12 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 	refundID := uuid.NewString()
 	// Write order: refund row, its items, THEN orders.status (see the doc comment).
 	if _, err := tx.Exec(ctx,
-		`INSERT INTO order_refunds (id, order_id, outlet_id, seq, scope, amount, computed_amount, amount_warning,
+		`INSERT INTO order_refunds (id, order_id, outlet_id, seq, scope, amount, computed_amount, claimed_amount, amount_warning,
 		        payment_method, reason, reason_code, shift_id, refunded_by, refunded_by_name,
 		        device_id, client_refund_uuid, ledger_document_key, points_clawed, points_restored)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8,''),$9,$10,NULLIF($11,''),NULLIF($12::text,'')::uuid,
-		        NULLIF($13::text,'')::uuid,NULLIF($14,''),NULLIF($15,''),NULLIF($16::text,'')::uuid,$17,$18,$19)`,
-		refundID, orderID, outletID, maxSeq+1, refundScope(completes, refundCount), amount, computed, amountWarning,
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10,$11,NULLIF($12,''),NULLIF($13::text,'')::uuid,
+		        NULLIF($14::text,'')::uuid,NULLIF($15,''),NULLIF($16,''),NULLIF($17::text,'')::uuid,$18,$19,$20)`,
+		refundID, orderID, outletID, maxSeq+1, refundScope(completes, refundCount), amount, computed, claimedKept, amountWarning,
 		o.paymentMethod, reason, reasonCode, in.ShiftID, in.UserID, in.UserName,
 		in.DeviceID, in.ClientRefundUUID, "refund:"+refundID, clawed, restored); err != nil {
 		return RefundResult{}, fmt.Errorf("insert order_refunds: %w", err)

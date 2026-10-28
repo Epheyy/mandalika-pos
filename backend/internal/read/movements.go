@@ -118,10 +118,15 @@ const movementSelect = `
 SELECT m.id, m.seq, m.occurred_at, m.recorded_at, m.kind, m.location_type, m.location_id,
   COALESCE(lo.name, lw.name), p.name, m.product_id, m.variant_size, NULLIF(v.sku,''), v.barcode,
   m.qty, m.qty_before, m.qty_after, m.ref_type, m.ref_id, m.ref_number, m.flags,
-  (m.dedupe_key LIKE 'giveaway:%'), m.actor, u.display_name, COALESCE(wsa.reason, CASE WHEN sci.reason_code IS NOT NULL THEN sci.reason_text ELSE sc.reason_text END), eo.status,
+  (m.dedupe_key LIKE 'giveaway:%'), m.actor, u.display_name, COALESCE(wsa.reason, CASE WHEN sci.reason_code IS NOT NULL THEN sci.reason_text ELSE sc.reason_text END, NULLIF(orf.reason, '')), eo.status,
   COALESCE(wsa.reason_code, sci.reason_code, sc.reason_code), au.display_name, sar.number, pb.number,
-  COALESCE(gr.source = 'warranty', false), sar.id
+  COALESCE(gr.source = 'warranty', false), sar.id, orf.seq
 FROM stock_movements m
+LEFT JOIN LATERAL (SELECT r.seq, r.reason FROM order_refunds r
+                   WHERE m.kind='refund' AND r.order_id = m.ref_id
+                     AND (m.dedupe_key LIKE r.ledger_document_key || ':%'
+                          OR (r.ledger_document_key = 'refund:' || r.order_id AND m.dedupe_key NOT LIKE 'refund:%:%'))
+                   ORDER BY r.seq LIMIT 1) orf ON true
 LEFT JOIN outlets lo ON m.location_type='outlet' AND lo.id=m.location_id
 LEFT JOIN warehouses lw ON m.location_type='warehouse' AND lw.id=m.location_id
 LEFT JOIN products p ON p.id=m.product_id
@@ -183,12 +188,13 @@ func scanMovement(rows pgx.Rows) (api.StockMovementRow, error) {
 		reasonCode, approver, docNumber, pbNumber *string
 		requestID                                 *openapi_types.UUID
 		isWarranty                                bool
+		refundSeq                                 *int
 	)
 	err := rows.Scan(&m.Id, &m.Seq, &m.OccurredAt, &m.RecordedAt, &kind, &locType, &m.LocationId,
 		&locName, &prodName, &m.ProductId, &m.VariantSize, &sku, &barcode,
 		&m.Qty, &m.QtyBefore, &m.QtyAfter, &m.RefType, &refID, &refNumber, &m.Flags,
 		&m.IsGiveaway, &actor, &actorName, &reason, &erpStatus, &reasonCode, &approver, &docNumber, &pbNumber,
-		&isWarranty, &requestID)
+		&isWarranty, &requestID, &refundSeq)
 	if err != nil {
 		return m, fmt.Errorf("movement scan: %w", err)
 	}
@@ -202,6 +208,7 @@ func scanMovement(rows pgx.Rows) (api.StockMovementRow, error) {
 	}
 	m.ApprovedByName, m.DocNumber, m.RequisitionNumber = approver, docNumber, pbNumber
 	m.RequestId = requestID
+	m.RefundSeq = refundSeq
 	if isWarranty {
 		m.IsWarranty = &isWarranty
 	}

@@ -5,7 +5,7 @@ import { Modal } from '../../ui/Modal'
 import { Button } from '../../ui/Button'
 import { Badge } from '../../ui/Badge'
 import { Textarea } from '../../ui/Field'
-import { fmtWib, payloadSummary, reasonLabel, typeLabel } from './reviewLabels'
+import { fmtWib, payloadSummary, reasonLabel, refundReviewLabel, typeLabel } from './reviewLabels'
 import { SYNC_REVIEW_CHANGED } from './useSyncReviewCount'
 
 const NOTE_MAX = 500
@@ -68,7 +68,7 @@ function DetailBody({ item, onResolved }: { item: SyncReviewItem; onResolved: ()
         </div>
       </dl>
       <div className="text-xs text-gray-600 space-y-1">
-        <p><span className="font-bold">Alasan server:</span> {item.reviewReason ?? '—'}</p>
+        <p><span className="font-bold">Alasan server:</span> {refundReviewLabel(item.reviewReason) ?? item.reviewReason ?? '—'}</p>
         {item.lastError && item.lastError !== item.reviewReason && <p><span className="font-bold">Error terakhir:</span> {item.lastError}</p>}
       </div>
       <details>
