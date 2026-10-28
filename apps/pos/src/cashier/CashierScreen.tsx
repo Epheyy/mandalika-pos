@@ -3,7 +3,7 @@
  * Data from SyncEngine snapshot (offline-first); writes via engine.enqueue.
  */
 
-import { use, useReducer, useRef, useState, useEffect, useMemo } from 'react'
+import { use, useReducer, useRef, useState, useEffect, useLayoutEffect, useMemo } from 'react'
 import type { components } from '@mandalika/api'
 import { normalizePhone, type LocalReceipt } from '@mandalika/sync'
 import { canRefund, canRequestStock, isCashMethod, variantLabel } from '@mandalika/types'
@@ -57,6 +57,8 @@ import { localReceiptOrder, localSaleRef, newestReprintable, reprintReceiptData 
 import { ShiftRecapPanel } from './ShiftRecapPanel'
 import { SyncStatus } from '../components/SyncStatus'
 import { useParkedBanner } from '../hooks/useParkedBanner'
+import { useOtaUpdate } from '../hooks/useOtaUpdate'
+import { OTA_BLOCK_COPY, otaBlockReason, otaGate, type OtaGateInput } from '../lib/otaApplyGate'
 import { parkedSaleMessage } from '../lib/parkedSale'
 import { SettingsScreen, type SettingsSection } from '../screens/SettingsScreen'
 import { reserveOrderNo } from './orderRef'
@@ -329,6 +331,28 @@ export default function CashierScreen() {
     appliedPromotionCount: state.appliedPromotions.length, appliedPromoCodeCount: state.appliedPromoCodes.length,
     pointsToRedeem: state.pointsToRedeem,
   })
+
+  // C5 (D-19): a downloaded app version may be applied only while nothing is mid-sale. The gate reads the
+  // single-flight refs live, so a sale started after the last render still blocks the restart at tap time.
+  const ota = useOtaUpdate()
+  const [otaBannerDismissed, setOtaBannerDismissed] = useState<string | null>(null)
+  const otaGateBase = {
+    cartCount: state.cart.length, isCheckoutOpen: state.isCheckoutOpen, isProcessing: state.isProcessing, isSuccessOpen: state.isSuccessOpen,
+    refundActive: !!refundOrder || !!refundSale || isRefunding,
+  }
+  // Display (render): state-derived only. Tap (event handler): also the live gate refs.
+  const otaStateWrites = isSavingCustomer || shift.isOpeningShift || shift.isClosingShift
+  const otaRenderBlock = otaBlockReason({ ...otaGateBase, writesInFlight: otaStateWrites })
+  // The tap reads the gate through a ref set in a layout effect: it sees the latest render AND the live gate refs.
+  const otaGateRef = useRef<() => OtaGateInput>(() => ({ ...otaGateBase, writesInFlight: true }))
+  useLayoutEffect(() => {
+    otaGateRef.current = () => otaGate(otaGateBase, otaStateWrites, [saleGate, refundGate, customerGate, receiveGate])
+  })
+  const handleOtaRestart = () => {
+    void ota.controller.restart(() => otaGateRef.current()).then((r) => {
+      if (r === 'blocked') showToast(OTA_BLOCK_COPY[otaBlockReason(otaGateRef.current()) ?? 'saving'])
+    })
+  }
 
   const enabledMethods = settings.paymentMethods.filter((m) => m.isEnabled)
   const defaultMethod = enabledMethods[0]?.id ?? 'cash'
@@ -1060,6 +1084,10 @@ export default function CashierScreen() {
         <div className="flex items-center gap-2 flex-shrink-0">
           <SyncStatus
             open={showConnection} onOpenChange={setShowConnection}
+            otaUpdate={ota.state.pending && {
+              version: ota.state.pending.version, blockedBy: otaRenderBlock, applying: ota.state.applying, error: ota.state.error,
+              onRestart: handleOtaRestart,
+            }}
             isOnline={offlineData.isOnline} pendingCount={offlineData.pendingCount}
             review={offlineData.review} stuck={offlineData.stuck} accountProblem={offlineData.accountProblem} wall={offlineData.wall}
             offlineCap={offlineCap} isResyncing={offlineData.isResyncing} autoUpdate={offlineData.autoPullAvailable}
@@ -1090,6 +1118,12 @@ export default function CashierScreen() {
         <Banner tone="danger" message={parkedSaleMessage(parked.banner.ref)}
           action={{ label: 'Lihat', onClick: () => { parked.dismissBanner(parked.banner!.key); setShowConnection(true) } }}
           onDismiss={() => parked.dismissBanner(parked.banner!.key)} />
+      )}
+
+      {ota.state.pending && otaBannerDismissed !== ota.state.pending.version && (
+        <Banner tone="info" message="Versi baru siap, mulai ulang saat kasir kosong"
+          action={{ label: 'Lihat', onClick: () => setShowConnection(true) }}
+          onDismiss={() => setOtaBannerDismissed(ota.state.pending!.version)} />
       )}
 
       {shift.shiftError && (

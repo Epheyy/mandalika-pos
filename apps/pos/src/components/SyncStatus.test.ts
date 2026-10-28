@@ -177,3 +177,26 @@ describe('SyncStatus panel note', () => {
   })
 })
 
+
+describe('SyncStatus OTA prompt (C5)', () => {
+  const ota = { version: '2.3.1', blockedBy: null, applying: false, error: null, onRestart: vi.fn() }
+  it('shows nothing when no update is waiting', () => {
+    expect(render({ open: true })).not.toContain('Versi baru siap')
+  })
+  it('shows the prompt with an enabled restart button when the cashier is idle', () => {
+    const html = render({ open: true, otaUpdate: ota })
+    expect(html).toContain('Versi baru siap (2.3.1)')
+    expect(html).toContain('Mulai ulang sekarang')
+    expect(html).not.toContain('ota-block-reason')
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*>Mulai ulang sekarang/)
+  })
+  it('disables the button and gives the reason while a sale is open', () => {
+    const html = render({ open: true, otaUpdate: { ...ota, blockedBy: 'cart' } })
+    expect(html).toContain('Keranjang belum kosong.')
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Mulai ulang sekarang/)
+  })
+  it('shows progress and failure copy', () => {
+    expect(render({ open: true, otaUpdate: { ...ota, applying: true } })).toContain('Memulai ulang…')
+    expect(render({ open: true, otaUpdate: { ...ota, error: 'Gagal memulai ulang. Coba lagi.' } })).toContain('Gagal memulai ulang. Coba lagi.')
+  })
+})

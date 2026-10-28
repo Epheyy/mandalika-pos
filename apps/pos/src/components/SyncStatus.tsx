@@ -15,6 +15,7 @@ import type { FailedItem } from '../hooks/useOfflineData'
 import { chipModel } from '../lib/connectionChip'
 import { queueCountsLine } from '../lib/queueGuard'
 import { OFFLINE_LOCKED_MESSAGE, offlineHours, offlineWarnMessage } from '../lib/offlineCap'
+import { OTA_BLOCK_COPY, type OtaBlockReason } from '../lib/otaApplyGate'
 import { Button, Chip, Sheet, StatusBadge, toneClasses } from './ui'
 
 const TYPE_LABELS: Record<string, string> = {
@@ -107,6 +108,16 @@ function explanation(o: {
   return 'Semua transaksi sudah terkirim.'
 }
 
+/** C5 (D-19): a downloaded app version waiting for a restart. Absent when nothing is waiting (always, off-device). */
+export interface OtaUpdateView {
+  version: string
+  /** Why the restart must wait right now; null = the cashier may restart. */
+  blockedBy: OtaBlockReason | null
+  applying: boolean
+  error: string | null
+  onRestart: () => void
+}
+
 interface SyncStatusProps {
   isOnline: boolean
   pendingCount: number
@@ -136,6 +147,7 @@ interface SyncStatusProps {
   /** Controlled sheet state (lets the Android Back handler close it); falls back to local state. */
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  otaUpdate?: OtaUpdateView | null
 }
 
 export const SyncStatus = memo(function SyncStatus({
@@ -157,6 +169,7 @@ export const SyncStatus = memo(function SyncStatus({
   onExportLog,
   open: openProp,
   onOpenChange,
+  otaUpdate = null,
 }: SyncStatusProps) {
   const [innerOpen, setInnerOpen] = useState(false)
   const open = openProp ?? innerOpen
@@ -212,6 +225,18 @@ export const SyncStatus = memo(function SyncStatus({
             {note && <p className="text-xs">{note}</p>}
             {(pendingCount > 0 || review.length > 0) && <p className="text-xs font-semibold" data-testid="queue-counts">{queueCountsLine({ pending: pendingCount, parked: review.length }).text}</p>}
           </div>
+
+          {otaUpdate && (
+            <section className="rounded-xl bg-info-bg px-4 py-3 space-y-2 text-info" data-testid="ota-update">
+              <h3 className="font-semibold">Versi baru siap ({otaUpdate.version})</h3>
+              <p className="text-xs">Versi baru siap, mulai ulang saat kasir kosong.</p>
+              {otaUpdate.blockedBy && <p className="text-xs font-semibold" data-testid="ota-block-reason">{OTA_BLOCK_COPY[otaUpdate.blockedBy]}</p>}
+              {otaUpdate.error && <p className="text-xs font-semibold text-danger" role="alert">{otaUpdate.error}</p>}
+              <Button fullWidth disabled={otaUpdate.blockedBy !== null || otaUpdate.applying} onClick={otaUpdate.onRestart}>
+                {otaUpdate.applying ? 'Memulai ulang…' : 'Mulai ulang sekarang'}
+              </Button>
+            </section>
+          )}
 
           {pendingCount > 0 && (
             <section className="space-y-1">
