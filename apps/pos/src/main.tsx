@@ -5,6 +5,7 @@ import { applyBrand, brand } from './brand'
 import { AuthProvider } from './auth'
 import { PrinterProvider } from './printer'
 import { bootNativeShell, hideSplash } from './native'
+import { armOtaKillDelay } from './otaUpdate'
 import { installGlobalErrorHandler } from './lib/errorReporter'
 import App from './App'
 import { BootError } from './BootError'
@@ -16,6 +17,8 @@ import { dropLegacyPinLockout } from './lib/legacyPinLockout'
 // id / snapshot) and set up the native shell BEFORE React reads any of it.
 async function boot(): Promise<void> {
   applyBrand(brand)
+  // C5: first thing, independent of storage: a queued OTA bundle must not apply on background (re-armed every launch).
+  void armOtaKillDelay()
   try {
     await bootStorage()
   } catch (err) {
