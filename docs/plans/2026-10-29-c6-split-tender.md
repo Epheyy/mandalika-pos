@@ -68,6 +68,8 @@ Every claim about current behaviour cites `path:line` on adb07723. ERP claims ci
   - **C6b:** the POS OTA: W2 split mode, receipt, recap, refund payout chips, and the checkout draft that survives an app kill.
   - **C6c:** backoffice display, CSV, the toggle and the admin refund payout.
   - **Then the owner enables the setting.** All of it lands after the demo.
+- **Owner decisions:** D-50..D-66 (section 3).
+- **Review:** the Opus reviewer's findings are folded in (section 7).
 
 ---
 
@@ -195,8 +197,12 @@ CREATE TABLE order_tenders (
 ALTER TABLE order_refunds ADD COLUMN IF NOT EXISTS payout_source text
   CHECK (payout_source IS NULL OR payout_source IN ('sale','chosen','default'));  -- NULL = written before C6a
 ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS split_tender_enabled boolean NOT NULL DEFAULT false;
+ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS split_tender_enabled_at timestamptz;  -- set the first time it is switched on, never cleared (rollback guard, 2.5)
 -- + order_default_payout_method(uuid) and CREATE OR REPLACE orders_refunded_legacy_row() (2.6)
 ```
+- **Settings write.** `splitTenderEnabled` is a `*bool` in `UpdateAppSettingsBy` (`write/settings.go:44-88`), where absent leaves the stored value. This is the `InventoryApprovalRequired` pattern (`:58-60`).
+  - A plain `bool` would let every save from a form that does not know the key (the pre-C6c backoffice, which deploys on its own) silently switch split payment off.
+  - Switching it on also sets `split_tender_enabled_at` if it is NULL.
 - **Why no backfill and no catch-up trigger.**
   - C4a could write its refund row before flipping `orders.status`. A tender row needs the order row first (FK), so an `AFTER INSERT ON orders` trigger would fire before the new code inserts its own rows and create duplicates.
   - The old revision keeps writing tenderless orders on the migrated DB until promotion (and after any rollback).
@@ -229,10 +235,16 @@ ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS split_tender_enabled boolean N
 - `amount` is what the line captured: the cash handed over for the cash line, or the amount charged for a non-cash line.
 - **The server ignores the scalar summary when `tenders` is present and non-empty.**
   - The POS fills the scalars anyway (`paymentMethod` = the shared method or `split`; `amountPaid` = Σ amount) so that older local views and an old server degrade visibly.
-  - The POS also writes the lines into `receiptSnapshot.tenders` (opaque to the server, `service/quote.go:24-45`). Even a sale that reached an old server therefore keeps its split in `orders.receipt_snapshot`, and a repair script can rebuild `order_tenders` from it (RUNBOOK, section 4).
+  - The POS also writes the lines into `receiptSnapshot.tenders` (opaque to the server, `service/quote.go:24-45`). A sale that reached an old server therefore usually keeps its split in `orders.receipt_snapshot`, and a repair script can rebuild `order_tenders` from it (RUNBOOK, section 4).
+  - This repair is **best effort only.** The snapshot is stored only with a valid quote of at most 64 KB (`service/quote.go:15, 29-36`; `order.go:458-462`).
 - **No `tenders` key** (2.4.0 bundles, APK builtin, direct callers) takes the legacy path unchanged: `evaluateTender` as today, plus one `order_tenders` row (`amount = finalTotal`, `tendered = amountPaid`, `change`).
-- **One tender line** goes through the same `evaluateTender`, so the new POS's single-method sale is byte-identical to the legacy one: same flags, same `amount_paid`/`change`, same TD gate outcomes.
+  - One addition: a scalar `paymentMethod` of `split` (case-insensitive) without `tenders` is a structural reject in `ValidateSaleInput`.
+  - Without that it would pass the non-blank check (`order_input.go:110-113`) and then hit the `order_tenders` CHECK inside the transaction: a 500, which on the batch route means an endless retry.
+- **One tender line** goes through `evaluateTender` **only**, without the multi-line structural rules: a non-cash 0 is still stored and flagged (owner 8c Q3).
+  - So the new POS's single-method sale is byte-identical to the legacy one: same flags, same `amount_paid`/`change`, same TD gate outcomes.
+  - In split mode the POS turns a blank cash input into "Sisa" (today a blank cash input means "exact", `tender.ts:15`), so the POS never sends a zero line.
 - `tenders: []`, `null` or a non-array is a structural reject (2.3).
+- **Σ tendered** (which becomes `orders.amount_paid`) must pass `saleMoney` as well as each line (`order_input.go:44-49`). Otherwise four maximal lines would overflow `numeric(14,2)` inside the transaction.
 
 **Order response** (additive; `read/orders.go` via the synthetic rule, so every order has ≥1 line, old ones included):
 ```json
@@ -260,11 +272,21 @@ Comparisons are in whole cents with the Rp1 tolerance (`tender.go:14`). `due = f
 | 1 ≤ lines ≤ N | "+ Tambah pembayaran" hidden at N | rejects | structural reject (D-54) |
 | No negative/non-finite/oversize line (both shapes); no zero line **when there are two or more lines** | amount ≥ Rp1 to add a line | rejects | structural reject (`saleMoney` per line, `order_input.go:44-49`). A **single** line keeps the legacy rule: a non-cash 0 is stored and flagged (owner 8c Q3), so one-line parity holds |
 | Method non-blank, ≤ 64, not `split` | chips from config only | rejects | structural reject |
-| At most one cash line | a second cash entry is **added into** the existing cash line | rejects two | structural reject |
+| At most one cash line | a second cash entry is **added into** the existing cash line | rejects two | **online: structural reject. Batch: merge the cash lines (Σ tendered, first line's method and `seq`) and flag `tender_cash_merged`.** Cash identity follows the current `isCash` setting (`rules/payment_method.go:13-28`), so an offline sale replayed after an admin changed a method's flag must not be sent to review after the money was taken |
 | Change only from cash: Σ non-cash ≤ due | non-cash amount capped at "Sisa" | flags | flag `noncash_overpay` (both routes, as slice 8 Q5 "non-cash mismatch: flag only") |
 | Σ captured ≥ due (no shortfall) | Konfirmasi disabled until Sisa = 0 | flags | **online: 422 `ErrTenderRejected`; batch: accept + flag `tender_short`** (as `cash_short`, owner slice 8 Q1) |
 | Reference ≤ 64 printable runes | `maxLength` | rejects | structural reject |
+| No scalar `split` without `tenders`; Σ tendered ≤ the money cap | n/a | n/a | structural reject (2.2) |
 | Σ applied = `orders.total` | n/a | same allocation | allocation (below); invariant query in the gate and RUNBOOK |
+
+**Deliberate difference on the direct route.**
+- Online, any shortfall on a two-or-more-line sale is rejected, even with no cash line.
+- A single non-cash line that is short stays flag-only (slice 8 Q5).
+- The reason: the POS cannot produce a short split (Konfirmasi needs Sisa = 0), and the direct route serves tests and hand-made calls only (slice 8 §0.1). The batch route always accepts and flags.
+
+**"No zero line" applies to captured amounts.**
+- An *applied* amount can be 0: the cash line under `noncash_overpay`.
+- `amount_paid − change = total` holds only for unflagged orders.
 
 **Allocation (`allocateTenders`, two or more lines; one line uses `evaluateTender` unchanged):**
 1. Non-cash lines: `amount = tendered`, `change = 0`.
@@ -283,15 +305,23 @@ Comparisons are in whole cents with the Rp1 tolerance (`tender.go:14`). `due = f
 - points redemption drift;
 - rounding on;
 - 4 lines;
-- each structural reject.
+- each structural reject;
+- a single non-cash line of 0 (accepted, flagged);
+- a blank cash input in split mode (becomes Sisa);
+- two cash lines on batch (merged, flagged);
+- QRIS 1,300,000 + cash 100,000 with due 1,251,000. Result: `noncash_overpay`, cash applied 0 with change 100,000, QRIS applied 1,251,000 with tendered 1,300,000. The printed change must come from the same allocation.
 
 ### 2.4 Readers (C6a server; formulas)
 For a set of sale orders and a method `m`:
 `sales_m = Σ tl.amount[m] − Σ order_refunds.amount of those orders with payment_method = m`.
 - **Equivalence.** For every pre-C6 order there is one synthetic line `(payment_method, total)`, and every refund row's method equals the order's method (`refund.go:254-260`). So `sales_m` equals today's `Σ (total − refunded)` grouped by order method. Byte-identical; the gate proves it on fixtures.
-- **R1 shift close (`shift.go:171-232`).**
-  - The bucket aggregate moves from per order to per (order, tender line) via `tenderLinesLateral`, minus the order's refunds by payout method.
-  - `total_sales`, `total_orders` and `total_refunds` stay per order. Their sum is unchanged, because Σ amount = total.
+- **R1 shift close (`shift.go:171-232`): two subqueries, never one.**
+  - **(a) The per-order block stays exactly as it is** (`:189-209`, one row per order): `total_sales = sum(net_sale)`, `total_orders = count(*) FILTER is_sale`, `total_refunds = sum(refunded)`. `net_sale` stays NULL for cancelled orders.
+  - **(b) A new per-line block** supplies only `cash_sales` and the card/transfer/qris buckets:
+    - per (order, method) = Σ `tl.amount` − Σ refunds of that order paid out in that method;
+    - restricted to `o.shift_id = $1 AND o.status IN ('completed','partially_refunded','refunded')`.
+  - Joining the tender lateral into block (a) would count a 2-line order twice in `total_orders`/`total_refunds`, and dropping the status filter would count cancelled orders through their synthetic line.
+  - For every pre-C6 order (one line) both mistakes are invisible, which is why gate subtest 7 must use a split order and a cancelled split order.
   - The cross-shift refund block (`:211-224`) is unchanged; it is already per refund row.
 - **R2 cash ids (`shift.go:239-262`).** UNION in the tender-line methods, so a cash line inside a `split` order is recognised as cash.
 - **R3 reports (`reports.go:38-71`).** `pay` and `gpay` read tender lines; `rpay` is unchanged.
@@ -299,15 +329,25 @@ For a set of sale orders and a method `m`:
   - **The `pay` filter moves to the per-method row.** Today it is per order: `status IN ('completed','partially_refunded') OR net_total <> 0` (`reports.go:62`).
   - It becomes "sale status OR the per-(order, method) net ≠ 0". Otherwise a fully refunded split order (QRIS 751k + cash 500k, all paid back in cash) would hide its +751k QRIS / −751k cash rows, because its order net is 0.
   - For pre-C6 orders the two filters select the same rows (one line, net equal to the order net).
-- **R4 filter.** `EXISTS (tender line with lower(btrim(method)) = …)`. A "QRIS" filter then includes split orders that have a QRIS line. Today's filter on `payment_method = 'split'` keeps working.
+- **R4 filter: `appendOrderWhere` is shared** by the order list and both row sets of `ReportSummary` (`read/orderfilter.go:62, 120-121`; `read/reports.go:35, 37`). One rule cannot serve both, so C6a splits it with a flag.
+  - **Order list / CSV:** `EXISTS (tender line with lower(btrim(method)) = …)`. "QRIS" lists every order with a QRIS line, split orders included. A `split` filter value ("Campuran") lists split orders.
+  - **Report summary with a method filter (D-66):** the money is limited to that method.
+    - Sales = the filtered method's tender lines.
+    - Refunds = refund rows **paid out** in that method (the refund set is filtered on `order_refunds.payment_method`, not on the order).
+    - Order count = orders with a line in that method.
+    - Otherwise a QRIS-filtered report would show the cash half of every split order as QRIS sales.
+  - For pre-C6 orders both rules select the same rows as today.
 - **R5 / R6.**
   - `read/orders.go` adds `'tenders'` (a `json_agg` over the lateral, ordered by `seq`) and `refunds[].payoutSource`.
   - The customer profile adds `tenders` (or the label) per order.
 - **R7 ERP** (`erp/payload.go`).
   - `orderSQL` loads the tender lines via the lateral.
   - `buildTenders` emits one `Tender` per line with `amount > 0`, rounded to whole rupiah, the last line taking the rounding remainder so that Σ = `round(total)`. Part 1 only, as today (`:217`).
-  - The method is mapped by `erpTenderMethod(id)`: cash-identified → `cash`; `card/transfer/qris` as is; others omitted (D-61). This fixes `tunai`.
+  - The method is mapped by `erpTenderMethod(id)`: cash-identified → `cash`; `card/transfer/qris` as is (case-insensitive; today's match at `:40, :217` is case-sensitive); others omitted (D-61). This fixes `tunai`.
+  - `buildTenders` is pure today, so the cash identity needs the payment-method settings loaded in `LoadBuildInput`. They are passed in, never read inside the builder.
   - The refund tender uses `order_refunds.payment_method`, loaded with `refundAmountSQL` (`:264-270`), instead of the order method (`:227`).
+  - The existing `OrderInfo` literal tests (`erp/payload_test.go:76, 105, 181`) keep working through a fallback: no tender lines means one line `(PaymentMethod, Total)`.
+  - Documents already built keep their frozen payload (`erp/admin.go:63-70`), so a re-send is unchanged. Only documents built after the deploy carry the new tenders.
 - **R9 / R10 backoffice (ships with C6a).**
   - Gross by method sums `o.tenders` when present, otherwise `[{o.paymentMethod, o.total}]`.
   - Refunds by method sum `o.refunds[].paymentMethod` when present, otherwise the order method. This also fixes `reportTotals.ts:120`.
@@ -326,8 +366,15 @@ For a set of sale orders and a method `m`:
   - queued splits would be flattened to `split` + `amount_paid`;
   - shift and report readers would group a `split` bucket (cash missing from the drawer);
   - refunds of split orders would record `split`.
-  - **Rule: no backend rollback below C6a once `SELECT count(*) FROM orders WHERE payment_method = 'split'` > 0 or any `payout_source = 'chosen'` row exists; fix forward.**
-  - Until the owner enables the setting, no split can exist, so C6a stays freely rollback-able during its soak.
+  - **Rule: no backend rollback below C6a once `app_settings.split_tender_enabled_at IS NOT NULL`; fix forward.**
+    - The order count alone is not a safe guard: an offline tablet with the cached setting can hold queued splits the server has not seen yet.
+    - If a rollback is unavoidable anyway:
+      1. switch the setting off;
+      2. wait until every tablet has pulled the change;
+      3. confirm zero pending sales on every tablet;
+      4. confirm `SELECT count(*) FROM orders WHERE payment_method = 'split'` and `… order_refunds WHERE payout_source = 'chosen'` are known and accepted;
+      5. then roll back.
+  - Until the owner first enables the setting, no split can exist, so C6a stays freely rollback-able during its soak.
 - **Kill switch.** Turning `splitTenderEnabled` off hides split payment on the next settings pull. It does **not** make the server refuse split payloads: sales captured while it was on and still queued must be accepted.
   - A settings save bumps the content version through the write helper (`write/repo.go:59-68`), so tablets pull the change.
 - **Tablets cache the setting.** `appSettings` arrives in the pull bundle (`openapi.yaml:2321`) and is read from the cached snapshot (`CashierScreen.tsx:270, 292`). A tablet re-pulls only when the content version changes (`sync/pull.go:29-53`).
@@ -343,6 +390,11 @@ For a set of sale orders and a method `m`:
 - **One payout method per refund row.** Paying one refund back in two methods means two partial refunds.
 - **No per-method cap** (D-57); the D-49 order cap is unchanged.
 - **Legacy writers.** C6a adds `order_default_payout_method(order_id uuid) RETURNS text` (SQL, the same rule) and replaces `orders_refunded_legacy_row()` (`0077:109-133`) so that a raw `status='refunded'` write on a split order records the default method, not `split`. Go and SQL must agree, which the gate parity case checks.
+  - The SQL must reproduce `IsCashMethod` (`rules/payment_method.go:13-28`) over `app_settings.payment_methods` (jsonb):
+    - a configured entry whose id matches case-insensitively and has an explicit `isCash` wins (an explicit `false` makes even `cash`/`tunai` non-cash);
+    - otherwise `lower(id) IN ('cash','tunai')`.
+  - Both Go and SQL judge with the settings in force at refund time.
+- **Refund idempotency.** Each refund enqueue mints a fresh key (`CashierScreen.tsx:939`, `engine.enqueue` default uuid), and a queued refund blocks the order (D-44). So a payout chip can only change before the payload exists; there is no fingerprint conflict.
 - **Shift and drawer** need no new logic. `cash_refunds_paid`, `refunds_paid_by_method` and R1's refund subtraction all read `order_refunds.payment_method`, which is now the payout.
 
 ### 2.7 POS UX: W2 gains a split mode (C6b)
@@ -381,7 +433,12 @@ For a set of sale orders and a method `m`:
   - the refund dialog (W4) adds "Dibayar QRIS Rp 751.000 + Tunai Rp 500.000" and, for split orders only, payout chips "Dikembalikan lewat (Tunai ✓)(QRIS)" with the D-56 default preselected.
 - **Checkout draft (D-62).** Android may kill the POS while the cashier is in an EDC/e-wallet app (HANDOFF C5 note), and the cart is in memory. With split payment the first non-cash line is charged **before** the sale exists.
   - When the first non-cash line is added, C6b saves a draft (cart lines + tender lines + total) through the held-orders store (`cashier/heldOrders.ts`, app KV, not journal-guarded), named "Pembayaran terpisah belum selesai".
-  - It is deleted on confirm or explicit cancel.
+  - **The draft must never become a second sale.** Today the order uuid is minted inside `engine.enqueue` (`CashierScreen.tsx:768`; `packages/sync/src/engine.ts:899-903`), and an app kill between the outbox write and a later draft delete would leave a draft for a sale that is already queued. So:
+    1. The draft mints the sale's `orderUuid` when it is created. Confirm passes that uuid to `engine.enqueue(type, payload, orderUuid)`, so the idempotency key `deviceId:orderUuid` is fixed from the first charge.
+    2. The draft is deleted inside the `saleGate` run, right after the enqueue resolves.
+    3. On start, any draft whose uuid is already in the outbox or the receipt archive is dropped without a prompt.
+    4. Should a duplicate still slip through, the same key makes the server return the existing order (replay), not a second sale.
+  - It is also deleted on an explicit cancel.
   - On the next start, a banner "Ada pembayaran terpisah belum selesai: QRIS Rp 751.000 sudah dicatat" leads to restore, which reuses the B4 `heldRestore.ts` planner, then reopens W2 with the lines.
 - **Reducer.**
   - New state `splitMode: boolean` and `tenders: TenderLine[]` (`{method, amount, reference?}`).
@@ -412,21 +469,21 @@ For a set of sale orders and a method `m`:
 |---|---|---|
 | D-50 | How is split payment switched on? | **Server setting `splitTenderEnabled`, default off; backoffice toggle in C6c; enable only after the demo and once every active tablet runs the C6b bundle.** Turning it off is the kill switch (UI only; queued splits are still accepted). |
 | D-51 | Maximum payment lines per sale | **4** (cash + QRIS + 2 cards). The ERP allows 20. |
-| D-52 | Cash lines | **At most one cash line; a second cash entry is added into it; only the cash line gives change.** |
+| D-52 | Cash lines | **At most one cash line; a second cash entry is added into it; only the cash line gives change.** On the batch route two cash lines (possible after an admin changes a method's "Tunai" flag while a sale is queued) are merged and flagged, never sent to review. |
 | D-53 | May a non-cash line exceed the remaining amount (overpay on EDC/QRIS)? | **No: the POS caps it at Sisa. The server flags `noncash_overpay` and never rejects** (slice 8 Q5). |
-| D-54 | A structurally invalid tender list (zero or negative line, more than 4 lines, two cash lines, blank or `split` method) | **Reject on both routes (the batch item goes to review), the same as a negative `amountPaid` today (A09-input-numeric).** A correct POS cannot produce one. Alternative: accept and flag. |
-| D-55 | Shortfall or drift (server total ≠ what was collected) on a split sale: which method carries the difference? | **Keep Σ applied = order total.** The cash line carries it if there is one (exactly today's `cash_short`: expected cash includes the gap and the flag explains it); otherwise the last line. The captured amount is kept verbatim in `tendered` and the order is flagged. Reports by method then always add up to total sales, as today. Alternative: store applied = captured and show a separate "Selisih pembayaran" row in reports and the shift recap. |
+| D-54 | A structurally invalid tender list (a negative or non-finite line, a zero line among two or more, more than 4 lines, blank or `split` method, a scalar `split` without lines, Σ over the money cap) | **Reject on both routes (the batch item goes to review), the same as a negative `amountPaid` today (A09-input-numeric).** A correct POS cannot produce one. A single line keeps the legacy rules, and two cash lines are merged on batch (D-52). Alternative: accept and flag. |
+| D-55 | Shortfall or drift (server total ≠ what was collected) on a split sale: which method carries the difference? | **Keep Σ applied = order total.** The cash line carries it if there is one (exactly today's `cash_short`: expected cash includes the gap and the flag explains it); otherwise the last line. The captured amount is kept verbatim in `tendered` and the order is flagged. Reports by method then always add up to total sales, as today. On the direct route any split shortfall is a 422; batch always accepts and flags (2.3). Alternative: store applied = captured and show a separate "Selisih pembayaran" row in reports and the shift recap. |
 | D-56 | Refund payout method on a split order | **The cashier picks one per refund from the sale's methods plus cash. Default: cash if the sale had cash, else the largest line.** Single-method orders keep today's rule (refund = sale method, no choice). Alternative: allow choosing on every order, so a QRIS sale refunded in cash is recorded as cash. |
 | D-57 | Per-method refund cap (e.g. cash refund ≤ cash paid) | **None; only the D-49 order cap.** Stores refund in cash whatever the customer paid with. Alternative: flag `payout_exceeds_tender` as information. |
 | D-58 | Refund of a split order from an old bundle, the APK builtin, the old backoffice form or a raw status write (no payout method) | **The server uses the D-56 default (`payout_source='default'`); the 0077 trigger function is replaced to match.** |
 | D-59 | Reference number (D-21) | **Optional "No. referensi" per non-cash line, up to 64 characters, printed on the receipt and shown in the backoffice; never required.** Single-method sales get it too. |
 | D-60 | Label for a sale paid with several methods | **"Campuran"** (POS lists, backoffice list and CSV, customer profile); detail views show each line. |
 | D-61 | ERP tender methods: today only the ids `cash/card/transfer/qris` pass, so **`tunai` (the live cash id) and custom ids send no tender** | **C6a maps every cash-identified id to `cash`, keeps `card/transfer/qris`, and still omits other custom ids.** The owner lists any custom id that should map (e.g. `edc` → `card`). Tenders are information only (E-2), so the risk is low. |
-| D-62 | Keep an unfinished split payment if the app is killed (EDC/QRIS app switch) | **Yes: auto-save a draft when the first non-cash line is added; restore prompt on the next start (B4 held-orders store).** Alternative: accept the risk; the cashier re-enters the payment and checks the EDC slip. |
+| D-62 | Keep an unfinished split payment if the app is killed (EDC/QRIS app switch) | **Yes: auto-save a draft when the first non-cash line is added; restore prompt on the next start (B4 held-orders store). The draft fixes the sale's order uuid from the start, so it can never become a second sale (2.7).** Alternative: accept the risk; the cashier re-enters the payment and checks the EDC slip. |
 | D-63 | Removing a charged line or leaving checkout with lines | **A confirm that reminds the cashier to cancel it on the EDC/QRIS machine.** |
 | D-64 | Held orders (D-6) and payment lines | **Held orders never store payment lines (only the D-62 draft does).** |
-| D-65 | Release timing | **After the 2 Nov demo**: C6a deploy → 24 h soak → C6b OTA → fleet on C6b → C6c → enable (D-50). The owner may pull C6a forward, since with the setting off it changes no behaviour apart from D-61. |
-
+| D-65 | Release timing | **After the 2 Nov demo**: C6a deploy → 24 h soak → C6b OTA → fleet on C6b → C6c → enable (D-50). The owner may pull C6a forward, since with the setting off it changes no behaviour apart from D-61 and the D-66 filter rule. |
+| D-66 | What a payment-method filter means in Laporan (the report summary) once one sale can have several methods | **Money limited to that method: its tender lines as sales, refunds paid out in that method, the count of orders with a line in that method.** The order list keeps "orders containing this method", and "Campuran" lists split orders. Alternative: keep the summary on the order's single `payment_method` (a QRIS filter then excludes split orders). |
 ---
 
 ## 4. Slices
@@ -460,7 +517,8 @@ Each slice runs in its own session, worktree and PR, and pushes to `origin` and 
     - `read/orderfilter.go:120-121`.
     - `read/orders.go:21-40` (`tenders`, `refunds[].payoutSource`).
     - `read/customer_profile.go:144-157`.
-    - `read/settings.go:18`, `write/settings.go:18-88` (`splitTenderEnabled`, reserved id `split`).
+    - `read/settings.go:18`, `write/settings.go:18-88` (`splitTenderEnabled` as `*bool`, `split_tender_enabled_at`, reserved id `split`).
+    - `read/orderfilter.go`: a flag that separates the list rule (EXISTS) from the summary rule (D-66).
   - **ERP.** `integration/erp/payload.go:38-40, 65-72, 216-236, 263-270, 345-349`: tenders from lines, `erpTenderMethod`, refund method from the refund row.
   - **OpenAPI and codegen** (2.2), `make gen-check` and `corepack pnpm gen:check`.
   - **Backoffice money totals** with fallback: `reportTotals.ts:104-120`, `dashboard/metrics.ts:402-404`.
@@ -480,16 +538,32 @@ Each slice runs in its own session, worktree and PR, and pushes to `origin` and 
     - `handlers/sale_input_test.go:19`;
     - `rules/payment_method_test.go:10`;
     - gates TD (`tender_rules_integration_test.go:32`), S0C, RL, RF, QT, ER, GW, OF.
+  - **Legacy callers that must keep working unchanged** (they send the old scalar payload):
+    - `scripts/smoke/smoke-a44.mjs`;
+    - `backend/cmd/erp-rehearsal/steps_sales.go:122` (`paymentMethod: "cash"`; its ERP document now carries a `cash` tender, which is still correct);
+    - the browser harness setups `scripts/a24-browser/setup.js`, `scripts/a26-browser/{backoffice-setup,pos-recap}.js`, `scripts/a31-browser/reports-races.js`.
   - **New Postgres gate SP** `TestSplitTenderPostgres`, port **56477** (next free; `scripts/ci/postgres_gate.py:33-70` ends at RL 56476). Subtests:
     1. **sync split sale QRIS + cash with change:** rows, applied Σ = total, `payment_method='split'`, `amount_paid`, `change`;
     2. **online shortfall:** direct split short → 422, zero rows; batch short → accepted, `tender_short`, cash carries the gap;
-    3. **structural rejects** on both routes: 5 lines, two cash lines, a zero line, method `split`;
+    3. **structural rejects** on both routes: 5 lines, a zero line among two, method `split`, a scalar `split` without `tenders`, Σ over the money cap. **Two cash lines:** 422 online, merged + `tender_cash_merged` on batch;
     4. **replay:** same key → one order; an altered body → key conflict;
     5. **legacy payload byte-identity:** a legacy payload and a one-line `tenders` payload give identical rows and flags;
     6. **read round trip:** `GET /orders/{id}` has `tenders` (synthetic for a tenderless fixture order), `refunds[].payoutSource`, and settings `splitTenderEnabled` (gap class);
-    7. **shift close equivalence:** before/after on pre-C6 fixtures (identical), and with a split sale plus a cash payout refund;
-    8. **reports:** by-method maps sum to `total_sales`; the QRIS filter includes the split order;
-    9. **refunds:** with `payoutMethod`, without it (default), and via a raw `status='refunded'` UPDATE (replaced trigger), with Go/SQL parity;
+    7. **shift close:**
+       - before/after on pre-C6 fixtures (identical);
+       - a split sale plus a cash payout refund, **asserting `total_orders`, `total_refunds` and `total_sales` and every bucket**;
+       - a **cancelled** split order (counted nowhere);
+    8. **reports:**
+       - by-method maps sum to `total_sales`;
+       - the order list filtered by QRIS includes the split order;
+       - the summary filtered by QRIS shows only the QRIS line and QRIS-paid refunds (D-66);
+       - a fully refunded split order keeps its per-method rows;
+    9. **refunds:**
+       - with `payoutMethod`, without it (default), and via a raw `status='refunded'` UPDATE (replaced trigger), with Go/SQL parity;
+       - including a method configured `isCash:false` and a case-mismatched id;
+    9b. **settings:**
+       - a save without `splitTenderEnabled` keeps the stored value;
+       - the first switch-on sets `split_tender_enabled_at`, and switching off keeps it;
     10. **ERP:** a document with two tenders, `tunai` → `cash`, refund tender = payout method;
     11. **reserved id:** a settings write with id `split` → 400.
   - **Gate wiring.** Add SP to the gate tuple. Any new top-level test in `internal/api` or `internal/codegen` goes into `scripts/ci/codegen_gate.py:18-19` (memory `codegen-gate-exact-test-set`).
@@ -544,7 +618,9 @@ Each slice runs in its own session, worktree and PR, and pushes to `origin` and 
     - **POS-SPLIT-OFFLINE:** offline split sale, reconnect, ack, server `tenders`;
     - **POS-SPLIT-REFUND:** refund one line of a split order with the cash payout default, then the QRIS chip;
     - **POS-SPLIT-OFF:** with the setting off, no "Bagi pembayaran" (and none against a settings response without the key);
-    - **POS-SPLIT-DRAFT:** add a QRIS line, reload the page, restore prompt.
+    - **POS-SPLIT-DRAFT:**
+      - add a QRIS line, reload the page, restore prompt;
+      - **kill/reload right after the enqueue:** no prompt, one queued sale, and the same `orderUuid` as the draft.
   - The existing "cash sale in four taps" and guest QRIS scenarios stay unchanged.
 - **Release:** OTA 2.5.0 (web layer, no APK). The setting is still off, so cashiers see no change apart from the reference field (D-59).
 - **Rollback:** the previous bundle is safe (2.5).
@@ -588,6 +664,7 @@ Each slice runs in its own session, worktree and PR, and pushes to `origin` and 
      - invariant queries (below).
 3. **A refund of a split order records `split`** (legacy payload or old trigger), so the drawer and the ERP are wrong. Mitigation: the Go default plus the replaced trigger, with parity subtest 9.
 4. **A partial payment is lost when Android kills the app during an EDC/QRIS switch**, so the customer is charged and no sale exists. Mitigation: the D-62 draft and the D-63 confirm.
+   - The reverse failure is that the draft re-confirms a sale already queued, which is a second sale and maybe a second collection. Mitigation: the draft owns the order uuid (one idempotency key), it is deleted inside the sale gate, and drafts already queued or archived are dropped on start (2.7).
 5. **The TS and Go allocations drift,** causing flags or a blocked Konfirmasi. Mitigation: the shared golden file.
 6. **The total changes after lines are entered** (points, reward, a promo dropped at confirm). Mitigation: a re-plan at tap time that refuses a stale plan.
 7. **Old bundles mis-show split orders** (raw label, cash missing from their local recap). Mitigation: enable only once the whole fleet is on C6b.
@@ -634,3 +711,24 @@ SELECT count(*) FROM orders WHERE payment_method = 'split';                   --
 - **Refunds of single-method orders** keep the sale's method even when paid back differently (D-56 alternative).
 - **No payment-method promo** (e.g. a bank card promo) exists. One would need tender-aware promo rules.
 - **A09/T07.** C6 extends tender conservation to several lines. The tracker row stays "full A09/T07 open" (quote/settlement items unchanged).
+
+---
+
+## 7. Review (Opus `reviewer`, high, 2026-10-29): verdict "ship with fixes", all folded in
+| Sev | Finding | Where fixed |
+|---|---|---|
+| HIGH | The checkout draft could re-confirm a sale already queued (uuid minted inside `engine.enqueue`) | 2.7 draft owns the order uuid, deleted inside the sale gate, start-up drop; D-62; risk 4; POS-SPLIT-DRAFT |
+| HIGH | `appendOrderWhere` is shared by the list and the report summary (`read/reports.go:35, 37`), so an EXISTS rule would put the cash half of split orders under a QRIS-filtered report | 2.4 R4 (two rules), new D-66, subtest 8 |
+| HIGH | Joining tender lines into the per-order shift aggregate double counts `total_orders`/`total_refunds` and revives cancelled orders; one-line fixtures cannot catch it | 2.4 R1 (two subqueries), subtest 7 (split + cancelled split) |
+| MEDIUM | One-line parity broke on the zero-line rule (legacy non-cash 0 is accepted and flagged); blank cash input in split mode | 2.2, 2.3 table, golden cases |
+| MEDIUM | Cash identity follows a changeable setting: a replayed offline sale could become "two cash lines"; SQL payout default must mirror `IsCashMethod` | 2.3 (batch merge + flag), D-52, D-54, 2.6 SQL rule, subtest 9 |
+| MEDIUM | Rollback guard on the `split` order count misses offline tablets with the cached setting | 2.1 `split_tender_enabled_at`, 2.5 procedure |
+| MEDIUM | A plain `bool` setting would be switched off by any save from an older form | 2.1 `*bool` (`write/settings.go:58-60` pattern), subtest 9b |
+| MEDIUM | A scalar `split` without `tenders` hits the table CHECK (500, endless batch retry); Σ of lines can overflow `numeric(14,2)` | 2.2, 2.3 table, D-54, subtest 3 |
+| LOW | Snapshot repair is not guaranteed (64 KB, valid quote only) | 2.2 "best effort" |
+| LOW | Online shortfall handling differs from slice 8 Q5 for non-cash-only splits | 2.3 "deliberate difference", D-55 |
+| LOW | Golden case for a non-cash overpay with a cash line (applied 0, change from the same allocation) | 2.3 golden list and the "applied may be 0" note |
+| LOW | ERP builder needs settings for cash identity; case-insensitive ids; literal tests; frozen payloads | 2.4 R7 |
+| LOW | Refund key reuse after a changed payout chip | checked: a fresh key per enqueue, queued payload immutable (2.6) |
+
+Not checked by the reviewer (left to the slices): `codegen_gate.py` lines, `reportTotals.ts`/`metrics.ts` internals, `heldRestore` repricing, `confirmGuard.ts`, cached-settings persistence across a cold start, browser scenario JSON, `EXPLAIN` on Neon.
