@@ -20,8 +20,9 @@ export interface PartialRefundEntry {
   lines: PartialRefundLine[]
   /** The amount the tablet paid out for this refund (display only; the server Order read wins when online). */
   amount: number
-  /** The server said this refund left the order fully refunded (ack `refundState: 'full'`). Optional: absent = partial/unknown. */
-  full?: true
+  /** What the ack said about the order after this refund: 'full' = nothing left to refund, 'partial' = some units remain.
+   *  Absent = not known (an older server, or recorded by the startup self-heal). Frozen format: add values, never rename. */
+  refundState?: 'full' | 'partial'
   at: number
 }
 
@@ -36,6 +37,7 @@ const isEntry = (e: unknown): e is PartialRefundEntry => {
     && Array.isArray(v.orderIds) && v.orderIds.length > 0 && v.orderIds.every((id) => typeof id === 'string' && id !== '')
     && Array.isArray(v.lines) && v.lines.length > 0 && v.lines.every(isLine)
     && typeof v.amount === 'number' && Number.isFinite(v.amount) && typeof v.at === 'number'
+    && (v.refundState === undefined || v.refundState === 'full' || v.refundState === 'partial')
 }
 
 /** Small persistent record of acknowledged per-line refunds. An acked refund leaves the outbox and a cached
@@ -66,9 +68,16 @@ export class PartialRefunds {
     const run = this.chain.then(() => {
       const kept = this.read()
       const byKey = new Map(kept.map((e) => [e.refundKey, e]))
-      // A key already stored is left as it was, except that learning it was the FULL refund is never lost.
-      const upgraded = kept.map((e) => (!e.full && fresh.some((f) => f.refundKey === e.refundKey && f.full) ? { ...e, full: true as const } : e))
-      const added = fresh.filter((e, i) => !byKey.has(e.refundKey) && fresh.findIndex((x) => x.refundKey === e.refundKey) === i)
+      // A key already stored is left as it was, except that learning what the ack said is never lost ('full' wins).
+      const stateFor = (key: string): 'full' | 'partial' | undefined =>
+        fresh.some((f) => f.refundKey === key && f.refundState === 'full') ? 'full' : fresh.find((f) => f.refundKey === key && f.refundState)?.refundState
+      const upgraded = kept.map((e) => {
+        const s = stateFor(e.refundKey)
+        return s && (e.refundState === undefined || (s === 'full' && e.refundState !== 'full')) ? { ...e, refundState: s } : e
+      })
+      const added = fresh
+        .filter((e, i) => !byKey.has(e.refundKey) && fresh.findIndex((x) => x.refundKey === e.refundKey) === i)
+        .map((e) => { const s = stateFor(e.refundKey); return s && s !== e.refundState ? { ...e, refundState: s } : e })
       if (!added.length && upgraded.every((e, i) => e === kept[i])) return undefined
       return this.kv.setDurable(PARTIAL_REFUNDS_KEY, JSON.stringify(this.live([...upgraded, ...added])))
     })
@@ -87,7 +96,7 @@ export class PartialRefunds {
 
   /** Every id of an order whose refunds the server reported as leaving it fully refunded. */
   fullOrderIds(): Set<string> {
-    return new Set(this.entries().filter((e) => e.full).flatMap((e) => e.orderIds))
+    return new Set(this.entries().filter((e) => e.refundState === 'full').flatMap((e) => e.orderIds))
   }
 
   /** Units refunded per lineNo across every refund that names any of `orderIds`. */
@@ -117,7 +126,7 @@ export function partialRefundFromPayload(
   payload: Readonly<Record<string, unknown>>,
   extraOrderIds: readonly string[] = [],
   at: number = Date.now(),
-  full = false,
+  refundState?: 'full' | 'partial',
 ): PartialRefundEntry | null {
   const items = payload.items
   if (!Array.isArray(items) || items.length === 0 || !refundKey) return null
@@ -129,5 +138,5 @@ export function partialRefundFromPayload(
   const orderIds = [...new Set([payload.orderId, payload.saleOrderUuid, ...extraOrderIds].filter((v): v is string => typeof v === 'string' && v !== ''))]
   if (!orderIds.length) return null
   const amount = typeof payload.refundAmount === 'number' && Number.isFinite(payload.refundAmount) ? payload.refundAmount : 0
-  return { refundKey, orderIds, lines, amount, ...(full ? { full: true as const } : {}), at }
+  return { refundKey, orderIds, lines, amount, ...(refundState ? { refundState } : {}), at }
 }

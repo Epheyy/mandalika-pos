@@ -165,3 +165,13 @@ describe('withSaleLineData never fails the sale', () => {
     expect(withSaleLineData(base({ cart, appliedPromotions: [bad], total: 1000 }))).toBeNull()
   })
 })
+
+describe('withSaleLineData reports instead of swallowing', () => {
+  it('hands the error to onError and still returns null', () => {
+    const bad = promo('b1', 'bundle', { bundleConfig: { slots: [{ quantity: 1 } as never], bundlePrice: 1 } })
+    const cart = [line('a', 1000), line('b', 0, 1, { isReward: true, rewardPromotionId: 'b1' })]
+    const seen: unknown[] = []
+    expect(withSaleLineData(base({ cart, appliedPromotions: [bad], total: 1000, onError: (e) => seen.push(e) }))).toBeNull()
+    expect(seen).toHaveLength(1)
+  })
+})

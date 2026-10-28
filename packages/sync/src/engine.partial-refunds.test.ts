@@ -190,7 +190,42 @@ describe('C4b review fixes: the server\'s refundState decides, and "full" surviv
   it('a full ack of a per-line refund shows the sale as refunded in the local receipts and the done set', async () => {
     const { engine } = await sendRefund(answer('full'), partialPayload())
     expect(engine.syncedRefundOrderIds().has('srv-1')).toBe(true)
-    expect(new PartialRefunds(controllableKV().kv).fullOrderIds().size).toBe(0)
+    expect(engine.localReceipts()).toEqual([])
+  })
+
+  it('a partial ack stores refundState "partial" and never shows the order as done', async () => {
+    const { kv, store } = controllableKV()
+    const { engine } = await sendRefund(answer('partial'), partialPayload(), kv)
+    const stored = JSON.parse(store.get(PARTIAL_REFUNDS_KEY) as string) as PartialRefundEntry[]
+    expect(stored[0].refundState).toBe('partial')
+    expect(engine.syncedRefundOrderIds().size).toBe(0)
+    expect(new PartialRefunds(kv).fullOrderIds().size).toBe(0)
+  })
+
+  it('an ack without refundState stores no state and never shows the order as done', async () => {
+    const { kv, store } = controllableKV()
+    const { engine } = await sendRefund(answer(undefined), partialPayload(), kv)
+    const stored = JSON.parse(store.get(PARTIAL_REFUNDS_KEY) as string) as PartialRefundEntry[]
+    expect('refundState' in stored[0]).toBe(false)
+    expect(engine.syncedRefundOrderIds().size).toBe(0)
+  })
+
+  it('only the exact string "full" counts: a corrupt state is dropped with its entry', () => {
+    const bad = (state: unknown) => JSON.stringify([{ refundKey: 'k', orderIds: ['o'], lines: [{ lineNo: 0, qty: 1 }], amount: 1, at: Date.now(), refundState: state }])
+    for (const state of ['x', 1, true, 'FULL']) {
+      const s = new PartialRefunds(controllableKV({ [PARTIAL_REFUNDS_KEY]: bad(state) }).kv)
+      expect(s.entries()).toEqual([])
+      expect(s.fullOrderIds().size).toBe(0)
+    }
+    expect(new PartialRefunds(controllableKV({ [PARTIAL_REFUNDS_KEY]: bad('full') }).kv).fullOrderIds().has('o')).toBe(true)
+  })
+
+  it('a duplicate key in one batch keeps the entry that knows it was the last refund', async () => {
+    const s = new PartialRefunds(controllableKV().kv)
+    const e: PartialRefundEntry = { refundKey: 'k', orderIds: ['o'], lines: [{ lineNo: 0, qty: 1 }], amount: 5, at: Date.now() }
+    await s.addMany([e, { ...e, refundState: 'full' }])
+    expect(s.entries()).toHaveLength(1)
+    expect(s.fullOrderIds().has('o')).toBe(true)
   })
 
   it('"full" is remembered on the stored entry (so it needs no outbox row later)', async () => {
@@ -198,7 +233,7 @@ describe('C4b review fixes: the server\'s refundState decides, and "full" surviv
     await sendRefund(answer('full'), partialPayload(), kv)
     const stored = JSON.parse(store.get(PARTIAL_REFUNDS_KEY) as string) as PartialRefundEntry[]
     expect(stored).toHaveLength(1)
-    expect(stored[0].full).toBe(true)
+    expect(stored[0].refundState).toBe('full')
     expect(new PartialRefunds(kv).fullOrderIds().has('srv-1')).toBe(true)
   })
 
@@ -211,7 +246,7 @@ describe('C4b review fixes: the server\'s refundState decides, and "full" surviv
     ctl.modeFor = undefined
     await engine.rehydrate()
     const stored = JSON.parse(store.get(PARTIAL_REFUNDS_KEY) as string) as PartialRefundEntry[]
-    expect(stored[0].full).toBe(true)
+    expect(stored[0].refundState).toBe('full')
     expect(engine.syncedRefundOrderIds().has('srv-1')).toBe(true)
   })
 
@@ -219,7 +254,7 @@ describe('C4b review fixes: the server\'s refundState decides, and "full" surviv
     const s = new PartialRefunds(controllableKV().kv)
     const e: PartialRefundEntry = { refundKey: 'k', orderIds: ['o'], lines: [{ lineNo: 0, qty: 1 }], amount: 5, at: Date.now() }
     await s.addMany([e])
-    await s.addMany([{ ...e, full: true }])
+    await s.addMany([{ ...e, refundState: 'full' }])
     expect(s.entries()).toHaveLength(1)
     expect(s.fullOrderIds().has('o')).toBe(true)
     expect(s.refundedQty(['o']).get(0)).toBe(1)

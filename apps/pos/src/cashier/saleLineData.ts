@@ -48,6 +48,8 @@ export interface SaleLineDataInput {
   total: number
   /** Every promotion the tablet knows, so a reward line can be traced to its config. */
   knownPromotions: readonly Promotion[]
+  /** Called when the allocator throws (a bug or a malformed promotion config); the sale itself still goes through. */
+  onError?: (error: unknown) => void
 }
 
 /** The order-level discount components in the order the allocator spreads them: each promo then each code
@@ -138,7 +140,8 @@ export function withSaleLineData(i: SaleLineDataInput): CartItem[] | null {
   // Optional extra data: a malformed promotion config must never fail the sale it rides on.
   try {
     return buildSaleLineData(i)
-  } catch {
+  } catch (error) {
+    i.onError?.(error)
     return null
   }
 }

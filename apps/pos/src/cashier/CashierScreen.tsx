@@ -736,6 +736,7 @@ export default function CashierScreen() {
         const saleItems = withSaleLineData({
           cart: state.cart, appliedPromotions: state.appliedPromotions, appliedPromoCodes: state.appliedPromoCodes,
           discountType: state.appliedDiscountType, discountRunning: state.discountRunning, total: derived.total, knownPromotions: promotions,
+          onError: (e) => { void reportErrors([{ source: 'runtime', kind: 'sale_line_data', action: `Hitung data refund per baris ${orderNo}`, message: e instanceof Error ? e.message : 'gagal', outletName: snapshot.outletName }]) },
         }) ?? state.cart
         return engine.enqueue('order', {
         orderNumber: orderNo,

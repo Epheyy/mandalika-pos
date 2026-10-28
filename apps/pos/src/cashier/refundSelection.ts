@@ -165,7 +165,9 @@ export interface RefundAmount {
 /** What to pay the customer for this selection: each line at its net share (`cum(prior+k) - cum(prior)`). When the
  *  refund returns the last remaining unit of the order it pays `total - paid so far` so the refunds add up exactly,
  *  but NEVER more than the sum of the picked units' own shares: "paid so far" is the larger of the server row and this
- *  tablet's cache (not their union), so it can understate earlier payouts and must not be allowed to overpay. */
+ *  tablet's cache (not their union), so it can understate earlier payouts and must not be allowed to overpay.
+ *  Trade-off: if an earlier payout was BELOW its computed share (the claim was lower, or the TS and Go nets differed
+ *  for a refund made before the sale synced) the customer is short by that difference; the server flags the mismatch. */
 export function refundAmountFor(basis: Extract<RefundBasis, { kind: 'lines' }>, sel: Selection): RefundAmount {
   const items = selectionToItems(basis.lines, sel)
   let sum = 0

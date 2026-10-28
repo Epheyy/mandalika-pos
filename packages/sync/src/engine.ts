@@ -303,7 +303,9 @@ export class SyncEngine {
   private readonly syncedRefunds: SyncedRefunds
   /** C4b: acknowledged per-line refunds (a partial refund is NOT a whole-order "done" marker). */
   private readonly partialRefunds: PartialRefunds
-  /** Refund keys the server acked as leaving the order fully refunded: the outbox row cannot carry that (guarded file), so a retried fold reads it here. */
+  /** Refund keys the server acked as leaving the order fully refunded: the outbox row cannot carry that (guarded file), so a
+   *  retried fold in the SAME session reads it here. In memory only: a crash between the ack and a failed memory write
+   *  loses it (the quantities still exhaust the order; the server read corrects the label). */
   private readonly fullRefundKeys = new Set<string>()
   private refundMemory: Promise<boolean> = Promise.resolve(true)
   /** Local receipts of acknowledged sales (A41); follows the outbox store like the refund memory. */
@@ -416,7 +418,7 @@ export class SyncEngine {
     const partial = [...extraPartial]
     for (const i of this.outbox.all()) {
       if (i.type !== 'refund' || i.status !== 'acked') continue
-      const entry = partialRefundFromPayload(i.idempotencyKey, i.payload, i.ackedOrderId ? [i.ackedOrderId] : [], Date.now(), this.fullRefundKeys.has(i.idempotencyKey))
+      const entry = partialRefundFromPayload(i.idempotencyKey, i.payload, i.ackedOrderId ? [i.ackedOrderId] : [], Date.now(), this.fullRefundKeys.has(i.idempotencyKey) ? 'full' : undefined)
       if (entry) {
         partial.push(entry)
         continue
@@ -1632,7 +1634,7 @@ export class SyncEngine {
           const acked = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)
           const full = res.refundState === 'full'
           if (full) this.fullRefundKeys.add(res.idempotencyKey)
-          const partial = acked ? partialRefundFromPayload(res.idempotencyKey, acked.payload, res.orderId ? [res.orderId] : [], Date.now(), full) : null
+          const partial = acked ? partialRefundFromPayload(res.idempotencyKey, acked.payload, res.orderId ? [res.orderId] : [], Date.now(), res.refundState) : null
           if (partial) ackedPartialRefunds.push(partial)
           // The server's word decides: 'full' marks the order done, 'partial' never does. Only an ack without
           // refundState (a whole-order refund, or an older server) falls back to the payload shape.
