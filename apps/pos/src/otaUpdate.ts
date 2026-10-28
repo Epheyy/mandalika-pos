@@ -2,10 +2,9 @@
 // owns the single OTA-ready confirm (A35), and App-level tests mock it with a fixed export list.
 //
 // The updater stays in its default `autoUpdate: true` mode (no native/APK change): it downloads in the
-// background, emits `updateAvailable` and queues the bundle as "next" (applied when the app goes to the
-// background or restarts, exactly as before). This module only OBSERVES that queue and, when the cashier
-// taps "Mulai ulang sekarang", calls reload() to apply the already-queued bundle now. Nothing here ever
-// applies an update on its own. Everything is a no-op off-device and never throws.
+// background, emits `updateAvailable` and queues the bundle as "next". This module OBSERVES that queue and,
+// when the cashier taps "Mulai ulang sekarang", calls reload() to apply the already-queued bundle. Nothing
+// here ever applies an update on its own. Everything is a no-op off-device and never throws.
 //
 // Capgo would also apply the queued bundle the moment the app goes to the background (installNext), which
 // reloads the WebView and drops an open cart if the cashier switches to an EDC/e-wallet app mid-checkout.
@@ -13,6 +12,9 @@
 // condition is persisted natively but cleared on every launch (load() and onDestroy run checkCancelDelay
 // KILLED), so it is re-armed from JS on every launch, and again on each `updateAvailable`. reload() does not
 // look at delay conditions, so the "Mulai ulang sekarang" path still applies the queued bundle.
+// Consequence (verified in the 8.50.2 source): installNext on background is the ONLY automatic apply, and a
+// cold start applies nothing, so a queued bundle is applied only by the button. The prompt reappears on every
+// launch while one is queued. (directUpdateFinish also ignores delays; unused here: no `directUpdate`.)
 
 import { Capacitor } from '@capacitor/core'
 
