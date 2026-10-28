@@ -47,6 +47,7 @@ import { ShiftBar } from './ShiftBar'
 import { ReceiptPreview } from './ReceiptPreview'
 import { orderStateFor } from './orderState'
 import { RefundDialog } from './RefundDialog'
+import { withSaleLineData } from './saleLineData'
 import { REFUND_DONE, REFUND_QUEUED, planRefundSubmit, refundGateProps, type LocalSaleRef } from './refundView'
 import { OrderHistoryPanel } from './OrderHistoryPanel'
 import { LocalReceiptsPanel } from './LocalReceiptsPanel'
@@ -729,9 +730,15 @@ export default function CashierScreen() {
         // queued as the quote and printed below (printed == quoted by construction).
         const quote = buildReceiptQuote({ cart: giveaway ? [...state.cart, giveaway] : state.cart, derived, tender, refVersion: engine.referenceVersion() })
         quoteHolder.current = quote
+        // C4b: each line carries its net share and promo group so a refund of this sale can be priced on the
+        // tablet before it syncs. The server ignores both keys for money; null = whole-order refund only.
+        const saleItems = withSaleLineData({
+          cart: state.cart, appliedPromotions: state.appliedPromotions, appliedPromoCodes: state.appliedPromoCodes,
+          discountType: state.appliedDiscountType, discountRunning: state.discountRunning, total: derived.total, knownPromotions: promotions,
+        }) ?? state.cart
         return engine.enqueue('order', {
         orderNumber: orderNo,
-        items: state.cart,
+        items: saleItems,
         paymentMethod: state.paymentMethod,
         amountPaid: tender.amountPaid,
         customerId: state.selectedCustomer?.id ?? null,

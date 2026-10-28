@@ -70,9 +70,10 @@ describe('C3 payload and validator exclusion', () => {
     expect(uses.filter((l) => !/giveawayConfig|giveawayLine|giveawayStock|<Cart|giveaway=\{giveaway\}|cart: giveaway|import /.test(l))).toEqual([])
   })
 
-  it('the order payload sends state.cart; only the quote carries the giveaway', () => {
+  it('the order payload sends state.cart (plus per-line refund data); only the quote carries the giveaway', () => {
     const src = readFileSync(new URL('./CashierScreen.tsx', import.meta.url), 'utf8')
-    expect(src).toContain('items: state.cart,')
+    expect(src).toContain('items: saleItems,')
+    expect(src).toMatch(/withSaleLineData\(\{\s+cart: state\.cart,/)
     expect(src).toContain('cart: giveaway ? [...state.cart, giveaway] : state.cart')
     expect(src).not.toMatch(/dispatch\(\{ type: '[A-Z_]+', [^}]*giveaway/)
   })
