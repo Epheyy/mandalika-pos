@@ -257,3 +257,31 @@ describe('ReceiptArchive', () => {
     expect(a.entries().map((e) => e.orderUuid).sort()).toEqual(['u1', 'u2', 'u3'])
   })
 })
+
+describe('C4b line data (lineNets / lineGroups) from the sale payload', () => {
+  const sale = (items: unknown): OutboxItem => ({
+    seq: 1, idempotencyKey: 'dev:u1', type: 'order', status: 'queued', attempts: 0, clientCreatedAt: iso(NOW),
+    payload: { orderUuid: 'u1', orderNumber: 'N1', paymentMethod: 'cash', quotedTotal: 100, items },
+  } as unknown as OutboxItem)
+
+  it('copies per-line nets and groups when every line carries a whole-rupiah net', () => {
+    const e = receiptEntryFromItem(sale([{ netAmount: 60000, refundGroup: null }, { netAmount: 0, refundGroup: 'bundle:p1:1' }, { netAmount: 5 }]))
+    expect(e?.lineNets).toEqual([60000, 0, 5])
+    expect(e?.lineGroups).toEqual([null, 'bundle:p1:1', null])
+  })
+  it('keeps no line data when any line lacks a usable net (the sale refunds whole-order only)', () => {
+    expect(receiptEntryFromItem(sale([{ netAmount: 10 }, {}]))?.lineNets).toBeUndefined()
+    expect(receiptEntryFromItem(sale([{ netAmount: -1 }]))?.lineNets).toBeUndefined()
+    expect(receiptEntryFromItem(sale([{ netAmount: 1.5 }]))?.lineNets).toBeUndefined()
+    expect(receiptEntryFromItem(sale([]))?.lineNets).toBeUndefined()
+    expect(receiptEntryFromItem(sale(undefined))?.lineNets).toBeUndefined()
+  })
+  it('survives the archive round trip', async () => {
+    const kv = controllableKV().kv
+    const archive = new ReceiptArchive(kv)
+    const e = receiptEntryFromItem(sale([{ netAmount: 7, refundGroup: 'bxgy:p2:1' }]))!
+    await archive.addMany([e], () => noCtx, NOW)
+    expect(new ReceiptArchive(kv).entries()[0].lineNets).toEqual([7])
+    expect(new ReceiptArchive(kv).entries()[0].lineGroups).toEqual(['bxgy:p2:1'])
+  })
+})

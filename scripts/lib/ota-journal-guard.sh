@@ -26,6 +26,7 @@ OTA_JOURNAL_PATHSPECS=(
   'packages/sync/src/outboxStore.ts'   # KVOutboxStore reads/writes OUTBOX_KEY, which the builtin's classify() reads
   'packages/sync/src/storage.ts'
   'packages/sync/src/syncedRefunds.ts'
+  'packages/sync/src/partialRefunds.ts'  # C4b: per-line refund memory; its stored format is read by every later bundle
   'apps/pos/src/bootStorage.ts'        # whether and in what order initJournal runs
   'apps/pos/src/terminalBinding.ts'    # reads OUTBOX_KEY raw for the release/login gate
   'apps/pos/android'
