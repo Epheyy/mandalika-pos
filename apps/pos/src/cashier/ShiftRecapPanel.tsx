@@ -24,58 +24,13 @@ import { Button } from '../components/ui/Button'
 import { DenominationSheet } from './DenominationSheet'
 import { isCountRevealed } from './countRules'
 import { applyRefundRecap, recapFigures, refundRecap, type RefundRecap } from './refundRecap'
+import { aggregate, type Breakdown, type PaymentMethodCfg } from './recapAggregate'
 import { RecapLoadGate, ownsFlags, startRefresh, switchTab } from './recapRefresh'
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
 type Shift = components['schemas']['Shift']
 type CashFlow = components['schemas']['CashFlow']
 type Order = components['schemas']['Order']
-type PaymentMethodCfg = { id: string; label: string; isEnabled: boolean; isCash?: boolean | null }
-
-interface Breakdown {
-  byMethod: Record<string, number>
-  totalSales: number
-  totalOrders: number
-  refundCount: number
-  refundTotal: number
-  refundItems: number
-  cashSales: number
-  gross: number
-  discount: number
-  tax: number
-  surcharge: number
-  net: number
-}
-
-function aggregate(orders: Order[], methods: PaymentMethodCfg[]): Breakdown {
-  const b: Breakdown = {
-    byMethod: {}, totalSales: 0, totalOrders: 0, refundCount: 0,
-    refundTotal: 0, refundItems: 0, cashSales: 0, gross: 0, discount: 0,
-    tax: 0, surcharge: 0, net: 0,
-  }
-  for (const o of orders) {
-    if (o.status === 'cancelled') continue
-    if (o.status === 'refunded') {
-      b.refundCount += 1
-      b.refundTotal += o.total
-      b.refundItems += o.items.reduce((s, i) => s + i.quantity, 0)
-      continue
-    }
-    b.totalSales += o.total
-    b.totalOrders += 1
-    b.byMethod[o.paymentMethod] = (b.byMethod[o.paymentMethod] ?? 0) + o.total
-    if (isCashMethod(methods, o.paymentMethod)) b.cashSales += o.total
-    b.gross += o.subtotal
-    b.discount += o.discountAmount
-    b.tax += o.taxAmount
-    // Surcharge isn't a dedicated field on Order; recover it as the residual
-    // between the charged total and (subtotal − discount + tax).
-    const residual = o.total - (o.subtotal - o.discountAmount + o.taxAmount)
-    if (residual > 0) b.surcharge += residual
-  }
-  b.net = b.gross - b.discount
-  return b
-}
 
 function isCashOut(t: string): boolean {
   return t === 'out' || t === 'expense' || t === 'withdrawal'
@@ -845,10 +800,13 @@ function ShiftRecapPanelBody({
             for (const o of selectedOrders) {
               if (o.status === 'refunded' || o.status === 'cancelled') continue
               for (const it of o.items) {
+                // A part-refunded order sold only what was not returned.
+                const left = Math.max(0, it.quantity - (it.refundedQty ?? 0))
+                if (left === 0) continue
                 const key = `${it.productName}|${it.variantSize ?? ''}`
                 const cur = soldMap.get(key) ?? { name: it.productName, variant: it.variantSize ?? '', qty: 0, amount: 0 }
-                cur.qty += it.quantity
-                cur.amount += it.subtotal
+                cur.qty += left
+                cur.amount += left === it.quantity ? it.subtotal : Math.round((it.subtotal * left) / it.quantity)
                 soldMap.set(key, cur)
               }
             }

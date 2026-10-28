@@ -104,3 +104,38 @@ describe('shift recap: refunds paid from this drawer for other shifts', () => {
     expect(r.byMethod.cash).toBe(90000)
   })
 })
+
+describe('C4b per-line refunds in the recap', () => {
+  const shift = { id: 'sh1', refundsPaidByMethod: {} } as never
+  const perLine = (over: Record<string, unknown> = {}) => ({
+    idempotencyKey: 'k1', orderId: 'o1', shiftId: 'sh1', parked: false,
+    payload: { orderId: 'o1', items: [{ lineNo: 0, quantity: 1 }], refundAmount: 50000, total: 50000, paymentMethod: 'cash', saleShiftId: 'sh1', ...over },
+  }) as never
+
+  it('a queued per-line refund of a loaded completed order takes out only its own amount', () => {
+    const r = refundRecap(shift, [perLine()], [{ id: 'o1', status: 'completed', total: 150000, paymentMethod: 'cash' }])
+    expect(r.ownPendingByMethod).toEqual({ cash: 50000 })
+  })
+
+  it('a part-refunded loaded order still takes the queued refund out (its earlier refunds are already out of the server figure)', () => {
+    const r = refundRecap(shift, [perLine()], [{ id: 'o1', status: 'partially_refunded', total: 150000, paymentMethod: 'cash' }])
+    expect(r.ownPendingByMethod).toEqual({ cash: 50000 })
+  })
+
+  it('a fully refunded loaded order is already out', () => {
+    expect(refundRecap(shift, [perLine()], [{ id: 'o1', status: 'refunded', total: 150000, paymentMethod: 'cash' }]).ownPendingTotal).toBe(0)
+  })
+
+  it("a per-line refund of another shift's sale reduces this drawer by its amount, not the order total", () => {
+    const r = refundRecap(shift, [perLine({ saleShiftId: 'other' })], [])
+    expect(r.crossByMethod).toEqual({ cash: 50000 })
+  })
+
+  it('a parked per-line refund shows its amount and is never subtracted', () => {
+    const q = { ...(perLine() as object), parked: true } as never
+    const r = refundRecap(shift, [q], [])
+    expect(r.parkedCount).toBe(1)
+    expect(r.parkedTotal).toBe(50000)
+    expect(r.ownPendingTotal + r.crossTotal).toBe(0)
+  })
+})

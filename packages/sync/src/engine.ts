@@ -5,6 +5,7 @@ import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
 import { KVOutboxStore, type OutboxStore } from './outboxStore'
 import { SyncedRefunds } from './syncedRefunds'
+import { PartialRefunds, partialRefundFromPayload, type PartialRefundEntry } from './partialRefunds'
 import { ReceiptArchive, receiptEntryFromItem, type ReceiptContext, type ReceiptEntry } from './receiptArchive'
 import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
 import { SettlingDebits, type DebitLine, type PulledSeq } from './settlingDebits'
@@ -254,6 +255,9 @@ export interface LocalReceipt {
   refundQueued: boolean
   /** This tablet saw the server acknowledge a refund of this sale. */
   refunded: boolean
+  /** C4b: per sale line, the allocator's net share (see ReceiptEntry.lineNets); absent on older sales. */
+  lineNets?: number[]
+  lineGroups?: (string | null)[]
 }
 
 /** Where a refund's sale stands for the send rule. */
@@ -297,6 +301,12 @@ export class SyncEngine {
   /** A15: debits of acked orders the next pulled snapshot may not contain yet (display only). */
   private readonly settling: SettlingDebits
   private readonly syncedRefunds: SyncedRefunds
+  /** C4b: acknowledged per-line refunds (a partial refund is NOT a whole-order "done" marker). */
+  private readonly partialRefunds: PartialRefunds
+  /** Refund keys the server acked as leaving the order fully refunded: the outbox row cannot carry that (guarded file), so a
+   *  retried fold in the SAME session reads it here. In memory only: a crash between the ack and a failed memory write
+   *  loses it (the quantities still exhaust the order; the server read corrects the label). */
+  private readonly fullRefundKeys = new Set<string>()
   private refundMemory: Promise<boolean> = Promise.resolve(true)
   /** Local receipts of acknowledged sales (A41); follows the outbox store like the refund memory. */
   private readonly receiptArchive: ReceiptArchive
@@ -387,6 +397,7 @@ export class SyncEngine {
     this.pending = new PendingCredits(kv)
     this.settling = new SettlingDebits(kv)
     this.syncedRefunds = new SyncedRefunds(store.kv)
+    this.partialRefunds = new PartialRefunds(store.kv)
     this.receiptArchive = new ReceiptArchive(store.kv)
     // Self-heal: an acked refund still in the queue means a crash hit between its ack and the
     // synced-refund write; fold it into the memory now.
@@ -397,16 +408,26 @@ export class SyncEngine {
   }
 
   /** Durably record the orders of acked refunds (those just acked plus any still sitting in the
-   *  queue). Resolves false, never rejects, when the write failed: the caller must then keep the rows. */
-  private foldAckedRefunds(extra: readonly string[] = []): Promise<boolean> {
+   *  queue). A whole-order refund goes to the synced-refund memory; a per-line one (payload `items`) goes to
+   *  the partial-refund memory instead, so a partial never marks the order "done". `extra` = order ids of
+   *  whole-order refunds acked in this batch (and per-line ones the server reported as leaving it fully
+   *  refunded); `extraPartial` = the per-line refunds acked in this batch.
+   *  Resolves false, never rejects, when a write failed: the caller must then keep the rows. */
+  private foldAckedRefunds(extra: readonly string[] = [], extraPartial: readonly PartialRefundEntry[] = []): Promise<boolean> {
     const ids = new Set(extra)
+    const partial = [...extraPartial]
     for (const i of this.outbox.all()) {
       if (i.type !== 'refund' || i.status !== 'acked') continue
+      const entry = partialRefundFromPayload(i.idempotencyKey, i.payload, i.ackedOrderId ? [i.ackedOrderId] : [], Date.now(), this.fullRefundKeys.has(i.idempotencyKey) ? 'full' : undefined)
+      if (entry) {
+        partial.push(entry)
+        continue
+      }
       for (const id of [i.payload.orderId, i.payload.saleOrderUuid, i.ackedOrderId]) if (typeof id === 'string') ids.add(id)
     }
     ids.delete('')
-    if (!ids.size) return Promise.resolve(true)
-    return this.syncedRefunds.addMany([...ids]).then(
+    if (!ids.size && !partial.length) return Promise.resolve(true)
+    return Promise.all([this.syncedRefunds.addMany([...ids]), this.partialRefunds.addMany(partial)]).then(
       () => true,
       (err) => {
         console.error('[sync] synced-refund memory write failed; acked refund rows are kept', err)
@@ -459,6 +480,7 @@ export class SyncEngine {
   async idle(): Promise<void> {
     await this.outbox.idle()
     await this.syncedRefunds.idle()
+    await this.partialRefunds.idle()
     await this.receiptArchive.idle()
     await this.settling.idle()
     await this.refundMemory
@@ -1070,7 +1092,20 @@ export class SyncEngine {
 
   /** Orders whose refund this tablet saw the server acknowledge (persistent, bounded). */
   syncedRefundOrderIds(): Set<string> {
-    return this.syncedRefunds.ids()
+    // A per-line refund the server reported as the last one counts as "done" too.
+    return new Set([...this.syncedRefunds.ids(), ...this.partialRefunds.fullOrderIds()])
+  }
+
+  /** C4b: units this tablet saw the server acknowledge as refunded, per sale line, for the order named by any of
+   *  `orderIds` (server id and/or the sale's client uuid). A bounded convenience cache; the server's
+   *  `refundedQty` wins whenever it is known. */
+  partialRefundedQty(orderIds: readonly string[]): Map<number, number> {
+    return this.partialRefunds.refundedQty(orderIds)
+  }
+
+  /** C4b: the amount paid out across those acknowledged per-line refunds (display only). */
+  partialRefundedAmount(orderIds: readonly string[]): number {
+    return this.partialRefunds.refundedAmount(orderIds)
   }
 
   /** Orders that already have an unacknowledged refund (incl. parked): no second refund may start. */
@@ -1103,7 +1138,7 @@ export class SyncEngine {
   localReceipts(): LocalReceipt[] {
     const outlet = this.actorProvider?.()?.outletId
     const inScope = (o: string | undefined) => !outlet || !o || o === outlet
-    const refunded = this.syncedRefunds.ids()
+    const refunded = this.syncedRefundOrderIds()
     const queuedRefunds = new Set<string>()
     for (const r of this.queuedRefunds()) {
       if (r.orderId) queuedRefunds.add(r.orderId)
@@ -1123,6 +1158,7 @@ export class SyncEngine {
           orderUuid: e.orderUuid, idempotencyKey: e.idempotencyKey, ...(e.serverOrderId ? { serverOrderId: e.serverOrderId } : {}),
           orderNumber: e.orderNumber, capturedAt: e.capturedAt, outletId: e.outletId, shiftId: e.shiftId,
           paymentMethod: e.paymentMethod, quotedTotal: e.quotedTotal, receiptSnapshot: e.receiptSnapshot, state: 'synced',
+          ...(e.lineNets ? { lineNets: e.lineNets } : {}), ...(e.lineGroups ? { lineGroups: e.lineGroups } : {}),
           ...flags(e.orderUuid, e.serverOrderId),
         },
       })
@@ -1141,6 +1177,7 @@ export class SyncEngine {
           orderNumber: e.orderNumber, capturedAt: e.capturedAt, outletId: e.outletId, shiftId: e.shiftId,
           paymentMethod: e.paymentMethod, quotedTotal: e.quotedTotal, receiptSnapshot: e.receiptSnapshot,
           state: acked ? 'synced' : i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS ? 'parked' : 'queued',
+          ...(e.lineNets ? { lineNets: e.lineNets } : {}), ...(e.lineGroups ? { lineGroups: e.lineGroups } : {}),
           ...flags(e.orderUuid, e.serverOrderId),
         },
       })
@@ -1566,6 +1603,7 @@ export class SyncEngine {
   private async applyBatch(data: BatchResult, typeByKey: Map<string, OutboxType>): Promise<void> {
     const updates: OutboxSettle[] = []
     const ackedRefundOrderIds: string[] = []
+    const ackedPartialRefunds: PartialRefundEntry[] = []
     const ackedOrders: { key: string; outletId?: string; lines: DebitLine[]; seq?: number; seqOutlet?: string }[] = []
     // A15 phase B: a sale's seq is trusted only while every seq rule is on, the batch carried a counter, and the
     // outlet in effect is the one the request was sent for (never in flush-only mode).
@@ -1594,8 +1632,17 @@ export class SyncEngine {
         if (type === 'refund') {
           // The acked refund leaves the outbox: remember its order so a stale history row cannot offer it again.
           const acked = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)
-          for (const id of [acked?.payload.orderId, acked?.payload.saleOrderUuid, res.orderId]) {
-            if (typeof id === 'string') ackedRefundOrderIds.push(id)
+          const full = res.refundState === 'full'
+          if (full) this.fullRefundKeys.add(res.idempotencyKey)
+          const partial = acked ? partialRefundFromPayload(res.idempotencyKey, acked.payload, res.orderId ? [res.orderId] : [], Date.now(), res.refundState) : null
+          if (partial) ackedPartialRefunds.push(partial)
+          // The server's word decides: 'full' marks the order done, 'partial' never does. Only an ack without
+          // refundState (a whole-order refund, or an older server) falls back to the payload shape.
+          const markDone = res.refundState ? full : !partial
+          if (markDone) {
+            for (const id of [acked?.payload.orderId, acked?.payload.saleOrderUuid, res.orderId]) {
+              if (typeof id === 'string') ackedRefundOrderIds.push(id)
+            }
           }
         }
         this.pending.stampAck(res.idempotencyKey, data.version ?? 0)
@@ -1682,7 +1729,7 @@ export class SyncEngine {
     // The memory is the only copy once the acked row is pruned: durable first, and if it failed keep
     // the rows (the next engine start or batch folds them again).
     // Both folds always run; the acked rows are dropped only when both facts are durable.
-    const [refundsOk, receiptsOk] = await Promise.all([this.foldAckedRefunds(ackedRefundOrderIds), this.foldAckedReceipts()])
+    const [refundsOk, receiptsOk] = await Promise.all([this.foldAckedRefunds(ackedRefundOrderIds, ackedPartialRefunds), this.foldAckedReceipts()])
     if (refundsOk && receiptsOk) await this.outbox.prune()
     else if (refundsOk && this.archiveFailures >= ARCHIVE_HOLD_MAX) {
       // The archive keeps failing: do not let acked rows pile up behind it. Rows that are not sales never needed
