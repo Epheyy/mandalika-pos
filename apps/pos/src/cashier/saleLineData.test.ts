@@ -104,3 +104,55 @@ describe('refundGroups (all-or-nothing promo groups)', () => {
     expect(nets(r)).toEqual([111000, 0])
   })
 })
+
+// Mirrors of backend/internal/service/allocate_test.go TestAllocateFromPricingScenarios / TestDiscountComponentsTrackEngine:
+// the same carts must give the same per-line nets on both sides.
+describe('parity with the Go allocator scenarios', () => {
+  const sized = (productId: string, variantSize: string, price: number, quantity: number): CartItem =>
+    ({ productId, productName: productId, variantSize, price, quantity, subtotal: price * quantity }) as CartItem
+  const three = [sized('a', '50ml', 100000, 1), sized('b', '50ml', 50000, 2), sized('c', '10ml', 80000, 1)]
+
+  it('a scoped percentage promo hits only its product', () => {
+    const p = promo('p', 'percentage', { value: 10, applicableProductIds: ['a'] })
+    expect(nets(withSaleLineData(base({ cart: three, appliedPromotions: [p], total: 270000 })))).toEqual([90000, 100000, 80000])
+  })
+
+  it('a tiered promo spreads over every line', () => {
+    const p = promo('t', 'tiered', { tieredConfig: { tiers: [{ minSubtotal: 200000, kind: 'percentage', value: 10 }] } })
+    expect(nets(withSaleLineData(base({ cart: three, appliedPromotions: [p], total: 252000 })))).toEqual([90000, 90000, 72000])
+  })
+
+  it('BXGY same-set discounts the counted buy-set lines only', () => {
+    const cart = [sized('a', '', 100000, 1), sized('b', '', 50000, 1), sized('z', '', 70000, 1)]
+    const p = promo('x', 'buy_x_get_y', { bxgyConfig: { buyQuantity: 1, getQuantity: 1, buyProductIds: ['a', 'b'], getDiscountKind: 'percentage', getDiscountValue: 100 } })
+    const r = withSaleLineData(base({ cart, appliedPromotions: [p], total: 170000 }))
+    expect(r![2].netAmount).toBe(70000)
+    expect(r!.reduce((s, l) => s + (l.netAmount ?? 0), 0)).toBe(170000)
+  })
+
+  it('a separate-set BXGY contributes no discount component (its saving is the reward line price)', () => {
+    const p = promo('xs', 'buy_x_get_y', { bxgyConfig: { buyQuantity: 1, getQuantity: 1, buyProductIds: ['a'], getProductIds: ['b'], getDiscountKind: 'percentage', getDiscountValue: 100 } })
+    expect(discountComponents(base({ cart: three, appliedPromotions: [p] }))).toEqual([])
+  })
+
+  it('a scoped BOGO discounts its cheapest unit across its product lines', () => {
+    const p = promo('bg', 'bogo', { applicableProductIds: ['b'] })
+    const comps = discountComponents(base({ cart: three, appliedPromotions: [p] }))
+    expect(comps).toEqual([{ amount: 50000, eligible: [1] }])
+  })
+
+  it('manual plus promo is capped at the subtotal and the line stays at 0', () => {
+    const cart = [sized('a', '', 10000, 1)]
+    const p = promo('f', 'fixed', { value: 50000 })
+    expect(nets(withSaleLineData(base({ cart, appliedPromotions: [p], discountType: 'fixed', discountRunning: 50000, total: 0 })))).toEqual([0])
+  })
+
+  it('component amounts sum to the engine discount (stacked, uncapped)', () => {
+    const p1 = promo('p1', 'fixed', { value: 20000, applicableProductIds: ['a'] })
+    const t = promo('t', 'tiered', { tieredConfig: { tiers: [{ minSubtotal: 100000, kind: 'percentage', value: 5 }] } })
+    const cart = [sized('a', '50ml', 100000, 2), sized('b', '50ml', 60000, 1), sized('c', '10ml', 45000, 3)]
+    const comps = discountComponents(base({ cart, appliedPromotions: [t, p1], discountType: 'percentage', discountRunning: 5 }))
+    expect(comps.map((c) => c.amount)).toEqual([19750, 20000, 19750])
+    expect(comps.map((c) => c.eligible)).toEqual([null, [0], null])
+  })
+})
