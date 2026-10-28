@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -121,12 +122,15 @@ describe('refundDetail (review row)', () => {
 
 describe('RefundDialog reason limit', () => {
   const html = renderToStaticMarkup(createElement(RefundDialog, { order: order(), isProcessing: false, onConfirm: vi.fn(), onClose: vi.fn() }))
-  it('caps the textarea at the shared limit and shows a counter', () => {
+  it('offers the preset chips; the free-text box (capped at the shared limit, with a counter) opens with "Lainnya"', () => {
     expect(MAX_REFUND_REASON_CHARS).toBe(500)
-    expect(html).toContain(`maxLength="${MAX_REFUND_REASON_CHARS}"`)
-    expect(html).toContain(`0/${MAX_REFUND_REASON_CHARS}`)
+    for (const label of ['Rusak/cacat', 'Salah varian', 'Berubah pikiran', 'Tidak cocok/alergi', 'Lainnya']) expect(html).toContain(label)
+    expect(html).not.toContain('<textarea')
+    const src = readFileSync(new URL('./RefundDialog.tsx', import.meta.url), 'utf8')
+    expect(src).toContain('maxLength={MAX_REFUND_REASON_CHARS}')
+    expect(src).toContain('[...text].length}/${MAX_REFUND_REASON_CHARS}')
   })
-  it('disables submit for a blank reason', () => {
+  it('disables submit until a reason is chosen', () => {
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Konfirmasi Refund/)
     expect(canSubmitRefundReason('   ')).toBe(false)
     expect(canSubmitRefundReason(' a ')).toBe(true)

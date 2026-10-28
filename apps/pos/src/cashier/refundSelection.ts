@@ -1,5 +1,5 @@
 import type { components } from '@mandalika/api'
-import { variantLabel } from '@mandalika/types'
+import { MAX_REFUND_REASON_CHARS, variantLabel } from '@mandalika/types'
 import { refundAmountForUnits } from './allocateNet'
 
 type Order = components['schemas']['Order']
@@ -199,7 +199,9 @@ export function buildReason(code: string | null, freeText: string): ReasonResult
   if (!preset) return { ok: false, error: 'Pilih alasan refund' }
   if (preset.code === 'lainnya') {
     const t = freeText.trim()
-    return t ? { ok: true, reason: t, reasonCode: preset.code } : { ok: false, error: 'Alasan refund wajib diisi' }
+    if (!t) return { ok: false, error: 'Alasan refund wajib diisi' }
+    if ([...t].length > MAX_REFUND_REASON_CHARS) return { ok: false, error: `Alasan refund maksimal ${MAX_REFUND_REASON_CHARS} karakter` }
+    return { ok: true, reason: t, reasonCode: preset.code }
   }
   return { ok: true, reason: preset.label, reasonCode: preset.code }
 }

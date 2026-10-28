@@ -7,7 +7,8 @@ import { useState } from 'react'
 import type { LocalReceipt } from '@mandalika/sync'
 import { formatRupiah } from './pricing'
 import { RefundAction } from './RefundAction'
-import { PAYMENT_LABELS, type RefundAvailabilityInput } from './refundView'
+import { PAYMENT_LABELS, partialGateFor, type RefundAvailabilityInput } from './refundView'
+import type { RefundCache } from './refundSelection'
 import { filterLocalReceipts, localBadge, localReceiptOrder, localSaleRef, reprintReceiptData } from './localReceipts'
 import { Sheet } from '../components/ui/Sheet'
 
@@ -16,6 +17,8 @@ type Gate = Pick<RefundAvailabilityInput, 'canRefund' | 'hasOpenShift' | 'shiftU
 /** The same props refundGateProps hands the history panel. */
 interface LocalReceiptsPanelProps extends Gate {
   queuedRefundOrderIds: ReadonlySet<string>
+  /** C4b: units and money this tablet saw acknowledged for earlier per-line refunds of a sale. */
+  refundCache?: (ids: readonly string[]) => RefundCache
   isOpen: boolean
   onClose: () => void
   receipts: readonly LocalReceipt[]
@@ -32,7 +35,7 @@ const TONES = {
   muted: 'bg-gray-100 text-gray-500',
 } as const
 
-export function LocalReceiptsPanel({ isOpen, onClose, receipts, canReprint, onReprint, onRefund, queuedRefundOrderIds, ...gate }: LocalReceiptsPanelProps) {
+export function LocalReceiptsPanel({ isOpen, onClose, receipts, canReprint, onReprint, onRefund, queuedRefundOrderIds, refundCache, ...gate }: LocalReceiptsPanelProps) {
   const [search, setSearch] = useState('')
   if (!isOpen) return null
   const rows = filterLocalReceipts(receipts, search)
@@ -50,7 +53,9 @@ export function LocalReceiptsPanel({ isOpen, onClose, receipts, canReprint, onRe
         <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2">
           {rows.length === 0 && <p className="text-center text-sm text-gray-400 py-8">Belum ada struk di tablet ini</p>}
           {rows.map((r) => {
-            const badge = localBadge(r)
+            const order = localReceiptOrder(r)
+            const cache = refundCache?.([r.orderUuid, ...(r.serverOrderId ? [r.serverOrderId] : [])])
+            const badge = localBadge(r, partialGateFor(order, cache))
             return (
               <div key={r.orderUuid} className="border border-gray-100 rounded-xl p-3" data-testid="local-receipt-row">
                 <div className="flex items-start justify-between gap-2">
@@ -72,7 +77,7 @@ export function LocalReceiptsPanel({ isOpen, onClose, receipts, canReprint, onRe
                     Cetak Ulang
                   </button>
                 </div>
-                <RefundAction order={localReceiptOrder(r)} sale={localSaleRef(r)} queuedOrderIds={queuedRefundOrderIds} {...gate} onRefund={() => onRefund(r)} />
+                <RefundAction order={order} sale={localSaleRef(r)} queuedOrderIds={queuedRefundOrderIds} refundCache={refundCache} {...gate} onRefund={() => onRefund(r)} />
               </div>
             )
           })}

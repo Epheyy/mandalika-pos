@@ -203,8 +203,8 @@ export function planRefundSubmit(i: {
   if (basis.kind === 'lines') {
     const selection = i.selection ?? {}
     const items = selectionToItems(basis.lines, selection)
-    if (items.length === 0) return { kind: 'error', message: 'Pilih barang yang direfund' }
-    // Every picked unit must survive the caps: a trimmed pick means the order changed under the dialog.
+    if (pickedUnits(selection) === 0) return { kind: 'error', message: 'Pilih barang yang direfund' }
+    // Every picked unit must survive the caps: a trimmed (or fully dropped) pick means the order changed under the dialog.
     if (items.reduce((n, it) => n + it.quantity, 0) !== pickedUnits(selection)) return { kind: 'error', message: REFUND_CHANGED }
     lines = { items, amount: refundAmountFor(basis, selection).amount }
   }

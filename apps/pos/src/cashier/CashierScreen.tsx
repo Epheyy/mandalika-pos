@@ -46,7 +46,8 @@ import { ReceiveApprovalModal } from './receive/ReceiveApprovalModal'
 import { ShiftBar } from './ShiftBar'
 import { ReceiptPreview } from './ReceiptPreview'
 import { orderStateFor } from './orderState'
-import { RefundDialog } from './RefundDialog'
+import { RefundDialog, type RefundConfirmInput } from './RefundDialog'
+import type { RefundCache } from './refundSelection'
 import { withSaleLineData } from './saleLineData'
 import { REFUND_DONE, REFUND_QUEUED, planRefundSubmit, refundGateProps, type LocalSaleRef } from './refundView'
 import { OrderHistoryPanel } from './OrderHistoryPanel'
@@ -875,7 +876,12 @@ export default function CashierScreen() {
       })
   }
 
-  const handleRefundConfirm = async (orderId: string, reason: string) => {
+  /** What this tablet saw acknowledged for earlier per-line refunds of an order named by any of these ids. */
+  const refundCacheFor = (ids: readonly string[]): RefundCache => ({ qtyByLine: engine.partialRefundedQty(ids), amount: engine.partialRefundedAmount(ids) })
+  const refundIdsFor = (orderId: string): string[] =>
+    [orderId, refundSale?.orderUuid, refundSale?.serverOrderId, saleUuidByServerId.get(orderId)].filter((k): k is string => !!k)
+
+  const handleRefundConfirm = async (orderId: string, input: RefundConfirmInput) => {
     if (refundGate.current.isBusy()) return
     const lockedMsg = offlineLock()
     if (lockedMsg) {
@@ -885,16 +891,18 @@ export default function CashierScreen() {
     setRefundError(null)
     // Defensive guards (the panel already hides the button): permission, an open synced shift, a valid
     // reason. The display snapshot is built here, once; nothing rewrites the payload after it is queued.
-    if (refundSale) {
-      // A local sale: a refund may already be queued or done under its uuid or server id (the panel hides the button too).
-      const ids = [refundSale.orderUuid, refundSale.serverOrderId].filter((k): k is string => !!k)
-      const synced = engine.syncedRefundOrderIds()
-      const queuedIds = engine.queuedRefundOrderIds()
-      const queuedUuids = engine.queuedRefundSaleUuids()
-      if (ids.some((k) => synced.has(k))) { setRefundError(REFUND_DONE); return }
-      if (ids.some((k) => queuedIds.has(k) || queuedUuids.has(k))) { setRefundError(REFUND_QUEUED); return }
-    }
-    const plan = planRefundSubmit({ refundOrder, orderId, reason, canRefund: canRefund(user), shiftId: shift.currentShift?.id, sale: refundSale ?? undefined })
+    // A refund may already be queued or done under the sale's uuid or its server id (the panel hides the button too);
+    // D-44: while one refund of an order waits on this tablet, a second one is refused.
+    const ids = refundIdsFor(orderId)
+    const synced = engine.syncedRefundOrderIds()
+    const queuedIds = engine.queuedRefundOrderIds()
+    const queuedUuids = engine.queuedRefundSaleUuids()
+    if (ids.some((k) => synced.has(k))) { setRefundError(REFUND_DONE); return }
+    if (ids.some((k) => queuedIds.has(k) || queuedUuids.has(k))) { setRefundError(REFUND_QUEUED); return }
+    const plan = planRefundSubmit({
+      refundOrder, orderId, reason: input.reason, reasonCode: input.reasonCode, selection: input.selection, cache: refundCacheFor(ids),
+      canRefund: canRefund(user), shiftId: shift.currentShift?.id, sale: refundSale ?? undefined,
+    })
     if (plan.kind === 'error') {
       setRefundError(plan.message)
       return
@@ -1313,7 +1321,7 @@ export default function CashierScreen() {
         canReprint={printer.isPaired}
         timezone={outletTimezone}
         shiftOpenedAt={shift.currentShift?.openedAt}
-        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId })}
+        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId, refundCache: refundCacheFor })}
       />
 
       <LocalReceiptsPanel
@@ -1323,11 +1331,11 @@ export default function CashierScreen() {
         canReprint={printer.isPaired}
         onReprint={reprintLocal}
         onRefund={(r) => { setShowLocalReceipts(false); setRefundSale(localSaleRef(r)); setRefundOrder(localReceiptOrder(r)) }}
-        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId })}
+        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId, refundCache: refundCacheFor })}
       />
 
-      <RefundDialog order={refundOrder} isProcessing={isRefunding} error={refundError}
-        onConfirm={(id, reason) => { void handleRefundConfirm(id, reason) }}
+      <RefundDialog order={refundOrder} cache={refundOrder ? refundCacheFor(refundIdsFor(refundOrder.id)) : undefined} isProcessing={isRefunding} error={refundError}
+        onConfirm={(id, input) => { void handleRefundConfirm(id, input) }}
         onClose={() => { setRefundError(null); setRefundOrder(null); setRefundSale(null) }} />
 
       {showReceive && (
