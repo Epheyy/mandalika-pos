@@ -188,9 +188,23 @@ describe('partialRefundFromPayload', () => {
 
 describe('C4b review fixes: the server\'s refundState decides, and "full" survives a failed write', () => {
   it('a full ack of a per-line refund shows the sale as refunded in the local receipts and the done set', async () => {
-    const { engine } = await sendRefund(answer('full'), partialPayload())
-    expect(engine.syncedRefundOrderIds().has('srv-1')).toBe(true)
-    expect(engine.localReceipts()).toEqual([])
+    const engine = new SyncEngine(api(answer('full')), {}, controllableKV().kv, { actor: null })
+    const sale = await engine.enqueue('order', { orderNumber: 'N-1', paymentMethod: 'cash', quotedTotal: 100, receiptSnapshot: null, items: [{ netAmount: 100, refundGroup: null }] })
+    await engine.enqueue('refund', { saleOrderUuid: sale.orderUuid, reason: 'r', items: [{ lineNo: 0, quantity: 1 }], refundAmount: 100 })
+    vi.stubGlobal('navigator', { onLine: true })
+    await engine.flushNow()
+    expect(engine.localReceipts().map((r) => [r.orderUuid, r.refunded])).toEqual([[sale.orderUuid, true]])
+    expect(engine.syncedRefundOrderIds().has(sale.orderUuid)).toBe(true)
+  })
+
+  it('a partial ack leaves the local receipt not refunded', async () => {
+    const engine = new SyncEngine(api(answer('partial')), {}, controllableKV().kv, { actor: null })
+    const sale = await engine.enqueue('order', { orderNumber: 'N-1', paymentMethod: 'cash', quotedTotal: 100, receiptSnapshot: null, items: [{ netAmount: 100, refundGroup: null }] })
+    await engine.enqueue('refund', { saleOrderUuid: sale.orderUuid, reason: 'r', items: [{ lineNo: 0, quantity: 1 }], refundAmount: 50 })
+    vi.stubGlobal('navigator', { onLine: true })
+    await engine.flushNow()
+    expect(engine.localReceipts().map((r) => [r.orderUuid, r.refunded])).toEqual([[sale.orderUuid, false]])
+    expect(engine.partialRefundedQty([sale.orderUuid]).get(0)).toBe(1)
   })
 
   it('a partial ack stores refundState "partial" and never shows the order as done', async () => {
@@ -210,14 +224,32 @@ describe('C4b review fixes: the server\'s refundState decides, and "full" surviv
     expect(engine.syncedRefundOrderIds().size).toBe(0)
   })
 
-  it('only the exact string "full" counts: a corrupt state is dropped with its entry', () => {
-    const bad = (state: unknown) => JSON.stringify([{ refundKey: 'k', orderIds: ['o'], lines: [{ lineNo: 0, qty: 1 }], amount: 1, at: Date.now(), refundState: state }])
-    for (const state of ['x', 1, true, 'FULL']) {
-      const s = new PartialRefunds(controllableKV({ [PARTIAL_REFUNDS_KEY]: bad(state) }).kv)
-      expect(s.entries()).toEqual([])
+  it('only the exact string "full" counts; an unknown state keeps its entry and its quantities', () => {
+    const entry = (state: unknown) => JSON.stringify([{ refundKey: 'k', orderIds: ['o'], lines: [{ lineNo: 0, qty: 2 }], amount: 1, at: Date.now(), refundState: state }])
+    for (const state of ['voided', 1, true, 'FULL', 'x']) {
+      const s = new PartialRefunds(controllableKV({ [PARTIAL_REFUNDS_KEY]: entry(state) }).kv)
+      expect(s.entries()).toHaveLength(1)
+      expect(s.refundedQty(['o']).get(0)).toBe(2)
       expect(s.fullOrderIds().size).toBe(0)
     }
-    expect(new PartialRefunds(controllableKV({ [PARTIAL_REFUNDS_KEY]: bad('full') }).kv).fullOrderIds().has('o')).toBe(true)
+    expect(new PartialRefunds(controllableKV({ [PARTIAL_REFUNDS_KEY]: entry('full') }).kv).fullOrderIds().has('o')).toBe(true)
+  })
+
+  it('an unknown state survives a rewrite by this bundle (rollback from a newer bundle loses nothing)', async () => {
+    const { kv, store } = controllableKV({ [PARTIAL_REFUNDS_KEY]: JSON.stringify([{ refundKey: 'k0', orderIds: ['o'], lines: [{ lineNo: 0, qty: 1 }], amount: 1, at: Date.now(), refundState: 'voided', extra: 7 }]) })
+    await new PartialRefunds(kv).addMany([{ refundKey: 'k1', orderIds: ['o'], lines: [{ lineNo: 1, qty: 1 }], amount: 2, at: Date.now() }])
+    const stored = JSON.parse(store.get(PARTIAL_REFUNDS_KEY) as string) as Record<string, unknown>[]
+    expect(stored.map((e) => e.refundKey)).toEqual(['k0', 'k1'])
+    expect(stored[0]).toMatchObject({ refundState: 'voided', extra: 7 })
+  })
+
+  it('the engine never stores a state value it does not know', async () => {
+    const { kv, store } = controllableKV()
+    await sendRefund(answer('voided' as never), partialPayload(), kv)
+    const stored = JSON.parse(store.get(PARTIAL_REFUNDS_KEY) as string) as PartialRefundEntry[]
+    expect(stored).toHaveLength(1)
+    expect('refundState' in stored[0]).toBe(false)
+    expect(new PartialRefunds(kv).refundedQty(['srv-1']).get(0)).toBe(1)
   })
 
   it('a duplicate key in one batch keeps the entry that knows it was the last refund', async () => {

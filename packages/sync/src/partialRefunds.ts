@@ -21,8 +21,9 @@ export interface PartialRefundEntry {
   /** The amount the tablet paid out for this refund (display only; the server Order read wins when online). */
   amount: number
   /** What the ack said about the order after this refund: 'full' = nothing left to refund, 'partial' = some units remain.
-   *  Absent = not known (an older server, or recorded by the startup self-heal). Frozen format: add values, never rename. */
-  refundState?: 'full' | 'partial'
+   *  Absent = not known (an older server, or recorded by the startup self-heal). Frozen format: add values, never rename;
+   *  a reader must keep an entry whose state it does not know (and count its quantities), only 'full' means done. */
+  refundState?: string
   at: number
 }
 
@@ -37,7 +38,8 @@ const isEntry = (e: unknown): e is PartialRefundEntry => {
     && Array.isArray(v.orderIds) && v.orderIds.length > 0 && v.orderIds.every((id) => typeof id === 'string' && id !== '')
     && Array.isArray(v.lines) && v.lines.length > 0 && v.lines.every(isLine)
     && typeof v.amount === 'number' && Number.isFinite(v.amount) && typeof v.at === 'number'
-    && (v.refundState === undefined || v.refundState === 'full' || v.refundState === 'partial')
+  // `refundState` is deliberately NOT validated: a newer bundle or server may add values, and an older bundle must keep such an
+  // entry (its quantities still count). Only the exact string 'full' ever marks an order done (fullOrderIds).
 }
 
 /** Small persistent record of acknowledged per-line refunds. An acked refund leaves the outbox and a cached
@@ -69,7 +71,7 @@ export class PartialRefunds {
       const kept = this.read()
       const byKey = new Map(kept.map((e) => [e.refundKey, e]))
       // A key already stored is left as it was, except that learning what the ack said is never lost ('full' wins).
-      const stateFor = (key: string): 'full' | 'partial' | undefined =>
+      const stateFor = (key: string): string | undefined =>
         fresh.some((f) => f.refundKey === key && f.refundState === 'full') ? 'full' : fresh.find((f) => f.refundKey === key && f.refundState)?.refundState
       const upgraded = kept.map((e) => {
         const s = stateFor(e.refundKey)
@@ -126,7 +128,7 @@ export function partialRefundFromPayload(
   payload: Readonly<Record<string, unknown>>,
   extraOrderIds: readonly string[] = [],
   at: number = Date.now(),
-  refundState?: 'full' | 'partial',
+  refundState?: unknown,
 ): PartialRefundEntry | null {
   const items = payload.items
   if (!Array.isArray(items) || items.length === 0 || !refundKey) return null
@@ -138,5 +140,7 @@ export function partialRefundFromPayload(
   const orderIds = [...new Set([payload.orderId, payload.saleOrderUuid, ...extraOrderIds].filter((v): v is string => typeof v === 'string' && v !== ''))]
   if (!orderIds.length) return null
   const amount = typeof payload.refundAmount === 'number' && Number.isFinite(payload.refundAmount) ? payload.refundAmount : 0
-  return { refundKey, orderIds, lines, amount, ...(refundState ? { refundState } : {}), at }
+  // Only the two known states are written; anything else is stored as "unknown" (absent).
+  const state = refundState === 'full' || refundState === 'partial' ? refundState : undefined
+  return { refundKey, orderIds, lines, amount, ...(state ? { refundState: state } : {}), at }
 }
