@@ -52,7 +52,7 @@ export function decideColdApply(o: { next: BundleView | null | undefined; curren
 
 const TRIED_KEY = 'mandalika.pos.otaColdApplyTried'
 const STEP_TIMEOUT_MS = 1500
-const RELOAD_WAIT_MS = 4000
+const RELOAD_WAIT_MS = 8000
 const RELOAD_SETTLE_MS = 2000
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
@@ -85,11 +85,14 @@ export async function armOtaKillDelay(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
   try {
     const { CapacitorUpdater } = await import('@capgo/capacitor-updater')
-    await CapacitorUpdater.setMultiDelay({ delayConditions: [{ kind: 'kill' }] })
+    await armWith(CapacitorUpdater)
   } catch {
     /* plugin absent or older shell: the old background-apply rule stays */
   }
 }
+
+const armWith = (plugin: { setMultiDelay(o: { delayConditions: Array<{ kind: 'kill' }> }): Promise<void> }) =>
+  plugin.setMultiDelay({ delayConditions: [{ kind: 'kill' }] })
 
 /**
  * Boot step, first thing in boot(): arm the kill delay, then apply a bundle queued by an earlier session once.
@@ -98,9 +101,12 @@ export async function armOtaKillDelay(): Promise<void> {
  */
 export async function startupOta(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
-  await bounded(armOtaKillDelay(), STEP_TIMEOUT_MS, undefined)
   try {
-    const { CapacitorUpdater } = await import('@capgo/capacitor-updater')
+    // One bounded import, reused for arm + probe + reload: boot never waits on the plugin chunk unboundedly.
+    const mod = await bounded(import('@capgo/capacitor-updater'), STEP_TIMEOUT_MS, null)
+    if (!mod) return
+    const { CapacitorUpdater } = mod
+    await bounded(armWith(CapacitorUpdater), STEP_TIMEOUT_MS, undefined)
     const probe = Promise.all([CapacitorUpdater.getNextBundle(), CapacitorUpdater.current()]).then(([next, cur]) => ({ next, current: cur.bundle }))
     const seen = await bounded(probe, STEP_TIMEOUT_MS, null)
     const triedId = readTried()
@@ -108,7 +114,9 @@ export async function startupOta(): Promise<void> {
     if (decideColdApply({ next: seen.next, current: seen.current, triedId }) !== 'apply') return
     // Marker BEFORE the reload: if the native reload fails and re-enters boot(), this id is never retried.
     if (!writeTried(seen.next!.id)) return
-    const flow = CapacitorUpdater.reload().then(() => sleep(RELOAD_SETTLE_MS), () => {})
+    // Settle after a rejection too: a failed native reload re-loads the WebView, so this page is still dying.
+    const settle = () => sleep(RELOAD_SETTLE_MS)
+    const flow = CapacitorUpdater.reload().then(settle, settle)
     await Promise.race([flow, sleep(RELOAD_WAIT_MS)])
   } catch {
     /* the updater is unavailable or errored: boot normally */

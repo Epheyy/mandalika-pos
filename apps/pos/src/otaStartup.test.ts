@@ -130,9 +130,16 @@ describe('startupOta (cold-start apply)', () => {
     expect(h.reload).not.toHaveBeenCalled()
     expect(h.setMultiDelay).toHaveBeenCalledTimes(1)
   })
-  it('a failing reload falls through quickly: boot continues and the marker stays', async () => {
+  it('a failing reload still waits for the dying page before boot continues, and the marker stays', async () => {
     h.reload.mockRejectedValue(new Error('Reload failed after applying pending bundle'))
-    await run()
+    const { startupOta } = await import('./otaUpdate')
+    vi.useFakeTimers()
+    let done = false
+    void startupOta().then(() => { done = true })
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(done).toBe(false) // a native failure re-loads the WebView: do not start storage hydrate yet
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(done).toBe(true)
     expect(h.reload).toHaveBeenCalledTimes(1)
     expect(h.store.get('mandalika.pos.otaColdApplyTried')).toBe('B')
   })
@@ -159,9 +166,9 @@ describe('startupOta (cold-start apply)', () => {
     vi.useFakeTimers()
     let done = false
     void startupOta().then(() => { done = true })
-    await vi.advanceTimersByTimeAsync(2000)
+    await vi.advanceTimersByTimeAsync(5000)
     expect(done).toBe(false)
-    await vi.advanceTimersByTimeAsync(3000)
+    await vi.advanceTimersByTimeAsync(4000)
     expect(done).toBe(true)
   })
   it('is a silent no-op off-device', async () => {
