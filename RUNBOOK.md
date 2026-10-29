@@ -98,6 +98,12 @@ gcloud run services update-traffic mandalika-pos --region asia-southeast2 \
   direct routes accept an optional `tenders` array and an optional refund `payoutMethod`; shift close, reports,
   the order list/read, the customer profile and the ERP tenders read the lines. With the setting off nothing changes
   for the cashiers apart from the ERP tender mapping (`tunai` goes out as `cash`) and the report method-filter rule (D-66).
+- **Deploy window (migration lock).** 0079 takes `LOCK TABLE app_settings, orders, order_refunds IN ACCESS EXCLUSIVE
+  MODE` up front (`lock_timeout` 5 s) so it cannot deadlock with itself. A live sale that applies a per-customer-limit
+  code reads `orders` before `app_settings`, so it can still lose a deadlock (40P01) against the migration, and a long
+  report holding `orders` can make the migration hit 55P03. Both are safe: a losing migration rolls back, the new
+  revision fails at startup and the old one keeps serving; a losing sale returns a retryable 500. Deploy off-peak and
+  redeploy once if the first attempt hits 40P01/55P03.
 - **Synthetic-line rule.** An order with **no** `order_tenders` row (every pre-C6a order, and any order written by an
   older revision after 0079 ran) is read everywhere as one line `(orders.payment_method, orders.total)`. There is no
   backfill and none is needed; do not add one.

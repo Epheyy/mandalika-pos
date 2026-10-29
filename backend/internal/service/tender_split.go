@@ -289,7 +289,9 @@ func validateTenderLine(i int, w tenderWire, multi bool) (TenderLine, error) {
 		return TenderLine{}, saleInputError(field+".method", "wajib diisi")
 	case utf8.RuneCountInString(method) > maxTenderMethodLen:
 		return TenderLine{}, saleInputError(field+".method", "terlalu panjang")
-	case hasNonPrintable(method):
+	case hasNonPrintable(w.Method):
+		// The raw value is stored verbatim, so a tab/NBSP at an edge must not be trimmed away
+		// before the check: Go TrimSpace and Postgres btrim disagree about it.
 		return TenderLine{}, saleInputError(field+".method", "tidak valid")
 	case isSplitID(method):
 		return TenderLine{}, saleInputError(field+".method", "memakai id yang dicadangkan")

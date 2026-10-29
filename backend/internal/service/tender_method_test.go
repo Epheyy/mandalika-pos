@@ -34,7 +34,8 @@ func TestStructuralMethodRules(t *testing.T) {
 			}
 		})
 	}
-	for name, method := range map[string]string{"NUL": "qr\x00is", "tab": "qr\tis", "control": "qr\u0007is"} {
+	for name, method := range map[string]string{"NUL": "qr\x00is", "tab": "qr\tis", "control": "qr\u0007is",
+		"edge tab": "cash\t", "edge newline": "\nqris", "edge NBSP": "cash ", "edge NEL": "\u0085cash"} {
 		raw, _ := json.Marshal([]map[string]any{{"method": method, "amount": 1000}})
 		if _, _, err := parseTenders(raw); err == nil {
 			t.Fatalf("%s in a tender method must be a structural reject", name)
