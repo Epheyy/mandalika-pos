@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/mandalika/pos-backend/internal/apperr"
+	"github.com/mandalika/pos-backend/internal/tenderlines"
 	"time"
 
 	"github.com/google/uuid"
@@ -174,10 +175,10 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 		  total_sales    = COALESCE(a.total_sales,0),
 		  total_orders   = COALESCE(a.total_orders,0),
 		  total_refunds  = COALESCE(a.total_refunds,0),
-		  cash_sales     = COALESCE(a.cash_sales,0),
-		  card_sales     = COALESCE(a.card_sales,0),
-		  transfer_sales = COALESCE(a.transfer_sales,0),
-		  qris_sales     = COALESCE(a.qris_sales,0),
+		  cash_sales     = COALESCE(b.cash_sales,0),
+		  card_sales     = COALESCE(b.card_sales,0),
+		  transfer_sales = COALESCE(b.transfer_sales,0),
+		  qris_sales     = COALESCE(b.qris_sales,0),
 		  refunds_paid_by_method = r.by_method,
 		  cash_refunds_paid      = r.cash_paid
 		FROM (
@@ -189,17 +190,14 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 		  -- other-shift refunds paid still balances. total_orders counts only completed and
 		  -- partially_refunded orders (is_sale). total_refunds attributes to the SALE's shift
 		  -- (orders.shift_id), whichever shift paid the refund. Cancelled orders have NULL net_sale.
+		  -- C6a: this block stays ONE ROW PER ORDER (joining the payment lines here would count a
+		  -- split order twice in total_orders / total_refunds); the per-method buckets are block b.
 		  SELECT
 		    sum(net_sale)                        AS total_sales,
 		    count(*)      FILTER (WHERE is_sale) AS total_orders,
-		    sum(refunded)                        AS total_refunds,
-		    sum(net_sale) FILTER (WHERE payment_method = ANY($5::text[])) AS cash_sales,
-		    sum(net_sale) FILTER (WHERE payment_method='card' AND NOT (payment_method = ANY($5::text[])))     AS card_sales,
-		    sum(net_sale) FILTER (WHERE payment_method='transfer' AND NOT (payment_method = ANY($5::text[]))) AS transfer_sales,
-		    sum(net_sale) FILTER (WHERE payment_method='qris' AND NOT (payment_method = ANY($5::text[])))     AS qris_sales
+		    sum(refunded)                        AS total_refunds
 		  FROM (
-		    SELECT o.payment_method,
-		           o.status IN ('completed','partially_refunded') AS is_sale,
+		    SELECT o.status IN ('completed','partially_refunded') AS is_sale,
 		           x.refunded,
 		           CASE WHEN o.status IN ('completed','partially_refunded','refunded')
 		                THEN o.total - x.refunded END AS net_sale
@@ -209,6 +207,30 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 		     WHERE o.shift_id=$1
 		  ) ord
 		) a,
+		(
+		  -- C6a: the cash/card/transfer/qris buckets are per (order, method): the method's payment
+		  -- lines minus the refunds of that order paid out in that method (a split sale refunded
+		  -- in cash leaves cash short and the QRIS line whole). Sale-status orders only, so a
+		  -- cancelled order is counted nowhere. A pre-C6 order has one line, so each bucket
+		  -- equals the old per-order sum(net_sale) by payment_method.
+		  SELECT
+		    sum(net) FILTER (WHERE method = ANY($5::text[])) AS cash_sales,
+		    sum(net) FILTER (WHERE method='card' AND NOT (method = ANY($5::text[])))     AS card_sales,
+		    sum(net) FILTER (WHERE method='transfer' AND NOT (method = ANY($5::text[]))) AS transfer_sales,
+		    sum(net) FILTER (WHERE method='qris' AND NOT (method = ANY($5::text[])))     AS qris_sales
+		  FROM (
+		    SELECT m.method, sum(m.gross) - sum(m.paid_out) AS net
+		      FROM (
+		        SELECT tl.method, tl.amount AS gross, 0::numeric AS paid_out
+		          FROM orders o `+tenderlines.Lateral+`
+		         WHERE o.shift_id=$1 AND o.status IN ('completed','partially_refunded','refunded')
+		        UNION ALL
+		        SELECT r.payment_method, 0, r.amount
+		          FROM orders o JOIN order_refunds r ON r.order_id = o.id
+		         WHERE o.shift_id=$1 AND o.status IN ('completed','partially_refunded','refunded')
+		      ) m GROUP BY m.method
+		  ) pm
+		) b,
 		-- A06/Q2b: refunds this shift paid out for sales of OTHER shifts. A refund of
 		-- this shift's own sale is already out of its sales and in total_refunds, so
 		-- it is excluded here (no double subtraction). Late refunds (after close)
@@ -229,7 +251,8 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 	return err
 }
 
-// shiftCashMethodIDs lists the payment method ids on this shift's completed, partially refunded and refunded orders,
+// shiftCashMethodIDs lists the payment method ids on this shift's completed, partially refunded and refunded orders
+// (C6a: their payment LINES, so a cash line inside a split order is cash),
 // and on refunds this shift paid out (order_refunds.shift_id), that are cash at close time
 // (the flag in force now decides; closed shifts are a snapshot and never change).
 // The UPDATE aggregates cash_sales and cash_refunds_paid and excludes these ids from
@@ -242,8 +265,8 @@ func shiftCashMethodIDs(ctx context.Context, tx pgx.Tx, shiftID string) ([]strin
 		return nil, err
 	}
 	rows, err := tx.Query(ctx,
-		`SELECT payment_method FROM orders
-		  WHERE shift_id=$1 AND status IN ('completed','partially_refunded','refunded')
+		`SELECT tl.method FROM orders o `+tenderlines.Lateral+`
+		  WHERE o.shift_id=$1 AND o.status IN ('completed','partially_refunded','refunded')
 		 UNION
 		 SELECT payment_method FROM order_refunds WHERE shift_id=$1`, shiftID)
 	if err != nil {
