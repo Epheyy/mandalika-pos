@@ -4264,6 +4264,28 @@ export interface components {
             /** Format: double */
             amount: number;
         };
+        /** @description One payment line of a sale (C6a). amount is applied to the bill (the lines sum to the order total); tendered is what was captured (cash handed over / amount charged); change is the cash line's change. synthetic = no stored line: the order predates split payment and the single line is derived from the order's payment method. */
+        OrderTender: {
+            seq: number;
+            method: string;
+            /** Format: double */
+            amount: number;
+            /** Format: double */
+            tendered: number;
+            /** Format: double */
+            change: number;
+            /** @description Optional receipt/approval reference, at most 64 characters. */
+            reference?: string | null;
+            synthetic: boolean;
+        };
+        /** @description One payment line of a sale request. amount is what the line captured (cash handed over, or the amount charged to a non-cash method). */
+        TenderInput: {
+            /** @description Configured payment method id; the id split is reserved. */
+            method: string;
+            /** Format: double */
+            amount: number;
+            reference?: string;
+        };
         OrderRefund: {
             /** Format: uuid */
             id: string;
@@ -4287,7 +4309,13 @@ export interface components {
             claimedAmount?: number | null;
             /** @description amount_mismatch (claim differs from computedAmount) or over_total (claim exceeded what the order had left). */
             amountWarning?: string | null;
+            /** @description The payout method: where the money was paid back. */
             paymentMethod: string;
+            /**
+             * @description How the payout method was decided: sale (single-method order), chosen (cashier picked it on a split order), default (split order, server default). null = recorded before split payment.
+             * @enum {string|null}
+             */
+            payoutSource?: "sale" | "chosen" | "default" | null;
             reason: string;
             reasonCode?: string | null;
             /** Format: uuid */
@@ -4413,6 +4441,8 @@ export interface components {
             amountPaid: number;
             /** Format: double */
             change: number;
+            /** @description Payment lines (C6a); every order has at least one, old orders get a synthetic line. paymentMethod is split when the lines use different methods. */
+            tenders?: components["schemas"]["OrderTender"][];
             /** @enum {string} */
             status: "completed" | "partially_refunded" | "refunded" | "cancelled";
             notes?: string | null;
@@ -4675,6 +4705,8 @@ export interface components {
             receiveApproverRoles?: string[];
             documents?: components["schemas"]["DocumentSettings"];
             recipesEnabled?: boolean;
+            /** @description Split payment (several tender lines per sale). Absent = off; an update that omits it leaves the stored value. */
+            splitTenderEnabled?: boolean;
             /** @description When on, POST /inventory/adjust and POST /stock-counts/{id}/complete answer 409 approval_required. The server does not return it before the approvals slice. */
             inventoryApprovalRequired?: boolean;
         };
@@ -4836,6 +4868,8 @@ export interface components {
             paymentMethod: string;
             /** Format: double */
             amountPaid?: number;
+            /** @description Split payment lines (C6a, behind the splitTenderEnabled setting). When present the server ignores paymentMethod and amountPaid. Absent = the single-method legacy path; an empty array, null or a non-array is refused. */
+            tenders?: components["schemas"]["TenderInput"][];
             /** @enum {string|null} */
             discountType?: "percentage" | "fixed" | null;
             /** Format: double */
@@ -4865,6 +4899,8 @@ export interface components {
              * @description Optional replay key: the same uuid from the same user returns the earlier refund instead of paying out twice.
              */
             clientRefundUuid?: string;
+            /** @description Payout method for a refund on a split-payment order (C6a). Ignored on a single-method order; absent on a split order = the server default. The id split is refused. */
+            payoutMethod?: string;
             /** @description Per-line refund (admin, C4c). Absent = the whole order (only while it has no earlier refund). */
             items?: {
                 lineNo: number;
@@ -4892,6 +4928,8 @@ export interface components {
             /** @description Client refund uuid (unique with deviceId). */
             orderUuid?: string;
             deviceId?: string;
+            /** @description Server-read payout method for a split-payment order (C6a); unlike the display-only paymentMethod snapshot, which is ignored. */
+            payoutMethod?: string;
         };
         OpenShiftRequest: {
             outletName?: string | null;
@@ -4981,7 +5019,7 @@ export interface components {
             /** @enum {string} */
             type: "order" | "refund" | "shift_open" | "shift_close" | "cash_flow" | "customer_create" | "transfer_receive";
             idempotencyKey: string;
-            /** @description Per-type body. For transfer_receive (A08) it carries transferId, items, discrepancyReason and approvalGrantId (from createTransferReceiveApproval); it never carries a pin, and the server ignores any approverUserId (the approver is the grant's). An item without a usable grant is refused as forbidden and goes to review. For refund (C4a) see SyncRefundPayload: legacy {orderId, reason} refunds the whole order; the per-line shape adds items [{lineNo, quantity}], refundAmount and reasonCode. */
+            /** @description Per-type body. For transfer_receive (A08) it carries transferId, items, discrepancyReason and approvalGrantId (from createTransferReceiveApproval); it never carries a pin, and the server ignores any approverUserId (the approver is the grant's). An item without a usable grant is refused as forbidden and goes to review. For refund (C4a) see SyncRefundPayload: legacy {orderId, reason} refunds the whole order; the per-line shape adds items [{lineNo, quantity}], refundAmount and reasonCode. For order the body is CreateOrderRequest (C6a adds tenders [TenderInput]). */
             payload: {
                 [key: string]: unknown;
             };

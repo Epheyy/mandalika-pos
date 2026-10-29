@@ -1597,6 +1597,30 @@ components:
         lineNo: { type: integer, nullable: true }
         quantity: { type: integer }
         amount: { type: number, format: double }
+    OrderTender:
+      type: object
+      required: [seq, method, amount, tendered, change, synthetic]
+      description: >-
+        One payment line of a sale (C6a). amount is applied to the bill (the lines sum to the order
+        total); tendered is what was captured (cash handed over / amount charged); change is the cash
+        line's change. synthetic = no stored line: the order predates split payment and the single
+        line is derived from the order's payment method.
+      properties:
+        seq: { type: integer }
+        method: { type: string }
+        amount: { type: number, format: double }
+        tendered: { type: number, format: double }
+        change: { type: number, format: double }
+        reference: { type: string, nullable: true, description: 'Optional receipt/approval reference, at most 64 characters.' }
+        synthetic: { type: boolean }
+    TenderInput:
+      type: object
+      required: [method, amount]
+      description: One payment line of a sale request. amount is what the line captured (cash handed over, or the amount charged to a non-cash method).
+      properties:
+        method: { type: string, description: 'Configured payment method id; the id split is reserved.' }
+        amount: { type: number, format: double }
+        reference: { type: string, maxLength: 64 }
     OrderRefund:
       type: object
       required: [id, seq, scope, amount, computedAmount, paymentMethod, reason, refundedAt, items]
@@ -1608,7 +1632,8 @@ components:
         computedAmount: { type: number, format: double, description: 'What the server computed for the refunded lines.' }
         claimedAmount: { type: number, format: double, nullable: true, description: 'The amount the tablet claimed, kept as information when it was capped (D-49); null when no claim was sent.' }
         amountWarning: { type: string, nullable: true, description: 'amount_mismatch (claim differs from computedAmount) or over_total (claim exceeded what the order had left).' }
-        paymentMethod: { type: string }
+        paymentMethod: { type: string, description: 'The payout method: where the money was paid back.' }
+        payoutSource: { type: string, enum: [sale, chosen, default], nullable: true, description: 'How the payout method was decided: sale (single-method order), chosen (cashier picked it on a split order), default (split order, server default). null = recorded before split payment.' }
         reason: { type: string }
         reasonCode: { type: string, nullable: true }
         shiftId: { type: string, format: uuid, nullable: true }
@@ -1707,6 +1732,7 @@ components:
         paymentMethod: { type: string, description: configured payment method id (free-form since migration 0005) }
         amountPaid: { type: number, format: double }
         change: { type: number, format: double }
+        tenders: { type: array, items: { $ref: '#/components/schemas/OrderTender' }, description: 'Payment lines (C6a); every order has at least one, old orders get a synthetic line. paymentMethod is split when the lines use different methods.' }
         status: { type: string, enum: [completed, partially_refunded, refunded, cancelled] }
         notes: { type: string, nullable: true }
         # C4a: sum of all refund rows; absent when the order was never refunded. Money readers use
@@ -1972,6 +1998,9 @@ components:
         documents:
           $ref: '#/components/schemas/DocumentSettings'
         recipesEnabled: { type: boolean }
+        splitTenderEnabled:
+          type: boolean
+          description: "Split payment (several tender lines per sale). Absent = off; an update that omits it leaves the stored value."
         inventoryApprovalRequired:
           type: boolean
           description: "When on, POST /inventory/adjust and POST /stock-counts/{id}/complete answer 409 approval_required. The server does not return it before the approvals slice."
@@ -2150,6 +2179,15 @@ components:
         items: { type: array, items: { $ref: '#/components/schemas/OrderItemInput' } }
         paymentMethod: { type: string, description: configured payment method id (free-form since migration 0005) }
         amountPaid: { type: number, format: double }
+        tenders:
+          type: array
+          minItems: 1
+          maxItems: 4
+          items: { $ref: '#/components/schemas/TenderInput' }
+          description: >-
+            Split payment lines (C6a, behind the splitTenderEnabled setting). When present the
+            server ignores paymentMethod and amountPaid. Absent = the single-method legacy path;
+            an empty array, null or a non-array is refused.
         discountType: { type: string, enum: [percentage, fixed], nullable: true }
         discountValue: { type: number, format: double, nullable: true }
         surchargeValue: { type: number, format: double, nullable: true }
@@ -2179,6 +2217,7 @@ components:
         reason: { type: string, minLength: 1, maxLength: 500 }
         reasonCode: { type: string, maxLength: 40, pattern: '^[a-z0-9_-]+$' }
         clientRefundUuid: { type: string, format: uuid, description: 'Optional replay key: the same uuid from the same user returns the earlier refund instead of paying out twice.' }
+        payoutMethod: { type: string, maxLength: 64, description: 'Payout method for a refund on a split-payment order (C6a). Ignored on a single-method order; absent on a split order = the server default. The id split is refused.' }
         items:
           type: array
           minItems: 1
@@ -2218,6 +2257,7 @@ components:
         refundAmount: { type: number, format: double, description: 'The amount the tablet paid out (a captured fact; a difference from the computed amount is flagged, not refused).' }
         orderUuid: { type: string, description: 'Client refund uuid (unique with deviceId).' }
         deviceId: { type: string }
+        payoutMethod: { type: string, maxLength: 64, description: 'Server-read payout method for a split-payment order (C6a); unlike the display-only paymentMethod snapshot, which is ignored.' }
     OpenShiftRequest:
       type: object
       required: [startingCash]
@@ -2346,6 +2386,7 @@ components:
             usable grant is refused as forbidden and goes to review.
             For refund (C4a) see SyncRefundPayload: legacy {orderId, reason} refunds the whole
             order; the per-line shape adds items [{lineNo, quantity}], refundAmount and reasonCode.
+            For order the body is CreateOrderRequest (C6a adds tenders [TenderInput]).
         # Optional and NOT nullable: openapi-typescript drops nullable on $ref schemas, so
         # "absent" is the only legacy/unset form (A04). Sibling of payload, never inside it.
         envelope: { $ref: '#/components/schemas/SyncEnvelope' }
