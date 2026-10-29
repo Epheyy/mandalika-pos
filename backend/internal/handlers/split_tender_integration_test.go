@@ -48,11 +48,20 @@ func TestSplitTenderPostgres(t *testing.T) {
 	pool, ctx := gatePool(t, "SP", 56477)
 	e := newSPEnv(t, ctx, pool)
 
+	t.Run("1 sync split sale", func(t *testing.T) { e.t = t; e.syncSplitSale() })
+	t.Run("2 online shortfall", func(t *testing.T) { e.t = t; e.onlineShortfall() })
+	t.Run("3 structural rejects", func(t *testing.T) { e.t = t; e.structuralRejects() })
+	t.Run("4 replay", func(t *testing.T) { e.t = t; e.saleReplay() })
+	t.Run("5 legacy byte identity", func(t *testing.T) { e.t = t; e.legacyIdentity() })
 	t.Run("6 read round trip", func(t *testing.T) { e.t = t; e.readRoundTrip() })
 	t.Run("7 shift close", func(t *testing.T) { e.t = t; e.shiftClose() })
 	t.Run("8 reports", func(t *testing.T) { e.t = t; e.reports() })
+	t.Run("9 refund payout", func(t *testing.T) { e.t = t; e.refundPayout() })
+	t.Run("9b refund payout input and replay", func(t *testing.T) { e.t = t; e.refundPayoutInput() })
+	t.Run("9c settings", func(t *testing.T) { e.t = t; e.splitSettings() })
 	t.Run("10 erp tenders", func(t *testing.T) { e.t = t; e.erpTenders() })
-	// C6a later chunks append subtests 1-5, 9, 9b and 11 above this line, on the same spEnv.
+	t.Run("11 reserved id", func(t *testing.T) { e.t = t; e.reservedID() })
+	t.Run("12 tender sum invariant", func(t *testing.T) { e.t = t; e.tenderSumInvariant() })
 }
 
 func newSPEnv(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *spEnv {
@@ -68,6 +77,9 @@ func newSPEnv(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *spEnv {
 	router.With(authWrap).Get("/orders", h.Orders)
 	router.With(authWrap).Get("/reports/summary", h.ReportSummary)
 	router.With(authWrap).Get("/settings/app", h.AppSettings)
+	router.With(authWrap).Put("/settings/app", h.UpdateAppSettings)
+	router.With(authWrap).Post("/orders", h.CreateOrder)
+	router.With(authWrap).Post("/orders/{id}/refund", h.RefundOrder)
 	e := &spEnv{t: t, ctx: ctx, pool: pool, svc: svc, router: router, secret: secret,
 		device: "00000000-0000-4000-8f77-0000000000d1", n: map[string]int{}}
 	e.adminAll = e.issue(e.nextID("0c00"), "admin", "")
@@ -129,6 +141,11 @@ func (e *spEnv) newProduct(o spOutlet, price float64) string {
 
 func (e *spEnv) call(method, path, token string, body any) (int, []byte) {
 	e.t.Helper()
+	return e.callH(method, path, token, body, nil)
+}
+
+func (e *spEnv) callH(method, path, token string, body any, hdr map[string]string) (int, []byte) {
+	e.t.Helper()
 	var rdr *bytes.Reader
 	if body != nil {
 		raw, err := json.Marshal(body)
@@ -142,19 +159,23 @@ func (e *spEnv) call(method, path, token string, body any) (int, []byte) {
 	r := httptest.NewRequest(method, path, rdr)
 	r.Header.Set("Authorization", "Bearer "+token)
 	r.Header.Set("Content-Type", "application/json")
+	for k, v := range hdr {
+		r.Header.Set(k, v)
+	}
 	w := httptest.NewRecorder()
 	e.router.ServeHTTP(w, r)
 	return w.Code, w.Body.Bytes()
 }
 
-func (e *spEnv) send(o spOutlet, typ string, payload map[string]any, shift string) map[string]any {
+// batchItem posts one sync item under an explicit key and returns its result, whatever the status.
+func (e *spEnv) batchItem(o spOutlet, typ, key string, payload map[string]any, shift string) map[string]any {
 	e.t.Helper()
 	env := map[string]any{"v": 1, "outletId": o.id, "userId": o.user, "deviceId": e.device,
 		"capturedAt": time.Now().UTC().Format(time.RFC3339Nano), "offlineMs": time.Hour.Milliseconds()}
 	if shift != "" {
 		env["shiftId"] = shift
 	}
-	item := map[string]any{"type": typ, "idempotencyKey": fmt.Sprintf("%s:%s%d", e.device, typ, e.seq("batch")), "payload": payload, "envelope": env}
+	item := map[string]any{"type": typ, "idempotencyKey": key, "payload": payload, "envelope": env}
 	code, raw := e.call("POST", "/sync/batch", o.tok, map[string]any{"items": []any{item}})
 	var out struct {
 		Data struct {
@@ -164,22 +185,37 @@ func (e *spEnv) send(o spOutlet, typ string, payload map[string]any, shift strin
 	if code != 200 || json.Unmarshal(raw, &out) != nil || len(out.Data.Results) != 1 {
 		e.t.Fatalf("batch %d %s", code, raw)
 	}
-	res := out.Data.Results[0]
+	return out.Data.Results[0]
+}
+
+func (e *spEnv) newKey(typ string) string {
+	return fmt.Sprintf("%s:%s%d", e.device, typ, e.seq("batch"))
+}
+
+func (e *spEnv) send(o spOutlet, typ string, payload map[string]any, shift string) map[string]any {
+	e.t.Helper()
+	res := e.batchItem(o, typ, e.newKey(typ), payload, shift)
 	if res["status"] != "ok" {
 		e.t.Fatalf("%s item: want ok, got %v", typ, res)
 	}
 	return res
 }
 
-// sale drives the real sale path. tenders nil = the legacy scalar payload.
-func (e *spEnv) sale(o spOutlet, pid, method string, total, paid float64, tenders []map[string]any, shift string) string {
-	e.t.Helper()
+// salePayload is a one-line sale body. tenders nil = the legacy scalar payload.
+func (e *spEnv) salePayload(pid, method string, total, paid float64, qty int, tenders []map[string]any) map[string]any {
 	p := map[string]any{"orderUuid": e.nextID("0e00"), "deviceId": e.device, "paymentMethod": method, "amountPaid": paid,
 		"items": []map[string]any{{"productId": pid, "productName": "SP product", "variantSize": "std",
-			"price": total, "quantity": 1, "subtotal": total}}}
+			"price": total / float64(qty), "quantity": qty, "subtotal": total}}}
 	if tenders != nil {
 		p["tenders"] = tenders
 	}
+	return p
+}
+
+// sale drives the real sale path. tenders nil = the legacy scalar payload.
+func (e *spEnv) sale(o spOutlet, pid, method string, total, paid float64, tenders []map[string]any, shift string) string {
+	e.t.Helper()
+	p := e.salePayload(pid, method, total, paid, 1, tenders)
 	if shift != "" {
 		p["shiftId"] = shift
 	}
