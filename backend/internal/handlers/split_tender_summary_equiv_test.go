@@ -127,7 +127,7 @@ func oldSummaryCTEs(limited bool, saleWhere string, methodArg int) (ctes, lineSr
 	return sbl + ",\n" + sb, lineSrc
 }
 
-type spEqCase struct{ method, from, to string }
+type spEqCase struct{ method, from, to, status, shift string }
 
 // oldSummaryStatement renders the old statement for one outlet and filter, with the where
 // clauses written out by hand (the sale set binds the sale day, the refund set the refund day).
@@ -138,6 +138,9 @@ func oldSummaryStatement(outlet string, c spEqCase) (string, []any) {
 	limited := c.method != "" && !isSplit
 
 	sale := fmt.Sprintf("WHERE 1=1 AND o.outlet_id=$%d", add(outlet))
+	if c.shift != "" {
+		sale += fmt.Sprintf(" AND o.shift_id=$%d", add(c.shift))
+	}
 	if c.from != "" {
 		sale += fmt.Sprintf(" AND o.business_date >= $%d::text::date", add(c.from))
 	}
@@ -155,9 +158,18 @@ func oldSummaryStatement(outlet string, c spEqCase) (string, []any) {
 	    OR EXISTS (SELECT 1 FROM order_refunds rp WHERE rp.order_id = o.id AND lower(btrim(rp.payment_method)) = lower(btrim($%[1]d))))`, n)
 		}
 	}
+	if c.status != "" {
+		sale += fmt.Sprintf(" AND o.status=$%d", add(c.status))
+	}
 	sale += " AND o.status IN ('completed','partially_refunded','refunded')"
 
 	refund := fmt.Sprintf("WHERE 1=1 AND o.outlet_id=$%d", add(outlet))
+	if c.shift != "" {
+		refund += fmt.Sprintf(" AND o.shift_id=$%d", add(c.shift))
+	}
+	if c.status != "" {
+		refund += fmt.Sprintf(" AND o.status=$%d", add(c.status))
+	}
 	if c.from != "" {
 		refund += fmt.Sprintf(" AND r.refund_business_date >= $%d::text::date", add(c.from))
 	}
@@ -200,7 +212,7 @@ func (e *spEnv) summaryJSONMap(v api.ReportSummary) map[string]any {
 // equivFixture seeds one outlet with split, single, tenderless, cancelled, refunded and
 // partially refunded orders spread over several business days. Every order has its own product
 // (distinct revenue) so topProducts has no ties.
-func (e *spEnv) equivFixture() spOutlet {
+func (e *spEnv) equivFixture() (spOutlet, string) {
 	o := e.newOutlet()
 	prod := func() string { return e.newProduct(o, 10000) }
 	split := func(total float64, a, b map[string]any) string {
@@ -240,11 +252,46 @@ func (e *spEnv) equivFixture() spOutlet {
 	day(e.rawOrder(o, "qris", "completed", 10000, ""), 1)
 	e.rawOrder(o, "card", "cancelled", 9000, "")
 	day(e.rawOrder(o, "cash", "refunded", 15000, ""), 3)
-	return o
+	sh := e.newShift(o)
+	e.equivRawRefunded(o, sh)
+	return o, sh
+}
+
+// rawRefundRow inserts a refund row on a tenderless order by raw SQL (the shape of all history
+// written before split payment). ago < 0 leaves refund_business_date NULL (the trigger stamps it
+// on insert, so it is cleared afterwards); otherwise it is current_date - ago.
+func (e *spEnv) rawRefundRow(o spOutlet, order, method string, amount float64, ago int) {
+	e.t.Helper()
+	e.exec(`INSERT INTO order_refunds(order_id,outlet_id,seq,scope,amount,computed_amount,payment_method,reason,ledger_document_key)
+		VALUES($1,$2,1,'partial',$3,$3,$4,'x',$5)`, order, o.id, amount, method, "sp-eq-"+order)
+	if ago < 0 {
+		e.exec(`UPDATE order_refunds SET refund_business_date=NULL WHERE order_id=$1`, order)
+	} else {
+		e.exec(`UPDATE order_refunds SET refund_business_date=current_date-$2::int WHERE order_id=$1`, order, ago)
+	}
+}
+
+// equivRawRefunded adds tenderless orders (no order_tenders rows) with raw refund rows paid out in
+// a method the sale used no line of, with the refund on another day than the sale and with no
+// refund day at all. Under a cash / transfer filter such an order is admitted only by its refund.
+func (e *spEnv) equivRawRefunded(o spOutlet, shift string) {
+	e.t.Helper()
+	// partially refunded, qris sale refunded in cash on another day.
+	r1 := e.rawOrder(o, "qris", "partially_refunded", 40000, shift)
+	e.exec(`UPDATE orders SET business_date=current_date-3 WHERE id=$1`, r1)
+	e.rawRefundRow(o, r1, "cash", 15000, 1)
+	// partially refunded, card sale refunded in transfer with no refund business day.
+	r2 := e.rawOrder(o, "card", "partially_refunded", 30000, shift)
+	e.exec(`UPDATE orders SET business_date=current_date-2 WHERE id=$1`, r2)
+	e.rawRefundRow(o, r2, "transfer", 10000, -1)
+	// fully refunded: completed first so the legacy-row trigger finds the raw refund row.
+	r3 := e.rawOrder(o, "qris", "completed", 20000, "")
+	e.rawRefundRow(o, r3, "cash", 20000, 0)
+	e.exec(`UPDATE orders SET status='refunded', business_date=current_date-2 WHERE id=$1`, r3)
 }
 
 func (e *spEnv) summaryEquivalence() {
-	o := e.equivFixture()
+	o, sh := e.equivFixture()
 	day := func(ago int) string {
 		var s string
 		if err := e.pool.QueryRow(e.ctx, `SELECT to_char(current_date - $1::int,'YYYY-MM-DD')`, ago).Scan(&s); err != nil {
@@ -276,9 +323,34 @@ func (e *spEnv) summaryEquivalence() {
 			}
 		}
 	}
+	// status and shift filters on top of the method rule.
+	for _, c := range []spEqCase{
+		{status: "completed"}, {status: "partially_refunded"}, {status: "partially_refunded", method: "cash"},
+		{status: "refunded", method: "cash"}, {status: "completed", method: "qris"}, {shift: sh},
+		{shift: sh, method: "transfer"}, {shift: sh, method: "cash"}, {shift: sh, status: "partially_refunded", method: "qris"},
+	} {
+		label := fmt.Sprintf("filter %+v", c)
+		sql, args := oldSummaryStatement(o.id, c)
+		var old api.ReportSummary
+		var raw []byte
+		if err := e.pool.QueryRow(e.ctx, sql, args...).Scan(&raw); err != nil {
+			e.t.Fatalf("%s: old statement: %v", label, err)
+		}
+		if err := json.Unmarshal(raw, &old); err != nil {
+			e.t.Fatalf("%s: old json: %v", label, err)
+		}
+		got, err := repo.ReportSummary(e.ctx, read.OrderFilter{Scope: read.Scope{OutletID: o.id},
+			PaymentMethod: c.method, Status: c.status, ShiftID: c.shift})
+		if err != nil {
+			e.t.Fatalf("%s: new summary: %v", label, err)
+		}
+		if gm, om := e.summaryJSONMap(got), e.summaryJSONMap(old); !reflect.DeepEqual(gm, om) {
+			e.t.Fatalf("%s: new summary differs from the f03265c5 statement\n new %v\n old %v", label, gm, om)
+		}
+	}
 	// guard: the unfiltered, whole-range comparison is not trivially empty.
 	all := e.summary(o.id, "")
-	if all.GrossOrders < 8 || len(all.RefundsBy) < 1 || len(all.Daily) < 3 {
+	if all.GrossOrders < 10 || len(all.RefundsBy) < 1 || len(all.Daily) < 3 {
 		e.t.Fatalf("equivalence fixture too weak: %+v", all)
 	}
 }
