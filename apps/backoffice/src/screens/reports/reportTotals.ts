@@ -17,7 +17,12 @@ export interface ReportTotals {
   /** Still-completed revenue grouped by the raw payment method string. */
   byPay: Record<string, number>
   grossByPay: Record<string, number>
-  /** Refunds grouped by the ORIGINAL payment method. */
+  /**
+   * Refunds grouped by the method each refund was PAID OUT in (the refund row's own method, not
+   * the sale's). Known, documented limit: this client-side oracle works from the loaded orders'
+   * payment lines, so it cannot see a refund paid out in a method the order never used (a QRIS
+   * sale refunded in cash); the server summary is the figure of record there.
+   */
   refundsByPay: Record<string, number>
 }
 
