@@ -340,6 +340,7 @@ func (e *Engine) processOneWithSeq(ctx context.Context, c Caller, it BatchItem,
 			Items:             p.Items,
 			PaymentMethod:     p.PaymentMethod,
 			AmountPaid:        p.AmountPaid,
+			Tenders:           p.Tenders,
 			ManualKind:        service.DiscountKind(p.DiscountType),
 			ManualValue:       p.DiscountValue,
 			Surcharge:         p.SurchargeValue,
@@ -583,6 +584,7 @@ type orderPayload struct {
 	Items             []service.OrderItem `json:"items"`
 	PaymentMethod     string              `json:"paymentMethod"`
 	AmountPaid        float64             `json:"amountPaid"`
+	Tenders           json.RawMessage     `json:"tenders"` // C6: absent = legacy scalar path
 	DiscountType      string              `json:"discountType"`
 	DiscountValue     float64             `json:"discountValue"`
 	SurchargeValue    float64             `json:"surchargeValue"`

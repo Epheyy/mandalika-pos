@@ -27,6 +27,7 @@ type createOrderBody struct {
 	Items             []service.OrderItem `json:"items"`
 	PaymentMethod     string              `json:"paymentMethod"`
 	AmountPaid        float64             `json:"amountPaid"`
+	Tenders           json.RawMessage     `json:"tenders"` // C6: absent = legacy scalar path
 	DiscountType      string              `json:"discountType"`
 	DiscountValue     float64             `json:"discountValue"`
 	SurchargeVal      float64             `json:"surchargeValue"`
@@ -79,7 +80,7 @@ func (h *Handlers) createOrder(w http.ResponseWriter, r *http.Request,
 		SalesmanID: body.SalesmanID, SalesmanName: body.SalesmanName,
 		CustomerID: body.CustomerID, CustomerName: body.CustomerName,
 		Items: body.Items, PaymentMethod: body.PaymentMethod,
-		AmountPaid: body.AmountPaid, ManualKind: service.DiscountKind(body.DiscountType),
+		AmountPaid: body.AmountPaid, Tenders: body.Tenders, ManualKind: service.DiscountKind(body.DiscountType),
 		ManualValue: body.DiscountValue, Surcharge: body.SurchargeVal,
 		SurchargeKind: service.DiscountKind(body.SurchargeKind),
 		DiscountCode:  body.DiscountCode, PromotionID: body.PromotionID,
