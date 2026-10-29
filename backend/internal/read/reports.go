@@ -9,6 +9,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/tenderlines"
 )
 
 // ReportSummary aggregates the rows selected by the shared OrderFilter (the same
@@ -174,11 +175,8 @@ FROM agg, ragg, pay, gpay, rpay, prod, daily`, sbSQL, refundWhere, lineSrc)
 //
 // saleWhere is rendered ONCE, as a MATERIALIZED base CTE (sb unfiltered, so under a method
 // filter) that sbl reads for both its payment lines and its refund rows, so the filter scan of
-// orders is not repeated. sbl builds the payment lines set-based (a join on order_tenders plus
-// an anti-join for the synthetic line of an order without stored lines) instead of through the
-// per-order tenderlines.Lateral: same rows, but one hash join over the sale set instead of two
-// index probes per order (the equivalence is gated by SP subtest 13). Keep it in step with the
-// fragment's synthetic-line rule.
+// orders is not repeated. The payment lines come from tenderlines.SetLines (a hash join over the
+// sale set) instead of the per-order Lateral; SP subtest 14 gates that they agree.
 // A method filter appends its own argument for the CTE comparison.
 func summarySaleCTEs(f OrderFilter, saleWhere string, args *[]any) (ctes, lineSrc string) {
 	if !f.isMethodLimited() {
@@ -209,14 +207,11 @@ func summaryLinesCTE(base string) string {
   SELECT x.id, x.status, x.business_date, x.method AS payment_method,
          SUM(x.gross) AS total, SUM(x.gross) - SUM(x.paid_out) AS net_total, bool_or(x.is_line) AS has_line
   FROM (
-    SELECT o.id, o.status, o.business_date, t.method, t.amount AS gross, 0::numeric AS paid_out, true AS is_line
-      FROM %[1]s o JOIN order_tenders t ON t.order_id = o.id
-    UNION ALL
-    SELECT o.id, o.status, o.business_date, o.payment_method, o.total, 0::numeric, true
-      FROM %[1]s o WHERE NOT EXISTS (SELECT 1 FROM order_tenders t2 WHERE t2.order_id = o.id)
+    SELECT l.id, l.status, l.business_date, l.method, l.amount AS gross, 0::numeric AS paid_out, true AS is_line
+      FROM (%[2]s) l
     UNION ALL
     SELECT o.id, o.status, o.business_date, r.payment_method, 0, r.amount, false
       FROM %[1]s o JOIN order_refunds r ON r.order_id = o.id
   ) x GROUP BY x.id, x.status, x.business_date, x.method
-)`, base)
+)`, base, tenderlines.SetLines(base, []string{"status", "business_date"}, 0))
 }
