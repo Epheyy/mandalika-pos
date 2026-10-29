@@ -12,6 +12,10 @@ import (
 	"github.com/mandalika/pos-backend/internal/api"
 )
 
+// reservedSplitMethodID is the orders.payment_method sentinel of a split-payment sale; it is
+// never a real method (the order_tenders CHECK backs this).
+const reservedSplitMethodID = "split"
+
 // validatePaymentMethods rejects shapes that would break the typed read path (and
 // so sync pull on every tablet): wrong types (e.g. a non-bool isCash), empty ids
 // and case-insensitive duplicate ids. The raw JSON is stored as sent.
@@ -28,6 +32,9 @@ func validatePaymentMethods(raw json.RawMessage) error {
 		}
 		if seen[id] {
 			return fmt.Errorf("paymentMethods: id ganda %q", m.Id)
+		}
+		if id == reservedSplitMethodID {
+			return fmt.Errorf("paymentMethods: id %q dicadangkan untuk pembayaran split dan tidak boleh dipakai sebagai metode", m.Id)
 		}
 		seen[id] = true
 	}
@@ -59,6 +66,9 @@ func (r *Repo) UpdateAppSettingsBy(ctx context.Context, actor string, raw json.R
 		// that do not know the field must not switch the approval flow off).
 		InventoryApprovalRequired *bool                 `json:"inventoryApprovalRequired"`
 		Documents                 *api.DocumentSettings `json:"documents"`
+		// SplitTenderEnabled: absent leaves the stored value untouched (a form that does not
+		// know the key must not switch split payment off).
+		SplitTenderEnabled *bool `json:"splitTenderEnabled"`
 	}
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return err
@@ -124,6 +134,16 @@ func (r *Repo) UpdateAppSettingsBy(ctx context.Context, actor string, raw json.R
 				`UPDATE app_settings SET recipes_enabled=$1 WHERE id=1`,
 				*s.RecipesEnabled); e != nil {
 				return fmt.Errorf("update recipes_enabled: %w", e)
+			}
+		}
+		if s.SplitTenderEnabled != nil {
+			// The first switch-on stamps split_tender_enabled_at; switching off never clears it.
+			if _, e := t.Exec(ctx, `
+				UPDATE app_settings SET split_tender_enabled=$1,
+				  split_tender_enabled_at = CASE WHEN $1 THEN COALESCE(split_tender_enabled_at, now())
+				                                 ELSE split_tender_enabled_at END
+				WHERE id=1`, *s.SplitTenderEnabled); e != nil {
+				return fmt.Errorf("update split_tender_enabled: %w", e)
 			}
 		}
 		if s.InventoryApprovalRequired != nil {

@@ -2,6 +2,7 @@ package erp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,6 +11,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/rules"
+	"github.com/mandalika/pos-backend/internal/tenderlines"
 )
 
 // ErrNoMovements marks an outbox row whose document has no stock_movements: it can
@@ -35,9 +40,24 @@ var knownKinds = map[string]bool{
 	"receipt": true, "adjust": true, "count": true, "opening": true, "write_off": true,
 }
 
-// tenderMethods are the payment methods the contract defines. POS payment methods are
-// freeform since migration 0005, so anything else is omitted rather than guessed.
-var tenderMethods = map[string]bool{"cash": true, "card": true, "transfer": true, "qris": true}
+// nonCashTenderMethods are the non-cash payment methods the contract defines. POS payment
+// methods are freeform since migration 0005, so anything else is omitted rather than guessed.
+var nonCashTenderMethods = map[string]bool{"card": true, "transfer": true, "qris": true}
+
+// erpTenderMethod maps a POS payment method id to the contract's method, or "" to omit it
+// (D-61). isCash is the POS cash identity (rules.IsCashMethod over the payment-method
+// settings), so a configured "tunai" goes out as "cash". A method whose config says
+// isCash=false is not cash even when its id is "cash"/"tunai": it is then sent only when
+// it is one of the contract's non-cash methods, otherwise omitted.
+func erpTenderMethod(id string, isCash bool) string {
+	if isCash {
+		return "cash"
+	}
+	if m := strings.ToLower(strings.TrimSpace(id)); nonCashTenderMethods[m] {
+		return m
+	}
+	return ""
+}
 
 // OutboxHeader is the erp_outbox row the document is built for.
 type OutboxHeader struct {
@@ -64,11 +84,23 @@ type MovementRow struct {
 type OrderInfo struct {
 	PaymentMethod string
 	Total         int64
-	LinePrice     map[string]int64 // order_items.id -> rounded price
+	// Tenders are the order's payment lines (method, rounded amount) in seq order. Empty
+	// (hand-built tests) means one line: (PaymentMethod, Total).
+	Tenders []OrderTender
+	// RefundMethod is order_refunds.payment_method, the payout method of the refund this
+	// document carries; "" falls back to PaymentMethod (legacy refund without a row).
+	RefundMethod string
+	LinePrice    map[string]int64 // order_items.id -> rounded price
 	// RefundAmount is order_refunds.amount (rounded) of the refund this document carries,
 	// found by ledger_document_key. nil on a sale document, or when no refund row matches
 	// (should not happen): the refund tender then falls back to -Total.
 	RefundAmount *int64
+}
+
+// OrderTender is one payment line of an order, amount rounded to whole rupiah.
+type OrderTender struct {
+	Method string
+	Amount int64
 }
 
 // BuildInput is everything BuildDocument needs; it holds no connection.
@@ -79,6 +111,8 @@ type BuildInput struct {
 	Movements    []MovementRow
 	Order        *OrderInfo
 	Brand        string
+	// PaymentMethods is app_settings.payment_methods, the cash identity for tender mapping.
+	PaymentMethods []api.PaymentMethodConfig
 }
 
 // BuildDocument builds the wire document. A non-empty holdReason means a mapping is
@@ -115,7 +149,7 @@ func BuildDocument(in BuildInput) (doc StockDocument, holdReason string, err err
 	for _, m := range in.Movements {
 		doc.Lines = append(doc.Lines, buildLine(h.Kind, m, in.Order))
 	}
-	doc.Tenders = buildTenders(h, in.Order)
+	doc.Tenders = buildTenders(h, in.Order, in.PaymentMethods)
 	return doc, "", nil
 }
 
@@ -212,27 +246,76 @@ func buildLine(kind string, m MovementRow, order *OrderInfo) StockLine {
 }
 
 // buildTenders puts the payment on the unsplit document or its first part only, so a
-// split order never double counts.
-func buildTenders(h OutboxHeader, order *OrderInfo) []Tender {
-	if order == nil || h.Part > 1 || !tenderMethods[order.PaymentMethod] {
+// split order never double counts. A sale carries one tender per payment line; a refund
+// carries one tender in the payout method.
+func buildTenders(h OutboxHeader, order *OrderInfo, methods []api.PaymentMethodConfig) []Tender {
+	if order == nil || h.Part > 1 {
 		return nil
 	}
 	switch h.Kind {
 	case "sale":
-		return []Tender{{Method: order.PaymentMethod, Amount: order.Total}}
+		return saleTenders(order, methods)
 	case "refund":
+		method := order.RefundMethod
+		if method == "" {
+			method = order.PaymentMethod
+		}
+		m := erpTenderMethod(method, rules.IsCashMethod(methods, method))
+		if m == "" {
+			return nil
+		}
 		// One refund row = one document. The tender is what that refund paid out (a part refund
 		// is not the order total); the row is found by the document's ledger key.
 		if order.RefundAmount != nil {
-			return []Tender{{Method: order.PaymentMethod, Amount: -*order.RefundAmount}}
+			return []Tender{{Method: m, Amount: -*order.RefundAmount}}
 		}
 		// Reached only for the legacy whole-order key: LoadBuildInput returns ErrRefundRowMissing
 		// for any other key without a row.
 		slog.Warn("erp: legacy refund document has no order_refunds row, tender falls back to the order total",
 			"documentId", h.DocumentID, "order", h.RefID)
-		return []Tender{{Method: order.PaymentMethod, Amount: -order.Total}}
+		return []Tender{{Method: m, Amount: -order.Total}}
 	}
 	return nil
+}
+
+// saleTenders emits one tender per payment line with amount > 0. Lines are whole rupiah and
+// the rounding remainder (round(total) minus the line sum) is settled on the last MAPPED line,
+// so the amounts add up to order.Total whenever every line is mappable. A negative remainder
+// larger than that line is taken off the earlier mapped lines backwards, never below 0. Lines
+// of an unmappable method (custom ids) are omitted (D-61) and take no remainder.
+func saleTenders(order *OrderInfo, methods []api.PaymentMethodConfig) []Tender {
+	lines := order.Tenders
+	if len(lines) == 0 {
+		lines = []OrderTender{{Method: order.PaymentMethod, Amount: order.Total}}
+	}
+	var sum int64
+	var out []Tender
+	for _, l := range lines {
+		if l.Amount <= 0 {
+			continue
+		}
+		sum += l.Amount
+		if m := erpTenderMethod(l.Method, rules.IsCashMethod(methods, l.Method)); m != "" {
+			out = append(out, Tender{Method: m, Amount: l.Amount})
+		}
+	}
+	remainder := order.Total - sum
+	if remainder >= 0 && len(out) > 0 {
+		out[len(out)-1].Amount += remainder
+		return out
+	}
+	for i := len(out) - 1; i >= 0 && remainder < 0; i-- {
+		take := min(out[i].Amount, -remainder)
+		out[i].Amount -= take
+		remainder += take
+	}
+	kept := out[:0]
+	for _, t := range out {
+		if t.Amount > 0 {
+			kept = append(kept, t)
+		}
+	}
+	return kept
 }
 
 // legacyRefundKey reports whether key is the pre-C4a whole-order refund key "refund:<orderId>",
@@ -260,11 +343,14 @@ SELECT m.id::text, m.product_id::text, m.variant_size, m.qty, m.qty_before, m.qt
             AND to_jsonb(v)->>'erp_slug' IS NOT NULL AND v.sku <> '' ORDER BY v.id LIMIT 1), '')
 FROM stock_movements m WHERE m.document_id=$1 ORDER BY m.seq`
 
-	orderSQL      = `SELECT o.payment_method, round(o.total)::bigint FROM orders o WHERE o.id=$1`
-	orderItemsSQL = `SELECT oi.id::text, round(oi.price)::bigint FROM order_items oi WHERE oi.order_id=$1`
+	// One row per payment line (a synthetic line when the order has none stored).
+	orderSQL = `SELECT o.payment_method, round(o.total)::bigint, tl.method, round(tl.amount)::bigint
+  FROM orders o` + tenderlines.Lateral + ` WHERE o.id=$1 ORDER BY tl.seq`
+	paymentMethodsSQL = `SELECT payment_methods FROM app_settings WHERE id=1`
+	orderItemsSQL     = `SELECT oi.id::text, round(oi.price)::bigint FROM order_items oi WHERE oi.order_id=$1`
 	// The outbox row's doc_key is the ledger document key (refund:<refundId>, or the legacy
 	// refund:<orderId>), which order_refunds.ledger_document_key mirrors.
-	refundAmountSQL = `SELECT round(r.amount)::bigint FROM erp_outbox ob
+	refundAmountSQL = `SELECT round(r.amount)::bigint, r.payment_method FROM erp_outbox ob
 	  JOIN order_refunds r ON r.ledger_document_key = ob.doc_key
 	 WHERE ob.document_id=$1::uuid AND r.order_id=$2`
 	refundDocKeySQL = `SELECT doc_key FROM erp_outbox WHERE document_id=$1::uuid`
@@ -295,12 +381,17 @@ func LoadBuildInput(ctx context.Context, q Querier, h OutboxHeader, brand string
 		if in.Order, err = loadOrder(ctx, q, h.RefID); err != nil {
 			return in, err
 		}
+		if in.PaymentMethods, err = loadPaymentMethods(ctx, q); err != nil {
+			return in, err
+		}
 		// Only part 1 carries the tender, so only it needs the refund amount.
 		if h.Kind == "refund" && in.Order != nil && h.Part <= 1 {
 			var amt int64
-			switch err := q.QueryRow(ctx, refundAmountSQL, h.DocumentID, h.RefID).Scan(&amt); {
+			var payout string
+			switch err := q.QueryRow(ctx, refundAmountSQL, h.DocumentID, h.RefID).Scan(&amt, &payout); {
 			case err == nil:
 				in.Order.RefundAmount = &amt
+				in.Order.RefundMethod = payout
 			case !errors.Is(err, pgx.ErrNoRows):
 				return in, fmt.Errorf("erp: load refund amount: %w", err)
 			default:
@@ -341,15 +432,48 @@ func loadMovements(ctx context.Context, q Querier, documentID string) ([]Movemen
 	return out, nil
 }
 
+// loadPaymentMethods reads the configured payment methods for the cash identity. A missing
+// or malformed value yields nil (the id defaults in rules.IsCashMethod apply), as the sale path does.
+func loadPaymentMethods(ctx context.Context, q Querier) ([]api.PaymentMethodConfig, error) {
+	var raw []byte
+	if err := q.QueryRow(ctx, paymentMethodsSQL).Scan(&raw); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("erp: load payment methods: %w", err)
+	}
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	var methods []api.PaymentMethodConfig
+	if err := json.Unmarshal(raw, &methods); err != nil {
+		slog.Warn("erp: payment_methods decode failed; using id defaults", "err", err)
+		return nil, nil
+	}
+	return methods, nil
+}
+
 // loadOrder returns nil (no error) when the order row is gone.
 func loadOrder(ctx context.Context, q Querier, orderID string) (*OrderInfo, error) {
 	info := &OrderInfo{LinePrice: map[string]int64{}}
-	err := q.QueryRow(ctx, orderSQL, orderID).Scan(&info.PaymentMethod, &info.Total)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
+	trows, err := q.Query(ctx, orderSQL, orderID)
 	if err != nil {
 		return nil, fmt.Errorf("erp: load order: %w", err)
+	}
+	defer trows.Close()
+	for trows.Next() {
+		var t OrderTender
+		if err := trows.Scan(&info.PaymentMethod, &info.Total, &t.Method, &t.Amount); err != nil {
+			return nil, fmt.Errorf("erp: scan order: %w", err)
+		}
+		info.Tenders = append(info.Tenders, t)
+	}
+	if err := trows.Err(); err != nil {
+		return nil, fmt.Errorf("erp: read order: %w", err)
+	}
+	trows.Close()
+	if len(info.Tenders) == 0 {
+		return nil, nil
 	}
 	rows, err := q.Query(ctx, orderItemsSQL, orderID)
 	if err != nil {

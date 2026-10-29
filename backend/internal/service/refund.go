@@ -248,17 +248,22 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 		newBal = afterClaw + restored
 	}
 
+	payoutMethod, payoutSource, err := resolveRefundPayout(ctx, tx, orderID, o.paymentMethod, in.PayoutMethod)
+	if err != nil {
+		return RefundResult{}, err
+	}
+
 	refundID := uuid.NewString()
 	// Write order: refund row, its items, THEN orders.status (see the doc comment).
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO order_refunds (id, order_id, outlet_id, seq, scope, amount, computed_amount, claimed_amount, amount_warning,
 		        payment_method, reason, reason_code, shift_id, refunded_by, refunded_by_name,
-		        device_id, client_refund_uuid, ledger_document_key, points_clawed, points_restored)
+		        device_id, client_refund_uuid, ledger_document_key, points_clawed, points_restored, payout_source)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10,$11,NULLIF($12,''),NULLIF($13::text,'')::uuid,
-		        NULLIF($14::text,'')::uuid,NULLIF($15,''),NULLIF($16,''),NULLIF($17::text,'')::uuid,$18,$19,$20)`,
+		        NULLIF($14::text,'')::uuid,NULLIF($15,''),NULLIF($16,''),NULLIF($17::text,'')::uuid,$18,$19,$20,$21)`,
 		refundID, orderID, outletID, maxSeq+1, refundScope(completes, refundCount), amount, computed, claimedKept, amountWarning,
-		o.paymentMethod, reason, reasonCode, in.ShiftID, in.UserID, in.UserName,
-		in.DeviceID, in.ClientRefundUUID, "refund:"+refundID, clawed, restored); err != nil {
+		payoutMethod, reason, reasonCode, in.ShiftID, in.UserID, in.UserName,
+		in.DeviceID, in.ClientRefundUUID, "refund:"+refundID, clawed, restored, payoutSource); err != nil {
 		return RefundResult{}, fmt.Errorf("insert order_refunds: %w", err)
 	}
 

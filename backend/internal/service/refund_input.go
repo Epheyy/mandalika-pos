@@ -46,6 +46,8 @@ var (
 	ErrRefundLegacyWholeOnly    = apperr.New(apperr.Rejected, "Transaksi lama hanya bisa direfund seluruhnya."+refundWarning)
 	ErrRefundLineUnknown        = apperr.New(apperr.Rejected, "Baris barang refund tidak dikenal, ganda, atau jumlahnya tidak valid."+refundWarning)
 	ErrRefundReasonCodeInvalid  = apperr.New(apperr.Rejected, "Kode alasan refund tidak valid."+refundWarning)
+	// C6a: payoutMethod present but blank, over 64 runes, or the reserved id split.
+	ErrRefundPayoutInvalid = apperr.New(apperr.Rejected, "Metode pengembalian dana refund tidak valid."+refundWarning)
 )
 
 // Refund amount warnings stored on order_refunds.amount_warning (D-39: the amount is a
@@ -100,6 +102,10 @@ type RefundInput struct {
 	// client_refund_uuid), defence in depth behind the A11 operation receipt. Either empty =
 	// no dedupe row (direct route, old tablets).
 	DeviceID, ClientRefundUUID string
+	// PayoutMethod is the method the refund is paid out in (C6a). NIL = absent (the server
+	// decides); a non-nil blank is malformed (ValidateRefundPayoutMethod). Only honoured on a
+	// split-payment order; a single-method order always pays out in its sale method.
+	PayoutMethod *string
 }
 
 // NormalizeRefund validates the refund input shared by the direct route and the
@@ -147,6 +153,21 @@ func ValidateRefundExtras(items []RefundItemInput, reasonCode string) (string, e
 		}
 	}
 	return reasonCode, nil
+}
+
+// ValidateRefundPayoutMethod validates the optional payoutMethod and returns it trimmed (nil
+// when absent). Present means non-blank, at most 64 printable runes, and not the reserved id
+// split (case-insensitive): a refund pays out in one real method. Only a split order calls this
+// (resolveRefundPayout); a single-method order ignores the value, so it is never rejected there.
+func ValidateRefundPayoutMethod(p *string) (*string, error) {
+	if p == nil {
+		return nil, nil
+	}
+	m := strings.TrimSpace(*p)
+	if m == "" || utf8.RuneCountInString(m) > maxTenderMethodLen || isSplitID(m) || hasNonPrintable(m) {
+		return nil, ErrRefundPayoutInvalid
+	}
+	return &m, nil
 }
 
 // ResolveRefundAmount picks the amount of record for a refund (D-39, A09 style, bounded by

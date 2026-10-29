@@ -76,20 +76,23 @@ type OrderItem struct {
 // CreateOrderInput is the resolved request. Outlet/cashier come from the JWT,
 // never the payload. Offline=true (sync path) relaxes tender/promo enforcement; stock goes negative on both paths (A44) and every shortfall is recorded.
 type CreateOrderInput struct {
-	IdempotencyKey    string
-	OrderUUID         string
-	OrderNumber       string // client display number ({OUTLET}-{DEV}{SEQ}); server assigns if empty
-	DeviceID          string // optional (sync clients)
-	OutletID          string
-	CashierID         string
-	CashierName       string
-	SalesmanID        string
-	SalesmanName      string
-	CustomerID        string
-	CustomerName      string
-	Items             []OrderItem
-	PaymentMethod     string
-	AmountPaid        float64
+	IdempotencyKey string
+	OrderUUID      string
+	OrderNumber    string // client display number ({OUTLET}-{DEV}{SEQ}); server assigns if empty
+	DeviceID       string // optional (sync clients)
+	OutletID       string
+	CashierID      string
+	CashierName    string
+	SalesmanID     string
+	SalesmanName   string
+	CustomerID     string
+	CustomerName   string
+	Items          []OrderItem
+	PaymentMethod  string
+	AmountPaid     float64
+	// Tenders (C6) is the raw split-payment list: nil = absent (legacy scalar path); null,
+	// [] and non-arrays are structural rejects (parseTenders). Ignores PaymentMethod/AmountPaid.
+	Tenders           json.RawMessage
 	ManualKind        DiscountKind
 	ManualValue       float64
 	Surcharge         float64
@@ -446,10 +449,11 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 	// A09 tender rules, judged once per new sale (replays returned above). Online
 	// (direct POST /orders) rejects only a cash shortfall; offline/batch sales and
 	// non-cash mismatches are accepted with the captured amount and flagged.
-	amountPaid, change, tenderReason := evaluateTender(IsCashMethod(settings.PaymentMethods, in.PaymentMethod), in.AmountPaid, finalTotal)
-	if tenderReason == TenderCashShort && !in.Offline {
-		return "", false, false, tenderRejectedError(in.AmountPaid, finalTotal)
+	settle, err := settleSale(in, finalTotal, func(id string) bool { return IsCashMethod(settings.PaymentMethods, id) })
+	if err != nil {
+		return "", false, false, err
 	}
+	amountPaid, change, tenderReason := settle.AmountPaid, settle.Change, settle.Reason
 	tenderWarning := tenderReason != ""
 
 	// A10: judge the quoted receipt total after the replay guard, flag-only on both
@@ -590,7 +594,7 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 		res.Subtotal, res.DiscountAmount, nullStr(string(in.ManualKind)),
 		nullNum(in.ManualValue), nullStr(in.DiscountCode),
 		nullStr(string(in.SurchargeKind)), nullNum(in.Surcharge), res.SurchargeAmount,
-		res.TaxAmount, finalTotal, in.PaymentMethod, amountPaid, change,
+		res.TaxAmount, finalTotal, settle.PaymentMethod, amountPaid, change,
 		nullStr(in.Notes), nullUUID(in.ShiftID), in.ClientCreated, quotedStored,
 		stockWarning, pointsRedeemed, nullStr(in.DiscountLabel), nullBytes(in.DiscountBreakdown),
 		finalEarned, discountWarning, nullStr(discountWarnReason), nullCodes(appliedCodes),
@@ -602,6 +606,16 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 			return s.replayAfterConflict(ctx, tx, in.IdempotencyKey, err)
 		}
 		return "", false, false, fmt.Errorf("insert order: %w", err)
+	}
+
+	// C6: one order_tenders row per payment line (a single tender is one row), same tx.
+	for _, r := range settle.Rows {
+		if _, e := tx.Exec(ctx, `
+			INSERT INTO order_tenders (order_id, seq, method, amount, tendered, change, reference)
+			VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+			orderID, r.Seq, r.Method, r.Amount, r.Tendered, r.Change, nullStr(r.Reference)); e != nil {
+			return "", false, false, fmt.Errorf("insert order tender: %w", e)
+		}
 	}
 
 	// A44: item ids are generated here (not RETURNING) so exception rows can name

@@ -1,0 +1,1039 @@
+{
+ "description": "C6 split tender golden vectors. Shared by the Go tests (service/tender_split_test.go) and the TS twin (apps/pos/src/cashier/tenderSplit.ts). allocations: due is the total after points; lines[].amount is the captured amount (cash handed over / amount charged); cash identity = the ids cash/tunai (default rule). mode online = direct route, batch = sync. expected.lines[].amount is what is applied to the bill (sums to due), tendered is verbatim. reject=true means the sale is refused (online shortfall / online two cash lines). structural: the request-level shape check; tenders absent = legacy path, reject=true = structural reject.",
+ "allocations": [
+  {
+   "name": "cash exact",
+   "mode": "online",
+   "due": 100000,
+   "lines": [
+    {
+     "method": "tunai",
+     "amount": 100000
+    }
+   ],
+   "expected": {
+    "paymentMethod": "tunai",
+    "amountPaid": 100000,
+    "change": 0,
+    "reason": "",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "tunai",
+      "amount": 100000,
+      "tendered": 100000,
+      "change": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "cash over",
+   "mode": "online",
+   "due": 100000,
+   "lines": [
+    {
+     "method": "tunai",
+     "amount": 150000
+    }
+   ],
+   "expected": {
+    "paymentMethod": "tunai",
+    "amountPaid": 150000,
+    "change": 50000,
+    "reason": "",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "tunai",
+      "amount": 100000,
+      "tendered": 150000,
+      "change": 50000
+     }
+    ]
+   }
+  },
+  {
+   "name": "cash short batch",
+   "mode": "batch",
+   "due": 100000,
+   "lines": [
+    {
+     "method": "tunai",
+     "amount": 90000
+    }
+   ],
+   "expected": {
+    "paymentMethod": "tunai",
+    "amountPaid": 90000,
+    "change": 0,
+    "reason": "cash_short",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "tunai",
+      "amount": 100000,
+      "tendered": 90000,
+      "change": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "cash short online",
+   "mode": "online",
+   "due": 100000,
+   "lines": [
+    {
+     "method": "tunai",
+     "amount": 90000
+    }
+   ],
+   "reject": true
+  },
+  {
+   "name": "cash blank (0) batch",
+   "mode": "batch",
+   "due": 100000,
+   "lines": [
+    {
+     "method": "tunai",
+     "amount": 0
+    }
+   ],
+   "expected": {
+    "paymentMethod": "tunai",
+    "amountPaid": 0,
+    "change": 0,
+    "reason": "cash_short",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "tunai",
+      "amount": 100000,
+      "tendered": 0,
+      "change": 0
+     }
+    ]
+   },
+   "notes": "Blank cash in split mode is POS-side (becomes Sisa); a literal 0 on a single line is short on the server."
+  },
+  {
+   "name": "qris plus cash with change",
+   "mode": "online",
+   "due": 1251000,
+   "lines": [
+    {
+     "method": "qris",
+     "amount": 751000,
+     "reference": "8812345"
+    },
+    {
+     "method": "tunai",
+     "amount": 600000
+    }
+   ],
+   "expected": {
+    "paymentMethod": "split",
+    "amountPaid": 1351000,
+    "change": 100000,
+    "reason": "",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "qris",
+      "amount": 751000,
+      "tendered": 751000,
+      "change": 0,
+      "reference": "8812345"
+     },
+     {
+      "seq": 2,
+      "method": "tunai",
+      "amount": 500000,
+      "tendered": 600000,
+      "change": 100000
+     }
+    ]
+   }
+  },
+  {
+   "name": "card plus card shares one method",
+   "mode": "online",
+   "due": 100000,
+   "lines": [
+    {
+     "method": "card",
+     "amount": 60000
+    },
+    {
+     "method": "card",
+     "amount": 40000
+    }
+   ],
+   "expected": {
+    "paymentMethod": "card",
+    "amountPaid": 100000,
+    "change": 0,
+    "reason": "",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "card",
+      "amount": 60000,
+      "tendered": 60000,
+      "change": 0
+     },
+     {
+      "seq": 2,
+      "method": "card",
+      "amount": 40000,
+      "tendered": 40000,
+      "change": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "non-cash over is trimmed from the last line and flagged",
+   "mode": "batch",
+   "due": 100000,
+   "lines": [
+    {
+     "method": "qris",
+     "amount": 70000
+    },
+    {
+     "method": "card",
+     "amount": 50000
+    }
+   ],
+   "expected": {
+    "paymentMethod": "split",
+    "amountPaid": 120000,
+    "change": 0,
+    "reason": "noncash_overpay",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "qris",
+      "amount": 70000,
+      "tendered": 70000,
+      "change": 0
+     },
+     {
+      "seq": 2,
+      "method": "card",
+      "amount": 30000,
+      "tendered": 50000,
+      "change": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "non-cash over also flag-only online",
+   "mode": "online",
+   "due": 100000,
+   "lines": [
+    {
+     "method": "qris",
+     "amount": 70000
+    },
+    {
+     "method": "card",
+     "amount": 50000
+    }
+   ],
+   "expected": {
+    "paymentMethod": "split",
+    "amountPaid": 120000,
+    "change": 0,
+    "reason": "noncash_overpay",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "qris",
+      "amount": 70000,
+      "tendered": 70000,
+      "change": 0
+     },
+     {
+      "seq": 2,
+      "method": "card",
+      "amount": 30000,
+      "tendered": 50000,
+      "change": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "non-cash short batch lands on the last line",
+   "mode": "batch",
+   "due": 100000,
+   "lines": [
+    {
+     "method": "qris",
+     "amount": 50000
+    },
+    {
+     "method": "card",
+     "amount": 30000
+    }
+   ],
+   "expected": {
+    "paymentMethod": "split",
+    "amountPaid": 80000,
+    "change": 0,
+    "reason": "tender_short",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "qris",
+      "amount": 50000,
+      "tendered": 50000,
+      "change": 0
+     },
+     {
+      "seq": 2,
+      "method": "card",
+      "amount": 50000,
+      "tendered": 30000,
+      "change": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "non-cash short online rejects",
+   "mode": "online",
+   "due": 100000,
+   "lines": [
+    {
+     "method": "qris",
+     "amount": 50000
+    },
+    {
+     "method": "card",
+     "amount": 30000
+    }
+   ],
+   "reject": true
+  },
+  {
+   "name": "cash shortfall in a split batch",
+   "mode": "batch",
+   "due": 100000,
+   "lines": [
+    {
+     "method": "qris",
+     "amount": 50000
+    },
+    {
+     "method": "tunai",
+     "amount": 30000
+    }
+   ],
+   "expected": {
+    "paymentMethod": "split",
+    "amountPaid": 80000,
+    "change": 0,
+    "reason": "tender_short",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "qris",
+      "amount": 50000,
+      "tendered": 50000,
+      "change": 0
+     },
+     {
+      "seq": 2,
+      "method": "tunai",
+      "amount": 50000,
+      "tendered": 30000,
+      "change": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "cash shortfall in a split online rejects",
+   "mode": "online",
+   "due": 100000,
+   "lines": [
+    {
+     "method": "qris",
+     "amount": 50000
+    },
+    {
+     "method": "tunai",
+     "amount": 30000
+    }
+   ],
+   "reject": true
+  },
+  {
+   "name": "due 0 single cash",
+   "mode": "online",
+   "due": 0,
+   "lines": [
+    {
+     "method": "tunai",
+     "amount": 0
+    }
+   ],
+   "expected": {
+    "paymentMethod": "tunai",
+    "amountPaid": 0,
+    "change": 0,
+    "reason": "",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "tunai",
+      "amount": 0,
+      "tendered": 0,
+      "change": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "due 0 two lines",
+   "mode": "batch",
+   "due": 0,
+   "lines": [
+    {
+     "method": "qris",
+     "amount": 1000
+    },
+    {
+     "method": "tunai",
+     "amount": 500
+    }
+   ],
+   "expected": {
+    "paymentMethod": "split",
+    "amountPaid": 1500,
+    "change": 500,
+    "reason": "noncash_overpay",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "qris",
+      "amount": 0,
+      "tendered": 1000,
+      "change": 0
+     },
+     {
+      "seq": 2,
+      "method": "tunai",
+      "amount": 0,
+      "tendered": 500,
+      "change": 500
+     }
+    ]
+   }
+  },
+  {
+   "name": "points redemption drift: due is after points",
+   "mode": "online",
+   "due": 90000,
+   "lines": [
+    {
+     "method": "tunai",
+     "amount": 100000
+    }
+   ],
+   "expected": {
+    "paymentMethod": "tunai",
+    "amountPaid": 100000,
+    "change": 10000,
+    "reason": "",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "tunai",
+      "amount": 90000,
+      "tendered": 100000,
+      "change": 10000
+     }
+    ]
+   }
+  },
+  {
+   "name": "points redemption drift split",
+   "mode": "online",
+   "due": 90000,
+   "lines": [
+    {
+     "method": "qris",
+     "amount": 40000
+    },
+    {
+     "method": "tunai",
+     "amount": 60000
+    }
+   ],
+   "expected": {
+    "paymentMethod": "split",
+    "amountPaid": 100000,
+    "change": 10000,
+    "reason": "",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "qris",
+      "amount": 40000,
+      "tendered": 40000,
+      "change": 0
+     },
+     {
+      "seq": 2,
+      "method": "tunai",
+      "amount": 50000,
+      "tendered": 60000,
+      "change": 10000
+     }
+    ]
+   }
+  },
+  {
+   "name": "rounding within Rp1 is not short",
+   "mode": "online",
+   "due": 100000.4,
+   "lines": [
+    {
+     "method": "tunai",
+     "amount": 100000
+    }
+   ],
+   "expected": {
+    "paymentMethod": "tunai",
+    "amountPaid": 100000,
+    "change": 0,
+    "reason": "",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "tunai",
+      "amount": 100000.4,
+      "tendered": 100000,
+      "change": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "four lines",
+   "mode": "online",
+   "due": 280000,
+   "lines": [
+    {
+     "method": "qris",
+     "amount": 100000
+    },
+    {
+     "method": "card",
+     "amount": 100000
+    },
+    {
+     "method": "transfer",
+     "amount": 50000
+    },
+    {
+     "method": "tunai",
+     "amount": 50000
+    }
+   ],
+   "expected": {
+    "paymentMethod": "split",
+    "amountPaid": 300000,
+    "change": 20000,
+    "reason": "",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "qris",
+      "amount": 100000,
+      "tendered": 100000,
+      "change": 0
+     },
+     {
+      "seq": 2,
+      "method": "card",
+      "amount": 100000,
+      "tendered": 100000,
+      "change": 0
+     },
+     {
+      "seq": 3,
+      "method": "transfer",
+      "amount": 50000,
+      "tendered": 50000,
+      "change": 0
+     },
+     {
+      "seq": 4,
+      "method": "tunai",
+      "amount": 30000,
+      "tendered": 50000,
+      "change": 20000
+     }
+    ]
+   }
+  },
+  {
+   "name": "single non-cash zero is accepted and flagged",
+   "mode": "batch",
+   "due": 100000,
+   "lines": [
+    {
+     "method": "qris",
+     "amount": 0
+    }
+   ],
+   "expected": {
+    "paymentMethod": "qris",
+    "amountPaid": 0,
+    "change": 0,
+    "reason": "noncash_amount_mismatch",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "qris",
+      "amount": 100000,
+      "tendered": 0,
+      "change": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "two cash lines on batch are merged and flagged",
+   "mode": "batch",
+   "due": 100000,
+   "lines": [
+    {
+     "method": "tunai",
+     "amount": 50000
+    },
+    {
+     "method": "qris",
+     "amount": 40000
+    },
+    {
+     "method": "cash",
+     "amount": 60000
+    }
+   ],
+   "expected": {
+    "paymentMethod": "split",
+    "amountPaid": 150000,
+    "change": 50000,
+    "reason": "tender_cash_merged",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "tunai",
+      "amount": 60000,
+      "tendered": 110000,
+      "change": 50000
+     },
+     {
+      "seq": 2,
+      "method": "qris",
+      "amount": 40000,
+      "tendered": 40000,
+      "change": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "two cash lines online are rejected",
+   "mode": "online",
+   "due": 100000,
+   "lines": [
+    {
+     "method": "tunai",
+     "amount": 50000
+    },
+    {
+     "method": "qris",
+     "amount": 40000
+    },
+    {
+     "method": "cash",
+     "amount": 60000
+    }
+   ],
+   "reject": true
+  },
+  {
+   "name": "only cash lines on batch collapse to one",
+   "mode": "batch",
+   "due": 100000,
+   "lines": [
+    {
+     "method": "tunai",
+     "amount": 60000
+    },
+    {
+     "method": "tunai",
+     "amount": 50000
+    }
+   ],
+   "expected": {
+    "paymentMethod": "tunai",
+    "amountPaid": 110000,
+    "change": 10000,
+    "reason": "tender_cash_merged",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "tunai",
+      "amount": 100000,
+      "tendered": 110000,
+      "change": 10000
+     }
+    ]
+   }
+  },
+  {
+   "name": "noncash overpay with cash: cash applied 0, change kept",
+   "mode": "online",
+   "due": 1251000,
+   "lines": [
+    {
+     "method": "qris",
+     "amount": 1300000
+    },
+    {
+     "method": "tunai",
+     "amount": 100000
+    }
+   ],
+   "expected": {
+    "paymentMethod": "split",
+    "amountPaid": 1400000,
+    "change": 100000,
+    "reason": "noncash_overpay",
+    "lines": [
+     {
+      "seq": 1,
+      "method": "qris",
+      "amount": 1251000,
+      "tendered": 1300000,
+      "change": 0
+     },
+     {
+      "seq": 2,
+      "method": "tunai",
+      "amount": 0,
+      "tendered": 100000,
+      "change": 100000
+     }
+    ]
+   },
+   "notes": "The printed change must come from the same allocation."
+  }
+ ],
+ "structural": [
+  {
+   "name": "absent is legacy",
+   "paymentMethod": "cash",
+   "reject": false
+  },
+  {
+   "name": "null",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": null
+  },
+  {
+   "name": "empty array",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": []
+  },
+  {
+   "name": "object",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": {}
+  },
+  {
+   "name": "string",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": "x"
+  },
+  {
+   "name": "number",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": 5
+  },
+  {
+   "name": "five lines",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": [
+    {
+     "method": "a",
+     "amount": 1
+    },
+    {
+     "method": "a",
+     "amount": 1
+    },
+    {
+     "method": "a",
+     "amount": 1
+    },
+    {
+     "method": "a",
+     "amount": 1
+    },
+    {
+     "method": "a",
+     "amount": 1
+    }
+   ]
+  },
+  {
+   "name": "four lines ok",
+   "paymentMethod": "cash",
+   "reject": false,
+   "tenders": [
+    {
+     "method": "a",
+     "amount": 1
+    },
+    {
+     "method": "a",
+     "amount": 1
+    },
+    {
+     "method": "a",
+     "amount": 1
+    },
+    {
+     "method": "a",
+     "amount": 1
+    }
+   ]
+  },
+  {
+   "name": "negative line",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": [
+    {
+     "method": "a",
+     "amount": -1
+    },
+    {
+     "method": "b",
+     "amount": 5
+    }
+   ]
+  },
+  {
+   "name": "negative single",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": [
+    {
+     "method": "a",
+     "amount": -1
+    }
+   ]
+  },
+  {
+   "name": "zero among two",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": [
+    {
+     "method": "a",
+     "amount": 0
+    },
+    {
+     "method": "b",
+     "amount": 5
+    }
+   ]
+  },
+  {
+   "name": "single zero is legacy",
+   "paymentMethod": "cash",
+   "reject": false,
+   "tenders": [
+    {
+     "method": "qris",
+     "amount": 0
+    }
+   ]
+  },
+  {
+   "name": "blank method",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": [
+    {
+     "method": " ",
+     "amount": 5
+    },
+    {
+     "method": "b",
+     "amount": 5
+    }
+   ]
+  },
+  {
+   "name": "split method",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": [
+    {
+     "method": "a",
+     "amount": 5
+    },
+    {
+     "method": " SPLIT ",
+     "amount": 5
+    }
+   ]
+  },
+  {
+   "name": "method over 64",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": [
+    {
+     "method": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+     "amount": 5
+    },
+    {
+     "method": "b",
+     "amount": 5
+    }
+   ]
+  },
+  {
+   "name": "method 64 ok",
+   "paymentMethod": "cash",
+   "reject": false,
+   "tenders": [
+    {
+     "method": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+     "amount": 5
+    },
+    {
+     "method": "b",
+     "amount": 5
+    }
+   ]
+  },
+  {
+   "name": "reference over 64",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": [
+    {
+     "method": "a",
+     "amount": 5,
+     "reference": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+    },
+    {
+     "method": "b",
+     "amount": 5
+    }
+   ]
+  },
+  {
+   "name": "reference control char",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": [
+    {
+     "method": "a",
+     "amount": 5,
+     "reference": "x\u0007y"
+    },
+    {
+     "method": "b",
+     "amount": 5
+    }
+   ]
+  },
+  {
+   "name": "missing amount",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": [
+    {
+     "method": "a"
+    },
+    {
+     "method": "b",
+     "amount": 5
+    }
+   ]
+  },
+  {
+   "name": "oversize line",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": [
+    {
+     "method": "a",
+     "amount": 1000000000000000.0
+    },
+    {
+     "method": "b",
+     "amount": 5
+    }
+   ]
+  },
+  {
+   "name": "sum over cap",
+   "paymentMethod": "cash",
+   "reject": true,
+   "tenders": [
+    {
+     "method": "a",
+     "amount": 999999999999.99
+    },
+    {
+     "method": "b",
+     "amount": 999999999999.99
+    }
+   ]
+  },
+  {
+   "name": "scalar split without tenders",
+   "paymentMethod": "Split ",
+   "reject": true
+  },
+  {
+   "name": "scalar split with tenders is ignored",
+   "paymentMethod": "split",
+   "reject": false,
+   "tenders": [
+    {
+     "method": "a",
+     "amount": 5
+    },
+    {
+     "method": "b",
+     "amount": 5
+    }
+   ]
+  }
+ ]
+}

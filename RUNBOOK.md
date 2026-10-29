@@ -89,6 +89,113 @@ gcloud run services update-traffic mandalika-pos --region asia-southeast2 \
   HAVING sum(r.amount) > o.total + 1;
   ```
 
+### Split-payment tenders (C6a, migration 0079) release and rollback
+
+- **What ships.** Backend only (backoffice totals fall back when the new fields are absent). Migration 0079 adds
+  `order_tenders` (one row per payment line), `order_refunds.payout_source`, `app_settings.split_tender_enabled`
+  (default **off**) and `split_tender_enabled_at`, plus the SQL function `order_default_payout_method(uuid)` and the
+  replaced `orders_refunded_legacy_row()` trigger. Every new sale writes one or more `order_tenders` rows; the sync and
+  direct routes accept an optional `tenders` array and an optional refund `payoutMethod`; shift close, reports,
+  the order list/read, the customer profile and the ERP tenders read the lines. With the setting off nothing changes
+  for the cashiers apart from the ERP tender mapping (`tunai` goes out as `cash`) and the report method-filter rule (D-66).
+- **Deploy window (migration lock).** 0079 takes `LOCK TABLE app_settings, orders, order_refunds IN ACCESS EXCLUSIVE
+  MODE` up front (`lock_timeout` 5 s) so it cannot deadlock with itself. A live sale that applies a per-customer-limit
+  code reads `orders` before `app_settings`, so it can still lose a deadlock (40P01) against the migration, and a long
+  report holding `orders` can make the migration hit 55P03. Both are safe: a losing migration rolls back, the new
+  revision fails at startup and the old one keeps serving; a losing sale returns a retryable 500. Deploy off-peak and
+  redeploy once if the first attempt hits 40P01/55P03.
+- **Synthetic-line rule.** An order with **no** `order_tenders` row (every pre-C6a order, and any order written by an
+  older revision after 0079 ran) is read everywhere as one line `(orders.payment_method, orders.total)`. There is no
+  backfill and none is needed; do not add one.
+- **Release order:** merge -> Neon read-only checks (plan section 5; one read-only transaction, secrets from Secret
+  Manager) -> `scripts/deploy-backend.sh c6a` (0079 runs at revision start) -> smoke (`/readyz`, one normal sale on the
+  tag, settings read shows `splitTenderEnabled:false`) -> `scripts/promote-backend.sh c6a` -> **24 h soak** -> C6b POS
+  OTA -> C6c backoffice -> fleet check (every active tablet reports >= the C6b version in the `/ota/check` logs) ->
+  only then switch `splitTenderEnabled` on in Backoffice.
+- **Rollback target: Cloud Run `00147-giy`**, safe **only while the setting has never been on**
+  (`split_tender_enabled_at IS NULL`). 0079 is additive; the old binary ignores it and the orders it writes get
+  synthetic lines.
+- **Rule: no backend rollback below C6a once `split_tender_enabled_at IS NOT NULL`; fix forward.** The order count alone
+  is not a safe guard (an offline tablet with the cached setting can hold queued splits the server has not seen).
+  Check:
+
+  ```sql
+  SELECT split_tender_enabled, split_tender_enabled_at FROM app_settings WHERE id = 1;
+  SELECT count(*) FROM orders WHERE payment_method = 'split';
+  SELECT count(*) FROM order_refunds WHERE payout_source = 'chosen';
+  ```
+
+  If a rollback is unavoidable: (1) switch the setting off; (2) wait until every tablet pulled the change (or bump
+  `content_versions` by SQL); (3) confirm zero pending sales on every tablet; (4) accept the two counts above (a rolled
+  back server flattens queued splits to `split`, reads them in a `split` bucket and records `split` as the refund
+  method); (5) then roll back. Switching the setting off does **not** make the server refuse split payloads: sales
+  captured while it was on and still queued must be accepted.
+- **Do not flip a method's "Tunai" (`isCash`) flag while sales are queued.** A split replayed after the flag changed
+  is judged with the settings in force at replay: with no cash line it is flagged (`noncash_overpay`) and stores no
+  change although the cashier handed some out. The money taken stays in `tendered`.
+- **Invariants to spot-check after the deploy** (each expects 0 rows):
+
+  ```sql
+  -- applied amounts add up to the order total
+  SELECT o.id, o.total, sum(t.amount) AS applied
+    FROM orders o JOIN order_tenders t ON t.order_id = o.id
+   GROUP BY o.id, o.total
+  HAVING abs(sum(t.amount) - o.total) > 1;
+
+  -- no line carries the reserved id, no order has more than 4 lines
+  SELECT order_id FROM order_tenders WHERE lower(btrim(method)) = 'split'
+  UNION ALL
+  SELECT order_id FROM order_tenders GROUP BY order_id HAVING count(*) > 4;
+
+  -- a split order's refund rows never record the sentinel as the payout method
+  SELECT id, order_id FROM order_refunds WHERE lower(btrim(payment_method)) = 'split';
+
+  -- Go and SQL agree on the default payout of every 'default' refund of a split order
+  SELECT r.id FROM order_refunds r
+   WHERE r.payout_source = 'default' AND r.payment_method IS DISTINCT FROM order_default_payout_method(r.order_id);
+  ```
+
+- **Best-effort repair: rebuild `order_tenders` from `orders.receipt_snapshot`.** For a split sale that reached a
+  revision without C6a. The POS writes the lines into `receiptSnapshot.tenders`, but the snapshot is stored only with a
+  valid quote of at most 64 KB, so some orders have nothing to rebuild from. **Owner-approved only; never run on a
+  guess.** Step 1 is a SELECT-only preview (one row per line, plus the per-order applied sum so a mismatch is visible);
+  step 2 inserts only orders whose rebuilt lines add up to the total (within Rp1) and that still have no rows. It does
+  not touch `orders.payment_method`, `amount_paid` or `change` (flattened by the old revision); decide those
+  separately. The cash line takes the remainder of the total after the non-cash lines and the rest of its tendered
+  amount is change, as the live allocation does; a short or overpaid order is left out of the insert.
+
+  ```sql
+  -- Step 1: preview (SELECT only)
+  WITH src AS (
+    SELECT o.id AS order_id, o.total, t.ord::int AS seq, btrim(t.line->>'method') AS method,
+           (t.line->>'amount')::numeric AS tendered, left(t.line->>'reference', 64) AS reference
+      FROM orders o
+     CROSS JOIN LATERAL jsonb_array_elements(o.receipt_snapshot::jsonb->'tenders') WITH ORDINALITY AS t(line, ord)
+     WHERE jsonb_typeof(o.receipt_snapshot::jsonb->'tenders') = 'array'
+       AND jsonb_array_length(o.receipt_snapshot::jsonb->'tenders') BETWEEN 1 AND 4
+       AND o.status IN ('completed', 'partially_refunded', 'refunded')
+       AND NOT EXISTS (SELECT 1 FROM order_tenders x WHERE x.order_id = o.id)
+  ), calc AS (
+    SELECT s.*, order_is_cash_method(s.method) AS is_cash,
+           sum(CASE WHEN order_is_cash_method(s.method) THEN 0 ELSE s.tendered END) OVER (PARTITION BY s.order_id) AS noncash
+      FROM src s
+  ), lines AS (
+    SELECT order_id, total, seq, method, tendered, reference,
+           CASE WHEN is_cash THEN greatest(0, total - noncash) ELSE tendered END AS amount,
+           CASE WHEN is_cash THEN greatest(0, tendered - greatest(0, total - noncash)) ELSE 0 END AS change
+      FROM calc
+  )
+  SELECT l.*, sum(l.amount) OVER (PARTITION BY l.order_id) AS applied_sum
+    FROM lines l ORDER BY order_id, seq;
+
+  -- Step 2: the INSERT (run in a transaction; check the row count against the preview)
+  -- Same WITH src, calc, lines as step 1, then:
+  INSERT INTO order_tenders (order_id, seq, method, amount, tendered, change, reference)
+  SELECT order_id, seq, method, amount, tendered, change, reference
+    FROM lines
+   WHERE order_id IN (SELECT order_id FROM lines GROUP BY order_id, total HAVING abs(sum(amount) - total) <= 1);
+  ```
+
 ### Connection budget
 
 Each instance holds up to `DB_MAX_CONNS` pooled connections (default **10**,

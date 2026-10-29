@@ -9,6 +9,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/tenderlines"
 )
 
 // ReportSummary aggregates the rows selected by the shared OrderFilter (the same
@@ -32,39 +33,39 @@ import (
 func (r *Repo) ReportSummary(ctx context.Context, f OrderFilter) (api.ReportSummary, error) {
 	sf, rf := f, f
 	sf.DateBasis, rf.DateBasis = "sale", "refund"
+	sf.summary, rf.summary = true, true
 	saleWhere, args := appendOrderWhere(sf, []any{}, false)
 	saleWhere += " AND o.status IN ('completed','partially_refunded','refunded')"
 	refundWhere, args := appendOrderWhere(rf, args, true)
+	sbSQL, lineSrc := summarySaleCTEs(f, saleWhere, &args)
 	sql := fmt.Sprintf(`
-WITH sb AS (
-  SELECT o.id, o.total, o.status, o.payment_method, o.business_date,
-         o.total - COALESCE((SELECT SUM(r.amount) FROM order_refunds r WHERE r.order_id = o.id), 0) AS net_total
-  FROM orders o %s
-),
+WITH %[1]s,
 rb AS (
   SELECT r.order_id, r.amount, r.payment_method, r.refund_business_date
-  FROM orders o JOIN order_refunds r ON r.order_id = o.id %s
+  FROM orders o JOIN order_refunds r ON r.order_id = o.id %[2]s
 ),
 agg AS (
   SELECT
     COALESCE(SUM(net_total),0)                                                             AS total_sales,
-    COUNT(*) FILTER (WHERE status IN ('completed','partially_refunded'))                   AS total_orders,
+    COUNT(*) FILTER (WHERE has_line AND status IN ('completed','partially_refunded'))      AS total_orders,
     COALESCE(SUM(total),0)                                                                 AS gross_sales,
-    COUNT(*)                                                                               AS gross_orders
+    COUNT(*) FILTER (WHERE has_line)                                                       AS gross_orders
   FROM sb
 ),
 ragg AS (
   SELECT COALESCE(SUM(amount),0) AS total_refunds, COUNT(DISTINCT order_id) AS refunded_orders FROM rb
 ),
 pay AS (
+  -- C6a: per (order, method) rows. The row filter moved from the order to the row: a fully
+  -- refunded split order keeps its +QRIS / -cash rows although its order net is 0.
   SELECT COALESCE(json_object_agg(payment_method, s),'{}'::json) AS by_pm
-  FROM (SELECT payment_method, SUM(net_total) AS s FROM sb
+  FROM (SELECT payment_method, SUM(net_total) AS s FROM %[3]s
         WHERE status IN ('completed','partially_refunded') OR net_total <> 0
         GROUP BY payment_method) t
 ),
 gpay AS (
   SELECT COALESCE(json_object_agg(payment_method, s),'{}'::json) AS by_pm
-  FROM (SELECT payment_method, SUM(total) AS s FROM sb GROUP BY payment_method) t
+  FROM (SELECT payment_method, SUM(total) AS s FROM %[3]s WHERE has_line GROUP BY payment_method) t
 ),
 rpay AS (
   SELECT COALESCE(json_object_agg(payment_method, s),'{}'::json) AS by_pm
@@ -84,15 +85,15 @@ prod AS (
                        (SELECT SUM(ri.quantity) FROM order_refund_items ri WHERE ri.order_item_id = it.id), 0)
                        ELSE 0 END AS rq
                 FROM order_items it JOIN sb b ON b.id=it.order_id
-                WHERE b.status IN ('completed','partially_refunded')) x
+                WHERE b.has_line AND b.status IN ('completed','partially_refunded')) x
         WHERE x.rq = 0 OR x.quantity > x.rq  -- a fully returned line of a part-refunded order is gone
         GROUP BY x.product_id ORDER BY rev DESC LIMIT 10) p
 ),
 sd AS (
   SELECT business_date AS d,
          SUM(net_total) AS s,
-         COUNT(*) FILTER (WHERE status IN ('completed','partially_refunded'))       AS n,
-         SUM(total) AS g, COUNT(*) AS gn
+         COUNT(*) FILTER (WHERE has_line AND status IN ('completed','partially_refunded')) AS n,
+         SUM(total) AS g, COUNT(*) FILTER (WHERE has_line) AS gn
   FROM sb GROUP BY business_date
 ),
 rd AS (
@@ -121,7 +122,7 @@ SELECT json_build_object(
   'byPaymentMethod',pay.by_pm,'grossByPaymentMethod',gpay.by_pm,
   'refundsByPaymentMethod',rpay.by_pm,
   'topProducts',prod.top,'dailySales',daily.rows)
-FROM agg, ragg, pay, gpay, rpay, prod, daily`, saleWhere, refundWhere)
+FROM agg, ragg, pay, gpay, rpay, prod, daily`, sbSQL, refundWhere, lineSrc)
 	v, err := oneJSON[api.ReportSummary](ctx, r.Pool, sql, args...)
 	if err != nil {
 		return v, err
@@ -153,4 +154,69 @@ FROM agg, ragg, pay, gpay, rpay, prod, daily`, saleWhere, refundWhere)
 		v.OutletId = nullable.NewNullableWithValue(f.Scope.OutletID)
 	}
 	return v, nil
+}
+
+// summarySaleCTEs renders the sale-side CTEs of ReportSummary (C6a). It returns the CTE list
+// (sb = one row per order, sbl = one row per (order, method)) and the source the by-method
+// maps read.
+//
+//   - sb is the per-order set that totals, products and the daily series read. Unfiltered, or
+//     under the `split` filter value, it is exactly the pre-C6 per-order query (whole-order
+//     money). Under a method filter (D-66) it is rebuilt from that method's rows: total = the
+//     method's payment lines, net_total = those lines minus the refunds paid out in that method.
+//     Every limited row nets (an order refunded in the method without ever using it enters with
+//     gross 0); has_line keeps order counts, products and gross to orders that used the method.
+//     topProducts reads sb's orders at full line revenue (sale lines are not allocated across
+//     payments), so under a method filter it can exceed the limited totalSales; documented
+//     trade-off of D-66.
+//   - sbl unions the order's payment lines with its refund rows per (order, method), so a refund
+//     paid out in a method the sale did not use still nets that method negative and the maps
+//     keep adding up to the order. has_line marks methods that had a payment line (gross only).
+//
+// saleWhere is rendered once as a MATERIALIZED base CTE (sb unfiltered, so under a method
+// filter) that sbl reads for both its payment lines and its refund rows, so the filter scan of
+// orders is not repeated per sbl branch. (The unfiltered sb renders it a second time inside the
+// refund-aggregate semi-join below; that second copy must never reference `r`.) The payment lines come from tenderlines.SetLines (a hash join over the
+// sale set) instead of the per-order Lateral; SP subtest 14 gates that they agree. Unfiltered,
+// sb's refund total is one grouped LEFT JOIN over the refunds of the sale set (a semi-join on
+// the same filter keeps the aggregate small on a narrow window), not a per-order subquery.
+// A method filter appends its own argument for the CTE comparison.
+func summarySaleCTEs(f OrderFilter, saleWhere string, args *[]any) (ctes, lineSrc string) {
+	if !f.isMethodLimited() {
+		sb := fmt.Sprintf(`sb AS MATERIALIZED (
+  SELECT o.id, o.total, o.status, o.payment_method, o.business_date, true AS has_line,
+         o.total - COALESCE(rs.refunded, 0) AS net_total
+  FROM orders o
+  LEFT JOIN (SELECT r.order_id, SUM(r.amount) AS refunded FROM order_refunds r
+             WHERE r.order_id IN (SELECT o.id FROM orders o %[1]s) GROUP BY r.order_id) rs ON rs.order_id = o.id %[1]s
+)`, saleWhere)
+		return sb + ",\n" + summaryLinesCTE("sb"), "sbl"
+	}
+	so := fmt.Sprintf(`so AS MATERIALIZED (
+  SELECT o.id, o.total, o.status, o.payment_method, o.business_date
+  FROM orders o %s
+)`, saleWhere)
+	*args = append(*args, f.PaymentMethod)
+	n := len(*args)
+	lineSrc = fmt.Sprintf("(SELECT * FROM sbl WHERE lower(btrim(payment_method)) = lower(btrim($%d))) lm", n)
+	sb := fmt.Sprintf(`sb AS (
+  SELECT id, status, business_date, SUM(total) AS total, SUM(net_total) AS net_total, bool_or(has_line) AS has_line
+  FROM %s GROUP BY id, status, business_date
+)`, lineSrc)
+	return so + ",\n" + summaryLinesCTE("so") + ",\n" + sb, lineSrc
+}
+
+// summaryLinesCTE renders sbl over the materialized sale-set base CTE `base`.
+func summaryLinesCTE(base string) string {
+	return fmt.Sprintf(`sbl AS (
+  SELECT x.id, x.status, x.business_date, x.method AS payment_method,
+         SUM(x.gross) AS total, SUM(x.gross) - SUM(x.paid_out) AS net_total, bool_or(x.is_line) AS has_line
+  FROM (
+    SELECT l.id, l.status, l.business_date, l.method, l.amount AS gross, 0::numeric AS paid_out, true AS is_line
+      FROM (%[2]s) l
+    UNION ALL
+    SELECT o.id, o.status, o.business_date, r.payment_method, 0, r.amount, false
+      FROM %[1]s o JOIN order_refunds r ON r.order_id = o.id
+  ) x GROUP BY x.id, x.status, x.business_date, x.method
+)`, base, tenderlines.SetLines(base, []string{"status", "business_date"}))
 }
