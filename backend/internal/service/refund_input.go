@@ -156,14 +156,15 @@ func ValidateRefundExtras(items []RefundItemInput, reasonCode string) (string, e
 }
 
 // ValidateRefundPayoutMethod validates the optional payoutMethod and returns it trimmed (nil
-// when absent). Present means non-blank, at most 64 runes, and not the reserved id split
-// (case-insensitive): a refund pays out in one real method.
+// when absent). Present means non-blank, at most 64 printable runes, and not the reserved id
+// split (case-insensitive): a refund pays out in one real method. Only a split order calls this
+// (resolveRefundPayout); a single-method order ignores the value, so it is never rejected there.
 func ValidateRefundPayoutMethod(p *string) (*string, error) {
 	if p == nil {
 		return nil, nil
 	}
 	m := strings.TrimSpace(*p)
-	if m == "" || utf8.RuneCountInString(m) > maxTenderMethodLen || strings.EqualFold(m, splitMethodID) {
+	if m == "" || utf8.RuneCountInString(m) > maxTenderMethodLen || isSplitID(m) || hasNonPrintable(m) {
 		return nil, ErrRefundPayoutInvalid
 	}
 	return &m, nil

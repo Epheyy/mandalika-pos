@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/apperr"
 )
 
@@ -28,6 +29,9 @@ func TestValidateRefundPayoutMethod(t *testing.T) {
 		{"split mixed case padded", sp(" SpLiT "), nil, ErrRefundPayoutInvalid},
 		{"64 runes ok", sp(strings.Repeat("é", 64)), sp(strings.Repeat("é", 64)), nil},
 		{"65 runes", sp(strings.Repeat("a", 65)), nil, ErrRefundPayoutInvalid},
+		{"split with dotted capital I (U+0130)", sp("SPL\u0130T"), nil, ErrRefundPayoutInvalid},
+		{"NUL byte", sp("qr\x00is"), nil, ErrRefundPayoutInvalid},
+		{"control rune", sp("qr\tis"), nil, ErrRefundPayoutInvalid},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := ValidateRefundPayoutMethod(tc.in)
@@ -86,7 +90,7 @@ func TestIsSplitOrder(t *testing.T) {
 		{"two lines, two methods", "split", two, true},
 		{"two lines same method, case-mismatched", "cash", []payoutLine{{"cash", 1, 1}, {" CASH", 1, 2}}, false},
 		{"split sentinel with one line", "split", one, true},
-		{"split sentinel without lines stays single", "split", nil, false},
+		{"split sentinel without lines is split (SQL trigger parity)", "split", nil, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := isSplitOrder(tc.sale, tc.lines); got != tc.want {
@@ -151,6 +155,12 @@ func TestResolveRefundPayout(t *testing.T) {
 		wantSource string
 	}{
 		{"pre-C6 order ignores payoutMethod", "qris", nil, "", sp("cash"), "qris", "sale"},
+		{"single method ignores a blank payoutMethod", "card", []payoutLine{{"card", 100, 1}}, "", sp(""), "card", "sale"},
+		{"single method ignores split/overlong/NUL payoutMethod", "card", nil, "", sp("SPLİT"), "card", "sale"},
+		{"split sentinel without lines: SQL default", "split", nil, "", nil, "split", "default"},
+		{"split chosen method is canonicalised to the configured id", "split", split,
+			`[{"id":"tunai","label":"Tunai","isEnabled":true,"isCash":true}]`, sp(" Tunai "), "tunai", "chosen"},
+		{"split chosen unconfigured method is kept trimmed", "split", split, "", sp(" Voucher "), "Voucher", "chosen"},
 		{"single-method lines ignore payoutMethod", "card", []payoutLine{{"card", 100, 1}}, "", sp("cash"), "card", "sale"},
 		{"split without payoutMethod: the cash line", "split", split, "", nil, "cash", "default"},
 		{"split with payoutMethod: chosen, any method", "split", split, "", sp("transfer"), "transfer", "chosen"},
@@ -167,5 +177,24 @@ func TestResolveRefundPayout(t *testing.T) {
 				t.Fatalf("got %q/%q want %q/%q", m, s, tc.wantMethod, tc.wantSource)
 			}
 		})
+	}
+}
+
+func TestResolveRefundPayoutRejectsMalformedOnlyOnSplit(t *testing.T) {
+	split := []payoutLine{{"card", 70000, 1}, {"cash", 30000, 2}}
+	for _, v := range []string{"", "  ", "split", "SPL\u0130T", "qr\x00is", strings.Repeat("a", 65)} {
+		tx := &payoutTx{lines: split}
+		if _, _, err := resolveRefundPayout(context.Background(), tx, refundTestOrderID, "split", sp(v)); err != ErrRefundPayoutInvalid {
+			t.Fatalf("split order, payoutMethod %q: want ErrRefundPayoutInvalid, got %v", v, err)
+		}
+	}
+}
+
+func TestCanonicalPayoutMethod(t *testing.T) {
+	methods := []api.PaymentMethodConfig{{Id: " Tunai "}, {Id: "QRIS"}}
+	for in, want := range map[string]string{"tunai": "Tunai", " TUNAI": "Tunai", "qris": "QRIS", " other ": "other", "": ""} {
+		if got := canonicalPayoutMethod(methods, in); got != want {
+			t.Fatalf("canonicalPayoutMethod(%q)=%q want %q", in, got, want)
+		}
 	}
 }

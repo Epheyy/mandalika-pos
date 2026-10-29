@@ -18,6 +18,18 @@ const (
 // so the caller maps it to HTTP 422. Batch/offline sales never produce it.
 var ErrTenderRejected = apperr.New(apperr.Rejected, "Uang tunai yang diterima kurang dari total pembayaran")
 
+// errTenderMultiCash is the online reject of a second cash line (D-52). It keeps its own
+// text (it is not a cash shortfall) but still matches ErrTenderRejected, so the handler maps
+// it to the same 422.
+var errTenderMultiCash error = tenderRejection{apperr.New(apperr.Rejected,
+	"Hanya boleh satu pembayaran tunai per transaksi, gabungkan menjadi satu baris tunai")}
+
+type tenderRejection struct{ error }
+
+func (e tenderRejection) ErrorCode() apperr.Code { return apperr.Rejected }
+
+func (tenderRejection) Is(target error) bool { return target == error(ErrTenderRejected) }
+
 func tenderRejectedError(paid, due float64) error {
 	return fmt.Errorf("%w: diterima %.2f, total %.2f", ErrTenderRejected, paid, due)
 }

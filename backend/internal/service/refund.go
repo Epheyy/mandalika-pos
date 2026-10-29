@@ -89,10 +89,6 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 	if err != nil {
 		return RefundResult{}, err
 	}
-	payoutAsked, err := ValidateRefundPayoutMethod(in.PayoutMethod)
-	if err != nil {
-		return RefundResult{}, err
-	}
 	// A42: enter the global lock order (codes -> customer -> stock) BEFORE locking the
 	// order row. The order's codes are immutable and its customer only changes by a
 	// merge, so read them unlocked, lock codes then customer, then lock the order and
@@ -252,7 +248,7 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 		newBal = afterClaw + restored
 	}
 
-	payoutMethod, payoutSource, err := resolveRefundPayout(ctx, tx, orderID, o.paymentMethod, payoutAsked)
+	payoutMethod, payoutSource, err := resolveRefundPayout(ctx, tx, orderID, o.paymentMethod, in.PayoutMethod)
 	if err != nil {
 		return RefundResult{}, err
 	}

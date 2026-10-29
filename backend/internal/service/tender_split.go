@@ -116,7 +116,7 @@ func mergeCashLines(lines []TenderLine, isCash func(string) bool, mode tenderMod
 			continue
 		}
 		if mode == tenderOnline {
-			return nil, false, fmt.Errorf("%w: lebih dari satu pembayaran tunai", ErrTenderRejected)
+			return nil, false, errTenderMultiCash
 		}
 		out[firstCash].Amount = fromCents(toCents(out[firstCash].Amount) + toCents(l.Amount))
 		merged = true
@@ -236,6 +236,17 @@ type tenderWire struct {
 	Reference *string  `json:"reference"`
 }
 
+// isSplitID reports whether a method id is the reserved split sentinel. It folds exactly like
+// Postgres lower() (which maps U+0130 to i, unlike strings.EqualFold), so the order_tenders
+// CHECK can never trip inside the transaction on a value validation let through.
+func isSplitID(m string) bool { return strings.ToLower(strings.TrimSpace(m)) == splitMethodID }
+
+// hasNonPrintable reports a NUL or any other non-printable rune; Postgres rejects NUL in text
+// (22021) inside the transaction, which would be a 500 and an endless batch retry.
+func hasNonPrintable(s string) bool {
+	return strings.IndexFunc(s, func(r rune) bool { return !unicode.IsPrint(r) }) >= 0
+}
+
 func tenderInputError(reason string) error { return saleInputError("tenders", reason) }
 
 // parseTenders decodes and structurally validates the raw tenders value. present is
@@ -278,7 +289,9 @@ func validateTenderLine(i int, w tenderWire, multi bool) (TenderLine, error) {
 		return TenderLine{}, saleInputError(field+".method", "wajib diisi")
 	case utf8.RuneCountInString(method) > maxTenderMethodLen:
 		return TenderLine{}, saleInputError(field+".method", "terlalu panjang")
-	case strings.EqualFold(method, splitMethodID):
+	case hasNonPrintable(method):
+		return TenderLine{}, saleInputError(field+".method", "tidak valid")
+	case isSplitID(method):
 		return TenderLine{}, saleInputError(field+".method", "memakai id yang dicadangkan")
 	case w.Amount == nil:
 		return TenderLine{}, saleInputError(field+".amount", "wajib berupa angka")
@@ -293,7 +306,7 @@ func validateTenderLine(i int, w tenderWire, multi bool) (TenderLine, error) {
 	if w.Reference != nil {
 		ref = *w.Reference
 	}
-	if utf8.RuneCountInString(ref) > maxTenderReferenceLn || strings.IndexFunc(ref, func(r rune) bool { return !unicode.IsPrint(r) }) >= 0 {
+	if utf8.RuneCountInString(ref) > maxTenderReferenceLn || hasNonPrintable(ref) {
 		return TenderLine{}, saleInputError(field+".reference", "tidak valid")
 	}
 	return TenderLine{Method: w.Method, Amount: *w.Amount, Reference: ref}, nil

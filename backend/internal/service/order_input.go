@@ -125,7 +125,7 @@ func ValidateSaleInput(in CreateOrderInput) error {
 	}
 	// The reserved split sentinel is only valid with tenders; without them it would
 	// reach the order_tenders CHECK inside the transaction (a 500, endless batch retry).
-	if strings.EqualFold(strings.TrimSpace(in.PaymentMethod), splitMethodID) {
+	if isSplitID(in.PaymentMethod) {
 		return saleInputError("paymentMethod", "split memerlukan daftar pembayaran")
 	}
 	return nil
