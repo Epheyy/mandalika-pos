@@ -279,35 +279,43 @@ func buildTenders(h OutboxHeader, order *OrderInfo, methods []api.PaymentMethodC
 }
 
 // saleTenders emits one tender per payment line with amount > 0. Lines are whole rupiah and
-// the last kept line takes the rounding remainder so the amounts add up to order.Total
-// (already round(total)). Lines of an unmappable method (custom ids) are omitted after the
-// remainder is settled (D-61).
+// the rounding remainder (round(total) minus the line sum) is settled on the last MAPPED line,
+// so the amounts add up to order.Total whenever every line is mappable. A negative remainder
+// larger than that line is taken off the earlier mapped lines backwards, never below 0. Lines
+// of an unmappable method (custom ids) are omitted (D-61) and take no remainder.
 func saleTenders(order *OrderInfo, methods []api.PaymentMethodConfig) []Tender {
 	lines := order.Tenders
 	if len(lines) == 0 {
 		lines = []OrderTender{{Method: order.PaymentMethod, Amount: order.Total}}
 	}
-	kept := make([]OrderTender, 0, len(lines))
 	var sum int64
-	for _, l := range lines {
-		if l.Amount > 0 {
-			kept = append(kept, l)
-			sum += l.Amount
-		}
-	}
-	if n := len(kept); n > 0 {
-		kept[n-1].Amount += order.Total - sum
-	}
 	var out []Tender
-	for _, l := range kept {
+	for _, l := range lines {
 		if l.Amount <= 0 {
 			continue
 		}
+		sum += l.Amount
 		if m := erpTenderMethod(l.Method, rules.IsCashMethod(methods, l.Method)); m != "" {
 			out = append(out, Tender{Method: m, Amount: l.Amount})
 		}
 	}
-	return out
+	remainder := order.Total - sum
+	if remainder >= 0 && len(out) > 0 {
+		out[len(out)-1].Amount += remainder
+		return out
+	}
+	for i := len(out) - 1; i >= 0 && remainder < 0; i-- {
+		take := min(out[i].Amount, -remainder)
+		out[i].Amount -= take
+		remainder += take
+	}
+	kept := out[:0]
+	for _, t := range out {
+		if t.Amount > 0 {
+			kept = append(kept, t)
+		}
+	}
+	return kept
 }
 
 // legacyRefundKey reports whether key is the pre-C4a whole-order refund key "refund:<orderId>",

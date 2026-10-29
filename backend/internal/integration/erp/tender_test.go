@@ -110,3 +110,32 @@ func TestBuildTendersPartTwoCarriesNone(t *testing.T) {
 		t.Errorf("part 2 tenders = %+v, want none", doc.Tenders)
 	}
 }
+
+func TestBuildTendersRemainderSkipsUnmappedLastLine(t *testing.T) {
+	in := input("sale", movement("a", -1))
+	// 99999 of lines against round(total)=100000: the remainder goes to the last MAPPED line (qris),
+	// not to the custom last line that D-61 then omits.
+	in.Order = saleOrder(100000, OrderTender{"qris", 66666}, OrderTender{"bca", 33333})
+	doc := mustBuild(t, in)
+	if len(doc.Tenders) != 1 || doc.Tenders[0] != (Tender{Method: "qris", Amount: 66667}) {
+		t.Errorf("tenders = %+v, want qris 66667", doc.Tenders)
+	}
+}
+
+func TestBuildTendersNegativeRemainderSpreadsBackwards(t *testing.T) {
+	in := input("sale", movement("a", -1))
+	// Lines sum to 100003 against round(total)=100000: the -3 exceeds the last line (1) and
+	// continues into the previous one; nothing goes below zero and the sum is round(total).
+	in.Order = saleOrder(100000, OrderTender{"qris", 100002}, OrderTender{"tunai", 1})
+	doc := mustBuild(t, in)
+	var sum int64
+	for _, tn := range doc.Tenders {
+		if tn.Amount <= 0 {
+			t.Fatalf("non-positive tender %+v", tn)
+		}
+		sum += tn.Amount
+	}
+	if sum != 100000 || len(doc.Tenders) != 1 || doc.Tenders[0] != (Tender{Method: "qris", Amount: 100000}) {
+		t.Errorf("tenders = %+v sum=%d, want qris 100000 only", doc.Tenders, sum)
+	}
+}
