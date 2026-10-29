@@ -172,28 +172,24 @@ FROM agg, ragg, pay, gpay, rpay, prod, daily`, sbSQL, refundWhere, lineSrc)
 //     paid out in a method the sale did not use still nets that method negative and the maps
 //     keep adding up to the order. has_line marks methods that had a payment line (gross only).
 //
-// saleWhere is rendered twice (lines and refund rows); its placeholders are positional, so
-// reuse is safe. A method filter appends its own argument for the CTE comparison.
+// saleWhere is rendered ONCE, as a MATERIALIZED base CTE aliased `o` in its readers (sb unfiltered,
+// so under a method filter), so the filter scan of orders is not repeated for the payment lines
+// and the refund rows of sbl. The base projects every orders column tenderlines.Lateral reads
+// (id, total, payment_method, amount_paid, change) plus what sbl keeps (status, business_date).
+// A method filter appends its own argument for the CTE comparison.
 func summarySaleCTEs(f OrderFilter, saleWhere string, args *[]any) (ctes, lineSrc string) {
-	sbl := fmt.Sprintf(`sbl AS (
-  SELECT x.id, x.status, x.business_date, x.method AS payment_method,
-         SUM(x.gross) AS total, SUM(x.gross) - SUM(x.paid_out) AS net_total, bool_or(x.is_line) AS has_line
-  FROM (
-    SELECT o.id, o.status, o.business_date, tl.method, tl.amount AS gross, 0::numeric AS paid_out, true AS is_line
-      FROM orders o %s %s
-    UNION ALL
-    SELECT o.id, o.status, o.business_date, r.payment_method, 0, r.amount, false
-      FROM orders o JOIN order_refunds r ON r.order_id = o.id %s
-  ) x GROUP BY x.id, x.status, x.business_date, x.method
-)`, tenderLinesLateral, saleWhere, saleWhere)
 	if !f.isMethodLimited() {
-		sb := fmt.Sprintf(`sb AS (
-  SELECT o.id, o.total, o.status, o.payment_method, o.business_date, true AS has_line,
+		sb := fmt.Sprintf(`sb AS MATERIALIZED (
+  SELECT o.id, o.total, o.status, o.payment_method, o.business_date, o.amount_paid, o.change, true AS has_line,
          o.total - COALESCE((SELECT SUM(r.amount) FROM order_refunds r WHERE r.order_id = o.id), 0) AS net_total
   FROM orders o %s
 )`, saleWhere)
-		return sb + ",\n" + sbl, "sbl"
+		return sb + ",\n" + summaryLinesCTE("sb"), "sbl"
 	}
+	so := fmt.Sprintf(`so AS MATERIALIZED (
+  SELECT o.id, o.total, o.status, o.payment_method, o.business_date, o.amount_paid, o.change
+  FROM orders o %s
+)`, saleWhere)
 	*args = append(*args, f.PaymentMethod)
 	n := len(*args)
 	lineSrc = fmt.Sprintf("(SELECT * FROM sbl WHERE lower(btrim(payment_method)) = lower(btrim($%d))) lm", n)
@@ -201,5 +197,20 @@ func summarySaleCTEs(f OrderFilter, saleWhere string, args *[]any) (ctes, lineSr
   SELECT id, status, business_date, SUM(total) AS total, SUM(net_total) AS net_total, bool_or(has_line) AS has_line
   FROM %s GROUP BY id, status, business_date
 )`, lineSrc)
-	return sbl + ",\n" + sb, lineSrc
+	return so + ",\n" + summaryLinesCTE("so") + ",\n" + sb, lineSrc
+}
+
+// summaryLinesCTE renders sbl over the materialized sale-set base CTE `base` (aliased `o`).
+func summaryLinesCTE(base string) string {
+	return fmt.Sprintf(`sbl AS (
+  SELECT x.id, x.status, x.business_date, x.method AS payment_method,
+         SUM(x.gross) AS total, SUM(x.gross) - SUM(x.paid_out) AS net_total, bool_or(x.is_line) AS has_line
+  FROM (
+    SELECT o.id, o.status, o.business_date, tl.method, tl.amount AS gross, 0::numeric AS paid_out, true AS is_line
+      FROM %[1]s o %[2]s
+    UNION ALL
+    SELECT o.id, o.status, o.business_date, r.payment_method, 0, r.amount, false
+      FROM %[1]s o JOIN order_refunds r ON r.order_id = o.id
+  ) x GROUP BY x.id, x.status, x.business_date, x.method
+)`, base, tenderLinesLateral)
 }
