@@ -33,7 +33,7 @@ const orderObj = `json_build_object('id',o.id,'orderNumber',o.order_number,
   -- C6a: the payment lines (a tenderless order gets one synthetic line), so every order has >= 1.
   'tenders',(SELECT json_agg(json_build_object('seq',tl.seq,'method',tl.method,'amount',tl.amount,
      'tendered',tl.tendered,'change',tl.change,'reference',tl.reference,'synthetic',tl.synthetic)
-     ORDER BY tl.seq) FROM (SELECT 1) one `+tenderLinesLateral+`),
+     ORDER BY tl.seq) FROM (SELECT 1) one ` + tenderLinesLateral + `),
   'refundedAmount',(SELECT sum(r.amount) FROM order_refunds r WHERE r.order_id=o.id),
   'refunds',(SELECT json_agg(json_build_object(
      'id',r.id,'seq',r.seq,'scope',r.scope,'amount',r.amount,'computedAmount',r.computed_amount,'claimedAmount',r.claimed_amount,
