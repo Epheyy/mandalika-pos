@@ -76,6 +76,10 @@ type refundPayload struct {
 	} `json:"items"`
 	RefundAmount *float64 `json:"refundAmount"`
 	ReasonCode   string   `json:"reasonCode"`
+	// PayoutMethod (C6a) stays raw so absent/null (server decides) and a non-string value (a
+	// structural reject, never a silent default) can be told apart. The older display-only
+	// `paymentMethod` key is not decoded and stays ignored.
+	PayoutMethod json.RawMessage `json:"payoutMethod"`
 	// OrderUUID is the outbox item's client uuid (commitOutbox adds it): the refund's own id.
 	OrderUUID string `json:"orderUuid"`
 }
@@ -104,6 +108,7 @@ func (p refundPayload) input(c Caller, orderID string) service.RefundInput {
 			in.Items[i] = service.RefundItemInput{LineNo: *it.LineNo, Quantity: *it.Quantity}
 		}
 	}
+	in.PayoutMethod = payoutMethodFromRaw(p.PayoutMethod)
 	if p.RefundAmount != nil {
 		v := int64(-1)
 		if a := math.Round(*p.RefundAmount); a >= 0 && a <= 1e12 {
@@ -112,6 +117,19 @@ func (p refundPayload) input(c Caller, orderID string) service.RefundInput {
 		in.RefundAmount = &v
 	}
 	return in
+}
+
+// payoutMethodFromRaw maps the raw payoutMethod key: absent or null = nil (the server
+// decides); a string = itself; anything else = a blank string, which the service rejects.
+func payoutMethodFromRaw(raw json.RawMessage) *string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		s = ""
+	}
+	return &s
 }
 
 func resolveSaleTx(ctx context.Context, tx pgx.Tx, outletID, orderUUID string) (string, string, error) {

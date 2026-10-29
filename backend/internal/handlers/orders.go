@@ -180,6 +180,8 @@ func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		// ClientRefundUUID makes a retry of the same admin refund a replay (UNIQUE(device_id,
 		// client_refund_uuid)) instead of a second payout when the response was lost. Optional.
 		ClientRefundUUID string `json:"clientRefundUuid"`
+		// PayoutMethod (C6a): honoured only on a split-payment order; nil = the server default.
+		PayoutMethod *string `json:"payoutMethod"`
 		// Items is the per-line shape (C4c admin refund). Absent = the whole order; a present
 		// but empty array stays non-nil so the service refuses it instead of refunding everything.
 		Items []struct {
@@ -240,7 +242,7 @@ func (h *Handlers) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		return h.OrderSvc.Refund(r.Context(), service.RefundInput{
 			OutletID: outlet, OrderID: id, Reason: body.Reason,
 			UserID: c.userID, UserName: c.name,
-			Items: items, ReasonCode: body.ReasonCode,
+			Items: items, ReasonCode: body.ReasonCode, PayoutMethod: body.PayoutMethod,
 			DeviceID: directRefundDevice(c.userID, body.ClientRefundUUID), ClientRefundUUID: body.ClientRefundUUID,
 		})
 	}); err != nil {
