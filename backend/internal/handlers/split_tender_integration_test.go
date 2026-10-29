@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/config"
+	"github.com/mandalika/pos-backend/internal/integration/erp"
 	mw "github.com/mandalika/pos-backend/internal/middleware"
 	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/service"
@@ -50,7 +51,8 @@ func TestSplitTenderPostgres(t *testing.T) {
 	t.Run("6 read round trip", func(t *testing.T) { e.t = t; e.readRoundTrip() })
 	t.Run("7 shift close", func(t *testing.T) { e.t = t; e.shiftClose() })
 	t.Run("8 reports", func(t *testing.T) { e.t = t; e.reports() })
-	// C6a later chunks append subtests 1-5, 9, 9b, 10 and 11 above this line, on the same spEnv.
+	t.Run("10 erp tenders", func(t *testing.T) { e.t = t; e.erpTenders() })
+	// C6a later chunks append subtests 1-5, 9, 9b and 11 above this line, on the same spEnv.
 }
 
 func newSPEnv(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *spEnv {
@@ -588,4 +590,56 @@ func (e *spEnv) reports() {
 		ByPay:     map[string]float64{"qris": 90000, "cash": -60000, "card": 20000},
 		GrossBy:   map[string]float64{"qris": 90000, "cash": 40000, "card": 20000},
 		RefundsBy: map[string]float64{"cash": 100000}})
+}
+
+// ── subtest 10: ERP tenders ──
+
+// erpDocument builds the wire document of the order's outbox row of a kind exactly as the relay does.
+func (e *spEnv) erpDocument(order, kind string) erp.StockDocument {
+	e.t.Helper()
+	var hd erp.OutboxHeader
+	err := e.pool.QueryRow(e.ctx, `SELECT id::text, document_id::text, kind, location_type, location_id::text, ref_type, ref_id::text,
+	    coalesce(ref_number,''), part, part_count, created_at FROM erp_outbox WHERE ref_id=$1 AND kind=$2 AND part<=1`, order, kind).
+		Scan(&hd.ID, &hd.DocumentID, &hd.Kind, &hd.LocationType, &hd.LocationID, &hd.RefType, &hd.RefID, &hd.RefNumber, &hd.Part, &hd.PartCount, &hd.CreatedAt)
+	if err != nil {
+		e.t.Fatalf("outbox %s row of %s: %v", kind, order, err)
+	}
+	in, err := erp.LoadBuildInput(e.ctx, e.pool, hd, "mandalika")
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	doc, hold, err := erp.BuildDocument(in)
+	if err != nil || hold != "" {
+		e.t.Fatalf("BuildDocument %s: hold=%q err=%v", kind, hold, err)
+	}
+	return doc
+}
+
+func (e *spEnv) erpTenders() {
+	o := e.newOutlet()
+	pid := e.newProduct(o, 100000)
+	order := e.sale(o, pid, "split", 100000, 110000, []map[string]any{
+		{"method": "qris", "amount": 60000, "reference": "R1"}, {"method": "tunai", "amount": 50000}}, "")
+
+	// live `tunai` goes out as cash; the lines sum to the order total (change is not a tender).
+	doc := e.erpDocument(order, "sale")
+	want := []erp.Tender{{Method: "qris", Amount: 60000}, {Method: "cash", Amount: 40000}}
+	if len(doc.Tenders) != 2 || doc.Tenders[0] != want[0] || doc.Tenders[1] != want[1] {
+		e.t.Fatalf("sale tenders = %+v, want %+v", doc.Tenders, want)
+	}
+	var sum int64
+	for _, tn := range doc.Tenders {
+		sum += tn.Amount
+	}
+	if sum != 100000 {
+		e.t.Fatalf("tender sum = %d, want the order total 100000", sum)
+	}
+
+	// the refund document's tender is the payout method, negated.
+	e.refund(o, order, "qris", "")
+	rd := e.erpDocument(order, "refund")
+	if len(rd.Tenders) != 1 || rd.Tenders[0] != (erp.Tender{Method: "qris", Amount: -100000}) {
+		e.t.Fatalf("refund tenders = %+v, want qris -100000", rd.Tenders)
+	}
+
 }
