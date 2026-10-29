@@ -10,7 +10,7 @@ import {
 } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { localDay } from '../../lib/businessDay'
-import { hasRefundIn, isRefundedStatus, refundedMoney, refundSlices, reportTotals, stillSoldMoney, type RefundWindow } from '../reports/reportTotals'
+import { hasRefundIn, isRefundedStatus, methodNetRows, refundedMoney, refundSlices, reportTotals, stillSoldMoney, type RefundWindow } from '../reports/reportTotals'
 
 export type Period = 'today' | '7d' | '30d' | 'all'
 
@@ -401,7 +401,9 @@ export interface PayRow {
 
 export function paymentBreakdown(completed: Order[]): PayRow[] {
   const map = new Map<string, number>()
-  for (const o of completed) map.set(o.paymentMethod, (map.get(o.paymentMethod) ?? 0) + stillSoldMoney(o))
+  // C6a: per (order, method) row (tenders[] lines minus refunds paid out in that method); an older
+  // backend or pre-C6 order falls back to one row keyed by the order method.
+  for (const o of completed) for (const r of methodNetRows(o)) map.set(r.method, (map.get(r.method) ?? 0) + r.net)
   return [...map.entries()]
     .map(([method, amount]) => ({
       method,
