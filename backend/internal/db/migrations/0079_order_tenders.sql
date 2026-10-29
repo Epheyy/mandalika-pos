@@ -1,4 +1,8 @@
 SET LOCAL lock_timeout = '5s';
+-- Take every lock up front, app_settings first: an old-revision sale holds ACCESS SHARE on
+-- app_settings and then needs ROW EXCLUSIVE on orders, so locking one table at a time here
+-- (orders for the FK, then order_refunds, then app_settings) can deadlock with it.
+LOCK TABLE app_settings, orders, order_refunds IN ACCESS EXCLUSIVE MODE;
 -- C6a split payment. A sale becomes one or more tender lines (order_tenders); a refund records
 -- where its money went (order_refunds.payout_source); the feature ships dark behind
 -- app_settings.split_tender_enabled. Additive: an old binary ignores the new table and columns,
