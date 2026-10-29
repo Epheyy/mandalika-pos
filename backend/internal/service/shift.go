@@ -253,7 +253,8 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 
 // shiftCashMethodIDs lists the payment method ids on this shift's completed, partially refunded and refunded orders
 // (C6a: their payment LINES, so a cash line inside a split order is cash),
-// and on refunds this shift paid out (order_refunds.shift_id), that are cash at close time
+// and on refunds this shift paid out (order_refunds.shift_id) or that were paid out on this shift's
+// own orders by any shift, that are cash at close time
 // (the flag in force now decides; closed shifts are a snapshot and never change).
 // The UPDATE aggregates cash_sales and cash_refunds_paid and excludes these ids from
 // the card/transfer/qris buckets, so nothing is counted twice. Custom non-cash
@@ -268,7 +269,12 @@ func shiftCashMethodIDs(ctx context.Context, tx pgx.Tx, shiftID string) ([]strin
 		`SELECT tl.method FROM orders o `+tenderlines.Lateral+`
 		  WHERE o.shift_id=$1 AND o.status IN ('completed','partially_refunded','refunded')
 		 UNION
-		 SELECT payment_method FROM order_refunds WHERE shift_id=$1`, shiftID)
+		 SELECT payment_method FROM order_refunds WHERE shift_id=$1
+		 UNION
+		 -- block (b) subtracts the refunds of this shift's own orders whichever shift paid them, so
+		 -- their payout methods must be classified too (shift B refunds shift A's split sale in cash)
+		 SELECT r.payment_method FROM orders o JOIN order_refunds r ON r.order_id = o.id
+		  WHERE o.shift_id=$1 AND o.status IN ('completed','partially_refunded','refunded')`, shiftID)
 	if err != nil {
 		return nil, err
 	}
