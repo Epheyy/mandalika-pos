@@ -40,7 +40,15 @@ type OrderFilter struct {
 	// refund row match (A27, C4a: this includes partially refunded orders).
 	// LegacyFrom/LegacyTo always stay on created_at (POS contract).
 	DateBasis string
+	// summary selects the report-summary reading of PaymentMethod (C6a, D-66: money limited to
+	// that method) instead of the list reading (orders that contain the method). Only
+	// ReportSummary sets it, on its own copies of the filter.
+	summary bool
 }
+
+// splitMethodValue is the order-level sentinel (orders.payment_method) of a sale paid with
+// several methods; tender lines themselves are never `split`.
+const splitMethodValue = "split"
 
 // refundBasis reports whether the filter reads the refund side.
 func (f OrderFilter) refundBasis() bool { return f.DateBasis == "refund" }
@@ -118,7 +126,8 @@ func appendOrderWhere(f OrderFilter, args []any, refundRows bool) (string, []any
 		where += fmt.Sprintf(" AND o.status=$%d", add(f.Status))
 	}
 	if f.PaymentMethod != "" {
-		where += fmt.Sprintf(" AND lower(btrim(o.payment_method)) = lower(btrim($%d))", add(f.PaymentMethod))
+		n := add(f.PaymentMethod)
+		where += " AND " + paymentMethodRule(f, n, refundRows)
 	}
 	if f.Q != "" {
 		n := add("%" + f.Q + "%")
@@ -139,6 +148,33 @@ func appendOrderWhere(f OrderFilter, args []any, refundRows bool) (string, []any
 		}
 	}
 	return where, args
+}
+
+// paymentMethodRule renders the payment-method condition for placeholder $n (C6a, plan 2.4 R4).
+//   - `split` ("Split-Payment"): the order column, whole-order money, in every mode (tender
+//     lines are never `split`, so an EXISTS on them would match nothing).
+//   - summary refund set (summary && refundRows): refund rows PAID OUT in that method
+//     (order_refunds.payment_method), not rows of orders that contain it (D-66).
+//   - otherwise (the list, CSV and the summary's sale set): orders with a payment line in that
+//     method, an order without stored lines counting through its synthetic line
+//     (payment_method).
+func paymentMethodRule(f OrderFilter, n int, refundRows bool) string {
+	if strings.EqualFold(strings.TrimSpace(f.PaymentMethod), splitMethodValue) {
+		return fmt.Sprintf("lower(btrim(o.payment_method)) = lower(btrim($%d))", n)
+	}
+	if f.summary && refundRows {
+		return fmt.Sprintf("lower(btrim(r.payment_method)) = lower(btrim($%d))", n)
+	}
+	return fmt.Sprintf(`(EXISTS (SELECT 1 FROM order_tenders pt WHERE pt.order_id = o.id AND lower(btrim(pt.method)) = lower(btrim($%[1]d)))
+	    OR (NOT EXISTS (SELECT 1 FROM order_tenders pt2 WHERE pt2.order_id = o.id)
+	        AND lower(btrim(o.payment_method)) = lower(btrim($%[1]d))))`, n)
+}
+
+// isMethodLimited reports whether the summary money must be limited to one method (D-66):
+// a method filter that is not the whole-order `split` value.
+func (f OrderFilter) isMethodLimited() bool {
+	m := strings.TrimSpace(f.PaymentMethod)
+	return m != "" && !strings.EqualFold(m, splitMethodValue)
 }
 
 // appliedWindow reports the legacy [from,to) instants for the summary echo; nil = not given.

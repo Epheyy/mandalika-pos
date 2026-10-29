@@ -161,3 +161,28 @@ func TestBuildOrderWhereSaleBasisKeepsOrderColumns(t *testing.T) {
 		t.Errorf("where = %q", where)
 	}
 }
+
+func TestPaymentMethodRuleListSummaryAndSplit(t *testing.T) {
+	list := OrderFilter{Scope: Scope{CrossAll: true}, PaymentMethod: "qris"}
+	where, _ := buildOrderWhere(list)
+	if !strings.Contains(where, "FROM order_tenders pt") || !strings.Contains(where, "NOT EXISTS (SELECT 1 FROM order_tenders pt2") {
+		t.Errorf("list rule must test tender lines with the synthetic fallback: %q", where)
+	}
+	sum := list
+	sum.summary = true
+	if w, _ := appendOrderWhere(sum, []any{}, false); !strings.Contains(w, "FROM order_tenders pt") {
+		t.Errorf("summary sale set keeps the line rule: %q", w)
+	}
+	if w, _ := appendOrderWhere(sum, []any{}, true); !strings.Contains(w, "lower(btrim(r.payment_method))") || strings.Contains(w, "order_tenders") {
+		t.Errorf("summary refund set filters the refund row's method: %q", w)
+	}
+	split := OrderFilter{Scope: Scope{CrossAll: true}, PaymentMethod: " Split", summary: true}
+	for _, rows := range []bool{false, true} {
+		if w, _ := appendOrderWhere(split, []any{}, rows); !strings.Contains(w, "lower(btrim(o.payment_method))") || strings.Contains(w, "order_tenders") {
+			t.Errorf("split is the order column (rows=%v): %q", rows, w)
+		}
+	}
+	if !list.isMethodLimited() || split.isMethodLimited() || (OrderFilter{}).isMethodLimited() {
+		t.Error("isMethodLimited: method yes, split/none no")
+	}
+}
