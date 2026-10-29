@@ -462,8 +462,10 @@ func (e *spEnv) shiftClose() {
 	e.rawOrder(o, "qris", "cancelled", 5000, sh)
 	e.rawOrder(o, "card", "refunded", 7000, sh)
 	e.refund(o, q, "", sh)
+	e.sale(o, pid, "tunai", 12000, 12000, nil, sh) // the live cash id besides `cash`
+	e.partialCashSale(o, pid, sh)
 	var want spShiftRow
-	if err := e.pool.QueryRow(e.ctx, oldShiftSQL, sh, []string{"cash"}).
+	if err := e.pool.QueryRow(e.ctx, oldShiftSQL, sh, []string{"cash", "tunai"}).
 		Scan(&want.total, &want.orders, &want.refunds, &want.cash, &want.card, &want.transfer, &want.qris); err != nil {
 		e.t.Fatal(err)
 	}
@@ -476,6 +478,11 @@ func (e *spEnv) shiftClose() {
 	if want.cash == 0 || want.qris == 0 || want.orders == 0 {
 		e.t.Fatalf("fixture too weak to prove identity: %+v", want)
 	}
+	if e.num(`SELECT count(*) FROM orders WHERE shift_id=$1 AND status='partially_refunded'`, sh) != 1 {
+		e.t.Fatal("fixture must carry a partially_refunded order")
+	}
+	e.shiftSplitOnlyCash()
+	e.shiftCrossShiftRefund()
 
 	// (b) split sales: a cash-payout refund of a split sale, a completed split sale, a single
 	// cash sale and a CANCELLED split sale (counted nowhere).
@@ -501,6 +508,61 @@ func (e *spEnv) shiftClose() {
 	}
 	if b := wantSplit; !near(b.cash+b.card+b.transfer+b.qris, b.total) {
 		e.t.Fatal("buckets must add up to total_sales")
+	}
+}
+
+// partialCashSale: a two-unit cash sale of which one unit is refunded (status partially_refunded).
+func (e *spEnv) partialCashSale(o spOutlet, pid, shift string) {
+	e.t.Helper()
+	id := e.batchSale(o, e.salePayloadShift(pid, "cash", 20000, 20000, 2, shift))
+	p := map[string]any{"orderId": id, "reason": "rusak", "deviceId": e.device, "orderUuid": e.nextID("1000"),
+		"items": []map[string]any{{"lineNo": 0, "quantity": 1}}}
+	if res := e.send(o, "refund", p, shift); res["status"] != "ok" {
+		e.t.Fatalf("partial refund: %v", res)
+	}
+}
+
+func (e *spEnv) salePayloadShift(pid, method string, total, paid float64, qty int, shift string) map[string]any {
+	p := e.salePayload(pid, method, total, paid, qty, nil)
+	if shift != "" {
+		p["shiftId"] = shift
+	}
+	return p
+}
+
+// shiftSplitOnlyCash: the shift's ONLY cash is the cash line of a split sale (its order method
+// is the sentinel), so the cash bucket and the cash id list must come from the payment lines.
+func (e *spEnv) shiftSplitOnlyCash() {
+	o := e.newOutlet()
+	pid := e.newProduct(o, 10000)
+	sh := e.newShift(o)
+	e.sale(o, pid, "split", 100000, 100000, []map[string]any{{"method": "qris", "amount": 60000}, {"method": "cash", "amount": 40000}}, sh)
+	if err := e.svc.CloseShift(e.ctx, o.id, sh, 0, nil); err != nil {
+		e.t.Fatal(err)
+	}
+	want := spShiftRow{total: 100000, orders: 1, cash: 40000, qris: 60000}
+	if got := e.readShift(sh); got != want {
+		e.t.Fatalf("split-only cash shift: got %+v want %+v", got, want)
+	}
+}
+
+// shiftCrossShiftRefund: shift B refunds shift A's split sale with the free-text payout "Tunai"
+// while A's line says `cash`. A's block (b) subtracts that refund, so its method must be a
+// cash id of A's close or the negative row lands in no bucket.
+func (e *spEnv) shiftCrossShiftRefund() {
+	o := e.newOutlet()
+	pid := e.newProduct(o, 10000)
+	a, b := e.newShift(o), e.nextID("1100") // B is another shift (one open per outlet: it is recorded closed)
+	e.exec(`INSERT INTO shifts(id,outlet_id,cashier_id,cashier_name,status,opened_at,closed_at,starting_cash) VALUES($1,$2,$3,'SP shift B','closed',now(),now(),0)`, b, o.id, o.user)
+	id := e.sale(o, pid, "split", 100000, 100000, []map[string]any{{"method": "qris", "amount": 60000}, {"method": "cash", "amount": 40000}}, a)
+	e.refund(o, id, "Tunai", "")
+	e.exec(`UPDATE order_refunds SET shift_id=$2 WHERE order_id=$1`, id, b)
+	if err := e.svc.CloseShift(e.ctx, o.id, a, 0, nil); err != nil {
+		e.t.Fatal(err)
+	}
+	want := spShiftRow{total: 0, orders: 0, refunds: 100000, cash: -60000, qris: 60000}
+	if got := e.readShift(a); got != want {
+		e.t.Fatalf("cross-shift refund: got %+v want %+v", got, want)
 	}
 }
 
@@ -563,6 +625,7 @@ func (e *spEnv) reports() {
 	e.rawOrder(o, "cash", "refunded", 15000, "")
 	e.rawOrder(o, "card", "cancelled", 9000, "")
 	e.refund(o, q, "", "")
+	e.partialCashSale(o, pid, "") // a partially_refunded order must match the oracle too
 	for _, m := range []string{"", "qris", "cash", "CARD "} {
 		q := ""
 		if m != "" {
@@ -626,6 +689,37 @@ func (e *spEnv) reports() {
 		ByPay:     map[string]float64{"qris": 90000, "cash": -60000, "card": 20000},
 		GrossBy:   map[string]float64{"qris": 90000, "cash": 40000, "card": 20000},
 		RefundsBy: map[string]float64{"cash": 100000}})
+	e.refundInMethodNeverUsed()
+}
+
+// refundInMethodNeverUsed: a QRIS 30k + card 20k split sale refunded in cash. The cash-filtered
+// summary must net that refund on the sale side too (it enters with gross 0 and is no order of
+// the method), so it agrees with the unfiltered by-method cash row and Σ daily netSales = netSales.
+func (e *spEnv) refundInMethodNeverUsed() {
+	o := e.newOutlet()
+	pid := e.newProduct(o, 10000)
+	id := e.sale(o, pid, "split", 50000, 50000, []map[string]any{
+		{"method": "qris", "amount": 30000}, {"method": "card", "amount": 20000}}, "")
+	e.refund(o, id, "cash", "")
+	un := e.summary(o.id, "")
+	e.wantSummary("never-used unfiltered", un, spSummary{
+		TotalSales: 0, GrossSales: 50000, TotalRefunds: 50000, NetSales: 0,
+		TotalOrders: 0, GrossOrders: 1, RefundedOrders: 1,
+		ByPay:     map[string]float64{"qris": 30000, "card": 20000, "cash": -50000},
+		GrossBy:   map[string]float64{"qris": 30000, "card": 20000},
+		RefundsBy: map[string]float64{"cash": 50000}})
+	cash := e.summary(o.id, "&paymentMethod=cash")
+	e.wantSummary("never-used cash filter", cash, spSummary{
+		TotalSales: -50000, GrossSales: 0, TotalRefunds: 50000, NetSales: -50000,
+		TotalOrders: 0, GrossOrders: 0, RefundedOrders: 1,
+		ByPay: map[string]float64{"cash": -50000}, GrossBy: map[string]float64{}, RefundsBy: map[string]float64{"cash": 50000}})
+	if !near(cash.ByPay["cash"], un.ByPay["cash"]) {
+		e.t.Fatalf("filtered cash %v != unfiltered cash row %v", cash.ByPay["cash"], un.ByPay["cash"])
+	}
+	e.wantSummary("never-used qris filter", e.summary(o.id, "&paymentMethod=qris"), spSummary{
+		TotalSales: 30000, GrossSales: 30000, TotalRefunds: 0, NetSales: 30000,
+		TotalOrders: 0, GrossOrders: 1, RefundedOrders: 0,
+		ByPay: map[string]float64{"qris": 30000}, GrossBy: map[string]float64{"qris": 30000}, RefundsBy: map[string]float64{}})
 }
 
 // ── subtest 10: ERP tenders ──

@@ -123,9 +123,30 @@ func (e *spEnv) payoutConfigured(o spOutlet, pid string) {
 	e.refundOK(o, h, nil)
 	e.want("case-mismatched configured id", e.payouts(h), "kas_kecil/default")
 	e.agrees(h, "kas_kecil")
+
+	// a chosen method that matches a configured id case-insensitively is stored as that id, so
+	// the case-sensitive shift buckets classify it.
+	k := e.splitSale(o, pid, line("qris", 60000), line("kas_kecil", 40000))
+	e.refundOK(o, k, map[string]any{"payoutMethod": " KAS_KECIL "})
+	e.want("chosen payout canonicalised", e.payouts(k), "Kas_Kecil/chosen")
+	free := e.splitSale(o, pid, line("qris", 60000), line("kas_kecil", 40000))
+	e.refundOK(o, free, map[string]any{"payoutMethod": " Voucher "})
+	e.want("unconfigured chosen payout kept trimmed", e.payouts(free), "Voucher/chosen")
 }
 
 func (e *spEnv) payoutLegacyWriter(o spOutlet, pid string) {
+	// a sentinel order without tender rows: Go and the trigger both record the order method as default.
+	z := e.sale(o, pid, "qris", 100000, 100000, nil, "")
+	e.exec(`DELETE FROM order_tenders WHERE order_id=$1`, z)
+	e.exec(`UPDATE orders SET payment_method='split' WHERE id=$1`, z)
+	e.refundOK(o, z, nil)
+	e.want("sentinel without lines (Go)", e.payouts(z), "split/default")
+	z2 := e.sale(o, pid, "qris", 100000, 100000, nil, "")
+	e.exec(`DELETE FROM order_tenders WHERE order_id=$1`, z2)
+	e.exec(`UPDATE orders SET payment_method='split' WHERE id=$1`, z2)
+	e.exec(`UPDATE orders SET status='refunded' WHERE id=$1`, z2)
+	e.want("sentinel without lines (SQL trigger)", e.payouts(z2), "split/default")
+
 	r := e.splitSale(o, pid, line("qris", 60000), line("cash", 40000))
 	e.exec(`UPDATE orders SET status='refunded' WHERE id=$1`, r)
 	e.want("raw refunded write on a split order", e.payouts(r), "cash/default")
@@ -152,7 +173,7 @@ func (e *spEnv) refundPayoutInput() {
 	o := e.newOutlet()
 	pid := e.newProduct(o, 100000)
 	id := e.splitSale(o, pid, line("qris", 60000), line("cash", 40000))
-	bad := []any{"", "   ", "split", "  SPLIT ", strings.Repeat("x", 65), 123, true}
+	bad := []any{"", "   ", "split", "  SPLIT ", "SPL\u0130T", "qr\x00is", "qr\tis", strings.Repeat("x", 65), 123, true}
 	for _, v := range bad {
 		res := e.refundItem(o, id, map[string]any{"payoutMethod": v})
 		if res["status"] != "error" || res["code"] != "rejected" || res["retryable"] != false {
@@ -164,6 +185,22 @@ func (e *spEnv) refundPayoutInput() {
 		}
 	}
 	e.want("invalid payoutMethod writes nothing", e.payouts(id), "")
+
+	// a single-method order IGNORES a malformed payoutMethod (plan 2.6): the refund goes through
+	// and pays out in the sale method.
+	for _, v := range bad {
+		if _, isStr := v.(string); !isStr {
+			continue // a non-string fails the direct decode; the sync path is covered below
+		}
+		one := e.sale(o, pid, "qris", 100000, 100000, nil, "")
+		e.refundOK(o, one, map[string]any{"payoutMethod": v})
+		e.want(fmt.Sprintf("single method ignores payoutMethod %#v", v), e.payouts(one), "qris/sale")
+	}
+	for _, v := range []any{123, true} {
+		one := e.sale(o, pid, "qris", 100000, 100000, nil, "")
+		e.refundOK(o, one, map[string]any{"payoutMethod": v})
+		e.want(fmt.Sprintf("single method ignores payoutMethod %#v", v), e.payouts(one), "qris/sale")
+	}
 
 	// replay of a refund that carried payoutMethod returns the original row.
 	p := map[string]any{"orderId": id, "reason": "rusak", "deviceId": e.device, "orderUuid": e.nextID("1000"), "payoutMethod": "qris"}
