@@ -19,6 +19,7 @@ func (r *Repo) AppSettings(ctx context.Context) (api.AppSettings, error) {
 		   'paymentMethods',payment_methods,'receipt',receipt,
 		   'receiveApproverRoles',receive_approver_roles,
 		   'recipesEnabled',recipes_enabled,
+		   'splitTenderEnabled',split_tender_enabled,
 		   'inventoryApprovalRequired',inventory_approval_required,
 		   'documents',json_build_object(
 		     'logoUrl',documents_logo_url,
