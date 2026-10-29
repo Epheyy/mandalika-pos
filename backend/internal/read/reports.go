@@ -173,9 +173,10 @@ FROM agg, ragg, pay, gpay, rpay, prod, daily`, sbSQL, refundWhere, lineSrc)
 //     paid out in a method the sale did not use still nets that method negative and the maps
 //     keep adding up to the order. has_line marks methods that had a payment line (gross only).
 //
-// saleWhere is rendered ONCE, as a MATERIALIZED base CTE (sb unfiltered, so under a method
+// saleWhere is rendered once as a MATERIALIZED base CTE (sb unfiltered, so under a method
 // filter) that sbl reads for both its payment lines and its refund rows, so the filter scan of
-// orders is not repeated. The payment lines come from tenderlines.SetLines (a hash join over the
+// orders is not repeated per sbl branch. (The unfiltered sb renders it a second time inside the
+// refund-aggregate semi-join below; that second copy must never reference `r`.) The payment lines come from tenderlines.SetLines (a hash join over the
 // sale set) instead of the per-order Lateral; SP subtest 14 gates that they agree. Unfiltered,
 // sb's refund total is one grouped LEFT JOIN over the refunds of the sale set (a semi-join on
 // the same filter keeps the aggregate small on a narrow window), not a per-order subquery.
