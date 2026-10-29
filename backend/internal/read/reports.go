@@ -46,9 +46,9 @@ rb AS (
 agg AS (
   SELECT
     COALESCE(SUM(net_total),0)                                                             AS total_sales,
-    COUNT(*) FILTER (WHERE status IN ('completed','partially_refunded'))                   AS total_orders,
+    COUNT(*) FILTER (WHERE has_line AND status IN ('completed','partially_refunded'))      AS total_orders,
     COALESCE(SUM(total),0)                                                                 AS gross_sales,
-    COUNT(*)                                                                               AS gross_orders
+    COUNT(*) FILTER (WHERE has_line)                                                       AS gross_orders
   FROM sb
 ),
 ragg AS (
@@ -84,15 +84,15 @@ prod AS (
                        (SELECT SUM(ri.quantity) FROM order_refund_items ri WHERE ri.order_item_id = it.id), 0)
                        ELSE 0 END AS rq
                 FROM order_items it JOIN sb b ON b.id=it.order_id
-                WHERE b.status IN ('completed','partially_refunded')) x
+                WHERE b.has_line AND b.status IN ('completed','partially_refunded')) x
         WHERE x.rq = 0 OR x.quantity > x.rq  -- a fully returned line of a part-refunded order is gone
         GROUP BY x.product_id ORDER BY rev DESC LIMIT 10) p
 ),
 sd AS (
   SELECT business_date AS d,
          SUM(net_total) AS s,
-         COUNT(*) FILTER (WHERE status IN ('completed','partially_refunded'))       AS n,
-         SUM(total) AS g, COUNT(*) AS gn
+         COUNT(*) FILTER (WHERE has_line AND status IN ('completed','partially_refunded')) AS n,
+         SUM(total) AS g, COUNT(*) FILTER (WHERE has_line) AS gn
   FROM sb GROUP BY business_date
 ),
 rd AS (
@@ -163,6 +163,8 @@ FROM agg, ragg, pay, gpay, rpay, prod, daily`, sbSQL, refundWhere, lineSrc)
 //     under the `split` filter value, it is exactly the pre-C6 per-order query (whole-order
 //     money). Under a method filter (D-66) it is rebuilt from that method's rows: total = the
 //     method's payment lines, net_total = those lines minus the refunds paid out in that method.
+//     Every limited row nets (an order refunded in the method without ever using it enters with
+//     gross 0); has_line keeps order counts, products and gross to orders that used the method.
 //     topProducts reads sb's orders at full line revenue (sale lines are not allocated across
 //     payments), so under a method filter it can exceed the limited totalSales; documented
 //     trade-off of D-66.
@@ -186,7 +188,7 @@ func summarySaleCTEs(f OrderFilter, saleWhere string, args *[]any) (ctes, lineSr
 )`, tenderLinesLateral, saleWhere, saleWhere)
 	if !f.isMethodLimited() {
 		sb := fmt.Sprintf(`sb AS (
-  SELECT o.id, o.total, o.status, o.payment_method, o.business_date,
+  SELECT o.id, o.total, o.status, o.payment_method, o.business_date, true AS has_line,
          o.total - COALESCE((SELECT SUM(r.amount) FROM order_refunds r WHERE r.order_id = o.id), 0) AS net_total
   FROM orders o %s
 )`, saleWhere)
@@ -196,8 +198,8 @@ func summarySaleCTEs(f OrderFilter, saleWhere string, args *[]any) (ctes, lineSr
 	n := len(*args)
 	lineSrc = fmt.Sprintf("(SELECT * FROM sbl WHERE lower(btrim(payment_method)) = lower(btrim($%d))) lm", n)
 	sb := fmt.Sprintf(`sb AS (
-  SELECT id, status, business_date, SUM(total) AS total, SUM(net_total) AS net_total
-  FROM %s WHERE has_line GROUP BY id, status, business_date
+  SELECT id, status, business_date, SUM(total) AS total, SUM(net_total) AS net_total, bool_or(has_line) AS has_line
+  FROM %s GROUP BY id, status, business_date
 )`, lineSrc)
 	return sbl + ",\n" + sb, lineSrc
 }

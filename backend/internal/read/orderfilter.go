@@ -155,9 +155,12 @@ func appendOrderWhere(f OrderFilter, args []any, refundRows bool) (string, []any
 //     lines are never `split`, so an EXISTS on them would match nothing).
 //   - summary refund set (summary && refundRows): refund rows PAID OUT in that method
 //     (order_refunds.payment_method), not rows of orders that contain it (D-66).
-//   - otherwise (the list, CSV and the summary's sale set): orders with a payment line in that
-//     method, an order without stored lines counting through its synthetic line
-//     (payment_method).
+//   - otherwise (the list, CSV): orders with a payment line in that method, an order without
+//     stored lines counting through its synthetic line (payment_method).
+//   - the summary's sale set additionally admits an order that has a refund row paid out in
+//     that method although the sale never used it (QRIS+card sale refunded in cash), so the
+//     limited totals net that refund the way the unfiltered by-method map does. Such an order
+//     enters with gross 0 and is not counted as an order of the method (sb.has_line).
 func paymentMethodRule(f OrderFilter, n int, refundRows bool) string {
 	if strings.EqualFold(strings.TrimSpace(f.PaymentMethod), splitMethodValue) {
 		return fmt.Sprintf("lower(btrim(o.payment_method)) = lower(btrim($%d))", n)
@@ -165,9 +168,14 @@ func paymentMethodRule(f OrderFilter, n int, refundRows bool) string {
 	if f.summary && refundRows {
 		return fmt.Sprintf("lower(btrim(r.payment_method)) = lower(btrim($%d))", n)
 	}
-	return fmt.Sprintf(`(EXISTS (SELECT 1 FROM order_tenders pt WHERE pt.order_id = o.id AND lower(btrim(pt.method)) = lower(btrim($%[1]d)))
+	rule := fmt.Sprintf(`(EXISTS (SELECT 1 FROM order_tenders pt WHERE pt.order_id = o.id AND lower(btrim(pt.method)) = lower(btrim($%[1]d)))
 	    OR (NOT EXISTS (SELECT 1 FROM order_tenders pt2 WHERE pt2.order_id = o.id)
 	        AND lower(btrim(o.payment_method)) = lower(btrim($%[1]d))))`, n)
+	if f.summary {
+		rule = "(" + rule + fmt.Sprintf(`
+	    OR EXISTS (SELECT 1 FROM order_refunds rp WHERE rp.order_id = o.id AND lower(btrim(rp.payment_method)) = lower(btrim($%d))))`, n)
+	}
+	return rule
 }
 
 // isMethodLimited reports whether the summary money must be limited to one method (D-66):
