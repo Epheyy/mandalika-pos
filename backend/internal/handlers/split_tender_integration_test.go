@@ -62,6 +62,7 @@ func TestSplitTenderPostgres(t *testing.T) {
 	t.Run("10 erp tenders", func(t *testing.T) { e.t = t; e.erpTenders() })
 	t.Run("11 reserved id", func(t *testing.T) { e.t = t; e.reservedID() })
 	t.Run("12 tender sum invariant", func(t *testing.T) { e.t = t; e.tenderSumInvariant() })
+	t.Run("13 summary equivalence", func(t *testing.T) { e.t = t; e.summaryEquivalence() })
 }
 
 func newSPEnv(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *spEnv {
