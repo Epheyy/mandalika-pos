@@ -217,5 +217,5 @@ func summaryLinesCTE(base string) string {
     SELECT o.id, o.status, o.business_date, r.payment_method, 0, r.amount, false
       FROM %[1]s o JOIN order_refunds r ON r.order_id = o.id
   ) x GROUP BY x.id, x.status, x.business_date, x.method
-)`, base, tenderlines.SetLines(base, []string{"status", "business_date"}, 0))
+)`, base, tenderlines.SetLines(base, []string{"status", "business_date"}))
 }

@@ -60,11 +60,12 @@ func (e *spEnv) lateralAndSetLines() {
 		var lateral, set []string
 		if m == "" {
 			lateral = e.lineRows(`SELECT o.id::text, tl.method, tl.amount::text, tl.synthetic FROM orders o ` + tenderlines.Lateral + ` WHERE ` + outlet)
-			set = e.lineRows(`SELECT l.id::text, l.method, l.amount::text, l.synthetic FROM (` + tenderlines.SetLines(base, nil, 0) + `) l`)
+			set = e.lineRows(`SELECT l.id::text, l.method, l.amount::text, l.synthetic FROM (` + tenderlines.SetLines(base, nil) + `) l`)
 		} else {
 			lateral = e.lineRows(`SELECT o.id::text, tl.method, tl.amount::text, tl.synthetic FROM orders o `+tenderlines.Lateral+
 				` WHERE `+outlet+` AND lower(btrim(tl.method)) = lower(btrim($1))`, m)
-			set = e.lineRows(`SELECT l.id::text, l.method, l.amount::text, l.synthetic FROM (`+tenderlines.SetLines(base, nil, 1)+`) l`, m)
+			set = e.lineRows(`SELECT l.id::text, l.method, l.amount::text, l.synthetic FROM (`+tenderlines.SetLines(base, nil)+
+				`) l WHERE lower(btrim(l.method)) = lower(btrim($1))`, m)
 		}
 		if !reflect.DeepEqual(lateral, set) {
 			e.t.Fatalf("method=%q: lateral and set-based lines differ\n lateral %v\n set     %v", m, lateral, set)
