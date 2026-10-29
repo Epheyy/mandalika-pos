@@ -176,14 +176,18 @@ FROM agg, ragg, pay, gpay, rpay, prod, daily`, sbSQL, refundWhere, lineSrc)
 // saleWhere is rendered ONCE, as a MATERIALIZED base CTE (sb unfiltered, so under a method
 // filter) that sbl reads for both its payment lines and its refund rows, so the filter scan of
 // orders is not repeated. The payment lines come from tenderlines.SetLines (a hash join over the
-// sale set) instead of the per-order Lateral; SP subtest 14 gates that they agree.
+// sale set) instead of the per-order Lateral; SP subtest 14 gates that they agree. Unfiltered,
+// sb's refund total is one grouped LEFT JOIN over the refunds of the sale set (a semi-join on
+// the same filter keeps the aggregate small on a narrow window), not a per-order subquery.
 // A method filter appends its own argument for the CTE comparison.
 func summarySaleCTEs(f OrderFilter, saleWhere string, args *[]any) (ctes, lineSrc string) {
 	if !f.isMethodLimited() {
 		sb := fmt.Sprintf(`sb AS MATERIALIZED (
   SELECT o.id, o.total, o.status, o.payment_method, o.business_date, true AS has_line,
-         o.total - COALESCE((SELECT SUM(r.amount) FROM order_refunds r WHERE r.order_id = o.id), 0) AS net_total
-  FROM orders o %s
+         o.total - COALESCE(rs.refunded, 0) AS net_total
+  FROM orders o
+  LEFT JOIN (SELECT r.order_id, SUM(r.amount) AS refunded FROM order_refunds r
+             WHERE r.order_id IN (SELECT o.id FROM orders o %[1]s) GROUP BY r.order_id) rs ON rs.order_id = o.id %[1]s
 )`, saleWhere)
 		return sb + ",\n" + summaryLinesCTE("sb"), "sbl"
 	}
