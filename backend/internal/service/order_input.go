@@ -94,12 +94,21 @@ func ValidateSaleInput(in CreateOrderInput) error {
 	if err := validateSaleItems(in.Items, true); err != nil {
 		return err
 	}
-	for _, value := range []struct {
+	_, hasTenders, err := parseTenders(in.Tenders)
+	if err != nil {
+		return err
+	}
+	moneyFields := []struct {
 		field string
 		value float64
-	}{
-		{"amountPaid", in.AmountPaid}, {"discountValue", in.ManualValue}, {"surchargeValue", in.Surcharge},
-	} {
+	}{{"discountValue", in.ManualValue}, {"surchargeValue", in.Surcharge}}
+	if !hasTenders { // with tenders the scalar summary is ignored
+		moneyFields = append(moneyFields, struct {
+			field string
+			value float64
+		}{"amountPaid", in.AmountPaid})
+	}
+	for _, value := range moneyFields {
 		if err := saleMoney(value.field, value.value); err != nil {
 			return err
 		}
@@ -108,8 +117,16 @@ func ValidateSaleInput(in CreateOrderInput) error {
 		return saleInputError("pointsRedeemed", "di luar rentang integer nonnegatif")
 	}
 	// Methods are free-form configured IDs (migration 0005), not a closed enum.
+	if hasTenders {
+		return nil
+	}
 	if strings.TrimSpace(in.PaymentMethod) == "" {
 		return saleInputError("paymentMethod", "wajib diisi")
+	}
+	// The reserved split sentinel is only valid with tenders; without them it would
+	// reach the order_tenders CHECK inside the transaction (a 500, endless batch retry).
+	if strings.EqualFold(strings.TrimSpace(in.PaymentMethod), splitMethodID) {
+		return saleInputError("paymentMethod", "split memerlukan daftar pembayaran")
 	}
 	return nil
 }
