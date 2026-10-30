@@ -1087,6 +1087,8 @@ export default function CashierScreen() {
     showConnection, showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRequisitions, showRecap, refundOrder,
     state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment, state.isProcessing, pendingFulfillment, confirm,
     state.activeTab, profileCustomer, showCustomerSheet, heldOpen,
+    // D-63: the Back handler asks before dropping entered payment lines, so it must see them.
+    state.splitMode, state.tenders,
   ])
 
   if (!user) return null

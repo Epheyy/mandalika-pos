@@ -22,7 +22,7 @@ interface Options {
 
 /**
  * D-62: keeps the unfinished split payment on this tablet while it exists, and offers it back after a restart.
- * The draft follows the state (saved when a non-cash line is entered, removed when none is left); `clearNow` is the
+ * The draft follows the state (saved when a non-cash line is entered, removed when none is left); `clearForSale` is the
  * explicit delete the sale gate runs right after the enqueue resolves.
  */
 export function useSplitDraft({ outletId, state, total, dispatch, isCash, defaultMethod, getEnv, saleUuids, ensureShift, offlineLock, showToast }: Options) {
