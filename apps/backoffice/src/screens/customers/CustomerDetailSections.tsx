@@ -14,6 +14,7 @@ import { orderIconClasses, orderStatusLabel, orderStatusTone } from '../../lib/o
 import { IconButton } from '../../ui/IconButton'
 import { EmptyState } from '../../ui/EmptyState'
 import { tagChipClasses } from './tagColors'
+import { orderMethodText } from '../../lib/splitPayment'
 import { daysUntilRecurrence } from './interactionTypes'
 import { rewardGrantSummary } from './rewardTypes'
 
@@ -178,7 +179,7 @@ export function PurchaseHistoryCard({ orders, loading, expanded, setExpanded }: 
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-gray-900 text-sm">{o.orderNumber}</p>
-                  <p className="text-xs text-gray-400">{format(parseISO(o.createdAt), 'dd MMM yyyy HH:mm', { locale: idLocale })} · <span className="capitalize">{o.paymentMethod}</span></p>
+                  <p className="text-xs text-gray-400">{format(parseISO(o.createdAt), 'dd MMM yyyy HH:mm', { locale: idLocale })} · <span className="capitalize">{orderMethodText(o)}</span></p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <Badge tone={orderStatusTone(o.status)}>{orderStatusLabel(o.status)}</Badge>

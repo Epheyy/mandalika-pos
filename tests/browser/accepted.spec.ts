@@ -5,6 +5,7 @@ import { reviewResolveFlow } from './backoffice-review-scenarios'
 import { csvImportFlow } from './backoffice-import-scenarios'
 import { stockCardFlow } from './backoffice-stockcard-scenarios'
 import { refundReportFlow, adminPartialRefundFlow } from './backoffice-refund-scenarios'
+import { splitOrderFlow, splitToggleFlow } from './backoffice-split-scenarios'
 import { posRequisition } from './pos-requisition-scenarios'
 
 test('BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate toggle', async ({ page }, info) => {
@@ -153,6 +154,18 @@ test('BO-REFUND-LIST Laporan Refund shows one row per refund with claimed amount
 test('BO-REFUND-ADMIN-PARTIAL admin picks one unit on one line, confirms, and posts the per-line shape; the order shows Refund ke-1 and the remainder', async ({ page }, info) => {
   const result = await adminPartialRefundFlow(page as ScenarioPage)
   expect(result).toHaveLength(3)
+  await evidence(info, result)
+})
+
+test('BO-SPLIT-ORDER Split-Payment shows in list and detail lines, filters by Split-Payment, posts the chosen refund payout, and lands in the CSV', async ({ page }, info) => {
+  const result = await splitOrderFlow(page as ScenarioPage)
+  expect(result).toHaveLength(6)
+  await evidence(info, result)
+})
+
+test('BO-SPLIT-TOGGLE Bayar terpisah is off by default with the D-50 warning, asks before switching on, refuses the reserved id, and saves the flag', async ({ page }, info) => {
+  const result = await splitToggleFlow(page as ScenarioPage)
+  expect(result).toHaveLength(5)
   await evidence(info, result)
 })
 

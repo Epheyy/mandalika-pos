@@ -58,6 +58,8 @@ export default function SettingsScreen() {
   const q = usePolledQuery<AppSettings>(() => api.getAppSettings(), [], 30000)
   const [s, setS] = useState<AppSettings>(DEFAULT)
   const loadedRef = useRef(false)
+  // splitTenderEnabled as last loaded/saved: it is sent only when the toggle moved, so a stale tab cannot undo the kill switch.
+  const loadedSplitRef = useRef(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [approverRoles, setApproverRoles] = useState<string[]>(DEFAULT.receiveApproverRoles ?? [])
@@ -70,6 +72,7 @@ export default function SettingsScreen() {
     if (q.data && !loadedRef.current) {
       setS({ ...DEFAULT, ...q.data })
       setApproverRoles((q.data.receiveApproverRoles ?? []).filter((r) => r !== 'admin'))
+      loadedSplitRef.current = !!q.data.splitTenderEnabled
       loadedRef.current = true
     }
   }, [q.data])
@@ -80,7 +83,10 @@ export default function SettingsScreen() {
     try {
       // Persist the resolved cash flag explicitly for every method.
       const paymentMethods = s.paymentMethods.map((m) => ({ ...m, isCash: isCashMethod(s.paymentMethods, m.id) }))
-      await api.updateAppSettings({ ...s, paymentMethods, receiveApproverRoles: approverRoles })
+      const { splitTenderEnabled, ...rest } = s
+      const splitMoved = !!splitTenderEnabled !== loadedSplitRef.current
+      await api.updateAppSettings({ ...rest, ...(splitMoved ? { splitTenderEnabled: !!splitTenderEnabled } : {}), paymentMethods, receiveApproverRoles: approverRoles })
+      if (splitMoved) loadedSplitRef.current = !!splitTenderEnabled
       setMsg('Pengaturan disimpan!')
     } catch (e: unknown) {
       setMsg(e instanceof Error ? e.message : 'Gagal menyimpan.')

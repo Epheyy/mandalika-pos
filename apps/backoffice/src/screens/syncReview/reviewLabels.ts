@@ -1,5 +1,6 @@
 import { format, parseISO } from 'date-fns'
 import { id } from 'date-fns/locale'
+import { methodLabel } from '../../lib/splitPayment'
 
 const REASONS: Record<string, string> = {
   forbidden: 'Ditolak: tidak berwenang / PIN salah',
@@ -109,6 +110,17 @@ function itemsLine(v: unknown): string {
     .join(', ')
 }
 
+/** "QRIS Rp 751.000 + Tunai Rp 500.000" for the payment lines of a queued sale; '' without lines. */
+export function tendersLine(v: unknown): string {
+  if (!Array.isArray(v) || v.length === 0) return ''
+  return v
+    .map((t) => {
+      const o = (t ?? {}) as Record<string, unknown>
+      return `${methodLabel(typeof o.method === 'string' ? o.method : '?')} ${idr(o.amount)}`
+    })
+    .join(' + ')
+}
+
 function refundItemsLine(v: unknown): string {
   if (!Array.isArray(v) || v.length === 0) return 'Semua barang (refund seluruhnya)'
   return v
@@ -130,10 +142,17 @@ export function payloadSummary(type: string, p: Record<string, unknown>): Array<
         ['Barang', refundItemsLine(p.items)],
         [p.refundAmount != null ? 'Jumlah diklaim tablet' : 'Jumlah', idr(p.refundAmount ?? p.total)],
         ['Metode', str(p.paymentMethod)],
+        ...(typeof p.payoutMethod === 'string' && p.payoutMethod.trim() ? [['Dikembalikan lewat', methodLabel(p.payoutMethod)] as [string, string]] : []),
         ['Alasan', str(p.reason)],
       ]
     case 'order':
-      return [['Struk', str(p.orderNumber)], ['Barang', itemsLine(p.items)], ['Metode', str(p.paymentMethod)], ['Dibayar', idr(p.amountPaid)]]
+      return [
+        ['Struk', str(p.orderNumber)],
+        ['Barang', itemsLine(p.items)],
+        ['Metode', typeof p.paymentMethod === 'string' && p.paymentMethod.trim() ? methodLabel(p.paymentMethod) : '—'],
+        ...(tendersLine(p.tenders) ? [['Pembayaran', tendersLine(p.tenders)] as [string, string]] : []),
+        ['Dibayar', idr(p.amountPaid)],
+      ]
     case 'shift_open':
       return [['Kas awal', idr(p.startingCash)]]
     case 'shift_close':

@@ -254,6 +254,18 @@
       "source": "tests/browser/backoffice-refund-scenarios.ts"
     },
     {
+      "id": "BO-SPLIT-ORDER",
+      "finding": "C6c",
+      "description": "Transaksi with a split order: list shows Split-Payment (never the raw id) and the ⚠ Bayar reason, detail lists each payment line with reference and change, the payment filter offers Split-Payment and sends it to the API, the admin refund shows payout chips for split orders only (default preselected) and posts the chosen payoutMethod, and the Ekspor CSV writes the lines as \"QRIS 751.000; Tunai 500.000\"",
+      "source": "tests/browser/backoffice-split-scenarios.ts"
+    },
+    {
+      "id": "BO-SPLIT-TOGGLE",
+      "finding": "C6c",
+      "description": "Pengaturan > Transaksi: Bayar terpisah is off by default and shows the D-50 warning, switching on asks to confirm (Batal keeps it off), the reserved method id split is refused client-side, and Simpan Semua sends splitTenderEnabled",
+      "source": "tests/browser/backoffice-split-scenarios.ts"
+    },
+    {
       "id": "POS-REQUISITION",
       "finding": "inventory-controls-S6",
       "description": "Cashier Permintaan Barang: menu hidden without request_stock; create sends Idempotency-Key and outlet; a failed submit retries with the same key; transfer chain shows Dikirim and Buka Terima Transfer opens the receive panel; cancel a draft; a lost create answer then an edit replays the old key (one PB, then one update) and is resolved when the panel next opens online; offline refuses the save with no request leaving the tablet; zero approve/reject/fulfil requests across the run",

@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from 'react'
+import { useState, type Dispatch, type SetStateAction } from 'react'
 import type { AppSettings } from '@mandalika/api'
 import { isCashMethod } from '@mandalika/types'
 import { Plus, Trash2 } from 'lucide-react'
@@ -7,6 +7,8 @@ import { Input, Select, Field } from '../../ui/Field'
 import { Card } from '../../ui/Card'
 import { IconButton } from '../../ui/IconButton'
 import { Toggle } from './Toggle'
+import { SplitTenderCard } from './SplitTenderCard'
+import { isSplitMethodId } from '../../lib/splitPayment'
 
 interface TransaksiSectionProps {
   s: AppSettings
@@ -17,6 +19,7 @@ interface TransaksiSectionProps {
 
 /** Transaksi tab: Pajak & Pembulatan · Metode Pembayaran · Struk. */
 export function TransaksiSection({ s, setS, newPay, setNewPay }: TransaksiSectionProps) {
+  const [payError, setPayError] = useState<string | null>(null)
   const setReceipt = (k: string, v: unknown) =>
     setS((p) => ({ ...p, receipt: { ...p.receipt, [k]: v } }))
 
@@ -127,13 +130,21 @@ export function TransaksiSection({ s, setS, newPay, setNewPay }: TransaksiSectio
             onClick={() => {
               if (!newPay.trim()) return
               const pid = newPay.toLowerCase().replace(/\s+/g, '_')
+              if (isSplitMethodId(pid)) {
+                setPayError('Nama "split" dicadangkan untuk pembayaran terpisah dan tidak bisa dipakai sebagai metode.')
+                return
+              }
+              setPayError(null)
               if (s.paymentMethods.some((p) => p.id.toLowerCase() === pid)) return
               setS((p) => ({ ...p, paymentMethods: [...p.paymentMethods, { id: pid, label: newPay.trim(), isEnabled: true }] }))
               setNewPay('')
             }}
           />
         </div>
+        {payError && <p role="alert" className="text-xs font-bold text-red-600">{payError}</p>}
       </Card>
+
+      <SplitTenderCard enabled={!!s.splitTenderEnabled} onChange={(v) => setS((p) => ({ ...p, splitTenderEnabled: v }))} />
 
       {/* Sub-section: Struk */}
       <Card className="p-6 space-y-5">
