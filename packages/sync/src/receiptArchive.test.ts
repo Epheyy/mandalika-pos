@@ -285,3 +285,31 @@ describe('C4b line data (lineNets / lineGroups) from the sale payload', () => {
     expect(new ReceiptArchive(kv).entries()[0].lineGroups).toEqual(['bxgy:p2:1'])
   })
 })
+
+describe('C6 tenders from the sale payload', () => {
+  const sale = (tenders: unknown): OutboxItem => ({
+    seq: 1, idempotencyKey: 'dev:u1', type: 'order', status: 'queued', attempts: 0, clientCreatedAt: iso(NOW),
+    payload: { orderUuid: 'u1', orderNumber: 'N1', paymentMethod: 'split', quotedTotal: 100, ...(tenders === undefined ? {} : { tenders }) },
+  } as unknown as OutboxItem)
+  const good = [{ method: 'qris', amount: 751000, reference: '8812345' }, { method: 'cash', amount: 600000 }]
+
+  it('copies well-formed tenders, dropping unknown extra fields', () => {
+    const e = receiptEntryFromItem(sale([{ ...good[0], junk: 1 }, good[1]]))
+    expect(e?.tenders).toEqual(good)
+  })
+  it('drops the whole field when anything is malformed, empty or too long', () => {
+    for (const bad of [
+      [], 'x', [good[0], { method: '', amount: 1 }], [{ method: 'cash', amount: -1 }], [{ method: 'cash', amount: Number.NaN }],
+      [{ method: 'cash', amount: '5' }], [{ method: 'cash', amount: 5, reference: 7 }], [null],
+      Array.from({ length: 5 }, () => good[1]),
+    ]) expect(receiptEntryFromItem(sale(bad))?.tenders, JSON.stringify(bad)).toBeUndefined()
+  })
+  it('an old entry without tenders is untouched and survives the archive round trip', async () => {
+    expect(receiptEntryFromItem(sale(undefined))).not.toHaveProperty('tenders')
+    const kv = controllableKV().kv
+    await new ReceiptArchive(kv).addMany([receiptEntryFromItem(sale(good))!, entry(2, DAY)], () => noCtx, NOW)
+    const [a, b] = new ReceiptArchive(kv).entries()
+    expect(a.tenders).toEqual(good)
+    expect(b).not.toHaveProperty('tenders')
+  })
+})

@@ -6,7 +6,7 @@ import { formatRupiah } from './pricing'
 import { cashTender } from './tender'
 import { stockFor, overstockLines } from './stock'
 import type { CartLineLike } from './stock'
-import { PAYMENT_LABELS } from '../lib/paymentLabels'
+import { PAYMENT_LABELS, tenderLabel } from '../lib/paymentLabels'
 import { quickCashAmounts } from '../lib/quickCash'
 import { applyKey } from '../lib/cashKeypad'
 import { hasFeature } from '../brand'
@@ -16,6 +16,8 @@ import type { TotalRow } from './receiptRows'
 import { Chip } from '../components/ui/Chip'
 import { Button } from '../components/ui/Button'
 import { IconUser, IconGift, IconWarning } from '../components/ui/icons'
+import { SplitTenderSection } from './SplitTenderSection'
+import { cashPredicate, MAX_REFERENCE_LEN, splitBlockReason, type TenderLine } from './tenderSplit'
 
 type AppSettings = components['schemas']['AppSettings']
 type Customer = components['schemas']['Customer']
@@ -54,6 +56,16 @@ interface CheckoutPanelProps {
   onPointsRedeemedChange: (points: number) => void
   onPaymentMethodChange: (method: PaymentMethod) => void
   onAmountPaidChange: (amount: string) => void
+  /** C6: the optional "No. referensi" of the line being composed (single mode: of the one payment). */
+  tenderReference: string
+  onTenderReferenceChange: (reference: string) => void
+  /** C6: split mode and its entered lines; "Bagi pembayaran" is offered only when the server delivers the setting as true. */
+  splitMode: boolean
+  tenders: readonly TenderLine[]
+  onSplitStart: () => void
+  onSplitCancel: () => void
+  onTenderAdd: (line: TenderLine) => void
+  onTenderRemove: (index: number) => void
   onConfirm: () => void
   /** Persistent error shown when the sale could not be stored on the device. */
   saveError?: string | null
@@ -94,6 +106,14 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   onPointsRedeemedChange,
   onPaymentMethodChange,
   onAmountPaidChange,
+  tenderReference,
+  onTenderReferenceChange,
+  splitMode,
+  tenders,
+  onSplitStart,
+  onSplitCancel,
+  onTenderAdd,
+  onTenderRemove,
   onConfirm,
   saveError,
   onClose,
@@ -108,6 +128,8 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   const [showOverstockConfirm, setShowOverstockConfirm] = useState(false)
   // The points redeem UI sits behind the "Tukar N poin" chip; open from the start when points are already applied.
   const [userOpenedPoints, setUserOpenedPoints] = useState(false)
+  // D-63: leaving with payment lines already entered asks first.
+  const [confirmLeave, setConfirmLeave] = useState(false)
   const showPoints = pointsToRedeem > 0 || userOpenedPoints
   // Forget the manual open when the sheet closes so it does not carry into the next sale.
   const [wasOpen, setWasOpen] = useState(isOpen)
@@ -122,6 +144,16 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   const isCash = isCashMethod(settings.paymentMethods, paymentMethod)
   const tender = cashTender(isCash, amountPaid, derived.total)
   const isCashShort = tender.isShort
+  // C6: split mode is offered only when the server says so (an old server never sends the key) and there is more than one method.
+  const splitOffered = settings.splitTenderEnabled === true && enabledMethods.length >= 2
+  const splitBlock = splitMode
+    ? splitBlockReason(derived.total, tenders, cashPredicate(settings.paymentMethods), (id) => tenderLabel(id, settings.paymentMethods))
+    : null
+  const confirmBlocked = splitMode ? splitBlock !== null : isCashShort
+  const handleBack = () => {
+    if (splitMode && tenders.length > 0) setConfirmLeave(true)
+    else onClose()
+  }
 
   const quickAmounts = quickCashAmounts(derived.total)
   const typedAmount = amountPaid.trim() === '' ? null : parseFloat(amountPaid.replace(/\./g, ''))
@@ -146,14 +178,14 @@ export const CheckoutPanel = memo(function CheckoutPanel({
       z={50}
       maxWidth="max-w-md lg:max-w-[486px]"
       panelClassName="flex flex-col"
-      onClose={isProcessing ? noop : onClose}
+      onClose={isProcessing ? noop : handleBack}
       closeLabel="Tutup latar"
     >
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-3 border-b border-paper-2 shrink-0">
         <button
           type="button"
-          onClick={onClose}
+          onClick={handleBack}
           disabled={isProcessing}
           className="min-h-12 pr-2 text-base font-semibold text-ink-700 disabled:opacity-50"
         >
@@ -163,7 +195,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
         <span className="ml-auto text-lg font-bold tnum text-ink-900">{formatRupiah(derived.total)}</span>
         <button
           type="button"
-          onClick={onClose}
+          onClick={handleBack}
           disabled={isProcessing}
           aria-label="Tutup"
           className="min-h-12 min-w-12 text-2xl leading-none text-ink-500 disabled:opacity-50"
@@ -359,6 +391,25 @@ export const CheckoutPanel = memo(function CheckoutPanel({
           </div>
         )}
 
+        {splitMode ? (
+          <SplitTenderSection
+            due={derived.total}
+            allMethods={settings.paymentMethods}
+            enabledMethods={enabledMethods}
+            lines={tenders}
+            method={paymentMethod}
+            amountInput={amountPaid}
+            reference={tenderReference}
+            disabled={isProcessing}
+            onMethodChange={onPaymentMethodChange}
+            onAmountChange={onAmountPaidChange}
+            onReferenceChange={onTenderReferenceChange}
+            onAdd={onTenderAdd}
+            onCancel={onSplitCancel}
+            onRemove={onTenderRemove}
+          />
+        ) : (
+          <>
         {/* Payment method */}
         <div>
           <p className="text-xs font-semibold text-ink-700 mb-2">Metode Pembayaran</p>
@@ -374,6 +425,15 @@ export const CheckoutPanel = memo(function CheckoutPanel({
               </Chip>
             ))}
           </div>
+          {splitOffered && (
+            <button
+              type="button"
+              onClick={onSplitStart}
+              className="mt-2 min-h-12 text-sm font-semibold text-brand underline"
+            >
+              Bagi pembayaran
+            </button>
+          )}
         </div>
 
         {/* Amount received (cash) or the bill (non-cash) */}
@@ -430,9 +490,24 @@ export const CheckoutPanel = memo(function CheckoutPanel({
             )}
           </div>
         ) : (
-          <p className="text-base font-semibold text-ink-700">
-            Tagihan <span className="tnum text-ink-900">{formatRupiah(derived.total)}</span>
-          </p>
+          <>
+            <p className="text-base font-semibold text-ink-700">
+              Tagihan <span className="tnum text-ink-900">{formatRupiah(derived.total)}</span>
+            </p>
+            <div>
+              <label htmlFor="checkout-reference" className="block text-xs font-semibold text-ink-700 mb-1">No. referensi (opsional)</label>
+              <input
+                id="checkout-reference"
+                type="text"
+                maxLength={MAX_REFERENCE_LEN}
+                value={tenderReference}
+                onChange={(e) => onTenderReferenceChange(e.target.value)}
+                className="w-full min-h-11 border border-paper-2 rounded-control px-3 text-sm focus:outline-none focus:ring-1 focus:ring-brand bg-white"
+              />
+            </div>
+          </>
+        )}
+          </>
         )}
       </div>
 
@@ -447,13 +522,33 @@ export const CheckoutPanel = memo(function CheckoutPanel({
           size="lg"
           fullWidth
           onClick={handleConfirmClick}
-          disabled={isProcessing || isCashShort}
+          disabled={isProcessing || confirmBlocked}
           className="uppercase !text-xl font-bold"
         >
           {isProcessing ? 'Memproses…' : `Konfirmasi ${formatRupiah(derived.total)}`}
         </Button>
         <p className="text-xs text-ink-500 text-center mt-2">Order akan terkirim otomatis</p>
       </div>
+
+      {confirmLeave && (
+        <Sheet open variant="center" z={60} maxWidth="max-w-sm" panelClassName="p-5" onClose={() => setConfirmLeave(false)}>
+          <h3 className="text-base font-black text-ink-900 mb-2">Hapus pembayaran yang sudah dimasukkan?</h3>
+          <p className="text-xs text-ink-500 mb-4">Pastikan transaksi di mesin EDC/QRIS dibatalkan.</p>
+          <div className="flex gap-2">
+            <Button variant="secondary" className="flex-1" onClick={() => setConfirmLeave(false)}>Lanjut bayar</Button>
+            <Button
+              variant="danger"
+              className="flex-1"
+              onClick={() => {
+                setConfirmLeave(false)
+                onClose()
+              }}
+            >
+              Hapus
+            </Button>
+          </div>
+        </Sheet>
+      )}
 
       {/* SP-CRM-9c: overstock confirm — warn + override, above the checkout sheet */}
       {showOverstockConfirm && (

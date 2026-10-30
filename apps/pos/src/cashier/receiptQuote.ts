@@ -35,6 +35,14 @@ export interface SnapshotDiscount {
   amount: number
 }
 
+/** C6: one payment line on the slip; `amount` is what was captured (cash handed over / amount charged). */
+export interface SnapshotTender {
+  method: string
+  label: string
+  amount: number
+  reference?: string
+}
+
 /** v1 = pre-C1 (single discount total, no itemisation); v2 = C1 (itemised, adds up line by line). */
 export interface ReceiptSnapshot {
   v: 1 | 2
@@ -55,6 +63,8 @@ export interface ReceiptSnapshot {
   redeemedPoints?: number
   /** v2: signed rounding delta between the pre-rounding total and `total`. */
   roundingAmount?: number
+  /** C6: one row per payment line of a split sale; absent on a plain one-method sale and on older archives. */
+  tenders?: SnapshotTender[]
 }
 
 export interface ReceiptQuote {
@@ -80,8 +90,9 @@ export function buildReceiptQuote(input: {
   derived: QuoteDerived
   tender: { amountPaid: number; change: number }
   refVersion: number
+  tenders?: SnapshotTender[]
 }): ReceiptQuote {
-  const { cart, derived, tender, refVersion } = input
+  const { cart, derived, tender, refVersion, tenders } = input
   return {
     quotedTotal: derived.total,
     receiptSnapshot: {
@@ -108,6 +119,7 @@ export function buildReceiptQuote(input: {
         ...(c.isReward ? { isReward: true as const } : {}),
         ...(c.isBundle ? { isBundle: true as const } : {}),
       })),
+      ...(tenders && tenders.length > 0 ? { tenders } : {}),
     },
   }
 }
@@ -159,6 +171,9 @@ export function receiptFromQuote(
     total: quote.quotedTotal,
     amountPaid: s.amountPaid,
     change: s.change,
+    ...(s.tenders && s.tenders.length > 0
+      ? { tenders: s.tenders.map((t) => ({ label: t.label, amount: t.amount, ...(t.reference ? { reference: t.reference } : {}) })) }
+      : {}),
   }
   if (import.meta.env.DEV && itemised && !receiptAddsUp(data)) {
     console.warn('[receipt] slip does not add up', data.orderRef, data)

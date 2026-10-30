@@ -1,5 +1,6 @@
 import type { components } from '@mandalika/api'
 import { isCashMethod } from '@mandalika/types'
+import { defaultPayoutMethod } from './refundView'
 
 type Order = components['schemas']['Order']
 export type PaymentMethodCfg = { id: string; label: string; isEnabled: boolean; isCash?: boolean | null }
@@ -17,6 +18,28 @@ export interface Breakdown {
   tax: number
   surcharge: number
   net: number
+}
+
+/** C6: what an order kept, per method. A split order (or any order with real tender lines) counts each line's applied
+ *  amount under its own method, less each refund under the method it was paid out in; an order without tender lines
+ *  (old, local, or only the server's synthetic line) keeps its whole amount under the payment method, as before. */
+function keptByMethod(o: Order, kept: number, refunded: number, methods: PaymentMethodCfg[]): Record<string, number> {
+  const lines = o.tenders ?? []
+  if (lines.length === 0 || lines.every((t) => t.synthetic)) return { [o.paymentMethod]: kept }
+  const out: Record<string, number> = {}
+  for (const t of lines) out[t.method] = (out[t.method] ?? 0) + t.amount
+  let unassigned = refunded
+  for (const r of o.refunds ?? []) {
+    const m = r.paymentMethod || o.paymentMethod
+    out[m] = (out[m] ?? 0) - r.amount
+    unassigned -= r.amount
+  }
+  // A refunded amount the refund rows do not account for (an older server) leaves through the default payout.
+  if (unassigned > 0) {
+    const m = defaultPayoutMethod(o, methods) ?? o.paymentMethod
+    out[m] = (out[m] ?? 0) - unassigned
+  }
+  return out
 }
 
 export function aggregate(orders: Order[], methods: PaymentMethodCfg[]): Breakdown {
@@ -40,8 +63,10 @@ export function aggregate(orders: Order[], methods: PaymentMethodCfg[]): Breakdo
     const kept = o.total - refunded
     b.totalSales += kept
     b.totalOrders += 1
-    b.byMethod[o.paymentMethod] = (b.byMethod[o.paymentMethod] ?? 0) + kept
-    if (isCashMethod(methods, o.paymentMethod)) b.cashSales += kept
+    for (const [m, v] of Object.entries(keptByMethod(o, kept, refunded, methods))) {
+      b.byMethod[m] = (b.byMethod[m] ?? 0) + v
+      if (isCashMethod(methods, m)) b.cashSales += v
+    }
     b.gross += o.subtotal
     b.discount += o.discountAmount
     b.tax += o.taxAmount

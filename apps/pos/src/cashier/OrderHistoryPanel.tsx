@@ -10,7 +10,7 @@ import { cacheRead, cacheWrite, OFFLINE_NOTICE } from '../lib/offlineCache'
 import { ListSkeleton } from '../components/Skeleton'
 import { variantLabel } from '@mandalika/types'
 import { RefundAction } from './RefundAction'
-import { PAYMENT_LABELS, refundSummaries } from './refundView'
+import { methodCellLabel, refundSummaries, tenderLineText, visibleTenders, type PayoutMethodCfg } from './refundView'
 import type { RefundCache } from './refundSelection'
 import { PAGE_SIZE, businessToday, defaultHistoryDay, historyWindowFor, orderHistoryQuery, withPinnedOrder } from './orderHistoryQuery'
 import { Sheet } from '../components/ui/Sheet'
@@ -54,6 +54,8 @@ interface OrderHistoryPanelProps {
   serverIdToSaleUuid?: ReadonlyMap<string, string>
   /** C4b: units and money this tablet saw acknowledged for earlier per-line refunds of an order. */
   refundCache?: (ids: readonly string[]) => RefundCache
+  /** The configured payment methods, to name the lines of a split sale. Optional. */
+  paymentMethods?: readonly PayoutMethodCfg[]
   /** Outlet timezone from the sync bundle (A28); absent = Asia/Jakarta. Decides "today". */
   timezone?: string | null
   /** ISO open time of the shown shift; its business day is the default day (A28). */
@@ -69,7 +71,7 @@ const STATUS_STYLES: Record<string, string> = {
   cancelled: 'bg-gray-100 text-gray-500',
 }
 
-export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, timezone, shiftOpenedAt }: OrderHistoryPanelProps) {
+export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, paymentMethods, timezone, shiftOpenedAt }: OrderHistoryPanelProps) {
   const [from, setFrom] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).from : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
   const [to, setTo] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).to : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
   // Once the cashier picks a day (or the panel opened on a given sale), a late-arriving timezone/shift no longer moves it.
@@ -237,7 +239,7 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
                           hour: '2-digit', minute: '2-digit',
                         })}
                         {o.customerName ? ` · ${o.customerName}` : ''}
-                        {` · ${PAYMENT_LABELS[o.paymentMethod] ?? o.paymentMethod}`}
+                        {` · ${methodCellLabel(o, paymentMethods)}`}
                       </p>
                     </div>
                     <span className="font-bold text-sm text-gray-900 flex-shrink-0 ml-2">
@@ -247,6 +249,11 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
 
                   {expanded && (
                     <div className="px-3 pb-3 pt-1 border-t border-gray-100 bg-gray-50">
+                      {visibleTenders(o).length > 0 && (
+                        <div className="pt-2 space-y-0.5" data-testid="order-tenders">
+                          {visibleTenders(o).map((t) => <p key={t.seq} className="text-[11px] text-gray-600">{tenderLineText(t, paymentMethods)}</p>)}
+                        </div>
+                      )}
                       <div className="space-y-1 py-2">
                         {o.items.map((it, n) => (
                           <div

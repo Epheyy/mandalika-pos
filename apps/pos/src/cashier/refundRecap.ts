@@ -27,6 +27,9 @@ const sum = (m: Record<string, number>) => Object.values(m).reduce((a, b) => a +
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 const add = (m: Record<string, number>, k: string, v: number) => { m[k] = (m[k] ?? 0) + v }
 /** What a queued refund pays out: the per-line amount (C4b), else the whole-order snapshot total. */
+/** C6: where a queued refund pays out: the chosen payout method of a split order, else the sale's method. */
+const payoutOf = (payload: Readonly<Record<string, unknown>>, fallback: unknown): unknown =>
+  typeof payload.payoutMethod === 'string' && payload.payoutMethod !== '' ? payload.payoutMethod : fallback
 const refundAmountOf = (payload: Readonly<Record<string, unknown>>): number | null => num(payload.refundAmount) ?? num(payload.total)
 
 /** `queued` = unacknowledged refunds from the engine (acked ones are already in the server map).
@@ -61,10 +64,11 @@ export function refundRecap(
     if (loaded) {
       // Server truth: still completed (or part-refunded) = its unrefunded money is still in byMethod, take this
       // refund out; fully refunded = already out. A whole-order refund takes out the loaded order's total (not a snapshot); a per-line one only what it pays.
-      if (loaded.status === 'completed' || loaded.status === 'partially_refunded') add(ownPendingByMethod, loaded.paymentMethod, Array.isArray(r.payload.items) ? (num(r.payload.refundAmount) ?? total ?? 0) : loaded.total)
+      if (loaded.status === 'completed' || loaded.status === 'partially_refunded') add(ownPendingByMethod, String(payoutOf(r.payload, loaded.paymentMethod)), Array.isArray(r.payload.items) ? (num(r.payload.refundAmount) ?? total ?? 0) : loaded.total)
       continue
     }
-    const method = r.payload.paymentMethod
+    // C6: a split order's refund is paid out in the chosen method, which the drawer sees; older payloads have only paymentMethod.
+    const method = payoutOf(r.payload, r.payload.paymentMethod)
     const saleShift = r.payload.saleShiftId
     // Key absent = captured before the snapshot (unknown). Present but null = the sale had no shift:
     // the server counts that as "other shift" too (shift_id IS DISTINCT FROM this one).

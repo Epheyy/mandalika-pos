@@ -9,6 +9,7 @@ import type { components } from '@mandalika/api'
 export type { AppliedPromoCode } from '../promoValidate'
 import type { AppliedPromoCode } from '../promoValidate'
 import type { BundleFreedUnit } from '../bundle'
+import { addTenderLine, type TenderLine } from '../tenderSplit'
 import { upsertCartItem, reducePaidQty, restoreBundle, restoreAllBundles, omitKey, clearBundleEntry, evictAllForExclusive, removePromotionEffect } from '../promotionEffects'
 import { planPromotionFulfillment, type PromotionOwner, type FulfillmentChoice } from '../promotionFulfillment'
 import { effectivePromotionSelection, isRedundantPromoCode } from '../promotionSelection'
@@ -62,6 +63,13 @@ export interface CashierState {
   isCheckoutOpen: boolean
   paymentMethod: PaymentMethod
   amountPaid: string
+  /** C6: optional "No. referensi" typed for the next/only non-cash line. */
+  tenderReference: string
+  /** C6: the sheet is in split mode; `tenders` are the entered payment lines (never stored in a held order, D-64). */
+  splitMode: boolean
+  tenders: TenderLine[]
+  /** C6 D-62: the sale's order uuid, minted when split mode starts so a saved draft and the queued sale share one key. */
+  splitOrderUuid: string | null
   isProcessing: boolean
   lastOrderId: string | null
   /** The reserved order number of the sale just completed (what is printed). */
@@ -103,11 +111,22 @@ export type CashierAction =
   | { type: 'CLOSE_CHECKOUT' }
   | { type: 'SET_PAYMENT_METHOD'; method: PaymentMethod }
   | { type: 'SET_AMOUNT_PAID'; amount: string }
+  | { type: 'SET_TENDER_REFERENCE'; reference: string }
+  | { type: 'SPLIT_START'; orderUuid: string }
+  /** Adds one line (cap at Sisa, cash merged into the cash line, N lines); an unacceptable line leaves the state as it was. */
+  | { type: 'TENDER_ADD'; line: TenderLine; due: number; isCash: (method: string) => boolean }
+  | { type: 'TENDER_REMOVE'; index: number }
+  | { type: 'SPLIT_CANCEL' }
+  /** D-62: reopen the sheet with the lines of a restored draft (dispatched after OPEN_CHECKOUT). */
+  | { type: 'SPLIT_RESTORE'; orderUuid: string; tenders: TenderLine[] }
   | { type: 'SET_PROCESSING'; processing: boolean }
   | { type: 'ORDER_SUCCESS'; orderId: string; orderNumber?: string }
   | { type: 'CLOSE_SUCCESS' }
   | { type: 'SET_ACTIVE_TAB'; tab: 'products' | 'cart' }
   | { type: 'RESET_SALE' }
+
+/** What leaves the state whenever the checkout sheet closes, a sale completes or the sale resets. */
+const NO_SPLIT = { splitMode: false, tenders: [] as TenderLine[], splitOrderUuid: null, tenderReference: '' }
 
 export const CASHIER_INITIAL_STATE: CashierState = {
   cart: [],
@@ -131,6 +150,10 @@ export const CASHIER_INITIAL_STATE: CashierState = {
   isCheckoutOpen: false,
   paymentMethod: 'cash',
   amountPaid: '',
+  tenderReference: '',
+  splitMode: false,
+  tenders: [],
+  splitOrderUuid: null,
   isProcessing: false,
   lastOrderId: null,
   lastOrderNumber: null,
@@ -560,16 +583,38 @@ export function cashierReducer(
         isCheckoutOpen: true,
         paymentMethod: action.defaultMethod,
         amountPaid: '',
+        ...NO_SPLIT,
       }
 
     case 'CLOSE_CHECKOUT':
-      return { ...state, isCheckoutOpen: false }
+      return { ...state, isCheckoutOpen: false, ...NO_SPLIT }
 
     case 'SET_PAYMENT_METHOD':
       return { ...state, paymentMethod: action.method }
 
     case 'SET_AMOUNT_PAID':
       return { ...state, amountPaid: action.amount }
+
+    case 'SET_TENDER_REFERENCE':
+      return { ...state, tenderReference: action.reference }
+
+    case 'SPLIT_START':
+      return { ...state, splitMode: true, tenders: [], amountPaid: '', tenderReference: '', splitOrderUuid: action.orderUuid }
+
+    case 'TENDER_ADD': {
+      const added = addTenderLine(state.tenders, action.line, action.due, action.isCash)
+      if (!added.ok) return state
+      return { ...state, tenders: added.lines, amountPaid: '', tenderReference: '' }
+    }
+
+    case 'TENDER_REMOVE':
+      return { ...state, tenders: state.tenders.filter((_, i) => i !== action.index) }
+
+    case 'SPLIT_CANCEL':
+      return { ...state, ...NO_SPLIT, amountPaid: '' }
+
+    case 'SPLIT_RESTORE':
+      return { ...state, splitMode: true, tenders: action.tenders, splitOrderUuid: action.orderUuid, amountPaid: '', tenderReference: '' }
 
     case 'SET_PROCESSING':
       return { ...state, isProcessing: action.processing }
@@ -582,6 +627,7 @@ export function cashierReducer(
         isCheckoutOpen: false,
         isSuccessOpen: true,
         isProcessing: false,
+        ...NO_SPLIT,
       }
 
     case 'CLOSE_SUCCESS':

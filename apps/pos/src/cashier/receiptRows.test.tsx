@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { buildReceipt } from '@mandalika/printer'
 import { buildReceiptQuote, receiptFromQuote } from './receiptQuote'
-import { quoteTotalRows, receiptTotalRows } from './receiptRows'
+import { quoteTotalRows, receiptTenderRows, receiptTotalRows } from './receiptRows'
 import { ReceiptTotals } from './ReceiptTotals'
 
 // Decode the printed slip to text lines (strip ESC/GS control sequences), as the printer snapshots do.
@@ -86,5 +86,41 @@ describe('on-screen totals match the printed receipt (C1 follow-up)', () => {
     expect(html).toContain('Pembulatan')
     expect(html).toContain('text-promo')
     expect(html).toContain('text-reward')
+  })
+})
+
+describe('C6 split tender rows match the printed receipt', () => {
+  const sale = { subtotal: 1251000, discountAmount: 0, surchargeAmount: 0, taxAmount: 0, redeemAmount: 0, total: 1251000 }
+  const tenders = [
+    { method: 'qris', label: 'QRIS', amount: 751000, reference: '8812345' },
+    { method: 'cash', label: 'Tunai', amount: 600000 },
+  ]
+  const data = receiptFromQuote(
+    buildReceiptQuote({ cart, derived: sale, tender: { amountPaid: 1351000, change: 100000 }, refVersion: 0, tenders }),
+    { ...extras, paymentLabel: 'Split-Payment' },
+  )
+
+  it('lists the same payment rows, in order, with amounts and Ref lines as the slip', () => {
+    const rows = receiptTenderRows(data)
+    expect(rows.map((r) => [r.label, r.amount, r.reference])).toEqual([['QRIS', 751000, '8812345'], ['Tunai', 600000, undefined]])
+    const lines = slip(buildReceipt(data, settings))
+    const at = lines.findIndex((l) => l.startsWith('QRIS'))
+    expect(numbers(lines[at]!.slice(lines[at]!.lastIndexOf(' ') + 1))).toBe(751000)
+    expect(lines[at + 1]).toBe('  Ref 8812345')
+    expect(lines[at + 2]!.startsWith('Tunai')).toBe(true)
+    expect(lines.some((l) => l.startsWith('Kembalian'))).toBe(true)
+    expect(rows.reduce((s, r) => s + r.amount, 0)).toBe(data.amountPaid)
+  })
+
+  it('a one-method sale keeps the single paymentLabel row', () => {
+    const plain = receiptFromQuote(buildReceiptQuote({ cart, derived: sale, tender: { amountPaid: 1300000, change: 49000 }, refVersion: 0 }), extras)
+    expect(receiptTenderRows(plain)).toEqual([{ key: 'tender-0', label: 'Tunai', amount: 1300000 }])
+  })
+
+  it('an empty tenders list leaves the snapshot byte-identical to a plain sale', () => {
+    const base = buildReceiptQuote({ cart, derived: sale, tender: { amountPaid: 1, change: 0 }, refVersion: 0 })
+    const empty = buildReceiptQuote({ cart, derived: sale, tender: { amountPaid: 1, change: 0 }, refVersion: 0, tenders: [] })
+    expect(JSON.stringify(empty)).toBe(JSON.stringify(base))
+    expect(base.receiptSnapshot.tenders).toBeUndefined()
   })
 })

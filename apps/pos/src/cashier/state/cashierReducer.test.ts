@@ -623,3 +623,59 @@ describe('cashierReducer promo reward lines (buy_x_get_y separate-set)', () => {
     expect(remaining[0].rewardPromotionId).toBe('promo2')
   })
 })
+
+describe('C6 split tender reducer', () => {
+  const cash = (m: string) => m === 'tunai'
+  const start = () => cashierReducer(CASHIER_INITIAL_STATE, { type: 'SPLIT_START', orderUuid: 'u-1' })
+  const add = (s: typeof CASHIER_INITIAL_STATE, method: string, amount: number, due = 500_000, reference?: string) =>
+    cashierReducer(s, { type: 'TENDER_ADD', line: { method, amount, ...(reference ? { reference } : {}) }, due, isCash: cash })
+
+  it('SPLIT_START mints the sale uuid into the state and clears the composer', () => {
+    const s = cashierReducer({ ...CASHIER_INITIAL_STATE, amountPaid: '5', tenderReference: 'x' }, { type: 'SPLIT_START', orderUuid: 'u-1' })
+    expect(s).toMatchObject({ splitMode: true, tenders: [], splitOrderUuid: 'u-1', amountPaid: '', tenderReference: '' })
+  })
+  it('adds lines, caps non-cash at Sisa, and merges a second cash entry', () => {
+    let s = add(start(), 'qris', 900_000)
+    expect(s.tenders).toEqual([{ method: 'qris', amount: 500_000 }])
+    s = add(start(), 'tunai', 100_000)
+    s = add(s, 'tunai', 50_000)
+    expect(s.tenders).toEqual([{ method: 'tunai', amount: 150_000 }])
+  })
+  it('an unacceptable add leaves the state as it was (same object)', () => {
+    const full = add(start(), 'qris', 500_000)
+    expect(add(full, 'card', 1000)).toBe(full)
+  })
+  it('stops at 4 lines', () => {
+    let s = start()
+    for (const m of ['qris', 'card', 'transfer', 'tunai']) s = add(s, m, 1000)
+    const before = s
+    s = add(s, 'other', 1000)
+    expect(s).toBe(before)
+    expect(s.tenders).toHaveLength(4)
+  })
+  it('removes a line by index', () => {
+    let s = add(add(start(), 'qris', 100_000), 'card', 100_000)
+    s = cashierReducer(s, { type: 'TENDER_REMOVE', index: 0 })
+    expect(s.tenders.map((l) => l.method)).toEqual(['card'])
+  })
+  it('keeps the reference of an added line and clears the composer', () => {
+    const s = add({ ...start(), tenderReference: '8812345' }, 'qris', 100_000, 500_000, '8812345')
+    expect(s.tenders[0]).toEqual({ method: 'qris', amount: 100_000, reference: '8812345' })
+    expect(s.tenderReference).toBe('')
+  })
+  it.each(['OPEN_CHECKOUT', 'CLOSE_CHECKOUT', 'RESET_SALE', 'ORDER_SUCCESS', 'SPLIT_CANCEL'] as const)('%s clears split mode, lines and the uuid', (type) => {
+    const s0 = add(start(), 'qris', 100_000)
+    const action =
+      type === 'OPEN_CHECKOUT' ? ({ type, defaultMethod: 'tunai' } as const)
+        : type === 'ORDER_SUCCESS' ? ({ type, orderId: 'u-1' } as const)
+          : ({ type } as const)
+    const s = cashierReducer(s0, action)
+    expect(s).toMatchObject({ splitMode: false, tenders: [], splitOrderUuid: null })
+  })
+  it('SPLIT_RESTORE reopens split mode with the draft lines and uuid', () => {
+    const s = cashierReducer(cashierReducer(CASHIER_INITIAL_STATE, { type: 'OPEN_CHECKOUT', defaultMethod: 'tunai' }), {
+      type: 'SPLIT_RESTORE', orderUuid: 'u-9', tenders: [{ method: 'qris', amount: 751_000 }],
+    })
+    expect(s).toMatchObject({ splitMode: true, splitOrderUuid: 'u-9', tenders: [{ method: 'qris', amount: 751_000 }], isCheckoutOpen: true })
+  })
+})

@@ -46,6 +46,25 @@ export function receiptTotalRows(data: TotalsInput, settings: Pick<ReceiptSettin
   return rows
 }
 
+/** One payment row under TOTAL. `reference` renders as a second "Ref ..." line, as on the slip. */
+export interface TenderRow {
+  key: string
+  label: string
+  amount: number
+  reference?: string
+}
+
+/**
+ * C6: the payment rows as the printed receipt shows them (printer `buildReceipt`): one row per tender line
+ * (amount = captured), else the single `paymentLabel` row with `amountPaid`.
+ */
+export function receiptTenderRows(data: Pick<ReceiptData, 'tenders' | 'paymentLabel' | 'amountPaid'>): TenderRow[] {
+  if (data.tenders && data.tenders.length > 0) {
+    return data.tenders.map((t, i) => ({ key: `tender-${i}`, label: t.label, amount: t.amount, ...(t.reference ? { reference: t.reference } : {}) }))
+  }
+  return [{ key: 'tender-0', label: data.paymentLabel, amount: data.amountPaid }]
+}
+
 /** The rows for the sale on screen, built through the same quote the printer uses (`receiptFromQuote`),
  *  so screen and paper take their numbers from one place. */
 export function quoteTotalRows(

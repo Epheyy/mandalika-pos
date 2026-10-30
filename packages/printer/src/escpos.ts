@@ -55,6 +55,8 @@ export interface ReceiptData {
   total: number
   paymentLabel: string
   amountPaid: number
+  /** C6: one row per payment line of a split sale (amount = captured). Absent = print the single `paymentLabel` row. */
+  tenders?: { label: string; amount: number; reference?: string }[]
   change: number
   customerName: string | null
   customerPhone: string | null
@@ -230,7 +232,14 @@ export function buildReceipt(
   }
   if (data.rounding) b.line(pad('Pembulatan', (data.rounding > 0 ? '+' : '') + money(data.rounding)))
   b.raw(BOLD_ON).line(pad('TOTAL', money(data.total))).raw(BOLD_OFF)
-  b.line(pad(data.paymentLabel, money(data.amountPaid)))
+  if (data.tenders && data.tenders.length > 0) {
+    for (const t of data.tenders) {
+      b.line(pad(t.label, money(t.amount)))
+      if (t.reference) b.line(`  Ref ${t.reference}`.slice(0, COLS))
+    }
+  } else {
+    b.line(pad(data.paymentLabel, money(data.amountPaid)))
+  }
   if (settings.showChange !== false && data.change > 0) {
     b.line(pad('Kembalian', money(data.change)))
   }

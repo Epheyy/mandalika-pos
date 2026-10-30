@@ -4,6 +4,7 @@ import type { LocalReceipt } from '@mandalika/sync'
 import { PAYMENT_LABELS, type LocalSaleRef, type PartialGate } from './refundView'
 import { receiptFromQuote, type ReceiptSnapshot } from './receiptQuote'
 import { buildRefundBasis, type RefundCache } from './refundSelection'
+import { allocateTenders, cashPredicate } from './tenderSplit'
 
 type Order = components['schemas']['Order']
 
@@ -38,11 +39,31 @@ const isSnapshot = (v: unknown): v is ReceiptSnapshot => {
   return (s.v === 1 || s.v === 2) && Array.isArray(s.lines)
 }
 
+/** C6: the payment lines of a local receipt as the server's Order shows them. The captured lines carry what each line
+ *  charged; the applied amounts come from the same allocation the server runs (batch rules). When it cannot be
+ *  allocated (an odd snapshot) each line shows as captured. Undefined for a receipt without lines (old, or single-method before C6). */
+function localTenders(r: LocalReceipt): Order['tenders'] {
+  const lines = r.tenders
+  if (!lines || lines.length === 0) return undefined
+  const alloc = typeof r.quotedTotal === 'number' ? allocateTenders(r.quotedTotal, lines, cashPredicate(undefined), 'batch') : null
+  if (alloc?.ok && alloc.settlement.lines.length === lines.length) {
+    return alloc.settlement.lines.map((t) => ({
+      seq: t.seq, method: t.method, amount: t.amount, tendered: t.tendered, change: t.change, synthetic: false,
+      ...(t.reference ? { reference: t.reference } : {}),
+    }))
+  }
+  return lines.map((l, i) => ({
+    seq: i + 1, method: l.method, amount: l.amount, tendered: l.amount, change: 0, synthetic: false,
+    ...(l.reference ? { reference: l.reference } : {}),
+  }))
+}
+
 /** The order the refund dialog shows for a local receipt. Its id is the sale uuid (the dialog's identity);
  *  the payload's real ids come from {@link localSaleRef}. Always 'completed': the refund gate decides. */
 export function localReceiptOrder(r: LocalReceipt): Order {
   const snap = isSnapshot(r.receiptSnapshot) ? r.receiptSnapshot : null
   const lines = snap?.lines ?? []
+  const tenders = localTenders(r)
   // C4b: a sale that carries per-line data lists its lines by position (lineNo) with their net share; the snapshot
   // may hold one extra trailing line, the C3 giveaway bag, which is shown but never refundable (D-41).
   const nets = r.lineNets && r.lineNets.length > 0 && lines.length >= r.lineNets.length && lines.length - r.lineNets.length <= 1 ? r.lineNets : null
@@ -52,6 +73,7 @@ export function localReceiptOrder(r: LocalReceipt): Order {
     status: 'completed',
     total: r.quotedTotal ?? snap?.total ?? 0,
     paymentMethod: r.paymentMethod,
+    ...(tenders ? { tenders } : {}),
     shiftId: r.shiftId,
     createdAt: r.capturedAt,
     items: lines.map((l, i) => ({

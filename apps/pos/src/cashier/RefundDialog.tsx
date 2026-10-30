@@ -2,7 +2,7 @@ import { memo, useMemo, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
 import { MAX_REFUND_REASON_CHARS } from '@mandalika/types'
-import { PAYMENT_LABELS, refundPartialNote } from './refundView'
+import { PAYMENT_LABELS, defaultPayoutMethod, isSplitOrder, paidByText, payoutChoices, refundPartialNote, tenderName, type PayoutMethodCfg } from './refundView'
 import {
   EMPTY_SELECTION, GIVEAWAY_NOTE, REASON_PRESETS, WHOLE_ONLY_NOTE, buildReason, buildRefundBasis, lineLockReason, pickedUnits,
   refundAmountFor, remainingAmount, selectAll, setLineQty, toggleLine,
@@ -17,12 +17,16 @@ export interface RefundConfirmInput {
   reason: string
   reasonCode: string
   selection: Selection
+  /** C6 (D-56): the payout chip, set for a split order only. */
+  payoutMethod?: string
 }
 
 interface RefundDialogProps {
   order: Order | null
   /** Units and money this tablet saw acknowledged for earlier refunds of the order (a cache; the order row wins when larger). */
   cache?: RefundCache
+  /** The configured payment methods: names the chips and tells which line is cash. Optional; ids are shown when absent. */
+  methods?: readonly PayoutMethodCfg[]
   isProcessing: boolean
   /** Persistent error when the refund could not be stored on the device. */
   error?: string | null
@@ -108,10 +112,11 @@ export const RefundDialog = memo(function RefundDialog(props: RefundDialogProps)
   return props.order ? <RefundDialogBody key={props.order.id} {...props} order={props.order} /> : null
 })
 
-function RefundDialogBody({ order, cache, isProcessing, error, onConfirm, onClose }: RefundDialogProps & { order: Order }) {
+function RefundDialogBody({ order, cache, methods, isProcessing, error, onConfirm, onClose }: RefundDialogProps & { order: Order }) {
   const [sel, setSel] = useState<Selection>(EMPTY_SELECTION)
   const [code, setCode] = useState<string | null>(null)
   const [text, setText] = useState('')
+  const [payoutPick, setPayoutPick] = useState<string | null>(null)
 
   const basis = useMemo(() => buildRefundBasis(order, cache), [order, cache])
 
@@ -121,17 +126,21 @@ function RefundDialogBody({ order, cache, isProcessing, error, onConfirm, onClos
   const amount = result ? result.amount : basis.total
   const hasPick = perLine ? pickedUnits(sel) > 0 : true
   const ready = hasPick && reason.ok && !isProcessing
+  const split = isSplitOrder(order)
+  const choices = useMemo(() => payoutChoices(order, methods), [order, methods])
+  const payout = split ? (payoutPick ?? defaultPayoutMethod(order, methods) ?? undefined) : undefined
   const method = PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod
+  const paidBy = split && (order.tenders?.length ?? 0) > 0 ? paidByText(order, methods) : `${method} ${formatRupiah(order.total)}`
 
   const confirm = () => {
     if (!ready || !reason.ok) return
-    onConfirm(order.id, { reason: reason.reason, reasonCode: reason.reasonCode, selection: sel })
+    onConfirm(order.id, { reason: reason.reason, reasonCode: reason.reasonCode, selection: sel, ...(payout ? { payoutMethod: payout } : {}) })
   }
 
   return (
     <Sheet open variant="center" maxWidth="max-w-lg" panelClassName="p-5 max-h-[92vh] overflow-y-auto">
       <h3 className="font-bold text-gray-900 mb-1">Refund Order</h3>
-      <p className="text-xs text-gray-500 mb-1">{order.orderNumber} · Dibayar {method} {formatRupiah(order.total)}</p>
+      <p className="text-xs text-gray-500 mb-1">{order.orderNumber} · Dibayar {paidBy}</p>
       {perLine && basis.priorAmount > 0 && (
         <p className="inline-block text-[11px] font-semibold text-amber-800 bg-amber-100 rounded-full px-2 py-0.5 mb-3">{refundPartialNote(remainingAmount(basis))}</p>
       )}
@@ -170,13 +179,27 @@ function RefundDialogBody({ order, cache, isProcessing, error, onConfirm, onClos
         </>
       )}
 
+      {split && choices.length > 0 && (
+        <>
+          <p id="refund-payout-label" className="block text-xs text-gray-700 font-semibold mb-1 mt-2">Dikembalikan lewat</p>
+          <div role="group" aria-labelledby="refund-payout-label" className="flex flex-wrap gap-2 mb-2">
+            {choices.map((c) => (
+              <button key={c.id} type="button" aria-pressed={payout === c.id} onClick={() => setPayoutPick(c.id)}
+                className={`${CHIP} ${payout === c.id ? 'bg-ink-900 text-white border-ink-900' : 'bg-white text-gray-700 border-gray-200'}`}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
       <div className="flex items-baseline justify-between border-t border-gray-100 pt-3 mt-2 mb-1">
         <span className="text-sm text-gray-700">Dikembalikan ke pelanggan</span>
         <span className="text-lg font-bold text-gray-900" data-testid="refund-amount">{formatRupiah(amount)}</span>
       </div>
       <p className="text-[10px] text-gray-400 mb-4">
         {result?.settlesRemainder ? 'Refund terakhir: jumlah sisa transaksi. ' : ''}
-        Dibayar lewat {method}. Stok akan dipulihkan oleh kantor pusat saat terkirim.
+        {split ? `Dikembalikan lewat ${payout ? tenderName(payout, methods) : 'metode pembayaran'}.` : `Dibayar lewat ${method}.`} Stok akan dipulihkan oleh kantor pusat saat terkirim.
       </p>
 
       {error && (

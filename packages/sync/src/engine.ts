@@ -258,6 +258,8 @@ export interface LocalReceipt {
   /** C4b: per sale line, the allocator's net share (see ReceiptEntry.lineNets); absent on older sales. */
   lineNets?: number[]
   lineGroups?: (string | null)[]
+  /** C6: the sale's payment lines (amount = captured); absent on single-method sales from before C6. */
+  tenders?: { method: string; amount: number; reference?: string }[]
 }
 
 /** Where a refund's sale stands for the send rule. */
@@ -1192,6 +1194,7 @@ export class SyncEngine {
           orderNumber: e.orderNumber, capturedAt: e.capturedAt, outletId: e.outletId, shiftId: e.shiftId,
           paymentMethod: e.paymentMethod, quotedTotal: e.quotedTotal, receiptSnapshot: e.receiptSnapshot, state: 'synced',
           ...(e.lineNets ? { lineNets: e.lineNets } : {}), ...(e.lineGroups ? { lineGroups: e.lineGroups } : {}),
+          ...(e.tenders ? { tenders: e.tenders } : {}),
           ...flags(e.orderUuid, e.serverOrderId),
         },
       })
@@ -1211,6 +1214,7 @@ export class SyncEngine {
           paymentMethod: e.paymentMethod, quotedTotal: e.quotedTotal, receiptSnapshot: e.receiptSnapshot,
           state: acked ? 'synced' : i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS ? 'parked' : 'queued',
           ...(e.lineNets ? { lineNets: e.lineNets } : {}), ...(e.lineGroups ? { lineGroups: e.lineGroups } : {}),
+          ...(e.tenders ? { tenders: e.tenders } : {}),
           ...flags(e.orderUuid, e.serverOrderId),
         },
       })
