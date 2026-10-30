@@ -171,19 +171,26 @@ export const posSplitDraft = async (page: ScenarioPage) => {
   await page.getByLabel('Jumlah pembayaran ini').fill('40000')
   await page.getByRole('button', { name: '+ Tambah pembayaran', exact: true }).click()
   await page.getByText('Lunas', { exact: true }).waitFor()
+  // The network stays down so the sale is still IN THE OUTBOX (unsent) when the app is "killed" below.
+  page.__a24.netDown = true
   await page.getByRole('button', { name: /^Konfirmasi Rp/ }).click()
   await page.getByRole('heading', { name: 'Pembayaran Berhasil' }).waitFor()
   assert((await page.evaluate((k) => localStorage.getItem(k), DRAFT_KEY)) === null, 'the draft is deleted once the sale is queued')
   out.push({ restored: 'prompt, restore, paid', draftUuid })
 
   // Kill/reload right after the enqueue: simulate the lost draft delete by writing the draft back, then reload.
-  const sent = orders(page)
-  assert(sent.length === 1 && sent[0].payload.orderUuid === draftUuid, 'the queued sale carries the draft order uuid')
+  const queuedCount = async (uuid: string) => {
+    const text = await storedOutbox(page)
+    return { sales: text.split('"type":"order"').length - 1, withUuid: text.split(`"orderUuid":"${uuid}"`).length - 1 }
+  }
+  const before = await queuedCount(draftUuid)
+  assert(before.sales === 1 && before.withUuid === 1, 'exactly one queued sale, carrying the draft order uuid: ' + JSON.stringify(before))
   await page.evaluate(([k, v]) => localStorage.setItem(k as string, v as string), [DRAFT_KEY, draftRaw!])
   await page.reload()
   await page.getByRole('button', { name: /^Synthetic Scent/ }).first().waitFor()
   assert((await page.getByText(/Ada pembayaran terpisah belum selesai/).count()) === 0, 'no prompt for a draft whose sale is already queued')
-  assert((await storedOutbox(page)).includes(draftUuid), 'the queued sale is still there with the same orderUuid')
+  const after = await queuedCount(draftUuid)
+  assert(after.sales === 1 && after.withUuid === 1, 'still exactly one queued sale with the same orderUuid after the reload: ' + JSON.stringify(after))
   await page.waitForFunction((k) => localStorage.getItem(k) === null, DRAFT_KEY)
   out.push({ killAfterEnqueue: 'no prompt, one queued sale, same orderUuid, stale draft dropped' })
   return out

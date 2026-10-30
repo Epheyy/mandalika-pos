@@ -50,7 +50,7 @@ import { RefundDialog, type RefundConfirmInput } from './RefundDialog'
 import type { RefundCache } from './refundSelection'
 import type { HistoryFocus } from './OrderHistoryPanel'
 import { withSaleLineData } from './saleLineData'
-import { REFUND_DONE, REFUND_QUEUED, planRefundSubmit, refundGateProps, type LocalSaleRef } from './refundView'
+import { REFUND_DONE, REFUND_QUEUED, orderReceiptTenders, planRefundSubmit, refundGateProps, type LocalSaleRef } from './refundView'
 import { OrderHistoryPanel } from './OrderHistoryPanel'
 import { LocalReceiptsPanel } from './LocalReceiptsPanel'
 import { localReceiptOrder, localSaleRef, newestReprintable, reprintReceiptData } from './localReceipts'
@@ -86,7 +86,7 @@ import { diagnosticExportMessages, shareFailedSyncDiagnostics } from '../lib/fai
 import { track } from '../lib/activityLog'
 import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
 import { brand, hasFeature } from '../brand'
-import { PAYMENT_LABELS, SPLIT_LABEL, tenderLabel } from '../lib/paymentLabels'
+import { PAYMENT_LABELS, tenderLabel } from '../lib/paymentLabels'
 import { cashPredicate, planSaleTender, salePaymentFields, snapshotTenders } from './tenderSplit'
 import { useSplitDraft } from './useSplitDraft'
 import { draftChargedSummary } from './splitDraft'
@@ -236,7 +236,7 @@ export default function CashierScreen() {
   const [shiftPrompt, setShiftPrompt] = useState(false)
   const printer = usePrinter()
   const lastReceipt = useRef<ReceiptData | null>(null)
-  /** What the success view shows of the payment (the state's own payment fields are cleared by ORDER_SUCCESS). */
+  /** What the success view shows of the payment (ORDER_SUCCESS clears the split lines, and the single-mode inputs are re-derived on a new sale). */
   const lastPayment = useRef<{ paymentMethod: string; amountPaid: number; change: number } | null>(null)
   const [printError, setPrintError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -395,7 +395,7 @@ export default function CashierScreen() {
       ...engine.outbox.all().flatMap((i) => (i.type === 'order' && typeof i.payload.orderUuid === 'string' ? [i.payload.orderUuid] : [])),
       ...engine.localReceipts().map((r) => r.orderUuid),
     ]),
-    showToast,
+    ensureShift, offlineLock, showToast,
   })
 
   // A44 owner decision 2026-10-16: an out-of-stock item is never blocked. The line is
@@ -819,7 +819,7 @@ export default function CashierScreen() {
       }, state.splitMode && state.splitOrderUuid ? state.splitOrderUuid : undefined)
         // The draft goes right after the enqueue resolved, inside the gate; a kill in between leaves a draft whose
         // uuid is already queued, which the next start drops without a prompt.
-        await splitDraft.clearNow()
+        await splitDraft.clearForSale(queued.orderUuid)
         return queued
       })
       if (outcome.status === 'busy') return
@@ -836,7 +836,7 @@ export default function CashierScreen() {
       const receipt: ReceiptData = receiptFromQuote(quoteHolder.current!, {
         orderRef: orderNo,
         dateTime: new Date(),
-        paymentLabel: plan.split ? SPLIT_LABEL : (PAYMENT_LABELS[plan.paymentMethod] ?? plan.paymentMethod),
+        paymentLabel: PAYMENT_LABELS[plan.paymentMethod] ?? plan.paymentMethod,
         customerName: state.selectedCustomer?.name ?? null,
         customerPhone: state.selectedCustomer?.phone ?? null,
         cashierName: user?.displayName ?? 'Kasir',
@@ -926,6 +926,7 @@ export default function CashierScreen() {
       taxAmount: o.taxAmount,
       total: o.total,
       paymentLabel: PAYMENT_LABELS[o.paymentMethod] ?? o.paymentMethod,
+      ...(orderReceiptTenders(o, settings.paymentMethods) ? { tenders: orderReceiptTenders(o, settings.paymentMethods) } : {}),
       amountPaid: o.amountPaid,
       change: o.change,
       customerName: o.customerName ?? null,
@@ -1065,7 +1066,16 @@ export default function CashierScreen() {
       if (refundOrder) { setRefundOrder(null); setRefundSale(null); return true }
       if (layer === 'close-picker') { setPendingFulfillment(null); return true }
       if (layer === 'close-success') { dispatch({ type: 'CLOSE_SUCCESS' }); return true }
-      if (layer === 'close-checkout') { dispatch({ type: 'CLOSE_CHECKOUT' }); return true }
+      if (layer === 'close-checkout') {
+        // D-63: Back is the same exit as Kembali, so entered payment lines ask first.
+        if (state.splitMode && state.tenders.length > 0) {
+          setConfirm({
+            message: 'Hapus pembayaran yang sudah dimasukkan? Pastikan transaksi di mesin EDC/QRIS dibatalkan.',
+            confirmLabel: 'Hapus', tone: 'danger', run: () => { setSaleError(null); dispatch({ type: 'CLOSE_CHECKOUT' }) },
+          })
+        } else dispatch({ type: 'CLOSE_CHECKOUT' })
+        return true
+      }
       if (layer === 'close-adjustment') { closePromoSheet(); return true }
       if (layer === 'cart-to-products') { dispatch({ type: 'SET_ACTIVE_TAB', tab: 'products' }); return true }
       // Nothing to navigate back to — still consume it. A POS must never be
@@ -1157,10 +1167,10 @@ export default function CashierScreen() {
           onDismiss={() => parked.dismissBanner(parked.banner!.key)} />
       )}
 
-      {splitDraft.pending && state.cart.length === 0 && !state.isCheckoutOpen && !state.isSuccessOpen && (
+      {splitDraft.pending && !state.isCheckoutOpen && !state.isSuccessOpen && (
         <Banner tone="warn"
           message={`Ada pembayaran terpisah belum selesai: ${draftChargedSummary(splitDraft.pending, isCashId, methodLabel)} sudah dicatat`}
-          action={{ label: 'Lanjutkan', onClick: () => splitDraft.restore() }}
+          action={{ label: 'Lanjutkan', onClick: () => (state.cart.length === 0 ? splitDraft.restore() : setConfirm({ message: 'Ganti keranjang saat ini? Isinya tidak tersimpan kecuali kamu simpan dulu.', confirmLabel: 'Ganti', tone: 'primary', run: () => splitDraft.restore() })) }}
           onDismiss={() => setConfirm({
             message: 'Hapus pembayaran terpisah yang belum selesai? Pastikan transaksi di mesin EDC/QRIS dibatalkan.',
             confirmLabel: 'Hapus', tone: 'danger', run: () => splitDraft.discard(),
@@ -1323,7 +1333,11 @@ export default function CashierScreen() {
         tenderReference={state.tenderReference}
         onTenderReferenceChange={(r) => dispatch({ type: 'SET_TENDER_REFERENCE', reference: r })}
         splitMode={state.splitMode} tenders={state.tenders}
-        onSplitStart={() => dispatch({ type: 'SPLIT_START', orderUuid: uuid() })}
+        onSplitStart={() => {
+          // An unrestored draft holds a charge made on the EDC: finish or delete it before starting another split.
+          if (splitDraft.pending) { showToast('Selesaikan atau hapus dulu pembayaran terpisah yang belum selesai'); return }
+          dispatch({ type: 'SPLIT_START', orderUuid: uuid() })
+        }}
         onSplitCancel={() => dispatch({ type: 'SPLIT_CANCEL' })}
         onTenderAdd={(line) => dispatch({ type: 'TENDER_ADD', line, due: derived.total, isCash: isCashId })}
         onTenderRemove={(index) => dispatch({ type: 'TENDER_REMOVE', index })}
@@ -1434,7 +1448,7 @@ export default function CashierScreen() {
           setShowLocalReceipts(false)
           setShowHistory(true)
         }}
-        onRefund={(r) => { setShowLocalReceipts(false); setRefundSale(localSaleRef(r)); setRefundOrder(localReceiptOrder(r)) }}
+        onRefund={(r) => { setShowLocalReceipts(false); setRefundSale(localSaleRef(r)); setRefundOrder(localReceiptOrder(r, settings.paymentMethods)) }}
         {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId, refundCache: refundCacheFor })}
       />
 

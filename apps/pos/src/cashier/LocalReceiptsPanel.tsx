@@ -59,7 +59,7 @@ export function LocalReceiptsPanel({ isOpen, onClose, receipts, canReprint, onRe
         <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2">
           {rows.length === 0 && <p className="text-center text-sm text-gray-400 py-8">Belum ada struk di tablet ini</p>}
           {rows.map((r) => {
-            const order = localReceiptOrder(r)
+            const order = localReceiptOrder(r, paymentMethods)
             const cache = refundCache?.([r.orderUuid, ...(r.serverOrderId ? [r.serverOrderId] : [])])
             const badge = localBadge(r, partialGateFor(order, cache))
             return (

@@ -87,6 +87,14 @@ export function visibleTenders(order: Pick<Order, 'tenders'>): OrderTender[] {
   return lines.length > 1 || lines.some((t) => !!t.reference) ? lines : []
 }
 
+/** The slip rows of a server order (a history reprint): one per captured line, so the reprint matches the original
+ *  slip (struk = layar). undefined for an order without visible lines (a plain sale prints its single payment row). */
+export function orderReceiptTenders(order: Pick<Order, 'tenders'>, methods?: readonly PayoutMethodCfg[]): { label: string; amount: number; reference?: string }[] | undefined {
+  const lines = visibleTenders(order)
+  if (lines.length === 0) return undefined
+  return lines.map((t) => ({ label: lineLabel(t.method, methods), amount: t.tendered, ...(t.reference ? { reference: t.reference } : {}) }))
+}
+
 /** "QRIS Rp 751.000 + Tunai Rp 500.000" for the refund dialog of a split order. */
 export function paidByText(order: Pick<Order, 'tenders'>, methods?: readonly PayoutMethodCfg[]): string {
   return [...(order.tenders ?? [])].sort(bySeq).map((t) => `${lineLabel(t.method, methods)} ${formatRupiah(t.amount)}`).join(' + ')

@@ -62,13 +62,11 @@ function reasonPriority(...reasons: string[]): string {
 /** Whether a method id is the reserved `split` sentinel (case- and edge-space-insensitive, as the server judges it). */
 export const isSplitId = (m: string): boolean => m.trim().toLowerCase() === SPLIT_METHOD_ID
 
-/** A control character (C0, DEL, C1) or a line/paragraph separator: not printable, refused like the server does. */
+const PRINTABLE = /^[\p{L}\p{M}\p{N}\p{P}\p{S} ]*$/u
 function hasNonPrintable(v: string): boolean {
-  for (const ch of v) {
-    const c = ch.codePointAt(0)!
-    if (c < 0x20 || (c >= 0x7f && c <= 0x9f) || c === 0x2028 || c === 0x2029) return true
-  }
-  return false
+  // Go's unicode.IsPrint: letters, marks, numbers, punctuation, symbols and the plain ASCII space. Everything else
+  // (control, NBSP and other Zs, zero-width and other Cf, line/paragraph separators) is refused by the server.
+  return !PRINTABLE.test(v)
 }
 
 /** Single-line legacy judgement (service/tender.go evaluateTender) shaped as one row. */

@@ -96,6 +96,12 @@ export function getSplitDraftStore(outletId: string): SplitDraftStore {
   return s
 }
 
+/** The sale-time delete (plan 2.7 step 2) removes the draft of THAT sale only: a plain sale rung up while an
+ *  unrestored draft is pending must never delete the only record of a charge made on the EDC. */
+export function draftBelongsToSale(draft: SplitDraft | null, orderUuid: string): boolean {
+  return draft !== null && draft.orderUuid === orderUuid
+}
+
 /**
  * Whether a stored draft is already a sale: its uuid is in the outbox or the receipt archive. Dropped silently on
  * start, because the sale was queued and only the draft delete was lost (plan 2.7 step 3).

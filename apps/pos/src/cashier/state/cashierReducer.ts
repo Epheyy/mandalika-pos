@@ -590,7 +590,7 @@ export function cashierReducer(
       return { ...state, isCheckoutOpen: false, ...NO_SPLIT }
 
     case 'SET_PAYMENT_METHOD':
-      return { ...state, paymentMethod: action.method }
+      return { ...state, paymentMethod: action.method, tenderReference: '' }
 
     case 'SET_AMOUNT_PAID':
       return { ...state, amountPaid: action.amount }
