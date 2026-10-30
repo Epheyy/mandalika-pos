@@ -20,6 +20,8 @@ export interface PosSetupOpts {
   extraRoute?: (route: any, path: string, method: string, req: any) => Promise<boolean>;
   /** C3: seed an outlet giveaway (a stocked bag product in the catalog + `outletGiveaway` in the pull bundle). */
   giveaway?: { stock: number };
+  /** C6: the server setting `splitTenderEnabled` (omitted = the key is absent, as on a backend without C6a). */
+  splitTender?: boolean;
 }
 
 export const setupPos = async (page: ScenarioPage, opts: PosSetupOpts = {}) => {
@@ -32,6 +34,7 @@ export const setupPos = async (page: ScenarioPage, opts: PosSetupOpts = {}) => {
   const customer={id:'00000000-0000-4000-8300-000000000081',name:'Synthetic Customer',phone:'+62000000000',points:100,totalSpent:0,visitCount:0};
   const codes=[{id:'code-bundle',code:'Raw-Bundle',promotionId:'bundle'},{id:'code-bxgy',code:'Raw-BXGY',promotionId:'bxgy'},{id:'code-generic',code:'Raw-Generic',promotionId:'generic'},{id:'code-cap',code:'CUSTOMER-CAP',perCustomerLimit:1},{id:'code-assigned',code:'ASSIGNED',customerId:customer.id}].map(c=>({...base,type:'percentage',value:10,usageCount:0,...c}));
   const settings={taxEnabled:false,taxRate:0,roundingEnabled:false,roundingType:'none',allowNegativeStock:true,autoOpenShift:false,paymentMethods:[{id:'cash',label:'Tunai',isEnabled:true},{id:'qris',label:'QRIS',isEnabled:true}],receipt:{headerText:'Synthetic receipt',footerText:'Test only',showTax:false,showCashier:true}};
+  if (opts.splitTender !== undefined) (settings as any).splitTenderEnabled=opts.splitTender;
   const user={id:'00000000-0000-4000-8300-000000000091',displayName:'Synthetic Cashier',role:'admin',outletId:'00000000-0000-4000-8300-000000000090',permissions:['create_order','manage_promotions'],...opts.user};
   const snapshot={version:1,products,categories:[],bundles:[],customers:[customer],promotions,discountCodes:codes,loyaltyConditions:[],loyaltySettings:{enabled:true,tierEnabled:false,pointsPerThousand:1,redemptionRate:100},appSettings:settings,outletName:'Synthetic Outlet',outletCode:'SYN',salesmen:[]};
   if (opts.giveaway) {

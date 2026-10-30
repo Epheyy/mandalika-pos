@@ -258,6 +258,36 @@
       "finding": "inventory-controls-S6",
       "description": "Cashier Permintaan Barang: menu hidden without request_stock; create sends Idempotency-Key and outlet; a failed submit retries with the same key; transfer chain shows Dikirim and Buka Terima Transfer opens the receive panel; cancel a draft; a lost create answer then an edit replays the old key (one PB, then one update) and is resolved when the panel next opens online; offline refuses the save with no request leaving the tablet; zero approve/reject/fulfil requests across the run",
       "source": "tests/browser/pos-requisition-scenarios.ts"
+    },
+    {
+      "id": "POS-SPLIT-TENDER",
+      "finding": "C6b",
+      "description": "Split payment: QRIS 60.000 with a reference plus cash 50.000 with change 10.000 on a Rp 100.000 cart; the receipt lists one row per line, the order payload carries the split summary scalars and tenders, the snapshot carries the lines and change, and Struk di tablet ini reads Split-Payment with both lines",
+      "source": "tests/browser/pos-split-scenarios.ts"
+    },
+    {
+      "id": "POS-SPLIT-OFFLINE",
+      "finding": "C6b",
+      "description": "An offline split sale is queued on the tablet with its reference, survives a reload, and reaches the server with its tenders after reconnecting",
+      "source": "tests/browser/pos-split-scenarios.ts"
+    },
+    {
+      "id": "POS-SPLIT-REFUND",
+      "finding": "C6b",
+      "description": "A split sale is refunded: Dikembalikan lewat chips for the sale's methods with the cash line's method preselected (the queued refund carries payoutMethod), then a second sale with the QRIS chip chosen",
+      "source": "tests/browser/pos-split-scenarios.ts"
+    },
+    {
+      "id": "POS-SPLIT-OFF",
+      "finding": "C6b",
+      "description": "With the splitTenderEnabled setting absent or false there is no Bagi pembayaran and the single-method checkout (with the optional reference field) is unchanged",
+      "source": "tests/browser/pos-split-scenarios.ts"
+    },
+    {
+      "id": "POS-SPLIT-DRAFT",
+      "finding": "C6b",
+      "description": "An unfinished split payment is saved when the first non-cash line is added, offered back after a reload and restored; the sale uses the draft's orderUuid; a draft whose sale is already queued is dropped silently with exactly one queued sale",
+      "source": "tests/browser/pos-split-scenarios.ts"
     }
   ],
   "redundant": [
