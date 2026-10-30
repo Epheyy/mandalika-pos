@@ -16,6 +16,7 @@ import { Pagination } from '../../ui/Pagination'
 import { orderFilterParams, type OrderFilters } from './orderQuery'
 import { breakdownRows, hasRefundBasis, isNegative, moneyOrDash, refundCsvFields, sharePercent } from './exportSummary'
 import { refundCsvRows } from './refundReport'
+import { methodLabel, orderPaymentCsv, refundPayoutCsv } from '../../lib/splitPayment'
 import { useOrderReport } from './useOrderReport'
 
 const statusBadge = (st: string) => <Badge tone={orderStatusTone(st)}>{orderStatusLabel(st)}</Badge>
@@ -24,11 +25,13 @@ interface ExportTabProps {
   filters: OrderFilters
   outletId: string | null | undefined
   outlets: Outlet[]
+  /** Configured methods, to label payment lines; absent = raw ids. */
+  paymentMethods?: ReadonlyArray<{ id: string; label: string }>
 }
 
 /** Laporan > Ekspor: server totals + one server-paged page of orders; the CSV pages
  * the whole filtered set on click instead of keeping every order in the browser. */
-export function ExportTab({ filters, outletId, outlets }: ExportTabProps) {
+export function ExportTab({ filters, outletId, outlets, paymentMethods }: ExportTabProps) {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -60,7 +63,10 @@ export function ExportTab({ filters, outletId, outlets }: ExportTabProps) {
       Pajak: o.taxAmount,
       Total: o.total,
       'Jumlah Refund': rf.amount,
-      'Metode Bayar': o.paymentMethod,
+      // A split sale lists its lines ("QRIS 751.000; Tunai 500.000"); 'Metode Refund' is where the
+      // money went back (the refund's own method), which can differ from how the sale was paid.
+      'Metode Bayar': orderPaymentCsv(o, paymentMethods),
+      'Metode Refund': refundPayoutCsv(o, paymentMethods),
       Status: o.status,
       Catatan: o.notes || '',
       'Alasan Refund': rf.reason,
@@ -159,7 +165,7 @@ export function ExportTab({ filters, outletId, outlets }: ExportTabProps) {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {rows.map((r) => (
                   <div key={r.method} className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs font-bold text-gray-500 capitalize mb-1">{r.method}</p>
+                    <p className="text-xs font-bold text-gray-500 capitalize mb-1">{methodLabel(r.method, paymentMethods)}</p>
                     <p className="text-xs text-gray-500">Kotor <span className="font-black text-gray-900 text-sm">{BRAND.currency.format(r.gross)}</span></p>
                     <p className="text-xs text-gray-500">Refund <span className="font-black text-red-600 text-sm">{BRAND.currency.format(r.refunds)}</span></p>
                     <p className="text-xs text-gray-500">Bersih <span className={`font-black text-sm ${r.net < 0 ? 'text-red-600' : 'text-gray-900'}`}>{BRAND.currency.format(r.net)}</span></p>

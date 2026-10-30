@@ -136,6 +136,7 @@ export default function Reports() {
           filters={{ dateFrom, dateTo, status: fStatus, payment: fPay, q: '' }}
           outletId={outletId}
           outlets={outlets}
+          paymentMethods={aq.data?.paymentMethods}
         />
       )}
 

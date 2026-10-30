@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchAllPages, type AppSettings } from '@mandalika/api'
+import { fetchAllPages, type AppSettings, type Order } from '@mandalika/api'
 import { variantLabel } from '@mandalika/types'
 import { format, parseISO } from 'date-fns'
 import { id } from 'date-fns/locale'
@@ -11,6 +11,7 @@ import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { BRAND } from '../lib/brand'
 import { paymentFilterOptions } from '../lib/paymentOptions'
+import { isSplitOrder, methodLabel, orderMethodText, orderPaymentCsv, paymentLineRows, tenderWarningTitle } from '../lib/splitPayment'
 import { exportToXLSX, buildExportName } from '../lib/csvUtils'
 import { Button } from '../ui/Button'
 import { Input, Select, fieldClass } from '../ui/Field'
@@ -18,7 +19,7 @@ import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { EmptyState } from '../ui/EmptyState'
 import { Pagination } from '../ui/Pagination'
-import { canViewSummary, lastDaysRange, orderFilterParams, transaksiFilters, transaksiHeader } from './reports/orderQuery'
+import { canViewSummary, lastDaysRange, orderFilterParams, paymentFilterHint, transaksiFilters, transaksiHeader } from './reports/orderQuery'
 import { useOrderReport } from './reports/useOrderReport'
 import { refundedByLine } from './refundDisplay'
 import { orderIconClasses, orderStatusLabel, orderStatusTone } from '../lib/orderStatus'
@@ -26,12 +27,27 @@ import { OrderRefundSection } from './orders/OrderRefundSection'
 import { AdminRefundForm } from './orders/AdminRefundForm'
 import { quoteWarningTitle, receiptTotalLine } from './quoteDisplay'
 
-const TENDER_WARNING_TITLES: Record<string, string> = {
-  cash_short: 'Tunai kurang dari total',
-  noncash_amount_mismatch: 'Nominal non-tunai beda dari total',
+/** Payment lines of an order: one row per line with its reference and change; shown for split orders only. */
+function PaymentLines({ order, methods }: { order: Order; methods: AppSettings['paymentMethods'] | undefined }) {
+  const rows = paymentLineRows(order, methods)
+  // One line of a single-method order says nothing the total and "Kembalian" do not.
+  if (rows.length === 0 || (rows.length === 1 && !isSplitOrder(order))) return null
+  return (
+    <div className="pt-1" data-testid="payment-lines">
+      <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Pembayaran</p>
+      {rows.map((r) => (
+        <div key={r.key} className="flex justify-between text-sm text-gray-600">
+          <span>
+            {r.label}
+            {r.reference && <span className="text-gray-400"> · ref {r.reference}</span>}
+            {r.change > 0 && <span className="text-green-600"> · kembalian {BRAND.currency.format(r.change)}</span>}
+          </span>
+          <span className="font-bold text-gray-900">{BRAND.currency.format(r.amount)}</span>
+        </div>
+      ))}
+    </div>
+  )
 }
-const tenderWarningTitle = (reason?: string | null) =>
-  reason ? (TENDER_WARNING_TITLES[reason] ?? reason) : undefined
 
 const badgeTone = orderStatusTone
 const label = orderStatusLabel
@@ -66,7 +82,8 @@ export function OrdersPanel() {
   const total = q.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const settingsQ = usePolledQuery<AppSettings>(() => api.getAppSettings(), [], 60000)
-  const payOptions = paymentFilterOptions(settingsQ.data?.paymentMethods, orders)
+  const payMethods = settingsQ.data?.paymentMethods
+  const payOptions = paymentFilterOptions(payMethods, orders)
 
   const canRefund = user?.role === 'admin'
   const reloadAfterRefund = async () => {
@@ -87,7 +104,7 @@ export function OrdersPanel() {
         'No. Order': o.orderNumber,
         Tanggal: format(parseISO(o.createdAt), 'yyyy-MM-dd HH:mm'),
         Status: label(o.status),
-        Pembayaran: o.paymentMethod,
+        Pembayaran: orderPaymentCsv(o, payMethods),
         Kasir: o.cashierName,
         Pelanggan: o.customerName ?? '',
         'Jumlah Item': o.items.reduce((s, it) => s + it.quantity, 0),
@@ -173,6 +190,9 @@ export function OrdersPanel() {
           Export
         </Button>
       </div>
+      {fPay.trim() !== '' && (
+        <p className="text-xs text-gray-400">{paymentFilterHint(fPay, methodLabel(fPay, payMethods))}</p>
+      )}
 
       <Card className="overflow-hidden">
         {q.loading ? (
@@ -203,7 +223,7 @@ export function OrdersPanel() {
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900 text-sm">{o.orderNumber}</p>
                     <p className="text-xs text-gray-400">
-                      {o.items.length} item · <span className="capitalize">{o.paymentMethod}</span>
+                      {o.items.length} item · <span className="capitalize">{orderMethodText(o)}</span>
                       {o.customerName && <> · {o.customerName}</>} · {o.cashierName} ·{' '}
                       {format(parseISO(o.createdAt), 'dd MMM yyyy HH:mm', { locale: id })}
                     </p>
@@ -282,6 +302,7 @@ export function OrdersPanel() {
                         {receiptTotalLine(o, BRAND.currency.format) && (
                           <div className="flex justify-between text-sm text-amber-700"><span>Total di struk</span><span>{receiptTotalLine(o, BRAND.currency.format)}</span></div>
                         )}
+                        <PaymentLines order={o} methods={payMethods} />
                         {o.change > 0 && (
                           <div className="flex justify-between text-sm text-green-600 font-bold"><span>Kembalian</span><span>{BRAND.currency.format(o.change)}</span></div>
                         )}
@@ -307,8 +328,8 @@ export function OrdersPanel() {
                           )}
                         </div>
                       )}
-                      <OrderRefundSection order={o} />
-                      {canRefund && <AdminRefundForm order={o} onDone={reloadAfterRefund} />}
+                      <OrderRefundSection order={o} methods={payMethods} />
+                      {canRefund && <AdminRefundForm order={o} methods={payMethods} onDone={reloadAfterRefund} />}
                     </div>
                   </div>
                 )}

@@ -1,3 +1,5 @@
+import { SPLIT_LABEL, SPLIT_METHOD_ID, isSplitMethodId } from './splitPayment'
+
 export interface PaymentOption {
   id: string
   label: string
@@ -20,8 +22,11 @@ export function paymentFilterOptions(
     seen.add(key)
     out.push({ id, label })
   }
-  for (const m of methods ?? []) add(m.id, m.label)
+  // The split sentinel is not a method: orders paid with several methods are found by each
+  // method's own line, and the "Split-Payment" option below lists the split orders themselves.
+  for (const m of methods ?? []) if (!isSplitMethodId(m.id)) add(m.id, m.label)
   add('cash', 'Tunai')
-  for (const o of orders) add(o.paymentMethod, o.paymentMethod)
+  for (const o of orders) if (!isSplitMethodId(o.paymentMethod)) add(o.paymentMethod, o.paymentMethod)
+  add(SPLIT_METHOD_ID, SPLIT_LABEL)
   return out
 }

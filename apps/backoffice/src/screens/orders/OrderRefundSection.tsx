@@ -3,10 +3,12 @@ import { variantLabel } from '@mandalika/types'
 import { format, parseISO } from 'date-fns'
 import { id } from 'date-fns/locale'
 import { BRAND } from '../../lib/brand'
+import { refundPayoutText } from '../../lib/splitPayment'
 import { refundedByLine } from '../refundDisplay'
 import { refundFlagLabel, refundScopeLabel, remainingQty, remainingRefundable } from './refundSelection'
 
 const money = (n: number) => BRAND.currency.format(n)
+type PaymentMethods = ReadonlyArray<{ id: string; label: string }> | undefined
 
 function lineName(order: Order, r: OrderRefund['items'][number]): string {
   const it = order.items.find((i) => i.id === r.orderItemId || (r.lineNo != null && i.lineNo === r.lineNo))
@@ -15,7 +17,7 @@ function lineName(order: Order, r: OrderRefund['items'][number]): string {
   return `${it.productName}${v ? ` ${v}` : ''}`
 }
 
-function RefundCard({ order, r }: { order: Order; r: OrderRefund }) {
+function RefundCard({ order, r, methods }: { order: Order; r: OrderRefund; methods: PaymentMethods }) {
   const flag = refundFlagLabel(r.amountWarning)
   const claimDiffers = r.claimedAmount != null && r.claimedAmount !== r.amount
   return (
@@ -29,7 +31,7 @@ function RefundCard({ order, r }: { order: Order; r: OrderRefund }) {
       <p className="text-xs text-gray-400">
         {format(parseISO(r.refundedAt), 'dd MMM yyyy HH:mm', { locale: id })}
         {r.refundedByName ? ` · ${refundedByLine({ refundedByName: r.refundedByName })}` : ''}
-        {r.paymentMethod ? ` · ${r.paymentMethod}` : ''}
+        {r.paymentMethod ? ` · ${refundPayoutText(r, methods)}` : ''}
       </p>
       {r.items.length > 0 && (
         <ul className="text-xs text-gray-600 space-y-0.5">
@@ -53,7 +55,7 @@ function RefundCard({ order, r }: { order: Order; r: OrderRefund }) {
 }
 
 /** Refund history + per-line refunded/remaining + remaining refundable amount for an order detail. */
-export function OrderRefundSection({ order }: { order: Order }) {
+export function OrderRefundSection({ order, methods }: { order: Order; methods?: PaymentMethods }) {
   const refunds = order.refunds ?? []
   const rest = remainingRefundable(order)
   const touched = order.status === 'partially_refunded' || order.status === 'refunded' || refunds.length > 0
@@ -61,7 +63,7 @@ export function OrderRefundSection({ order }: { order: Order }) {
   const lines = order.items.filter((i) => (i.refundedQty ?? 0) > 0)
   return (
     <div className="space-y-2">
-      {refunds.map((r) => <RefundCard key={r.id} order={order} r={r} />)}
+      {refunds.map((r) => <RefundCard key={r.id} order={order} r={r} methods={methods} />)}
       {lines.length > 0 && (
         <div className="bg-amber-50 rounded-xl p-3 space-y-0.5">
           <p className="text-xs font-black text-amber-700">Status per item</p>

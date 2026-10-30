@@ -23,6 +23,18 @@ export function orderFilterParams(f: OrderFilters): ListOrdersParams & ReportSum
   return p
 }
 
+/**
+ * Hint under the payment filter. A method filter lists every order with a payment line in that
+ * method, split orders included (so the list can hold orders that also paid in another method); the
+ * Split-Payment option lists the split orders only. '' = no filter, nothing to explain.
+ */
+export function paymentFilterHint(payment: string, label: string): string {
+  const id = payment.trim().toLowerCase()
+  if (!id) return ''
+  if (id === 'split') return 'Menampilkan transaksi Split-Payment (dibayar dengan lebih dari satu metode).'
+  return `Menampilkan transaksi yang berisi metode ${label}, termasuk Split-Payment yang memakai ${label} sebagai salah satu pembayarannya.`
+}
+
 /** Inclusive last-N-days window ending today (local calendar dates). */
 export function lastDaysRange(days: number, now = new Date()): { dateFrom: string; dateTo: string } {
   return {

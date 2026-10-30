@@ -5,6 +5,7 @@ import { variantLabel } from '@mandalika/types'
 import { RotateCcw } from 'lucide-react'
 import { api } from '../../api'
 import { BRAND } from '../../lib/brand'
+import { isSplitOrder, payoutChoices } from '../../lib/splitPayment'
 import { Button } from '../../ui/Button'
 import { Select, Textarea } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
@@ -17,18 +18,22 @@ const money = (n: number) => BRAND.currency.format(n)
 
 interface Props {
   order: Order
+  /** Configured payment methods, to label the payout chips. */
+  methods?: ReadonlyArray<{ id: string; label: string; isCash?: boolean | null; isEnabled?: boolean }>
   /** Called after a successful refund, or after a 409 so the caller reloads the order and list. */
   onDone: () => Promise<void> | void
 }
 
 /** Admin per-line refund (D-47). Legacy orders (lines without lineNo) only get the whole-order refund,
  *  and only while there is no earlier refund. */
-export function AdminRefundForm({ order, onDone }: Props) {
+export function AdminRefundForm({ order, methods, onDone }: Props) {
   const [open, setOpen] = useState(false)
   const [sel, setSel] = useState<Selection>(EMPTY_SELECTION)
   const [code, setCode] = useState('')
   const [text, setText] = useState('')
   const [confirming, setConfirming] = useState(false)
+  // Payout chip of a split order; null = the D-56 default (cash if the sale had cash, else the largest line).
+  const [payoutPick, setPayoutPick] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   // Replay key: one uuid per confirmed attempt, reused when the same selection+reason is retried.
@@ -40,7 +45,14 @@ export function AdminRefundForm({ order, onDone }: Props) {
   const hadRefund = (order.refunds ?? []).length > 0 || order.status === 'partially_refunded'
   if (legacy && hadRefund) return null
 
-  const reset = () => { attempt.current = null; setOpen(false); setSel(EMPTY_SELECTION); setCode(''); setText(''); setConfirming(false); setErr(null) }
+  const reset = () => { attempt.current = null; setOpen(false); setSel(EMPTY_SELECTION); setCode(''); setText(''); setConfirming(false); setErr(null); setPayoutPick(null) }
+  // Single-method orders pay out in the sale's method: no choice, nothing extra is sent.
+  // The chips wait for the configured methods (the default depends on which are cash). Only an explicit pick is
+  // sent; an untouched form sends nothing, so the server applies its own default and records it as such.
+  const choices = methods && isSplitOrder(order) ? payoutChoices(order, methods) : null
+  const shown = choices && choices.options.length > 0 ? (payoutPick ?? choices.defaultId) : ''
+  const payout = payoutPick ?? ''
+  const payoutLabel = choices?.options.find((c) => c.id === shown)?.label ?? shown
   const picked = selectionToItems(sel)
   const reasonRes = buildReason(code, text)
   // A legacy order has no lines to pick: the whole order is refunded.
@@ -59,13 +71,14 @@ export function AdminRefundForm({ order, onDone }: Props) {
   const submit = async () => {
     if (!reasonRes.ok) return
     setBusy(true)
-    const key = JSON.stringify([legacy ? null : picked, reasonRes.reasonCode, reasonRes.reason])
+    const key = JSON.stringify([legacy ? null : picked, reasonRes.reasonCode, reasonRes.reason, payout])
     if (attempt.current?.key !== key) attempt.current = { key, uuid: crypto.randomUUID() }
     try {
       await api.refundOrder(order.id, reasonRes.reason, {
         reasonCode: reasonRes.reasonCode,
         ...(legacy ? {} : { items: picked }),
         clientRefundUuid: attempt.current.uuid,
+        ...(payout ? { payoutMethod: payout } : {}),
       })
       reset()
       await onDone()
@@ -131,6 +144,20 @@ export function AdminRefundForm({ order, onDone }: Props) {
         <option value="">Pilih alasan...</option>
         {REASON_PRESETS.map((p) => <option key={p.code} value={p.code}>{p.label}</option>)}
       </Select>
+      {choices && choices.options.length > 0 && (
+        <div className="space-y-1.5" role="radiogroup" aria-label="Dikembalikan lewat">
+          <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Dikembalikan lewat</p>
+          <div className="flex flex-wrap gap-2">
+            {choices.options.map((c) => (
+              <Button key={c.id} variant={c.id === shown ? 'primary' : 'secondary'} size="sm" role="radio" aria-checked={c.id === shown}
+                onClick={() => setPayoutPick(c.id)}>
+                {c.label}
+              </Button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400">Transaksi ini dibayar dengan beberapa metode. Pilih metode untuk mengembalikan uang; satu refund satu metode.</p>
+        </div>
+      )}
       {code === 'lainnya' && (
         <Textarea label="Tuliskan alasan *" value={text} onChange={(e) => setText(e.target.value)} rows={2} />
       )}
@@ -163,6 +190,7 @@ export function AdminRefundForm({ order, onDone }: Props) {
             </ul>
           )}
           <p className="font-bold">Perkiraan jumlah refund {money(estimate)}</p>
+          {shown && <p>Dikembalikan lewat {payoutLabel}</p>}
           <p className="text-xs text-gray-500">Server menghitung jumlah pastinya dan membatasinya pada sisa yang bisa direfund.</p>
         </div>
       </Modal>
