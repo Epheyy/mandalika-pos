@@ -50,9 +50,16 @@ Date 2026-11-02 · base `prod-hardening` 0425f838 (live: backend `00149-xiz`, ba
    - `GET /products` takes `page`/`limit` (`packages/api/src/client.ts:741`). The backoffice calls it through `loadAllProducts`, which walks every page every 12 s (`BO/screens/products/useProductsData.ts:24`). So D2 needs search and filter parameters, not paging itself.
    - `GET /promotions` and `GET /discount-codes` return the whole list (`client.ts:855,861`).
    - Section 3 has the backend contract.
-5. **Overlays must not use `createPortal` unguarded.**
-   - Three vitest suites render modals with `renderToStaticMarkup` in node: `products/DeleteConfirmModal.test.tsx`, `products/erpReadOnly.test.tsx`, `promotions/promotionKeyForm.test.ts`.
+5. **Overlays and hooks must survive `renderToStaticMarkup`.**
+   - Four vitest suites render in node with `renderToStaticMarkup`. Three of them render overlays:
+     - `products/DeleteConfirmModal.test.tsx`;
+     - `products/erpReadOnly.test.tsx` (also renders `ProductFormModal`);
+     - `promotions/promotionKeyForm.test.ts`.
+     - The fourth, `transfers/docs/nullable-contract.test.tsx`, renders no overlay.
    - A portal throws there. Kit overlays render in place, or portal only when `document` exists.
+   - The kit hooks must also render on the server:
+     - `useSyncExternalStore` gets a `getServerSnapshot`;
+     - context hooks (`useOutlet`, `useConfirm`, `useToast`) have safe defaults without a provider.
 6. **Gold text contrast.** White on Mandalika gold `#b07d18` is 3.6:1, below AA for 14 px labels.
    - The POS gets away with it because the Bayar bar label is large text.
    - Backoffice filled controls use a new `--color-brand-strong` (Mandalika = brand-pressed `#8f6412`, 5.3:1). Decision D-73.
@@ -67,7 +74,7 @@ Date 2026-11-02 · base `prod-hardening` 0425f838 (live: backend `00149-xiz`, ba
 
 ## 0.1 TL;DR
 
-Eleven slices in four waves. **12-17 sessions** (about 14 is typical), against the 9 in the direction doc. The extra sessions are:
+Eleven slices in four waves. **14-17 sessions** (13-15 without the optional D5), against the 9 in the direction doc. The extra sessions are:
 - the Pengaturan fix;
 - the router foundation;
 - the backend list parameters;
@@ -75,13 +82,13 @@ Eleven slices in four waves. **12-17 sessions** (about 14 is typical), against t
 
 | Wave | Slices (can run in parallel inside a wave) | Sessions |
 |---|---|---|
-| 1 | **D1-P** Pengaturan save bar + stale-overwrite fix · **D1a** tokens, kit, label maps (new files only) | 1 + 1-2 |
+| 1 | **D1-P** Pengaturan save bar + stale-overwrite fix · **D1a** tokens, kit, label maps (new files only) | 1 + 2 |
 | 2 | **D1b** shell: grouped sidebar, header scope, hash router foundation, nav guard, test helpers, top-level renames (needs D1a + D1-P) | 2 |
-| 3 | **D2-API** backend list params (Products search/filter, Promotions/Codes paging, ERP location names, Barang Masuk list) → then **D2a** Products · **D2b** Promotions · **D3a** Pergerakan + Kartu Stok · **D3b** Transfer, Opname, Penyesuaian, Barang Masuk · **D3c** Persetujuan, ERP, Tinjauan Sinkron, Log Kesalahan | 1 + 1 + 1-2 + 1-2 + 1-2 + 1 |
+| 3 | **D2-API** backend list params (Products search/filter, Promotions/Codes paging, ERP location names, Barang Masuk list) → then **D2a** Products · **D2b** Promotions · **D3a** Pergerakan + Kartu Stok · **D3b** Transfer, Opname, Penyesuaian, Barang Masuk · **D3c** Persetujuan, ERP, Tinjauan Sinkron, Stok Minus | 1 + 1 + 1-2 + 1-2 + 2 + 1 |
 | 4 | **D4** URL-state completion (screens not touched in wave 3) · **D5** remaining tables sweep (optional, D-74) | 1 + 1-2 |
 
 - **First card: D1-P** (Sonnet 5.5 medium, Opus 5.5 high review because it touches the payment settings PUT). Run D1a beside it.
-- Both wait only on the owner approving the mock (BO1-BO4) and D-67 to D-82.
+- Both wait only on the owner approving the mock (BO1-BO4) and D-67 to D-84.
 
 ---
 
@@ -191,7 +198,7 @@ Other gaps:
   | table header `ink-700` on `paper-1` | about 8:1 | replaces today's `text-gray-400` headers (about 2.6:1, `products/ProductsTable.tsx:49`). |
 
 - **Font (D-75).** Self-hosted Roboto Variable: one latin-subset `woff2`, weights 400-700.
-  - **Vendored** under `apps/backoffice/public/fonts/` with its `OFL.txt` (the same idea as `vendor/sheetjs`), declared by an `@font-face` in `tokens.css`.
+  - **Vendored** under `apps/backoffice/public/fonts/` with its `OFL.txt` (the same idea as `vendor/sheetjs`), declared by an `@font-face` in `BO/index.css` (not in the shared `tokens.css`: the POS will import that file later and ships no `/fonts` folder; on Android it uses the system Roboto).
   - **No npm dependency and no lockfile change**, consistent with the no-dependency router choice. That also avoids the Cloudflare frozen-lockfile failure mode.
   - It matches the POS and the Figma file.
   - It must be local: the browser gate aborts external font requests.
@@ -236,12 +243,17 @@ export function Link(props: { to: string; navId?: string; className?: string; ch
 export function useListState<S extends Record<string, string | number | boolean>>(
   schema: ListSchema<S>,    // keys, defaults, parse/serialise; defaults are omitted from the URL
 ): [S, (patch: Partial<S>, opts?: { replace?: boolean }) => void]
-// BO/lib/navGuard.ts — created in D1-P, reused by the router
-export function setLeaveGuard(g: LeaveGuard | null): void   // LeaveGuard = () => Promise<'save' | 'discard' | 'stay'>
-export function confirmLeave(): Promise<boolean>
+// BO/lib/navGuard.ts — created in D1-P, reused by the router. A STACK, not one slot: Pengaturan registers a guard,
+// and a dirty SlideOver (?ubah=) registers its own while open, so browser Back closes the top one first.
+export function pushLeaveGuard(g: LeaveGuard): () => void   // returns the pop function; LeaveGuard = () => Promise<'save' | 'discard' | 'stay'>
+export function confirmLeave(): Promise<boolean>            // asks the top guard only
 ```
 
-- **URL scheme (D-69).** Paths are Indonesian slugs that match the sidebar; query keys are short Indonesian words; values are the API codes (labels come from the label maps).
+- **URL scheme (D-69).**
+  - Paths are Indonesian slugs that match the sidebar.
+  - Query keys are short Indonesian words.
+  - Values are the **API codes** (`status=open`, `status=dead`, `status=in_transit`); labels come from the label maps.
+  - The tab structure on screen does not change: Pergerakan and Kartu Stok stay sub-tabs of Stok Produk, so their routes nest under `/stok`.
 
 | Screen | Route | Notes |
 |---|---|---|
@@ -250,36 +262,48 @@ export function confirmLeave(): Promise<boolean>
 | Pelanggan | `#/pelanggan`, `/pengingat`, `/duplikat[/:id]`, `/loyalitas[/kondisi]`, detail `#/pelanggan/:id` | |
 | Promosi | `#/promosi`, `#/promosi/kode`; overlays `?ubah=<id>` / `?baru=1` | |
 | Produk | `#/produk`, `/kategori`, `/bundle`; overlays `?ubah=<id>` / `?baru=1` | `?q=&status=&kategori=&hal=&per=` |
-| Inventori | `#/inventori/stok[/{outlet\|gudang}/:id]`, `/pergerakan`, `/kartu-stok?sku=&lokasi=&dari=&sampai=&jenis=`, `/transfer[/baru\|/:id]`, `/barang-masuk`, `/bahan/{…}`, `/opname[/bahan]` | Kartu Stok becomes bookmarkable (4.4) |
+| Inventori › Stok Produk | `#/inventori/stok` (Ikhtisar), `#/inventori/stok/lokasi/{outlet\|gudang}/:id` (LocationStockView), `#/inventori/stok/pergerakan?lokasi=&dari=&sampai=&q=&hal=`, `#/inventori/stok/kartu-stok?sku=&lokasi=&dari=&sampai=&jenis=` | Kartu Stok becomes bookmarkable (4.4) |
+| Inventori › other tabs | `#/inventori/transfer[/baru\|/:id]`, `#/inventori/barang-masuk`, `#/inventori/opname[/bahan]` | |
+| Inventori › Bahan | `#/inventori/bahan/{ikhtisar\|daftar\|stok-masuk\|penyesuaian\|transfer}`, `…/bahan/ikhtisar/lokasi/{outlet\|gudang}/:id`, `…/bahan/transfer/:id` | the ingredient transfer detail is an inline row expand today (`ingredients/TransferTab.tsx:79`); D4 decides between a route and keeping it inline |
 | Persetujuan Stok | `#/persetujuan-stok?id=` | |
 | Permintaan Barang | `#/permintaan-barang[/baru\|/:id\|/:id/ubah]` | the edit view refetches by id (today it holds the object, `RequisitionList.tsx:21-28`) |
 | Pengguna | `#/pengguna`, `#/pengguna/role` | |
-| Tinjauan Sinkron | `#/tinjauan-sinkron?status=terbuka&outlet=&alasan=&id=` | |
+| Tinjauan Sinkron | `#/tinjauan-sinkron?status=open&outlet=&alasan=&id=` | |
 | Pengaturan | `#/pengaturan/{outlet-gudang\|transaksi\|operasional\|resep-bahan}` | |
-| Integrasi ERP | `#/integrasi-erp?status=gagal&jenis=&id=` | |
+| Integrasi ERP | `#/integrasi-erp?status=dead&jenis=&id=` | |
 | Log Kesalahan | `#/log-kesalahan?sumber=` | |
 
 - **Mapping rules for today's in-screen swaps.**
   - Full-page views become path segments: the transfer detail, the customer detail, the requisition views and LocationStockView.
   - Overlays become query parameters, so the list stays mounted and Back closes the overlay: SlideOver edit (`?ubah=`), Modal detail (`?id=`).
   - Sub-tabs become path segments.
+  - A dirty overlay registers a leave guard while open, so Back asks before closing it.
   - List filters and paging become query keys through `useListState`.
   - Async-gated tabs fall back to the first permitted tab and re-resolve when the flag arrives. Example: Bahan waits for `recipesEnabled` (`Warehouses.tsx:17-26,42-47`).
   - An unknown route becomes the first visible nav item with `replace`.
   - A route the user cannot see renders today's "Akses tidak diizinkan" view.
 - **Kept out of the URL:**
-  - **The outlet scope** stays global and moves to localStorage (`mandalika.backoffice.outletId`, a per-viewer convenience). Kartu Stok carries its own `lokasi=` filter, which is enough for a bookmark.
+  - **The outlet scope** stays global and moves to localStorage as a per-viewer convenience.
+    - The key is per user: `mandalika.backoffice.outletId.<userId>`.
+    - It is validated against the outlet list on load.
+    - It is re-applied after `OutletProvider`'s reset when `isAdmin` changes (`outlet.tsx:46-49`).
+    - Kartu Stok carries its own `lokasi=` filter, which is enough for a bookmark.
   - Transient UI state: expanded rows, selections, wizard step.
 - **The window nav event.** D1b turns `RequisitionDetail.tsx:28` into `navigate('#/inventori/transfer/<id>')`, which fixes the lossy jump. The listener stays as a shim until D4 removes it.
 - **Leave guard.**
   - `navigate()` and `<Link>` call `confirmLeave()` first.
-  - **Browser Back/Forward while a guard is active** (an open check for D1b):
-    - The `hashchange` has already happened, so the router has to undo it before asking.
-    - Preferred: `history.go(+1)` / `history.go(-1)` back to the previous entry, with an "ignore the next hashchange" flag. This keeps the Forward history intact.
-    - Alternative: `history.pushState(null, '', previousHash)`. It fires no `hashchange`, but it truncates Forward history and leaves a duplicate entry.
-    - Then the dialog opens. "Buang perubahan" re-issues the original move.
-    - BO-ROUTE-GUARD covers Back **and** Forward.
-  - `beforeunload` is registered only while a guard is active.
+  - **Browser Back/Forward while a guard is active.** The `hashchange` has already happened, so the router has to undo it before asking.
+    - **Telling Back from Forward.** Every entry the router creates carries `history.state = { idx }`: `navigate()` pushes with the next idx, and after any foreign hash change the router stamps the entry with `replaceState`.
+    - On `popstate`/`hashchange`, compare the new idx with the current one:
+      - lower = Back;
+      - higher = Forward;
+      - an entry without state (a typed URL) = a push.
+    - **Undo** with `history.go(currentIdx - newIdx)` plus an "ignore the next change" flag, so Forward history stays intact.
+      - The alternative, `pushState(previousHash)`, truncates Forward history and leaves a duplicate entry, so it is not used.
+    - Then the top guard's dialog opens. "Buang perubahan" re-issues the original move.
+    - `Link` calls `preventDefault()` **before** `confirmLeave()`, so the browser never changes the hash first.
+    - If this proves fragile in D1b, switching to react-router's `useBlocker` (D-67 alternative) is the fallback. It solves exactly this.
+  - `beforeunload` is registered only while a guard is active. It is checked by a unit test of the registration, not by Playwright: `beforeunload` there needs user activation and is flaky.
 - **Building the sidebar so D4 needs no rework.**
   - The sidebar renders from `routes.ts`, so sections, order, labels, icons and permissions come from one table.
   - Each item is a `<Link>` carrying `data-nav-id={id}` and the count badge.
@@ -337,11 +361,12 @@ FilterBar.Chips      // { items: {id,label,count?}[], value: string | string[], 
 FilterBar.Select     // native <select> with a visible label and aria-label
 // ui/ExportButton.tsx
 export interface ExportButtonProps {
-  format?: 'csv' | 'xlsx'           // label "Unduh CSV" | "Unduh Excel" (D-78); never "Export"/"Ekspor"
+  formats?: readonly ('csv' | 'xlsx')[]   // default ['csv']. One format = a button "Unduh CSV" | "Unduh Excel" (D-78);
+                                    // two = a menu button "Unduh" with "CSV (.csv)" / "Excel (.xlsx)" (replaces ImportExportBar's "Export"); never "Export"/"Ekspor"
   qualifier?: string                // when two exports share a screen: "Unduh CSV refund"
   rowCount: number | null           // shown "· 312"; null = unknown
   filterSummary: readonly string[]  // tooltip: "Unduh CSV · 312 baris · Filter: …"
-  onExport: () => Promise<void> | void   // existing csvUtils builders (Blob + createObjectURL + anchor.click — the CSV tests stub exactly this)
+  onExport: (format: 'csv' | 'xlsx') => Promise<void> | void   // existing csvUtils builders (Blob + createObjectURL + anchor.click — the CSV tests stub exactly this)
   disabled?: boolean                // disabled at rowCount 0 (BO-PAGES-XLSX :196, BO-RACE :291)
 }
 // ui/ConfirmDialog.tsx — role="alertdialog", focus Batal on danger, Escape/backdrop = cancel (not while busy)
@@ -355,10 +380,14 @@ export interface ConfirmDialogProps {
   busy?: boolean
   error?: string | null             // server refusal shown inside (role="alert"), dialog stays open
   extra?: { label: string; tone: 'danger' | 'ghost'; onClick: () => void }   // the leave guard's "Buang perubahan"
-  onConfirm: () => void | Promise<void>
+  input?: { label: string; required?: boolean; multiline?: boolean; maxLength?: number }   // e.g. "Alasan pembatalan" (replaces window.prompt)
+  onConfirm: (value?: string) => void | Promise<void>
   onCancel: () => void
 }
-export function useConfirm(): (opts: Omit<ConfirmDialogProps, 'open' | 'onConfirm' | 'onCancel'>) => Promise<boolean>
+export function useConfirm(): (opts: Omit<ConfirmDialogProps, 'open' | 'onConfirm' | 'onCancel'>) => Promise<{ confirmed: boolean; value?: string }>
+// ui/Toast.tsx — one region, role="status" (never role="alert": an inline alert with the same text would double-match in strict mode)
+export function useToast(): (t: { message: string; tone?: 'ok' | 'info' | 'warn'; action?: { label: string; onClick: () => void }; durationMs?: number }) => void
+//   used for "Pengaturan disimpan…", D-79 undo ("Urungkan"), "Disalin"
 // ui/SlideOver.tsx — generalises RecipeSlideOver; right side, full height, aria-modal dialog, focus trap, returns focus to the opener
 export interface SlideOverProps {
   open: boolean
@@ -385,7 +414,8 @@ export function StatusBadge<K extends string>(p: { map: LabelMap<K>; value: stri
 //   getByRole('switch', { name: 'Bayar terpisah' })), the raw icon toggles and click-to-mutate status pills.
 // ui/SaveBar.tsx + lib/useUnsavedChanges.ts (built in D1-P, section 2.4)
 // ui/Tabs.tsx — keeps <button> semantics (BO-* click tabs as buttons; role="tab" would break 6 scenarios),
-//   gains `dirty?: boolean` per tab (a dot with aria-label "ada perubahan") and an optional `href` for routed tabs.
+//   gains `dirty?: boolean` per tab (a dot with aria-label "ada perubahan") and `data-tab-key`; routed tabs are still
+//   buttons whose onChange calls navigate() (no <a href>).
 ```
 
 **Testing the kit.**
@@ -408,21 +438,46 @@ export function StatusBadge<K extends string>(p: { map: LabelMap<K>; value: stri
    - An amber tint plus "· sebelumnya {old}" on each changed row.
    - Switching tabs keeps the draft (as today).
 4. **Leave guard.** The sidebar, the hash router, browser Back and `beforeunload` ask "Simpan perubahan Pengaturan?" with three buttons: "Simpan & lanjut", "Tetap di sini" and "Buang perubahan". Mock BO4.
-5. **Stale-overwrite fix, client side, no backend change.**
-   - `diffSettings(baseline, draft)` is a pure, unit-tested function. It produces the change list for the bar and the keys to save.
-   - Saving follows the server's two key classes (`write/settings.go:50-156`):
-     - **Present-only keys:** `documents`, `recipesEnabled`, `inventoryApprovalRequired`, `splitTenderEnabled`. The server applies these only when they are present.
-       - They go out **only when the user changed them**. Absent means unchanged.
-       - `inventoryApprovalRequired` runs `setApprovalSwitch`, which writes an audit doc-event on a real change (`write/inventory_approval.go:559-575`).
-     - **Always-overwritten keys:** `taxEnabled`, `taxRate`, the rounding fields (including `roundingType`/`roundingApplyToTax`, which have no UI), `autoOpenShift`, `allowNegativeStock`, `paymentMethods`, `receipt`, `receiveApproverRoles`. The server zeroes these when they are omitted.
-       - The body takes each one from a **fresh `GET /settings/app`** made at save time, with the user's changed keys applied on top.
-     - After the PUT (which answers `{ok: true}`), the client GETs again and re-baselines.
-   - **What this fixes:** untouched keys can no longer revert someone else's edit.
-   - **Still last-writer-wins:**
-     - two people changing the **same** key;
-     - edits inside `paymentMethods` and `receipt`, which are replaced as whole JSON blobs (two admins editing different payment methods: the later save wins for the whole list).
-     - A true conflict check needs a server version column: a follow-up, not in Fase D.
-   - **The D1-P tests must assert all three:** the present-only keys are absent when unchanged; the always-overwritten keys come from the fresh GET; there is a re-GET after save.
+5. **Stale-overwrite fix, client side, no backend change.** Everything below lives in `screens/settings/settingsDiff.ts` as pure functions with unit tests.
+
+   1. **One `normalize(server)` for both baseline and draft.** Otherwise the SaveBar and the leave guard fire as soon as the screen opens. It carries today's three transforms:
+      - `{...DEFAULT, ...data}` (`SettingsScreen.tsx:73`);
+      - the `receiveApproverRoles` filter that drops `admin` (`:74`). The server stores the list as sent, so a stored `admin` is possible and must not count as a change;
+      - the `isCash` re-mapping (`:85`). It is applied to outgoing `paymentMethods` **only when that key changed**.
+   2. **`diffSettings(baseline, draft)` works per field.** It produces:
+      - top-level keys;
+      - `receipt.<field>`;
+      - `paymentMethods[<id>]` (added, removed, changed);
+      - `documents.<field>`.
+      - It feeds both the SaveBar list and the save.
+   3. **The save body is an explicit pick. Never spread the fresh object.** The GET returns the present-only keys too (`read/settings.go:15-29`), so a spread would re-send them and could undo a concurrent "Bayar terpisah" kill-switch flip.
+      - **Always-overwritten keys** (the server zeroes them when omitted, `write/settings.go:50-156`):
+        - The list today: `taxEnabled`, `taxRate`, `roundingEnabled`, `roundingType`, `roundingAmount`, `roundingDirection`, `roundingApplyToTax`, `autoOpenShift`, `allowNegativeStock`, `paymentMethods`, `receipt`, `receiveApproverRoles`. The implementer re-derives it from the struct and pins it with a test.
+        - Each one is taken from a **fresh, cache-bypassing GET** made at save time, with the user's per-field changes applied on top:
+          - changed receipt fields onto the fresh `receipt`;
+          - changed, added or removed payment methods, by id, onto the fresh `paymentMethods`.
+      - **Present-only keys** (`documents`, `recipesEnabled`, `inventoryApprovalRequired`, `splitTenderEnabled`) go out **only when changed**.
+        - `documents` is a whole block: inside a present block every omitted field becomes NULL (`write/settings.go:103-131`). When it goes out, it is the fresh block with the changed fields applied.
+        - `inventoryApprovalRequired` runs `setApprovalSwitch`, which writes an audit doc-event on a real change (`write/inventory_approval.go:559-575`).
+   4. **Conflict check at save time, no version column needed.**
+      - If `fresh[k] !== baseline[k]` for a key (or sub-field) the user also changed, the bar shows "{label} baru diubah orang lain (sekarang {value})" with two buttons, "Pakai punya saya" and "Pakai yang baru". It writes nothing until the user picks.
+      - This removes almost all same-key last-writer-wins. What remains is a write landing between the GET and the PUT (milliseconds).
+   5. **Cache bypass.** `GET /settings/app` sits behind the shared read cache for 15 s (`handlers/handlers.go:249-257`, `readTTL` `:29`). Writes invalidate it, but a cache-aside race or a Redis failure can still serve an old value.
+      - The save-time GET and the post-save re-GET add a nonce query parameter. The cache key includes `RawQuery` (`:140`).
+   6. **Polls rebase untouched fields.** On every 30 s poll the draft takes the fresh value for each field the user has **not** changed, and the baseline moves with it. The screen never shows stale values while a save sends fresh ones, and "· sebelumnya {old}" stays true.
+   7. **After the PUT** (which answers `{ok: true}`; the TS type says `AppSettings`, 3.4), re-GET with a nonce and re-baseline.
+
+   **What still is not protected:** a write landing between the save-time GET and the PUT. A server version column would close that; it is a follow-up, not in Fase D.
+
+   **Tests (D1-P).**
+   - Unit tests:
+     - `normalize` round-trip: opening the screen shows no changes;
+     - the pick: no present-only key unless changed, never the whole fresh object;
+     - the per-field merges for `receipt`, `paymentMethods` and `documents`;
+     - the conflict check;
+     - the poll rebase.
+   - The browser mock for settings becomes **stateful**: a GET returns the last PUT merged in. BO-SPLIT-TOGGLE's static GET mock (`backoffice-split-scenarios.ts:181-187`) would otherwise re-baseline the switch back to off after the re-GET, and its final "off needs no confirm" click (`:232-233`) would open the confirm.
+   - BO-SETTINGS-GUARD also asserts that the bar does **not** appear on open.
 6. **Outlet & Gudang tab.**
    - Its immediate actions get a visible "Disimpan langsung" note per card, so the two models are not confused.
    - The outlet active toggle gets a ConfirmDialog: "Nonaktifkan outlet {name}?" plus a one-sentence consequence. The implementer confirms the consequence wording against `write/outlets*.go` before writing it.
@@ -477,18 +532,19 @@ Quirks D2/D3 must respect:
 - D2-API adds **new** repo methods (`ProductsFiltered`, `PromotionsPage`, `DiscountCodesPage`) and leaves those three unchanged.
 - It adds no field to the `Product`/`Promotion`/`DiscountCode` schemas, because new fields would ride into the tablet bundle.
 - `/orders`, `/shifts`, `/requisitions` and `/outlets` are also used by the POS. D2-API does not touch them.
+- `packages/api/src/client.ts` is shared with the POS bundle. New or changed client functions only change bytes in the next POS OTA bundle; no POS behaviour changes, because the POS calls none of these functions.
 
 ### 3.3 D2-API scope (one backend session, before D2a/D2b/D3 merge)
 
 | # | Change | Why | Notes |
 |---|---|---|---|
 | a | `GET /products` gains optional `q` (name, brand, variant SKU/barcode via `EXISTS`), `categoryId`, `active` (`true`/`false`), `stock` (`low`/`out`, threshold D-81) and `sort` (`terbaru`/`nama`) | D2a server filters | Same response (`data` + `meta`). The implementer confirms the stock source `productObjScoped` uses before adding `stock=`; if it is costly per outlet scope, drop the "Stok rendah" chip for v1. No migration expected (products are in the hundreds). Facet counts on the chips are optional: the ERP outbox `counts` field is the precedent. |
-| b | `GET /promotions` and `GET /discount-codes` gain optional `page`, `limit`, `q`, `status`, `type`. **Without `page` they return the full list exactly as today.** | D2b paging without breaking the full-list dependents | The response gains an optional `meta`. The TS client gets new `listPromotionsPage`/`listDiscountCodesPage`; the old calls stay for pickers. |
+| b | `GET /promotions` and `GET /discount-codes` gain optional `page`, `limit`, `q`, `status`, `type`. **Without `page` they return the full list exactly as today.** | D2b paging without breaking the full-list dependents | The response gains an optional `meta`. The TS client gets new `listPromotionsPage`/`listDiscountCodesPage`; the old calls stay for pickers. The server-side `status` filter (aktif / terjadwal / berakhir / nonaktif) must use the **same WIB date rule** as the client's derived status, so a filtered list matches the badges. |
 | c | ERP outbox rows gain `locationName` | D3c, raw `outlet 3f2a9c1d` | A `COALESCE((SELECT name FROM outlets …), (SELECT name FROM warehouses …))` scalar subquery in `itemColumns` (`integration/erp/admin.go:51`; subqueries because `retrySQL … RETURNING` reuses the same column list). Add `LocationName` to `OutboxItem`, `itemToAPI`/`detailToAPI` (`handlers/erp_outbox.go:181,209`). Spec: inline `{type: string, nullable: true}`. The formatter falls back to the short id (the location may be deleted). |
 | d | New `GET /inventory/goods-receipts?locationType=&locationId=&dari=&sampai=&q=&source=&page=&limit=` | D3b Barang Masuk list (4.4) | `manage_inventory` + `scope(r)`. A new read query and a new list schema. The implementer checks the existing indexes; if needed, migration **0080** adds `goods_receipts (location_type, location_id, created_at DESC)` (small table, plain `CREATE INDEX`). Postgres gate subtest. |
 | e | `GET /inventory/approvals` gains `outletId` and `kind` | D3c filters | |
 | f | `id` tie-break in `ORDER BY` for transfers, ingredient transfers, stock counts, error logs, users | stable paging for the lists D3/D5 migrate | Read-only change. |
-| g | Check: does `POST /inventory/goods-receipt?kind=&id=` (`server/server.go:289`) honour `Idempotency-Key`? The same question applies to the direct `POST /inventory/adjust` | `createLocationGoodsReceipt` / `adjustLocationStock` send none (`packages/api/src/client.ts:926-931`), so a retried receipt can double-count. The approval writes already require a key (`handlers/inventory_approvals.go:25-36`) | If the server supports it, D3a sends one key per SlideOver open. If not, add it here, following the `requireIdempotencyKey` pattern. The reviewer must see this one. |
+| g | **No backend change; client work in D3a/D3b.** The server already keys these writes: `CreateLocationGoodsReceipt` and `AdjustLocationStock` go through `keyedMutated` (`handlers/inventory.go:33-40,53-68`, `handlers/keyed_write.go`), and so do transfer send and cancel (`handlers/transfers.go:84,106`) | The client sends **no** key for any of them (`packages/api/src/client.ts:926-931,1000-1007`), so a retried click can apply twice | **D3a** adds an `idempotencyKey` argument to `createLocationGoodsReceipt` / `adjustLocationStock`; **D3b** adds it to `sendTransfer` / `cancelTransfer`. Rules: one key per SlideOver open or dialog confirm; a failed attempt rolls back its claim, so the same key may retry; a 409 key-conflict ("same key, other payload") becomes "Sudah tercatat, muat ulang", never a silent retry. `packages/api/src/client.ts` joins those slices' file ownership (separate functions, so no overlap). |
 
 **Not needed:**
 - Settings: the D1-P fix is client-side (2.4).
@@ -533,7 +589,7 @@ Load note: there is one per-IP rate bucket of 1200/min, shared by an office and 
 ## 4. Slices
 
 **Every slice has these in common.**
-- **Owner gate:** the mock (BO1-BO4) and D-67 to D-82 approved first.
+- **Owner gate:** the mock (BO1-BO4) and D-67 to D-84 approved first.
 - **Session setup:** its own session, worktree, branch off `prod-hardening`, PR and HANDOFF note.
 - **Models:** Sonnet 5.5 medium implements; Opus 5.5 high (`reviewer`) reviews before the PR leaves draft.
 - **Local gates:** `corepack pnpm quality:ci` and `corepack pnpm browser:ci` green locally.
@@ -562,7 +618,9 @@ Load note: there is one per-IP rate bucket of 1200/min, shared by an office and 
   - the second save follows a second edit, and the PUT still omits `splitTenderEnabled`;
   - the success text changes;
   - the add-method button must stay the immediate sibling of its input (`:216`).
+  - The settings GET mock becomes stateful (a GET returns the last PUT merged in, 2.4 item 5).
   - New **BO-SETTINGS-GUARD**:
+    - (0) opening Pengaturan shows no SaveBar;
     - (a) an edit followed by a sidebar click opens "Simpan perubahan Pengaturan?"; "Tetap di sini" keeps the edit, "Buang perubahan" navigates;
     - (b) the stale merge:
       - the mock serves a newer `taxRate` on the pre-save GET, and the PUT carries the fresh `taxRate` plus the edited key;
@@ -571,23 +629,25 @@ Load note: there is one per-IP rate bucket of 1200/min, shared by an office and 
 - **Review:** `reviewer` (Opus high). It writes the payment-methods and split-tender settings.
 - **Release:** backoffice only.
 
-### D1a · Tokens, kit, label maps (wave 1, parallel with D1-P) — 1-2 sessions
+### D1a · Tokens, kit, label maps (wave 1, parallel with D1-P) — 2 sessions
 
 - **Tokens, font, brand:**
   - `packages/ui-tokens/tokens.css` (new) and its import in `BO/index.css`. The `gray-*`/`gold-*` remap stays for unmigrated screens; the dead `indigo-*` ramp goes.
-  - The vendored Roboto Variable `woff2` + `OFL.txt` in `apps/backoffice/public/fonts/`, with `@font-face` in `tokens.css`. No `package.json` change.
+  - The vendored Roboto Variable `woff2` + `OFL.txt` in `apps/backoffice/public/fonts/`, with `@font-face` in `BO/index.css`. No `package.json` change.
   - `index.html` `lang="id"`.
   - `lib/brand.ts` registry (2.1).
 - **Kit (new, section 2.3):** `ui/DataTable.tsx`, `ui/FilterBar.tsx`, `ui/ExportButton.tsx`, `ui/ConfirmDialog.tsx` (+ `useConfirm`), `ui/SlideOver.tsx`, `ui/StatusBadge.tsx`, `ui/Switch.tsx`, `ui/overlayStack.ts`. Additive props: `PageHeader.count`, the `EmptyState` action slot, `Field` `htmlFor`/`id`/`aria-invalid`.
 - **Label maps:** `lib/labels/{transfer,requisition,opname,approval,order,erp,ledger,reason,review,role,errorSource,payment}.ts`, one file per domain so wave-3 slices do not collide. The old modules re-export from them.
 - **Proving ground:** migrate **Log Kesalahan** (`ErrorLogs.tsx`, 222 lines, admin-only, no browser scenario) to PageHeader + FilterBar + DataTable + ExportButton + StatusBadge.
+- **ImportExportBar:** `components/ImportExportBar.tsx` is used by about nine screens. It switches to the ExportButton menu "Unduh" (CSV · Excel) and renames "Template" to "Templat". No browser scenario clicks those labels; BO-CSV-IMPORT only uses the hidden "Impor dari file CSV" input.
+- **Toast:** `ui/Toast.tsx` + `useToast`.
 - **Tests:** vitest for `labelOf`, the contrast table and markup (DataTable, ConfirmDialog, SlideOver, StatusBadge). The three `renderToStaticMarkup` suites must stay green; this proves the no-portal rule.
 - **Gate:** confirm the Cloudflare deploy of the merge goes green and serves `/fonts/*.woff2`.
 - **Review:** `reviewer` (Opus high), focused on a11y and the overlay stack.
 
-### D1b · Shell + router foundation (wave 2) — 2 sessions
+### D1b · Shell + router foundation (wave 2) — 2 sessions, two PRs
 
-**Session 1:**
+**Session 1 / PR 1:**
 1. **Test helpers first, in their own commit, with `browser:ci` green before any app change.**
    - Add `openBackoffice(page)`, `navTo(page, navId)` and `openTab(page, screen, tabKey)` to `tests/browser/fixture.ts`.
    - Replace the 8 copied login blocks (`accepted.spec.ts:15-21`, `backoffice-scenarios.ts:65-68,273-275`, `backoffice-review-scenarios.ts:38-45`, `backoffice-import-scenarios.ts:51-58`, `backoffice-stockcard-scenarios.ts:83-90`, `backoffice-refund-scenarios.ts:12-21`, `backoffice-split-scenarios.ts:21-30`).
@@ -602,7 +662,8 @@ Load note: there is one per-IP rate bucket of 1200/min, shared by an office and 
    - `React.lazy` screens behind one `Suspense` fallback, "Memuat…";
    - the `lib/navGuard` hook-up, with ConfirmDialog replacing the D1-P Modal dialog.
 
-**Session 2:**
+**Session 2 / PR 2:**
+- Pengaturan's `settings/Toggle` and the raw icon toggles move to `ui/Switch`. The `aria-label`s stay identical.
 - Route every screen's **top-level** tabs and views. The tab comes from the path, not `useState`, in: `Reports.tsx`, `Warehouses.tsx`, `inventory/StokProduk.tsx`, `inventory/OpnameSection.tsx`, `products/useProductsData.ts` (tab only), `Promotions.tsx` (tab only), `Customers.tsx` (`view` only), `Users.tsx`, `syncReview/SyncReview.tsx` (status), `SettingsScreen.tsx` (section), `ingredients/Ingredients.tsx` (inner).
 - `transfers/Transfers.tsx` and `requisitions/RequisitionList.tsx` views become paths.
 - `RequisitionDetail.tsx:28` calls `navigate()`.
@@ -674,6 +735,8 @@ Per 4.4:
 - **Modals to SlideOvers:**
   - `GoodsInModal` becomes the SlideOver "Barang Masuk": exact heading, fresh state per open, so the stale-lines resubmit bug at `LocationStockView` goes away.
   - `AdjustModal` becomes "Penyesuaian Stok" with "Stok sekarang 9 → baru 7 (−2)".
+  - Both send an **Idempotency-Key**, one per SlideOver open (3.3 g).
+- **LocationStockView** (owned here): mounts the new SlideOvers; PAR saves only when the value changed, with feedback.
 - **Tests:** BO-STOCK-CARD:
   - "Catat barang masuk" / "Catat Barang Masuk" become "Tambah barang masuk";
   - "Buat penyesuaian" becomes "Tambah penyesuaian";
@@ -681,19 +744,19 @@ Per 4.4:
   - table semantics and the exact `columnheader` names are unchanged;
   - the `accepted.spec.ts:145` count is updated if steps change.
 
-### D3b · Transfer, Opname, Barang Masuk list, stock confirms (wave 3) — 1-2 sessions
+### D3b · Transfer, Opname, Barang Masuk list, stock confirms (wave 3) — 2 sessions
 
 - **Transfer:**
   - DataTable, one status map (filter = badge), and no masking of unknown statuses as Draf (`Transfers.tsx` `?? STATUS.draft`).
   - **ConfirmDialog on Kirim and Batalkan** (new behaviour, not a replacement), copy "Stok {n} unit akan keluar dari {source} sekarang."
+  - `sendTransfer` / `cancelTransfer` send an **Idempotency-Key**, one per dialog confirm (3.3 g).
 - **Opname:**
   - rename, and the column pair Stok sistem / Stok dihitung;
   - ConfirmDialog with the net difference, replacing `window.confirm` (`StockCount.tsx:219`);
   - confirms on Mulai and cancel (`:346,368`);
   - the same treatment for `ingredients/OpnameTab.tsx:249` and the cancel-reason `window.prompt` at `ingredients/TransferTab.tsx:352` (the reason becomes a field in the dialog).
 - **Requisition:** confirms on Ajukan, Batalkan, Buat Transfer and Setujui (`RequisitionDetail.tsx:131,135,138,226`).
-- **Barang Masuk:** a list tab under Inventori, using the D2-API endpoint and showing the Garansi tag.
-- **LocationStockView:** PAR saves only when the value changed, with feedback.
+- **Barang Masuk:** a list tab under Inventori, using the D2-API endpoint and showing the Garansi tag. D3b owns the tab line in `Warehouses.tsx` and `routes.ts`.
 - **Review:** `reviewer` (Opus high). Stock-moving actions and idempotency keys are involved.
 - **Tests:** new **BO-TRANSFER-CONFIRM**: Kirim asks; Batal leaves the draft; confirming calls the API once.
 
@@ -707,7 +770,7 @@ Per 4.4:
   - ConfirmDialog on "Kirim sekarang" and "Kirim ulang";
   - env-var names out of the visible relay text, behind "Detail teknis".
 - **Tinjauan Sinkron:** raw codes behind "Detail teknis". The rows stay list buttons with their composed names (BO-REVIEW-RESOLVE `:55`).
-- **Stok Minus:** follows the Laporan date range by default (`reports/OversellTab.tsx`).
+- **Stok Minus:** only if the owner picks D-83 (b), it follows the Laporan date range by default (`reports/OversellTab.tsx:67-68`). Today it is off by default on purpose, so the list matches the badge (A44).
 
 ### D4 · URL-state completion (wave 4) — 1 session
 
@@ -792,10 +855,10 @@ Per 4.4:
 | D2-API | Postgres gate subtests | backend only |
 | D2a | vitest `erpReadOnly`, `DeleteConfirmModal` | **new BO-PRODUCTS-LIST** |
 | D2b | BO-SEMANTIC (`backoffice-scenarios.ts:213-242`), vitest `promotionKeyForm` | rewrite against the SlideOver |
-| D3a | BO-STOCK-CARD (`backoffice-stockcard-scenarios.ts:25-172`, count `accepted.spec.ts:145`) | Barang Masuk / Penyesuaian strings; table semantics kept |
+| D3a | BO-STOCK-CARD (`backoffice-stockcard-scenarios.ts:25-172`, count `accepted.spec.ts:145`) | Barang Masuk / Penyesuaian strings; table semantics kept. Also: the Dokumen button shows the raw `refType` today (`StockCard.tsx:342`, `m.refNumber ?? m.refType`) and the test clicks the literal `goods_receipt` (`:119,127,149`), so mapping that enum changes those steps. The SKU-rail layout changes `:155-157` ('Hapus pilihan SKU', `getByLabel('SKU / barcode / nama')`, the SKU option button) |
 | D3b | none existing | **new BO-TRANSFER-CONFIRM** |
 | D3c | BO-REVIEW-RESOLVE (labels and rows kept) | "Detail teknis" toggle only |
-| D4 | BO-PAGES-CSV, BO-PAGES-XLSX, BO-RACE, BO-REFUND-LIST, BO-SPLIT-ORDER | export label renames; **new BO-ROUTE-BACK** |
+| D4 | BO-PAGES-CSV, BO-PAGES-XLSX, BO-RACE, BO-REFUND-LIST, BO-SPLIT-ORDER (labels); BO-REFUND-ADMIN-PARTIAL and BO-RACE must stay green while Laporan filters move into the URL (sidebar 'Laporan' still lands on Transaksi; outlet switch race unchanged) | export label renames; **new BO-ROUTE-BACK** |
 | D5 | BO-CSV-IMPORT (only if the Pelanggan export bar changes), BO-PAGES-CSV (Shift tab export) | labels; the `importDialogState.test.ts:100` "Error" column stays |
 
 **Net new required scenarios:** BO-SETTINGS-GUARD, BO-ROUTE-DEEPLINK, BO-ROUTE-GUARD, BO-PRODUCTS-LIST, BO-TRANSFER-CONFIRM, BO-ROUTE-BACK. The registry goes from 50 to 56; the stale "33" in `tests/browser/README.md:21` is fixed in D1b.
@@ -812,8 +875,10 @@ wave 3:                 └─────────────────�
 wave 4:                                            └─ D4 ─ D5 (optional)
 ```
 
-- **D1-P ∥ D1a.** They share no file.
-  - D1a: `packages/ui-tokens`, `BO/index.css`, `main.tsx`, `index.html`, `public/fonts/*`, `lib/brand.ts`, new `ui/*`, `lib/labels/*`, `ErrorLogs.tsx`.
+- **D1-P ∥ D1a.** They share no file, under two rules:
+  - D1-P keeps `settings/Toggle.tsx` and the raw toggles. The swap to `ui/Switch` in Pengaturan happens in D1b, after both have merged.
+  - D1a's `lib/brand.ts` registry keeps the exported `BRAND` shape (`name`, `logoUrl`, `colors.primaryHex`), which `App.tsx:89,176-181` reads and D1-P does not touch.
+  - D1a: `packages/ui-tokens`, `BO/index.css`, `main.tsx`, `index.html`, `public/fonts/*`, `lib/brand.ts`, new `ui/*`, `lib/labels/*`, `ErrorLogs.tsx`, `components/ImportExportBar.tsx` (labels "Unduh" / "Templat").
   - D1-P: `SettingsScreen.tsx`, `settings/*`, `ui/Tabs.tsx`, `ui/SaveBar.tsx`, `lib/navGuard.ts`, `lib/useUnsavedChanges.ts`, two hunks of `App.tsx`, the split scenario file and the registry.
 - **D1b is alone.** It touches `App.tsx`, every screen's top-level tab state and every BO test file.
   - **D2-API can run beside it**: backend, `openapi.yaml` and the generated types, which D1b does not touch.
@@ -824,10 +889,10 @@ wave 4:                                            └─ D4 ─ D5 (optional)
 
   | Slice | Owns |
   |---|---|
-  | D2a | `products/*`, `Products.tsx`, `recipes/*` |
+  | D2a | `products/*`, `Products.tsx`, `recipes/*`, `inventory/OutletGiveawaySection.tsx` (the first-page-only picker fix) |
   | D2b | `Promotions.tsx`, `promotions/*` |
-  | D3a | `inventory/MovementSummary.tsx`, `StockCard.tsx`, `pergerakanBuckets.ts`, `stockCardFormat.ts`, `DocumentModal.tsx`, `warehouses/*` (GoodsIn, Adjust) |
-  | D3b | `transfers/*`, `StockCount.tsx`, `stockcount/*`, `ingredients/TransferTab.tsx` + `OpnameTab.tsx`, `inventory/LocationStockView.tsx`, `requisitions/*`, new `inventory/GoodsReceiptsList.tsx` |
+  | D3a | `inventory/MovementSummary.tsx`, `StockCard.tsx`, `pergerakanBuckets.ts`, `stockCardFormat.ts`, `DocumentModal.tsx`, `warehouses/*` (GoodsIn, Adjust), **`inventory/LocationStockView.tsx`** (it mounts GoodsIn/Adjust, `:13-14,170-179`; the PAR fix moves here too), `client.ts` goods-receipt/adjust functions |
+  | D3b | `transfers/*`, `StockCount.tsx`, `stockcount/*`, `ingredients/TransferTab.tsx` + `OpnameTab.tsx`, `requisitions/*`, new `inventory/GoodsReceiptsList.tsx`, the Barang Masuk tab line in `Warehouses.tsx` + `routes.ts`, `client.ts` transfer send/cancel functions |
   | D3c | `approvals/*`, `integration/*`, `syncReview/*`, `reports/OversellTab.tsx` |
 
   - Shared append-only files: `lib/router/routes.ts` (D3b adds one tab), `lib/labels/*` (one file per domain), `required-scenarios.json` and `accepted.spec.ts`.
@@ -842,8 +907,12 @@ wave 4:                                            └─ D4 ─ D5 (optional)
    - Mitigation: the helper commit first (D1b), `-g` iteration, and every rename landing with its test in the same slice.
 2. **D1b breadth.** Every screen's tab state moves to the path in one slice.
    - Mitigation: mechanical edits only, no visual change inside screens, the Opus review, and nothing else in flight during wave 2 except D2-API.
-3. **Leave guard with the hash router.** The revert-and-ask on browser Back is the subtle part.
-   - Mitigation: BO-ROUTE-GUARD covers Back, a sidebar click and a reload (`beforeunload`).
+3. **Leave guard with the hash router.** The undo-and-ask on browser Back/Forward is the subtle part.
+   - Mitigation:
+     - the `history.state.idx` mechanism (2.2);
+     - BO-ROUTE-GUARD covers a sidebar click, Back and Forward;
+     - `beforeunload` registration is unit-tested;
+     - react-router `useBlocker` is the named fallback.
 4. **Merge-on-save semantics.** Pengaturan does a GET before each PUT; a failing GET blocks the save with a message (no blind PUT).
    - Same-key concurrent edits stay last-writer-wins; a server version column is a follow-up.
 5. **Static assets and the Cloudflare build.** Fase D adds no npm dependency (the router is hand-rolled; the font is vendored), so the frozen-lockfile failure mode does not apply.
@@ -862,22 +931,24 @@ wave 4:                                            └─ D4 ─ D5 (optional)
 
 | ID | Decision | Recommended default |
 |---|---|---|
-| D-67 | Router implementation | **Hand-rolled hash router** in `BO/lib/router` (2.2); alternative react-router v7 `createHashRouter` (adds a dependency) |
-| D-68 | When the router lands | **Foundation in D1b** (sidebar built on it, D2/D3 use URL state from their first commit); D4 becomes "URL-state completion" |
+| D-67 | Router implementation *(planner-decided; owner may veto)* | **Hand-rolled hash router** in `BO/lib/router` (2.2); alternative react-router v7 `createHashRouter` (adds a dependency) |
+| D-68 | When the router lands *(planner-decided; owner may veto)* | **Foundation in D1b** (sidebar built on it, D2/D3 use URL state from their first commit); D4 becomes "URL-state completion" |
 | D-69 | URL scheme | **Indonesian path slugs and query keys** (`#/inventori/kartu-stok?sku=…`); the outlet scope stays out of the URL and is remembered per viewer in localStorage |
 | D-70 | Pengaturan save pattern | **Sticky SaveBar** shown only with changes, with the change list + dirty cues on tabs/cards/rows + leave guard + client-side merge-on-save; remove the top "Simpan Semua"; ship first as D1-P |
 | D-71 | Sidebar count colours | **Red = needs a person's decision** (Persetujuan Stok, Tinjauan Sinkron), **amber = to check, not blocking** (Stok minus belum dicek on Laporan); a legend in the sidebar |
 | D-72 | User and "Keluar" | **Move from the sidebar footer to a header user menu** (§4 wireframe) |
-| D-73 | Small text on gold | **`brand-strong`** (Mandalika `#8f6412`) for filled controls; `warn-strong` `#a14a06` for badge text; POS tokens unchanged |
+| D-73 | Small text on gold *(planner-decided; owner may veto)* | **`brand-strong`** (Mandalika `#8f6412`) for filled controls; `warn-strong` `#a14a06` for badge text; POS tokens unchanged |
 | D-74 | Fase D scope | **Add D5** so every list screen ends on the kit (+1-2 sessions); otherwise Pelanggan, Pengguna, the Laporan tables and Bahan stay on the old look |
 | D-75 | Backoffice font | **Self-hosted Roboto Variable**, a vendored `woff2` in `public/fonts` (matches the POS and Figma; no new dependency); alternative system font |
-| D-76 | Shared tokens | **`packages/ui-tokens/tokens.css` now for the backoffice**; the POS switches later in a no-visible-change chore shipped with its next OTA |
+| D-76 | Shared tokens *(planner-decided; owner may veto)* | **`packages/ui-tokens/tokens.css` now for the backoffice**; the POS switches later in a no-visible-change chore shipped with its next OTA |
 | D-77 | "Overview" sub-tab name | **"Ikhtisar"**, not "Ringkasan" as D-22 said: "Ringkasan" is the new Dashboard name and the two would collide |
 | D-78 | Export wording | **"Unduh CSV"**, **"Unduh Excel"** for XLSX, the dropdown **"Unduh"** (CSV · Excel), a qualifier when two share a screen ("Unduh CSV refund"); the Laporan tab "Ekspor" becomes **"Unduh data"** |
-| D-79 | Promotion/code status in the list | **Labelled Switch that saves at once** with an undo toast ("Promo X dinonaktifkan · Urungkan"); alternative: status only inside the form |
+| D-79 | Promotion/code status in the list | **Labelled Switch: turning ON asks first** ("Aktifkan promo X? Tablet memakainya setelah sinkron berikutnya."), **turning OFF saves at once with an undo toast** ("Promo X dinonaktifkan · Urungkan"). The tension: §2.4 rejects auto-save because a mis-click goes live on the next tablet sync, so switching a promo on gets the confirm. The undo re-sends the full fresh row, not the stale one. Alternative: status only inside the form |
 | D-80 | Promotion form | **One scrolling SlideOver (720 px) with sections**, no 3-step wizard |
 | D-81 | Low-stock threshold in the backoffice | **2 per variant** (D-20, same as the POS); today the product list warns at ≤ 5 |
 | D-82 | Order detail and sync review | **Keep inline expand / list rows** (no SlideOver), unlike §4's "every detail opens as a SlideOver": the refund flow and two browser scenarios depend on it |
+| D-83 | Stok Minus default date range | **(a) keep today's default (all dates, off)** so the list matches the sidebar badge (A44, `reports/OversellTab.tsx:67-68`), and make the "Ikuti rentang tanggal" switch more visible; (b) follow the Laporan range by default as direction §4.4 suggested (then the badge and the list can differ) |
+| D-84 | One scope (direction §4.1) for Pergerakan, Kartu Stok and Transfer | **The "Lokasi" filter defaults to the header outlet** and shows it as "Outlet BSD · semua gudang"; picking a warehouse is a filter inside that scope. Today `useLocations` ignores the header (`inventory/useLocations.ts:45-54`), so the header can say "Semua Outlet" while the table shows one. Built in D3a/D3b |
 
 ---
 
@@ -899,6 +970,15 @@ wave 4:                                            └─ D4 ─ D5 (optional)
     - The owner's first look settles all three.
   - The layers are plain frames, not library components. If the owner wants Code Connect components later, rebuild the kit with `use_figma` once the monthly cap allows.
   - The HTML loads Roboto from Google Fonts for the capture only; that file is documentation, not app code.
+  - **The HTML was tightened after the capture**, so the Figma frames show the earlier shades:
+    - amber badge and cue text uses `warn-strong` `#a14a06` (D-73);
+    - grey text on tinted rows and chips is `ink-700`;
+    - card and dialog headings are `h2`.
+  - The HTML carries four inline `impeccable-disable` waivers with reasons:
+    - cramped-padding on fixed-height controls (a false positive);
+    - Roboto (D-7/D-75);
+    - the owner-approved warm paper palette;
+    - the changed-card stripe as the state cue (D-70).
 - **Figma follow-ups for the owner.**
   1. The team is on the Figma **Starter** plan. Figma documents a small monthly MCP tool-call cap for it (about 20; capture tools are exempt). It was refused on this session's sixth call, so earlier sessions presumably used most of it. More agent edits in Figma this month need a paid seat, or must wait for the reset.
   2. Rename the captured page "Fase D · Backoffice".
@@ -907,6 +987,71 @@ wave 4:                                            └─ D4 ─ D5 (optional)
 
 ---
 
-## 11. Review
+## 11. Review (Opus `reviewer`, high, 2026-11-02): verdict "ship the plan with fixes", all folded in
 
-<!-- REVIEW -->
+**Citations.** The reviewer spot-checked about 30 citations against the code, and they held:
+- `write/settings.go` key classes, `SettingsScreen.tsx`, `App.tsx`, `read/catalog.go`, `read/promotions.go`, `pageLimit`;
+- ERP `itemColumns` + `retrySQL`, `sync/pull.go`, the server routes, `client.ts`;
+- the `accepted.spec.ts` counts, the 50 registry ids and the nullable-`$ref` example.
+
+D-67 is confirmed as the next free id.
+
+**Findings and where they went:**
+
+- **HIGH H1, the merge-on-save rules were underspecified.**
+  - The problems:
+    - a literal "fresh + changes" spread would re-send the present-only keys and could undo a concurrent kill-switch flip;
+    - without one `normalize()` the SaveBar would fire on open;
+    - `documents` is a whole block;
+    - the save GET could be served from the 15 s cache;
+    - polls must rebase untouched fields;
+    - the static BO-SPLIT-TOGGLE mock would fail after the re-GET.
+  - Fixed in 2.4 item 5:
+    - explicit pick list;
+    - `normalize`;
+    - per-field merges for `receipt`/`paymentMethods`/`documents`;
+    - save-time conflict check;
+    - nonce cache bypass;
+    - poll rebase;
+    - stateful mock;
+    - "no bar on open" test.
+- **HIGH H2, the idempotency question was already answered by the code.** The goods-receipt, adjust and transfer send/cancel writes are keyed on the server (`keyedMutated`); the client sends no key. 3.3 g is now client work in D3a/D3b, with `client.ts` in their ownership.
+- **MEDIUM M1, hidden overlaps.** Resolved in section 7:
+  - `LocationStockView` moved to D3a;
+  - `ImportExportBar` to D1a;
+  - `OutletGiveawaySection` to D2a;
+  - the Barang Masuk tab line to D3b;
+  - the Settings Switch swap deferred to D1b;
+  - `BRAND` shape kept.
+- **MEDIUM M2, BO-STOCK-CARD steps missing.** The raw `refType` button `goods_receipt` (`:119,127,149`) and the SKU-rail steps (`:155-157`) were added to 6.2.
+- **MEDIUM M3, kit API gaps.** Added to 2.3:
+  - ExportButton `formats[]` (menu "Unduh");
+  - ConfirmDialog `input` + value;
+  - Toast API;
+  - a leave-guard **stack**;
+  - server-render safety for the hooks.
+- **MEDIUM M4, Back vs Forward detection.** 2.2 now specifies `history.state.idx`, `go(delta)` undo and `preventDefault` before `confirmLeave`, with react-router `useBlocker` as the fallback. `beforeunload` is unit-tested, not tested in Playwright.
+- **MEDIUM M5, decisions.**
+  - The Stok Minus default (A44) is now owner decision D-83 instead of a slice detail.
+  - D-79 now confirms on activate and undoes on deactivate.
+  - New D-84 makes the Lokasi filters follow the header scope.
+- **MEDIUM M6.** BO-REFUND-ADMIN-PARTIAL and BO-RACE are listed as must-stay-green for D4.
+- **LOW, folded in:**
+  - URL values are API codes (examples fixed);
+  - the Pergerakan and Kartu Stok routes nest under `/stok`;
+  - the ingredient routes are spelled out;
+  - Tabs stay buttons that call `navigate()`;
+  - `@font-face` lives in `BO/index.css`, not the shared tokens;
+  - the persisted outlet is per user, validated and re-applied;
+  - D-67/68/73/76 are marked planner-decided;
+  - D1a and D3b are 2 sessions each, and D1b ships as two PRs;
+  - the promotion `status` filter uses the WIB date rule;
+  - the fourth `renderToStaticMarkup` suite is named;
+  - the `client.ts` OTA-bytes note is added to 3.2.
+
+**Not checked by the reviewer** (left to the slices):
+- the Figma page itself;
+- the cost of `productObjScoped` for `stock=`;
+- Vite's dependency optimizer under `React.lazy`;
+- the per-brand Cloudflare `VITE_BRAND` setup;
+- a full audit of the `ORDER BY` tie-breaks.
