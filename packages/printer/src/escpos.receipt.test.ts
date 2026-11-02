@@ -166,3 +166,38 @@ describe('C1 receipt rows', () => {
     expect(lines.some((l) => l.startsWith('- Kode X'))).toBe(true)
   })
 })
+
+describe('C6 split tender rows', () => {
+  const sale: ReceiptData = {
+    ...base,
+    lines: [{ name: 'Parfum A', qty: 1, unitPrice: 1251000, amount: 1251000 }],
+    subtotal: 1251000, discounts: [], total: 1251000, amountPaid: 1351000, change: 100000,
+  }
+
+  it('prints one row per tender with a Ref line, then Kembalian', () => {
+    const lines = slip(buildReceipt({
+      ...sale,
+      paymentLabel: 'Split-Payment',
+      tenders: [{ label: 'QRIS', amount: 751000, reference: '8812345' }, { label: 'Tunai', amount: 600000 }],
+    }, settings))
+    const i = lines.findIndex((l) => l.startsWith('QRIS'))
+    expect(amt(lines[i])).toBe(751000)
+    expect(lines[i + 1]).toBe('  Ref 8812345')
+    expect(amt(lines[i + 2])).toBe(600000)
+    expect(lines[i + 2]!.startsWith('Tunai')).toBe(true)
+    expect(amt(row(lines, 'Kembalian'))).toBe(100000)
+    expect(lines.some((l) => l.startsWith('Split-Payment'))).toBe(false)
+    expect(lines.every((l) => l.length <= COLS)).toBe(true)
+  })
+
+  it('truncates a long reference to the paper width', () => {
+    const lines = slip(buildReceipt({ ...sale, tenders: [{ label: 'QRIS', amount: 1, reference: 'X'.repeat(60) }] }, settings))
+    expect(lines.find((l) => l.startsWith('  Ref '))!.length).toBe(COLS)
+  })
+
+  it('a receipt without tenders (or an empty list) prints byte-identically', () => {
+    const a = buildReceipt(sale, settings)
+    expect(Array.from(buildReceipt({ ...sale, tenders: [] }, settings))).toEqual(Array.from(a))
+    expect(amt(row(slip(a), 'Tunai'))).toBe(1351000)
+  })
+})

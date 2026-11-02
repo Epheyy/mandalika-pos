@@ -7,7 +7,7 @@ import { useState } from 'react'
 import type { LocalReceipt } from '@mandalika/sync'
 import { formatRupiah } from './pricing'
 import { RefundAction } from './RefundAction'
-import { PAYMENT_LABELS, partialGateFor, type RefundAvailabilityInput } from './refundView'
+import { PAYMENT_LABELS, partialGateFor, tenderLineText, visibleTenders, type PayoutMethodCfg, type RefundAvailabilityInput } from './refundView'
 import type { RefundCache } from './refundSelection'
 import { REFUND_VIA_HISTORY_OFFLINE, filterLocalReceipts, localBadge, localReceiptOrder, localSaleRef, refundViaHistory, reprintReceiptData } from './localReceipts'
 import { Sheet } from '../components/ui/Sheet'
@@ -19,6 +19,8 @@ interface LocalReceiptsPanelProps extends Gate {
   queuedRefundOrderIds: ReadonlySet<string>
   /** C4b: units and money this tablet saw acknowledged for earlier per-line refunds of a sale. */
   refundCache?: (ids: readonly string[]) => RefundCache
+  /** The configured payment methods, to name the lines of a split sale. Optional. */
+  paymentMethods?: readonly PayoutMethodCfg[]
   isOpen: boolean
   onClose: () => void
   receipts: readonly LocalReceipt[]
@@ -39,7 +41,7 @@ const TONES = {
   muted: 'bg-gray-100 text-gray-500',
 } as const
 
-export function LocalReceiptsPanel({ isOpen, onClose, receipts, canReprint, onReprint, onRefund, onOpenInHistory, isOnline = true, queuedRefundOrderIds, refundCache, ...gate }: LocalReceiptsPanelProps) {
+export function LocalReceiptsPanel({ isOpen, onClose, receipts, canReprint, onReprint, onRefund, onOpenInHistory, isOnline = true, paymentMethods, queuedRefundOrderIds, refundCache, ...gate }: LocalReceiptsPanelProps) {
   const [search, setSearch] = useState('')
   if (!isOpen) return null
   const rows = filterLocalReceipts(receipts, search)
@@ -57,7 +59,7 @@ export function LocalReceiptsPanel({ isOpen, onClose, receipts, canReprint, onRe
         <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2">
           {rows.length === 0 && <p className="text-center text-sm text-gray-400 py-8">Belum ada struk di tablet ini</p>}
           {rows.map((r) => {
-            const order = localReceiptOrder(r)
+            const order = localReceiptOrder(r, paymentMethods)
             const cache = refundCache?.([r.orderUuid, ...(r.serverOrderId ? [r.serverOrderId] : [])])
             const badge = localBadge(r, partialGateFor(order, cache))
             return (
@@ -69,6 +71,9 @@ export function LocalReceiptsPanel({ isOpen, onClose, receipts, canReprint, onRe
                       {new Date(r.capturedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       {' · '}{PAYMENT_LABELS[r.paymentMethod] ?? r.paymentMethod}
                     </p>
+                    {visibleTenders(order).map((t) => (
+                      <p key={t.seq} className="text-[11px] text-gray-500" data-testid="local-receipt-tender">{tenderLineText(t, paymentMethods)}</p>
+                    ))}
                   </div>
                   <div className="text-right">
                     <p className="font-semibold text-sm">{formatRupiah(r.quotedTotal ?? 0)}</p>

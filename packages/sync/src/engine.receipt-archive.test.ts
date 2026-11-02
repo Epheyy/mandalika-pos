@@ -60,6 +60,22 @@ describe('acked sales are archived before the acked row is pruned', () => {
     expect(JSON.stringify(e)).not.toMatch(/Budi|cust-1|rahasia|Sari/)
   })
 
+  it('localReceipts() exposes the tenders of an archived sale and of a still-queued one (C6)', async () => {
+    const tenders = [{ method: 'qris', amount: 751000, reference: '8812345' }, { method: 'cash', amount: 600000 }]
+    const { kv } = controllableKV()
+    const engine = newEngine(kv)
+    await engine.enqueue('order', { ...sale(1), paymentMethod: 'split', tenders })
+    expect(engine.localReceipts()[0]).toMatchObject({ state: 'queued', tenders })
+    online()
+    await engine.flushNow()
+    offline()
+    expect(engine.localReceipts()[0]).toMatchObject({ state: 'synced', tenders })
+    await engine.enqueue('order', { ...sale(2), tenders: [{ method: 'cash', amount: 1 }, null] })
+    const [queued, synced] = engine.localReceipts()
+    expect(queued).not.toHaveProperty('tenders')
+    expect(synced?.tenders).toEqual(tenders)
+  })
+
   it('does not archive a refused (parked) sale and keeps it in the outbox', async () => {
     const { kv, store } = controllableKV()
     const engine = newEngine(kv, deny)

@@ -2,7 +2,7 @@ import { memo, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
 import { ReceiptTotals } from './ReceiptTotals'
-import type { TotalRow } from './receiptRows'
+import { receiptTenderRows, type TotalRow } from './receiptRows'
 import { receiptRefLabel } from './orderRef'
 import { brand } from '../brand'
 import { variantLabel } from '@mandalika/types'
@@ -29,6 +29,8 @@ interface ReceiptPreviewProps {
   totalRows: TotalRow[]
   paymentMethod: string
   amountPaid: number
+  /** C6: payment lines of a split sale (label already resolved); when present they replace the single payment row. */
+  tenders?: { label: string; amount: number; reference?: string }[]
   change: number
   customerName: string | null
   cashierName: string
@@ -55,6 +57,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
   totalRows,
   paymentMethod,
   amountPaid,
+  tenders,
   change,
   customerName,
   cashierName,
@@ -161,10 +164,15 @@ export const ReceiptPreview = memo(function ReceiptPreview({
           {/* Totals */}
           <div className="border-t border-dashed border-gray-200 pt-3 space-y-1 text-xs">
             <ReceiptTotals rows={totalRows} />
-            <div className="flex justify-between text-gray-600">
-              <span>{PAYMENT_LABELS[paymentMethod] ?? paymentMethod}</span>
-              <span>{formatRupiah(amountPaid)}</span>
-            </div>
+            {receiptTenderRows({ tenders, paymentLabel: PAYMENT_LABELS[paymentMethod] ?? paymentMethod, amountPaid }).map((t) => (
+              <div key={t.key} className="text-gray-600" data-testid="receipt-tender">
+                <div className="flex justify-between">
+                  <span>{t.label}</span>
+                  <span>{formatRupiah(t.amount)}</span>
+                </div>
+                {t.reference && <p className="text-[10px] text-gray-400">Ref {t.reference}</p>}
+              </div>
+            ))}
             {change > 0 && (
               <div className="flex justify-between text-gray-600">
                 <span>Kembalian</span>

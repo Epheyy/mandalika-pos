@@ -26,7 +26,7 @@ describe('CashierScreen local receipts wiring (A41)', () => {
 
   it('opens the refund dialog for a local receipt with its sale identity and clears it on close', () => {
     expect(src).toContain('setRefundSale(localSaleRef(r))')
-    expect(src).toContain('setRefundOrder(localReceiptOrder(r))')
+    expect(src).toContain('setRefundOrder(localReceiptOrder(r, settings.paymentMethods))')
     expect(src).toContain('setRefundSale(null)')
   })
 

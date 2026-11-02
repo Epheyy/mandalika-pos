@@ -29,7 +29,18 @@ export interface ReceiptEntry {
   lineNets?: number[]
   /** C4b: per sale line, the promo group key ("bundle:<id>:1" / "bxgy:<id>:1") or null. Same rules as lineNets. */
   lineGroups?: (string | null)[]
+  /** C6: the payment lines of the sale (amount = captured). Optional and additive; absent on single-method
+   *  sales archived before C6 and when the payload's tenders were malformed. */
+  tenders?: ArchivedTender[]
 }
+
+export interface ArchivedTender {
+  method: string
+  amount: number
+  reference?: string
+}
+
+const MAX_TENDERS = 4
 
 /** An unacknowledged sale still in the outbox: counts toward the newest-500 floor. */
 export interface UnsyncedSale {
@@ -62,6 +73,21 @@ export function lineDataFromItems(items: unknown): { lineNets: number[]; lineGro
   return { lineNets, lineGroups }
 }
 
+/** The sale payload's `tenders`, or undefined when absent or anything in it is malformed (all or nothing). */
+export function tendersFromPayload(v: unknown): ArchivedTender[] | undefined {
+  if (!Array.isArray(v) || v.length === 0 || v.length > MAX_TENDERS) return undefined
+  const out: ArchivedTender[] = []
+  for (const raw of v) {
+    const t = raw as { method?: unknown; amount?: unknown; reference?: unknown } | null
+    if (!t || typeof t !== 'object') return undefined
+    const method = str(t.method)
+    if (!method || typeof t.amount !== 'number' || !Number.isFinite(t.amount) || t.amount < 0) return undefined
+    if (t.reference !== undefined && t.reference !== null && typeof t.reference !== 'string') return undefined
+    out.push({ method, amount: t.amount, ...(typeof t.reference === 'string' && t.reference !== '' ? { reference: t.reference } : {}) })
+  }
+  return out
+}
+
 /** The receipt facts of an acked order item, or null when it is not a usable sale. */
 export function receiptEntryFromItem(item: OutboxItem): ReceiptEntry | null {
   if (item.type !== 'order') return null
@@ -83,6 +109,8 @@ export function receiptEntryFromItem(item: OutboxItem): ReceiptEntry | null {
   }
   const lines = lineDataFromItems(p.items)
   if (lines) Object.assign(entry, lines)
+  const tenders = tendersFromPayload(p.tenders)
+  if (tenders) entry.tenders = tenders
   const serverId = str((item as OutboxItem & { ackedOrderId?: unknown }).ackedOrderId)
   if (serverId) entry.serverOrderId = serverId
   return entry

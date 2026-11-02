@@ -7,6 +7,7 @@ import { stockCardFlow } from './backoffice-stockcard-scenarios'
 import { refundReportFlow, adminPartialRefundFlow } from './backoffice-refund-scenarios'
 import { splitOrderFlow, splitToggleFlow } from './backoffice-split-scenarios'
 import { posRequisition } from './pos-requisition-scenarios'
+import { posSplitTender, posSplitOffline, posSplitRefund, posSplitOff, posSplitDraft } from './pos-split-scenarios'
 
 test('BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate toggle', async ({ page }, info) => {
   const p = page as ScenarioPage
@@ -483,4 +484,16 @@ test('POS-REQUISITION cashier raises, submits with a stable key, tracks and canc
   const result = await posRequisition(page as ScenarioPage)
   expect(result).toHaveLength(9)
   await evidence(info, result)
+})
+
+for (const [id, title, run, opts] of [
+  ['POS-SPLIT-TENDER', 'QRIS with a reference plus cash with change: receipt rows, the tenders on the wire and Split-Payment in the local receipts', posSplitTender, { splitTender: true }],
+  ['POS-SPLIT-OFFLINE', 'an offline split sale is queued with its lines and reaches the server with tenders after reconnecting', posSplitOffline, { splitTender: true }],
+  ['POS-SPLIT-REFUND', 'a split sale is refunded with the cash payout preselected, then with the QRIS chip', posSplitRefund, { splitTender: true }],
+  ['POS-SPLIT-OFF', 'no Bagi pembayaran while the setting is off or absent', posSplitOff, {}],
+  ['POS-SPLIT-DRAFT', 'an unfinished split payment is offered back after a reload; a draft whose sale is already queued is dropped silently', posSplitDraft, { splitTender: true }],
+] as const) test(`${id} ${title}`, async ({ page }, info) => {
+  const p = page as ScenarioPage
+  await setupPos(p, opts)
+  await evidence(info, await run(p))
 })

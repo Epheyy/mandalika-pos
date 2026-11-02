@@ -1,6 +1,8 @@
 import type { components } from '@mandalika/api'
 import type { LocalReceipt } from '@mandalika/sync'
 import type { ReceiptSnapshotLine } from './receiptQuote'
+import { SPLIT_LABEL } from '../lib/paymentLabels'
+import { SPLIT_METHOD_ID } from './tenderSplit'
 
 type Customer = components['schemas']['Customer']
 type Product = components['schemas']['Product']
@@ -115,7 +117,7 @@ export function localHistoryFor(receipts: readonly LocalReceipt[], limit = 5): L
     const lines = (Array.isArray(snap?.lines) ? snap.lines : []).filter(isLine).map((l) => ({
       productId: l.productId, name: l.name, size: l.variantSize, qty: l.qty, free: l.isReward === true || l.amount === 0,
     }))
-    out.push({ id: r.orderUuid, number: r.orderNumber, at: r.capturedAt, paymentMethod: r.paymentMethod, total: r.quotedTotal ?? snap?.total ?? 0, lines })
+    out.push({ id: r.orderUuid, number: r.orderNumber, at: r.capturedAt, paymentMethod: r.paymentMethod === SPLIT_METHOD_ID ? SPLIT_LABEL : r.paymentMethod, total: r.quotedTotal ?? snap?.total ?? 0, lines })
     if (out.length >= limit) break
   }
   return out

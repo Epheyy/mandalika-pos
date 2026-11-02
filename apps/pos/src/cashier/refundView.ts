@@ -1,7 +1,8 @@
 import type { components } from '@mandalika/api'
-import { MAX_REFUND_REASON_CHARS, canRefund as userCanRefund, variantLabel } from '@mandalika/types'
+import { MAX_REFUND_REASON_CHARS, canRefund as userCanRefund, isCashMethod, variantLabel } from '@mandalika/types'
 import { formatRupiah } from './pricing'
-import { PAYMENT_LABELS } from '../lib/paymentLabels'
+import { PAYMENT_LABELS, SPLIT_LABEL, tenderLabel } from '../lib/paymentLabels'
+import { SPLIT_METHOD_ID } from './tenderSplit'
 import {
   buildRefundBasis, cacheHasRefunds, isExhausted, pickedUnits, refundAmountFor, remainingAmount, selectionToItems,
   type RefundCache, type RefundItemInput, type Selection,
@@ -27,6 +28,82 @@ export const REFUND_USE_HISTORY = 'Sebagian direfund · lanjutkan lewat Riwayat'
 /** Info chip for an order that already had a per-line refund (shown beside the enabled button, never a block). */
 export const refundPartialNote = (remaining: number | null): string =>
   remaining === null ? 'Sebagian direfund' : `Sebagian direfund · sisa ${formatRupiah(remaining)}`
+
+type OrderTender = NonNullable<Order['tenders']>[number]
+export type PayoutMethodCfg = { id: string; label: string; isEnabled?: boolean; isCash?: boolean | null }
+
+const sameMethod = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase()
+/** A tender line's name: the configured label, a built-in name, else "Tunai" for a cash id the settings do not list. */
+const lineLabel = (id: string, methods?: readonly PayoutMethodCfg[]): string => {
+  const l = tenderLabel(id, methods)
+  return l === id && isCashMethod(methods, id) ? 'Tunai' : l
+}
+export const tenderName = lineLabel
+const bySeq = (a: OrderTender, b: OrderTender): number => a.seq - b.seq
+
+/** C6 (D-56): a split order is one paid with lines of more than one method (or the reserved `split` method). Only
+ *  these offer a payout choice; every other order refunds to its sale method as before. */
+export function isSplitOrder(order: Pick<Order, 'paymentMethod' | 'tenders'>): boolean {
+  if (sameMethod(order.paymentMethod, SPLIT_METHOD_ID)) return true
+  const methods = (order.tenders ?? []).map((t) => t.method.trim().toLowerCase())
+  return new Set(methods).size > 1
+}
+
+/** D-56 default payout of a split order, the same rule the server applies: the cash line's method if the sale had a
+ *  cash line, else the line with the largest applied amount (ties: lowest seq). Null for an order that is not split. */
+export function defaultPayoutMethod(order: Pick<Order, 'paymentMethod' | 'tenders'>, methods?: readonly PayoutMethodCfg[]): string | null {
+  if (!isSplitOrder(order)) return null
+  const lines = [...(order.tenders ?? [])].sort(bySeq)
+  if (lines.length === 0) return null
+  const cash = lines.find((t) => isCashMethod(methods, t.method))
+  if (cash) return cash.method
+  return lines.reduce((best, t) => (t.amount > best.amount ? t : best)).method
+}
+
+/** The payout chips of a split order (D-57): each distinct method of the sale, plus a cash method from the settings
+ *  when the sale had none. Empty for an order that is not split (no choice to make). */
+export function payoutChoices(order: Pick<Order, 'paymentMethod' | 'tenders'>, methods?: readonly PayoutMethodCfg[]): { id: string; label: string }[] {
+  if (!isSplitOrder(order)) return []
+  const ids: string[] = []
+  const add = (id: string) => { if (!ids.some((x) => sameMethod(x, id))) ids.push(id) }
+  for (const t of [...(order.tenders ?? [])].sort(bySeq)) add(t.method)
+  if (!ids.some((id) => isCashMethod(methods, id))) {
+    const cash = (methods ?? []).find((m) => m.isEnabled !== false && isCashMethod(methods, m.id))
+    if (cash) add(cash.id)
+  }
+  return ids.map((id) => ({ id, label: lineLabel(id, methods) }))
+}
+
+/** "QRIS · Ref 8812345  Rp 751.000": one payment line as Riwayat and the receipt book show it. */
+export function tenderLineText(t: { method: string; amount: number; reference?: string | null }, methods?: readonly PayoutMethodCfg[]): string {
+  const ref = t.reference ? ` · Ref ${t.reference}` : ''
+  return `${lineLabel(t.method, methods)}${ref}  ${formatRupiah(t.amount)}`
+}
+
+/** The lines worth listing under the method cell: only when the sale has several lines or a reference (an old or
+ *  single-method order renders as before). */
+export function visibleTenders(order: Pick<Order, 'tenders'>): OrderTender[] {
+  const lines = [...(order.tenders ?? [])].sort(bySeq)
+  return lines.length > 1 || lines.some((t) => !!t.reference) ? lines : []
+}
+
+/** The slip rows of a server order (a history reprint): one per captured line, so the reprint matches the original
+ *  slip (struk = layar). undefined for an order without visible lines (a plain sale prints its single payment row). */
+export function orderReceiptTenders(order: Pick<Order, 'tenders'>, methods?: readonly PayoutMethodCfg[]): { label: string; amount: number; reference?: string }[] | undefined {
+  const lines = visibleTenders(order)
+  if (lines.length === 0) return undefined
+  return lines.map((t) => ({ label: lineLabel(t.method, methods), amount: t.tendered, ...(t.reference ? { reference: t.reference } : {}) }))
+}
+
+/** "QRIS Rp 751.000 + Tunai Rp 500.000" for the refund dialog of a split order. */
+export function paidByText(order: Pick<Order, 'tenders'>, methods?: readonly PayoutMethodCfg[]): string {
+  return [...(order.tenders ?? [])].sort(bySeq).map((t) => `${lineLabel(t.method, methods)} ${formatRupiah(t.amount)}`).join(' + ')
+}
+
+/** Method cell text: "Split-Payment" for a split sale (D-60), else the method's label. */
+export function methodCellLabel(order: Pick<Order, 'paymentMethod' | 'tenders'>, methods?: readonly PayoutMethodCfg[]): string {
+  return isSplitOrder(order) ? SPLIT_LABEL : lineLabel(order.paymentMethod, methods)
+}
 
 export type RefundAvailability =
   | { kind: 'allowed'; note?: string }
@@ -124,6 +201,8 @@ export interface RefundPayload {
   /** The order total for a whole-order refund; the refund amount for a per-line one (so an older bundle's recap shows what was paid out). */
   total: number
   paymentMethod: string
+  /** C6 (D-56): the method the refund is paid out in. Server-read; present for a split order ONLY. */
+  payoutMethod?: string
   /** The shift the sale belonged to (null when history did not say). */
   saleShiftId: string | null
 }
@@ -142,6 +221,10 @@ export function prepareRefund(i: {
   shiftId: string | null | undefined
   /** Set when the refund is of a sale made on this tablet (a local receipt). */
   sale?: LocalSaleRef
+  /** The payout method chosen for a split order; ignored (never sent) for any other order. */
+  payoutMethod?: string
+  /** The sale's tender lines (a split order is recognised from them). */
+  tenders?: Order['tenders']
 }): PreparedRefund {
   if (!i.canRefund) return { ok: false, message: REFUND_NO_PERMISSION }
   if (i.shiftId === '') return { ok: false, message: REFUND_SHIFT_UNSYNCED }
@@ -164,6 +247,7 @@ export function prepareRefund(i: {
       orderNumber: i.order.orderNumber,
       total: i.lines ? i.lines.amount : i.order.total,
       paymentMethod: i.order.paymentMethod,
+      ...(i.payoutMethod && isSplitOrder({ paymentMethod: i.order.paymentMethod, tenders: i.tenders }) ? { payoutMethod: i.payoutMethod } : {}),
       saleShiftId: i.order.shiftId ?? null,
     },
   }
@@ -201,6 +285,10 @@ export function planRefundSubmit(i: {
   canRefund: boolean
   shiftId: string | null | undefined
   sale?: LocalSaleRef
+  /** C6: the payout chip chosen in the dialog; only a split order uses it (default when absent). */
+  payoutMethod?: string
+  /** The configured payment methods, to judge which line is cash for the default payout. */
+  methods?: readonly PayoutMethodCfg[]
 }): RefundSubmitPlan {
   if (!i.refundOrder || i.refundOrder.id !== i.orderId) {
     return { kind: 'error', message: 'Transaksi refund tidak cocok. Tutup lalu coba lagi.' }
@@ -216,7 +304,12 @@ export function planRefundSubmit(i: {
     if (items.reduce((n, it) => n + it.quantity, 0) !== pickedUnits(selection)) return { kind: 'error', message: REFUND_CHANGED }
     lines = { items, amount: refundAmountFor(basis, selection).amount }
   }
-  const prepared = prepareRefund({ order: i.refundOrder, reason: i.reason, reasonCode: i.reasonCode, lines, canRefund: i.canRefund, shiftId: i.shiftId, sale: i.sale })
+  // A split order always carries a payout: the chosen chip, else the D-56 default. Any other order carries none.
+  const payoutMethod = isSplitOrder(i.refundOrder) ? (i.payoutMethod || defaultPayoutMethod(i.refundOrder, i.methods) || undefined) : undefined
+  const prepared = prepareRefund({
+    order: i.refundOrder, reason: i.reason, reasonCode: i.reasonCode, lines, canRefund: i.canRefund, shiftId: i.shiftId, sale: i.sale,
+    payoutMethod, tenders: i.refundOrder.tenders,
+  })
   return prepared.ok ? { kind: 'enqueue', payload: prepared.payload } : { kind: 'error', message: prepared.message }
 }
 

@@ -231,6 +231,20 @@ describe('receipt archive over the journal store (A41)', () => {
     expect(fj.persisted.meta.get(ARCHIVE_KEY)).not.toContain('Budi')
   })
 
+  it('a split sale (tenders in the payload) is archived through the real journal facade and read back intact (C6)', async () => {
+    const tenders = [{ method: 'qris', amount: 751000, reference: '8812345' }, { method: 'cash', amount: 600000 }]
+    const fj = createFakeJournal()
+    const { engine } = await engineOver(fj, undefined, okWithIds)
+    const { orderUuid } = await engine.enqueue('order', { ...saleBody, paymentMethod: 'split', tenders })
+    online()
+    await engine.flushNow()
+    expect(fj.persisted.rows.size).toBe(0)
+    expect(archived(fj)).toMatchObject([{ orderUuid, tenders }])
+    // A restart reads it back from the durable meta, not from memory.
+    const { engine: again } = await engineOver(fj.restart(), undefined, okWithIds)
+    expect(again.localReceipts()).toMatchObject([{ orderUuid, state: 'synced', paymentMethod: 'split', tenders }])
+  })
+
   it('keeps the acked row when the archive write fails; the next engine start archives it, a later batch prunes it', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const fj = createFakeJournal()
