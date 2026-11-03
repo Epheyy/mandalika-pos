@@ -201,6 +201,9 @@ func itemToAPI(it erp.OutboxItem) api.ErpOutboxItem {
 	if it.DeliveredAt != nil {
 		out.DeliveredAt = nullable.NewNullableWithValue(*it.DeliveredAt)
 	}
+	if it.LocationName != nil {
+		out.LocationName = nullable.NewNullableWithValue(*it.LocationName)
+	}
 	return out
 }
 
@@ -214,8 +217,8 @@ func detailToAPI(d erp.OutboxDetail) api.ErpOutboxDetail {
 		RefNumber: it.RefNumber, Part: it.Part, PartCount: it.PartCount, Status: api.ErpOutboxDetailStatus(it.Status),
 		Attempts: it.Attempts, NextAttemptAt: it.NextAttemptAt, LastHttpStatus: it.LastHttpStatus,
 		LastError: it.LastError, HoldReason: it.HoldReason, CreatedAt: it.CreatedAt, UpdatedAt: it.UpdatedAt,
-		DeliveredAt: it.DeliveredAt,
-		Payload:     jsonObject(d.Payload), ErpResponse: jsonObject(d.ERPResponse),
+		DeliveredAt: it.DeliveredAt, LocationName: it.LocationName,
+		Payload: jsonObject(d.Payload), ErpResponse: jsonObject(d.ERPResponse),
 	}
 	if d.PayloadSHA256 != nil {
 		out.PayloadSha256 = nullable.NewNullableWithValue(*d.PayloadSHA256)

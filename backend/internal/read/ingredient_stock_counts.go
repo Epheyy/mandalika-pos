@@ -28,7 +28,7 @@ func (r *Repo) IngredientStockCounts(ctx context.Context, page, limit int) ([]ap
       FROM ingredient_stock_counts sc
       LEFT JOIN outlets    o ON o.id = sc.outlet_id
       LEFT JOIN warehouses w ON w.id = sc.warehouse_id
-      ORDER BY sc.created_at DESC
+      ORDER BY sc.created_at DESC, sc.id DESC
       OFFSET $1 LIMIT $2`
 	return listJSON[api.IngredientStockCount](ctx, r.Pool, sql, off(page, limit), limit)
 }

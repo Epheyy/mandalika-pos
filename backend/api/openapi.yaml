@@ -145,6 +145,7 @@ components:
         kind: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
         locationType: { type: string, enum: [outlet, warehouse] }
         locationId: { type: string, format: uuid }
+        locationName: { type: string, nullable: true }
         refType: { type: string }
         refId: { type: string, format: uuid }
         refNumber: { type: string, nullable: true }
@@ -431,6 +432,28 @@ components:
         createdAt: { type: string, format: date-time }
         createdByName: { type: string }
         items: { type: array, items: { $ref: '#/components/schemas/GoodsReceiptDetailItem' } }
+    GoodsReceiptListItem:
+      type: object
+      required: [id, locationType, locationId, source, createdAt, lineCount, totalQty]
+      description: One row of the Barang Masuk list (no lines; GET the receipt for them).
+      properties:
+        id: { type: string, format: uuid }
+        locationType: { $ref: '#/components/schemas/InventoryLocationType' }
+        locationId: { type: string, format: uuid }
+        locationName: { type: string }
+        supplier: { type: string }
+        note: { type: string }
+        source: { type: string, enum: [supply, warranty] }
+        createdAt: { type: string, format: date-time }
+        createdByName: { type: string }
+        lineCount: { type: integer }
+        totalQty: { type: integer }
+    GoodsReceiptListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/GoodsReceiptListItem' } }
+        meta: { $ref: '#/components/schemas/Meta' }
     WarehouseAdjustInput:
       type: object
       required: [productId, variantSize, newQty, reason]
@@ -1536,6 +1559,7 @@ components:
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/Promotion' } }
+        meta: { $ref: '#/components/schemas/Meta' }
     DiscountCode:
       type: object
       required: [id, code, type, value, usageCount, isActive, createdAt]
@@ -1566,6 +1590,7 @@ components:
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/DiscountCode' } }
+        meta: { $ref: '#/components/schemas/Meta' }
     CartItem:
       type: object
       required: [productId, productName, variantSize, price, quantity, subtotal]
@@ -3665,11 +3690,16 @@ paths:
     get:
       operationId: listProducts
       tags: [catalog]
-      summary: List products
+      summary: List products (optional backoffice filters; without them the list is unchanged)
       parameters:
         - $ref: '#/components/parameters/OutletHeader'
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Limit'
+        - { name: q, in: query, description: 'contains-match on name, brand, or a variant SKU/barcode', schema: { type: string } }
+        - { name: categoryId, in: query, schema: { type: string, format: uuid } }
+        - { name: active, in: query, schema: { type: boolean } }
+        - { name: stock, in: query, description: 'low = an active variant with 1-2 in stock; out = an active variant with none (stock of the scoped outlet, or summed over outlets)', schema: { type: string, enum: [low, out] } }
+        - { name: sort, in: query, schema: { type: string, enum: [terbaru, nama], default: terbaru } }
       responses:
         '200':
           description: products
@@ -4099,9 +4129,14 @@ paths:
     get:
       operationId: listPromotions
       tags: [promotions]
-      summary: List promotions (outlet-honored)
+      summary: List promotions (outlet-honored; optional paging and filters)
       parameters:
         - $ref: '#/components/parameters/OutletHeader'
+        - { name: page, in: query, description: 'present = paged, with meta; absent = the whole list as before', schema: { type: integer, minimum: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: status, in: query, description: 'derived from isActive and the start/end dates (Asia/Jakarta business day)', schema: { type: string, enum: [aktif, terjadwal, berakhir, nonaktif] } }
+        - { name: type, in: query, schema: { type: string } }
       responses:
         '200':
           description: promotions
@@ -4127,7 +4162,13 @@ paths:
     get:
       operationId: listDiscountCodes
       tags: [promotions]
-      summary: List discount codes
+      summary: List discount codes (optional paging and filters)
+      parameters:
+        - { name: page, in: query, description: 'present = paged, with meta; absent = the whole list as before', schema: { type: integer, minimum: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: status, in: query, description: 'derived from isActive and the start/end dates (Asia/Jakarta business day)', schema: { type: string, enum: [aktif, terjadwal, berakhir, nonaktif] } }
+        - { name: type, in: query, schema: { type: string } }
       responses:
         '200':
           description: discount codes
@@ -4627,6 +4668,28 @@ paths:
       responses:
         '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/OkResponse' } } } }
         '409': { description: "Idempotency-Key reused with a different request, or a conflicting state" }
+  /api/v1/inventory/goods-receipts:
+    get:
+      operationId: listGoodsReceipts
+      tags: [catalog]
+      summary: Barang Masuk list, newest first, within the caller's location scope (manage_inventory)
+      parameters:
+        - { name: locationType, in: query, schema: { $ref: '#/components/schemas/InventoryLocationType' } }
+        - { name: locationId, in: query, schema: { type: string, format: uuid } }
+        - { name: dari, in: query, description: 'first day (YYYY-MM-DD, Asia/Jakarta) or an RFC 3339 instant', schema: { type: string } }
+        - { name: sampai, in: query, description: 'last day, inclusive (YYYY-MM-DD, Asia/Jakarta) or an RFC 3339 instant, exclusive', schema: { type: string } }
+        - { name: q, in: query, description: 'supplier, note, or an item product name / SKU', schema: { type: string } }
+        - { name: source, in: query, schema: { type: string, enum: [supply, warranty] } }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: goods receipts
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GoodsReceiptListResponse' }
+        '400': { description: invalid filter, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/v1/inventory/goods-receipts/{id}:
     get:
       operationId: getGoodsReceipt
@@ -6714,11 +6777,13 @@ paths:
       summary: Persetujuan Stok queue. Pending counts and adjustment requests in one list (manage_inventory or manage_stock_count)
       parameters:
         - { name: status, in: query, required: false, schema: { type: string, enum: [pending], default: pending } }
+        - { name: outletId, in: query, required: false, description: 'only documents of this outlet (warehouse documents have none)', schema: { type: string, format: uuid } }
+        - { name: kind, in: query, required: false, schema: { type: string, enum: [adjustment, count] } }
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Limit'
       responses:
         '200':
-          description: pending approvals and the pending count
+          description: pending approvals and the pending count (pendingCount ignores kind; an admin's outletId also switches the scope, narrowing it)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApprovalQueueResponse' }

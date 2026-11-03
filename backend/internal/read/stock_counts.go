@@ -35,7 +35,7 @@ func (r *Repo) StockCounts(ctx context.Context, s Scope, page, limit int) ([]api
 	}
 	args = append(args, limit, off(page, limit))
 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM stock_counts sc %s
-	  ORDER BY sc.created_at DESC LIMIT $%d OFFSET $%d`,
+	  ORDER BY sc.created_at DESC, sc.id DESC LIMIT $%d OFFSET $%d`,
 		stockCountObj, where, len(args)-1, len(args))
 	return listJSON[api.StockCount](ctx, r.Pool, sql, args...)
 }

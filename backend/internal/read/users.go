@@ -40,7 +40,7 @@ const userObj = `json_build_object('id',u.id,'email',u.email,
 func (r *Repo) Users(ctx context.Context, page, limit int) ([]api.User, int, error) {
 	return listJSON[api.User](ctx, r.Pool,
 		`SELECT `+userObj+`, count(*) OVER() AS total
-		   FROM users u ORDER BY u.created_at DESC LIMIT $1 OFFSET $2`,
+		   FROM users u ORDER BY u.created_at DESC, u.id DESC LIMIT $1 OFFSET $2`,
 		limit, off(page, limit))
 }
 

@@ -99,25 +99,42 @@ const approvalQueueSQL = `WITH q AS (
      AND ($1::boolean OR sc.warehouse_id IS NOT NULL OR sc.outlet_id = NULLIF($2,'')::uuid)
 )`
 
+// ApprovalFilter narrows the Persetujuan Stok list; empty fields match everything. OutletID keeps
+// the documents of that outlet (warehouse documents carry no outlet), Kind is "adjustment" or "count".
+type ApprovalFilter struct {
+	OutletID string
+	Kind     string
+}
+
 // ApprovalQueue returns one page of the pending approvals (oldest first) and the number of
 // pending items the caller may see, for the nav badge. seeAdjustments / seeCounts are the
 // caller's permissions (manage_inventory / manage_stock_count): a user holding only one of them
 // sees only that kind.
 func (r *Repo) ApprovalQueue(ctx context.Context, s Scope, seeAdjustments, seeCounts bool, page, limit int) ([]api.ApprovalQueueItem, int, error) {
+	items, total, _, err := r.ApprovalQueueFiltered(ctx, s, seeAdjustments, seeCounts, ApprovalFilter{}, page, limit)
+	return items, total, err
+}
+
+// ApprovalQueueFiltered is ApprovalQueue narrowed by f. It also returns the pending count the
+// caller may see whatever the filter, so the nav badge does not shrink with a filter; the first
+// count is the number of items matching the filter, for paging.
+func (r *Repo) ApprovalQueueFiltered(ctx context.Context, s Scope, seeAdjustments, seeCounts bool, f ApprovalFilter, page, limit int) ([]api.ApprovalQueueItem, int, int, error) {
+	const filterSQL = ` WHERE ($7='' OR (loc_type='outlet' AND loc_id::text=$7)) AND ($8='' OR type=$8)`
 	sql := approvalQueueSQL + `
 SELECT json_build_object('type',type,'id',id,'number',number,'locationType',loc_type,'locationId',loc_id,
   'locationName',loc_name,'requestedBy',by_id,'requestedByName',by_name,'at',at,'lines',lines,'netDelta',net)
-  FROM q ORDER BY at, id LIMIT $5 OFFSET $6`
+  FROM q` + filterSQL + ` ORDER BY at, id LIMIT $5 OFFSET $6`
 	items, _, err := listJSON[api.ApprovalQueueItem](ctx, r.Pool, sql,
-		s.CrossAll, s.OutletID, seeAdjustments, seeCounts, limit, off(page, limit))
+		s.CrossAll, s.OutletID, seeAdjustments, seeCounts, limit, off(page, limit), f.OutletID, f.Kind)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
-	var total int
-	err = r.Pool.QueryRow(ctx, approvalQueueSQL+` SELECT count(*) FROM q`,
-		s.CrossAll, s.OutletID, seeAdjustments, seeCounts).Scan(&total)
+	var total, pending int
+	err = r.Pool.QueryRow(ctx, approvalQueueSQL+` SELECT count(*) FILTER (WHERE true),
+	  count(*) FILTER (WHERE ($5='' OR (loc_type='outlet' AND loc_id::text=$5)) AND ($6='' OR type=$6)) FROM q`,
+		s.CrossAll, s.OutletID, seeAdjustments, seeCounts, f.OutletID, f.Kind).Scan(&pending, &total)
 	if err != nil {
-		return nil, 0, fmt.Errorf("query: %w", err)
+		return nil, 0, 0, fmt.Errorf("query: %w", err)
 	}
-	return items, total, nil
+	return items, total, pending, nil
 }
