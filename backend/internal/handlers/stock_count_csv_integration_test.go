@@ -23,9 +23,9 @@ import (
 )
 
 // Inventory controls S4: scanner CSV export and import of a stock count. Driven through the real
-// handlers, checked with plain SQL. Opt-in fresh synthetic cluster (port 56473).
+// handlers, checked with plain SQL. Opt-in fresh synthetic cluster (port 26473).
 func TestStockCountCsvPostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "CV", 56473)
+	pool, ctx := gatePool(t, "CV", 26473)
 	const (
 		outC    = "00000000-0000-4000-8d00-000000000001"
 		adminU  = "00000000-0000-4000-8d00-000000000011"

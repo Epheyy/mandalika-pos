@@ -38,7 +38,7 @@ const (
 // location scope, the CSV export, the giveaway filter and the date-range opening/closing, all over
 // seeded ledger rows read through the real handlers.
 func TestStockMovementsReadPostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "MV", 56469)
+	pool, ctx := gatePool(t, "MV", 26469)
 	seq := mvSeed(t, ctx, pool)
 	h := &Handlers{Repo: read.New(pool)}
 

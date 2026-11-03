@@ -24,9 +24,9 @@ import (
 
 // A30 customer privacy: phone-only cashier lookup, role-scoped customer reads, a stripped
 // pull bundle and a restricted order search. Opt-in only, same isolation contract as the
-// other PostgreSQL gates (fixture "CP", port 56464).
+// other PostgreSQL gates (fixture "CP", port 26464).
 func TestCustomerPrivacyPostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "CP", 56464)
+	pool, ctx := gatePool(t, "CP", 26464)
 	exec := func(sql string, args ...any) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, sql, args...); err != nil {

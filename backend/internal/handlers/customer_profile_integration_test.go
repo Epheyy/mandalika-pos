@@ -21,9 +21,9 @@ import (
 )
 
 // D-25 customer profile read. Opt-in only, same isolation contract as the other PostgreSQL
-// gates (fixture "CPR", port 56475).
+// gates (fixture "CPR", port 26475).
 func TestCustomerProfilePostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "CPR", 56475)
+	pool, ctx := gatePool(t, "CPR", 26475)
 	exec := func(sql string, args ...any) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, sql, args...); err != nil {

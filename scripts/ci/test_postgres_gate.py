@@ -9,6 +9,13 @@ from unittest.mock import patch
 import postgres_gate as gate
 
 
+class PortPlan(unittest.TestCase):
+    def test_gate_ports_are_unique_and_below_ephemeral_range(self):
+        ports = [g[2] for g in gate.GATES]
+        self.assertEqual(len(ports), len(set(ports)))
+        self.assertTrue(all(p < gate.EPHEMERAL_PORT_MIN for p in ports), max(ports))
+
+
 class RunnerContract(unittest.TestCase):
     name = "TestSaleInputPostgres"
 
@@ -118,12 +125,12 @@ class RunnerContract(unittest.TestCase):
     def test_docker_creation_is_loopback_tmpfs_and_uses_resolved_image(self):
         args = argparse.Namespace(runtime="docker", image_id="sha256:synthetic-image")
         f = gate.Fixture(args, gate.GATES[0], {})
-        bindings = {"5432/tcp": [{"HostIp": "127.0.0.1", "HostPort": "56439"}]}
+        bindings = {"5432/tcp": [{"HostIp": "127.0.0.1", "HostPort": "26439"}]}
         with patch.object(gate, "port_open", return_value=False), \
              patch.object(gate, "checked", side_effect=["created", '"owned-id"', json.dumps(bindings), "started"]) as run:
             f.start()
         cmd = run.call_args_list[0].args[0]
-        self.assertIn("127.0.0.1:56439:5432", cmd)
+        self.assertIn("127.0.0.1:26439:5432", cmd)
         self.assertIn("type=tmpfs,destination=/var/lib/postgresql", cmd)
         self.assertEqual(cmd[-1], args.image_id)
         self.assertNotIn(f.password, " ".join(cmd))

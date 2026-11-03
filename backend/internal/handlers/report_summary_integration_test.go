@@ -34,7 +34,7 @@ func TestReportSummaryPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56444 || cfg.ConnConfig.Database != "mandalika_a27_synthetic" || cfg.ConnConfig.User != "a27_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26444 || cfg.ConnConfig.Database != "mandalika_a27_synthetic" || cfg.ConnConfig.User != "a27_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	// Pin only the synthetic session for reproducible daily buckets; production timezone is unchanged.

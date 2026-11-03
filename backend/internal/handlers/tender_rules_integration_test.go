@@ -38,7 +38,7 @@ func TestTenderRulesPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56447 || cfg.ConnConfig.Database != "mandalika_td_synthetic" || cfg.ConnConfig.User != "td_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26447 || cfg.ConnConfig.Database != "mandalika_td_synthetic" || cfg.ConnConfig.User != "td_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	ctx := context.Background()

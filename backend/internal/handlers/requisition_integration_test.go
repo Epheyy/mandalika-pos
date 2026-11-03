@@ -38,7 +38,7 @@ func TestRequisitionPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56474 || cfg.ConnConfig.Database != "mandalika_rq_synthetic" || cfg.ConnConfig.User != "rq_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26474 || cfg.ConnConfig.Database != "mandalika_rq_synthetic" || cfg.ConnConfig.User != "rq_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	ctx := context.Background()

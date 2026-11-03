@@ -37,7 +37,7 @@ func TestBusinessDatePostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56462 || cfg.ConnConfig.Database != "mandalika_bd_synthetic" || cfg.ConnConfig.User != "bd_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26462 || cfg.ConnConfig.Database != "mandalika_bd_synthetic" || cfg.ConnConfig.User != "bd_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	// Pin the session zone so a server-zone dependence cannot hide; the fix must not rely on it.

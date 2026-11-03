@@ -36,7 +36,7 @@ func TestPromoLinkedParityPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56460 || cfg.ConnConfig.Database != "mandalika_pl_synthetic" || cfg.ConnConfig.User != "pl_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26460 || cfg.ConnConfig.Database != "mandalika_pl_synthetic" || cfg.ConnConfig.User != "pl_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)

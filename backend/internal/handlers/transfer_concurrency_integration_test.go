@@ -30,7 +30,7 @@ func TestTransferConcurrencyPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56445 || cfg.ConnConfig.Database != "mandalika_tr_synthetic" || cfg.ConnConfig.User != "tr_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26445 || cfg.ConnConfig.Database != "mandalika_tr_synthetic" || cfg.ConnConfig.User != "tr_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	cfg.MaxConns = 8

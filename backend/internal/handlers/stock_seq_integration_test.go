@@ -15,7 +15,7 @@ import (
 
 // A15 Phase B: per-outlet stock change counter (outlet_stock_seq). Opt-in only, same
 // isolation contract as the other PostgreSQL gates (MANDALIKA_ST_TEST_DSN, fresh
-// synthetic cluster on port 56458). The counter must move EXACTLY once per committing
+// synthetic cluster on port 26458). The counter must move EXACTLY once per committing
 // stock-changing transaction (delta == 1, never >= 1), never for a transaction that
 // leaves stock unchanged or rolls back, and never for a replayed key.
 const (
@@ -52,7 +52,7 @@ func (f *stFixture) seq(t *testing.T, outlet string) int64 {
 }
 
 func TestStockSeqPostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "ST", 56458)
+	pool, ctx := gatePool(t, "ST", 26458)
 	f := &stFixture{ctx: ctx, pool: pool}
 	f.exec(t, `INSERT INTO outlets(id,name) VALUES($1,'ST outlet A'),($2,'ST outlet B')`, stOutletA, stOutletB)
 

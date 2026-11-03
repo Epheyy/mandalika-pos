@@ -27,7 +27,7 @@ import (
 // cash-flow routes reject a shiftId from another outlet (a closed own shift is
 // still accepted: late sales keep their shift).
 func TestShiftOwnershipPostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "SO", 56453)
+	pool, ctx := gatePool(t, "SO", 26453)
 	exec := func(sql string, args ...any) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, sql, args...); err != nil {

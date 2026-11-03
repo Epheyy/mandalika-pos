@@ -34,7 +34,7 @@ func TestSyncReviewPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56450 || cfg.ConnConfig.Database != "mandalika_rv_synthetic" || cfg.ConnConfig.User != "rv_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26450 || cfg.ConnConfig.Database != "mandalika_rv_synthetic" || cfg.ConnConfig.User != "rv_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)

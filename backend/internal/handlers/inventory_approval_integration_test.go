@@ -24,9 +24,9 @@ import (
 )
 
 // Inventory controls S3: approval of manual adjustments and stock counts. Driven through the real
-// handlers, checked with plain SQL. Opt-in fresh synthetic cluster (port 56472).
+// handlers, checked with plain SQL. Opt-in fresh synthetic cluster (port 26472).
 func TestInventoryApprovalPostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "AP", 56472)
+	pool, ctx := gatePool(t, "AP", 26472)
 	const (
 		outA    = "00000000-0000-4000-8c00-000000000001"
 		outB    = "00000000-0000-4000-8c00-000000000002"

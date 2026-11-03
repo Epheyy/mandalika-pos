@@ -41,7 +41,7 @@ func TestOperationReceiptsPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56446 || cfg.ConnConfig.Database != "mandalika_or_synthetic" || cfg.ConnConfig.User != "or_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26446 || cfg.ConnConfig.Database != "mandalika_or_synthetic" || cfg.ConnConfig.User != "or_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	cfg.MaxConns = 12

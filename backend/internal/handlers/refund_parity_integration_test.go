@@ -38,7 +38,7 @@ func TestRefundParityPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56449 || cfg.ConnConfig.Database != "mandalika_rf_synthetic" || cfg.ConnConfig.User != "rf_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26449 || cfg.ConnConfig.Database != "mandalika_rf_synthetic" || cfg.ConnConfig.User != "rf_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	ctx := context.Background()
