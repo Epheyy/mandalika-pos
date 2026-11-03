@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"log/slog"
 )
@@ -33,6 +34,16 @@ func nullBytes(b []byte) any {
 		return nil
 	}
 	return b
+}
+
+// nullJSONValue is nullBytes that also maps a literal JSON null (what a
+// json.RawMessage holds for `"field": null`) to SQL NULL, so the column never
+// stores a jsonb null scalar that jsonb_array_elements cannot expand.
+func nullJSONValue(b []byte) any {
+	if string(bytes.TrimSpace(b)) == "null" {
+		return nil
+	}
+	return nullBytes(b)
 }
 
 // nullCodes marshals applied code strings to a jsonb array, or NULL when empty.
