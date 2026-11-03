@@ -14,7 +14,7 @@ import (
 
 // Step 5 ERP outbox (plan §5): every ledger document part is queued in erp_outbox in
 // the same transaction as its movements. Opt-in only, same isolation contract as the
-// other PostgreSQL gates (MANDALIKA_OB_TEST_DSN, fresh synthetic cluster on port 56470).
+// other PostgreSQL gates (MANDALIKA_OB_TEST_DSN, fresh synthetic cluster on port 26470).
 // Every subtest seeds what it needs, so any one runs alone with
 // -run TestErpOutboxPostgres/<name>.
 const (
@@ -67,7 +67,7 @@ func obSaleDoc(key, refID string, lines ...ledger.Line) ledger.Document {
 }
 
 func TestErpOutboxPostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "OB", 56470)
+	pool, ctx := gatePool(t, "OB", 26470)
 
 	t.Run("same-tx", func(t *testing.T) {
 		obSetup(t, ctx, pool)

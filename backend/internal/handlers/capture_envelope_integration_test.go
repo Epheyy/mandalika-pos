@@ -39,7 +39,7 @@ func TestCaptureEnvelopePostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56448 || cfg.ConnConfig.Database != "mandalika_ev_synthetic" || cfg.ConnConfig.User != "ev_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26448 || cfg.ConnConfig.Database != "mandalika_ev_synthetic" || cfg.ConnConfig.User != "ev_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	ctx := context.Background()

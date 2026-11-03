@@ -36,7 +36,7 @@ func TestSaleInputPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56439 || cfg.ConnConfig.Database != "mandalika_s0c_synthetic" || cfg.ConnConfig.User != "s0c_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26439 || cfg.ConnConfig.Database != "mandalika_s0c_synthetic" || cfg.ConnConfig.User != "s0c_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	ctx := context.Background()

@@ -28,7 +28,7 @@ import (
 
 // Step 4 ERP catalog pull (plan §4.6, gate ER): the real erp.Client and erp.Syncer run
 // against the in-process erpstub and a real PostgreSQL. Opt-in only, same isolation
-// contract as the other gates (MANDALIKA_ER_TEST_DSN, synthetic cluster on port 56468).
+// contract as the other gates (MANDALIKA_ER_TEST_DSN, synthetic cluster on port 26468).
 // Every subtest resets the catalog tables and starts its own stub, so any one runs
 // alone with -run TestErpIntegrationPostgres/<name>.
 
@@ -221,7 +221,7 @@ func erVersion(t *testing.T, ctx context.Context, pool *pgxpool.Pool) string {
 }
 
 func TestErpIntegrationPostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "ER", 56468)
+	pool, ctx := gatePool(t, "ER", 26468)
 
 	t.Run("full-run-empty-pos", func(t *testing.T) {
 		e := newErEnv(t, ctx, pool, 0)

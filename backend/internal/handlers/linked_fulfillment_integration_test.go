@@ -34,7 +34,7 @@ func TestLinkedFulfillmentPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56442 || cfg.ConnConfig.Database != "mandalika_lf_synthetic" || cfg.ConnConfig.User != "lf_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26442 || cfg.ConnConfig.Database != "mandalika_lf_synthetic" || cfg.ConnConfig.User != "lf_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)

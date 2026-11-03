@@ -14,7 +14,7 @@ import (
 
 // Step 2 stock ledger (plan §2): stock_movements must always sum to live stock. Opt-in
 // only, same isolation contract as the other PostgreSQL gates (MANDALIKA_SL_TEST_DSN,
-// fresh synthetic cluster on port 56467). Each writer-conversion commit adds a subtest
+// fresh synthetic cluster on port 26467). Each writer-conversion commit adds a subtest
 // that drives its writer, replays it, and calls assertLedgerInvariant. Every subtest
 // seeds the shared fixtures itself, so any one runs alone with
 // -run TestStockLedgerPostgres/<name>.
@@ -123,7 +123,7 @@ func slRecord(ctx context.Context, pool *pgxpool.Pool, doc ledger.Document, delt
 }
 
 func TestStockLedgerPostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "SL", 56467)
+	pool, ctx := gatePool(t, "SL", 26467)
 	exec := func(sql string, args ...any) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, sql, args...); err != nil {

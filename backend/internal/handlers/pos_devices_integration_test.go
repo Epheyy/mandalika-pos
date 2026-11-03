@@ -36,7 +36,7 @@ func TestDeviceRegisterPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56452 || cfg.ConnConfig.Database != "mandalika_dv_synthetic" || cfg.ConnConfig.User != "dv_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26452 || cfg.ConnConfig.Database != "mandalika_dv_synthetic" || cfg.ConnConfig.User != "dv_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)

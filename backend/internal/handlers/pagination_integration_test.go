@@ -31,7 +31,7 @@ func TestPaginationPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56443 || cfg.ConnConfig.Database != "mandalika_a26_synthetic" || cfg.ConnConfig.User != "a26_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26443 || cfg.ConnConfig.Database != "mandalika_a26_synthetic" || cfg.ConnConfig.User != "a26_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)

@@ -19,9 +19,9 @@ import (
 
 // Fase D D2-API: the optional list parameters of the backoffice (products, promotions, discount
 // codes, goods receipts, approvals), the ERP location names and the stable paging tie-breaks.
-// Driven through the real handlers; opt-in fresh synthetic cluster (port 56478, prefix LP).
+// Driven through the real handlers; opt-in fresh synthetic cluster (port 26478, prefix LP).
 func TestListParamsPostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "LP", 56478)
+	pool, ctx := gatePool(t, "LP", 26478)
 	const (
 		outA   = "00000000-0000-4000-8d00-000000000001"
 		outB   = "00000000-0000-4000-8d00-000000000002"

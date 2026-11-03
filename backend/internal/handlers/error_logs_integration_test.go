@@ -19,7 +19,7 @@ import (
 // the admin-only read, all against a real PostgreSQL through the FULL router.
 // Opt-in synthetic cluster only; no subtest may skip.
 func TestErrorLogsPostgres(t *testing.T) {
-	pool, ctx := handlers.GatePool(t, "EL", 56459)
+	pool, ctx := handlers.GatePool(t, "EL", 26459)
 	g := newAUGate(t, pool, ctx)
 	srv := g.router(g.disabledCache(t))
 	wr := write.New(pool)

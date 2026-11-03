@@ -10,7 +10,7 @@ python3 -B scripts/ci/postgres_gate.py --output artifacts/postgres/result.json
 The default runner requires a working Docker engine and Go. It pulls
 `postgres:18.3` (official image pinned by content digest `IMAGE_DIGEST`, pulled by digest from the first mirror in `IMAGE_MIRRORS` that serves it — `mirror.gcr.io`, then AWS ECR Public — so quota errors or hung pulls fall through and no mirror can substitute different bytes), records the resolved image ID/digest, and creates each container
 using that immutable ID. Eight fixtures run sequentially, one fresh tmpfs cluster
-per named Go integration test. Ports 56439–56446 must be unused. Only
+per named Go integration test. Ports 26439–26478 (below the Linux ephemeral range 32768–60999, so outgoing client sockets never take them as local ports; the workflow also reserves the block via ip_local_reserved_ports) must be unused. Only
 `127.0.0.1` is published. Each fixture has its own generated synthetic password,
 exact database/user, and explicit unique PGDATA. There is no `.env`, live DSN,
 shared database, or provider-secret fallback.

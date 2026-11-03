@@ -37,7 +37,7 @@ func TestOfflineCapPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56463 || cfg.ConnConfig.Database != "mandalika_oc_synthetic" || cfg.ConnConfig.User != "oc_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26463 || cfg.ConnConfig.Database != "mandalika_oc_synthetic" || cfg.ConnConfig.User != "oc_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	cfg.ConnConfig.RuntimeParams["timezone"] = "UTC"

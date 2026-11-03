@@ -32,11 +32,11 @@ type gwMove struct {
 	Kind, RefLine, RefNo string
 }
 
-// TestGiveawayPostgres is the S2 gate (isolated cluster, MANDALIKA_GW_TEST_DSN, port 56471):
+// TestGiveawayPostgres is the S2 gate (isolated cluster, MANDALIKA_GW_TEST_DSN, port 26471):
 // the per-outlet, per-sale giveaway item (the canvas bag) rides the sale's ledger document
 // as one extra `sale` movement keyed giveaway:<order id>, with no flag the ERP could see.
 func TestGiveawayPostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "GW", 56471)
+	pool, ctx := gatePool(t, "GW", 26471)
 	const (
 		outA   = "00000000-0000-4000-8f71-00000000000a" // giveaway configured (bag)
 		outB   = "00000000-0000-4000-8f71-00000000000b" // no setting

@@ -38,7 +38,7 @@ func TestOversellPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56457 || cfg.ConnConfig.Database != "mandalika_os_synthetic" || cfg.ConnConfig.User != "os_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26457 || cfg.ConnConfig.Database != "mandalika_os_synthetic" || cfg.ConnConfig.User != "os_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	ctx := context.Background()

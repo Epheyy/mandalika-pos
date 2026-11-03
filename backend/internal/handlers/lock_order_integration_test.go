@@ -19,7 +19,7 @@ import (
 // test: the deterministic lock order itself is what is proven. Final stock is
 // asserted exactly.
 func TestLockOrderPostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "LO", 56454)
+	pool, ctx := gatePool(t, "LO", 26454)
 	exec := func(sql string, args ...any) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, sql, args...); err != nil {

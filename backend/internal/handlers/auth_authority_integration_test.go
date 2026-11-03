@@ -39,7 +39,7 @@ import (
 // one IP to prove the in-memory limiter. No subtest may skip (the gate treats a
 // skip as a failure).
 func TestAuthAuthorityPostgres(t *testing.T) {
-	pool, ctx := handlers.GatePool(t, "AU", 56455)
+	pool, ctx := handlers.GatePool(t, "AU", 26455)
 	g := newAUGate(t, pool, ctx)
 
 	t.Run("1 redis down: refused", func(t *testing.T) { g.redisDown(t, g.refusedCache(t), "refused") })

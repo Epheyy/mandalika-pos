@@ -31,7 +31,7 @@ import (
 // and a 30,000-row customer commit finishes in time. Opt-in only, same isolation contract
 // as the other PostgreSQL gates; everything speaks raw JSON over the real HTTP handlers.
 func TestCsvImportPostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "IM", 56456)
+	pool, ctx := gatePool(t, "IM", 26456)
 	cur := t
 	sub := func(name string, fn func(t *testing.T)) {
 		t.Run(name, func(st *testing.T) {

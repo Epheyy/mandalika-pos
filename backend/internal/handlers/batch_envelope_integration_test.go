@@ -31,7 +31,7 @@ func TestBatchEnvelopePostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56441 || cfg.ConnConfig.Database != "mandalika_be_synthetic" || cfg.ConnConfig.User != "be_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26441 || cfg.ConnConfig.Database != "mandalika_be_synthetic" || cfg.ConnConfig.User != "be_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	ctx := context.Background()

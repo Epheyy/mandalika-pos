@@ -39,7 +39,7 @@ func TestStockCountPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56451 || cfg.ConnConfig.Database != "mandalika_sc_synthetic" || cfg.ConnConfig.User != "sc_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26451 || cfg.ConnConfig.Database != "mandalika_sc_synthetic" || cfg.ConnConfig.User != "sc_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	ctx := context.Background()

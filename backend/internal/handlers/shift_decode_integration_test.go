@@ -32,7 +32,7 @@ func TestShiftDecodePostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56440 || cfg.ConnConfig.Database != "mandalika_s0d_synthetic" || cfg.ConnConfig.User != "s0d_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26440 || cfg.ConnConfig.Database != "mandalika_s0d_synthetic" || cfg.ConnConfig.User != "s0d_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	ctx := context.Background()

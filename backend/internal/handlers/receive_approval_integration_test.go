@@ -28,7 +28,7 @@ import (
 // A08: online step-up approval for transfer receive. Driven through the real HTTP
 // handlers and /sync/batch, checked with plain SQL. Opt-in fresh synthetic cluster.
 func TestReceiveApprovalPostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "RA", 56466)
+	pool, ctx := gatePool(t, "RA", 26466)
 	const (
 		outletA = "00000000-0000-4000-8b00-000000000001" // receiving outlet
 		outletB = "00000000-0000-4000-8b00-000000000002" // sending outlet

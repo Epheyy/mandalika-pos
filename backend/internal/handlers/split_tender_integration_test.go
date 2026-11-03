@@ -24,7 +24,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
-// Gate SP (isolated cluster, MANDALIKA_SP_TEST_DSN, port 56477): C6a split tender. Sales and
+// Gate SP (isolated cluster, MANDALIKA_SP_TEST_DSN, port 26477): C6a split tender. Sales and
 // refunds go through the real /sync/batch items (so the sale and refund paths of chunks B and C
 // are exercised), tenderless fixtures are raw SQL (the synthetic-line path), and every money
 // reader is asserted on exact figures. Subtests are numbered as in plan section 4 (C6a).
@@ -45,7 +45,7 @@ type spEnv struct {
 }
 
 func TestSplitTenderPostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "SP", 56477)
+	pool, ctx := gatePool(t, "SP", 26477)
 	e := newSPEnv(t, ctx, pool)
 
 	t.Run("1 sync split sale", func(t *testing.T) { e.t = t; e.syncSplitSale() })

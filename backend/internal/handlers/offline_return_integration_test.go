@@ -35,7 +35,7 @@ func TestOfflineReturnPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56465 || cfg.ConnConfig.Database != "mandalika_of_synthetic" || cfg.ConnConfig.User != "of_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26465 || cfg.ConnConfig.Database != "mandalika_of_synthetic" || cfg.ConnConfig.User != "of_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	cfg.ConnConfig.RuntimeParams["timezone"] = "UTC"

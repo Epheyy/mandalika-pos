@@ -38,7 +38,7 @@ func TestQuotedReceiptPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 56461 || cfg.ConnConfig.Database != "mandalika_qt_synthetic" || cfg.ConnConfig.User != "qt_test" {
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 26461 || cfg.ConnConfig.Database != "mandalika_qt_synthetic" || cfg.ConnConfig.User != "qt_test" {
 		t.Fatal("refusing non-fixture target")
 	}
 	ctx := context.Background()

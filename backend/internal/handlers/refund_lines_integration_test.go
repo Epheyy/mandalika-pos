@@ -50,12 +50,12 @@ func rlCum(net int64, qty, n int) int64 {
 	return net * int64(n) / int64(qty)
 }
 
-// TestRefundLinesPostgres is gate RL (isolated cluster, MANDALIKA_RL_TEST_DSN, port 56476):
+// TestRefundLinesPostgres is gate RL (isolated cluster, MANDALIKA_RL_TEST_DSN, port 26476):
 // C4a per-line / partial refunds end to end. Sales go through the real /sync/batch "order" item
 // (so line_no/net_amount/refund_group are really written), refunds through the real "refund"
 // item and the direct route, and every effect is asserted on the rows AND on the HTTP readers.
 func TestRefundLinesPostgres(t *testing.T) {
-	pool, ctx := gatePool(t, "RL", 56476)
+	pool, ctx := gatePool(t, "RL", 26476)
 	cur := t
 	sub := func(name string, fn func(t *testing.T)) {
 		t.Run(name, func(st *testing.T) {
