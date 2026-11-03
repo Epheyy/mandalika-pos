@@ -26,6 +26,7 @@ function usePickerData() {
   const [products, setProducts] = useState<Product[]>([])
   const [productsState, setProductsState] = useState<'loading' | 'ready' | 'failed'>('loading')
   const [outlets, setOutlets] = useState<Outlet[]>([])
+  const [outletsState, setOutletsState] = useState<'loading' | 'ready' | 'failed'>('loading')
   useEffect(() => {
     let alive = true
     loadAllProducts((p, l) => api.listProducts(p, l))
@@ -35,12 +36,19 @@ function usePickerData() {
         setProductsState('ready')
       })
       .catch(() => alive && setProductsState('failed'))
-    api.listOutlets().then((o) => alive && setOutlets(o)).catch(() => {})
+    api
+      .listOutlets()
+      .then((o) => {
+        if (!alive) return
+        setOutlets(o)
+        setOutletsState('ready')
+      })
+      .catch(() => alive && setOutletsState('failed'))
     return () => {
       alive = false
     }
   }, [])
-  return { products, productsState, outlets }
+  return { products, productsState, outlets, outletsState }
 }
 
 /** The promotion editor overlay, mounted while `?ubah=<id>` / `?baru=1` is in the URL. */
@@ -62,7 +70,7 @@ export function PromotionEditorHost({ promoId, closeEditor, refetchList }: Promo
     saveFailure: 'Promosi gagal disimpan.',
     loadFailure: 'Promosi gagal dimuat.',
   })
-  const requestClose = useEditorGuard({ answeredRef, leave, dirty: editor.dirty, load: editor.load, closeEditor, subject: 'promosi' })
+  const requestClose = useEditorGuard({ answeredRef, leave, dirty: editor.dirty, busy: editor.busy, load: editor.load, closeEditor, subject: 'promosi' })
 
   return (
     <PromoFormSlideOver
@@ -74,6 +82,7 @@ export function PromotionEditorHost({ promoId, closeEditor, refetchList }: Promo
       products={picker.products}
       productsState={picker.productsState}
       outlets={picker.outlets}
+      outletsState={picker.outletsState}
       dirty={editor.dirty}
       busy={editor.busy}
       err={editor.err}

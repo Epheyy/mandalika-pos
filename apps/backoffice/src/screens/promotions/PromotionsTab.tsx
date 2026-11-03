@@ -1,4 +1,4 @@
-import { useCallback, type ReactNode } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import type { Promotion } from '@mandalika/api'
 import { Plus } from 'lucide-react'
 import { api } from '../../api'
@@ -52,7 +52,10 @@ export function PromotionsTab({ tabs }: PromotionsTabProps) {
   const openEditor = (patch: { ubah?: string; baru?: boolean }) => setOverlay(patch)
   const closeEditor = useCallback(() => setOverlay({ ubah: '', baru: false }, { replace: true }), [setOverlay])
 
+  const [duplicating, setDuplicating] = useState(false)
   const duplicate = async (p: Promotion) => {
+    if (duplicating) return
+    setDuplicating(true)
     try {
       // Read fresh, like the status switch: the visible row may be a poll old.
       const fresh = (await api.listPromotions()).find((r) => r.id === p.id)
@@ -66,6 +69,7 @@ export function PromotionsTab({ tabs }: PromotionsTabProps) {
       toast({ message: e instanceof Error && e.message ? e.message : 'Promosi gagal disalin.', tone: 'warn' })
     }
     await list.refetch()
+    setDuplicating(false)
   }
 
   const exportAll = useCallback(
@@ -109,7 +113,7 @@ export function PromotionsTab({ tabs }: PromotionsTabProps) {
         onRetry={() => void list.refetch()}
         selectedId={editingId}
         filtered={list.activeCount > 0}
-        busyId={status.busyId}
+        busyIds={status.busyIds}
         onToggle={(p, next) => void status.toggle(p, next)}
         onEdit={(p) => openEditor({ ubah: p.id, baru: false })}
         onDuplicate={(p) => void duplicate(p)}

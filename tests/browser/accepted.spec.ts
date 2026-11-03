@@ -196,7 +196,7 @@ test('BO-PRODUCTS-LIST Produk filters and paging are server requests and URL sta
 
 test('BO-PROMO-LIST Promosi and Kode Diskon filters and paging are server requests and URL state that survive a reload and feed the export, the status Switch asks before turning on and turning off undoes from a fresh read, an untouched edit sends every field back, and a refused save, delete or batch stays visible', async ({ page }, info) => {
   const result = await promotionsFlow(page as ScenarioPage)
-  expect(result).toHaveLength(13)
+  expect(result).toHaveLength(14)
   await evidence(info, result)
 })
 

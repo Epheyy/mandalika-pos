@@ -20,8 +20,8 @@ interface PromotionsTableProps {
   onRetry?: () => void
   selectedId?: string | null
   filtered?: boolean
-  /** The promotion whose status change is in flight (its Switch is off for the moment). */
-  busyId?: string | null
+  /** Promotions whose status change is in flight (their Switch is off for the moment). */
+  busyIds?: ReadonlySet<string>
   onToggle: (p: Promotion, next: boolean) => void
   onEdit: (p: Promotion) => void
   onDuplicate: (p: Promotion) => void
@@ -29,7 +29,7 @@ interface PromotionsTableProps {
   footer?: ReactNode
 }
 
-export function PromotionsTable({ rows, today, loading, error, onRetry, selectedId, filtered, busyId, onToggle, onEdit, onDuplicate, onDelete, footer }: PromotionsTableProps) {
+export function PromotionsTable({ rows, today, loading, error, onRetry, selectedId, filtered, busyIds, onToggle, onEdit, onDuplicate, onDelete, footer }: PromotionsTableProps) {
   const columns: Column<Promotion>[] = [
     {
       id: 'name',
@@ -53,7 +53,7 @@ export function PromotionsTable({ rows, today, loading, error, onRetry, selected
       header: 'Status',
       cell: (p) => (
         <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <Switch size="sm" checked={p.isActive} disabled={busyId === p.id} label={`Status ${p.name}`} onChange={(next) => onToggle(p, next)} />
+          <Switch size="sm" checked={p.isActive} disabled={busyIds?.has(p.id)} label={`Status ${p.name}`} onChange={(next) => onToggle(p, next)} />
           <StatusBadge map={PROMOTION_STATUS} value={promoStatus(p, today)} />
         </div>
       ),

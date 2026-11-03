@@ -21,6 +21,8 @@ interface GuardArgs {
   answeredRef: RefObject<boolean>
   leave: () => void
   dirty: boolean
+  /** A save is in flight: the editor cannot be left until it answers (the write would land anyway). */
+  busy: boolean
   load: EditorLoad
   closeEditor: () => void
   /** "promosi" or "kode diskon": used in the sentences. */
@@ -32,12 +34,13 @@ interface GuardArgs {
  * covers every way out: ×, Escape, the backdrop, browser Back, the sidebar and a typed URL (the scoped leave guard).
  * A row that vanished (`load === 'missing'`) closes with a toast. Returns the handler for ×, Batal and Escape.
  */
-export function useEditorGuard({ answeredRef, leave, dirty, load, closeEditor, subject }: GuardArgs) {
+export function useEditorGuard({ answeredRef, leave, dirty, busy, load, closeEditor, subject }: GuardArgs) {
   const confirm = useConfirm()
   const toast = useToast()
 
   const askLeave = async (): Promise<boolean> => {
     // Nothing unsaved (or already answered): leaving needs no question, so a plain x on an untouched form just closes.
+    if (busy) return false
     if (answeredRef.current || !dirty) return true
     const answer = await confirm({
       title: 'Buang perubahan?',

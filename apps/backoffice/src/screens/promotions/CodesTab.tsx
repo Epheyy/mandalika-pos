@@ -139,7 +139,7 @@ export function CodesTab({ tabs }: CodesTabProps) {
         onRetry={() => void list.refetch()}
         selectedId={editingId}
         filtered={list.activeCount > 0}
-        busyId={status.busyId}
+        busyIds={status.busyIds}
         onToggle={(c, next) => void status.toggle(c, next)}
         onEdit={(c) => openEditor({ ubah: c.id, baru: false })}
         onCopy={(c) => void copy(c)}

@@ -50,6 +50,17 @@ describe('toggleStatus: turning ON', () => {
   })
 })
 
+describe('toggleStatus: busy marker', () => {
+  it('marks the row busy for the whole change and clears it only after the list was refetched', async () => {
+    const t = setup(promo())
+    const order: string[] = []
+    t.deps.setBusy = (id, busy) => order.push(`${busy ? 'busy' : 'free'}:${id}`)
+    t.deps.refetch = async () => { order.push('refetch') }
+    await toggleStatus(t.kind, t.server.row, false, t.deps)
+    expect(order).toEqual(['busy:promo-1', 'refetch', 'free:promo-1'])
+  })
+})
+
 describe('toggleStatus: turning OFF', () => {
   it('saves at once, without a question, and offers Urungkan', async () => {
     const t = setup(promo())

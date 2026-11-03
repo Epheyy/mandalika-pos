@@ -22,6 +22,8 @@ interface State {
   failSave: boolean
   failDelete: boolean
   failBatch: boolean
+  /** When set, a promotion PUT waits for it (a save that is still in flight). */
+  holdSave: Promise<void> | null
 }
 
 const promo = (n: number, over: Row): Row => ({
@@ -59,7 +61,7 @@ const makeState = (): State => ({
       combinable: false, createdAt: '2026-10-03T03:00:00Z',
     },
   ],
-  calls: [], failSave: false, failDelete: false, failBatch: false,
+  calls: [], failSave: false, failDelete: false, failBatch: false, holdSave: null,
 })
 
 /** The server's derived status over is_active / start_date / end_date, the WIB business day. */
@@ -103,6 +105,7 @@ async function mockApi(page: ScenarioPage, state: State) {
       }
       const one = new RegExp(`^${base}/([^/]+)$`).exec(path)
       if (one && method === 'PUT') {
+        if (state.holdSave) await state.holdSave
         if (state.failSave) return json({ error: 'Nama sudah dipakai promosi lain' }, 422)
         const row = list.find((r) => r.id === one[1])
         if (!row) return json({ error: 'tidak ditemukan' }, 404)
@@ -268,6 +271,25 @@ async function roundTrip(page: ScenarioPage, state: State, results: object[]) {
 async function visibleErrors(page: ScenarioPage, state: State, results: object[]) {
   const dialog = page.getByRole('dialog', { name: 'Ubah Promosi' })
   const confirm = page.getByRole('alertdialog')
+  // the editor cannot be left while its save is in flight: the write would land anyway
+  await page.getByRole('button', { name: 'Ubah Filler 00', exact: true }).click()
+  await dialog.waitFor()
+  await dialog.getByLabel('Nama Promosi *').fill('Filler 00 Baru')
+  let release!: () => void
+  state.holdSave = new Promise<void>((resolve) => { release = resolve })
+  state.calls.length = 0
+  await dialog.getByRole('button', { name: 'Simpan', exact: true }).click()
+  await until(page, () => puts(state, '/promotions/').length === 1, 'the held PUT never arrived')
+  await page.keyboard.press('Escape')
+  check((await confirm.count()) === 0, 'no question while a save is in flight')
+  check(await dialog.isVisible(), 'the panel stays open while the save is in flight')
+  check(await dialog.getByRole('button', { name: 'Batal', exact: true }).isDisabled(), 'Batal is off while the save is in flight')
+  state.holdSave = null
+  release()
+  await dialog.waitFor({ state: 'detached' })
+  await page.getByText('Filler 00 Baru', { exact: true }).waitFor()
+  results.push({ step: 'no-close-while-saving' })
+
   // a refused save stays in the panel, with the server's words
   await page.getByRole('button', { name: 'Ubah Raya Terjadwal', exact: true }).click()
   await dialog.waitFor()

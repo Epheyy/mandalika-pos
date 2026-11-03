@@ -137,8 +137,8 @@ export function CodeFormSlideOver(p: CodeFormSlideOverProps) {
       errorSummary={p.problems.map((e) => ({ fieldId: e.fieldId, label: e.label }))}
       footer={
         <SlideOver.Footer dirty={p.dirty}>
-          <Button variant="secondary" onClick={p.onClose}>{ready ? 'Batal' : 'Tutup'}</Button>
-          {ready && <Button variant="primary" loading={p.busy} disabled={p.saveBlocked} onClick={p.onSave}>Simpan</Button>}
+          <Button variant="secondary" disabled={p.busy} onClick={p.onClose}>{ready ? 'Batal' : 'Tutup'}</Button>
+          {ready && <Button variant="primary" loading={p.busy} disabled={p.saveBlocked} title={p.saveBlocked ? 'Isi kode dulu.' : undefined} onClick={p.onSave}>Simpan</Button>}
         </SlideOver.Footer>
       }
     >
@@ -163,6 +163,7 @@ export function CodeFormSlideOver(p: CodeFormSlideOverProps) {
           <Select label="Tautkan ke promosi" value={form.promotionId ?? ''} onChange={(e) => setForm((f) => ({ ...f, promotionId: e.target.value || undefined }))}>
             <option value="">— Tidak ditautkan —</option>
             {p.promotions.map((promo) => <option key={promo.id} value={promo.id}>{promo.name}</option>)}
+            {form.promotionId && !p.promotions.some((promo) => promo.id === form.promotionId) && <option value={form.promotionId}>Promosi tertaut</option>}
           </Select>
           <Field label="Khusus pelanggan (opsional)" hint="kosong = bisa dipakai siapa saja">
             <CustomerPicker form={form} customerName={p.customerName} phoneOnly={p.phoneOnly} onCustomerChange={p.onCustomerChange} />
@@ -176,8 +177,8 @@ export function CodeFormSlideOver(p: CodeFormSlideOverProps) {
           </div>
           {linked && <p className="-mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">Tipe &amp; nilai diikuti dari promosi tertaut.</p>}
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Min. Beli" type="number" value={form.minPurchase || ''} onChange={(e) => setForm((f) => ({ ...f, minPurchase: parseFloat(e.target.value) || 0 }))} />
-            <Input label="Batas Pakai" type="number" value={form.usageLimit || ''} onChange={(e) => setForm((f) => ({ ...f, usageLimit: parseInt(e.target.value) || 0 }))} />
+            <Input label="Min. Beli" type="number" value={form.minPurchase || ''} onChange={(e) => setForm((f) => ({ ...f, minPurchase: e.target.value === '' ? null : parseFloat(e.target.value) || 0 }))} />
+            <Input label="Batas Pakai" type="number" value={form.usageLimit || ''} onChange={(e) => setForm((f) => ({ ...f, usageLimit: e.target.value === '' ? null : parseInt(e.target.value) || 0 }))} />
           </div>
           <Input
             label="Batas per pelanggan"

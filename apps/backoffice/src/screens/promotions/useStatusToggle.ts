@@ -22,8 +22,8 @@ export interface StatusToggleDeps {
   confirm: (opts: ConfirmOptions) => Promise<ConfirmResult>
   toast: (t: ToastInput) => void
   refetch: () => Promise<unknown>
-  /** Marks the row whose change is in flight (its Switch is off meanwhile); null clears it. */
-  setBusy: (id: string | null) => void
+  /** Marks a row's change as in flight (its Switch is off meanwhile) or done. */
+  setBusy: (id: string, busy: boolean) => void
 }
 
 const errorMessage = (e: unknown, fallback: string): string => (e instanceof Error && e.message ? e.message : fallback)
@@ -39,7 +39,7 @@ export async function changeStatus<Row extends StatusRow>(
   isActive: boolean,
   deps: Pick<StatusToggleDeps, 'toast' | 'refetch' | 'setBusy'>,
 ): Promise<Row | null> {
-  deps.setBusy(id)
+  deps.setBusy(id, true)
   try {
     const fresh = (await kind.fetchAll()).find((r) => r.id === id)
     if (!fresh) {
@@ -52,8 +52,9 @@ export async function changeStatus<Row extends StatusRow>(
     deps.toast({ message: errorMessage(e, `Status ${kind.noun} gagal diubah.`), tone: 'warn' })
     return null
   } finally {
-    deps.setBusy(null)
+    // The list shows the new status before the Switch is usable again.
     await deps.refetch()
+    deps.setBusy(id, false)
   }
 }
 
@@ -87,10 +88,18 @@ export async function toggleStatus<Row extends StatusRow>(kind: StatusToggleKind
 export function useStatusToggle<Row extends StatusRow>(kind: StatusToggleKind<Row>, refetch: () => Promise<unknown>) {
   const confirm = useConfirm()
   const toast = useToast()
-  const [busyId, setBusyId] = useState<string | null>(null)
+  const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(new Set())
+  const setBusy = useCallback((id: string, busy: boolean) => {
+    setBusyIds((prev) => {
+      const next = new Set(prev)
+      if (busy) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }, [])
   const toggle = useCallback(
-    (row: Row, next: boolean) => toggleStatus(kind, row, next, { confirm, toast, refetch, setBusy: setBusyId }),
-    [kind, confirm, toast, refetch],
+    (row: Row, next: boolean) => toggleStatus(kind, row, next, { confirm, toast, refetch, setBusy }),
+    [kind, confirm, toast, refetch, setBusy],
   )
-  return { toggle, busyId }
+  return { toggle, busyIds }
 }

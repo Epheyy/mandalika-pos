@@ -44,7 +44,7 @@ export function CodeEditorHost({ codeId, closeEditor, refetchList }: CodeEditorH
     saveFailure: 'Kode diskon gagal disimpan.',
     loadFailure: 'Kode diskon gagal dimuat.',
   })
-  const requestClose = useEditorGuard({ answeredRef, leave, dirty: editor.dirty, load: editor.load, closeEditor, subject: 'kode diskon' })
+  const requestClose = useEditorGuard({ answeredRef, leave, dirty: editor.dirty, busy: editor.busy, load: editor.load, closeEditor, subject: 'kode diskon' })
 
   useEffect(() => {
     let alive = true

@@ -22,7 +22,7 @@ interface CodesTableProps {
   onRetry?: () => void
   selectedId?: string | null
   filtered?: boolean
-  busyId?: string | null
+  busyIds?: ReadonlySet<string>
   onToggle: (c: DiscountCode, next: boolean) => void
   onEdit: (c: DiscountCode) => void
   onCopy: (c: DiscountCode) => void
@@ -30,7 +30,7 @@ interface CodesTableProps {
   footer?: ReactNode
 }
 
-export function CodesTable({ rows, promotions, today, loading, error, onRetry, selectedId, filtered, busyId, onToggle, onEdit, onCopy, onDelete, footer }: CodesTableProps) {
+export function CodesTable({ rows, promotions, today, loading, error, onRetry, selectedId, filtered, busyIds, onToggle, onEdit, onCopy, onDelete, footer }: CodesTableProps) {
   const columns: Column<DiscountCode>[] = [
     {
       id: 'code',
@@ -55,7 +55,7 @@ export function CodesTable({ rows, promotions, today, loading, error, onRetry, s
       header: 'Status',
       cell: (c) => (
         <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <Switch size="sm" checked={c.isActive} disabled={busyId === c.id} label={`Status ${c.code}`} onChange={(next) => onToggle(c, next)} />
+          <Switch size="sm" checked={c.isActive} disabled={busyIds?.has(c.id)} label={`Status ${c.code}`} onChange={(next) => onToggle(c, next)} />
           <StatusBadge map={PROMOTION_STATUS} value={promoStatus(c, today)} />
         </div>
       ),

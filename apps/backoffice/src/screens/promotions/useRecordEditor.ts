@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormProblem } from './promotionForm'
 
 export type EditorLoad = 'loading' | 'ready' | 'missing' | 'failed'
@@ -37,6 +37,14 @@ export function useRecordEditor<Row extends { id: string }, Input>(args: RecordE
   const [baseline, setBaseline] = useState<string | null>(() => (recordId ? null : JSON.stringify(empty())))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // A save can land after the editor is gone (a route change): it must not then close whatever editor is open now.
+  const aliveRef = useRef(true)
+  useEffect(() => {
+    aliveRef.current = true
+    return () => {
+      aliveRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (!recordId) return
@@ -81,10 +89,12 @@ export function useRecordEditor<Row extends { id: string }, Input>(args: RecordE
       if (recordId) await update(recordId, form)
       else await create(form)
     } catch (e: unknown) {
+      if (!aliveRef.current) return
       setErr(messageOf(e, saveFailure))
       setBusy(false)
       return
     }
+    if (!aliveRef.current) return
     setBusy(false)
     await onSaved()
   }

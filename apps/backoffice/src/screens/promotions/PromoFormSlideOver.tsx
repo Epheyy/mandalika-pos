@@ -22,6 +22,8 @@ export interface PromoFormSlideOverProps {
   products: Product[]
   productsState: 'loading' | 'ready' | 'failed'
   outlets: Outlet[]
+  /** Until the outlet list is known, chips would show every real outlet as unknown: they wait for it. */
+  outletsState: 'loading' | 'ready' | 'failed'
   /** Unsaved changes, shown as a note in the footer (the screen asks about them, not the panel). */
   dirty: boolean
   busy: boolean
@@ -78,9 +80,9 @@ export function PromoFormSlideOver(p: PromoFormSlideOverProps) {
       errorSummary={p.problems.map((e) => ({ fieldId: e.fieldId, label: e.label }))}
       footer={
         <SlideOver.Footer dirty={p.dirty}>
-          <Button variant="secondary" onClick={p.onClose}>{ready ? 'Batal' : 'Tutup'}</Button>
+          <Button variant="secondary" disabled={p.busy} onClick={p.onClose}>{ready ? 'Batal' : 'Tutup'}</Button>
           {ready && (
-            <Button variant="primary" loading={p.busy} disabled={p.saveBlocked} onClick={p.onSave}>Simpan</Button>
+            <Button variant="primary" loading={p.busy} disabled={p.saveBlocked} title={p.saveBlocked ? 'Lengkapi isian yang wajib atau perbaiki isian yang salah dulu.' : undefined} onClick={p.onSave}>Simpan</Button>
           )}
         </SlideOver.Footer>
       }
@@ -135,9 +137,11 @@ export function PromoFormSlideOver(p: PromoFormSlideOverProps) {
 
           <Section title="Lokasi dan ketentuan">
             <Field label="Outlet" hint="Semua outlet bila tidak ada yang dipilih.">
-              <OutletChips outlets={p.outlets} value={form.outletIds ?? []} onChange={(outletIds) => setForm((f) => ({ ...f, outletIds }))} />
+              {p.outletsState === 'ready' && <OutletChips outlets={p.outlets} value={form.outletIds ?? []} onChange={(outletIds) => setForm((f) => ({ ...f, outletIds }))} />}
+              {p.outletsState === 'loading' && <p className="text-xs text-ink-700">Memuat daftar outlet…</p>}
+              {p.outletsState === 'failed' && <p role="alert" className="text-xs font-semibold text-red-600">Daftar outlet gagal dimuat. Outlet promosi ini tidak diubah; tutup dan buka lagi untuk memilih outlet.</p>}
             </Field>
-            <Input label="Minimum Pembelian (Rp)" type="number" value={form.minPurchase || ''} onChange={(e) => setForm((f) => ({ ...f, minPurchase: parseFloat(e.target.value) || 0 }))} />
+            <Input label="Minimum Pembelian (Rp)" type="number" value={form.minPurchase || ''} onChange={(e) => setForm((f) => ({ ...f, minPurchase: e.target.value === '' ? null : parseFloat(e.target.value) || 0 }))} />
             <SwitchRow label="Bisa dikombinasikan dengan promosi lain" checked={form.combinable ?? false} onChange={(combinable) => setForm((f) => ({ ...f, combinable }))} />
             <SwitchRow label="Hanya via kode" hint="Disembunyikan dari panel kasir." checked={form.codeOnly ?? false} onChange={(codeOnly) => setForm((f) => ({ ...f, codeOnly }))} />
             {showVariants && (

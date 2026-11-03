@@ -13,7 +13,7 @@ function render(form: PromotionInput): string {
   const problems = promotionProblems(form)
   return renderToStaticMarkup(
     createElement(PromoFormSlideOver, {
-      editing: false, load: 'ready', loadError: null, form, setForm: vi.fn(), products: [], productsState: 'ready', outlets: [],
+      editing: false, load: 'ready', loadError: null, form, setForm: vi.fn(), products: [], productsState: 'ready', outlets: [], outletsState: 'ready',
       dirty: false, busy: false, err: null, problems, saveBlocked: problems.length > 0, onSave: vi.fn(), onClose: vi.fn(),
     }),
   )
