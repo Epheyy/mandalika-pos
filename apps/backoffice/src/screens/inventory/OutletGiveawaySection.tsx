@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ApiError, type Product } from '@mandalika/api'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
+import { loadAllProducts } from '../../lib/loadAll'
 import { Button } from '../../ui/Button'
 import { Select } from '../../ui/Field'
 
@@ -23,13 +24,13 @@ export function OutletGiveawaySection({ outletId }: { outletId: string }) {
       // configure the giveaway, with "—" for the stock.
       const [giveaway, products, stock] = await Promise.all([
         api.getOutletGiveaway(outletId),
-        api.listProducts(1, 200),
+        loadAllProducts((page, limit) => api.listProducts(page, limit)),
         api.getTransferLocationStock('outlet', outletId).catch((e: unknown) => {
           if (e instanceof ApiError && e.status === 403) return null // no manage_inventory: stock shows "—"
           throw e // anything else is a real load error
         }),
       ])
-      return { giveaway, products: products.data, stock }
+      return { giveaway, products, stock }
     },
     [outletId],
     REFRESH_MS,
@@ -42,7 +43,7 @@ export function OutletGiveawaySection({ outletId }: { outletId: string }) {
   if (!q.data) return <p className="text-sm text-red-600">{q.error ?? 'Gagal memuat hadiah per transaksi.'}</p>
 
   const { giveaway, stock } = q.data
-  // The list is capped at 200: keep a configured item beyond it selectable (name from the setting).
+  // The configured item stays selectable even when it is no longer in the catalogue (name from the setting).
   const listed = q.data.products
   const products =
     giveaway.productId && !listed.some((p) => p.id === giveaway.productId)
