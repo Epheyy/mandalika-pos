@@ -185,9 +185,9 @@ test('BO-ROUTE-GUARD a dirty Pengaturan keeps its own tabs unguarded and asks fo
   await evidence(info, result)
 })
 
-test('BO-TRANSFER-CONFIRM Kirim and Batalkan ask first, Batal leaves the draft, a refused send keeps the dialog and retries with the same key, and a confirm calls the write once', async ({ page }, info) => {
+test('BO-TRANSFER-CONFIRM Kirim and Batalkan ask first, Batal leaves the draft, a refused send keeps the dialog and retries with the same key, a transfer changed under the dialog is refused, and a confirm calls the write once', async ({ page }, info) => {
   const result = await transferConfirmFlow(page as ScenarioPage)
-  expect(result).toHaveLength(4)
+  expect(result).toHaveLength(5)
   await evidence(info, result)
 })
 

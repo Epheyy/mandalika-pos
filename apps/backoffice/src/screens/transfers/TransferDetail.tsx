@@ -14,7 +14,24 @@ import { PageHeader } from '../../ui/PageHeader'
 import { StatusBadge } from '../../ui/StatusBadge'
 import { ReceiveModal } from './ReceiveModal'
 import { SuratJalanPanel } from './SuratJalanPanel'
-import { isIdempotencyConflict, transferActionError, transferConfirmCopy, type TransferAction } from './transferAction'
+import {
+  TRANSFER_CHANGED_MESSAGE,
+  isIdempotencyConflict,
+  transferActionError,
+  transferChangedSince,
+  transferConfirmCopy,
+  transferSnapshot,
+  type TransferAction,
+  type TransferConfirmCopy,
+  type TransferSnapshot,
+} from './transferAction'
+
+/** What the open dialog asked: the copy and the transfer state it described are frozen at the moment it opened. */
+interface Asking {
+  action: TransferAction
+  opened: TransferSnapshot
+  copy: TransferConfirmCopy
+}
 
 interface TransferDetailProps {
   id: string
@@ -25,7 +42,7 @@ export function TransferDetail({ id, onBack }: TransferDetailProps) {
   const q = usePolledQuery<Transfer>(() => api.getTransfer(id), [id])
   const t = q.data
   const [receiving, setReceiving] = useState(false)
-  const [asking, setAsking] = useState<TransferAction | null>(null)
+  const [asking, setAsking] = useState<Asking | null>(null)
   const [busy, setBusy] = useState(false)
   const [dialogError, setDialogError] = useState<string | null>(null)
   // One Idempotency-Key per dialog open: a retry inside the same dialog replays the write, a new open is a new action.
@@ -33,10 +50,10 @@ export function TransferDetail({ id, onBack }: TransferDetailProps) {
   // Set synchronously so a fast double-click cannot start a second call before `busy` re-renders.
   const inFlight = useRef(false)
 
-  const ask = (action: TransferAction) => {
+  const ask = (action: TransferAction, current: Transfer) => {
     keyRef.current = newIdempotencyKey()
     setDialogError(null)
-    setAsking(action)
+    setAsking({ action, opened: transferSnapshot(current), copy: transferConfirmCopy(action, current) })
   }
   const dismiss = () => {
     if (inFlight.current) return
@@ -51,7 +68,15 @@ export function TransferDetail({ id, onBack }: TransferDetailProps) {
     setBusy(true)
     setDialogError(null)
     try {
-      if (asking === 'send') await api.sendTransfer(t.id, key)
+      // The write carries only the transfer id, so check against the server's current copy right before it:
+      // another user may have sent, cancelled or edited the transfer while this dialog was open.
+      const fresh = await api.getTransfer(t.id)
+      if (transferChangedSince(asking.opened, fresh)) {
+        setDialogError(TRANSFER_CHANGED_MESSAGE)
+        await q.refetch()
+        return
+      }
+      if (asking.action === 'send') await api.sendTransfer(t.id, key)
       else await api.cancelTransfer(t.id, key)
       keyRef.current = null
       setAsking(null)
@@ -74,7 +99,7 @@ export function TransferDetail({ id, onBack }: TransferDetailProps) {
       </div>
     )
   }
-  const copy = asking ? transferConfirmCopy(asking, t) : null
+  const copy = asking?.copy ?? null
 
   return (
     <div className="space-y-5">
@@ -87,7 +112,7 @@ export function TransferDetail({ id, onBack }: TransferDetailProps) {
               Kembali
             </Button>
             {t.status === 'draft' && (
-              <Button icon={<Send className="w-4 h-4" />} onClick={() => ask('send')}>
+              <Button icon={<Send className="w-4 h-4" />} onClick={() => ask('send', t)}>
                 Kirim
               </Button>
             )}
@@ -97,7 +122,7 @@ export function TransferDetail({ id, onBack }: TransferDetailProps) {
               </Button>
             )}
             {(t.status === 'draft' || t.status === 'in_transit') && (
-              <Button variant="danger" icon={<Ban className="w-4 h-4" />} onClick={() => ask('cancel')}>
+              <Button variant="danger" icon={<Ban className="w-4 h-4" />} onClick={() => ask('cancel', t)}>
                 Batalkan
               </Button>
             )}

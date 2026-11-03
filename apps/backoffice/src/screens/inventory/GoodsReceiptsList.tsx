@@ -4,6 +4,8 @@ import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { GOODS_RECEIPT_SOURCE } from '../../lib/labels/goodsReceipt'
 import { useListState, type ListSchema } from '../../lib/router/useListState'
+import { useResetPageOnChange } from '../../lib/useResetPageOnChange'
+import { useOutlet } from '../../outlet'
 import { DataTable, type Column } from '../../ui/DataTable'
 import { EmptyState } from '../../ui/EmptyState'
 import { FilterBar } from '../../ui/FilterBar'
@@ -33,6 +35,8 @@ const LIST_SCHEMA: ListSchema<GoodsReceiptListState> = {
 }
 
 const PAGE_SIZES = [25, 50, 100]
+// Outlet and warehouse names change rarely: refresh them every 10 minutes, not with the list.
+const LOCATION_POLL_MS = 600_000
 
 const SOURCE_OPTIONS = [
   { value: '', label: 'Semua jenis' },
@@ -51,9 +55,10 @@ export function locationFilter(key: string): { locationType?: 'outlet' | 'wareho
 
 /** Barang Masuk: every goods receipt in the caller's scope, newest first. Read-only; adding one stays on the stock card. */
 export function GoodsReceiptsList() {
+  const { outletId } = useOutlet()
   const [state, setState] = useListState(LIST_SCHEMA)
-  const outletsQ = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
-  const warehousesQ = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
+  const outletsQ = usePolledQuery<Outlet[]>(() => api.listOutlets(), [], LOCATION_POLL_MS)
+  const warehousesQ = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [], LOCATION_POLL_MS)
   const pageSize = PAGE_SIZES.includes(state.per) ? state.per : LIST_SCHEMA.per.default
   const page = Math.max(1, Math.floor(state.hal))
 
@@ -68,8 +73,9 @@ export function GoodsReceiptsList() {
         page,
         limit: pageSize,
       }),
-    [state.lokasi, state.dari, state.sampai, state.q, state.sumber, page, pageSize],
+    [state.lokasi, state.dari, state.sampai, state.q, state.sumber, outletId, page, pageSize],
   )
+  useResetPageOnChange(outletId, page, () => setState({ hal: 1 }, { replace: true }))
   const rows = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -117,6 +123,7 @@ export function GoodsReceiptsList() {
         <FilterBar.Select label="Lokasi" value={state.lokasi} onChange={(v) => setFilter({ lokasi: v })} options={locationOptions} />
         <FilterBar.Select label="Jenis" value={state.sumber} onChange={(v) => setFilter({ sumber: v })} options={SOURCE_OPTIONS} />
         <FilterBar.DateRange from={state.dari} to={state.sampai} onChange={(r) => setFilter({ dari: r.from, sampai: r.to })} />
+        {outletId && <FilterBar.Scope extra="semua gudang" />}
       </FilterBar>
 
       <DataTable

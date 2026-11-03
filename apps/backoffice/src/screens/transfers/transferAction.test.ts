@@ -4,7 +4,10 @@ import {
   IDEMPOTENCY_CONFLICT_MESSAGE,
   effectiveLocation,
   isIdempotencyConflict,
+  TRANSFER_CHANGED_MESSAGE,
   transferActionError,
+  transferChangedSince,
+  transferSnapshot,
   transferConfirmCopy,
   transferUnits,
 } from './transferAction'
@@ -42,6 +45,9 @@ describe('transferActionError', () => {
     const conflict = new ApiError(409, 'Idempotency-Key dipakai ulang', 'http', { data: { code: 'idempotency_conflict' } })
     expect(isIdempotencyConflict(conflict)).toBe(true)
     expect(transferActionError(conflict)).toBe(IDEMPOTENCY_CONFLICT_MESSAGE)
+    const real = new ApiError(409, 'kunci idempotensi sudah dipakai untuk operasi lain', 'http', { error: 'kunci idempotensi sudah dipakai untuk operasi lain' })
+    expect(isIdempotencyConflict(real)).toBe(true)
+    expect(transferActionError(real)).toBe(IDEMPOTENCY_CONFLICT_MESSAGE)
     const state = new ApiError(409, 'Transfer sudah dikirim', 'http', { data: { code: 'invalid_state' } })
     expect(isIdempotencyConflict(state)).toBe(false)
     expect(transferActionError(state)).toBe('Transfer sudah dikirim')
@@ -64,5 +70,15 @@ describe('effectiveLocation', () => {
   it('ignores a malformed key', () => {
     expect(effectiveLocation('nonsense', null)).toBeNull()
     expect(effectiveLocation('outlet:', null)).toBeNull()
+  })
+})
+
+describe('transferChangedSince', () => {
+  it('is false for the same status and units, true when either moved', () => {
+    const opened = transferSnapshot(transfer('draft'))
+    expect(transferChangedSince(opened, transfer('draft'))).toBe(false)
+    expect(transferChangedSince(opened, transfer('in_transit'))).toBe(true)
+    expect(transferChangedSince(opened, { ...transfer('draft'), items: [{ productId: 'p1', productName: 'A', variantSize: '30ml', sentQty: 5 }] })).toBe(true)
+    expect(TRANSFER_CHANGED_MESSAGE).not.toBe('')
   })
 })

@@ -6,6 +6,7 @@ import { exportToCSV, exportToXLSX, buildExportName } from '../../lib/csvUtils'
 import { labelOf } from '../../lib/labels/types'
 import { TRANSFER_STATUS } from '../../lib/labels/transfer'
 import { useListState, type ListSchema } from '../../lib/router/useListState'
+import { useResetPageOnChange } from '../../lib/useResetPageOnChange'
 import { useOutlet } from '../../outlet'
 import { Button } from '../../ui/Button'
 import { DataTable, type Column } from '../../ui/DataTable'
@@ -81,6 +82,7 @@ export function TransferList({ outlets, warehouses, onCreate, onOpen }: Transfer
     () => api.listTransfers({ ...filters, page, limit: pageSize }),
     [state.status, state.lokasi, state.dari, state.sampai, outletId, page, pageSize],
   )
+  useResetPageOnChange(outletId, page, () => setState({ hal: 1 }, { replace: true }))
   const rows = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))

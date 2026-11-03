@@ -26,8 +26,8 @@ const settings = {
   inventoryApprovalRequired: false, splitTenderEnabled: true, documents: { brandName: 'Mandalika' },
 }
 
-/** Stateful transfer API: the first send fails when `failFirstSend`, a cancel answers after `cancelDelayMs`. */
-async function mockApi(page: ScenarioPage, opts: { failFirstSend?: boolean; cancelDelayMs?: number } = {}) {
+/** Stateful transfer API: the first `failSends` sends are refused, a cancel answers after `cancelDelayMs`, `setStatus` plays another user. */
+async function mockApi(page: ScenarioPage, opts: { failSends?: number; cancelDelayMs?: number } = {}) {
   const calls: PostCall[] = []
   let status: Status = 'draft'
   let sendAttempts = 0
@@ -45,7 +45,7 @@ async function mockApi(page: ScenarioPage, opts: { failFirstSend?: boolean; canc
       calls.push({ action, key: request.headers()['idempotency-key'] ?? null })
       if (action === 'send') {
         sendAttempts += 1
-        if (opts.failFirstSend && sendAttempts === 1) return route.fulfill({ status: 500, json: { error: 'Gudang tidak merespons (uji)' } })
+        if (sendAttempts <= (opts.failSends ?? 0)) return route.fulfill({ status: 500, json: { error: 'Gudang tidak merespons (uji)' } })
         status = 'in_transit'
       } else {
         if (opts.cancelDelayMs) await new Promise((resolve) => setTimeout(resolve, opts.cancelDelayMs))
@@ -55,12 +55,12 @@ async function mockApi(page: ScenarioPage, opts: { failFirstSend?: boolean; canc
     }
     return route.fulfill({ json: { data: [], meta: { total: 0, page: 1, limit: 50 } } })
   })
-  return { calls }
+  return { calls, setStatus: (next: Status) => { status = next } }
 }
 
 export const transferConfirmFlow = async (page: ScenarioPage) => {
   const results: object[] = []
-  const { calls } = await mockApi(page, { failFirstSend: true, cancelDelayMs: 400 })
+  const { calls, setStatus } = await mockApi(page, { failSends: 2, cancelDelayMs: 400 })
   await openBackoffice(page)
   await page.evaluate((h) => { location.hash = h }, `#/inventori/transfer/${TRANSFER_ID}`)
   await page.reload()
@@ -84,21 +84,44 @@ export const transferConfirmFlow = async (page: ScenarioPage) => {
   check(await page.getByRole('button', { name: 'Kirim', exact: true }).isVisible(), 'the draft still offers Kirim')
   results.push({ step: 'batal-leaves-draft' })
 
-  // (c) a refused send keeps the dialog open with the reason; the retry reuses the same key and succeeds
+  // (c) a refused send keeps the dialog open with the reason; the retry reuses the same key; closing drops it and a reopen gets a new one
   await page.getByRole('button', { name: 'Kirim', exact: true }).click()
   await sendDialog.waitFor()
-  await sendDialog.getByRole('button', { name: 'Kirim transfer', exact: true }).click()
+  const confirmSend = sendDialog.getByRole('button', { name: 'Kirim transfer', exact: true })
+  await confirmSend.click()
   await sendDialog.getByRole('alert').waitFor()
   check((await sendDialog.getByRole('alert').textContent())?.includes('Gudang tidak merespons') === true, 'the refusal shows inside the dialog')
-  await sendDialog.getByRole('button', { name: 'Kirim transfer', exact: true }).click()
+  await confirmSend.click()
+  await page.waitForFunction(() => document.querySelectorAll('[role="alertdialog"]').length === 1)
+  await sendDialog.getByRole('button', { name: 'Batal', exact: true }).click()
+  await sendDialog.waitFor({ state: 'detached' })
+  await page.getByRole('button', { name: 'Kirim', exact: true }).click()
+  await sendDialog.waitFor()
+  await confirmSend.click()
   await sendDialog.waitFor({ state: 'detached' })
   await badge('Dikirim').first().waitFor()
-  check(calls.length === 2 && calls.every((c) => c.action === 'send'), `two send attempts, got ${JSON.stringify(calls)}`)
-  check(!!calls[0].key && calls[0].key === calls[1].key, 'the retry carries the same Idempotency-Key')
-  results.push({ step: 'refused-then-retry-same-key' })
+  check(calls.length === 3 && calls.every((c) => c.action === 'send'), `three send attempts, got ${JSON.stringify(calls)}`)
+  check(!!calls[0].key && calls[0].key === calls[1].key, 'the retry inside the dialog carries the same Idempotency-Key')
+  check(!!calls[2].key && calls[2].key !== calls[0].key, 'a reopened dialog gets a new Idempotency-Key')
+  results.push({ step: 'refused-retry-same-key-reopen-new-key' })
 
-  // (d) confirming Batalkan calls the write exactly once, even on a double click, with a new key
+  // (d) the transfer changed under the open dialog (another user cancelled it): the confirm refuses and writes nothing
   const cancelDialog = page.getByRole('alertdialog', { name: `Batalkan transfer ${NUMBER}?` })
+  await page.getByRole('button', { name: 'Batalkan', exact: true }).click()
+  await cancelDialog.waitFor()
+  setStatus('cancelled')
+  await cancelDialog.getByRole('button', { name: 'Batalkan transfer', exact: true }).click()
+  await cancelDialog.getByRole('alert').waitFor()
+  check((await cancelDialog.getByRole('alert').textContent())?.includes('Transfer berubah') === true, 'a changed transfer is refused inside the dialog')
+  check(calls.filter((c) => c.action === 'cancel').length === 0, 'a changed transfer sends no cancel')
+  await cancelDialog.getByRole('button', { name: 'Kembali', exact: true }).click()
+  await cancelDialog.waitFor({ state: 'detached' })
+  results.push({ step: 'changed-under-dialog-refused' })
+
+  // (e) confirming Batalkan calls the write exactly once, even on a double click, with a key of its own
+  setStatus('in_transit')
+  await page.reload()
+  await page.getByRole('heading', { name: NUMBER }).waitFor()
   await page.getByRole('button', { name: 'Batalkan', exact: true }).click()
   await cancelDialog.waitFor()
   check((await cancelDialog.textContent())?.includes('Stok 7 unit dikembalikan ke Gudang Pusat sekarang.') === true, 'the cancel dialog says the stock returns')
@@ -107,8 +130,8 @@ export const transferConfirmFlow = async (page: ScenarioPage) => {
   await badge('Dibatalkan').first().waitFor()
   const cancels = calls.filter((c) => c.action === 'cancel')
   check(cancels.length === 1, `one cancel call, got ${cancels.length}`)
-  check(!!cancels[0].key && cancels[0].key !== calls[0].key, 'a new dialog gets a new Idempotency-Key')
-  results.push({ step: 'confirm-once-new-key' })
+  check(!!cancels[0].key && !calls.some((c) => c.action === 'send' && c.key === cancels[0].key), 'the cancel has a key of its own')
+  results.push({ step: 'confirm-once-own-key' })
 
   return results
 }
