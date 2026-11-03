@@ -28,6 +28,7 @@ import {
   startIngredientCountConfirm,
   summarizeIngredientCount,
 } from './opnameConfirm'
+import { buildIngredientCountSaveItems } from './opnameSave'
 
 const fmtQty = (n: number | null | undefined) => {
   if (n == null) return '—'
@@ -236,17 +237,13 @@ export default function OpnameTab() {
   }
 
   const saveProgress = async (sc: IngredientStockCount) => {
+    const saveItems = buildIngredientCountSaveItems(sc.items ?? [], countedFor(sc))
+    // Nothing entered since the last save: nothing to send, and uncounted lines must stay uncounted.
+    if (saveItems.length === 0) return
     setActiveId(sc.id)
-    const items = sc.items ?? []
-    const counted = countedFor(sc)
     setPageErr(null)
     try {
-      await api.saveIngredientStockCount(sc.id, {
-        items: items.map((it) => ({
-          itemId: it.id,
-          counted: counted[it.id] ?? it.counted ?? 0,
-        })),
-      })
+      await api.saveIngredientStockCount(sc.id, { items: saveItems })
       // Saved: the server now holds these quantities, so they are no longer unsaved.
       setDraft((d) => {
         const rest = { ...d }

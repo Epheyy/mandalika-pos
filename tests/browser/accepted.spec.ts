@@ -201,7 +201,7 @@ test('BO-TRANSFER-CONFIRM Kirim and Batalkan ask first, Batal leaves the draft, 
 
 test('BO-OPNAME-CONFIRM Mulai, Selesai and cancel on a product Opname ask first, Selesai names the net difference, Batal changes nothing, and a confirm writes once', async ({ page }, info) => {
   const result = await opnameConfirmFlow(page as ScenarioPage)
-  expect(result).toHaveLength(4)
+  expect(result).toHaveLength(5)
   await evidence(info, result)
 })
 
