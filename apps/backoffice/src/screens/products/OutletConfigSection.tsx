@@ -1,4 +1,5 @@
 import type { ProductVariant } from '@mandalika/api'
+import { variantLabel } from '@mandalika/types'
 import { ChevronDown, ChevronRight, Store } from 'lucide-react'
 import { fieldClass } from '../../ui/Field'
 import type { OcRow, OcfgOutlet } from './types'
@@ -58,13 +59,15 @@ export function OutletConfigSection({
                         </div>
                         {sizes.map((v) => {
                           const c = ocGet(o.id, v.size)
+                          // The stored size of a single-unit product is internal; people see "Tanpa varian".
+                          const name = variantLabel(v.size) || 'Tanpa varian'
                           return (
                             <div key={v.size} className="grid grid-cols-12 gap-2 items-center">
                               <label className="col-span-1 flex justify-center cursor-pointer">
-                                <input type="checkbox" checked={c.available} onChange={(e) => ocSet(o.id, v.size, { available: e.target.checked })} aria-label={`Jual ${v.size} di outlet ini`} className="w-4 h-4 accent-gold-600" />
+                                <input type="checkbox" checked={c.available} onChange={(e) => ocSet(o.id, v.size, { available: e.target.checked })} aria-label={`Jual ${name} di outlet ini`} className="w-4 h-4 accent-gold-600" />
                               </label>
-                              <span className={`col-span-4 text-xs truncate ${c.available ? 'text-gray-600' : 'text-gray-300 line-through'}`}>{v.size}</span>
-                              <input type="number" value={c.price ?? ''} onChange={(e) => ocSet(o.id, v.size, { price: e.target.value === '' ? null : Number(e.target.value) })} placeholder={`${basePriceOf(v.size)}`} disabled={!c.available} aria-label={`Harga ${v.size} di outlet ini`} className={`${fieldClass} col-span-7 py-1.5 disabled:opacity-40`} />
+                              <span className={`col-span-4 text-xs truncate ${c.available ? 'text-gray-600' : 'text-gray-300 line-through'}`}>{name}</span>
+                              <input type="number" value={c.price ?? ''} onChange={(e) => ocSet(o.id, v.size, { price: e.target.value === '' ? null : Number(e.target.value) })} placeholder={`${basePriceOf(v.size)}`} disabled={!c.available} aria-label={`Harga ${name} di outlet ini`} className={`${fieldClass} col-span-7 py-1.5 disabled:opacity-40`} />
                             </div>
                           )
                         })}

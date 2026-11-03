@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { Category, Outlet, Product, ProductVariant } from '@mandalika/api'
 import { VariantRows } from './VariantRows'
 import { ProductsTable } from './ProductsTable'
-import { ProductFormModal } from './ProductFormModal'
+import { ProductFormSlideOver } from './ProductFormSlideOver'
 import { OutletFormModal } from '../inventory/OutletFormModal'
 import { EMPTY } from './types'
 import { validateProductForm } from './validateForm'
@@ -61,8 +61,7 @@ describe('VariantRows with ERP-linked variants', () => {
 
 function table(products: Product[]) {
   return renderToStaticMarkup(
-    <ProductsTable loading={false} filtered={products} categories={[]} search="" setSearch={noop} fCat="" setFCat={noop}
-      catName={() => 'Floral'} onEdit={noop} onDelete={noop} />,
+    <ProductsTable loading={false} rows={products} catName={() => 'Floral'} onEdit={noop} onDelete={noop} />,
   )
 }
 const product = (over: Partial<Product>): Product => ({
@@ -87,7 +86,7 @@ describe('ProductsTable ERP badge and delete', () => {
 function formModal(form: Form) {
   const categories: Category[] = [{ id: 'c', name: 'Floral' }]
   return renderToStaticMarkup(
-    <ProductFormModal open onClose={noop} editing busy={false} err={null} onSave={noop} form={form} setForm={noop}
+    <ProductFormSlideOver onClose={noop} editing load="ready" loadError={null} dirty={false} busy={false} err={null} errors={[]} onSave={noop} form={form} setForm={noop}
       categories={categories} uploading={false} onImage={noop} removeImage={noop} makeMainImage={noop}
       recipesEnabled={false} recipeVariantIds={new Set()} onUpdVariant={noop} onAddVariant={noop} onRemoveVariant={noop}
       setRecipeFor={noop} ocfgLoading={false} ocfgOutlets={[]} ocGet={() => ({ price: null, available: true })} ocSet={noop}
@@ -95,7 +94,7 @@ function formModal(form: Form) {
   )
 }
 
-describe('ProductFormModal for an ERP-linked product', () => {
+describe('ProductFormSlideOver for an ERP-linked product', () => {
   const linked: Form = { ...EMPTY, name: 'Melati', categoryId: 'c', variants: [linkedVariant], erpLinked: true, erpGroupKey: 'grp-melati' }
 
   it('shows the origin line and leaves name, category, brand, description and the flags editable', () => {
@@ -113,6 +112,10 @@ describe('ProductFormModal for an ERP-linked product', () => {
     expect(isDisabled((html.match(/<select[^>]*>/) ?? [''])[0])).toBe(false)
     expect(isDisabled((html.match(/<textarea[^>]*>/) ?? [''])[0])).toBe(false)
     for (const t of inputs.filter((x) => x.includes('type="checkbox"'))) expect(isDisabled(t)).toBe(false)
+    // Produk Aktif is a Switch now (the checkbox loop above no longer covers it): editable on a linked product too.
+    const activeSwitch = (html.match(/<button[^>]*role="switch"[^>]*>/g) ?? []).find((t) => t.includes('aria-label="Produk Aktif"')) ?? ''
+    expect(activeSwitch).not.toBe('')
+    expect(isDisabled(activeSwitch)).toBe(false)
   })
 
   it('shows nothing ERP-related for an unlinked product', () => {
