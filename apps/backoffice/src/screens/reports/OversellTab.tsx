@@ -12,6 +12,8 @@ import { Card } from '../../ui/Card'
 import { EmptyState } from '../../ui/EmptyState'
 import { Input, Select } from '../../ui/Field'
 import { Switch } from '../../ui/Switch'
+import { useListState, type ListSchema } from '../../lib/router/useListState'
+import { PAGE_ONLY_SCHEMA, enumOf, pageOf, pageToClamp, uuidOf } from './reportFilters'
 import {
   KIND_FILTERS,
   OVERSELL_CHANGED,
@@ -27,6 +29,44 @@ import {
 
 const LIMIT = 50
 const NOTE_MAX = 500
+
+interface OversellListState {
+  status: string
+  jenis: string
+  produk: string
+  kasir: string
+  rentang: boolean
+  hal: number
+  [key: string]: string | number | boolean
+}
+
+const OVERSELL_SCHEMA: ListSchema<OversellListState> = {
+  status: { key: 'status', default: 'open' },
+  jenis: { key: 'jenis', default: '' },
+  produk: { key: 'produk', default: '' },
+  kasir: { key: 'kasir', default: '' },
+  rentang: { key: 'rentang', default: false },
+  hal: PAGE_ONLY_SCHEMA.hal,
+}
+
+const OVERSELL_KINDS = KIND_FILTERS.map((o) => o.id)
+/** The status filter's "all" option is '' but its default is 'open', and a '' value never reaches the URL. */
+const ALL_STATUS = 'semua'
+const OVERSELL_STATUSES = ['open', 'acknowledged']
+
+/** The status in force from the URL: 'open' (also for junk), 'acknowledged', or '' for "semua". */
+function oversellStatusOf(raw: string): string {
+  if (raw === ALL_STATUS) return ''
+  return enumOf<string>(raw, OVERSELL_STATUSES, 'open')
+}
+
+const oversellStatusToQuery = (value: string): string => (value === '' ? ALL_STATUS : value)
+
+/** A filtered option the report no longer lists (it was narrowed away) still shows, so the select matches the filter. */
+function withKnown(options: ReadonlyArray<{ key: string; name: string }>, current: string): Array<{ key: string; name: string }> {
+  if (current === '' || options.some((o) => o.key === current)) return [...options]
+  return [...options, { key: current, name: current }]
+}
 
 interface OversellTabProps {
   dateFrom: string
@@ -61,13 +101,15 @@ function useRememberedOptions(rows: ReadonlyArray<OversellBreakdown> | undefined
  * Outlet scope rides the request header (outletId here is a refetch dependency only).
  */
 export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: OversellTabProps) {
-  const [status, setStatus] = useState('open')
-  const [kind, setKind] = useState('')
-  const [productId, setProductId] = useState('')
-  const [cashierId, setCashierId] = useState('')
+  // Filters and page are URL state (#/laporan/stok-minus?status=semua&jenis=shortage&hal=2).
+  const [state, setState] = useListState(OVERSELL_SCHEMA)
+  const status = oversellStatusOf(state.status)
+  const kind = enumOf<string>(state.jenis, OVERSELL_KINDS, '')
+  const productId = uuidOf(state.produk)
+  const cashierId = uuidOf(state.kasir)
   // Off by default so the list matches the badge (all unchecked lines, any date).
-  const [useRange, setUseRange] = useState(false)
-  const [page, setPage] = useState(1)
+  const useRange = state.rentang
+  const page = pageOf(state.hal)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [note, setNote] = useState('')
@@ -75,8 +117,8 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
   const [actionError, setActionError] = useState<string | null>(null)
   const [exportNote, setExportNote] = useState<string | null>(null)
 
+  // A selection belongs to the list it was made in. (hal goes back to 1 in the patch that changes a filter.)
   useEffect(() => {
-    setPage(1)
     setSelected(new Set())
   }, [status, kind, productId, cashierId, useRange, dateFrom, dateTo, outletId])
 
@@ -96,6 +138,12 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
   const summary = report?.summary
   const meta = report?.meta
   const totalPages = meta ? Math.max(1, Math.ceil(meta.total / (meta.limit || LIMIT))) : 1
+  // A page past the end (the last open line acknowledged away, a stale link) moves to the last page.
+  useEffect(() => {
+    if (rq.loading || rq.error || !meta) return
+    const target = pageToClamp(page, meta.total, meta.limit || LIMIT)
+    if (target !== null) setState({ hal: target }, { replace: true })
+  }, [rq.loading, rq.error, meta, page, setState])
   const productOptions = useRememberedOptions(summary?.byProduct)
   const cashierOptions = useRememberedOptions(summary?.byCashier)
 
@@ -151,24 +199,24 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
 
       <Card className="p-4 space-y-3">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Select label="Status" value={status} onChange={(e) => setStatus(e.target.value)}>
+          <Select label="Status" value={status} onChange={(e) => setState({ status: oversellStatusToQuery(e.target.value), hal: 1 })}>
             {STATUS_FILTERS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
           </Select>
-          <Select label="Jenis" value={kind} onChange={(e) => setKind(e.target.value)}>
+          <Select label="Jenis" value={kind} onChange={(e) => setState({ jenis: e.target.value, hal: 1 })}>
             {KIND_FILTERS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
           </Select>
-          <Select label="Produk" value={productId} onChange={(e) => setProductId(e.target.value)}>
+          <Select label="Produk" value={productId} onChange={(e) => setState({ produk: e.target.value, hal: 1 })}>
             <option value="">Semua produk</option>
-            {productOptions.map((o) => <option key={o.key} value={o.key}>{o.name}</option>)}
+            {withKnown(productOptions, productId).map((o) => <option key={o.key} value={o.key}>{o.name}</option>)}
           </Select>
-          <Select label="Kasir" value={cashierId} onChange={(e) => setCashierId(e.target.value)}>
+          <Select label="Kasir" value={cashierId} onChange={(e) => setState({ kasir: e.target.value, hal: 1 })}>
             <option value="">Semua kasir</option>
-            {cashierOptions.map((o) => <option key={o.key} value={o.key}>{o.name}</option>)}
+            {withKnown(cashierOptions, cashierId).map((o) => <option key={o.key} value={o.key}>{o.name}</option>)}
           </Select>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-paper-0 px-3 py-2">
-            <Switch checked={useRange} onChange={setUseRange} label="Ikuti rentang tanggal" />
+            <Switch checked={useRange} onChange={(on) => setState({ rentang: on, hal: 1 })} label="Ikuti rentang tanggal" />
             <div>
               <p className="text-sm font-bold text-gray-900">Ikuti rentang tanggal</p>
               <p className="text-xs text-ink-700">
@@ -179,7 +227,7 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
             </div>
           </div>
           <Button variant="secondary" size="sm" icon={<Download className="w-3.5 h-3.5" />} onClick={() => void doExport()}>
-            Ekspor CSV
+            Unduh CSV
           </Button>
         </div>
         {exportNote && <p role="status" className="text-xs text-amber-700">{exportNote}</p>}
@@ -304,8 +352,8 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
         <div className="flex items-center justify-between px-1">
           <p className="text-xs text-gray-400">Halaman {meta.page} dari {totalPages} · {meta.total} baris</p>
           <div className="flex gap-2">
-            <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Sebelumnya</Button>
-            <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Berikutnya</Button>
+            <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setState({ hal: Math.max(1, page - 1) })}>Sebelumnya</Button>
+            <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setState({ hal: page + 1 })}>Berikutnya</Button>
           </div>
         </div>
       )}

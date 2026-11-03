@@ -66,7 +66,7 @@ export const setupBackoffice = async (page: ScenarioPage) => {
   await navTo(page, 'reports');
   await clickTab(page, 'export');
   await page.evaluate(()=>{window.__a26csv=[];URL.createObjectURL=(b:any)=>{window.__a26csv.push(b.text());return 'blob:synthetic';};HTMLAnchorElement.prototype.click=function(){};});
-  await page.getByRole('button',{name:'Export CSV',exact:true}).click();
+  await page.getByRole('button',{name:'Unduh CSV',exact:true}).click();
   const csv=await page.evaluate(()=>Promise.all(window.__a26csv));
   return {expected:51,rows:csv[0]?.split('\n').length-1,calls:page.__a26.calls,body:(await page.locator('body').innerText()).slice(-1300)};
 }
@@ -74,7 +74,7 @@ export const setupBackoffice = async (page: ScenarioPage) => {
 export const backofficeChecks = async (page: ScenarioPage) => {
   const results: any[]=[];
   const check=(ok,msg)=>{if(!ok)throw new Error(msg);};
-  const capture=async()=>{await page.evaluate(()=>window.__a26csv=[]);await page.getByRole('button',{name:'Export CSV',exact:true}).click();await page.waitForFunction(()=>window.__a26csv.length>0);return (await page.evaluate(()=>Promise.all(window.__a26csv)))[0];};
+  const capture=async()=>{await page.evaluate(()=>window.__a26csv=[]);await page.getByRole('button',{name:'Unduh CSV',exact:true}).click();await page.waitForFunction(()=>window.__a26csv.length>0);return (await page.evaluate(()=>Promise.all(window.__a26csv)))[0];};
   for(const n of [51,201,1000]) {
     page.__a26.count=n;page.__a26.calls=[];
     await navTo(page, 'dashboard');
@@ -116,7 +116,7 @@ export const backofficeChecks = async (page: ScenarioPage) => {
   // The list/summary only request one page; a later page can only fail inside the full export.
   page.__a26.fail='/api/v1/orders';
   await page.evaluate(()=>{window.__a26csv=[]});
-  await page.getByRole('button',{name:'Export CSV',exact:true}).click();
+  await page.getByRole('button',{name:'Unduh CSV',exact:true}).click();
   await page.getByRole('alert').filter({hasText:'synthetic page 2 failure'}).waitFor({timeout:20000});
   check((await page.evaluate(()=>window.__a26csv.length))===0,'partial CSV produced after a later page failure');
   check((await page.locator('main').innerText()).includes('1000 transaksi'),'complete snapshot lost');
@@ -143,7 +143,7 @@ export const transactionsChecks = async (page: ScenarioPage) => {
   page.on('download', () => downloads++);
   const capture = async () => {
     const waiting = page.waitForEvent('download');
-    await page.getByRole('button',{name:'Export',exact:true}).click();
+    await page.getByRole('button',{name:'Unduh Excel',exact:true}).click();
     const download = await waiting;
     const stream = await download.createReadStream();
     if (!stream || await download.failure()) throw Error('XLSX download failed');
@@ -190,7 +190,7 @@ export const transactionsChecks = async (page: ScenarioPage) => {
     const single=await capture();if(single.rows.length!==1||single.rows[0]['No. Order']!=='0000123')throw Error('single-row/search export changed');
     await page.getByLabel('Cari order / kasir / pelanggan').fill('');
     await page.getByLabel('Filter status').selectOption('refunded');
-    if(!await page.getByRole('button',{name:'Export',exact:true}).isDisabled())throw Error('empty/status export enabled');
+    if(!await page.getByRole('button',{name:'Unduh Excel',exact:true}).isDisabled())throw Error('empty/status export enabled');
     await page.getByLabel('Filter status').selectOption('');
     // Totals now load from the server after each filter change; wait for the unfiltered figure.
     await page.waitForFunction(([count,total])=>{const t=document.querySelector('main')!.innerText.replace(/\s/g,'');return t.includes(`${count}transaksi·Total:Rp${total}`)},[n,(n*1000).toLocaleString('id-ID')]);
@@ -199,7 +199,7 @@ export const transactionsChecks = async (page: ScenarioPage) => {
     results.push({n,xlsxRows:rows.length,total:rows.reduce((sum,row)=>sum+row.Total,0),filename,bytes,browserVersion,readerVersion:workbookReader.version,readerEntry:xlsxRequire.resolve('xlsx'),cells,qrisRows:qris.rows.length,singleRows:single.rows.length,emptyDisabled:true});
   }
   page.__a26.fail='/api/v1/orders';
-  await page.getByRole('button',{name:'Export',exact:true}).click();
+  await page.getByRole('button',{name:'Unduh Excel',exact:true}).click();
   await page.getByRole('alert').filter({hasText:'synthetic page 2 failure'}).waitFor({timeout:20000});
   if(downloads!==9)throw Error('unexpected/partial download count');
   results.push({laterFailure:'visible error; no partial XLSX download after a later page failure',downloads});
@@ -294,7 +294,7 @@ export const reportsRaces = async (page: ScenarioPage, errorCase: boolean) => {
     await page.evaluate(()=>fetch('/tests/polling-harness.html'));await flush();
     const after=await page.locator('main').innerText();
     if(before!==after)throw new Error(`Stale A changed B rendered content (${errorCase}): ${after}`);
-    if(errorCase){if(!await page.getByRole('button',{name:'Export CSV',exact:true}).isDisabled())throw new Error('B failure export enabled');}
+    if(errorCase){if(!await page.getByRole('button',{name:'Unduh CSV',exact:true}).isDisabled())throw new Error('B failure export enabled');}
     else if(!after.replace(/\s/g,'').includes('Rp7.000')||after.includes('201 transaksi'))throw new Error('B-only totals missing');
     results.push({scenario:errorCase?'B failure then late complete A':'B success then late complete A',passed:true,heldAPage2Responses:count,before,after});
   }

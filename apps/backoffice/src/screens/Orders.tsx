@@ -13,6 +13,7 @@ import { BRAND } from '../lib/brand'
 import { paymentFilterOptions } from '../lib/paymentOptions'
 import { isSplitOrder, methodLabel, orderMethodText, orderPaymentCsv, paymentLineRows, tenderWarningTitle } from '../lib/splitPayment'
 import { exportToXLSX, buildExportName } from '../lib/csvUtils'
+import { useListState, type ListSchema } from '../lib/router/useListState'
 import { Button } from '../ui/Button'
 import { Input, Select, fieldClass } from '../ui/Field'
 import { Card } from '../ui/Card'
@@ -21,6 +22,8 @@ import { EmptyState } from '../ui/EmptyState'
 import { Pagination } from '../ui/Pagination'
 import { canViewSummary, lastDaysRange, orderFilterParams, paymentFilterHint, transaksiFilters, transaksiHeader } from './reports/orderQuery'
 import { useOrderReport } from './reports/useOrderReport'
+import { useUrlSearchText } from './reports/useUrlSearchText'
+import { PAGING_SCHEMA, PAGE_SIZES, dayOf, dayToQuery, enumOf, pageOf, pageSizeOf, pageToClamp, paymentOf, withCurrent } from './reports/reportFilters'
 import { refundedByLine } from './refundDisplay'
 import { orderIconClasses, orderStatusLabel, orderStatusTone } from '../lib/orderStatus'
 import { OrderRefundSection } from './orders/OrderRefundSection'
@@ -52,28 +55,53 @@ function PaymentLines({ order, methods }: { order: Order; methods: AppSettings['
 const badgeTone = orderStatusTone
 const label = orderStatusLabel
 
+const TRANSAKSI_STATUSES = ['completed', 'partially_refunded', 'refunded', 'cancelled'] as const
+
+interface OrdersListState {
+  q: string
+  status: string
+  bayar: string
+  dari: string
+  sampai: string
+  semua: boolean
+  hal: number
+  per: number
+  [key: string]: string | number | boolean
+}
+
+// dari/sampai default to '' = the last 30 days, resolved when read (a module constant would go stale past midnight).
+const ORDERS_SCHEMA: ListSchema<OrdersListState> = {
+  q: { key: 'q', default: '' },
+  status: { key: 'status', default: '' },
+  bayar: { key: 'bayar', default: '' },
+  dari: { key: 'dari', default: '' },
+  sampai: { key: 'sampai', default: '' },
+  semua: { key: 'semua', default: false },
+  hal: PAGING_SCHEMA.hal,
+  per: PAGING_SCHEMA.per,
+}
+
 /** The transactions list/table/search/refund UI — no page header. */
 export function OrdersPanel() {
   const { user } = useAuth()
   const { outletId, outlets: ctxOutlets } = useOutlet()
-  const [query, setQuery] = useState('')
-  const [debouncedQuery, setDebouncedQuery] = useState('')
-  const [fStatus, setFStatus] = useState('')
-  const [fPay, setFPay] = useState('')
-  // Default window: last 30 days; "Semua tanggal" lifts the date bounds (search then
-  // spans all dates).
-  const [range, setRange] = useState(() => lastDaysRange(30))
-  const [allDates, setAllDates] = useState(false)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(50)
+  // Every filter, the date window and the page live in the URL (#/laporan/transaksi?status=refunded&hal=2).
+  const [state, setState] = useListState(ORDERS_SCHEMA)
+  const fStatus = enumOf<string>(state.status, TRANSAKSI_STATUSES, '')
+  const fPay = paymentOf(state.bayar)
+  // Default window: last 30 days; "Semua tanggal" lifts the date bounds (search then spans all dates).
+  // A cleared date input stays cleared (unbounded) rather than snapping back to the default.
+  const defaultRange = lastDaysRange(30)
+  const range = { dateFrom: dayOf(state.dari, defaultRange.dateFrom), dateTo: dayOf(state.sampai, defaultRange.dateTo) }
+  const allDates = state.semua
+  const page = pageOf(state.hal)
+  const pageSize = pageSizeOf(state.per)
+  // Typing replaces the entry (one per keystroke would bury Back). The live text feeds Export, the URL value the list.
+  const [query, setQuery] = useUrlSearchText(state.q, (q) => setState({ q, hal: 1 }, { replace: true }))
+  const debouncedQuery = state.q
   const [expanded, setExpanded] = useState<string | null>(null)
   const [exportBusy, setExportBusy] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
-
-  useEffect(() => {
-    const t = setTimeout(() => { setDebouncedQuery(query); setPage(1) }, 300)
-    return () => clearTimeout(t)
-  }, [query])
 
   const filters = transaksiFilters(range, allDates, { status: fStatus, payment: fPay, q: debouncedQuery })
   const showSummary = canViewSummary(user?.role === 'admin', user?.permissions ?? [])
@@ -81,9 +109,15 @@ export function OrdersPanel() {
   const orders = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  // A page past the end (the last row refunded away, a stale link) moves to the last page instead of showing an empty list.
+  useEffect(() => {
+    if (q.loading || q.error || !q.data) return
+    const target = pageToClamp(page, total, pageSize)
+    if (target !== null) setState({ hal: target }, { replace: true })
+  }, [q.loading, q.error, q.data, page, total, pageSize, setState])
   const settingsQ = usePolledQuery<AppSettings>(() => api.getAppSettings(), [], 60000)
   const payMethods = settingsQ.data?.paymentMethods
-  const payOptions = paymentFilterOptions(payMethods, orders)
+  const payOptions = withCurrent(paymentFilterOptions(payMethods, orders), fPay)
 
   const canRefund = user?.role === 'admin'
   const reloadAfterRefund = async () => {
@@ -155,7 +189,7 @@ export function OrdersPanel() {
           aria-label="Dari tanggal"
           value={range.dateFrom}
           disabled={allDates}
-          onChange={(e) => { setRange({ ...range, dateFrom: e.target.value }); setPage(1) }}
+          onChange={(e) => setState({ dari: dayToQuery(e.target.value), hal: 1 })}
           className="w-auto"
         />
         <Input
@@ -163,21 +197,21 @@ export function OrdersPanel() {
           aria-label="Sampai tanggal"
           value={range.dateTo}
           disabled={allDates}
-          onChange={(e) => { setRange({ ...range, dateTo: e.target.value }); setPage(1) }}
+          onChange={(e) => setState({ sampai: dayToQuery(e.target.value), hal: 1 })}
           className="w-auto"
         />
         <label className="flex items-center gap-2 text-sm text-gray-600">
-          <input type="checkbox" checked={allDates} onChange={(e) => { setAllDates(e.target.checked); setPage(1) }} />
+          <input type="checkbox" checked={allDates} onChange={(e) => setState({ semua: e.target.checked, hal: 1 })} />
           Semua tanggal
         </label>
-        <Select value={fStatus} onChange={(e) => { setFStatus(e.target.value); setPage(1) }} className="w-auto" aria-label="Filter status">
+        <Select value={fStatus} onChange={(e) => setState({ status: e.target.value, hal: 1 })} className="w-auto" aria-label="Filter status">
           <option value="">Semua Status</option>
           <option value="completed">Selesai</option>
           <option value="partially_refunded">Sebagian refund</option>
           <option value="refunded">Refund</option>
           <option value="cancelled">Dibatalkan</option>
         </Select>
-        <Select value={fPay} onChange={(e) => { setFPay(e.target.value); setPage(1) }} className="w-auto" aria-label="Filter pembayaran">
+        <Select value={fPay} onChange={(e) => setState({ bayar: e.target.value, hal: 1 })} className="w-auto" aria-label="Filter pembayaran">
           <option value="">Semua Pembayaran</option>
           {payOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
         </Select>
@@ -187,7 +221,7 @@ export function OrdersPanel() {
           disabled={exportBusy || q.loading || !!q.error || total === 0}
           icon={<Download className="w-4 h-4" />}
         >
-          Export
+          Unduh Excel
         </Button>
       </div>
       {fPay.trim() !== '' && (
@@ -343,9 +377,10 @@ export function OrdersPanel() {
               page={page}
               totalPages={totalPages}
               total={total}
-              onChange={setPage}
+              onChange={(p) => setState({ hal: p })}
               pageSize={pageSize}
-              onPageSizeChange={(n) => { setPageSize(n); setPage(1) }}
+              onPageSizeChange={(n) => setState({ per: n, hal: 1 })}
+              pageSizes={[...PAGE_SIZES]}
             />
           </div>
         )}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { fetchAllPages } from '@mandalika/api'
 import type { Order, Outlet } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
@@ -18,6 +18,8 @@ import { breakdownRows, hasRefundBasis, isNegative, moneyOrDash, refundCsvFields
 import { refundCsvRows } from './refundReport'
 import { methodLabel, orderPaymentCsv, refundPayoutCsv } from '../../lib/splitPayment'
 import { useOrderReport } from './useOrderReport'
+import { useListState } from '../../lib/router/useListState'
+import { PAGING_SCHEMA, pageOf, pageSizeOf, pageToClamp } from './reportFilters'
 
 const statusBadge = (st: string) => <Badge tone={orderStatusTone(st)}>{orderStatusLabel(st)}</Badge>
 
@@ -32,8 +34,10 @@ interface ExportTabProps {
 /** Laporan > Ekspor: server totals + one server-paged page of orders; the CSV pages
  * the whole filtered set on click instead of keeping every order in the browser. */
 export function ExportTab({ filters, outletId, outlets, paymentMethods }: ExportTabProps) {
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(50)
+  // Paging is URL state; the hub remounts this tab on a filter change and sets hal back to 1 in the same patch.
+  const [paging, setPaging] = useListState(PAGING_SCHEMA)
+  const page = pageOf(paging.hal)
+  const pageSize = pageSizeOf(paging.per)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
@@ -43,6 +47,12 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
   const orders = lq.data?.data ?? []
   const total = lq.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  // A page past the end (a stale link) moves to the last page.
+  useEffect(() => {
+    if (lq.loading || lq.error || !lq.data) return
+    const target = pageToClamp(page, total, pageSize)
+    if (target !== null) setPaging({ hal: target }, { replace: true })
+  }, [lq.loading, lq.error, lq.data, page, total, pageSize, setPaging])
   const outletName = (oid: string) => outlets.find((o) => o.id === oid)?.name || oid
 
   const csvRows = (all: Order[]) =>
@@ -124,7 +134,7 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
           disabled={exporting || sq.loading || lq.loading}
           icon={<Download className="w-4 h-4" />}
         >
-          {exporting ? 'Menyiapkan…' : 'Export Refund CSV'}
+          {exporting ? 'Menyiapkan…' : 'Unduh CSV refund'}
         </Button>
         <Button
           variant="secondary"
@@ -132,7 +142,7 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
           disabled={exporting || lq.loading || !!lq.error || total === 0}
           icon={<Download className="w-4 h-4" />}
         >
-          {exporting ? 'Menyiapkan…' : 'Export CSV'}
+          {exporting ? 'Menyiapkan…' : 'Unduh CSV'}
         </Button>
       </div>
 
@@ -230,9 +240,9 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
               page={page}
               totalPages={totalPages}
               total={total}
-              onChange={setPage}
+              onChange={(p) => setPaging({ hal: p })}
               pageSize={pageSize}
-              onPageSizeChange={(n) => { setPageSize(n); setPage(1) }}
+              onPageSizeChange={(n) => setPaging({ per: n, hal: 1 })}
             />
           </div>
         )}

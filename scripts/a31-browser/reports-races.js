@@ -25,7 +25,7 @@ async (page) => {
   await page.goto('http://127.0.0.1:5174');
   await page.evaluate(()=>{localStorage.clear();localStorage.setItem('mandalika.backoffice.refresh','SYNTHETIC-NON-TOKEN');localStorage.setItem('mandalika.backoffice.loginDate',new Date().toISOString().slice(0,10));});
   await page.reload();await page.setViewportSize({width:1440,height:1000});
-  await page.getByRole('button',{name:'Laporan',exact:true}).click();await page.getByRole('button',{name:'Ekspor',exact:true}).click();
+  await page.getByRole('button',{name:'Laporan',exact:true}).click();await page.getByRole('button',{name:'Unduh data',exact:true}).click();
   const outlet=page.locator('select').filter({has:page.locator('option[value="A"]')});
   const flush=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   const results=[];
@@ -40,7 +40,7 @@ async (page) => {
     await page.evaluate(()=>fetch('/tests/polling-harness.html'));await flush();
     const after=await page.locator('main').innerText();
     if(before!==after)throw new Error(`Stale A changed B rendered content (${errorCase}): ${after}`);
-    if(errorCase){if(!await page.getByRole('button',{name:'Export CSV',exact:true}).isDisabled())throw new Error('B failure export enabled');}
+    if(errorCase){if(!await page.getByRole('button',{name:'Unduh CSV',exact:true}).isDisabled())throw new Error('B failure export enabled');}
     else if(!after.replace(/\s/g,'').includes('Rp7.000')||after.includes('201 transaksi'))throw new Error('B-only totals missing');
     results.push({scenario:errorCase?'B failure then late complete A':'B success then late complete A',passed:true,heldAPage2Responses:count,before,after});
   }

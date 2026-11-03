@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Tag } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
@@ -7,6 +7,8 @@ import { Card } from '../../ui/Card'
 import { Badge } from '../../ui/Badge'
 import { EmptyState } from '../../ui/EmptyState'
 import { Button } from '../../ui/Button'
+import { useListState } from '../../lib/router/useListState'
+import { PAGE_ONLY_SCHEMA, pageOf, pageToClamp } from './reportFilters'
 import type { components } from '@mandalika/api'
 
 type Report = components['schemas']['DiscountCodeReport']
@@ -32,11 +34,10 @@ interface DiscountCodeReportTabProps {
  * so switching outlets still refetches). Reuses `listDiscountCodeReport`
  * (SP-Code-2 grant-reporting-view sibling, Task 4). */
 export function DiscountCodeReportTab({ dateFrom, dateTo, outletId }: DiscountCodeReportTabProps) {
-  const [page, setPage] = useState(1)
-
-  // Reset to page 1 when the hub narrows the set (date range / outlet), else the
-  // user can be stranded on a now-empty page while summary cards still total.
-  useEffect(() => setPage(1), [dateFrom, dateTo, outletId])
+  // The page is URL state (#/laporan/kode-diskon?hal=2). The hub sets hal back to 1 when it narrows the set
+  // (date range / outlet), else the user can be stranded on a now-empty page while summary cards still total.
+  const [state, setState] = useListState(PAGE_ONLY_SCHEMA)
+  const page = pageOf(state.hal)
 
   const rq = usePolledQuery<Report>(
     () => api.listDiscountCodeReport({ dateFrom, dateTo, page, limit: LIMIT }),
@@ -49,6 +50,12 @@ export function DiscountCodeReportTab({ dateFrom, dateTo, outletId }: DiscountCo
   const meta = report?.meta
 
   const totalPages = meta ? Math.max(1, Math.ceil(meta.total / (meta.limit || LIMIT))) : 1
+  // A page past the end (a stale link) moves to the last page.
+  useEffect(() => {
+    if (rq.loading || rq.error || !meta) return
+    const target = pageToClamp(page, meta.total, meta.limit || LIMIT)
+    if (target !== null) setState({ hal: target }, { replace: true })
+  }, [rq.loading, rq.error, meta, page, setState])
 
   return (
     <div className="space-y-5">
@@ -112,14 +119,14 @@ export function DiscountCodeReportTab({ dateFrom, dateTo, outletId }: DiscountCo
             Halaman {meta.page} dari {totalPages} · {meta.total} baris
           </p>
           <div className="flex gap-2">
-            <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+            <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setState({ hal: Math.max(1, page - 1) })}>
               Sebelumnya
             </Button>
             <Button
               variant="secondary"
               size="sm"
               disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() => setState({ hal: page + 1 })}
             >
               Berikutnya
             </Button>

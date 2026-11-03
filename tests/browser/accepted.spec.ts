@@ -179,7 +179,7 @@ test('BO-SETTINGS-GUARD Pengaturan shows no save bar on open, guards leaving wit
 
 test('BO-ROUTE-DEEPLINK a tab or view in the hash path survives a reload, a bare or unknown tab shows the first, Back and Forward move between tabs, and a gated tab re-resolves when its setting loads', async ({ page }, info) => {
   const result = await routeDeepLinkFlow(page as ScenarioPage)
-  expect(result).toHaveLength(4)
+  expect(result).toHaveLength(8)
   await evidence(info, result)
 })
 
