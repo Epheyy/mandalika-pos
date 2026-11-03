@@ -221,13 +221,16 @@ export default function StockCount() {
     }
   }
   const complete = async (sc: StockCount) => {
-    // The net is figured from what is on screen, unsaved edits included, with the same formula as the Selisih column.
-    const { confirmed } = await ask(completeCountConfirm(sc.name, summarizeCount(itemsFor(sc))))
-    if (!confirmed) return
     setActiveId(sc.id)
     setPageErr(null)
     try {
-      // Save pending lines first so each one gets a server baseline; stop on any failure.
+      // Save pending lines first: saving re-captures each line's baseline from live stock, so only the saved count
+      // tells the net the server will apply. Saving moves no stock, so a Batal after it is harmless.
+      if (!(await flushPending(sc))) return setPageErr((m) => m ?? 'Ada hitungan yang belum tersimpan. Periksa lalu coba lagi.')
+      const saved = await api.getStockCount(sc.id)
+      const { confirmed } = await ask(completeCountConfirm(saved.name, summarizeCount(saved.items)))
+      if (!confirmed) return
+      // Nothing is pending now; the flush stays as the guard it was.
       const done = await completeAfterFlush(
         () => flushPending(sc),
         async () => {

@@ -247,6 +247,12 @@ export default function OpnameTab() {
           counted: counted[it.id] ?? it.counted ?? 0,
         })),
       })
+      // Saved: the server now holds these quantities, so they are no longer unsaved.
+      setDraft((d) => {
+        const rest = { ...d }
+        delete rest[sc.id]
+        return rest
+      })
       await scq.refetch()
     } catch (e: unknown) {
       setPageErr(e instanceof Error ? e.message : 'Gagal menyimpan hitungan.')

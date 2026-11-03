@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { completeIngredientCountConfirm, summarizeIngredientCount } from './opnameConfirm'
+import { completeIngredientCountConfirm, startIngredientCountConfirm, summarizeIngredientCount } from './opnameConfirm'
 
 describe('summarizeIngredientCount', () => {
   it('counts the lines with a saved quantity (zero is a count)', () => {
@@ -16,5 +16,14 @@ describe('completeIngredientCountConfirm', () => {
   })
   it('says nothing changes when nothing is counted', () => {
     expect(completeIngredientCountConfirm('X', 'Gudang', { total: 2, counted: 0, uncounted: 2 }).consequence).toContain('tidak berubah')
+  })
+})
+
+describe('startIngredientCountConfirm', () => {
+  it('does not claim a frozen reference: ingredients only get a list to count', () => {
+    const c = startIngredientCountConfirm('Opname Mei')
+    expect(c.title).toBe('Mulai opname Opname Mei?')
+    expect(c.consequence).not.toContain('dibekukan')
+    expect(c.consequence).toContain('Stok tidak berubah')
   })
 })

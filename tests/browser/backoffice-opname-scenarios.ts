@@ -51,9 +51,13 @@ async function mockApi(page: ScenarioPage) {
         return route.fulfill({ json: { data: found } })
       }
       if (request.method() === 'PUT') {
-        const body = request.postDataJSON() as { status?: Status }
+        const body = request.postDataJSON() as { status?: Status; items?: { productId: string; variantSize: string; actualQty?: number | null }[] }
         calls.push({ id: found.id, kind: 'update', body })
         if (body.status) found.status = body.status
+        for (const line of body.items ?? []) {
+          const target = found.items.find((i) => i.productId === line.productId && i.variantSize === line.variantSize)
+          if (target) target.actualQty = line.actualQty ?? null
+        }
         return route.fulfill({ json: { data: found } })
       }
       if (request.method() === 'GET') return route.fulfill({ json: { data: found } })
@@ -86,12 +90,15 @@ export const opnameConfirmFlow = async (page: ScenarioPage) => {
   check(updates(RUN_ID).length === 1 && statusOf(updates(RUN_ID)[0]) === 'in_progress', `one start update, got ${JSON.stringify(calls)}`)
   results.push({ step: 'mulai-asks' })
 
-  // (b) Selesai names the net difference (10 to 7 and 5 to 6 = -2) before anything is applied
+  // (b) an unsaved edit (Parfum A 10 to 4) is saved first, then Selesai names the net the saved count gives
+  // (10 to 4 and 5 to 6 = -5) before anything is applied
   const doneDialog = page.getByRole('alertdialog', { name: 'Selesaikan opname Opname Uji?' })
+  await page.getByLabel('Jumlah dihitung Parfum A 30ml').fill('4')
   await page.getByRole('button', { name: 'Selesai', exact: true }).click()
   await doneDialog.waitFor()
   const text = (await doneDialog.textContent()) ?? ''
-  check(text.includes('selisih bersih -2') && text.includes('berkurang 2 unit') && text.includes('2 baris yang dihitung'), `the dialog states the net, got: ${text}`)
+  check(text.includes('selisih bersih -5') && text.includes('berkurang 5 unit') && text.includes('2 baris yang dihitung'), `the dialog states the saved net, got: ${text}`)
+  check(!calls.some((c) => c.kind === 'complete'), 'asking completes nothing')
   await doneDialog.getByRole('button', { name: 'Batal', exact: true }).click()
   await doneDialog.waitFor({ state: 'detached' })
   check(!calls.some((c) => c.kind === 'complete'), 'Batal on Selesai completes nothing')

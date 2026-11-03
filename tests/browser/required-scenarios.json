@@ -286,7 +286,7 @@
     {
       "id": "BO-OPNAME-CONFIRM",
       "finding": "D3b",
-      "description": "Product Opname: Mulai opens a question and Batal leaves the count planned, confirming starts it once; Selesai states the net difference of the counted lines (10 to 7 and 5 to 6 is -2) and Batal completes nothing, confirming completes once; the cancel button asks, Kembali sends nothing and confirming cancels once",
+      "description": "Product Opname: Mulai opens a question and Batal leaves the count planned, confirming starts it once; Selesai saves an unsaved edit first and states the net difference of the saved count (10 to 4 and 5 to 6 is -5) and Batal completes nothing, confirming completes once; the cancel button asks, Kembali sends nothing and confirming cancels once",
       "source": "tests/browser/backoffice-opname-scenarios.ts"
     },
     {

@@ -1,10 +1,14 @@
 import type { IngredientStockCount } from '@mandalika/api'
 import type { ConfirmOptions } from '../../ui/ConfirmDialog'
-import { cancelCountConfirm, startCountConfirm } from '../stockcount/countConfirm'
 
-/** Start has the same words for ingredients and products. */
-export const startIngredientCountConfirm = startCountConfirm
-export const cancelIngredientCountConfirm = cancelCountConfirm
+/** Start only lists the ingredients to count: no quantity is frozen (the server writes the counted quantity over live stock on completion). */
+export function startIngredientCountConfirm(name: string): ConfirmOptions {
+  return {
+    title: `Mulai opname ${name}?`,
+    consequence: 'Daftar bahan di lokasi ini diambil untuk dihitung. Stok tidak berubah sampai opname diselesaikan.',
+    confirmLabel: 'Mulai opname',
+  }
+}
 
 export interface IngredientCountSummary {
   total: number
