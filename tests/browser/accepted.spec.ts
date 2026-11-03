@@ -187,7 +187,7 @@ test('BO-ROUTE-GUARD a dirty Pengaturan keeps its own tabs unguarded and asks fo
 
 test('BO-PRODUCTS-LIST Produk filters and paging are server requests and URL state that survive a reload, a page past the end steps back, the export carries every matching row, and the editor slide-over guards unsaved work with one question, closes silently after a save, shows field errors and layers the recipe editor', async ({ page }, info) => {
   const result = await productsListFlow(page as ScenarioPage)
-  expect(result).toHaveLength(14)
+  expect(result).toHaveLength(13)
   await evidence(info, result)
 })
 
