@@ -48,6 +48,7 @@ export function createRouter(env: HistoryEnv): Router {
   let asking = false
   // The next external change is the traversal we issued ourselves after the guard said yes.
   let expectTraversal = false
+  let traversalTimer: ReturnType<typeof setTimeout> | undefined
 
   const commit = (hash: string, at: number): void => {
     committed = normalizeHash(hash)
@@ -68,7 +69,8 @@ export function createRouter(env: HistoryEnv): Router {
     commit(env.hash(), at)
   }
 
-  const isSettled = (): boolean => normalizeHash(env.hash()) === committed && (env.stateIdx() ?? idx) === idx
+  // An entry with no idx is never settled, even at our hash: a typed alias of the current hash is a new entry.
+  const isSettled = (): boolean => normalizeHash(env.hash()) === committed && env.stateIdx() === idx
 
   const waitSettled = (): Promise<void> =>
     new Promise((resolve) => {
@@ -110,7 +112,8 @@ export function createRouter(env: HistoryEnv): Router {
     if (!leave) return
     if (targetIdx !== null && targetIdx !== idx) {
       expectTraversal = true
-      setTimeout(() => { expectTraversal = false }, SETTLE_TIMEOUT_MS)
+      clearTimeout(traversalTimer)
+      traversalTimer = setTimeout(() => { expectTraversal = false }, SETTLE_TIMEOUT_MS)
       env.go(targetIdx - idx)
       return
     }
@@ -122,6 +125,7 @@ export function createRouter(env: HistoryEnv): Router {
   const onExternal = (): void => {
     if (expectTraversal) {
       expectTraversal = false
+      clearTimeout(traversalTimer)
       adopt()
       return
     }
@@ -152,6 +156,8 @@ export function createRouter(env: HistoryEnv): Router {
       }
       if (!leave) return false
     }
+    // A Back pressed during the question is still being put back: push from the entry it lands on.
+    if (undoing) await undoing
     if (opts.replace) {
       env.replace(idx, target)
       commit(target, idx)

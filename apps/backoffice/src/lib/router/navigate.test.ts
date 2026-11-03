@@ -219,6 +219,52 @@ describe('navigate with a leave guard', () => {
   })
 })
 
+describe('leave guard edge cases', () => {
+  it('a guard that goes away with its question open does not lock the router', async () => {
+    const { env, router } = await threeEntries()
+    const off = pushLeaveGuard(() => new Promise<boolean>(() => {})) // a screen that unmounts unanswered
+    const moved = router.navigate('#/d')
+    await settle()
+    off()
+    expect(await moved).toBe(false)
+    expect(await router.navigate('#/d')).toBe(true)
+    expect(env.current()).toBe('#/d')
+    env.back()
+    await settle()
+    expect(router.getLocation().path).toEqual(['c'])
+  })
+
+  it('a typed alias of the current hash is stamped, so a later Back and Forward keep their order', async () => {
+    const { env, router } = await threeEntries()
+    env.typeUrl('#c') // same place, new entry, no idx
+    await settle()
+    expect(env.stateIdx()).toBe(3)
+    expect(router.getLocation().path).toEqual(['c'])
+    env.back()
+    await settle()
+    expect(env.stateIdx()).toBe(2)
+    env.forward()
+    await settle()
+    expect(env.stateIdx()).toBe(3)
+  })
+
+  it('a quick yes during a Back pushes from the entry the screen was on', async () => {
+    const { env, router } = await threeEntries()
+    const q = openQuestion()
+    offs.push(q.off)
+    const moved = router.navigate('#/d')
+    await settle()
+    env.back() // Back while the sidebar question is open
+    await vi.advanceTimersToNextTimerAsync() // the Back has landed on b; its undo is still in flight
+    expect(env.current()).toBe('#/b')
+    q.answer(true)
+    await settle()
+    expect(await moved).toBe(true)
+    expect(env.hashes()).toEqual(['#/a', '#/b', '#/c', '#/d'])
+    expect(env.current()).toBe('#/d')
+  })
+})
+
 describe('browser Back and Forward with a leave guard', () => {
   it('Back refused: the hash is put back, Forward history survives, the guard is asked once', async () => {
     const { env, router } = await threeEntries()

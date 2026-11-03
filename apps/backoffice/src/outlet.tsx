@@ -26,13 +26,19 @@ interface OutletState {
 
 const OutletCtx = createContext<OutletState | null>(null)
 
+// An admin must not sit on the loading screen for good when the outlet list never answers.
+const OUTLETS_READY_FALLBACK_MS = 8000
+
 export function OutletProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
   const userId = user?.id ?? null
   const [outletId, setOutletIdState] = useState<string | null>(null)
   const [outlets, setOutlets] = useState<Outlet[]>([])
-  const [outletsReady, setOutletsReady] = useState(false)
+  // Which admin the outlet list has arrived for. Readiness is derived in render (not set in an effect), so a
+  // second login in the same tab is never "ready" for a render before its saved scope has been applied.
+  const [readyFor, setReadyFor] = useState<string | null>(null)
+  const outletsReady = !isAdmin || (userId !== null && readyFor === userId)
 
   const setOutletId = useCallback(
     (id: string | null) => {
@@ -57,13 +63,16 @@ export function OutletProvider({ children }: { children: ReactNode }) {
     // token's own outlet governs scope server-side, so leave the header unset.
     authStore.outletId = null
     setOutletIdState(null)
+    setReadyFor(null)
     if (!isAdmin) {
       setOutlets([])
-      setOutletsReady(true)
       return
     }
-    setOutletsReady(false)
     let cancelled = false
+    const markReady = () => {
+      if (!cancelled) setReadyFor(userId)
+    }
+    const fallback = setTimeout(markReady, OUTLETS_READY_FALLBACK_MS)
     api
       .listOutlets()
       .then((list) => {
@@ -79,7 +88,7 @@ export function OutletProvider({ children }: { children: ReactNode }) {
       .catch(() => {})
       .finally(() => {
         // Ready even when the list failed: screens then load cross-outlet, as before.
-        if (!cancelled) setOutletsReady(true)
+        markReady()
       })
     // Poll + refresh on focus so a newly created outlet shows in the switcher
     // without a hard refresh.
@@ -90,6 +99,7 @@ export function OutletProvider({ children }: { children: ReactNode }) {
     window.addEventListener('focus', onFocus)
     return () => {
       cancelled = true
+      clearTimeout(fallback)
       clearInterval(id)
       window.removeEventListener('focus', onFocus)
     }

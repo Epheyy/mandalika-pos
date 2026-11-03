@@ -47,6 +47,50 @@ describe('navGuard', () => {
   })
 })
 
+describe('navGuard open question', () => {
+  it('asking again while a question is open returns the same answer and asks the guard once', async () => {
+    let answer!: (leave: boolean) => void
+    const ask = vi.fn(() => new Promise<boolean>((resolve) => { answer = resolve }))
+    const off = pushLeaveGuard(ask)
+    const first = confirmLeave()
+    const second = confirmLeave()
+    expect(ask).toHaveBeenCalledTimes(1)
+    answer(true)
+    expect(await first).toBe(true)
+    expect(await second).toBe(true)
+    off()
+  })
+
+  it('a new question can be asked once the first is answered', async () => {
+    const ask = vi.fn(async () => false)
+    const off = pushLeaveGuard(ask)
+    await confirmLeave()
+    await confirmLeave()
+    expect(ask).toHaveBeenCalledTimes(2)
+    off()
+  })
+
+  it('a guard removed while its question is open settles it as stay, and the next question works', async () => {
+    const off = pushLeaveGuard(() => new Promise<boolean>(() => {})) // never answered
+    const pending = confirmLeave()
+    off()
+    expect(await pending).toBe(false)
+    expect(hasLeaveGuard()).toBe(false)
+    expect(await confirmLeave()).toBe(true)
+  })
+
+  it('removing a different guard leaves the open question alone', async () => {
+    let answer!: (leave: boolean) => void
+    const offLow = pushLeaveGuard(async () => false)
+    const offTop = pushLeaveGuard(() => new Promise<boolean>((resolve) => { answer = resolve }))
+    const pending = confirmLeave()
+    offLow()
+    answer(true)
+    expect(await pending).toBe(true)
+    offTop()
+  })
+})
+
 describe('navGuard beforeunload', () => {
   const stubWindow = () => {
     const add = vi.fn()

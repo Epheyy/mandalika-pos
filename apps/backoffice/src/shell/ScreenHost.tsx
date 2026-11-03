@@ -1,4 +1,4 @@
-import { Component, Suspense, lazy, type ComponentType, type LazyExoticComponent, type ReactNode } from 'react'
+import { Component, Suspense, lazy, useState, type ComponentType, type LazyExoticComponent, type ReactNode } from 'react'
 import { UserCog } from 'lucide-react'
 import type { RouteDef } from '../lib/router/routes'
 import { Button } from '../ui/Button'
@@ -33,7 +33,8 @@ export function AccessDenied() {
 }
 
 interface BoundaryProps {
-  routeId: string
+  /** Drops the failed import and renders the screen again under a new key. */
+  onRetry: () => void
   children: ReactNode
 }
 interface BoundaryState {
@@ -42,23 +43,14 @@ interface BoundaryState {
 
 /**
  * A screen that fails to load (a chunk that is gone after a deploy, a dropped connection) or crashes while
- * rendering shows a message and a retry, instead of blanking the whole app. Moving to another screen resets it.
+ * rendering shows a message and a retry, instead of blanking the whole app. ScreenHost keys it by route and
+ * attempt, so moving to another screen or retrying starts it fresh.
  */
 class ScreenBoundary extends Component<BoundaryProps, BoundaryState> {
   state: BoundaryState = { error: null }
 
   static getDerivedStateFromError(error: Error): BoundaryState {
     return { error }
-  }
-
-  componentDidUpdate(prev: BoundaryProps) {
-    if (prev.routeId !== this.props.routeId && this.state.error) this.setState({ error: null })
-  }
-
-  private retry = () => {
-    // React.lazy keeps a rejected import forever; drop it so the retry imports again.
-    screens.delete(this.props.routeId)
-    this.setState({ error: null })
   }
 
   render() {
@@ -68,7 +60,7 @@ class ScreenBoundary extends Component<BoundaryProps, BoundaryState> {
         <p className="font-bold text-ink-900">Halaman ini gagal dimuat.</p>
         <p className="max-w-md text-sm text-ink-700">Periksa koneksi lalu coba lagi. Jika terus gagal, muat ulang tab ini.</p>
         <p className="max-w-md break-words text-xs text-ink-500">{this.state.error.message}</p>
-        <Button variant="secondary" onClick={this.retry}>
+        <Button variant="secondary" onClick={this.props.onRetry}>
           Coba lagi
         </Button>
       </div>
@@ -78,9 +70,15 @@ class ScreenBoundary extends Component<BoundaryProps, BoundaryState> {
 
 /** The body of <main>: the lazy screen behind one fallback, "Memuat…". */
 export function ScreenHost({ route }: { route: RouteDef }) {
+  const [attempt, setAttempt] = useState(0)
   const Screen = screenFor(route)
+  // React.lazy keeps a rejected import forever, so a retry drops it and remounts under a new key.
+  const retry = () => {
+    screens.delete(route.id)
+    setAttempt((n) => n + 1)
+  }
   return (
-    <ScreenBoundary routeId={route.id}>
+    <ScreenBoundary key={`${route.id}:${attempt}`} onRetry={retry}>
       <Suspense fallback={<LoadingFill />}>
         <Screen />
       </Suspense>

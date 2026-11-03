@@ -10,6 +10,14 @@ export type LeaveGuard = () => Promise<boolean>
 
 const guards: LeaveGuard[] = []
 
+interface OpenQuestion {
+  guard: LeaveGuard
+  promise: Promise<boolean>
+  /** Answer "stay" for a guard that went away before it was answered. */
+  abandon: () => void
+}
+let open: OpenQuestion | null = null
+
 const warnBeforeUnload = (e: BeforeUnloadEvent): void => {
   e.preventDefault()
   e.returnValue = ''
@@ -34,13 +42,29 @@ export function pushLeaveGuard(guard: LeaveGuard): () => void {
     const at = guards.lastIndexOf(guard)
     if (at >= 0) guards.splice(at, 1)
     syncUnloadWarning()
+    // A screen that unmounts with its question still open (the session ended, say) can never answer it:
+    // settle it as "stay" so nothing waits on it for the rest of the tab.
+    if (open?.guard === guard) open.abandon()
   }
 }
 
 export const hasLeaveGuard = (): boolean => guards.length > 0
 
-/** Asks the top guard only. True when nothing is guarded or the guard allows leaving. */
-export async function confirmLeave(): Promise<boolean> {
+/**
+ * Asks the top guard only. True when nothing is guarded or the guard allows leaving.
+ * One question at a time: asking again while it is open returns the same answer instead of asking twice.
+ */
+export function confirmLeave(): Promise<boolean> {
+  if (open) return open.promise
   const top = guards[guards.length - 1]
-  return top ? top() : true
+  if (!top) return Promise.resolve(true)
+  let abandon!: () => void
+  const abandoned = new Promise<boolean>((resolve) => {
+    abandon = () => resolve(false)
+  })
+  const promise: Promise<boolean> = Promise.race([top(), abandoned]).finally(() => {
+    if (open?.promise === promise) open = null
+  })
+  open = { guard: top, promise, abandon }
+  return promise
 }
