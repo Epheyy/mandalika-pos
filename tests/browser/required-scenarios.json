@@ -284,6 +284,12 @@
       "source": "tests/browser/backoffice-route-scenarios.ts"
     },
     {
+      "id": "BO-ROUTE-BACK",
+      "finding": "D4",
+      "description": "Pelanggan list filters (q, urut, hal) are URL state and request params; opening a customer is a path push; Back and Kembali return to the list with the same URL, controls and request; Forward returns to the customer; a pasted customer link has nothing to step back to so Kembali opens the list; junk urut/hal/tag/per fall back to the defaults",
+      "source": "tests/browser/backoffice-back-scenarios.ts"
+    },
+    {
       "id": "BO-PRODUCTS-LIST",
       "finding": "D2a",
       "description": "Produk list: search, status, kategori and stok are server parameters and URL state that survive a reload, a page past the end steps back to the last page, the export walks every page of the matching products only; the editor slide-over (?ubah=) reloads by id, asks one question for Escape and browser Back on unsaved work, closes without asking after a save, shows field errors with a focusing summary and layers the recipe editor so Escape closes only the top layer; a refused delete keeps the server reason in the dialog",
