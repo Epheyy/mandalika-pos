@@ -13,7 +13,7 @@ import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 import { Select } from '../../ui/Field'
 import { useListState, type ListSchema } from '../../lib/router/useListState'
-import { PAGING_SCHEMA, enumOf, pageOf, pageSizeOf, pageToClamp } from './reportFilters'
+import { PAGING_SCHEMA, enumOf, isAnswerFor, pageOf, pageSizeOf, pageToClamp } from './reportFilters'
 import {
   REFUND_FLAG_OPTIONS, claimedIfDifferent, flagLabel, flagTone, formatRefundTime, itemSummary,
   refundCsvRows, scopeLabel, type RefundFlagFilter,
@@ -67,7 +67,7 @@ export function RefundReportTab({ dateFrom, dateTo, outletId }: RefundReportTabP
 
   // A page past the end (a stale link) moves to the last page.
   useEffect(() => {
-    if (rq.loading || rq.error || !rq.data) return
+    if (rq.loading || rq.error || !rq.data || !isAnswerFor(rq.data.meta, page, pageSize)) return
     const target = pageToClamp(page, total, pageSize)
     if (target !== null) setState({ hal: target }, { replace: true })
   }, [rq.loading, rq.error, rq.data, page, total, pageSize, setState])

@@ -49,6 +49,12 @@ async function mockApi(page: ScenarioPage, opts: MockOptions = {}) {
       // 120 refunds, none on show: three pages at 50, so a deep link to page 2 is a real page and is not clamped.
       return route.fulfill({ json: { summary: { count: 120, totalAmount: 0, flaggedCount: 0 }, data: [], meta: { total: 120, page: 1, limit: 50 } } })
     }
+    if (path.endsWith('/orders')) {
+      // 500 orders, or 7 under the Refund status; none on show. The answer echoes the page and limit it was asked for.
+      const q = new URL(route.request().url()).searchParams
+      const total = q.get('status') === 'refunded' ? 7 : 500
+      return route.fulfill({ json: { data: [], meta: { total, page: Number(q.get('page') ?? 1), limit: Number(q.get('limit') ?? 50) } } })
+    }
     if (path.endsWith('/inventory/overview') || path.endsWith('/inventory/ingredient-overview')) return route.fulfill({ json: { locations: [], rows: [] } })
     if (path.endsWith(`/transfers/${TRANSFER_ID}`)) return route.fulfill({ json: { data: TRANSFER } })
     return route.fulfill({ json: { data: [], meta: { total: 0, page: 1, limit: 50 } } })
@@ -175,6 +181,22 @@ export const routeDeepLinkFlow = async (page: ScenarioPage) => {
   const junkReq = lastCall('/orders')
   check(junkReq !== undefined && !junkReq.query.has('status') && junkReq.query.get('page') === '1' && junkReq.query.get('limit') === '50', 'junk status, hal and per fall back in the request')
   results.push({ step: 'laporan-junk-values' })
+
+  // (g) Back after a narrowing filter lands on the page it left: the clamp must not run on the previous answer
+  await mockApi(page)
+  await deepLink(page, '#/laporan/transaksi?hal=4')
+  await tabItem(page, 'orders').waitFor()
+  await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('500 transaksi'))
+  const orderStatus = page.locator('select').filter({ has: page.locator('option[value="cancelled"]') })
+  await orderStatus.selectOption('refunded')
+  await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('7 transaksi'))
+  check(!/hal=/.test(await hashOf(page)) && /status=refunded/.test(await hashOf(page)), `the filter starts again on page 1, got ${await hashOf(page)}`)
+  await page.goBack()
+  await page.waitForFunction(() => location.hash.includes('hal=4'))
+  await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('500 transaksi'))
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+  check(/hal=4/.test(await hashOf(page)) && !/status=/.test(await hashOf(page)), `Back keeps page 4, got ${await hashOf(page)}`)
+  results.push({ step: 'laporan-back-keeps-page' })
   return results
 }
 

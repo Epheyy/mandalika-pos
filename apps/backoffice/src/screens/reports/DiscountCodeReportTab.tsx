@@ -8,7 +8,7 @@ import { Badge } from '../../ui/Badge'
 import { EmptyState } from '../../ui/EmptyState'
 import { Button } from '../../ui/Button'
 import { useListState } from '../../lib/router/useListState'
-import { PAGE_ONLY_SCHEMA, pageOf, pageToClamp } from './reportFilters'
+import { PAGE_ONLY_SCHEMA, isAnswerFor, pageOf, pageToClamp } from './reportFilters'
 import type { components } from '@mandalika/api'
 
 type Report = components['schemas']['DiscountCodeReport']
@@ -52,7 +52,8 @@ export function DiscountCodeReportTab({ dateFrom, dateTo, outletId }: DiscountCo
   const totalPages = meta ? Math.max(1, Math.ceil(meta.total / (meta.limit || LIMIT))) : 1
   // A page past the end (a stale link) moves to the last page.
   useEffect(() => {
-    if (rq.loading || rq.error || !meta) return
+    if (rq.loading || rq.error || !isAnswerFor(meta, page)) return
+    if (!meta) return
     const target = pageToClamp(page, meta.total, meta.limit || LIMIT)
     if (target !== null) setState({ hal: target }, { replace: true })
   }, [rq.loading, rq.error, meta, page, setState])

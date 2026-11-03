@@ -32,9 +32,18 @@ export function uuidOf(raw: string): string {
   return isUuidSegment(raw) ? raw : ''
 }
 
-/** A payment method id from the URL (ids are short words such as "qris", "cash", "split"). */
+const MAX_PAYMENT_ID = 64
+
+/**
+ * A payment method id from the URL. Settings builds ids from what the owner types (lower-cased, spaces to "_"),
+ * so "debit/kredit_bca" or "e-wallet_(ovo)" are real ids: anything trimmed, non-empty, without control
+ * characters and within the cap passes (it is URL-encoded on the way out and a query parameter on the way in).
+ */
 export function paymentOf(raw: string): string {
-  return /^[A-Za-z0-9_-]{1,64}$/.test(raw) ? raw : ''
+  const id = raw.trim()
+  if (id === '' || id.length > MAX_PAYMENT_ID) return ''
+  // eslint-disable-next-line no-control-regex
+  return /[\u0000-\u001f\u007f]/.test(id) ? '' : id
 }
 
 /** The options plus the current value when it is not among them, so a select never shows a different value from the one in force. */
@@ -52,7 +61,9 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/
 export function isDay(raw: string): boolean {
   if (!DAY.test(raw)) return false
   const [y, m, d] = raw.split('-').map(Number)
-  const date = new Date(Date.UTC(y, m - 1, d))
+  // Date.UTC maps years 0-99 to 1900-1999, which would reject a year typed digit by digit ("0002-10-01").
+  const date = new Date(0)
+  date.setUTCFullYear(y, m - 1, d)
   return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d
 }
 
@@ -78,6 +89,16 @@ export function pageToClamp(page: number, total: number, pageSize: number): numb
   if (page <= 1) return null
   const last = Math.max(1, Math.ceil(total / pageSize))
   return page > last ? last : null
+}
+
+/**
+ * Whether a list answer belongs to the page on show. usePolledQuery keeps the previous answer (loading=false) for
+ * the render in which its deps changed, so a clamp that trusts it would rewrite the entry Back just restored.
+ * `limit` is checked only where the page size can change (pass undefined for a fixed-size list).
+ */
+export function isAnswerFor(meta: { page?: number; limit?: number } | null | undefined, page: number, limit?: number): boolean {
+  if (!meta || meta.page !== page) return false
+  return limit === undefined || meta.limit === limit
 }
 
 /**

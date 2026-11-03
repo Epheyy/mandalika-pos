@@ -19,7 +19,7 @@ import { refundCsvRows } from './refundReport'
 import { methodLabel, orderPaymentCsv, refundPayoutCsv } from '../../lib/splitPayment'
 import { useOrderReport } from './useOrderReport'
 import { useListState } from '../../lib/router/useListState'
-import { PAGING_SCHEMA, pageOf, pageSizeOf, pageToClamp } from './reportFilters'
+import { PAGING_SCHEMA, isAnswerFor, pageOf, pageSizeOf, pageToClamp } from './reportFilters'
 
 const statusBadge = (st: string) => <Badge tone={orderStatusTone(st)}>{orderStatusLabel(st)}</Badge>
 
@@ -49,7 +49,7 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   // A page past the end (a stale link) moves to the last page.
   useEffect(() => {
-    if (lq.loading || lq.error || !lq.data) return
+    if (lq.loading || lq.error || !lq.data || !isAnswerFor(lq.data.meta, page, pageSize)) return
     const target = pageToClamp(page, total, pageSize)
     if (target !== null) setPaging({ hal: target }, { replace: true })
   }, [lq.loading, lq.error, lq.data, page, total, pageSize, setPaging])

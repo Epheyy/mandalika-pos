@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { AppSettings, Outlet } from '@mandalika/api'
 import { api } from '../api'
 import { useAuth } from '../auth'
@@ -71,7 +72,8 @@ export default function Reports() {
   // Dari/Sampai, status and payment are URL query state. The server reads dateFrom/dateTo as business days (the day
   // in each outlet's own timezone, a shift's sales on its opening day); the default is the local calendar date.
   const [state, setState] = useListState(HUB_SCHEMA)
-  const today = localDay()
+  // Once per mount: the default must not roll over at midnight under an open screen (it would remount the tabs).
+  const [today] = useState(() => localDay())
   const dateFrom = dayOf(state.dari, today)
   const dateTo = dayOf(state.sampai, today)
   const fStatus = enumOf<string>(state.status, EXPORT_STATUSES, '')
@@ -100,7 +102,7 @@ export default function Reports() {
     <div className="p-6 space-y-5">
       <PageHeader
         title="Laporan"
-        subtitle="Ekspor data untuk analisis lebih lanjut"
+        subtitle="Unduh data untuk analisis lebih lanjut"
         actions={
           <Tabs
             value={tab}
@@ -118,14 +120,14 @@ export default function Reports() {
           type="date"
           label="Dari"
           value={dateFrom}
-          onChange={(e) => setState({ dari: dayToQuery(e.target.value), hal: 1 })}
+          onChange={(e) => setState({ dari: dayToQuery(e.target.value), hal: 1 }, { replace: true })}
           className="w-auto"
         />
         <Input
           type="date"
           label="Sampai"
           value={dateTo}
-          onChange={(e) => setState({ sampai: dayToQuery(e.target.value), hal: 1 })}
+          onChange={(e) => setState({ sampai: dayToQuery(e.target.value), hal: 1 }, { replace: true })}
           className="w-auto"
         />
         {tab === 'export' && (

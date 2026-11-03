@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  UNBOUNDED_DAY, carriedDays, dayOf, dayToQuery, enumOf, isDay, pageOf, pageSizeOf, pageToClamp, paymentOf, uuidOf, withCurrent,
+  UNBOUNDED_DAY, carriedDays, isAnswerFor, dayOf, dayToQuery, enumOf, isDay, pageOf, pageSizeOf, pageToClamp, paymentOf, uuidOf, withCurrent,
 } from './reportFilters'
 
 describe('pageOf / pageSizeOf', () => {
@@ -37,12 +37,22 @@ describe('uuidOf / paymentOf', () => {
     expect(uuidOf('../x')).toBe('')
     expect(uuidOf('zzz')).toBe('')
   })
-  it('passes short id words and drops the rest', () => {
+  it('passes the ids Settings can create, punctuation included', () => {
     expect(paymentOf('qris')).toBe('qris')
     expect(paymentOf('e_wallet-1')).toBe('e_wallet-1')
-    expect(paymentOf('a b')).toBe('')
-    expect(paymentOf('<script>')).toBe('')
+    expect(paymentOf('debit/kredit_bca')).toBe('debit/kredit_bca')
+    expect(paymentOf('e-wallet_(ovo)')).toBe('e-wallet_(ovo)')
+    expect(paymentOf('x'.repeat(64))).toBe('x'.repeat(64))
+  })
+  it('drops empty, over-long and control-character values', () => {
+    expect(paymentOf('')).toBe('')
+    expect(paymentOf('   ')).toBe('')
     expect(paymentOf('x'.repeat(65))).toBe('')
+    expect(paymentOf('a\nb')).toBe('')
+    expect(paymentOf('a\u0000b')).toBe('')
+  })
+  it('trims surrounding spaces', () => {
+    expect(paymentOf(' qris ')).toBe('qris')
   })
 })
 
@@ -64,6 +74,14 @@ describe('isDay / dayOf / dayToQuery', () => {
     expect(isDay('2026-13-01')).toBe(false)
     expect(isDay('2026-1-1')).toBe(false)
     expect(isDay('zzz')).toBe(false)
+  })
+  it('accepts a year typed digit by digit (Date.UTC would map 0-99 to 1900s)', () => {
+    expect(isDay('0002-10-01')).toBe(true)
+    expect(isDay('0020-10-01')).toBe(true)
+    expect(isDay('0202-10-01')).toBe(true)
+    expect(isDay('0000-02-29')).toBe(true)
+    expect(isDay('0001-02-29')).toBe(false)
+    expect(isDay('0100-02-29')).toBe(false)
   })
   it('uses the fallback for absent or junk values', () => {
     expect(dayOf('', '2026-11-04')).toBe('2026-11-04')
@@ -89,6 +107,20 @@ describe('pageToClamp', () => {
     expect(pageToClamp(99, 120, 50)).toBe(3)
     expect(pageToClamp(2, 0, 50)).toBe(1)
     expect(pageToClamp(2, 50, 50)).toBe(1)
+  })
+})
+
+describe('isAnswerFor', () => {
+  it('is true only for the answer to the page on show', () => {
+    expect(isAnswerFor({ page: 4, limit: 50 }, 4, 50)).toBe(true)
+    expect(isAnswerFor({ page: 1, limit: 50 }, 4, 50)).toBe(false)
+    expect(isAnswerFor({ page: 4, limit: 25 }, 4, 50)).toBe(false)
+  })
+  it('ignores the limit for a fixed-size list and rejects a missing meta', () => {
+    expect(isAnswerFor({ page: 2, limit: 50 }, 2)).toBe(true)
+    expect(isAnswerFor({ page: 1 }, 2)).toBe(false)
+    expect(isAnswerFor(undefined, 1)).toBe(false)
+    expect(isAnswerFor(null, 1, 50)).toBe(false)
   })
 })
 

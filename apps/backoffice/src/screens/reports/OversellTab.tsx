@@ -13,7 +13,7 @@ import { EmptyState } from '../../ui/EmptyState'
 import { Input, Select } from '../../ui/Field'
 import { Switch } from '../../ui/Switch'
 import { useListState, type ListSchema } from '../../lib/router/useListState'
-import { PAGE_ONLY_SCHEMA, enumOf, pageOf, pageToClamp, uuidOf } from './reportFilters'
+import { PAGE_ONLY_SCHEMA, enumOf, isAnswerFor, pageOf, pageToClamp, uuidOf } from './reportFilters'
 import {
   KIND_FILTERS,
   OVERSELL_CHANGED,
@@ -140,7 +140,8 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
   const totalPages = meta ? Math.max(1, Math.ceil(meta.total / (meta.limit || LIMIT))) : 1
   // A page past the end (the last open line acknowledged away, a stale link) moves to the last page.
   useEffect(() => {
-    if (rq.loading || rq.error || !meta) return
+    if (rq.loading || rq.error || !isAnswerFor(meta, page)) return
+    if (!meta) return
     const target = pageToClamp(page, meta.total, meta.limit || LIMIT)
     if (target !== null) setState({ hal: target }, { replace: true })
   }, [rq.loading, rq.error, meta, page, setState])
@@ -183,7 +184,7 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
       exportToCSV(oversellCsvRows(all), `stok-minus_${dateFrom}_${dateTo}`, { appendDate: false })
       if (truncated) setExportNote('Data terpotong: hanya 5.000 baris pertama yang diekspor. Persempit filter lalu ekspor lagi.')
     } catch (e: unknown) {
-      setExportNote(e instanceof Error ? e.message : 'Ekspor gagal')
+      setExportNote(e instanceof Error ? e.message : 'Unduhan gagal')
     }
   }
 

@@ -23,7 +23,7 @@ import { Pagination } from '../ui/Pagination'
 import { canViewSummary, lastDaysRange, orderFilterParams, paymentFilterHint, transaksiFilters, transaksiHeader } from './reports/orderQuery'
 import { useOrderReport } from './reports/useOrderReport'
 import { useUrlSearchText } from './reports/useUrlSearchText'
-import { PAGING_SCHEMA, PAGE_SIZES, dayOf, dayToQuery, enumOf, pageOf, pageSizeOf, pageToClamp, paymentOf, withCurrent } from './reports/reportFilters'
+import { PAGING_SCHEMA, PAGE_SIZES, dayOf, dayToQuery, enumOf, pageOf, isAnswerFor, pageSizeOf, pageToClamp, paymentOf, withCurrent } from './reports/reportFilters'
 import { refundedByLine } from './refundDisplay'
 import { orderIconClasses, orderStatusLabel, orderStatusTone } from '../lib/orderStatus'
 import { OrderRefundSection } from './orders/OrderRefundSection'
@@ -91,7 +91,8 @@ export function OrdersPanel() {
   const fPay = paymentOf(state.bayar)
   // Default window: last 30 days; "Semua tanggal" lifts the date bounds (search then spans all dates).
   // A cleared date input stays cleared (unbounded) rather than snapping back to the default.
-  const defaultRange = lastDaysRange(30)
+  // Once per mount: rolling over at midnight would change the query under an open refund form.
+  const [defaultRange] = useState(() => lastDaysRange(30))
   const range = { dateFrom: dayOf(state.dari, defaultRange.dateFrom), dateTo: dayOf(state.sampai, defaultRange.dateTo) }
   const allDates = state.semua
   const page = pageOf(state.hal)
@@ -111,7 +112,7 @@ export function OrdersPanel() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   // A page past the end (the last row refunded away, a stale link) moves to the last page instead of showing an empty list.
   useEffect(() => {
-    if (q.loading || q.error || !q.data) return
+    if (q.loading || q.error || !q.data || !isAnswerFor(q.data.meta, page, pageSize)) return
     const target = pageToClamp(page, total, pageSize)
     if (target !== null) setState({ hal: target }, { replace: true })
   }, [q.loading, q.error, q.data, page, total, pageSize, setState])
@@ -189,7 +190,7 @@ export function OrdersPanel() {
           aria-label="Dari tanggal"
           value={range.dateFrom}
           disabled={allDates}
-          onChange={(e) => setState({ dari: dayToQuery(e.target.value), hal: 1 })}
+          onChange={(e) => setState({ dari: dayToQuery(e.target.value), hal: 1 }, { replace: true })}
           className="w-auto"
         />
         <Input
@@ -197,7 +198,7 @@ export function OrdersPanel() {
           aria-label="Sampai tanggal"
           value={range.dateTo}
           disabled={allDates}
-          onChange={(e) => setState({ sampai: dayToQuery(e.target.value), hal: 1 })}
+          onChange={(e) => setState({ sampai: dayToQuery(e.target.value), hal: 1 }, { replace: true })}
           className="w-auto"
         />
         <label className="flex items-center gap-2 text-sm text-gray-600">
