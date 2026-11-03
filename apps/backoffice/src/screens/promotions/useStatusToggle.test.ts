@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { DiscountCode, Promotion } from '@mandalika/api'
 import { codeToInput } from './discountCodeForm'
 import { promotionToInput } from './promotionForm'
-import { confirmActivation, needsActivationConfirm, toggleStatus, type StatusToggleDeps, type StatusToggleKind } from './useStatusToggle'
+import { confirmActivation, needsActivationConfirm, wasActiveNow, toggleStatus, type StatusToggleDeps, type StatusToggleKind } from './useStatusToggle'
 
 const promo = (over: Partial<Promotion> = {}): Promotion => ({
   id: 'promo-1', name: 'Diskon Akhir Tahun', type: 'percentage', value: 10, isActive: true, createdAt: '2026-10-01T00:00:00Z',
@@ -143,5 +143,22 @@ describe('confirmActivation', () => {
     const confirm = vi.fn(async () => ({ confirmed: false }))
     expect(await confirmActivation(confirm, 'kode', 'HEMAT10')).toBe(false)
     expect(confirm).toHaveBeenCalledWith({ title: 'Aktifkan kode HEMAT10?', consequence: 'Tablet memakainya setelah sinkron berikutnya.', confirmLabel: 'Aktifkan' })
+  })
+})
+
+describe('wasActiveNow: the editor re-reads a row it opened as active', () => {
+  const row = { id: 'a', isActive: true }
+  it('is null for a new item and false for a row opened inactive, without reading', async () => {
+    const read = vi.fn(async () => [row])
+    expect(await wasActiveNow(null, read)).toBeNull()
+    expect(await wasActiveNow({ id: 'a', isActive: false }, read)).toBe(false)
+    expect(read).not.toHaveBeenCalled()
+  })
+  it('follows the fresh row: switched off meanwhile means saving active is an activation', async () => {
+    expect(await wasActiveNow(row, async () => [{ id: 'a', isActive: false }])).toBe(false)
+    expect(needsActivationConfirm(await wasActiveNow(row, async () => [{ id: 'a', isActive: false }]), true)).toBe(true)
+  })
+  it('falls back to the loaded row when the read fails', async () => {
+    expect(await wasActiveNow(row, async () => { throw new Error('offline') })).toBe(true)
   })
 })

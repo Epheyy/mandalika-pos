@@ -344,11 +344,19 @@ async function activationFromEditor(page: ScenarioPage, state: State, results: o
 
   // an edit of an already-active promotion does not ask
   await page.getByRole('button', { name: 'Ubah Raya Aktif Baru', exact: true }).click()
-  await dialog.getByLabel('Nama Promosi *').fill('Raya Aktif Tiga')
+  await dialog.getByLabel('Deskripsi').fill('Diubah dari editor')
   state.calls.length = 0
   await dialog.getByRole('button', { name: 'Simpan', exact: true }).click()
   await dialog.waitFor({ state: 'detached' })
   check((await confirm.count()) === 0 && writes().length === 1, 'active to active saves without a question')
+
+  // active to inactive does not ask (the Switch test above left Raya Nonaktif on)
+  await page.getByRole('button', { name: 'Ubah Raya Nonaktif', exact: true }).click()
+  await dialog.getByRole('switch', { name: 'Promosi Aktif', exact: true }).click()
+  state.calls.length = 0
+  await dialog.getByRole('button', { name: 'Simpan', exact: true }).click()
+  await dialog.waitFor({ state: 'detached' })
+  check((await confirm.count()) === 0 && writes().length === 1 && writes()[0].body.isActive === false, 'saving inactive asks nothing')
 
   // inactive to active asks
   await page.getByRole('button', { name: 'Ubah Raya Nonaktif', exact: true }).click()

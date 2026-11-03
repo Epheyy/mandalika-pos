@@ -64,6 +64,21 @@ export async function changeStatus<Row extends StatusRow>(
  */
 export const needsActivationConfirm = (wasActive: boolean | null, willBeActive: boolean): boolean => willBeActive && wasActive !== true
 
+/**
+ * Was the row live when the save is sent? The editor holds the row as it was when it opened, so an active row is
+ * re-read: someone may have switched it off meanwhile, and saving it active then makes it live again. A failed
+ * re-read falls back to the row as loaded.
+ */
+export async function wasActiveNow<Row extends StatusRow>(row: Row | null, fetchAll: () => Promise<Row[]>): Promise<boolean | null> {
+  if (!row) return null
+  if (!row.isActive) return false
+  try {
+    return (await fetchAll()).find((r) => r.id === row.id)?.isActive ?? true
+  } catch {
+    return true
+  }
+}
+
 /** The D-79 question, in one place: "Aktifkan promo X?" / "Aktifkan kode X?". */
 export async function confirmActivation(confirm: StatusToggleDeps['confirm'], noun: string, name: string): Promise<boolean> {
   const answer = await confirm({

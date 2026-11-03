@@ -7,7 +7,7 @@ import { PromoFormSlideOver } from './PromoFormSlideOver'
 import { EMPTY_PROMO, promotionProblems, promotionToInput } from './promotionForm'
 import { useEditorGuard, useLeave } from './useEditorLeave'
 import { useRecordEditor } from './useRecordEditor'
-import { confirmActivation, needsActivationConfirm } from './useStatusToggle'
+import { confirmActivation, needsActivationConfirm, wasActiveNow } from './useStatusToggle'
 
 interface PromotionEditorHostProps {
   /** The promotion to edit, or null for a new one. */
@@ -61,7 +61,8 @@ export function PromotionEditorHost({ promoId, closeEditor, refetchList }: Promo
   // Saving it live asks the same question as the list Switch; an already-active promo saved again does not.
   const confirmSave = useCallback(
     async (input: PromotionInput, row: Promotion | null) =>
-      !needsActivationConfirm(row?.isActive ?? null, input.isActive) || confirmActivation(confirm, 'promo', input.name),
+      !needsActivationConfirm(input.isActive ? await wasActiveNow(row, fetchPromotions) : null, input.isActive) ||
+      confirmActivation(confirm, 'promo', input.name),
     [confirm],
   )
   const editor = useRecordEditor<Promotion, PromotionInput>({

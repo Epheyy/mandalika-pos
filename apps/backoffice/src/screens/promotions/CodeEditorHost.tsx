@@ -8,7 +8,7 @@ import { isPhoneOnlyCustomerLookup } from './customerLookupMode'
 import { EMPTY_CODE, codeProblems, codeToInput } from './discountCodeForm'
 import { useEditorGuard, useLeave } from './useEditorLeave'
 import { useRecordEditor } from './useRecordEditor'
-import { confirmActivation, needsActivationConfirm } from './useStatusToggle'
+import { confirmActivation, needsActivationConfirm, wasActiveNow } from './useStatusToggle'
 
 interface CodeEditorHostProps {
   /** The code to edit, or null for a new one. */
@@ -35,7 +35,8 @@ export function CodeEditorHost({ codeId, closeEditor, refetchList }: CodeEditorH
   // Saving it live asks the same question as the list Switch; an already-active code saved again does not.
   const confirmSave = useCallback(
     async (input: DiscountCodeInput, row: DiscountCode | null) =>
-      !needsActivationConfirm(row?.isActive ?? null, input.isActive ?? false) || confirmActivation(confirm, 'kode', input.code),
+      !needsActivationConfirm(input.isActive ? await wasActiveNow(row, fetchCodes) : null, input.isActive ?? false) ||
+      confirmActivation(confirm, 'kode', input.code),
     [confirm],
   )
   const editor = useRecordEditor<DiscountCode, DiscountCodeInput>({
