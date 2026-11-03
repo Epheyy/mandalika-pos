@@ -290,6 +290,12 @@
       "source": "tests/browser/backoffice-products-scenarios.ts"
     },
     {
+      "id": "BO-PROMO-LIST",
+      "finding": "D2b",
+      "description": "Promosi and Kode Diskon: search, status and jenis are server parameters and URL state that survive a reload and feed the export of every matching row, paging is a server request; the status Switch asks before turning ON (Batal writes nothing) and turning OFF saves at once with Urungkan, which re-reads and sends the fresh row; an untouched edit of a promotion and of a code sends every stored field back (outlets not in the list, null minimum, mixed-case code, null quota, holder); a refused save, delete or Buat Massal keeps the server reason visible",
+      "source": "tests/browser/backoffice-promotions-scenarios.ts"
+    },
+    {
       "id": "BO-TRANSFER-CONFIRM",
       "finding": "D3b",
       "description": "Transfer detail: Kirim opens a question naming the unit count and the source and sends nothing; Batal leaves the draft; a refused send keeps the dialog open with the reason and the retry carries the same Idempotency-Key while a reopened dialog gets a new one; a transfer cancelled by another user under the open Batalkan dialog is refused with no write; Batalkan states that the stock returns, and a double click on the confirm calls the write exactly once with a key of its own",
