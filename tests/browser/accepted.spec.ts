@@ -9,6 +9,7 @@ import { splitOrderFlow, splitToggleFlow } from './backoffice-split-scenarios'
 import { settingsGuardFlow } from './backoffice-settings-scenarios'
 import { routeDeepLinkFlow, routeGuardFlow } from './backoffice-route-scenarios'
 import { productsListFlow } from './backoffice-products-scenarios'
+import { promotionsFlow } from './backoffice-promotions-scenarios'
 import { transferConfirmFlow } from './backoffice-transfer-scenarios'
 import { opnameConfirmFlow } from './backoffice-opname-scenarios'
 import { posRequisition } from './pos-requisition-scenarios'
@@ -190,6 +191,12 @@ test('BO-ROUTE-GUARD a dirty Pengaturan keeps its own tabs unguarded and asks fo
 test('BO-PRODUCTS-LIST Produk filters and paging are server requests and URL state that survive a reload, a page past the end steps back, the export carries every matching row, and the editor slide-over guards unsaved work with one question, closes silently after a save, shows field errors and layers the recipe editor', async ({ page }, info) => {
   const result = await productsListFlow(page as ScenarioPage)
   expect(result).toHaveLength(13)
+  await evidence(info, result)
+})
+
+test('BO-PROMO-LIST Promosi and Kode Diskon filters and paging are server requests and URL state that survive a reload and feed the export, the status Switch asks before turning on and turning off undoes from a fresh read, an untouched edit sends every field back, and a refused save, delete or batch stays visible', async ({ page }, info) => {
+  const result = await promotionsFlow(page as ScenarioPage)
+  expect(result).toHaveLength(14)
   await evidence(info, result)
 })
 

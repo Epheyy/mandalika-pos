@@ -209,28 +209,39 @@ export const transactionsChecks = async (page: ScenarioPage) => {
 
 export const qualifyBackoffice = async (page: ScenarioPage) =>{
  const out: any[]=[];const P=page.__a24.products[0].id;const fixture=page.__a24.promotions[3];const initial=JSON.parse(JSON.stringify(fixture));
+ // The editor is a SlideOver (D2b): found by its heading, rows by their named actions, never by index or CSS class.
+ const editor=page.getByRole('dialog',{name:'Ubah Promosi'});
+ const openEditor=async()=>{await page.reload();await navTo(page, 'promotions');await page.getByRole('button',{name:'Ubah Invalid Legacy',exact:true}).click();await editor.waitFor();await editor.getByText('Jenis dan nilai',{exact:true}).waitFor();};
  const rows: any[]=[['bundle',P,P+'|M',false],['bundle',P+'|M',P,false],['bundle',P+'|M',P+'|L',true],['buy_x_get_y',P,P+'|M',false],['buy_x_get_y',P+'|M',P+'|L',true]];
  for(const [type,a,b,valid]of rows){
   fixture.type=type;fixture.bundleConfig={slots:[{productKeys:[a],quantity:1},{productKeys:[b],quantity:1}],bundlePrice:100000,maxApplications:1};fixture.bxgyConfig={buyProductIds:[a],getProductIds:[b],buyQuantity:1,getQuantity:1,getDiscountKind:'percentage',getDiscountValue:50,maxApplications:1};
-  await page.reload();await navTo(page, 'promotions');
-  await page.getByRole('row').filter({hasText:'Invalid Legacy'}).locator('button').nth(1).click();
-  await page.getByRole('button',{name:'Lanjutkan',exact:true}).click();const mechanics=await page.locator('.fixed.inset-0.z-50').innerText();
-  await page.getByRole('button',{name:'Lanjutkan',exact:true}).click();const save=page.getByRole('button',{name:'Simpan',exact:true});
+  await openEditor();const mechanics=await editor.innerText();
+  const save=editor.getByRole('button',{name:'Simpan',exact:true});
   if((await save.isEnabled())!==valid)throw Error(type+a+b+' wrong Save gate');
+  if(!valid&&!mechanics.includes('Produk atau varian'))throw Error(type+a+b+' overlap not shown inline');
   const n=page.__a24.writes.length;
-  if(valid){await save.click();await page.locator('.fixed.inset-0.z-50').waitFor({state:'hidden'});if(page.__a24.writes.length!==n+1)throw Error('missing save');}
-  else {await save.evaluate((b:any)=>b.click());if(page.__a24.writes.length!==n)throw Error('invalid API mutation');await page.getByRole('button',{name:'Batal',exact:true}).click();}
+  if(valid){await save.click();await editor.waitFor({state:'hidden'});if(page.__a24.writes.length!==n+1)throw Error('missing save');
+   // An untouched edit sends the stored promotion back unchanged (round trip).
+   const sent=page.__a24.writes[n].body;if(JSON.stringify(sent.bundleConfig)!==JSON.stringify(fixture.bundleConfig)||JSON.stringify(sent.bxgyConfig)!==JSON.stringify(fixture.bxgyConfig))throw Error('untouched save changed the mechanics');}
+  else {await save.evaluate((b:any)=>b.click());if(page.__a24.writes.length!==n)throw Error('invalid API mutation');await page.getByRole('button',{name:'Batal',exact:true}).click();await editor.waitFor({state:'hidden'});}
   out.push({type,keys:[a,b],valid,saveEnabled:valid,mutationCalls:page.__a24.writes.length-n,mechanics});
  }
  // Real picker edit: valid M/L -> whole/M overlap -> valid M/L again.
  fixture.type='bundle';fixture.bundleConfig={slots:[{productKeys:[P+'|M'],quantity:1},{productKeys:[P+'|L'],quantity:1}],bundlePrice:100000,maxApplications:1};
- await page.reload();await navTo(page, 'promotions');await page.getByRole('row').filter({hasText:'Invalid Legacy'}).locator('button').nth(1).click();await page.getByRole('button',{name:'Lanjutkan',exact:true}).click();
+ await openEditor();
  await page.getByRole('checkbox',{name:'Pilih semua varian Synthetic Scent'}).first().check();
- const interactiveError=await page.locator('.fixed.inset-0.z-50').innerText();if(!interactiveError.includes('Produk atau varian tidak boleh'))throw Error('picker overlap not shown');
- await page.getByRole('button',{name:'Lanjutkan',exact:true}).click();if(await page.getByRole('button',{name:'Simpan',exact:true}).isEnabled())throw Error('picker invalid save');await page.getByRole('button',{name:'Batal',exact:true}).click();
- const row=page.getByRole('row').filter({hasText:'Invalid Legacy'});await row.getByTitle('Duplikat').click();
-
- await row.getByRole('button',{name:'Aktif',exact:true}).click();
+ const interactiveError=await editor.innerText();if(!interactiveError.includes('Produk atau varian tidak boleh'))throw Error('picker overlap not shown');
+ if(await editor.getByRole('button',{name:'Simpan',exact:true}).isEnabled())throw Error('picker invalid save');
+ // The form is dirty now: closing asks once, and "Buang perubahan" drops the edit without a write.
+ const before=page.__a24.writes.length;
+ await page.getByRole('button',{name:'Batal',exact:true}).click();
+ await page.getByRole('alertdialog').getByRole('button',{name:'Buang perubahan',exact:true}).click();
+ await editor.waitFor({state:'hidden'});if(page.__a24.writes.length!==before)throw Error('discard wrote');
+ const row=page.getByRole('row').filter({hasText:'Invalid Legacy'});await row.getByRole('button',{name:'Duplikat Invalid Legacy',exact:true}).click();
+ // Turning OFF saves at once (no question); the write follows the duplicate's POST.
+ await page.getByText('Promosi Invalid Legacy disalin',{exact:true}).waitFor();
+ await row.getByRole('switch',{name:'Status Invalid Legacy',exact:true}).click();
+ await page.getByText('Promo Invalid Legacy dinonaktifkan',{exact:true}).waitFor();
  const writes=page.__a24.writes.slice(-2);
  if(writes[0].method!=='POST'||writes[1].method!=='PUT'||writes[1].body.isActive!==false)throw Error('duplicate/toggle mutation missing');
  for(const write of writes)if(JSON.stringify(write.body.bundleConfig)!==JSON.stringify(fixture.bundleConfig))throw Error('duplicate/toggle changed bundle mechanics');
