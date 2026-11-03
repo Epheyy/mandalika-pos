@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="id" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backoffice Fase D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!--
+  Fase D backoffice mock (2026-11-02) for owner approval before D1 code.
+  Source of truth for the plan docs/plans/2026-11-02-fase-d-backoffice.md.
+  Colours = the "Kertas & Emas" tokens (same names as the Figma Semantic/Brand
+  variables and apps/pos/src/index.css). Light only: no dark theme (D-12).
+  Static markup + a small script that renders the shared sidebar/header and icons.
+-->
+<!-- impeccable-disable cramped-padding: fixed-height controls (36-40 px) centre their text; the frame, sidebar edge, footer and underline tabs are edge-to-edge by design -->
+<!-- impeccable-disable overused-font: Roboto is the POS font (D-7) and the Figma file font; backoffice parity is decision D-75 -->
+<!-- impeccable-disable cream-palette: warm paper is the owner-approved Kertas &amp; Emas direction (D-12, D-17); the darker beige is only the canvas around the frames -->
+<!-- impeccable-disable side-tab: the amber stripe is the unsaved-changes state cue (D-70), always paired with the "Belum disimpan" badge -->
+<style>
+  :root {
+    --paper-0: #fbf9f5; --paper-1: #f3efe7; --paper-2: #e9e3d8; --white: #ffffff;
+    --ink-900: #1a1008; --ink-700: #4a3f33; --ink-500: #7a6f62;
+    --brand: #b07d18; --brand-pressed: #8f6412; --brand-tint: rgba(176, 125, 24, 0.14);
+    /* White text on --brand is 3.6:1 (fails AA below 18.66 px bold). Filled controls with
+       small labels use --brand-strong (Mandalika = brand-pressed, 5.3:1); see plan D-73. */
+    --brand-strong: #8f6412; --brand-strong-hover: #6e4a0c;
+    /* warn on warn-bg is 4.47:1; badge and cue text use --warn-strong (5.3:1), plan D-73. */
+    --warn-strong: #a14a06;
+    --ok: #1f7a4d; --ok-bg: #e3f3ea; --warn: #b45309; --warn-bg: #fdf0df;
+    --danger: #b42318; --danger-bg: #fbe4e1; --info: #1d4ed8; --info-bg: #e3eafc;
+    --promo: #6d28d9; --promo-bg: #efe7fb; --reward: #0f766e; --reward-bg: #dff3f0;
+    --radius-control: 12px; --radius-sheet: 16px;
+    --row: 44px; --nav-item: 40px; --sidebar: 256px; --slideover: 560px; --header: 56px;
+  }
+  /* The product has no dark theme (D-12); the page stays light on purpose. */
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: light; } }
+  :root[data-theme="dark"] { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e7e1d6; font-family: Roboto, system-ui, sans-serif; color: var(--ink-900); -webkit-font-smoothing: antialiased; }
+  .doc { padding: 40px 48px 80px; display: flex; flex-direction: column; gap: 56px; }
+  .doc-head h1 { font-size: 30px; margin: 0 0 8px; }
+  .doc-head p { margin: 0; max-width: 1100px; font-size: 15px; line-height: 1.5; color: var(--ink-700); }
+  .cap { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; max-width: 1440px; }
+  .cap h2 { font-size: 20px; margin: 0; }
+  .cap p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-700); }
+  .tnum { font-variant-numeric: tabular-nums; }
+  svg.i { width: 18px; height: 18px; flex: none; }
+
+  /* Shell */
+  .app { width: 1440px; height: 900px; display: flex; background: var(--paper-0); position: relative; overflow: hidden; box-shadow: 0 2px 24px rgba(26,16,8,.14); }
+  .sb { width: var(--sidebar); flex: none; background: var(--white); border-right: 1px solid var(--paper-2); display: flex; flex-direction: column; }
+  .sb-brand { height: var(--header); display: flex; align-items: center; gap: 10px; padding: 0 20px; border-bottom: 1px solid var(--paper-2); }
+  .mono { width: 32px; height: 32px; border-radius: 10px; background: var(--brand-strong); color: var(--white); font-weight: 700; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+  .sb-brand b { display: block; font-size: 15px; }
+  .sb-brand span { display: block; font-size: 12px; color: var(--ink-500); }
+  .sb-nav { flex: 1; padding: 6px 12px; }
+  .sb-sec { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-500); padding: 14px 12px 6px; }
+  .nav { height: var(--nav-item); display: flex; align-items: center; gap: 12px; padding: 0 12px; border-radius: 10px; font-size: 14px; font-weight: 500; color: var(--ink-700); }
+  .nav svg { color: var(--ink-500); }
+  .nav.on { background: var(--paper-1); color: var(--ink-900); font-weight: 600; box-shadow: inset 3px 0 0 var(--brand); }
+  .nav.on svg { color: var(--ink-900); }
+  .cnt { margin-left: auto; min-width: 22px; height: 20px; padding: 0 7px; border-radius: 10px; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .cnt.danger { background: var(--danger); color: var(--white); }
+  .cnt.warn { background: var(--warn-bg); color: var(--warn-strong); }
+  .legend-btn { margin: 4px 12px 0; height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 12px; color: var(--ink-500); }
+  .legend-btn svg { width: 16px; height: 16px; }
+  .sb-foot { padding: 12px 20px; border-top: 1px solid var(--paper-2); font-size: 12px; color: var(--ink-500); }
+  .col { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
+  .hd { height: var(--header); flex: none; background: var(--white); border-bottom: 1px solid var(--paper-2); display: flex; align-items: center; padding: 0 32px; gap: 16px; }
+  .crumb { font-size: 13px; color: var(--ink-500); display: flex; align-items: center; gap: 6px; }
+  .crumb svg { width: 14px; height: 14px; }
+  .crumb b { color: var(--ink-900); font-weight: 600; }
+  .scope { margin-left: auto; height: 36px; border: 1px solid var(--paper-2); border-radius: 10px; display: flex; align-items: center; gap: 8px; padding: 0 10px 0 12px; font-size: 14px; font-weight: 500; background: var(--paper-0); }
+  .scope small { color: var(--ink-500); font-weight: 400; font-size: 12px; }
+  .scope svg { width: 16px; height: 16px; color: var(--ink-500); }
+  .user { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-700); }
+  .user svg { width: 16px; height: 16px; color: var(--ink-500); }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--paper-1); border: 1px solid var(--paper-2); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--ink-700); }
+  main { flex: 1; padding: 24px 32px; position: relative; overflow: hidden; }
+
+  /* Kit */
+  .ph { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 16px; }
+  .ph h1 { font-size: 24px; font-weight: 700; margin: 0; }
+  .ph .count { font-size: 14px; color: var(--ink-500); padding-bottom: 3px; }
+  .ph .sub { font-size: 14px; color: var(--ink-500); padding-bottom: 3px; }
+  .ph .act { margin-left: auto; display: flex; gap: 8px; }
+  .btn { height: 40px; padding: 0 16px; border-radius: var(--radius-control); font: 600 14px Roboto, sans-serif; display: inline-flex; align-items: center; gap: 8px; border: 1px solid transparent; white-space: nowrap; }
+  .btn.sm { height: 32px; padding: 0 12px; font-size: 13px; border-radius: 10px; }
+  .btn.p { background: var(--brand-strong); color: var(--white); }
+  .btn.s { background: var(--white); border-color: var(--paper-2); color: var(--ink-900); }
+  .btn.g { background: transparent; color: var(--ink-700); }
+  .btn.d { background: var(--danger); color: var(--white); }
+  .btn.dg { background: transparent; color: var(--danger); }
+  .card { background: var(--white); border: 1px solid var(--paper-2); border-radius: var(--radius-control); }
+  .fb { padding: 12px 16px; border-bottom: 1px solid var(--paper-2); display: flex; flex-direction: column; gap: 10px; }
+  .scopeline { font-size: 13px; color: var(--ink-500); display: flex; align-items: center; gap: 6px; }
+  .scopeline svg { width: 15px; height: 15px; }
+  .scopeline b { color: var(--ink-900); font-weight: 600; }
+  .fbrow { display: flex; align-items: center; gap: 8px; }
+  .search { width: 300px; height: 36px; border: 1px solid var(--paper-2); border-radius: 10px; display: flex; align-items: center; gap: 8px; padding: 0 12px; color: var(--ink-500); font-size: 14px; background: var(--paper-0); }
+  .search svg { width: 16px; height: 16px; }
+  .chip { height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--paper-2); background: var(--white); font-size: 13px; font-weight: 500; color: var(--ink-700); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .chip.on { background: var(--brand-tint); border-color: var(--brand); color: var(--ink-900); font-weight: 600; }
+  .chip .n { font-size: 12px; color: var(--ink-500); font-weight: 500; }
+  .chip.on .n { color: var(--ink-700); }
+  .select { height: 36px; border: 1px solid var(--paper-2); border-radius: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px 0 12px; font-size: 13px; color: var(--ink-700); background: var(--white); white-space: nowrap; }
+  .select b { color: var(--ink-900); font-weight: 600; }
+  .select svg { width: 16px; height: 16px; color: var(--ink-500); }
+  .grow { flex: 1; }
+  table.dt { width: 100%; border-collapse: collapse; }
+  .dt th { height: 40px; background: var(--paper-1); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-700); text-align: left; padding: 0 16px; border-bottom: 1px solid var(--paper-2); white-space: nowrap; }
+  .dt td { height: 52px; padding: 0 16px; border-bottom: 1px solid var(--paper-1); font-size: 14px; white-space: nowrap; }
+  .dt tr.sel td { background: var(--paper-1); }
+  .dt tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--brand); }
+  .dt .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .dt .ck { width: 44px; }
+  .box { width: 16px; height: 16px; border: 1.5px solid #b9ae9f; border-radius: 4px; background: var(--white); }
+  .prod { display: flex; align-items: center; gap: 12px; }
+  .thumb { width: 32px; height: 32px; border-radius: 8px; background: var(--paper-1); border: 1px solid var(--paper-2); display: flex; align-items: center; justify-content: center; color: #b9ae9f; }
+  .thumb svg { width: 16px; height: 16px; }
+  .prod b { display: block; font-weight: 600; font-size: 14px; }
+  .prod span, .sub { font-size: 12px; color: var(--ink-500); }
+  .badge { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 8px; border-radius: 12px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .badge i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: block; }
+  .b-ok { background: var(--ok-bg); color: var(--ok); }
+  .b-warn { background: var(--warn-bg); color: var(--warn-strong); }
+  .b-danger { background: var(--danger-bg); color: var(--danger); }
+  .b-info { background: var(--info-bg); color: var(--info); }
+  .b-neutral { background: var(--paper-1); color: var(--ink-700); }
+  .b-reward { background: var(--reward-bg); color: var(--reward); }
+  .b-promo { background: var(--promo-bg); color: var(--promo); }
+  .stk { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+  .sw { width: 36px; height: 20px; border-radius: 10px; background: var(--paper-2); position: relative; display: inline-block; flex: none; }
+  .sw i { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--white); box-shadow: 0 1px 2px rgba(0,0,0,.2); display: block; }
+  .sw.on { background: var(--brand); }
+  .sw.on i { left: 18px; }
+  .swl { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; line-height: 20px; color: var(--ink-700); }
+  .icon-btn { width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: var(--ink-500); }
+  .pg { display: flex; align-items: center; gap: 6px; padding: 10px 16px; font-size: 13px; color: var(--ink-500); }
+  .pgb { min-width: 32px; height: 32px; padding: 0 8px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; color: var(--ink-700); }
+  .pgb.on { background: var(--paper-1); color: var(--ink-900); font-weight: 700; border: 1px solid var(--paper-2); }
+  .pgb svg { width: 16px; height: 16px; }
+  .note { position: absolute; background: var(--ink-900); color: var(--white); font-size: 12px; line-height: 1.45; padding: 10px 12px; border-radius: 10px; width: 260px; box-shadow: 0 8px 24px rgba(26,16,8,.25); }
+  .note b { color: #f0d48a; }
+  .pop { position: absolute; background: var(--white); border: 1px solid var(--paper-2); border-radius: 12px; box-shadow: 0 12px 32px rgba(26,16,8,.16); padding: 14px 16px; font-size: 13px; color: var(--ink-700); line-height: 1.45; }
+  .pop h4 { margin: 0 0 8px; font-size: 13px; color: var(--ink-900); }
+  .pop .lg { display: flex; gap: 10px; align-items: flex-start; margin-top: 8px; }
+  .pop .lg .cnt { margin: 0; flex: none; }
+
+  /* SlideOver */
+  .scrim { position: absolute; inset: 0; background: rgba(26,16,8,.16); }
+  .so { position: absolute; top: 0; right: 0; bottom: 0; width: var(--slideover); background: var(--white); box-shadow: -16px 0 40px rgba(26,16,8,.18); display: flex; flex-direction: column; }
+  .so-hd { padding: 18px 24px 16px; border-bottom: 1px solid var(--paper-2); display: flex; gap: 12px; align-items: flex-start; }
+  .so-hd h2 { margin: 0; font-size: 20px; }
+  .so-hd p { margin: 4px 0 0; font-size: 13px; color: var(--ink-500); }
+  .so-hd .x { margin-left: auto; }
+  .so-body { flex: 1; padding: 18px 24px; display: flex; flex-direction: column; gap: 18px; overflow: hidden; }
+  .so-sec { font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-500); margin: 2px 0 -6px; }
+  .so-ft { height: 72px; flex: none; border-top: 1px solid var(--paper-2); display: flex; align-items: center; padding: 0 24px; gap: 8px; background: var(--white); }
+  .dirty-txt { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--warn-strong); font-weight: 500; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); display: block; flex: none; }
+  .field label { font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px; }
+  .field label em { color: var(--danger); font-style: normal; }
+  .input { height: 40px; border: 1px solid var(--paper-2); border-radius: 10px; padding: 0 12px; display: flex; align-items: center; gap: 8px; font-size: 14px; background: var(--white); }
+  .input.ta { height: 64px; align-items: flex-start; padding-top: 10px; color: var(--ink-700); line-height: 1.4; }
+  .input.err { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-bg); }
+  .input .ph-t { color: var(--ink-500); }
+  .input svg { width: 16px; height: 16px; color: var(--ink-500); margin-left: auto; }
+  .ferr { font-size: 12px; color: var(--danger); margin-top: 6px; display: flex; gap: 6px; align-items: center; }
+  .ferr svg { width: 14px; height: 14px; }
+  .hint { font-size: 12px; color: var(--ink-500); margin-top: 6px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .alert { border-radius: 12px; padding: 12px 14px; font-size: 13px; line-height: 1.45; display: flex; gap: 10px; align-items: flex-start; }
+  .alert svg { width: 18px; height: 18px; margin-top: 1px; }
+  .alert.d { background: var(--danger-bg); color: var(--danger); }
+  .alert.w { background: var(--warn-bg); color: var(--warn); }
+  .alert b { font-weight: 600; }
+  .alert u { text-underline-offset: 2px; }
+  .vt { width: 100%; border-collapse: collapse; }
+  .vt th { font-size: 12px; font-weight: 600; color: var(--ink-700); text-align: left; padding: 0 8px 6px 0; }
+  .vt td { padding: 4px 8px 4px 0; vertical-align: top; }
+  .vt .input { height: 36px; font-size: 13px; }
+  .statusrow { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border: 1px solid var(--paper-2); border-radius: 12px; }
+  .statusrow b { display: block; font-size: 14px; }
+  .statusrow span { font-size: 12px; color: var(--ink-500); }
+
+  /* Pengaturan */
+  .tabs { display: flex; gap: 28px; border-bottom: 1px solid var(--paper-2); margin-bottom: 20px; }
+  .tab { height: 42px; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; color: var(--ink-700); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab.on { color: var(--ink-900); font-weight: 600; border-bottom-color: var(--brand); }
+  .stack { display: flex; flex-direction: column; gap: 16px; max-width: 780px; }
+  .scard { background: var(--white); border: 1px solid var(--paper-2); border-radius: var(--radius-control); padding: 18px 22px; }
+  .scard.changed { box-shadow: inset 3px 0 0 var(--warn); }
+  .scard h2 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 10px; }
+  .scard .desc { margin: 4px 0 0; font-size: 13px; color: var(--ink-500); line-height: 1.45; }
+  .srow { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--paper-1); font-size: 14px; }
+  .srow:first-of-type { border-top: 0; }
+  .srow .r { display: flex; align-items: center; gap: 16px; }
+  .srow.changed .sub { color: var(--ink-700); }
+  .srow.changed { background: var(--warn-bg); margin: 0 -10px; padding: 10px; border-radius: 8px; border-top-color: transparent; }
+  .savebar { position: absolute; left: 0; right: 0; bottom: 0; height: 68px; background: var(--white); border-top: 1px solid var(--paper-2); box-shadow: 0 -8px 24px rgba(26,16,8,.08); display: flex; align-items: center; padding: 0 32px; gap: 12px; }
+  .savebar .what { display: flex; flex-direction: column; gap: 2px; }
+  .savebar .what b { font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .savebar .what span { font-size: 12px; color: var(--ink-500); }
+  .dlg-wrap { position: absolute; inset: 0; background: rgba(26,16,8,.32); }
+  .dlg { position: absolute; width: 460px; background: var(--white); border-radius: var(--radius-sheet); box-shadow: 0 24px 64px rgba(26,16,8,.28); padding: 22px 24px 20px; }
+  .dlg h2 { margin: 0 0 8px; font-size: 18px; }
+  .dlg p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-700); }
+  .dlg .acts { display: flex; gap: 8px; margin-top: 20px; }
+
+  /* Kit sheet */
+  .kit { width: 1440px; background: var(--paper-0); box-shadow: 0 2px 24px rgba(26,16,8,.14); padding: 32px 40px 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px 40px; }
+  .kit h3 { margin: 0 0 12px; font-size: 15px; }
+  .kit .spec { font-size: 12px; color: var(--ink-500); margin-top: 8px; line-height: 1.5; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .map { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .map td, .map th { padding: 6px 10px 6px 0; border-bottom: 1px solid var(--paper-1); text-align: left; }
+  .map th { font-size: 12px; color: var(--ink-500); font-weight: 600; }
+  .map code { font-size: 12px; color: var(--ink-700); background: var(--paper-1); padding: 1px 5px; border-radius: 4px; }
+  .tip { display: inline-block; background: var(--ink-900); color: var(--white); font-size: 12px; padding: 8px 10px; border-radius: 8px; line-height: 1.45; }
+  .mini-dlg { position: relative; width: 440px; background: var(--white); border: 1px solid var(--paper-2); border-radius: var(--radius-sheet); box-shadow: 0 16px 40px rgba(26,16,8,.16); padding: 20px 22px; }
+  .mini-dlg h3 { margin: 0 0 6px; font-size: 17px; }
+  .mini-dlg p { margin: 0; font-size: 14px; color: var(--ink-700); line-height: 1.5; }
+  .mini-dlg .acts { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <header class="doc-head">
+    <h1>Fase D · Backoffice: mock untuk persetujuan (2026-11-02)</h1>
+    <p>Token "Kertas &amp; Emas" yang sama dengan POS (D-17), terang saja (D-12). Emas hanya untuk tindakan utama dan penanda pilihan; warna lain selalu berarti status. Lebar 1440 × 900. Rencana: <code>docs/plans/2026-11-02-fase-d-backoffice.md</code>.</p>
+  </header>
+
+  <!-- BO1 -->
+  <section>
+    <div class="cap">
+      <h2>BO1 · Shell bergrup + daftar Produk (DataTable + FilterBar)</h2>
+      <p>Sidebar lima bagian (D-16) dengan nama baru (Ringkasan, Log Kesalahan, D-22); angka merah = perlu keputusan, kuning = perlu dicek. Satu cakupan outlet di header; FilterBar menunjukkan cakupan itu. Tabel: header lengket, kontras ≥ 4,5:1, baris 52 px dengan foto, "Unduh CSV" dengan jumlah baris, paging dari server (D2).</p>
+    </div>
+    <div class="app" data-active="products" data-crumb="Produk &amp; Stok|Produk" data-legend="open">
+      <main>
+        <div class="ph">
+          <h1>Produk</h1><span class="count tnum">312 produk</span>
+          <div class="act"><span class="btn s" data-i="upload">Impor</span><span class="btn p" data-i="plus">Tambah produk</span></div>
+        </div>
+        <div class="card">
+          <div class="fb">
+            <div class="scopeline" data-i="pin">Cakupan: <b>Semua outlet</b> · mengikuti pilihan di header</div>
+            <div class="fbrow">
+              <div class="search" data-i="search">Cari nama, SKU, atau barcode</div>
+              <span class="chip on">Semua <span class="n tnum">312</span></span>
+              <span class="chip">Aktif <span class="n tnum">298</span></span>
+              <span class="chip">Nonaktif <span class="n tnum">14</span></span>
+              <span class="chip">Stok rendah <span class="n tnum">9</span></span>
+              <span class="select">Kategori: <b>Semua</b><svg data-svg="chevdown"></svg></span>
+              <span class="grow"></span>
+              <span class="btn g sm" data-i="columns">Kolom</span>
+              <span class="btn s sm" data-i="download">Unduh CSV · 312</span>
+            </div>
+          </div>
+          <table class="dt">
+            <thead><tr><th class="ck"><div class="box"></div></th><th>Produk</th><th>Kategori</th><th>Varian</th><th class="num">Harga</th><th class="num">Stok · semua outlet</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              <tr><td class="ck"><div class="box"></div></td><td><div class="prod"><div class="thumb" data-svg-in="package"></div><div><b>Amber Oud</b><span>PP-AMB-OUD</span></div></div></td><td>Extrait de Parfum</td><td>3 ukuran</td><td class="num">Rp 320.000 – Rp 720.000</td><td class="num">86</td><td><span class="swl"><span class="sw on"><i></i></span>Aktif</span></td><td><span class="icon-btn" data-svg-in="more"></span></td></tr>
+              <tr><td class="ck"><div class="box"></div></td><td><div class="prod"><div class="thumb" data-svg-in="package"></div><div><b>Night Jasmine</b><span>PP-NGT-JSM</span></div></div></td><td>Eau de Parfum</td><td>3 ukuran</td><td class="num">Rp 220.000 – Rp 520.000</td><td class="num">142</td><td><span class="swl"><span class="sw on"><i></i></span>Aktif</span></td><td><span class="icon-btn" data-svg-in="more"></span></td></tr>
+              <tr><td class="ck"><div class="box"></div></td><td><div class="prod"><div class="thumb" data-svg-in="package"></div><div><b>Vanilla Sky</b><span>PP-VNL-SKY</span></div></div></td><td>Eau de Parfum</td><td>2 ukuran</td><td class="num">Rp 280.000 – Rp 420.000</td><td class="num"><div class="stk"><span class="badge b-warn"><i></i>Stok rendah · 1 varian</span>3</div></td><td><span class="swl"><span class="sw on"><i></i></span>Aktif</span></td><td><span class="icon-btn" data-svg-in="more"></span></td></tr>
+              <tr><td class="ck"><div class="box"></div></td><td><div class="prod"><div class="thumb" data-svg-in="package"></div><div><b>Citrus Dawn</b><span>PP-CTR-DWN</span></div></div></td><td>Eau de Toilette</td><td>2 ukuran</td><td class="num">Rp 180.000 – Rp 280.000</td><td class="num">64</td><td><span class="swl"><span class="sw on"><i></i></span>Aktif</span></td><td><span class="icon-btn" data-svg-in="more"></span></td></tr>
+              <tr><td class="ck"><div class="box"></div></td><td><div class="prod"><div class="thumb" data-svg-in="package"></div><div><b>Rose Noir</b><span>PP-RSE-NOR</span></div></div></td><td>Extrait de Parfum</td><td>3 ukuran</td><td class="num">Rp 350.000 – Rp 780.000</td><td class="num"><div class="stk"><span class="badge b-danger"><i></i>Habis · 2 varian</span>0</div></td><td><span class="swl"><span class="sw on"><i></i></span>Aktif</span></td><td><span class="icon-btn" data-svg-in="more"></span></td></tr>
+              <tr><td class="ck"><div class="box"></div></td><td><div class="prod"><div class="thumb" data-svg-in="package"></div><div><b>Oud Royale</b><span>PP-OUD-RYL</span></div></div></td><td>Extrait de Parfum</td><td>1 ukuran</td><td class="num">Rp 1.250.000</td><td class="num">12</td><td><span class="swl"><span class="sw"><i></i></span>Nonaktif</span></td><td><span class="icon-btn" data-svg-in="more"></span></td></tr>
+              <tr><td class="ck"><div class="box"></div></td><td><div class="prod"><div class="thumb" data-svg-in="package"></div><div><b>Tas Kanvas</b><span>GW-TAS-KNV</span></div></div></td><td><span class="badge b-reward"><i></i>Hadiah</span></td><td>1 ukuran</td><td class="num">Rp 0</td><td class="num">40</td><td><span class="swl"><span class="sw on"><i></i></span>Aktif</span></td><td><span class="icon-btn" data-svg-in="more"></span></td></tr>
+              <tr><td class="ck"><div class="box"></div></td><td><div class="prod"><div class="thumb" data-svg-in="package"></div><div><b>Santal Breeze</b><span>PP-SNT-BRZ</span></div></div></td><td>Eau de Parfum</td><td>3 ukuran</td><td class="num">Rp 240.000 – Rp 560.000</td><td class="num">97</td><td><span class="swl"><span class="sw on"><i></i></span>Aktif</span></td><td><span class="icon-btn" data-svg-in="more"></span></td></tr>
+              <tr><td class="ck"><div class="box"></div></td><td><div class="prod"><div class="thumb" data-svg-in="package"></div><div><b>Musk Petal</b><span>PP-MSK-PTL</span></div></div></td><td>Eau de Parfum</td><td>2 ukuran</td><td class="num">Rp 260.000 – Rp 460.000</td><td class="num"><div class="stk"><span class="badge b-warn"><i></i>Stok rendah · 1 varian</span>2</div></td><td><span class="swl"><span class="sw on"><i></i></span>Aktif</span></td><td><span class="icon-btn" data-svg-in="more"></span></td></tr>
+              <tr><td class="ck"><div class="box"></div></td><td><div class="prod"><div class="thumb" data-svg-in="package"></div><div><b>Bergamot Leaf</b><span>PP-BRG-LEF</span></div></div></td><td>Eau de Toilette</td><td>2 ukuran</td><td class="num">Rp 190.000 – Rp 300.000</td><td class="num">58</td><td><span class="swl"><span class="sw on"><i></i></span>Aktif</span></td><td><span class="icon-btn" data-svg-in="more"></span></td></tr>
+            </tbody>
+          </table>
+          <div class="pg">
+            <span class="tnum">Menampilkan 1–25 dari 312</span><span class="grow"></span>
+            <span class="pgb" data-svg-in="chevleft"></span><span class="pgb on">1</span><span class="pgb">2</span><span class="pgb">3</span><span class="pgb">…</span><span class="pgb">13</span><span class="pgb" data-svg-in="chevright"></span>
+            <span class="select">25 per halaman<svg data-svg="chevdown"></svg></span>
+          </div>
+        </div>
+        <div class="note" style="left: 270px; top: 6px; width: 340px;"><b>URL (D4):</b> #/produk?q=&amp;status=semua&amp;hal=1 · filter, halaman dan cakupan tersimpan di alamat, bisa di-bookmark, tombol Back kembali ke daftar.</div>
+      </main>
+    </div>
+  </section>
+
+  <!-- BO2 -->
+  <section>
+    <div class="cap">
+      <h2>BO2 · SlideOver "Ubah produk" (560 px, tabel tetap terlihat)</h2>
+      <p>Form edit di panel kanan, bukan modal tengah. Kesalahan per kolom (kolom merah + pesan di bawahnya) dan ringkasan di atas yang menautkan ke kolomnya. Footer lengket Batal / Simpan perubahan dengan tanda "belum disimpan"; menutup panel dengan perubahan bertanya "Buang perubahan?" seperti Modal hari ini.</p>
+    </div>
+    <div class="app" data-active="products" data-crumb="Produk &amp; Stok|Produk" data-clone-main="bo1" data-select-row="0">
+      <div class="scrim"></div>
+      <aside class="so">
+        <div class="so-hd">
+          <div><h2>Ubah produk</h2><p>Amber Oud · terakhir diubah 28 Okt oleh Reffy</p></div>
+          <span class="icon-btn x" data-svg-in="x" aria-label="Tutup"></span>
+        </div>
+        <div class="so-body">
+          <div class="alert d" data-i="alertcircle"><div><b>2 kolom perlu diperbaiki:</b> <u>SKU varian 50 ml</u>, <u>Harga varian 100 ml</u>.</div></div>
+          <div class="so-sec">Info produk</div>
+          <div class="field"><label>Nama produk <em>*</em></label><div class="input">Amber Oud</div></div>
+          <div class="two">
+            <div class="field"><label>Kategori</label><div class="input">Extrait de Parfum<svg data-svg="chevdown"></svg></div></div>
+            <div class="field"><label>Merek</label><div class="input">Mandalika<svg data-svg="chevdown"></svg></div></div>
+          </div>
+          <div class="field"><label>Deskripsi</label><div class="input ta">Oud hangat dengan amber dan sedikit vanila. Tahan 8–10 jam.</div></div>
+          <div class="statusrow"><div><b>Aktif</b><span>Tampil di POS saat tablet sinkron berikutnya</span></div><span class="sw on"><i></i></span></div>
+          <div class="so-sec">Varian</div>
+          <table class="vt">
+            <thead><tr><th style="width: 88px;">Ukuran</th><th>SKU</th><th>Barcode</th><th style="width: 128px;">Harga</th></tr></thead>
+            <tbody>
+              <tr><td><div class="input">30 ml</div></td><td><div class="input">PP030E-AMB</div></td><td><div class="input tnum">899100100301</div></td><td><div class="input tnum">Rp 320.000</div></td></tr>
+              <tr><td><div class="input">50 ml</div></td><td><div class="input err">PP050E-NJS</div><div class="ferr" data-i="alertcircle">SKU sudah dipakai Night Jasmine 50 ml</div></td><td><div class="input tnum">899100100502</div></td><td><div class="input tnum">Rp 480.000</div></td></tr>
+              <tr><td><div class="input">100 ml</div></td><td><div class="input">PP100E-AMB</div></td><td><div class="input tnum">899100101003</div></td><td><div class="input err"><span class="ph-t">Rp</span></div><div class="ferr" data-i="alertcircle">Harga wajib diisi</div></td></tr>
+            </tbody>
+          </table>
+          <span class="btn g sm" data-i="plus" style="align-self: flex-start;">Tambah varian</span>
+        </div>
+        <div class="so-ft">
+          <span class="dirty-txt"><span class="dot"></span>Perubahan belum disimpan</span>
+          <span class="grow"></span>
+          <span class="btn s">Batal</span><span class="btn p">Simpan perubahan</span>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- BO3 -->
+  <section>
+    <div class="cap">
+      <h2>BO3 · Pengaturan: bilah simpan lengket + tanda belum disimpan</h2>
+      <p>Masalah 2 Nov: sakelar "Bayar terpisah" ada di bawah tab Transaksi, tombol "Simpan Semua" di atas, jadi perubahan tidak tersimpan. Usulan: tombol atas dihapus; begitu ada perubahan, bilah bawah muncul dengan jumlah dan daftar perubahan; titik kuning di tab; kartu dan baris yang berubah ditandai kuning. Pindah tab tetap boleh (draf disimpan); keluar dari Pengaturan bertanya dulu (BO4).</p>
+    </div>
+    <div class="app" data-active="settings" data-crumb="Operasional|Pengaturan">
+      <main style="padding-bottom: 92px;">
+        <div class="ph"><h1>Pengaturan</h1><span class="sub">Berlaku untuk semua outlet; tablet mengambilnya saat sinkron berikutnya.</span></div>
+        <div class="tabs">
+          <span class="tab">Outlet &amp; Gudang</span>
+          <span class="tab on">Transaksi <span class="dot" aria-label="ada perubahan"></span></span>
+          <span class="tab">Operasional</span>
+          <span class="tab">Resep &amp; Bahan</span>
+        </div>
+        <div class="stack">
+          <div class="scard">
+            <h2>Pajak &amp; Pembulatan</h2>
+            <div class="srow"><span>Aktifkan pajak (PPN)</span><div class="r"><span class="sub">Tarif 11%</span><span class="sw on"><i></i></span></div></div>
+            <div class="srow"><span>Aktifkan pembulatan</span><div class="r"><span class="sub">Ke Rp 100 · ke bawah</span><span class="sw on"><i></i></span></div></div>
+          </div>
+          <div class="scard changed">
+            <h2>Metode pembayaran <span class="badge b-warn"><i></i>Belum disimpan</span></h2>
+            <div class="srow"><span>Tunai <span class="sub">· masuk laci kas</span></span><span class="sw on"><i></i></span></div>
+            <div class="srow"><span>Kartu</span><span class="sw on"><i></i></span></div>
+            <div class="srow"><span>QRIS</span><span class="sw on"><i></i></span></div>
+            <div class="srow changed"><span>Transfer <span class="sub">· sebelumnya nonaktif</span></span><span class="sw on"><i></i></span></div>
+          </div>
+          <div class="scard changed">
+            <h2>Bayar terpisah <span class="badge b-warn"><i></i>Belum disimpan</span></h2>
+            <p class="desc">Kasir bisa membagi satu transaksi ke beberapa metode (mis. QRIS + Tunai). Tablet harus sudah versi 2.5.0.</p>
+            <div class="srow changed"><span>Izinkan bayar terpisah <span class="sub">· sebelumnya nonaktif</span></span><span class="sw on"><i></i></span></div>
+          </div>
+          <div class="scard">
+            <h2>Struk</h2>
+            <div class="srow"><span>Cetak struk otomatis</span><span class="sw on"><i></i></span></div>
+          </div>
+        </div>
+        <div class="savebar">
+          <span class="dot"></span>
+          <div class="what"><b>2 perubahan belum disimpan</b><span>Metode pembayaran: Transfer aktif · Bayar terpisah: aktif</span></div>
+          <span class="grow"></span>
+          <span class="btn g">Batalkan perubahan</span>
+          <span class="btn p">Simpan perubahan</span>
+        </div>
+      </main>
+    </div>
+  </section>
+
+  <!-- BO4 -->
+  <section>
+    <div class="cap">
+      <h2>BO4 · Keluar dari Pengaturan dengan perubahan (penjaga navigasi)</h2>
+      <p>Klik menu lain, tombol Back, atau tutup tab saat masih ada perubahan: dialog ini (dan <code>beforeunload</code> untuk tutup tab/muat ulang). Tombol utama menyimpan lalu pindah.</p>
+    </div>
+    <div class="app" data-active="settings" data-crumb="Operasional|Pengaturan" data-clone-main="bo3">
+      <div class="dlg-wrap"></div>
+      <div class="dlg" style="left: 590px; top: 330px;" role="dialog" aria-label="Simpan perubahan Pengaturan?">
+        <h2>Simpan perubahan Pengaturan?</h2>
+        <p>Ada 2 perubahan yang belum disimpan (Metode pembayaran, Bayar terpisah). Kalau ditinggalkan, perubahan ini hilang.</p>
+        <div class="acts"><span class="btn dg">Buang perubahan</span><span class="grow"></span><span class="btn s">Tetap di sini</span><span class="btn p">Simpan &amp; lanjut</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Kit -->
+  <section>
+    <div class="cap">
+      <h2>Kit D1 · komponen bersama</h2>
+      <p>Semua layar D2–D4 dibangun dari potongan ini; label enum datang dari satu peta label, tidak pernah kode mentah.</p>
+    </div>
+    <div class="kit">
+      <div>
+        <h3>Button</h3>
+        <div class="row"><span class="btn p">Simpan perubahan</span><span class="btn s">Batal</span><span class="btn g">Batalkan perubahan</span><span class="btn d">Hapus</span><span class="btn s sm" data-i="download">Unduh CSV · 312</span></div>
+        <div class="spec">Satu tombol utama emas per layar. "Tambah {benda}" untuk setiap tombol buat.</div>
+      </div>
+      <div>
+        <h3>StatusBadge (warna + titik + kata)</h3>
+        <div class="row"><span class="badge b-neutral"><i></i>Draf</span><span class="badge b-warn"><i></i>Dikirim</span><span class="badge b-ok"><i></i>Diterima</span><span class="badge b-neutral"><i></i>Dibatalkan</span><span class="badge b-ok"><i></i>Terkirim</span><span class="badge b-warn"><i></i>Ditahan</span><span class="badge b-danger"><i></i>Gagal</span><span class="badge b-info"><i></i>Menunggu</span></div>
+      </div>
+      <div>
+        <h3>Peta label enum (contoh)</h3>
+        <table class="map">
+          <tr><th>Kode</th><th>Label</th><th>Nada</th></tr>
+          <tr><td><code>transfer.draft</code></td><td>Draf</td><td>neutral</td></tr>
+          <tr><td><code>transfer.in_transit</code></td><td>Dikirim</td><td>warn</td></tr>
+          <tr><td><code>transfer.received</code></td><td>Diterima</td><td>ok</td></tr>
+          <tr><td><code>erp.held</code></td><td>Ditahan</td><td>warn</td></tr>
+          <tr><td><code>erp.dead</code></td><td>Gagal</td><td>danger</td></tr>
+          <tr><td><code>(tidak dikenal)</code></td><td>Lainnya · kode di "Detail teknis"</td><td>neutral</td></tr>
+        </table>
+      </div>
+      <div>
+        <h3>FilterBar: rentang tanggal + chip + ekspor</h3>
+        <div class="row"><span class="chip on">Hari ini</span><span class="chip">7 hari</span><span class="chip">30 hari</span><span class="chip">Bulan ini</span><span class="select">Dari <b>1 Nov</b> Sampai <b>2 Nov</b><svg data-svg="calendar"></svg></span><span class="chip">Gudang: semua <span class="n">· Outlet BSD</span></span></div>
+        <div class="row" style="margin-top: 12px;"><span class="tip">Unduh CSV · 312 baris<br>Filter: Status Aktif · Kategori Semua · Semua outlet</span></div>
+      </div>
+      <div>
+        <h3>ConfirmDialog (aksi yang memindahkan stok atau menghapus)</h3>
+        <div class="mini-dlg">
+          <h3>Kirim transfer TR-0142?</h3>
+          <p>Stok 12 unit akan keluar dari <b>Gudang Pusat</b> sekarang dan tercatat "Dikirim" sampai BSD menerima.</p>
+          <div class="acts"><span class="btn s">Batal</span><span class="btn p">Kirim transfer</span></div>
+        </div>
+      </div>
+      <div>
+        <h3>Switch, Chip, Pagination</h3>
+        <div class="row"><span class="swl"><span class="sw on"><i></i></span>Aktif</span><span class="swl"><span class="sw"><i></i></span>Nonaktif</span><span class="chip on">Semua</span><span class="chip">Aktif</span></div>
+        <div class="row" style="margin-top: 12px;"><span class="pgb" data-svg-in="chevleft"></span><span class="pgb on">1</span><span class="pgb">2</span><span class="pgb">3</span><span class="pgb" data-svg-in="chevright"></span><span class="sub">Menampilkan 1–25 dari 312</span></div>
+        <div class="spec">Switch menggantikan pil status yang berubah saat diklik (Promosi) dan Toggle Pengaturan.</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  const ICONS = {
+    dashboard: '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
+    chart: '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    tag: '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r="1"/>',
+    package: '<path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+    warehouse: '<path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35A2 2 0 0 1 3.26 6.5l8-3.2a2 2 0 0 1 1.48 0l8 3.2A2 2 0 0 1 22 8.35Z"/><path d="M6 18h12"/><path d="M6 14h12"/><rect width="12" height="12" x="6" y="10"/>',
+    clipcheck: '<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',
+    cliplist: '<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
+    user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    sync: '<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/>',
+    settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+    plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+    alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    chevdown: '<path d="m6 9 6 6 6-6"/>',
+    chevright: '<path d="m9 18 6-6-6-6"/>',
+    chevleft: '<path d="m15 18-6-6 6-6"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+    download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
+    calendar: '<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
+    info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+    more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+    pin: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+    columns: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/>',
+    alertcircle: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  };
+  const svg = (name) => `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+
+  const NAV = [
+    ['Penjualan', [['dashboard', 'Ringkasan', 'dashboard'], ['reports', 'Laporan', 'chart', 'warn', 3]]],
+    ['Pelanggan', [['customers', 'Pelanggan', 'users'], ['promotions', 'Promosi', 'tag']]],
+    ['Produk & Stok', [['products', 'Produk', 'package'], ['inventory', 'Inventori', 'warehouse'], ['approvals', 'Persetujuan Stok', 'clipcheck', 'danger', 2], ['requisitions', 'Permintaan Barang', 'cliplist']]],
+    ['Operasional', [['users', 'Pengguna', 'user'], ['syncReview', 'Tinjauan Sinkron', 'sync', 'danger', 4], ['settings', 'Pengaturan', 'settings']]],
+    ['Sistem', [['erpOutbox', 'Integrasi ERP', 'plug'], ['errors', 'Log Kesalahan', 'alert']]],
+  ];
+
+  function sidebar(active) {
+    const groups = NAV.map(([sec, items]) => `<div class="sb-sec">${sec}</div>` + items.map(([id, label, icon, tone, n]) =>
+      `<div class="nav${id === active ? ' on' : ''}">${svg(icon)}<span>${label}</span>${tone ? `<span class="cnt ${tone}" aria-label="${n} ${tone === 'danger' ? 'perlu keputusan' : 'perlu dicek'}">${n}</span>` : ''}</div>`).join('')).join('');
+    return `<aside class="sb"><div class="sb-brand"><div class="mono">M</div><div><b>Mandalika</b><span>Back Office</span></div></div>
+      <nav class="sb-nav">${groups}<div class="legend-btn">${svg('info')}Arti angka di menu</div></nav>
+      <div class="sb-foot">Masuk sebagai Admin</div></aside>`;
+  }
+  function header(crumb) {
+    const [sec, page] = crumb.split('|');
+    return `<header class="hd"><div class="crumb">${sec}${svg('chevright')}<b>${page}</b></div>
+      <div class="scope">${svg('pin')}Semua outlet <small>cakupan</small>${svg('chevdown')}</div>
+      <div class="user"><div class="avatar">R</div>Reffy · Admin${svg('chevdown')}</div></header>`;
+  }
+
+  document.querySelectorAll('.app').forEach((app) => {
+    const clone = app.dataset.cloneMain;
+    let main = app.querySelector(':scope > main');
+    if (clone) {
+      // Apps render in document order, so the source frame's main already sits in its .col.
+      const source = document.querySelectorAll('.app')[clone === 'bo1' ? 0 : 2];
+      main = source.querySelector('.col > main').cloneNode(true);
+      main.querySelectorAll('.note').forEach((n) => n.remove());
+    }
+    const col = document.createElement('div');
+    col.className = 'col';
+    col.innerHTML = header(app.dataset.crumb);
+    col.appendChild(main);
+    const overlays = [...app.children].filter((c) => c !== main && c.tagName !== 'MAIN');
+    app.innerHTML = sidebar(app.dataset.active);
+    app.appendChild(col);
+    overlays.forEach((o) => app.appendChild(o));
+    if (app.dataset.selectRow != null) {
+      const rows = col.querySelectorAll('tbody tr');
+      rows[Number(app.dataset.selectRow)]?.classList.add('sel');
+    }
+    if (app.dataset.legend === 'open') {
+      const pop = document.createElement('div');
+      pop.className = 'pop';
+      pop.style.cssText = 'left: 236px; top: 668px; width: 330px;';
+      pop.innerHTML = `<h4>Arti angka di menu</h4>
+        <div class="lg"><span class="cnt danger">2</span><span><b>Merah</b>: perlu keputusan Anda (Persetujuan Stok, Tinjauan Sinkron).</span></div>
+        <div class="lg"><span class="cnt warn">3</span><span><b>Kuning</b>: perlu dicek, tidak memblokir (Stok minus belum dicek di Laporan).</span></div>`;
+      app.appendChild(pop);
+    }
+  });
+  document.querySelectorAll('[data-i]').forEach((el) => el.insertAdjacentHTML('afterbegin', svg(el.dataset.i)));
+  document.querySelectorAll('[data-svg-in]').forEach((el) => { el.innerHTML = svg(el.dataset.svgIn); });
+  document.querySelectorAll('svg[data-svg]').forEach((el) => { el.outerHTML = svg(el.dataset.svg); });
+</script>
+</body>
+</html>
