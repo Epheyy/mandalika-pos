@@ -317,6 +317,64 @@ async function visibleErrors(page: ScenarioPage, state: State, results: object[]
   results.push({ step: 'delete-error-visible' })
 }
 
+/** D-79 follow-ups: Simpan asks only when it makes the item live, Batal sends nothing, and a duplicate arrives inactive. */
+async function activationFromEditor(page: ScenarioPage, state: State, results: object[]) {
+  const dialog = page.getByRole('dialog')
+  const confirm = page.getByRole('alertdialog')
+  const writes = () => state.calls.filter((c) => c.method !== 'GET' && c.path.startsWith('/promotions'))
+  // a new promotion, active by default: Simpan asks; Batal leaves the editor open with the form, sends nothing
+  await page.getByRole('button', { name: 'Tambah Promosi', exact: true }).click()
+  await dialog.getByLabel('Nama Promosi *').fill('Promo Baru Aktif')
+  check((await dialog.getByRole('switch', { name: 'Promosi Aktif', exact: true }).getAttribute('aria-checked')) === 'true', 'a new promotion is active by default')
+  state.calls.length = 0
+  await dialog.getByRole('button', { name: 'Simpan', exact: true }).click()
+  await confirm.getByText('Aktifkan promo Promo Baru Aktif?', { exact: true }).waitFor()
+  await confirm.getByText('Tablet memakainya setelah sinkron berikutnya.', { exact: true }).waitFor()
+  await confirm.getByRole('button', { name: 'Batal', exact: true }).click()
+  await confirm.waitFor({ state: 'detached' })
+  check(await dialog.isVisible() && (await dialog.getByLabel('Nama Promosi *').inputValue()) === 'Promo Baru Aktif', 'Batal keeps the editor open with the form intact')
+  check(writes().length === 0, 'Batal sends nothing')
+  // confirm: one POST
+  await dialog.getByRole('button', { name: 'Simpan', exact: true }).click()
+  await confirm.getByRole('button', { name: 'Aktifkan', exact: true }).click()
+  await dialog.waitFor({ state: 'detached' })
+  await until(page, () => writes().length === 1, 'the create POST never arrived')
+  check(writes()[0].method === 'POST' && writes()[0].body.isActive === true, 'confirming creates once, active')
+  results.push({ step: 'editor-new-active-asks' })
+
+  // an edit of an already-active promotion does not ask
+  await page.getByRole('button', { name: 'Ubah Raya Aktif Baru', exact: true }).click()
+  await dialog.getByLabel('Nama Promosi *').fill('Raya Aktif Tiga')
+  state.calls.length = 0
+  await dialog.getByRole('button', { name: 'Simpan', exact: true }).click()
+  await dialog.waitFor({ state: 'detached' })
+  check((await confirm.count()) === 0 && writes().length === 1, 'active to active saves without a question')
+
+  // inactive to active asks
+  await page.getByRole('button', { name: 'Ubah Raya Nonaktif', exact: true }).click()
+  await dialog.getByRole('switch', { name: 'Promosi Aktif', exact: true }).click()
+  state.calls.length = 0
+  await dialog.getByRole('button', { name: 'Simpan', exact: true }).click()
+  await confirm.getByText('Aktifkan promo Raya Nonaktif?', { exact: true }).waitFor()
+  await confirm.getByRole('button', { name: 'Batal', exact: true }).click()
+  await confirm.waitFor({ state: 'detached' })
+  check(writes().length === 0, 'inactive to active: Batal sends nothing')
+  await dialog.getByRole('button', { name: 'Simpan', exact: true }).click()
+  await confirm.getByRole('button', { name: 'Aktifkan', exact: true }).click()
+  await dialog.waitFor({ state: 'detached' })
+  await until(page, () => writes().length === 1, 'the activation PUT never arrived')
+  check(writes()[0].body.isActive === true, 'inactive to active sends it once, on')
+  results.push({ step: 'editor-edit-asks-only-when-activating' })
+
+  // Duplikat saves the copy inactive, with no question
+  state.calls.length = 0
+  await page.getByRole('button', { name: 'Duplikat Raya Lengkap', exact: true }).click()
+  await until(page, () => writes().length === 1, 'the duplicate POST never arrived')
+  check((await confirm.count()) === 0, 'a duplicate asks nothing')
+  check(writes()[0].method === 'POST' && writes()[0].body.isActive === false && writes()[0].body.name === 'Raya Lengkap (Salinan)', 'a duplicate arrives inactive')
+  results.push({ step: 'duplicate-arrives-inactive' })
+}
+
 async function codesTab(page: ScenarioPage, state: State, results: object[]) {
   await clickTab(page, 'codes')
   await page.waitForFunction(() => location.hash.startsWith('#/promosi/kode'))
@@ -375,6 +433,7 @@ export async function promotionsFlow(page: ScenarioPage) {
   await statusSwitch(page, state, results)
   await roundTrip(page, state, results)
   await visibleErrors(page, state, results)
+  await activationFromEditor(page, state, results)
   await codesTab(page, state, results)
   return results
 }

@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { Outlet, Product, Promotion, PromotionInput } from '@mandalika/api'
 import { api } from '../../api'
 import { loadAllProducts } from '../../lib/loadAll'
+import { useConfirm } from '../../ui/ConfirmDialog'
 import { PromoFormSlideOver } from './PromoFormSlideOver'
 import { EMPTY_PROMO, promotionProblems, promotionToInput } from './promotionForm'
 import { useEditorGuard, useLeave } from './useEditorLeave'
 import { useRecordEditor } from './useRecordEditor'
+import { confirmActivation, needsActivationConfirm } from './useStatusToggle'
 
 interface PromotionEditorHostProps {
   /** The promotion to edit, or null for a new one. */
@@ -55,6 +57,13 @@ function usePickerData() {
 export function PromotionEditorHost({ promoId, closeEditor, refetchList }: PromotionEditorHostProps) {
   const picker = usePickerData()
   const { answeredRef, leave } = useLeave(closeEditor)
+  const confirm = useConfirm()
+  // Saving it live asks the same question as the list Switch; an already-active promo saved again does not.
+  const confirmSave = useCallback(
+    async (input: PromotionInput, row: Promotion | null) =>
+      !needsActivationConfirm(row?.isActive ?? null, input.isActive) || confirmActivation(confirm, 'promo', input.name),
+    [confirm],
+  )
   const editor = useRecordEditor<Promotion, PromotionInput>({
     recordId: promoId,
     fetchAll: fetchPromotions,
@@ -63,6 +72,7 @@ export function PromotionEditorHost({ promoId, closeEditor, refetchList }: Promo
     create: createPromo,
     update: updatePromo,
     problemsOf: promotionProblems,
+    confirmSave,
     onSaved: async () => {
       await refetchList()
       leave()

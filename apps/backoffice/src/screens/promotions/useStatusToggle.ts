@@ -59,18 +59,29 @@ export async function changeStatus<Row extends StatusRow>(
 }
 
 /**
+ * Does a save make the item live? A new item (`wasActive` null) or an inactive one saved active does; saving an
+ * already-active item, or saving anything inactive, does not. Shared by the list Switch and the editor's Simpan.
+ */
+export const needsActivationConfirm = (wasActive: boolean | null, willBeActive: boolean): boolean => willBeActive && wasActive !== true
+
+/** The D-79 question, in one place: "Aktifkan promo X?" / "Aktifkan kode X?". */
+export async function confirmActivation(confirm: StatusToggleDeps['confirm'], noun: string, name: string): Promise<boolean> {
+  const answer = await confirm({
+    title: `Aktifkan ${noun} ${name}?`,
+    consequence: 'Tablet memakainya setelah sinkron berikutnya.',
+    confirmLabel: 'Aktifkan',
+  })
+  return answer.confirmed
+}
+
+/**
  * The list's status Switch (D-79). Turning ON asks first, because the next tablet sync makes it live; turning OFF
  * saves at once and offers "Urungkan". The undo re-reads the row again, so it too sends the fresh row.
  */
 export async function toggleStatus<Row extends StatusRow>(kind: StatusToggleKind<Row>, row: Row, next: boolean, deps: StatusToggleDeps): Promise<void> {
   const name = kind.nameOf(row)
   if (next) {
-    const answer = await deps.confirm({
-      title: `Aktifkan ${kind.noun} ${name}?`,
-      consequence: 'Tablet memakainya setelah sinkron berikutnya.',
-      confirmLabel: 'Aktifkan',
-    })
-    if (!answer.confirmed) return
+    if (!(await confirmActivation(deps.confirm, kind.noun, name))) return
     await changeStatus(kind, row.id, true, deps)
     return
   }

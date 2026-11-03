@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { DiscountCode, DiscountCodeInput, Promotion } from '@mandalika/api'
 import { api } from '../../api'
 import { useAuth } from '../../auth'
+import { useConfirm } from '../../ui/ConfirmDialog'
 import { CodeFormSlideOver } from './CodeFormSlideOver'
 import { isPhoneOnlyCustomerLookup } from './customerLookupMode'
 import { EMPTY_CODE, codeProblems, codeToInput } from './discountCodeForm'
 import { useEditorGuard, useLeave } from './useEditorLeave'
 import { useRecordEditor } from './useRecordEditor'
+import { confirmActivation, needsActivationConfirm } from './useStatusToggle'
 
 interface CodeEditorHostProps {
   /** The code to edit, or null for a new one. */
@@ -29,6 +31,13 @@ export function CodeEditorHost({ codeId, closeEditor, refetchList }: CodeEditorH
   // exists on the read type, so a loaded holder's name comes from the row).
   const [pickedName, setPickedName] = useState<string | null>(null)
   const { answeredRef, leave } = useLeave(closeEditor)
+  const confirm = useConfirm()
+  // Saving it live asks the same question as the list Switch; an already-active code saved again does not.
+  const confirmSave = useCallback(
+    async (input: DiscountCodeInput, row: DiscountCode | null) =>
+      !needsActivationConfirm(row?.isActive ?? null, input.isActive ?? false) || confirmActivation(confirm, 'kode', input.code),
+    [confirm],
+  )
   const editor = useRecordEditor<DiscountCode, DiscountCodeInput>({
     recordId: codeId,
     fetchAll: fetchCodes,
@@ -37,6 +46,7 @@ export function CodeEditorHost({ codeId, closeEditor, refetchList }: CodeEditorH
     create: createCode,
     update: updateCode,
     problemsOf: codeProblems,
+    confirmSave,
     onSaved: async () => {
       await refetchList()
       leave()
