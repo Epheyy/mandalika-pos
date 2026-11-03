@@ -2,45 +2,31 @@ import { useState } from 'react'
 import { fetchAllPages, type ErrorLog, type ListResult } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id } from 'date-fns/locale'
-import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
-import { TableSkeleton } from '../components/Skeleton'
 import { exportToCSV, exportToXLSX, buildExportName } from '../lib/csvUtils'
-import { ImportExportBar } from '../components/ImportExportBar'
+import { ERROR_SOURCE } from '../lib/labels/errorSource'
+import { labelOf } from '../lib/labels/types'
 import { Button } from '../ui/Button'
-import { Card } from '../ui/Card'
-import { Badge } from '../ui/Badge'
+import { DataTable, type Column } from '../ui/DataTable'
 import { EmptyState } from '../ui/EmptyState'
+import { ExportButton, type ExportFormat } from '../ui/ExportButton'
+import { FilterBar } from '../ui/FilterBar'
 import { PageHeader } from '../ui/PageHeader'
-import { Tabs } from '../ui/Tabs'
 import { Pagination } from '../ui/Pagination'
+import { SlideOver } from '../ui/SlideOver'
+import { StatusBadge } from '../ui/StatusBadge'
 
-
-const SOURCES: ReadonlyArray<{ id: string; label: string }> = [
+const SOURCE_FILTERS: ReadonlyArray<{ id: string; label: string }> = [
   { id: '', label: 'Semua Sumber' },
-  { id: 'sync', label: 'Sync' },
-  { id: 'runtime', label: 'Runtime' },
-  { id: 'print', label: 'Cetak' },
-  { id: 'backend', label: 'Backend' },
+  ...Object.keys(ERROR_SOURCE).map((k) => ({ id: k, label: labelOf(ERROR_SOURCE, k).label })),
 ]
 
-type Tone = 'gold' | 'success' | 'danger' | 'neutral'
-
-// Severity-by-source mapping (semantic only):
-//   runtime → danger (crashes/runtime errors)
-//   sync    → warning (amber, applied via className since Badge has no amber tone)
-//   backend → gold (brand/server-side)
-//   print   → neutral (info)
-const SOURCE_TONE: Record<string, Tone> = {
-  runtime: 'danger',
-  backend: 'gold',
-  print: 'neutral',
-}
-const SOURCE_WARNING = new Set(['sync'])
+const DASH = '—'
 
 function fmtTime(s?: string | null): string {
-  if (!s) return '—'
+  if (!s) return DASH
   try {
     return format(parseISO(s), 'dd MMM yyyy HH:mm:ss', { locale: id })
   } catch {
@@ -52,7 +38,7 @@ export default function ErrorLogs() {
   const [source, setSource] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
 
   const q = usePolledQuery<ListResult<ErrorLog>>(
     () =>
@@ -66,8 +52,9 @@ export default function ErrorLogs() {
   const rows = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const opened = rows.find((r) => r.id === openId) ?? null
 
-  const exportErrorLogs = async (fmt: 'csv' | 'xlsx') => {
+  const exportErrorLogs = async (fmt: ExportFormat) => {
     const all = await fetchAllPages((page, limit) =>
       api.listErrorLogs({ page, limit, ...(source ? { source } : {}) }))
     const exportRows = all.map((e) => ({
@@ -81,21 +68,35 @@ export default function ErrorLogs() {
       Versi: e.appVersion ?? '',
       Waktu: fmtTime(e.createdAt),
     }))
-    const name = buildExportName('log-error', [source || undefined])
+    const name = buildExportName('log-kesalahan', [source || undefined])
     if (fmt === 'csv') exportToCSV(exportRows, name)
     else exportToXLSX(exportRows, name)
   }
 
+  const columns: Column<ErrorLog>[] = [
+    { id: 'time', header: 'Waktu', cell: (e) => fmtTime(e.createdAt) },
+    { id: 'source', header: 'Sumber', cell: (e) => <StatusBadge map={ERROR_SOURCE} value={e.source} /> },
+    { id: 'kind', header: 'Jenis', cell: (e) => e.kind ?? DASH },
+    { id: 'message', header: 'Pesan', cell: (e) => <span className="line-clamp-2 font-bold">{e.message}</span> },
+    { id: 'outlet', header: 'Outlet', cell: (e) => e.outletName ?? DASH },
+    { id: 'user', header: 'Pengguna', cell: (e) => e.userName ?? DASH, defaultHidden: true },
+    { id: 'device', header: 'Perangkat', cell: (e) => e.deviceId ?? DASH, defaultHidden: true },
+  ]
+
   return (
     <div className="p-6 space-y-5">
       <PageHeader
-        title="Log Error"
-        subtitle={`${total} error · sync / runtime / cetak / backend — termasuk aktivitas pengguna, outlet & perangkat.`}
+        title="Log Kesalahan"
+        count={`${total} kesalahan`}
+        subtitle="Sinkron, runtime, cetak dan backend, termasuk aktivitas pengguna, outlet dan perangkat."
         actions={
           <>
-            <ImportExportBar
-              onExport={(fmt) => void exportErrorLogs(fmt)}
-              exportDisabled={total === 0}
+            <ExportButton
+              formats={['csv', 'xlsx']}
+              rowCount={q.data ? total : null}
+              filterSummary={source ? [`Sumber: ${labelOf(ERROR_SOURCE, source).label}`] : []}
+              onExport={exportErrorLogs}
+              disabled={total === 0}
             />
             <Button variant="secondary" onClick={() => void q.refetch()}>
               Muat ulang
@@ -104,110 +105,89 @@ export default function ErrorLogs() {
         }
       />
 
-      <Tabs
-        value={source}
-        onChange={(v) => { setSource(v); setPage(1); }}
-        tabs={SOURCES}
+      <FilterBar onReset={() => { setSource(''); setPage(1) }} activeCount={source ? 1 : 0}>
+        <FilterBar.Chips
+          label="Sumber kesalahan"
+          items={SOURCE_FILTERS}
+          value={source}
+          onChange={(v) => { setSource(v); setPage(1) }}
+        />
+      </FilterBar>
+
+      <DataTable
+        caption="Daftar log kesalahan"
+        columns={columns}
+        rows={rows}
+        rowKey={(e) => e.id}
+        loading={q.loading && rows.length === 0}
+        error={q.error ? 'Log kesalahan gagal dimuat.' : null}
+        onRetry={() => void q.refetch()}
+        empty={<EmptyState icon={<AlertTriangle />} title="Tidak ada kesalahan tercatat" />}
+        onRowClick={(e) => setOpenId(e.id)}
+        selectedKey={openId}
+        columnPrefsKey="mandalika.bo.errorLogs.columns"
+        footer={
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            onChange={setPage}
+            pageSize={pageSize}
+            onPageSizeChange={(s) => { setPageSize(s); setPage(1) }}
+          />
+        }
       />
 
-      <Card className="overflow-hidden">
-        {q.loading && rows.length === 0 ? (
-          <TableSkeleton />
-        ) : rows.length === 0 ? (
-          <EmptyState icon={<AlertTriangle />} title="Tidak ada error tercatat" />
-        ) : (
-          <div className="divide-y divide-gray-50">
-            {rows.map((e) => {
-              const open = expanded === e.id
-              const isWarning = SOURCE_WARNING.has(e.source)
-              const label = `${e.source}${e.kind ? ` · ${e.kind}` : ''}`
-              return (
-                <div key={e.id}>
-                  <div
-                    className="px-5 py-4 flex items-center gap-4 hover:bg-gray-50 cursor-pointer"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setExpanded(open ? null : e.id)}
-                    onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setExpanded(open ? null : e.id) } }}
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
-                      <AlertTriangle className="w-4 h-4 text-red-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        {isWarning ? (
-                          // Badge has no amber tone; warnings use an amber span matching Badge shape.
-                          <span className="px-2.5 py-1 text-xs font-bold rounded-lg uppercase bg-amber-50 text-amber-700">
-                            {label}
-                          </span>
-                        ) : (
-                          <Badge tone={SOURCE_TONE[e.source] ?? 'neutral'} className="uppercase">
-                            {label}
-                          </Badge>
-                        )}
-                        <p className="font-bold text-gray-900 text-sm truncate">{e.message}</p>
-                      </div>
-                      <p className="text-xs text-gray-400 truncate">
-                        {e.action ? `${e.action} · ` : ''}
-                        {e.outletName ?? 'Outlet ?'}
-                        {e.userName ? ` · ${e.userName}` : ''}
-                        {e.deviceId ? ` · ${e.deviceId}` : ''}
-                        {' · '}{fmtTime(e.createdAt)}
-                      </p>
-                    </div>
-                    {open ? <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />}
-                  </div>
+      <SlideOver
+        open={opened !== null}
+        onClose={() => setOpenId(null)}
+        title="Detail Kesalahan"
+        subtitle={opened ? `${labelOf(ERROR_SOURCE, opened.source).label}${opened.kind ? ` · ${opened.kind}` : ''}` : undefined}
+        width="lg"
+        dirty={false}
+      >
+        {opened && <ErrorDetail e={opened} />}
+      </SlideOver>
+    </div>
+  )
+}
 
-                  {open && (
-                    <div className="px-5 pb-5 bg-gray-50 border-t border-gray-100 pt-4 space-y-4">
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                        <DetailField label="Outlet" value={e.outletName ?? e.outletId ?? '—'} />
-                        <DetailField label="Pengguna" value={e.userName ?? e.userId ?? '—'} />
-                        <DetailField label="Perangkat" value={e.deviceId ?? '—'} />
-                        <DetailField label="Versi" value={e.appVersion ?? '—'} />
-                        <DetailField label="Terjadi" value={fmtTime(e.clientCreatedAt)} />
-                        <DetailField label="Tercatat" value={fmtTime(e.createdAt)} />
-                      </div>
+function ErrorDetail({ e }: { e: ErrorLog }) {
+  return (
+    <div className="space-y-4">
+      <p className="font-bold text-gray-900 break-words">{e.message}</p>
+      {e.action && <DetailField label="Aksi" value={e.action} />}
+      <div className="grid grid-cols-2 gap-3 text-xs">
+        <DetailField label="Outlet" value={e.outletName ?? e.outletId ?? DASH} />
+        <DetailField label="Pengguna" value={e.userName ?? e.userId ?? DASH} />
+        <DetailField label="Perangkat" value={e.deviceId ?? DASH} />
+        <DetailField label="Versi" value={e.appVersion ?? DASH} />
+        <DetailField label="Terjadi" value={fmtTime(e.clientCreatedAt)} />
+        <DetailField label="Tercatat" value={fmtTime(e.createdAt)} />
+      </div>
 
-                      {e.breadcrumbs && e.breadcrumbs.length > 0 && (
-                        <div>
-                          <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Aktivitas Sebelum Error</p>
-                          <ol className="space-y-1">
-                            {e.breadcrumbs.map((b, i) => (
-                              <li key={`${b.at}-${b.label}-${i}`} className="flex gap-2 text-xs">
-                                <span className="text-gray-400 font-mono flex-shrink-0">{fmtTime(b.at).slice(-8)}</span>
-                                <span className="text-gray-700">{b.label}</span>
-                              </li>
-                            ))}
-                          </ol>
-                        </div>
-                      )}
+      {e.breadcrumbs && e.breadcrumbs.length > 0 && (
+        <div>
+          <p className="text-xs font-black text-ink-700 uppercase tracking-widest mb-2">Aktivitas Sebelum Kesalahan</p>
+          <ol className="space-y-1">
+            {e.breadcrumbs.map((b, i) => (
+              <li key={`${b.at}-${b.label}-${i}`} className="flex gap-2 text-xs">
+                <span className="text-ink-700 font-mono flex-shrink-0">{fmtTime(b.at).slice(-8)}</span>
+                <span className="text-gray-700">{b.label}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
 
-                      {e.payload != null && (
-                        <div>
-                          <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Detail</p>
-                          <pre className="text-[11px] bg-gray-900 text-gray-100 rounded-xl p-3 overflow-x-auto max-h-64">
-                            {JSON.stringify(e.payload, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </Card>
-
-      <Pagination
-        page={page}
-        totalPages={totalPages}
-        total={total}
-        onChange={setPage}
-        pageSize={pageSize}
-        onPageSizeChange={(s) => { setPageSize(s); setPage(1) }}
-      />
+      {e.payload != null && (
+        <div>
+          <p className="text-xs font-black text-ink-700 uppercase tracking-widest mb-2">Detail teknis</p>
+          <pre className="text-[11px] bg-gray-900 text-gray-100 rounded-xl p-3 overflow-x-auto max-h-64">
+            {JSON.stringify(e.payload, null, 2)}
+          </pre>
+        </div>
+      )}
     </div>
   )
 }
@@ -215,7 +195,7 @@ export default function ErrorLogs() {
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">{label}</p>
+      <p className="text-[10px] font-black text-ink-700 uppercase tracking-wider">{label}</p>
       <p className="text-gray-800 font-semibold break-words">{value}</p>
     </div>
   )

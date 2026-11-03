@@ -1,17 +1,11 @@
 import { format, parseISO } from 'date-fns'
 import { id } from 'date-fns/locale'
+import { SYNC_REVIEW_REASON } from '../../lib/labels/review'
 import { methodLabel } from '../../lib/splitPayment'
 
-const REASONS: Record<string, string> = {
-  forbidden: 'Ditolak: tidak berwenang / PIN salah',
-  actor_mismatch: 'Dibuat oleh akun lain',
-  offline_expired: 'Offline lebih dari 12 jam',
-  competing_receipt: 'Transfer sudah diterima tablet lain',
-  rejected: 'Ditolak server',
-  conflict: 'Ditolak server',
-  batch_rejected: 'Kiriman ditolak',
-  sale_in_review: 'Penjualan asal refund sedang ditinjau',
-}
+const REASONS: Record<string, string> = Object.fromEntries(
+  Object.entries(SYNC_REVIEW_REASON).map(([k, v]) => [k, v.label]),
+)
 
 /** Reason filter options; 'none' = parked by old attempt counting (server filter value). */
 export const REASON_FILTERS: ReadonlyArray<{ id: string; label: string }> = [

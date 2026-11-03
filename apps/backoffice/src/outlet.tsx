@@ -96,3 +96,8 @@ export function OutletSwitcher() {
     </select>
   )
 }
+
+/** Like useOutlet, but null outside an OutletProvider. For kit parts that must also render standalone (tests, server markup). */
+export function useOptionalOutlet(): OutletState | null {
+  return use(OutletCtx)
+}

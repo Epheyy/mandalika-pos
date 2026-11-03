@@ -1,0 +1,48 @@
+/* Shared design tokens ("Kertas & Emas"). Plain CSS, no package.json, so the lockfile never changes.
+   Imported by the backoffice (apps/backoffice/src/index.css). The POS moves to this file in its own
+   chore slice (D-76); until then apps/pos/src/index.css keeps its own copy of the same values.
+   A brand skin re-aliases --color-brand (+ pressed/strong) at runtime (apps/backoffice/src/lib/brand.ts).
+   No dark theme (D-12). */
+@theme {
+  --color-paper-0: #fbf9f5;
+  --color-paper-1: #f3efe7;
+  --color-paper-2: #e9e3d8;
+  --color-ink-900: #1a1008;
+  --color-ink-700: #4a3f33;
+  /* ink-500 is allowed only on paper-0 / white (4.65:1 / 4.9:1); on paper-1 use ink-700. */
+  --color-ink-500: #7a6f62;
+
+  --color-brand: #b07d18;
+  --color-brand-pressed: #8f6412;
+  /* Filled controls (white text, 14 px labels). Mandalika gold is 3.6:1 with white, so the filled
+     surface uses brand-strong (5.3:1). Skins whose brand already passes AA alias strong = brand. */
+  --color-brand-strong: #8f6412;
+  --color-brand-strong-hover: #7a550f;
+  --color-on-brand: #ffffff;
+  --color-palette-mandalika: #b07d18;
+  --color-palette-flamboyan: #9b59b6;
+  --color-palette-performance: #a93226;
+
+  --color-ok: #1f7a4d;
+  --color-ok-bg: #e3f3ea;
+  --color-warn: #b45309;
+  --color-warn-bg: #fdf0df;
+  /* Badge text on warn-bg: warn itself is 4.45:1 there, warn-strong is 5.3:1. */
+  --color-warn-strong: #a14a06;
+  --color-danger: #b42318;
+  --color-danger-bg: #fbe4e1;
+  /* Solid danger surfaces (confirm buttons). Performance skin maps it to ink-900 (D-28). */
+  --color-danger-solid: var(--color-danger);
+  --color-info: #1d4ed8;
+  --color-info-bg: #e3eafc;
+  --color-promo: #6d28d9;
+  --color-promo-bg: #efe7fb;
+  --color-reward: #0f766e;
+  --color-reward-bg: #dff3f0;
+
+  --radius-control: 12px;
+  --radius-sheet: 16px;
+  --radius-chip: 22px;
+
+  --font-sans: 'Roboto Variable', Roboto, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}

@@ -1,17 +1,15 @@
 import type { StockRequisition } from '@mandalika/api'
 
-type Tone = 'neutral' | 'warning' | 'success' | 'danger' | 'gold'
+import { badgeTone, type BadgeToneName } from '../../lib/labels/badgeTone'
+import { REQUISITION_STATUS as REQUISITION_LABELS } from '../../lib/labels/requisition'
+import { TRANSFER_STATUS } from '../../lib/labels/transfer'
 
 export type RequisitionStatus = StockRequisition['status']
 
-export const REQUISITION_STATUS: Record<RequisitionStatus, { label: string; tone: Tone }> = {
-  draft: { label: 'Draf', tone: 'neutral' },
-  submitted: { label: 'Diajukan', tone: 'warning' },
-  approved: { label: 'Disetujui', tone: 'gold' },
-  rejected: { label: 'Ditolak', tone: 'danger' },
-  fulfilled: { label: 'Transfer Dibuat', tone: 'success' },
-  cancelled: { label: 'Dibatalkan', tone: 'neutral' },
-}
+/** Label + Badge tone per status, derived from the shared label map. */
+export const REQUISITION_STATUS = Object.fromEntries(
+  Object.entries(REQUISITION_LABELS).map(([k, v]) => [k, { label: v.label, tone: badgeTone(v.tone) }]),
+) as Record<RequisitionStatus, { label: string; tone: BadgeToneName }>
 
 /** The happy path, left to right. rejected / cancelled leave it and are shown as a dead end. */
 export const REQUISITION_CHAIN: RequisitionStatus[] = ['draft', 'submitted', 'approved', 'fulfilled']
@@ -32,12 +30,9 @@ export const EVENT_LABEL: Record<string, string> = {
   refulfilled: 'Transfer dibuat ulang',
 }
 
-export const TRANSFER_STATUS_LABEL: Record<string, string> = {
-  draft: 'Draf',
-  in_transit: 'Dikirim',
-  completed: 'Selesai',
-  cancelled: 'Dibatalkan',
-}
+export const TRANSFER_STATUS_LABEL: Record<string, string> = Object.fromEntries(
+  Object.entries(TRANSFER_STATUS).map(([k, v]) => [k, v.label]),
+)
 
 export const fmtDateTime = (s?: string | null) =>
   s ? new Date(s).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'

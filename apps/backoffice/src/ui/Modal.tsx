@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { cn } from './cn'
+import { useOverlayLayer } from './overlayStack'
 
 type Size = 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 
@@ -47,15 +48,11 @@ function ModalBody({
   const dirty = useRef(false)
   const [confirming, setConfirming] = useState(false)
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      if (dirty.current) setConfirming(true)
-      else onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  // Escape only reaches the top overlay, so a SlideOver or ConfirmDialog opened over this modal keeps it open.
+  useOverlayLayer(true, () => {
+    if (dirty.current) setConfirming(true)
+    else onClose()
+  })
 
   const requestClose = () => {
     if (dirty.current) setConfirming(true)
@@ -67,6 +64,7 @@ function ModalBody({
     onClose()
   }
 
+  // z-50 is OVERLAY_Z.modal; scenarios find the modal by this class, so keep it literal.
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button

@@ -6,11 +6,13 @@ interface EmptyStateProps {
   icon: ReactNode
   title: ReactNode
   subtitle?: ReactNode
+  /** Optional call to action (a Button), e.g. "Tambah produk". */
+  action?: ReactNode
   className?: string
 }
 
 /** The repeated "Belum ada …" placeholder, standardized. */
-export function EmptyState({ icon, title, subtitle, className }: EmptyStateProps) {
+export function EmptyState({ icon, title, subtitle, action, className }: EmptyStateProps) {
   return (
     <div
       className={cn(
@@ -22,6 +24,7 @@ export function EmptyState({ icon, title, subtitle, className }: EmptyStateProps
       {icon}
       <p className="font-bold text-gray-400">{title}</p>
       {subtitle && <p className="text-sm text-gray-400">{subtitle}</p>}
+      {action}
     </div>
   )
 }

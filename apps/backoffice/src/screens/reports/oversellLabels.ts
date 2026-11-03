@@ -1,5 +1,6 @@
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
+import { orderStatusLabel } from '../../lib/orderStatus'
 import type { OversellRecord, OversellReport } from '@mandalika/api'
 
 /** Browser event fired after lines are marked "sudah dicek" so the badge refreshes at once. */
@@ -32,13 +33,7 @@ export function channelLabel(channel: string): string {
   return channel === 'sync' ? 'Sinkron tablet' : 'Langsung'
 }
 
-export function orderStatusLabel(status: string): string {
-  if (status === 'completed') return 'Selesai'
-  if (status === 'partially_refunded') return 'Sebagian refund'
-  if (status === 'refunded') return 'Direfund'
-  if (status === 'cancelled') return 'Dibatalkan'
-  return status
-}
+export { orderStatusLabel }
 
 /** Sold-at to recorded-at gap: how long the tablet held the sale before the server applied it. */
 export function syncLagLabel(soldAt: string, recordedAt: string): string {

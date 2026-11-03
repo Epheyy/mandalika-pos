@@ -94,6 +94,6 @@ describe('collectOversellForExport', () => {
 describe('orderStatusLabel (C4a)', () => {
   it('labels the partially refunded state', () => {
     expect(orderStatusLabel('partially_refunded')).toBe('Sebagian refund')
-    expect(orderStatusLabel('refunded')).toBe('Direfund')
+    expect(orderStatusLabel('refunded')).toBe('Refund')
   })
 })
