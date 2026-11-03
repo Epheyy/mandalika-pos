@@ -1,5 +1,5 @@
 // Ordinary imported scenario functions, converted from the accepted manual scripts.
-import type { ScenarioPage } from './fixture'
+import { openBackoffice, navTo, openTab, clickTab, type ScenarioPage } from './fixture'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
@@ -62,12 +62,9 @@ export const setupBackoffice = async (page: ScenarioPage) => {
     if(['/orders','/shifts','/products'].some(s=>path.endsWith(s))) data=data.slice((n-1)*limit,n*limit);
     return route.fulfill({json:{data,meta:{total,page:n,limit}}});
   });
-  await page.goto('http://127.0.0.1:5184');
-  await page.evaluate(()=>{localStorage.clear();localStorage.setItem('mandalika.backoffice.refresh','SYNTHETIC-NON-TOKEN');localStorage.setItem('mandalika.backoffice.loginDate',new Date().toLocaleDateString('sv-SE'));});
-  await page.reload();
-  await page.setViewportSize({width:1440,height:1000});
-  await page.getByRole('button',{name:'Laporan',exact:true}).click();
-  await page.getByRole('button',{name:'Ekspor',exact:true}).click();
+  await openBackoffice(page);
+  await navTo(page, 'reports');
+  await clickTab(page, 'export');
   await page.evaluate(()=>{window.__a26csv=[];URL.createObjectURL=(b:any)=>{window.__a26csv.push(b.text());return 'blob:synthetic';};HTMLAnchorElement.prototype.click=function(){};});
   await page.getByRole('button',{name:'Export CSV',exact:true}).click();
   const csv=await page.evaluate(()=>Promise.all(window.__a26csv));
@@ -80,7 +77,7 @@ export const backofficeChecks = async (page: ScenarioPage) => {
   const capture=async()=>{await page.evaluate(()=>window.__a26csv=[]);await page.getByRole('button',{name:'Export CSV',exact:true}).click();await page.waitForFunction(()=>window.__a26csv.length>0);return (await page.evaluate(()=>Promise.all(window.__a26csv)))[0];};
   for(const n of [51,201,1000]) {
     page.__a26.count=n;page.__a26.calls=[];
-    await page.getByRole('button',{name:'Dashboard',exact:true}).click();
+    await navTo(page, 'dashboard');
     // T7: the revenue KPI is net; its subtitle shows Kotor / Refund (was "N transaksi"), proving the refund side loaded.
     const money=(n*1000).toLocaleString('id-ID');
     await page.getByText(new RegExp('^Kotor Rp\\s*'+money.replace(/\./g,'\\.')+'\\s*/ Refund Rp\\s*0$')).waitFor();
@@ -91,8 +88,8 @@ export const backofficeChecks = async (page: ScenarioPage) => {
     check(page.__a26.calls.some(c=>c.path.endsWith('/orders')&&c.dateBasis==='refund'),'dashboard refund-basis request');
     check(dashboard.includes(`Rp ${(n*1000).toLocaleString('id-ID')}`)||dashboard.replace(/\s/g,'').includes(`Rp${(n*1000).toLocaleString('id-ID')}`),'dashboard total');
     check(dashboard.includes('Product 200'),'last-page low stock missing');
-    await page.getByRole('button',{name:'Laporan',exact:true}).click();
-    await page.getByRole('button',{name:'Ekspor',exact:true}).click();
+    await navTo(page, 'reports');
+    await clickTab(page, 'export');
     await page.getByText(`${n} transaksi`,{exact:true}).waitFor();
     await page.getByText('Penjualan Kotor',{exact:true}).waitFor();
     const csv=await capture();const csvRows=csv.split('\n').length-1;
@@ -110,11 +107,11 @@ export const backofficeChecks = async (page: ScenarioPage) => {
     // Restore "today" in the browser's timezone (Asia/Jakarta), matching the Reports default.
     const localToday=await page.evaluate(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;});
     await page.locator('input[type=date]').first().fill(localToday);
-    await page.getByRole('button',{name:'Shift',exact:true}).click();
+    await clickTab(page, 'shifts');
     const shifts=await capture();check(shifts.split('\n').length-1===n,'shift CSV');
     results.push({n,csvRows,shiftCsvRows:n,reportTotal:n*1000,filteredQris:Math.floor(n/2),dashboard,requests:page.__a26.calls});
   }
-  await page.getByRole('button',{name:'Ekspor',exact:true}).click();
+  await clickTab(page, 'export');
   await page.getByText('1000 transaksi',{exact:true}).waitFor();
   // The list/summary only request one page; a later page can only fail inside the full export.
   page.__a26.fail='/api/v1/orders';
@@ -124,7 +121,7 @@ export const backofficeChecks = async (page: ScenarioPage) => {
   check((await page.evaluate(()=>window.__a26csv.length))===0,'partial CSV produced after a later page failure');
   check((await page.locator('main').innerText()).includes('1000 transaksi'),'complete snapshot lost');
   results.push({laterPageFailure:'visible error; no partial CSV; list snapshot retained'});
-  await page.getByRole('button',{name:'Dashboard',exact:true}).click();
+  await navTo(page, 'dashboard');
   await page.getByRole('alert').filter({hasText:'Gagal memuat data lengkap'}).waitFor();
   results.push({dashboardInitialFailure:'error instead of prefix KPIs'});
   page.__a26.fail=null;
@@ -164,8 +161,8 @@ export const transactionsChecks = async (page: ScenarioPage) => {
   };
   for (const n of [51,201,1000]) {
     page.__a26.count=n;
-    await page.getByRole('button',{name:'Dashboard',exact:true}).click();
-    await page.getByRole('button',{name:'Laporan',exact:true}).click();
+    await navTo(page, 'dashboard');
+    await navTo(page, 'reports');
     await page.getByText(`${n} transaksi · Total:`,{exact:false}).waitFor();
     const browserVersion=await page.evaluate(async()=>{
       const url=performance.getEntriesByType('resource').map(e=>e.name).find(n=>n.includes('/xlsx.js'));
@@ -215,7 +212,7 @@ export const qualifyBackoffice = async (page: ScenarioPage) =>{
  const rows: any[]=[['bundle',P,P+'|M',false],['bundle',P+'|M',P,false],['bundle',P+'|M',P+'|L',true],['buy_x_get_y',P,P+'|M',false],['buy_x_get_y',P+'|M',P+'|L',true]];
  for(const [type,a,b,valid]of rows){
   fixture.type=type;fixture.bundleConfig={slots:[{productKeys:[a],quantity:1},{productKeys:[b],quantity:1}],bundlePrice:100000,maxApplications:1};fixture.bxgyConfig={buyProductIds:[a],getProductIds:[b],buyQuantity:1,getQuantity:1,getDiscountKind:'percentage',getDiscountValue:50,maxApplications:1};
-  await page.reload();await page.getByRole('button',{name:'Promosi',exact:true}).first().click();
+  await page.reload();await navTo(page, 'promotions');
   await page.getByRole('row').filter({hasText:'Invalid Legacy'}).locator('button').nth(1).click();
   await page.getByRole('button',{name:'Lanjutkan',exact:true}).click();const mechanics=await page.locator('.fixed.inset-0.z-50').innerText();
   await page.getByRole('button',{name:'Lanjutkan',exact:true}).click();const save=page.getByRole('button',{name:'Simpan',exact:true});
@@ -227,7 +224,7 @@ export const qualifyBackoffice = async (page: ScenarioPage) =>{
  }
  // Real picker edit: valid M/L -> whole/M overlap -> valid M/L again.
  fixture.type='bundle';fixture.bundleConfig={slots:[{productKeys:[P+'|M'],quantity:1},{productKeys:[P+'|L'],quantity:1}],bundlePrice:100000,maxApplications:1};
- await page.reload();await page.getByRole('button',{name:'Promosi',exact:true}).first().click();await page.getByRole('row').filter({hasText:'Invalid Legacy'}).locator('button').nth(1).click();await page.getByRole('button',{name:'Lanjutkan',exact:true}).click();
+ await page.reload();await navTo(page, 'promotions');await page.getByRole('row').filter({hasText:'Invalid Legacy'}).locator('button').nth(1).click();await page.getByRole('button',{name:'Lanjutkan',exact:true}).click();
  await page.getByRole('checkbox',{name:'Pilih semua varian Synthetic Scent'}).first().check();
  const interactiveError=await page.locator('.fixed.inset-0.z-50').innerText();if(!interactiveError.includes('Produk atau varian tidak boleh'))throw Error('picker overlap not shown');
  await page.getByRole('button',{name:'Lanjutkan',exact:true}).click();if(await page.getByRole('button',{name:'Simpan',exact:true}).isEnabled())throw Error('picker invalid save');await page.getByRole('button',{name:'Batal',exact:true}).click();
@@ -270,10 +267,8 @@ export const reportsRaces = async (page: ScenarioPage, errorCase: boolean) => {
     if(path.endsWith('/orders'))data=data.slice((n-1)*limit,n*limit);
     await route.fulfill({json:{data,meta:{total,page:n,limit}}});
   });
-  await page.goto('http://127.0.0.1:5184');
-  await page.evaluate(()=>{localStorage.clear();localStorage.setItem('mandalika.backoffice.refresh','SYNTHETIC-NON-TOKEN');localStorage.setItem('mandalika.backoffice.loginDate',new Date().toLocaleDateString('sv-SE'));});
-  await page.reload();await page.setViewportSize({width:1440,height:1000});
-  await page.getByRole('button',{name:'Laporan',exact:true}).click();await page.getByRole('button',{name:'Ekspor',exact:true}).click();
+  await openBackoffice(page);
+  await openTab(page, 'reports', 'export');
   const outlet=page.locator('select').filter({has:page.locator('option[value="A"]')});
   const flush=()=>page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
   const results: any[]=[];

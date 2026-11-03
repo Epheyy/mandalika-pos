@@ -4,7 +4,7 @@ import { uploadImage, getThumbnailUrl } from '../lib/uploadImage'
 import { useUnsavedChanges } from '../lib/useUnsavedChanges'
 import { Button } from '../ui/Button'
 import { Input, Field, Textarea } from '../ui/Field'
-import { Modal } from '../ui/Modal'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { PageHeader } from '../ui/PageHeader'
 import { SaveBar } from '../ui/SaveBar'
 import { Tabs } from '../ui/Tabs'
@@ -298,21 +298,17 @@ export default function SettingsScreen() {
         }
       />
 
-      <Modal
+      <ConfirmDialog
         open={leaveAsk !== null}
-        onClose={() => answerLeave(false)}
         title="Simpan perubahan Pengaturan?"
-        size="sm"
-        footer={
-          <div className="flex gap-2 w-full">
-            <Button variant="secondary" className="flex-1" onClick={() => answerLeave(false)} disabled={status.kind === 'saving'}>Tetap di sini</Button>
-            <Button variant="danger" className="flex-1" onClick={discardAndLeave} disabled={status.kind === 'saving'}>Buang perubahan</Button>
-            <Button className="flex-1" onClick={() => void saveAndLeave()} loading={status.kind === 'saving'}>Simpan &amp; lanjut</Button>
-          </div>
-        }
-      >
-        <p className="text-sm">Ada {changes.length} perubahan yang belum disimpan.</p>
-      </Modal>
+        consequence={`Ada ${changes.length} perubahan yang belum disimpan.`}
+        confirmLabel="Simpan & lanjut"
+        cancelLabel="Tetap di sini"
+        extra={{ label: 'Buang perubahan', tone: 'danger', onClick: discardAndLeave }}
+        busy={status.kind === 'saving'}
+        onConfirm={() => saveAndLeave()}
+        onCancel={() => answerLeave(false)}
+      />
     </div>
   )
 }

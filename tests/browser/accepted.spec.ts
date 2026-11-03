@@ -1,4 +1,4 @@
-import { test, expect, evidence, POS, BO, type ScenarioPage } from './fixture'
+import { test, expect, evidence, POS, BO, openBackoffice, type ScenarioPage } from './fixture'
 import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCustomer, posRecap, posAutoPull, posStockDrift, posLineSheet, posPromoSheet, posCustomerProfile, posHeldOrders, posGiveaway } from './pos-scenarios'
 import { setupBackoffice, backofficeChecks, transactionsChecks, qualifyBackoffice, reportsRaces } from './backoffice-scenarios'
 import { reviewResolveFlow } from './backoffice-review-scenarios'
@@ -13,13 +13,7 @@ import { posSplitTender, posSplitOffline, posSplitRefund, posSplitOff, posSplitD
 test('BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate toggle', async ({ page }, info) => {
   const p = page as ScenarioPage
   await setupPos(p)
-  await p.goto(BO)
-  await p.evaluate(() => {
-    localStorage.clear()
-    localStorage.setItem('mandalika.backoffice.refresh', 'SYNTHETIC-NON-TOKEN')
-    localStorage.setItem('mandalika.backoffice.loginDate', new Date().toLocaleDateString('sv-SE'))
-  })
-  await p.reload()
+  await openBackoffice(p, { viewport: false })
   const result = await qualifyBackoffice(p)
   expect(result).toHaveLength(6)
   await evidence(info, result)
@@ -173,7 +167,7 @@ test('BO-SPLIT-TOGGLE Bayar terpisah is off by default with the D-50 warning, as
 
 test('BO-SETTINGS-GUARD Pengaturan shows no save bar on open, guards leaving with unsaved edits, and saves only changed fields merged onto a fresh GET', async ({ page }, info) => {
   const result = await settingsGuardFlow(page as ScenarioPage)
-  expect(result).toHaveLength(3)
+  expect(result).toHaveLength(5)
   await evidence(info, result)
 })
 

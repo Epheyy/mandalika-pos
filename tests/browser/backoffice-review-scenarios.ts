@@ -1,6 +1,6 @@
 // Head office resolves a parked tablet item (synthetic API, no real backend).
 import type { ScenarioPage } from './fixture'
-import { BO } from './fixture'
+import { openBackoffice, navItem } from './fixture'
 
 const KEY = 'devA:00000000-0000-4000-8c00-0000000000a1'
 
@@ -35,16 +35,9 @@ export const reviewResolveFlow = async (page: ScenarioPage) => {
     }
     return route.fulfill({ json: { data: [], meta: { total: 0, page: 1, limit: 50 } } })
   })
-  await page.goto(BO)
-  await page.evaluate(() => {
-    localStorage.clear()
-    localStorage.setItem('mandalika.backoffice.refresh', 'SYNTHETIC-NON-TOKEN')
-    localStorage.setItem('mandalika.backoffice.loginDate', new Date().toLocaleDateString('sv-SE'))
-  })
-  await page.reload()
-  await page.setViewportSize({ width: 1440, height: 1000 })
+  await openBackoffice(page)
 
-  const navButton = page.getByRole('button', { name: /Tinjauan Sinkron/ })
+  const navButton = navItem(page, 'syncReview')
   await navButton.waitFor()
   await page.getByLabel('1 item terbuka').waitFor()
   results.push({ step: 'badge', openCount: 1 })

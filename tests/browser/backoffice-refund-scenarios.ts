@@ -1,24 +1,13 @@
 // C4c backoffice refunds: Laporan > Refund (rows, flag filter, paging, per-refund CSV) and the admin per-line
 // refund on Transaksi (synthetic API, no real backend).
 import type { ScenarioPage } from './fixture'
-import { BO } from './fixture'
+import { openBackoffice, navTo, openTab } from './fixture'
 
 const OUTLET = '00000000-0000-4000-8f69-0000000000a1'
 const uuid = (n: number) => `00000000-0000-4000-8f69-${String(n).padStart(12, '0')}`
 const NOW = '2026-01-03T05:00:00Z'
 const user = { id: 'synthetic-admin', displayName: 'MV Admin', role: 'admin', outletId: null, permissions: [] }
 const check = (ok: boolean, msg: string) => { if (!ok) throw new Error(msg) }
-
-const login = async (page: ScenarioPage) => {
-  await page.goto(BO)
-  await page.evaluate(() => {
-    localStorage.clear()
-    localStorage.setItem('mandalika.backoffice.refresh', 'SYNTHETIC-NON-TOKEN')
-    localStorage.setItem('mandalika.backoffice.loginDate', new Date().toLocaleDateString('sv-SE'))
-  })
-  await page.reload()
-  await page.setViewportSize({ width: 1440, height: 1000 })
-}
 
 const EMPTY_SUMMARY = {
   from: null, to: null, outletId: null, totalSales: 0, totalOrders: 0, grossSales: 0, grossOrders: 0, totalRefunds: 0, refundedOrders: 0,
@@ -70,10 +59,9 @@ export const refundReportFlow = async (page: ScenarioPage) => {
     }
     return route.fulfill({ json: { data: [], meta: { total: 0, page: 1, limit: 50 } } })
   })
-  await login(page)
+  await openBackoffice(page)
 
-  await page.getByRole('button', { name: 'Laporan', exact: true }).click()
-  await page.getByRole('button', { name: 'Refund', exact: true }).click()
+  await openTab(page, 'reports', 'refund')
 
   const partial = page.getByRole('row', { name: /INV-R-1001/ })
   await partial.waitFor()
@@ -164,9 +152,9 @@ export const adminPartialRefundFlow = async (page: ScenarioPage) => {
     if (path.endsWith('/orders')) return route.fulfill({ json: { data: [order()], meta: { total: 1, page: 1, limit: 50 } } })
     return route.fulfill({ json: { data: [], meta: { total: 0, page: 1, limit: 50 } } })
   })
-  await login(page)
+  await openBackoffice(page)
 
-  await page.getByRole('button', { name: 'Laporan', exact: true }).click()
+  await navTo(page, 'reports')
   await page.getByRole('button', { name: /INV-R-2001/ }).click()
   await page.getByRole('button', { name: 'Proses Refund' }).click()
 
