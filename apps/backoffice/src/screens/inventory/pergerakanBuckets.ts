@@ -17,8 +17,13 @@ export function formatSigned(n: number): string {
   return n > 0 ? `+${n}` : String(n)
 }
 
+/** Saldo Akhir minus (Saldo Awal + all six buckets), in units; 0 when the row adds up. */
+export function bucketsDiff(r: Pick<MovementLedgerSummaryRow, 'opening' | 'closing' | 'buckets'>): number {
+  const sum = BUCKET_COLUMNS.reduce((acc, c) => acc + r.buckets[c.key], 0)
+  return r.closing - (r.opening + sum)
+}
+
 /** Saldo Awal + all six buckets = Saldo Akhir. */
 export function bucketsReconcile(r: Pick<MovementLedgerSummaryRow, 'opening' | 'closing' | 'buckets'>): boolean {
-  const sum = BUCKET_COLUMNS.reduce((acc, c) => acc + r.buckets[c.key], 0)
-  return r.opening + sum === r.closing
+  return bucketsDiff(r) === 0
 }

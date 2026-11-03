@@ -10,8 +10,10 @@ import { Card } from '../../ui/Card'
 import { Badge } from '../../ui/Badge'
 import { EmptyState } from '../../ui/EmptyState'
 import { PageHeader } from '../../ui/PageHeader'
-import { GoodsInModal } from '../warehouses/GoodsInModal'
-import { AdjustModal } from '../warehouses/AdjustModal'
+import { useToast } from '../../ui/Toast'
+import { GoodsInSlideOver } from '../warehouses/GoodsInSlideOver'
+import { AdjustSlideOver } from '../warehouses/AdjustSlideOver'
+import { parChanged, parseParInput } from './parLevel'
 
 const rowKey = (productId: string, variantSize: string) => `${productId}|${variantSize}`
 
@@ -42,8 +44,34 @@ export function LocationStockView({ location, onBack }: LocationStockViewProps) 
   const [giOpen, setGiOpen] = useState(false)
   const [adjRow, setAdjRow] = useState<WarehouseStockRow | null>(null)
   const [parErr, setParErr] = useState<string | null>(null)
+  const toast = useToast()
 
   const isOutlet = location.kind === 'outlet'
+
+  // Saves a PAR only when the box holds a different, valid value than what is stored; anything else puts the
+  // stored value back so the box never shows something that was not saved.
+  const savePar = async (r: WarehouseStockRow, input: HTMLInputElement) => {
+    // A number box holding text like "-" or "5e" reports an empty value: that is bad input, not a cleared PAR.
+    const parsed = input.validity.badInput ? ({ ok: false } as const) : parseParInput(input.value)
+    if (!parsed.ok) {
+      setParErr('PAR harus berupa bilangan bulat 0 atau lebih, atau dikosongkan.')
+      input.value = r.parLevel == null ? '' : String(r.parLevel)
+      return
+    }
+    setParErr(null)
+    if (!parChanged(parsed.value, r.parLevel)) return
+    try {
+      await api.setOutletPar(location.id, { productId: r.productId, variantSize: r.variantSize, parLevel: parsed.value })
+      toast({
+        message: parsed.value === null ? `PAR ${r.productName} ${r.variantSize} dikosongkan` : `PAR ${r.productName} ${r.variantSize} disimpan: ${parsed.value}`,
+        tone: 'ok',
+      })
+      await sq.refetch()
+    } catch (err) {
+      setParErr(err instanceof Error ? err.message : 'Gagal menyimpan PAR.')
+      input.value = r.parLevel == null ? '' : String(r.parLevel)
+    }
+  }
 
   const stockBadgeTone = (r: WarehouseStockRow): 'danger' | 'neutral' => {
     if (isOutlet && r.parLevel != null && r.stock <= r.parLevel) return 'danger'
@@ -70,7 +98,7 @@ export function LocationStockView({ location, onBack }: LocationStockViewProps) 
               Kembali
             </Button>
             <Button icon={<PackagePlus className="w-4 h-4" />} onClick={() => setGiOpen(true)}>
-              Barang Masuk
+              Tambah barang masuk
             </Button>
           </>
         }
@@ -88,7 +116,7 @@ export function LocationStockView({ location, onBack }: LocationStockViewProps) 
         />
       </div>
 
-      {parErr && <p className="text-sm text-red-600">{parErr}</p>}
+      {parErr && <p role="alert" className="text-sm text-red-600">{parErr}</p>}
 
       <Card className="overflow-hidden">
         {sq.loading ? (
@@ -125,24 +153,14 @@ export function LocationStockView({ location, onBack }: LocationStockViewProps) 
                     {isOutlet && (
                       <td className="px-5 py-3">
                         <input
+                          key={`${rowKey(r.productId, r.variantSize)}|${r.parLevel ?? ''}`}
                           type="number"
+                          min={0}
+                          step={1}
                           defaultValue={r.parLevel ?? ''}
                           placeholder="—"
                           aria-label="PAR level stok"
-                          onBlur={async (e) => {
-                            const v = e.target.value === '' ? null : Number(e.target.value)
-                            try {
-                              setParErr(null)
-                              await api.setOutletPar(location.id, {
-                                productId: r.productId,
-                                variantSize: r.variantSize,
-                                parLevel: v,
-                              })
-                              await sq.refetch()
-                            } catch (err) {
-                              setParErr(err instanceof Error ? err.message : 'Gagal menyimpan PAR.')
-                            }
-                          }}
+                          onBlur={(e) => void savePar(r, e.currentTarget)}
                           className={`${fieldClass} w-20 py-1.5`}
                         />
                       </td>
@@ -155,7 +173,7 @@ export function LocationStockView({ location, onBack }: LocationStockViewProps) 
                           icon={<SlidersHorizontal className="w-3.5 h-3.5" />}
                           onClick={() => setAdjRow(r)}
                         >
-                          Koreksi
+                          Penyesuaian
                         </Button>
                       </div>
                     </td>
@@ -167,7 +185,7 @@ export function LocationStockView({ location, onBack }: LocationStockViewProps) 
         )}
       </Card>
 
-      <GoodsInModal
+      <GoodsInSlideOver
         open={giOpen}
         location={location}
         rows={rows}
@@ -176,7 +194,7 @@ export function LocationStockView({ location, onBack }: LocationStockViewProps) 
       />
 
       {adjRow && (
-        <AdjustModal
+        <AdjustSlideOver
           location={location}
           row={adjRow}
           onClose={() => setAdjRow(null)}

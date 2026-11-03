@@ -1,10 +1,9 @@
-import { useState } from 'react'
 import { useRouteTab } from '../../lib/router/useRouteTab'
 import { PageHeader } from '../../ui/PageHeader'
 import { Tabs } from '../../ui/Tabs'
 import { MovementSummary } from './MovementSummary'
 import { OverviewMatrix } from './OverviewMatrix'
-import { StockCard, type StockCardTarget } from './StockCard'
+import { StockCard } from './StockCard'
 
 type SubTab = 'overview' | 'pergerakan' | 'kartu'
 
@@ -25,16 +24,6 @@ const PATH_TABS: ReadonlyArray<{ key: SubTab; slug: string }> = [
 export default function StokProduk() {
   const [routed, setSubTab] = useRouteTab<SubTab>(BASE, PATH_TABS)
   const subTab = routed ?? 'overview'
-  // A summary row click opens the card on that SKU; the key remounts the card for each new target.
-  const [target, setTarget] = useState<StockCardTarget | null>(null)
-  const [targetKey, setTargetKey] = useState(0)
-
-  const openCard = (t: StockCardTarget) => {
-    setTarget(t)
-    setTargetKey((k) => k + 1)
-    setSubTab('kartu')
-  }
-
   return (
     <div className="p-6 space-y-5">
       <PageHeader
@@ -46,9 +35,9 @@ export default function StokProduk() {
 
       {subTab === 'overview' && <OverviewMatrix />}
 
-      {subTab === 'pergerakan' && <MovementSummary onOpenCard={openCard} />}
+      {subTab === 'pergerakan' && <MovementSummary />}
 
-      {subTab === 'kartu' && <StockCard key={targetKey} target={target} />}
+      {subTab === 'kartu' && <StockCard />}
     </div>
   )
 }

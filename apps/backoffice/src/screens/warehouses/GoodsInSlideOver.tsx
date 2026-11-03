@@ -1,15 +1,14 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { WarehouseStockRow, GoodsReceiptInput } from '@mandalika/api'
 import { api } from '../../api'
+import { newIdempotencyKey } from '../../lib/inventoryApproval'
 import { Button } from '../../ui/Button'
 import { Input, fieldClass } from '../../ui/Field'
-import { Modal } from '../../ui/Modal'
+import { SlideOver } from '../../ui/SlideOver'
+import { goodsLineKey, goodsReceiptItems, stockWriteError, type GoodsLine } from './stockWrite'
+import { useStockWriteGuard } from './useStockWriteGuard'
 
-// One editable goods-in line, keyed by `${productId}|${variantSize}`.
-type GoodsLine = { qty: string; unitCost: string }
-const lineKey = (productId: string, variantSize: string) => `${productId}|${variantSize}`
-
-interface GoodsInModalProps {
+interface GoodsInSlideOverProps {
   open: boolean
   location: { kind: 'outlet' | 'warehouse'; id: string; name: string }
   rows: WarehouseStockRow[]
@@ -18,36 +17,45 @@ interface GoodsInModalProps {
   onDone: () => void | Promise<void>
 }
 
-/** Goods-in (Barang Masuk): additive receipt of one or more variants. Only
- *  lines with qty > 0 are submitted; unit cost is optional/informational. */
-export function GoodsInModal({ open, location, rows, onClose, onDone }: GoodsInModalProps) {
+/** Barang Masuk: additive receipt of one or more variants. Only lines with qty > 0 are submitted; unit cost is
+ *  optional/informational. The form is mounted only while open, so every open starts with empty lines and its own
+ *  Idempotency-Key. */
+export function GoodsInSlideOver({ open, ...rest }: GoodsInSlideOverProps) {
+  if (!open) return null
+  return <GoodsInForm {...rest} />
+}
+
+function GoodsInForm({ location, rows, onClose, onDone }: Omit<GoodsInSlideOverProps, 'open'>) {
   const [supplier, setSupplier] = useState('')
   const [note, setNote] = useState('')
   const [isWarranty, setIsWarranty] = useState(false)
   const [lines, setLines] = useState<Record<string, GoodsLine>>({})
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // One key for this open, never rotated: a retry (or a double click) of an attempt that may already have been
+  // applied meets the server's claim and cannot add the stock twice. A new open mounts a new form and a new key.
+  const [key] = useState(newIdempotencyKey)
+  const inFlight = useRef(false)
 
-  const setLine = (key: string, patch: Partial<GoodsLine>) =>
+  const setLine = (lineKey: string, patch: Partial<GoodsLine>) =>
     setLines((m) => {
-      const prev: GoodsLine = m[key] ?? { qty: '', unitCost: '' }
-      return { ...m, [key]: { ...prev, ...patch } }
+      const prev: GoodsLine = m[lineKey] ?? { qty: '', unitCost: '' }
+      return { ...m, [lineKey]: { ...prev, ...patch } }
     })
 
+  const dirty =
+    supplier !== '' || note !== '' || isWarranty || Object.values(lines).some((l) => l.qty !== '' || l.unitCost !== '')
+
+  useStockWriteGuard(busy, dirty)
+
   const submit = async () => {
-    const items = rows
-      .map((r) => {
-        const l = lines[lineKey(r.productId, r.variantSize)]
-        const qty = Number(l?.qty ?? '')
-        if (!qty || qty <= 0) return null
-        const cost = l?.unitCost?.trim() ? Number(l.unitCost) : null
-        return { productId: r.productId, variantSize: r.variantSize, qty, unitCost: cost }
-      })
-      .filter((x): x is NonNullable<typeof x> => x !== null)
+    if (inFlight.current) return
+    const items = goodsReceiptItems(rows, lines)
     if (items.length === 0) {
       setErr('Isi jumlah (qty) minimal satu baris.')
       return
     }
+    inFlight.current = true
     setBusy(true)
     setErr(null)
     try {
@@ -57,32 +65,39 @@ export function GoodsInModal({ open, location, rows, onClose, onDone }: GoodsInM
         source: isWarranty ? 'warranty' : 'supply',
         items,
       }
-      await api.createLocationGoodsReceipt({ kind: location.kind, id: location.id }, body)
+      await api.createLocationGoodsReceipt({ kind: location.kind, id: location.id }, body, key)
       onClose()
       await onDone()
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'Gagal mencatat barang masuk.')
+      setErr(stockWriteError(e, 'Gagal mencatat barang masuk.'))
     } finally {
+      inFlight.current = false
       setBusy(false)
     }
   }
 
+  // No closing mid-flight: a reopen would get a new key while this write may still land.
+  const close = () => {
+    if (!busy) onClose()
+  }
+
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      size="xl"
+    <SlideOver
+      open
+      onClose={close}
+      width="lg"
       title="Barang Masuk"
       subtitle={location.name}
+      dirty={dirty}
       footer={
-        <>
-          <Button variant="secondary" className="flex-1" onClick={onClose}>
+        <SlideOver.Footer dirty={dirty}>
+          <Button variant="secondary" onClick={close} disabled={busy}>
             Batal
           </Button>
-          <Button className="flex-1" onClick={submit} loading={busy}>
-            {busy ? 'Menyimpan...' : 'Catat Barang Masuk'}
+          <Button onClick={submit} loading={busy}>
+            {busy ? 'Menyimpan...' : 'Simpan barang masuk'}
           </Button>
-        </>
+        </SlideOver.Footer>
       }
     >
       <div className="space-y-4">
@@ -110,7 +125,7 @@ export function GoodsInModal({ open, location, rows, onClose, onDone }: GoodsInM
 
         {rows.length === 0 ? (
           <p className="text-sm text-gray-400 py-3">
-            Belum ada varian di gudang ini. Tambahkan produk lebih dulu.
+            Belum ada varian di lokasi ini. Tambahkan produk lebih dulu.
           </p>
         ) : (
           <div>
@@ -120,22 +135,20 @@ export function GoodsInModal({ open, location, rows, onClose, onDone }: GoodsInM
               <span className="col-span-2 text-[11px] font-bold text-gray-400">Qty Masuk</span>
               <span className="col-span-3 text-[11px] font-bold text-gray-400">Harga Beli</span>
             </div>
-            <div className="space-y-2 max-h-80 overflow-y-auto">
+            <div className="space-y-2">
               {rows.map((r) => {
-                const key = lineKey(r.productId, r.variantSize)
-                const l = lines[key]
+                const lineKey = goodsLineKey(r.productId, r.variantSize)
+                const l = lines[lineKey]
                 return (
-                  <div key={key} className="grid grid-cols-12 gap-2 items-center">
-                    <span className="col-span-5 text-xs text-gray-600 truncate">
-                      {r.productName}
-                    </span>
+                  <div key={lineKey} className="grid grid-cols-12 gap-2 items-center">
+                    <span className="col-span-5 text-xs text-gray-600 truncate">{r.productName}</span>
                     <span className="col-span-2 text-xs text-gray-500">{r.variantSize}</span>
                     <input
                       type="number"
                       min={0}
                       value={l?.qty ?? ''}
                       aria-label={`Qty masuk ${r.productName} ${r.variantSize}`}
-                      onChange={(e) => setLine(key, { qty: e.target.value })}
+                      onChange={(e) => setLine(lineKey, { qty: e.target.value })}
                       placeholder="0"
                       className={`${fieldClass} col-span-2 py-1.5`}
                     />
@@ -144,7 +157,7 @@ export function GoodsInModal({ open, location, rows, onClose, onDone }: GoodsInM
                       min={0}
                       value={l?.unitCost ?? ''}
                       aria-label={`Harga beli ${r.productName} ${r.variantSize}`}
-                      onChange={(e) => setLine(key, { unitCost: e.target.value })}
+                      onChange={(e) => setLine(lineKey, { unitCost: e.target.value })}
                       placeholder="—"
                       className={`${fieldClass} col-span-3 py-1.5`}
                     />
@@ -158,8 +171,8 @@ export function GoodsInModal({ open, location, rows, onClose, onDone }: GoodsInM
           </div>
         )}
 
-        {err && <p className="text-sm text-red-600">{err}</p>}
+        {err && <p role="alert" className="text-sm text-red-600">{err}</p>}
       </div>
-    </Modal>
+    </SlideOver>
   )
 }
