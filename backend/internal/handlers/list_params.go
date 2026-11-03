@@ -120,6 +120,12 @@ func (h *Handlers) ListGoodsReceipts(w http.ResponseWriter, r *http.Request) {
 	if f.Q, ok = searchParam(w, r); !ok {
 		return
 	}
+	if o := r.URL.Query().Get("outletId"); o != "" && o != "all" {
+		if _, err := uuid.Parse(o); err != nil {
+			httpx.Err(w, http.StatusBadRequest, "outletId tidak valid")
+			return
+		}
+	}
 	zone := bizday.Zone("")
 	if f.LocationID != "" {
 		z, exists, err := h.Repo.LocationZone(r.Context(), f.LocationType, f.LocationID)

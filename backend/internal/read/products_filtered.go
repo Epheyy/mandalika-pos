@@ -30,7 +30,7 @@ func (f ProductFilter) IsZero() bool {
 
 // likePattern turns a user search into a contains pattern, escaping LIKE wildcards.
 func likePattern(q string) string {
-	r := strings.NewReplacer(`\`, `\`, `%`, `\%`, `_`, `\_`)
+	r := strings.NewReplacer(`\`, `\\`,`%`, `\%`, `_`, `\_`)
 	return "%" + r.Replace(q) + "%"
 }
 

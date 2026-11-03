@@ -6783,7 +6783,7 @@ paths:
         - $ref: '#/components/parameters/Limit'
       responses:
         '200':
-          description: pending approvals and the pending count (pendingCount ignores outletId and kind)
+          description: pending approvals and the pending count (pendingCount ignores kind; an admin's outletId also switches the scope, narrowing it)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApprovalQueueResponse' }

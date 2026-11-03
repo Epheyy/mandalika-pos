@@ -146,7 +146,7 @@ func TestListParamsPostgres(t *testing.T) {
 	})
 	t.Run("2 products: q matches name, brand, SKU and barcode, and escapes LIKE wildcards", func(t *testing.T) {
 		for q, want := range map[string]string{
-			"alpha": "Alpha Rose", "flamboy": "Gamma Musk", "del-m": "Delta Citrus", "8990004": "Gamma Musk", "100%25": "100%_Promo Set",
+			"alpha": "Alpha Rose", "flamboy": "Gamma Musk", "del-m": "Delta Citrus", "8990004": "Gamma Musk", "100%25": "100%_Promo Set", "a%5C": "",
 		} {
 			rows, _, _ := list("/products?q="+q, tokAdmin)
 			if names(rows, "name") != want {
@@ -397,6 +397,7 @@ func TestListParamsPostgres(t *testing.T) {
 		if _, total, _ = list("/inventory/goods-receipts?limit=3&page=5", tokAdmin); total != 4 {
 			t.Errorf("past the end total %d", total)
 		}
+		bad("/inventory/goods-receipts?outletId=zzz", tokAdmin)
 		for _, q := range []string{"locationType=shelf", "locationId=" + outA, "locationType=outlet&locationId=zzz", "source=gift", "dari=kemarin"} {
 			bad("/inventory/goods-receipts?"+q, tokAdmin)
 		}

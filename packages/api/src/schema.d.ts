@@ -11940,7 +11940,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description pending approvals and the pending count (pendingCount ignores outletId and kind) */
+            /** @description pending approvals and the pending count (pendingCount ignores kind; an admin's outletId also switches the scope, narrowing it) */
             200: {
                 headers: {
                     [name: string]: unknown;

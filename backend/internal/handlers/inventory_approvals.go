@@ -312,8 +312,9 @@ func (h *Handlers) CancelAdjustmentRequest(w http.ResponseWriter, r *http.Reques
 // ListInventoryApprovals is the Persetujuan Stok queue: pending adjustment requests and
 // submitted counts in one paged list. Each kind is shown only to a caller holding its
 // permission (manage_inventory / manage_stock_count), so a count-only user never sees an
-// adjustment request. pendingCount is the pending total the caller may see, whatever outletId/kind
-// narrow the list to, for the nav badge.
+// adjustment request. pendingCount is the pending total the caller may see, whatever kind narrows the
+// list to, for the nav badge. outletId narrows the list; for an admin it also switches the scope
+// (scope()), so it narrows pendingCount too.
 func (h *Handlers) ListInventoryApprovals(w http.ResponseWriter, r *http.Request) {
 	if s := r.URL.Query().Get("status"); s != "" && s != "pending" {
 		httpx.Err(w, http.StatusBadRequest, "status tidak valid")
