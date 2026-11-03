@@ -79,12 +79,30 @@ export async function wasActiveNow<Row extends StatusRow>(row: Row | null, fetch
   }
 }
 
+const ACTIVATION_CONSEQUENCE = 'Tablet memakainya setelah sinkron berikutnya.'
+
 /** The D-79 question, in one place: "Aktifkan promo X?" / "Aktifkan kode X?". */
 export async function confirmActivation(confirm: StatusToggleDeps['confirm'], noun: string, name: string): Promise<boolean> {
   const answer = await confirm({
     title: `Aktifkan ${noun} ${name}?`,
-    consequence: 'Tablet memakainya setelah sinkron berikutnya.',
+    consequence: ACTIVATION_CONSEQUENCE,
     confirmLabel: 'Aktifkan',
+  })
+  return answer.confirmed
+}
+
+/**
+ * Does a Buat Massal batch go live? Every code in it is new, so it asks exactly when the batch is created active. The
+ * server stores a missing `isActive` as false, so only an explicit true counts.
+ */
+export const batchNeedsConfirm = (batch: { isActive?: boolean }): boolean => needsActivationConfirm(null, batch.isActive === true)
+
+/** The D-79 question for Buat Massal, with the number of codes it creates: "Buat 25 kode aktif?". */
+export async function confirmBatchActivation(confirm: StatusToggleDeps['confirm'], count: number): Promise<boolean> {
+  const answer = await confirm({
+    title: `Buat ${count} kode aktif?`,
+    consequence: ACTIVATION_CONSEQUENCE,
+    confirmLabel: 'Buat kode',
   })
   return answer.confirmed
 }

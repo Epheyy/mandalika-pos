@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { DiscountCode, DiscountCodeBatchInput, Promotion } from '@mandalika/api'
 import { Layers, Plus } from 'lucide-react'
 import { api } from '../../api'
@@ -8,6 +8,7 @@ import { Button } from '../../ui/Button'
 import { ExportButton, type ExportFormat } from '../../ui/ExportButton'
 import { PageHeader } from '../../ui/PageHeader'
 import { Pagination } from '../../ui/Pagination'
+import { useConfirm } from '../../ui/ConfirmDialog'
 import { useToast } from '../../ui/Toast'
 import { DeleteConfirmDialog } from '../products/DeleteConfirmDialog'
 import { CodeEditorHost } from './CodeEditorHost'
@@ -20,7 +21,7 @@ import { PROMO_PAGE_SIZES } from './promoListState'
 import { wibDay } from './promoStatus'
 import { usePromoList } from './usePromoList'
 import { useRowDelete } from './useRowDelete'
-import { useStatusToggle, type StatusToggleKind } from './useStatusToggle'
+import { batchNeedsConfirm, confirmBatchActivation, useStatusToggle, type StatusToggleKind } from './useStatusToggle'
 
 interface CodesTabProps {
   /** The Promosi / Kode Diskon tab strip, shown in the header. */
@@ -45,6 +46,7 @@ const messageOf = (e: unknown, fallback: string): string => (e instanceof Error 
 export function CodesTab({ tabs }: CodesTabProps) {
   const list = usePromoList<DiscountCode>('codes', fetchPage)
   const toast = useToast()
+  const confirm = useConfirm()
   const del = useRowDelete<DiscountCode>(removeCode, list.refetch, 'Gagal menghapus kode diskon.')
   const status = useStatusToggle(STATUS_KIND, list.refetch)
   // Names for "Tertaut: …" and the batch picker. The code list is paged, the promotions are not.
@@ -71,21 +73,43 @@ export function CodesTab({ tabs }: CodesTabProps) {
   const closeBatch = () => {
     if (!batchBusy) setBatchOpen(false)
   }
+  // Held from the click through the question and the send: `batchBusy` is state and lags a render, so a second click
+  // landing just after the confirm closes would otherwise send a second batch.
+  const batchInFlight = useRef(false)
+  // The question outlives this screen (the provider sits at the root): a confirm after a route change sends nothing.
+  const aliveRef = useRef(true)
+  useEffect(() => {
+    aliveRef.current = true
+    return () => {
+      aliveRef.current = false
+    }
+  }, [])
   const generateBatch = async () => {
-    setBatchBusy(true)
-    setBatchError(null)
+    if (batchInFlight.current) return
+    batchInFlight.current = true
     try {
-      const created = await api.createDiscountCodeBatch({ ...batchForm, prefix: (batchForm.prefix || '').toUpperCase() })
-      await list.refetch()
-      setBatchOpen(false)
-      if (created.length) {
-        exportToCSV(created.map((c) => ({ Kode: c.code, Tipe: c.type, Nilai: c.value, Kuota: c.usageLimit ?? 0 })), 'kode-diskon-batch')
-        toast({ message: `${created.length} kode dibuat. Daftar kode sudah diunduh.`, tone: 'ok' })
+      const input = { ...batchForm, prefix: (batchForm.prefix || '').toUpperCase() }
+      // N active codes reach the tablets on the next sync, so ask first (D-79). Batal leaves the panel and its error as
+      // they were and sends nothing.
+      if (batchNeedsConfirm(input) && !(await confirmBatchActivation(confirm, input.count))) return
+      if (!aliveRef.current) return
+      setBatchBusy(true)
+      setBatchError(null)
+      try {
+        const created = await api.createDiscountCodeBatch(input)
+        await list.refetch()
+        setBatchOpen(false)
+        if (created.length) {
+          exportToCSV(created.map((c) => ({ Kode: c.code, Tipe: c.type, Nilai: c.value, Kuota: c.usageLimit ?? 0 })), 'kode-diskon-batch')
+          toast({ message: `${created.length} kode dibuat. Daftar kode sudah diunduh.`, tone: 'ok' })
+        }
+      } catch (e: unknown) {
+        setBatchError(messageOf(e, 'Kode massal gagal dibuat.'))
+      } finally {
+        setBatchBusy(false)
       }
-    } catch (e: unknown) {
-      setBatchError(messageOf(e, 'Kode massal gagal dibuat.'))
     } finally {
-      setBatchBusy(false)
+      batchInFlight.current = false
     }
   }
 

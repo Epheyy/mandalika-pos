@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { DiscountCode, Promotion } from '@mandalika/api'
-import { codeToInput } from './discountCodeForm'
+import { EMPTY_BATCH, codeToInput } from './discountCodeForm'
 import { promotionToInput } from './promotionForm'
-import { confirmActivation, needsActivationConfirm, wasActiveNow, toggleStatus, type StatusToggleDeps, type StatusToggleKind } from './useStatusToggle'
+import {
+  batchNeedsConfirm, confirmActivation, confirmBatchActivation, needsActivationConfirm, wasActiveNow, toggleStatus,
+  type StatusToggleDeps, type StatusToggleKind,
+} from './useStatusToggle'
 
 const promo = (over: Partial<Promotion> = {}): Promotion => ({
   id: 'promo-1', name: 'Diskon Akhir Tahun', type: 'percentage', value: 10, isActive: true, createdAt: '2026-10-01T00:00:00Z',
@@ -160,5 +163,22 @@ describe('wasActiveNow: the editor re-reads a row it opened as active', () => {
   })
   it('falls back to the loaded row when the read fails', async () => {
     expect(await wasActiveNow(row, async () => { throw new Error('offline') })).toBe(true)
+  })
+})
+
+describe('batchNeedsConfirm: Buat Massal asks only when the batch is created active', () => {
+  it('asks for a batch created active', () => expect(batchNeedsConfirm({ isActive: true })).toBe(true))
+  it('does not ask for a batch created inactive', () => expect(batchNeedsConfirm({ isActive: false })).toBe(false))
+  it('does not ask when isActive is missing: the server stores that as inactive', () => expect(batchNeedsConfirm({})).toBe(false))
+  it('asks for the form as Buat Massal opens it (active by default)', () => expect(batchNeedsConfirm(EMPTY_BATCH)).toBe(true))
+})
+
+describe('confirmBatchActivation', () => {
+  it('names the number of codes in the D-79 words and returns the answer', async () => {
+    const confirm = vi.fn(async () => ({ confirmed: true }))
+    expect(await confirmBatchActivation(confirm, 25)).toBe(true)
+    expect(confirm).toHaveBeenCalledWith({ title: 'Buat 25 kode aktif?', consequence: 'Tablet memakainya setelah sinkron berikutnya.', confirmLabel: 'Buat kode' })
+    confirm.mockResolvedValueOnce({ confirmed: false })
+    expect(await confirmBatchActivation(confirm, 25)).toBe(false)
   })
 })

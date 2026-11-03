@@ -408,22 +408,59 @@ async function codesTab(page: ScenarioPage, state: State, results: object[]) {
   check(!('customerName' in body), 'the holder name is not sent')
   results.push({ step: 'code-round-trip', body })
 
-  // Buat Massal: a refused batch stays in its panel with the reason
+  // Buat Massal makes N active codes, so Generate asks first with the count (D-79); Batal keeps the panel as it was and
+  // sends nothing; a double-clicked confirm sends one batch, the one asked about.
   // The batch panel is the kit Modal (a heading, no dialog role): scope by what is on screen with it open.
+  const confirm = page.getByRole('alertdialog')
   const batchTitle = page.getByRole('heading', { name: 'Buat Kode Diskon Massal', exact: true })
+  const generate = page.getByRole('button', { name: 'Generate', exact: true })
+  const jumlah = page.getByLabel('Jumlah', { exact: true })
+  const batches = () => state.calls.filter((c) => c.method === 'POST' && c.path === '/discount-codes/batch')
+  await page.getByRole('button', { name: 'Buat Massal', exact: true }).click()
+  await batchTitle.waitFor()
+  await jumlah.fill('25')
+  state.calls.length = 0
+  await generate.click()
+  await confirm.getByText('Buat 25 kode aktif?', { exact: true }).waitFor()
+  await confirm.getByText('Tablet memakainya setelah sinkron berikutnya.', { exact: true }).waitFor()
+  await confirm.getByRole('button', { name: 'Batal', exact: true }).click()
+  await confirm.waitFor({ state: 'detached' })
+  check(await batchTitle.isVisible() && (await jumlah.inputValue()) === '25', 'Batal keeps the batch panel open with the form intact')
+  check(batches().length === 0, 'Batal sends no batch')
+  await generate.click()
+  await confirm.getByRole('button', { name: 'Buat kode', exact: true }).waitFor()
+  // The worst double click: the confirm, then Generate again in the same task, before "Membuat..." has rendered.
+  await page.evaluate(() => {
+    const button = (name: string) => [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === name)
+    button('Buat kode')?.click()
+    button('Generate')?.click()
+  })
+  await batchTitle.waitFor({ state: 'detached' })
+  check((await confirm.count()) === 0, 'a second click does not ask a second time')
+  check(batches().length === 1, `a double click sends one batch, got ${batches().length}`)
+  check(batches()[0].body.count === 25 && batches()[0].body.isActive === true, 'the batch sent is the one asked about: 25 codes, active')
+  results.push({ step: 'batch-asks-with-count' })
+
+  // a refused batch stays in its panel with the reason; asking again and answering Batal leaves the reason in place
   await page.getByRole('button', { name: 'Buat Massal', exact: true }).click()
   await batchTitle.waitFor()
   state.failBatch = true
-  await page.getByRole('button', { name: 'Generate', exact: true }).click()
-  await page.getByRole('alert').filter({ hasText: 'Awalan sudah dipakai kode lain' }).waitFor()
+  await generate.click()
+  await confirm.getByRole('button', { name: 'Buat kode', exact: true }).click()
+  const refused = page.getByRole('alert').filter({ hasText: 'Awalan sudah dipakai kode lain' })
+  await refused.waitFor()
   check(await batchTitle.isVisible(), 'a refused batch keeps its panel open')
+  await generate.click()
+  await confirm.getByText('Buat 10 kode aktif?', { exact: true }).waitFor()
+  await confirm.getByRole('button', { name: 'Batal', exact: true }).click()
+  await confirm.waitFor({ state: 'detached' })
+  check(await refused.isVisible(), 'Batal on the question leaves the refusal visible')
   state.failBatch = false
   await page.getByRole('button', { name: 'Batal', exact: true }).click()
   await batchTitle.waitFor({ state: 'detached' })
   results.push({ step: 'batch-error-visible' })
 
   // turning a code ON asks first, in the code's words
-  const confirm = page.getByRole('alertdialog')
   await rowOf(page, 'HEMAT10').getByRole('switch', { name: 'Status HEMAT10', exact: true }).click()
   await confirm.getByText('Aktifkan kode HEMAT10?', { exact: true }).waitFor()
   await confirm.getByRole('button', { name: 'Batal', exact: true }).click()
