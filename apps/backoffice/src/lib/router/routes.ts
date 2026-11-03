@@ -92,6 +92,7 @@ const REPORT_TABS: readonly RouteTab[] = [
 const INVENTORY_TABS: readonly RouteTab[] = [
   tab('stok', 'stok', 'Stok Produk', 'manage_inventory'),
   tab('transfer', 'transfer', 'Transfer', 'manage_inventory'),
+  tab('barangMasuk', 'barang-masuk', 'Barang Masuk', 'manage_inventory'),
   tab('bahan', 'bahan', 'Bahan', 'manage_inventory'),
   tab('opname', 'opname', 'Opname', 'manage_stock_count'),
 ]

@@ -290,6 +290,12 @@
       "source": "tests/browser/backoffice-products-scenarios.ts"
     },
     {
+      "id": "BO-TRANSFER-CONFIRM",
+      "finding": "D3b",
+      "description": "Transfer detail: Kirim opens a question naming the unit count and the source and sends nothing; Batal leaves the draft; a refused send keeps the dialog open with the reason and the retry carries the same Idempotency-Key while a reopened dialog gets a new one; a transfer cancelled by another user under the open Batalkan dialog is refused with no write; Batalkan states that the stock returns, and a double click on the confirm calls the write exactly once with a key of its own",
+      "source": "tests/browser/backoffice-transfer-scenarios.ts"
+    },
+    {
       "id": "POS-REQUISITION",
       "finding": "inventory-controls-S6",
       "description": "Cashier Permintaan Barang: menu hidden without request_stock; create sends Idempotency-Key and outlet; a failed submit retries with the same key; transfer chain shows Dikirim and Buka Terima Transfer opens the receive panel; cancel a draft; a lost create answer then an edit replays the old key (one PB, then one update) and is resolved when the panel next opens online; offline refuses the save with no request leaving the tablet; zero approve/reject/fulfil requests across the run",

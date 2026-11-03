@@ -2,7 +2,6 @@ import type { StockRequisition } from '@mandalika/api'
 
 import { badgeTone, type BadgeToneName } from '../../lib/labels/badgeTone'
 import { REQUISITION_STATUS as REQUISITION_LABELS } from '../../lib/labels/requisition'
-import { TRANSFER_STATUS } from '../../lib/labels/transfer'
 
 export type RequisitionStatus = StockRequisition['status']
 
@@ -29,10 +28,6 @@ export const EVENT_LABEL: Record<string, string> = {
   fulfilled: 'Transfer dibuat',
   refulfilled: 'Transfer dibuat ulang',
 }
-
-export const TRANSFER_STATUS_LABEL: Record<string, string> = Object.fromEntries(
-  Object.entries(TRANSFER_STATUS).map(([k, v]) => [k, v.label]),
-)
 
 export const fmtDateTime = (s?: string | null) =>
   s ? new Date(s).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'

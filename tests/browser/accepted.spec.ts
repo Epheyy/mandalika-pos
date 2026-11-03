@@ -9,6 +9,7 @@ import { splitOrderFlow, splitToggleFlow } from './backoffice-split-scenarios'
 import { settingsGuardFlow } from './backoffice-settings-scenarios'
 import { routeDeepLinkFlow, routeGuardFlow } from './backoffice-route-scenarios'
 import { productsListFlow } from './backoffice-products-scenarios'
+import { transferConfirmFlow } from './backoffice-transfer-scenarios'
 import { posRequisition } from './pos-requisition-scenarios'
 import { posSplitTender, posSplitOffline, posSplitRefund, posSplitOff, posSplitDraft } from './pos-split-scenarios'
 
@@ -188,6 +189,12 @@ test('BO-ROUTE-GUARD a dirty Pengaturan keeps its own tabs unguarded and asks fo
 test('BO-PRODUCTS-LIST Produk filters and paging are server requests and URL state that survive a reload, a page past the end steps back, the export carries every matching row, and the editor slide-over guards unsaved work with one question, closes silently after a save, shows field errors and layers the recipe editor', async ({ page }, info) => {
   const result = await productsListFlow(page as ScenarioPage)
   expect(result).toHaveLength(13)
+  await evidence(info, result)
+})
+
+test('BO-TRANSFER-CONFIRM Kirim and Batalkan ask first, Batal leaves the draft, a refused send keeps the dialog and retries with the same key, a transfer changed under the dialog is refused, and a confirm calls the write once', async ({ page }, info) => {
+  const result = await transferConfirmFlow(page as ScenarioPage)
+  expect(result).toHaveLength(5)
   await evidence(info, result)
 })
 

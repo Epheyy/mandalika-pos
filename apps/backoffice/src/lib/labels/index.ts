@@ -1,6 +1,7 @@
 export * from './types'
 export * from './badgeTone'
 export * from './transfer'
+export * from './goodsReceipt'
 export * from './requisition'
 export * from './opname'
 export * from './order'
