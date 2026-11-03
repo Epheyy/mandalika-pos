@@ -14,6 +14,9 @@ import { Input, Select, Textarea, fieldClass } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
 import { Card } from '../../ui/Card'
 import { Badge } from '../../ui/Badge'
+import { badgeTone } from '../../lib/labels/badgeTone'
+import { OPNAME_STATUS } from '../../lib/labels/opname'
+import { labelOf } from '../../lib/labels/types'
 import { IconButton } from '../../ui/IconButton'
 import { EmptyState } from '../../ui/EmptyState'
 import { PageHeader } from '../../ui/PageHeader'
@@ -134,17 +137,9 @@ const exportIngredientStockCounts = async (fmt: 'csv' | 'xlsx') => {
   else exportToXLSX(exportRows, 'opname-bahan')
 }
 
-const tone = (s: string): 'gold' | 'success' | 'danger' | 'neutral' =>
-  s === 'in_progress' ? 'gold' : s === 'completed' ? 'success' : s === 'cancelled' ? 'danger' : 'neutral'
+const tone = (s: string) => badgeTone(labelOf(OPNAME_STATUS, s).tone)
 
-const statusLabel = (s: string) =>
-  s === 'planned'
-    ? 'Direncanakan'
-    : s === 'in_progress'
-      ? 'Sedang Berjalan'
-      : s === 'completed'
-        ? 'Selesai'
-        : 'Dibatalkan'
+const statusLabel = (s: string) => labelOf(OPNAME_STATUS, s).label
 
 const locationKindLabel = (kind: 'outlet' | 'warehouse') =>
   kind === 'outlet' ? 'Outlet' : 'Gudang'

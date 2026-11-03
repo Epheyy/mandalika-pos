@@ -1,39 +1,19 @@
 import type { ErpOutboxItem, ErpRelayReport } from '@mandalika/api'
+import { ERP_KIND, ERP_STATUS } from '../../lib/labels/erp'
 
 export type ErpStatus = ErpOutboxItem['status']
 export type ErpKind = ErpOutboxItem['kind']
 export type ErpTone = 'success' | 'danger' | 'warning' | 'neutral'
 
-export const STATUS_LABEL: Record<ErpStatus, string> = {
-  pending: 'Menunggu',
-  held: 'Ditahan',
-  sending: 'Mengirim',
-  delivered: 'Terkirim',
-  replayed: 'Diulang',
-  dead: 'Gagal',
-}
+const ERP_TONE_TO_LEGACY = { ok: 'success', warn: 'warning', danger: 'danger' } as const
 
-const STATUS_TONE: Record<ErpStatus, ErpTone> = {
-  dead: 'danger',
-  held: 'warning',
-  delivered: 'success',
-  replayed: 'success',
-  pending: 'neutral',
-  sending: 'neutral',
-}
+export const STATUS_LABEL = Object.fromEntries(
+  Object.entries(ERP_STATUS).map(([k, v]) => [k, v.label]),
+) as Record<ErpStatus, string>
 
-export const KIND_LABEL: Record<ErpKind, string> = {
-  sale: 'Penjualan',
-  refund: 'Retur',
-  transfer_out: 'Transfer keluar',
-  transfer_in: 'Transfer masuk',
-  transfer_cancel: 'Batal transfer',
-  receipt: 'Penerimaan',
-  adjust: 'Penyesuaian',
-  count: 'Stok opname',
-  opening: 'Saldo awal',
-  write_off: 'Penghapusan',
-}
+export const KIND_LABEL = Object.fromEntries(
+  Object.entries(ERP_KIND).map(([k, v]) => [k, v.label]),
+) as Record<ErpKind, string>
 
 // Tab order; the Record type makes a new status a compile error here too.
 const STATUS_RANK: Record<ErpStatus, number> = { dead: 0, held: 1, pending: 2, sending: 3, delivered: 4, replayed: 5 }
@@ -41,7 +21,10 @@ export const STATUS_ORDER = (Object.keys(STATUS_RANK) as ErpStatus[]).sort((a, b
 export const KIND_ORDER = Object.keys(KIND_LABEL) as ErpKind[]
 
 export const statusLabel = (s: ErpStatus): string => STATUS_LABEL[s] ?? s
-export const statusTone = (s: ErpStatus): ErpTone => STATUS_TONE[s] ?? 'neutral'
+export const statusTone = (s: ErpStatus): ErpTone => {
+  const t = ERP_STATUS[s]?.tone
+  return t === 'ok' || t === 'warn' || t === 'danger' ? ERP_TONE_TO_LEGACY[t] : 'neutral'
+}
 export const kindLabel = (k: ErpKind): string => KIND_LABEL[k] ?? k
 
 /** Statuses a document can be re-queued from (server answers 409 for pending/sending). */

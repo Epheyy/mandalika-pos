@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, Download, Upload, FileText } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Upload, FileText } from 'lucide-react'
 import type { ImportKind } from '@mandalika/api'
 import { Button } from '../ui/Button'
+import { ExportButton, type ExportFormat } from '../ui/ExportButton'
 import { ImportDialog, type ImportFile } from './ImportDialog'
 import { ENCODING_MESSAGE, checkPickedFile, decodeUtf8 } from './importDialogState'
 
 export interface ImportExportBarProps {
   /** Build + trigger the export. Caller maps its data to rows then calls exportToCSV/exportToXLSX. */
-  onExport: (fmt: 'csv' | 'xlsx') => void
+  onExport: (fmt: ExportFormat) => Promise<void> | void
   exportDisabled?: boolean
   /** Which server-side CSV import this bar drives (A39). Omit to render export-only. */
   importKind?: ImportKind
@@ -23,29 +24,10 @@ export function ImportExportBar({
   onImported,
   onTemplate,
 }: ImportExportBarProps) {
-  const [exportMenu, setExportMenu] = useState(false)
   const [picked, setPicked] = useState<(ImportFile & { id: number }) | null>(null)
   const [pickError, setPickError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
   const nextId = useRef(0)
-
-  // Close the export dropdown when clicking outside
-  useEffect(() => {
-    if (!exportMenu) return
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setExportMenu(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [exportMenu])
-
-  const handleExport = (fmt: 'csv' | 'xlsx') => {
-    onExport(fmt)
-    setExportMenu(false)
-  }
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -71,34 +53,13 @@ export function ImportExportBar({
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-2">
-        {/* Export dropdown */}
-        <div className="relative" ref={menuRef}>
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={<Download className="w-3.5 h-3.5" />}
-            disabled={exportDisabled}
-            onClick={() => setExportMenu((v) => !v)}
-          >
-            Export <ChevronDown className="w-3 h-3" />
-          </Button>
-          {exportMenu && (
-            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 min-w-32 overflow-hidden">
-              <button type="button"
-                onClick={() => handleExport('csv')}
-                className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-gray-50 text-gray-700"
-              >
-                CSV (.csv)
-              </button>
-              <button type="button"
-                onClick={() => handleExport('xlsx')}
-                className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-gray-50 text-gray-700"
-              >
-                Excel (.xlsx)
-              </button>
-            </div>
-          )}
-        </div>
+        <ExportButton
+          formats={['csv', 'xlsx']}
+          rowCount={null}
+          filterSummary={[]}
+          disabled={exportDisabled}
+          onExport={onExport}
+        />
 
         {/* Template + Import (only when an import kind is provided) */}
         {hasImport && (
@@ -110,7 +71,7 @@ export function ImportExportBar({
                 icon={<FileText className="w-3.5 h-3.5" />}
                 onClick={onTemplate}
               >
-                Template
+                Templat
               </Button>
             )}
             <Button

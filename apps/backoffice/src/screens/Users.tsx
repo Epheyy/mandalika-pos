@@ -21,12 +21,15 @@ import { RoleModal } from './users/RoleModal'
 import { ResetPasswordModal } from './users/ResetPasswordModal'
 import { UNLOCK_PIN_NOTE, unlockReceivePin } from './users/unlockPin'
 
+import { badgeTone, type BadgeToneName } from '../lib/labels/badgeTone'
+import { ROLE } from '../lib/labels/role'
+
 type Role = 'admin' | 'manager' | 'cashier'
-const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', manager: 'Manager', cashier: 'Kasir' }
-const ROLE_TONE: Record<Role, 'gold' | 'success' | 'danger'> = {
-  admin: 'danger',
-  manager: 'gold',
-  cashier: 'success',
+const ROLE_LABEL: Record<Role, string> = { admin: ROLE.admin.label, manager: ROLE.manager.label, cashier: ROLE.cashier.label }
+const ROLE_TONE: Record<Role, BadgeToneName> = {
+  admin: badgeTone(ROLE.admin.tone),
+  manager: badgeTone(ROLE.manager.tone),
+  cashier: badgeTone(ROLE.cashier.tone),
 }
 
 type EditUserState = {

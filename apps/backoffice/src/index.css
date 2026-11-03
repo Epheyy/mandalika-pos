@@ -1,21 +1,21 @@
 @import 'tailwindcss';
+@import '../../../packages/ui-tokens/tokens.css';
+
+/* Roboto Variable, latin subset, self-hosted (D-75): the browser gate aborts external font requests.
+   Licence: public/fonts/OFL.txt. */
+@font-face {
+  font-family: 'Roboto Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('/fonts/roboto-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 @theme {
   /* ── Mandalika Gold ──────────────────────────────────────
-     The whole UI was built on Tailwind's `indigo-*`; overriding the ramp
-     repaints every legacy `indigo-*` class as brand gold with no markup
-     edits. `gold-*` is the same ramp under a clearer name for new code. */
-  --color-indigo-50: #fdf8ee;
-  --color-indigo-100: #f9edcc;
-  --color-indigo-200: #f0d48a;
-  --color-indigo-300: #e4b84a;
-  --color-indigo-400: #d4a030;
-  --color-indigo-500: #c49020;
-  --color-indigo-600: #b07d18; /* ← Main brand gold */
-  --color-indigo-700: #8f6210;
-  --color-indigo-800: #6e4a0c;
-  --color-indigo-900: #4d3408;
-
+     `gold-*` stays for screens not yet moved to the semantic tokens (brand-*, ok/warn/danger…). */
   --color-gold-50: #fdf8ee;
   --color-gold-100: #f9edcc;
   --color-gold-200: #f0d48a;

@@ -3,9 +3,10 @@ import { Button } from '../../ui/Button'
 import { Input, Select, Field } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
 import { PermissionPicker } from './PermissionPicker'
+import { ROLE } from '../../lib/labels/role'
 
 type Role = 'admin' | 'manager' | 'cashier'
-const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', manager: 'Manager', cashier: 'Kasir' }
+const ROLE_LABEL: Record<Role, string> = { admin: ROLE.admin.label, manager: ROLE.manager.label, cashier: ROLE.cashier.label }
 
 type NewUserForm = {
   displayName: string

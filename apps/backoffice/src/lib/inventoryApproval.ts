@@ -1,19 +1,17 @@
 import { ApiError, type InventoryReasonCode, type StockCountItem, type StockCountSubmitInput } from '@mandalika/api'
 
+import { badgeTone, type BadgeToneName } from './labels/badgeTone'
+import { OPNAME_STATUS } from './labels/opname'
+import { REASON_CODE } from './labels/reason'
+import { labelOf } from './labels/types'
+
 /** Reason codes in display order, with the Indonesian label shown in selects and detail views. */
-export const REASON_OPTIONS: ReadonlyArray<{ code: InventoryReasonCode; label: string }> = [
-  { code: 'damaged', label: 'Rusak' },
-  { code: 'expired', label: 'Kedaluwarsa' },
-  { code: 'lost', label: 'Hilang' },
-  { code: 'found', label: 'Ditemukan' },
-  { code: 'data_entry', label: 'Salah input' },
-  { code: 'tester_sample', label: 'Tester/sampel' },
-  { code: 'count_variance', label: 'Selisih opname' },
-  { code: 'other', label: 'Lainnya' },
-]
+export const REASON_OPTIONS: ReadonlyArray<{ code: InventoryReasonCode; label: string }> = (
+  Object.keys(REASON_CODE) as InventoryReasonCode[]
+).map((code) => ({ code, label: REASON_CODE[code].label }))
 
 export function reasonLabel(code: string | undefined | null): string {
-  return REASON_OPTIONS.find((r) => r.code === code)?.label ?? (code ?? '-')
+  return code != null && Object.prototype.hasOwnProperty.call(REASON_CODE, code) ? REASON_CODE[code as InventoryReasonCode].label : (code ?? '-')
 }
 
 /** Free text is mandatory only for "Lainnya". */
@@ -36,25 +34,13 @@ export function validateReason(code: InventoryReasonCode | '', text: string): st
 }
 
 export function countStatusLabel(s: string): string {
-  switch (s) {
-    case 'planned': return 'Direncanakan'
-    case 'in_progress': return 'Sedang Berjalan'
-    case 'pending_approval': return 'Menunggu Persetujuan'
-    case 'completed': return 'Selesai'
-    default: return 'Dibatalkan'
-  }
+  return Object.prototype.hasOwnProperty.call(OPNAME_STATUS, s) ? labelOf(OPNAME_STATUS, s).label : OPNAME_STATUS.cancelled.label
 }
 
-export type CountStatusTone = 'gold' | 'success' | 'danger' | 'warning' | 'neutral'
+export type CountStatusTone = BadgeToneName
 
 export function countStatusTone(s: string): CountStatusTone {
-  switch (s) {
-    case 'in_progress': return 'gold'
-    case 'pending_approval': return 'warning'
-    case 'completed': return 'success'
-    case 'cancelled': return 'danger'
-    default: return 'neutral'
-  }
+  return badgeTone(labelOf(OPNAME_STATUS, s).tone)
 }
 
 /** Quantity change an approval will apply: requested new qty minus what the requester saw. */

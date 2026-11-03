@@ -10,6 +10,8 @@ import { Button } from '../../ui/Button'
 import { Select, fieldClass } from '../../ui/Field'
 import { Card } from '../../ui/Card'
 import { Badge } from '../../ui/Badge'
+import { badgeTone, type BadgeToneName } from '../../lib/labels/badgeTone'
+import { TRANSFER_STATUS } from '../../lib/labels/transfer'
 import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 import { IngredientTransferForm } from './IngredientTransferForm'
@@ -28,12 +30,9 @@ function toToIso(date: string): string {
   return d.toISOString().replace(/\.\d{3}Z$/, 'Z')
 }
 
-const STATUS: Record<string, { label: string; tone: 'neutral' | 'warning' | 'success' }> = {
-  draft: { label: 'Draf', tone: 'neutral' },
-  in_transit: { label: 'Dikirim', tone: 'warning' },
-  completed: { label: 'Selesai', tone: 'success' },
-  cancelled: { label: 'Dibatalkan', tone: 'neutral' },
-}
+const STATUS: Record<string, { label: string; tone: BadgeToneName }> = Object.fromEntries(
+  Object.entries(TRANSFER_STATUS).map(([k, v]) => [k, { label: v.label, tone: badgeTone(v.tone) }]),
+)
 
 const fmtDate = (s?: string | null) =>
   s
