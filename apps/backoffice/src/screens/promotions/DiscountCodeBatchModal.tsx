@@ -7,6 +7,8 @@ import { Modal } from '../../ui/Modal'
 interface DiscountCodeBatchModalProps {
   open: boolean
   busy: boolean
+  /** A refused or failed batch (server message), shown inside the modal. */
+  error?: string | null
   form: DiscountCodeBatchInput
   setForm: Dispatch<SetStateAction<DiscountCodeBatchInput>>
   promotions: Promotion[]
@@ -22,6 +24,7 @@ const SUFFIX_MAX = 12
 export function DiscountCodeBatchModal({
   open,
   busy,
+  error,
   form,
   setForm,
   promotions,
@@ -50,6 +53,7 @@ export function DiscountCodeBatchModal({
       }
     >
       <div className="space-y-4">
+        {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         <Input
           label="Prefix"
           type="text"
