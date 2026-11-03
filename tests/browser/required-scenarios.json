@@ -298,7 +298,7 @@
     {
       "id": "BO-OPNAME-CONFIRM",
       "finding": "D3b",
-      "description": "Product Opname: Mulai opens a question and Batal leaves the count planned, confirming starts it once; Selesai saves an unsaved edit first and states the net difference of the saved count (10 to 4 and 5 to 6 is -5) and Batal completes nothing, confirming completes once; the cancel button asks, Kembali sends nothing and confirming cancels once",
+      "description": "Product Opname: Mulai opens a question and Batal leaves the count planned, confirming starts it once; Selesai saves an unsaved edit first and states the net difference of the saved count (10 to 4 and 5 to 6 is -5) and Batal completes nothing, confirming completes once; the cancel button asks, Kembali sends nothing and confirming cancels once; ingredient Opname: Simpan with nothing entered sends nothing, and Simpan after entering one of three ingredients sends exactly that one line (not the saved or the uncounted ones) so Selesai cannot zero them",
       "source": "tests/browser/backoffice-opname-scenarios.ts"
     },
     {
