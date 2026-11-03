@@ -123,6 +123,8 @@ type CodeReportFilters struct{ DateFrom, DateTo, OutletID string }
 // orders.discount_breakdown components whose label matches a real
 // discount_codes.code — NOT orders.discount_amount. Completed orders only.
 // Day bounds are business days (orders.business_date). Status is derived in SQL.
+// usage_limit NULL or 0 means UNLIMITED, matching service/promo_validate.go (only > 0 is enforced):
+// such codes are never 'kuota habis' and report remaining NULL.
 func (r *Repo) DiscountCodeReport(ctx context.Context, f CodeReportFilters, page, limit int) (api.DiscountCodeReportSummary, []api.DiscountCodeReportRow, int, error) {
 	var sum api.DiscountCodeReportSummary
 	where := `FROM orders o
@@ -167,11 +169,11 @@ func (r *Repo) DiscountCodeReport(ctx context.Context, f CodeReportFilters, page
 		   'valueGiven', SUM((b->>'amount')::numeric),
 		   'usageLimit', dc.usage_limit,
 		   'usageCount', dc.usage_count,
-		   'remaining', CASE WHEN dc.usage_limit IS NULL THEN NULL ELSE dc.usage_limit - dc.usage_count END,
+		   'remaining', CASE WHEN dc.usage_limit > 0 THEN dc.usage_limit - dc.usage_count END,
 		   'status', CASE
 		     WHEN NOT dc.is_active THEN 'nonaktif'
 		     WHEN dc.end_date IS NOT NULL AND dc.end_date < (now() AT TIME ZONE 'Asia/Jakarta')::date THEN 'kedaluwarsa'
-		     WHEN dc.usage_limit IS NOT NULL AND dc.usage_count >= dc.usage_limit THEN 'kuota habis'
+		     WHEN dc.usage_limit > 0 AND dc.usage_count >= dc.usage_limit THEN 'kuota habis'
 		     ELSE 'aktif' END) `+where+`
 		 GROUP BY dc.id, b->>'label', p.name, dc.usage_limit, dc.usage_count, dc.is_active, dc.end_date
 		 ORDER BY SUM((b->>'amount')::numeric) DESC, dc.id LIMIT $4 OFFSET $5`,

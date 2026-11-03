@@ -448,6 +448,46 @@ func TestBusinessDatePostgres(t *testing.T) {
 		}
 	})
 
+	sub("6b code report treats usage_limit NULL or 0 as unlimited", func(t *testing.T) {
+		// Same order/promo as case 6; one breakdown component per code so each gets a row.
+		var id string
+		if err := pool.QueryRow(ctx, `SELECT id::text FROM orders WHERE idempotency_key='w-1715'`).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		promo := "00000000-0000-4000-8b04-000000000001"
+		exec(`INSERT INTO discount_codes(code,promotion_id,type,value,usage_limit,usage_count) VALUES
+			('QZERO',$1,'fixed',5,0,3),('QFULL',$1,'fixed',5,5,5),('QNULL',$1,'fixed',5,NULL,2),('QLEFT',$1,'fixed',5,5,2)`, promo)
+		exec(`UPDATE orders SET discount_breakdown='[{"label":"QZERO","amount":1},{"label":"QFULL","amount":1},{"label":"QNULL","amount":1},{"label":"QLEFT","amount":1}]'::jsonb WHERE id=$1`, id)
+		rows, _ := get(tokAdmin, "/discount-code-report?outletId="+outW+"&dateFrom=2026-10-20&dateTo=2026-10-20")["data"].([]any)
+		type want struct {
+			status    string
+			remaining any
+		}
+		wants := map[string]want{
+			"QZERO": {"aktif", nil},
+			"QFULL": {"kuota habis", float64(0)},
+			"QNULL": {"aktif", nil},
+			"QLEFT": {"aktif", float64(3)},
+		}
+		seen := 0
+		for _, r := range rows {
+			m, _ := r.(map[string]any)
+			w, ok := wants[fmt.Sprint(m["code"])]
+			if !ok {
+				continue
+			}
+			seen++
+			if m["status"] != w.status || m["remaining"] != w.remaining {
+				t.Errorf("%v: status=%v remaining=%v want %s/%v", m["code"], m["status"], m["remaining"], w.status, w.remaining)
+			}
+		}
+		if seen != len(wants) {
+			t.Errorf("saw %d of %d seeded codes in the report", seen, len(wants))
+		}
+		// Leave case 6's state as the later cases expect it.
+		exec(`UPDATE orders SET discount_breakdown='[{"label":"BD10","amount":5}]'::jsonb WHERE id=$1`, id)
+	})
+
 	sub("7 functions never raise and triggers fill fixture inserts", func(t *testing.T) {
 		if got := str(`SELECT business_date_at('00000000-0000-4000-8b00-0000000000ff'::uuid,'2026-10-19T17:30:00Z')::text`); got != "2026-10-20" {
 			t.Errorf("unknown outlet must fall back to Asia/Jakarta: %s", got)
