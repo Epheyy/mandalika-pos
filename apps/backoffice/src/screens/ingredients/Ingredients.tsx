@@ -40,7 +40,7 @@ export default function Ingredients() {
           <button
             key={t.id}
             type="button"
-            data-tab-key={t.id}
+            data-tab-key={`bahan.${t.id}`}
             aria-pressed={inner === t.id}
             onClick={() => setInner(t.id)}
             className={cls(t.id)}

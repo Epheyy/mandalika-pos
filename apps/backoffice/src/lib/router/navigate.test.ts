@@ -460,3 +460,105 @@ describe('browser Back and Forward with a leave guard', () => {
     expect(router.getLocation().path).toEqual(['c'])
   })
 })
+
+describe('move events', () => {
+  it('reports push, replace and pop with the outgoing and incoming entry', async () => {
+    const env = new FakeBrowser('#/a')
+    const router = createRouter(env)
+    const moves: Array<{ kind: string; from: number; to: number; toPath: string[] }> = []
+    router.subscribeMoves((m) => moves.push({ kind: m.kind, from: m.from.idx, to: m.to.idx, toPath: [...m.to.path] }))
+    await router.navigate('#/b')
+    await router.navigate('#/b?x=1', { replace: true })
+    env.back()
+    await settle()
+    expect(moves).toEqual([
+      { kind: 'push', from: 0, to: 1, toPath: ['b'] },
+      { kind: 'replace', from: 1, to: 1, toPath: ['b'] },
+      { kind: 'pop', from: 1, to: 0, toPath: ['a'] },
+    ])
+  })
+
+  it('a typed URL is a push and the listener runs before subscribers', async () => {
+    const env = new FakeBrowser('#/a')
+    const router = createRouter(env)
+    const order: string[] = []
+    router.subscribeMoves((m) => order.push(`move:${m.kind}`))
+    router.subscribe(() => order.push('render'))
+    env.typeUrl('#/typed')
+    await settle()
+    expect(order).toEqual(['move:push', 'render'])
+  })
+})
+
+describe('previousHash and back', () => {
+  const isList = (path: readonly string[]) => path[0] === 'list'
+
+  it('knows the entry before the current one only for entries it saw', async () => {
+    const env = new FakeBrowser('#/list?hal=2')
+    const router = createRouter(env)
+    expect(router.previousHash()).toBeUndefined()
+    await router.navigate('#/list/detail')
+    expect(router.previousHash()).toBe('#/list?hal=2')
+  })
+
+  it('steps back to a matching previous entry, keeping its query and the Forward entry', async () => {
+    const env = new FakeBrowser('#/list?hal=2&q=ab')
+    const router = createRouter(env)
+    await router.navigate('#/list/detail')
+    expect(await router.back('#/list', isList)).toBe(true)
+    await settle()
+    expect(env.current()).toBe('#/list?hal=2&q=ab')
+    expect(router.getLocation().query).toEqual({ hal: '2', q: 'ab' })
+    expect(env.hashes()).toEqual(['#/list?hal=2&q=ab', '#/list/detail'])
+    env.forward()
+    await settle()
+    expect(router.getLocation().path).toEqual(['list', 'detail'])
+  })
+
+  it('navigates to the fallback when the previous entry is not the list', async () => {
+    const env = new FakeBrowser('#/other')
+    const router = createRouter(env)
+    await router.navigate('#/list/detail')
+    expect(await router.back('#/list', (p) => p[0] === 'list' && p.length === 1)).toBe(true)
+    expect(env.current()).toBe('#/list')
+    expect(env.hashes()).toEqual(['#/other', '#/list/detail', '#/list'])
+  })
+
+  it('replaces the entry with the fallback on request (a pasted deep link)', async () => {
+    const env = new FakeBrowser('#/list/detail')
+    const router = createRouter(env)
+    expect(await router.back('#/list', isList, { replace: true })).toBe(true)
+    expect(env.hashes()).toEqual(['#/list'])
+  })
+
+  it('asks the leave guard before stepping back and stays when refused', async () => {
+    const env = new FakeBrowser('#/list?hal=2')
+    const router = createRouter(env)
+    await router.navigate('#/list/detail')
+    const q = openQuestion()
+    offs.push(q.off)
+    const pending = router.back('#/list', isList)
+    await settle()
+    expect(q.asked).toHaveBeenCalledTimes(1)
+    q.answer(false)
+    expect(await pending).toBe(false)
+    await settle()
+    expect(router.getLocation().path).toEqual(['list', 'detail'])
+    expect(env.cursor).toBe(1)
+  })
+
+  it('does not ask the guard a second time for its own step back', async () => {
+    const env = new FakeBrowser('#/list?hal=2')
+    const router = createRouter(env)
+    await router.navigate('#/list/detail')
+    const q = openQuestion()
+    offs.push(q.off)
+    const pending = router.back('#/list', isList)
+    await settle()
+    q.answer(true)
+    expect(await pending).toBe(true)
+    await settle()
+    expect(q.asked).toHaveBeenCalledTimes(1)
+    expect(router.getLocation().query).toEqual({ hal: '2' })
+  })
+})

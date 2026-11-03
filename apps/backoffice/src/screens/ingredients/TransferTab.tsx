@@ -19,6 +19,15 @@ import { IngredientTransferForm } from './IngredientTransferForm'
 import { IngredientReceiveModal } from './IngredientReceiveModal'
 import { SuratJalanIngredientPanel } from './SuratJalanIngredientPanel'
 import { cancelIngredientTransferConfirm, cancelReason, sendIngredientTransferConfirm } from './ingredientTransferConfirm'
+import { useListState } from '../../lib/router/useListState'
+import {
+  BAHAN_TRANSFER_SCHEMA,
+  bahanDayOf,
+  bahanLocationOf,
+  bahanPageOf,
+  bahanSizeOf,
+  transferStatusOf,
+} from './bahanRoute'
 
 // ISO date string "YYYY-MM-DD" → "YYYY-MM-DDT00:00:00Z"
 function toFromIso(date: string): string {
@@ -39,12 +48,14 @@ const fmtDate = (s?: string | null) =>
 
 
 export default function TransferTab() {
-  const [filterStatus, setFilterStatus] = useState('')
-  const [locationKey, setLocationKey] = useState('')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
+  // Filters, page and page size are in the URL (#/inventori/bahan/transfer?status=&lokasi=&dari=&sampai=&hal=&per=).
+  const [filters, setFilters] = useListState(BAHAN_TRANSFER_SCHEMA)
+  const filterStatus = transferStatusOf(filters.status)
+  const locationKey = bahanLocationOf(filters.lokasi)
+  const fromDate = bahanDayOf(filters.dari)
+  const toDate = bahanDayOf(filters.sampai)
+  const page = bahanPageOf(filters.hal)
+  const pageSize = bahanSizeOf(filters.per)
   const [showCreate, setShowCreate] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
@@ -75,9 +86,8 @@ export default function TransferTab() {
 
   const selected = rows.find((t) => t.id === selectedId) ?? null
 
-  function onFilterChange(fn: () => void) {
-    fn()
-    setPage(1)
+  function onFilterChange(patch: Partial<typeof filters>) {
+    setFilters({ ...patch, hal: 1 })
     setSelectedId(null)
   }
 
@@ -119,7 +129,7 @@ export default function TransferTab() {
           <Select
             label="Status"
             value={filterStatus}
-            onChange={(e) => onFilterChange(() => setFilterStatus(e.target.value))}
+            onChange={(e) => onFilterChange({ status: e.target.value })}
           >
             <option value="">Semua status</option>
             <option value="draft">Draft</option>
@@ -132,7 +142,7 @@ export default function TransferTab() {
           <Select
             label="Lokasi"
             value={locationKey}
-            onChange={(e) => onFilterChange(() => setLocationKey(e.target.value))}
+            onChange={(e) => onFilterChange({ lokasi: e.target.value })}
           >
             <option value="">Semua lokasi</option>
             {outlets.length > 0 && (
@@ -158,7 +168,7 @@ export default function TransferTab() {
             type="date"
             value={fromDate}
             max={toDate || undefined}
-            onChange={(e) => onFilterChange(() => setFromDate(e.target.value))}
+            onChange={(e) => onFilterChange({ dari: e.target.value })}
             className={fieldClass}
           />
         </div>
@@ -169,7 +179,7 @@ export default function TransferTab() {
             type="date"
             value={toDate}
             min={fromDate || undefined}
-            onChange={(e) => onFilterChange(() => setToDate(e.target.value))}
+            onChange={(e) => onFilterChange({ sampai: e.target.value })}
             className={fieldClass}
           />
         </div>
@@ -243,9 +253,9 @@ export default function TransferTab() {
         page={page}
         totalPages={totalPages}
         total={total}
-        onChange={setPage}
+        onChange={(hal) => setFilters({ hal })}
         pageSize={pageSize}
-        onPageSizeChange={(s) => { setPageSize(s); setPage(1) }}
+        onPageSizeChange={(per) => setFilters({ per, hal: 1 })}
       />
 
       {/* Detail panel */}

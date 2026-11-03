@@ -11,7 +11,7 @@ import type {
 } from '@mandalika/api'
 import { fetchAllPages } from '@mandalika/api'
 import {
-  Plus, Search, Edit2, Trash2, Users, Phone, Mail, Star,
+  Plus, Edit2, Trash2, Users, Phone, Mail, Star,
   Gift, Cake,
 } from 'lucide-react'
 import { api } from '../api'
@@ -34,6 +34,11 @@ import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
 import { useScreenTabs } from '../lib/router/useScreenTabs'
+import { useListState } from '../lib/router/useListState'
+import { useRoute } from '../lib/router/useRoute'
+import { backOrNavigate, navigate, previousRouteHash } from '../lib/router/navigate'
+import { parseHash } from '../lib/router/hash'
+import { FilterBar } from '../ui/FilterBar'
 import { Pagination } from '../ui/Pagination'
 import CustomerDetail from './customers/CustomerDetail'
 import DupCandidates from './customers/DupCandidates'
@@ -41,8 +46,26 @@ import MergeReview from './customers/MergeReview'
 import { SegmentManager } from './customers/SegmentManager'
 import { tagChipClasses } from './customers/tagColors'
 import { ProductVariantPicker } from './customers/ProductVariantPicker'
-
-type CustomerView = 'daftar' | 'pengingat' | 'duplikat' | 'loyalitas'
+import {
+  CUSTOMER_LIST_SCHEMA,
+  routedViewIsList,
+  REMINDER_LIST_SCHEMA,
+  REMINDER_PAGE_SIZE,
+  customerHash,
+  customerListHash,
+  customerPlace,
+  dupReviewHash,
+  idOf,
+  isListPath,
+  loyaltyHash,
+  pageOf,
+  pageSizeOf,
+  reminderTypeOf,
+  reminderWindowOf,
+  sortOf,
+  type CustomerView,
+  type LoyaltySub,
+} from './customers/customerRoute'
 
 const DEFAULT_LOYALTY: LoyaltySettings = {
   enabled: true,
@@ -90,32 +113,41 @@ const exportCustomers = async (fmt: 'csv' | 'xlsx') => {
 
 export default function Customers() {
   const { outletId } = useOutlet()
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
-  const [sort, setSort] = useState<'belanja' | 'terbaru'>('belanja')
-  const [tagId, setTagId] = useState('')
-  const [segmentId, setSegmentId] = useState('')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Everything the list shows is in the URL: search, sort, tag, segment, page and page size (defaults stay out of it).
+  const [urlList, setList] = useListState(CUSTOMER_LIST_SCHEMA)
+  const route = useRoute()
+  // While a customer is open the URL no longer carries the list's filters; keep the list keyed on the last list state,
+  // so Back finds its data in place (no refetch, no skeleton that would clamp a restored scroll).
+  const lastList = useRef(urlList)
+  const onCustomerPage = customerPlace(route.path, 'daftar').customerId !== null || customerPlace(route.path, 'pengingat').customerId !== null
+  if (!onCustomerPage) lastList.current = urlList
+  const list = onCustomerPage ? lastList.current : urlList
+  const search = list.q
+  const sort = sortOf(list.urut)
+  const tagId = idOf(list.tag)
+  const segmentId = idOf(list.segmen)
+  const page = pageOf(list.hal)
+  const pageSize = pageSizeOf(list.per)
   const tagsQ = usePolledQuery<Tag[]>(() => api.listTags(), [])
   const allTags = tagsQ.data ?? []
   const segmentsQ = usePolledQuery<Segment[]>(() => api.listSegments(), [])
   const allSegments = segmentsQ.data ?? []
   const [segModalOpen, setSegModalOpen] = useState(false)
 
-  const [debouncedSearch, setDebouncedSearch] = useState('')
-  useEffect(() => {
-    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 300)
-    return () => clearTimeout(t)
-  }, [search])
-
   const cq = usePolledQuery(
-    () => api.listCustomers(page, pageSize, debouncedSearch, sort, tagId, segmentId),
-    [page, pageSize, debouncedSearch, sort, tagId, segmentId],
+    () => api.listCustomers(page, pageSize, search, sort, tagId, segmentId),
+    [page, pageSize, search, sort, tagId, segmentId],
   )
   const customers = cq.data?.data ?? []
   const total = cq.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  // A page past the end (a stale link, or rows deleted meanwhile) comes back empty: land on the last page instead.
+  // Only on the list itself, and only on an answer to THIS page (a poll hook keeps the previous answer for a render).
+  const onList = !onCustomerPage && routedViewIsList(route.path)
+  useEffect(() => {
+    if (!onList || cq.loading || !cq.data || cq.data.meta?.page !== page || page <= 1 || customers.length > 0) return
+    setList({ hal: Math.min(page - 1, totalPages) }, { replace: true })
+  }, [onList, cq.loading, cq.data, page, customers.length, totalPages, setList])
 
   const lq = usePolledQuery<LoyaltySettings>(() => api.getLoyaltySettings(), [])
   const condQ = usePolledQuery<LoyaltyCondition[]>(() => api.listLoyaltyConditions(), [])
@@ -127,26 +159,42 @@ export default function Customers() {
   const conditions = condQ.data ?? []
   const products = pq.data ?? []
 
-  // The view lives in the path (#/pelanggan/duplikat); a bare #/pelanggan is Daftar. The detail page stays a state swap for now.
+  // The view, the customer page, the duplicate under review and the loyalty sub-view all live in the path.
   const { tab: routedView, setTab: setView } = useScreenTabs<CustomerView>('customers', null)
   const view = routedView ?? 'daftar'
-  const [subTab, setSubTab] = useState<'general' | 'conditions'>('general')
-  const [selectedDupId, setSelectedDupId] = useState<string | null>(null)
-  // Back/Forward between views closes the customer page and the duplicate review left open on the other one.
-  useEffect(() => {
-    setSelectedId(null)
-    setSelectedDupId(null)
-  }, [view])
+  const place = customerPlace(route.path, view)
+  const selectedId = place.customerId
+  const selectedDupId = place.dupId
+  const subTab: LoyaltySub = place.loyaltySub
+  const openCustomer = (id: string) => void navigate(customerHash(view === 'pengingat' ? 'pengingat' : 'daftar', id))
+  // "Kembali" steps back to the list the person came from (filters, page and scroll are still there); a pasted link has none.
+  const toList = () => void backOrNavigate(customerListHash(view), (path) => isListPath(path, view))
+  // After the record is gone (deleted, merged, dismissed) the page replaces itself with the list, so Forward cannot reach it.
+  const exitAfterRemoval = () => {
+    const previous = previousRouteHash()
+    const target = previous !== undefined && isListPath(parseHash(previous).path, view) ? previous : customerListHash(view)
+    void navigate(target, { replace: true })
+  }
   const [dupRefresh, setDupRefresh] = useState(0)
   const dupCountQ = usePolledQuery<{ data: DupCandidate[]; meta?: { total: number; page: number; limit: number } }>(
     () => api.listDupCandidates('pending', 1, 1),
     [dupRefresh],
   )
   const dupCount = dupCountQ.data?.meta?.total ?? 0
-  const [remWindow, setRemWindow] = useState<7 | 30>(7)
-  const [remType, setRemType] = useState<'all' | 'birthday' | 'anniversary'>('all')
-  const [remPage, setRemPage] = useState(1)
-  const remLimit = 25
+  // Leaving a review (merged, dismissed or just back) refreshes the pending count and the list.
+  const hadDupReview = useRef(false)
+  useEffect(() => {
+    if (selectedDupId) hadDupReview.current = true
+    else if (hadDupReview.current) {
+      hadDupReview.current = false
+      setDupRefresh((n) => n + 1)
+    }
+  }, [selectedDupId])
+  const [remState, setRemState] = useListState(REMINDER_LIST_SCHEMA)
+  const remWindow = reminderWindowOf(remState.hari)
+  const remType = reminderTypeOf(remState.jenis)
+  const remPage = pageOf(remState.hal)
+  const remLimit = REMINDER_PAGE_SIZE
   const remQ = usePolledQuery(
     () => api.listReminders({ window: remWindow, type: remType, page: remPage, limit: remLimit }),
     [remWindow, remType, remPage],
@@ -226,7 +274,7 @@ export default function Customers() {
     try {
       await api.deleteCustomer(cid)
       setDelId(null)
-      setSelectedId(null)
+      if (selectedId === cid) exitAfterRemoval()
       await cq.refetch()
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'Gagal menghapus pelanggan.')
@@ -289,7 +337,7 @@ export default function Customers() {
         <CustomerDetail
           customerId={selectedId}
           loyaltyEnabled={loyalty.enabled}
-          onBack={() => { setSelectedId(null); void cq.refetch() }}
+          onBack={() => { toList(); void cq.refetch() }}
           onEdit={(c) => { setEditing(c); setForm({ name: c.name, phone: c.phone, email: c.email || '', birthday: c.birthday || '', anniversary: c.anniversary || '', notes: c.notes || '' }); setErr(null); setOpen(true) }}
           onDelete={(cid) => setDelId(cid)}
         />
@@ -302,7 +350,7 @@ export default function Customers() {
           <>
             <Tabs
               value={view}
-              onChange={(v) => { setView(v); setSelectedDupId(null) }}
+              onChange={setView}
               tabs={[
                 { id: 'daftar', label: 'Daftar' },
                 { id: 'pengingat', label: 'Pengingat' },
@@ -337,7 +385,7 @@ export default function Customers() {
         <div className="space-y-4">
           <Tabs
             value={subTab}
-            onChange={setSubTab}
+            onChange={(sub) => void navigate(loyaltyHash(sub), { replace: sub === subTab })}
             tabs={[
               { id: 'general', label: 'Pengaturan Umum' },
               { id: 'conditions', label: 'Kondisi Khusus' },
@@ -419,19 +467,16 @@ export default function Customers() {
         </div>
       ) : view === 'duplikat' ? (
         selectedDupId ? (
-          <MergeReview
-            candidateId={selectedDupId}
-            onBack={() => { setSelectedDupId(null); setDupRefresh((n) => n + 1) }}
-          />
+          <MergeReview candidateId={selectedDupId} onBack={toList} onDone={exitAfterRemoval} />
         ) : (
-          <DupCandidates refreshKey={dupRefresh} onReview={setSelectedDupId} />
+          <DupCandidates refreshKey={dupRefresh} onReview={(id) => void navigate(dupReviewHash(id))} />
         )
       ) : view === 'pengingat' ? (
         <Card className="overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2">
             <div className="flex gap-1">
               {([7, 30] as const).map((wdw) => (
-                <button key={wdw} type="button" onClick={() => { setRemWindow(wdw); setRemPage(1) }}
+                <button key={wdw} type="button" onClick={() => setRemState({ hari: wdw, hal: 1 })}
                   className={`px-3 py-1.5 text-sm font-bold rounded-lg border ${remWindow === wdw ? 'bg-gold-50 border-gold-200 text-gold-700' : 'bg-white border-gray-200 text-gray-500'}`}>
                   {wdw} hari
                 </button>
@@ -439,7 +484,7 @@ export default function Customers() {
             </div>
             <div className="flex gap-1">
               {(['all', 'birthday', 'anniversary'] as const).map((tp) => (
-                <button key={tp} type="button" onClick={() => { setRemType(tp); setRemPage(1) }}
+                <button key={tp} type="button" onClick={() => setRemState({ jenis: tp, hal: 1 })}
                   className={`px-3 py-1.5 text-sm font-bold rounded-lg border ${remType === tp ? 'bg-gold-50 border-gold-200 text-gold-700' : 'bg-white border-gray-200 text-gray-500'}`}>
                   {tp === 'all' ? 'Semua' : tp === 'birthday' ? 'Ulang Tahun' : 'Hari Jadi'}
                 </button>
@@ -455,8 +500,8 @@ export default function Customers() {
               {reminders.map((rm: Reminder, i: number) => (
                 <div key={`${rm.id}-${rm.kind}-${i}`} className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-pointer"
                   role="button" tabIndex={0}
-                  onClick={() => setSelectedId(rm.id)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedId(rm.id) } }}>
+                  onClick={() => openCustomer(rm.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCustomer(rm.id) } }}>
                   <span className="text-lg flex-shrink-0">{rm.kind === 'birthday' ? '🎂' : '💍'}</span>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900 text-sm">{rm.name}</p>
@@ -472,50 +517,43 @@ export default function Customers() {
           {remTotal > remLimit && (
             <div className="px-4 py-2 border-t border-gray-100">
               <Pagination page={remPage} totalPages={remTotalPages} total={remTotal}
-                onChange={setRemPage} pageSize={remLimit}
+                onChange={(hal) => setRemState({ hal })} pageSize={remLimit}
                 onPageSizeChange={() => { /* fixed 25 */ }} pageSizes={[remLimit]} />
             </div>
           )}
         </Card>
       ) : (
         <>
-          <div className="flex items-center flex-wrap gap-2">
-            <div className="relative max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
-              <Input type="text" placeholder="Cari nama / telepon / email..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-            </div>
-            <div className="flex items-center gap-1">
-              {([['belanja', 'Belanja Tertinggi'], ['terbaru', 'Terbaru']] as const).map(([val, label]) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => { setSort(val); setPage(1) }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition ${
-                    sort === val ? 'bg-gold-600 text-white border-gold-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <select
+          <FilterBar
+            onReset={() => setList({ q: '', urut: 'belanja', tag: '', segmen: '', hal: 1 })}
+            activeCount={[search !== '', sort !== 'belanja', tagId !== '', segmentId !== ''].filter(Boolean).length}
+            actions={<Button variant="secondary" size="sm" onClick={() => setSegModalOpen(true)}>Kelola Segmen</Button>}
+          >
+            <FilterBar.Search
+              label="Cari pelanggan"
+              placeholder="Cari nama / telepon / email..."
+              value={search}
+              onChange={(q) => setList({ q, hal: 1 }, { replace: true })}
+            />
+            <FilterBar.Chips
+              label="Urutkan"
+              items={[{ id: 'belanja', label: 'Belanja Tertinggi' }, { id: 'terbaru', label: 'Terbaru' }]}
+              value={sort}
+              onChange={(urut) => setList({ urut, hal: 1 })}
+            />
+            <FilterBar.Select
+              label="Tag"
               value={tagId}
-              onChange={(e) => { setTagId(e.target.value); setPage(1) }}
-              className="text-xs font-bold rounded-lg border border-gray-200 px-2 py-1.5 bg-white text-gray-700"
-            >
-              <option value="">Semua tag</option>
-              {allTags.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-            <select
+              onChange={(tag) => setList({ tag, hal: 1 })}
+              options={[{ value: '', label: 'Semua tag' }, ...allTags.map((t) => ({ value: t.id, label: t.name }))]}
+            />
+            <FilterBar.Select
+              label="Segmen"
               value={segmentId}
-              onChange={(e) => { setSegmentId(e.target.value); setPage(1) }}
-              className="text-xs font-bold rounded-lg border border-gray-200 px-2 py-1.5 bg-white text-gray-700"
-            >
-              <option value="">Semua segmen</option>
-              {allSegments.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <Button variant="secondary" size="sm" onClick={() => setSegModalOpen(true)}>Kelola Segmen</Button>
-          </div>
+              onChange={(segmen) => setList({ segmen, hal: 1 })}
+              options={[{ value: '', label: 'Semua segmen' }, ...allSegments.map((sg) => ({ value: sg.id, label: sg.name }))]}
+            />
+          </FilterBar>
           <Card className="overflow-hidden">
             {cq.loading ? (
               <TableSkeleton />
@@ -540,7 +578,7 @@ export default function Customers() {
                         <tr
                           key={c.id}
                           className="hover:bg-gray-50 cursor-pointer"
-                          onClick={() => setSelectedId(c.id)}
+                          onClick={() => openCustomer(c.id)}
                         >
                           <td className="px-5 py-3">
                             <div className="flex items-center gap-3">
@@ -597,9 +635,9 @@ export default function Customers() {
               page={page}
               totalPages={totalPages}
               total={total}
-              onChange={setPage}
+              onChange={(hal) => setList({ hal })}
               pageSize={pageSize}
-              onPageSizeChange={(s) => { setPageSize(s); setPage(1) }}
+              onPageSizeChange={(per) => setList({ per, hal: 1 })}
             />
           )}
           </>

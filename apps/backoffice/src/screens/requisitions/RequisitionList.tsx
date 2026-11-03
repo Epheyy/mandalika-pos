@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { StockRequisition } from '@mandalika/api'
 import { ArrowLeft, ClipboardList, Plus } from 'lucide-react'
 import { api } from '../../api'
@@ -13,7 +13,7 @@ import { EmptyState } from '../../ui/EmptyState'
 import { Select } from '../../ui/Field'
 import { PageHeader } from '../../ui/PageHeader'
 import { Pagination } from '../../ui/Pagination'
-import { navigate } from '../../lib/router/navigate'
+import { backOrNavigate, navigate } from '../../lib/router/navigate'
 import { useRoute } from '../../lib/router/useRoute'
 import { RequisitionDetail } from './RequisitionDetail'
 import { RequisitionForm } from './RequisitionForm'
@@ -26,13 +26,22 @@ export default function Requisitions() {
   const view = requisitionViewFromPath(useRoute().path)
   const go = (to: Parameters<typeof requisitionHash>[0], replace = false) => void navigate(requisitionHash(to), { replace })
   const toList = () => go({ kind: 'list' })
-  // A saved form replaces its own entry, so Back does not return to a form that is already submitted.
+  // A saved new request replaces its own entry, so Back does not return to a form that is already submitted.
   const saved = (id: string) => go({ kind: 'detail', id }, true)
+  // Leaving the edit form (saved, cancelled, or not editable after all) steps back to the detail it was opened from,
+  // so the history keeps one entry for it; a pasted link to the form has no such entry and replaces itself with it.
+  const leaveEdit = (id: string) => {
+    const isDetail = (path: readonly string[]) => {
+      const v = requisitionViewFromPath(path)
+      return v.kind === 'detail' && v.id === id
+    }
+    void backOrNavigate(requisitionHash({ kind: 'detail', id }), isDetail, { replace: true })
+  }
   if (view.kind === 'create') {
     return <div className="p-6"><RequisitionForm onCancel={toList} onSaved={saved} /></div>
   }
   if (view.kind === 'edit') {
-    return <div className="p-6"><RequisitionEdit id={view.id} onBack={() => go({ kind: 'detail', id: view.id }, true)} onSaved={saved} /></div>
+    return <div className="p-6"><RequisitionEdit id={view.id} onBack={() => leaveEdit(view.id)} onSaved={leaveEdit} /></div>
   }
   if (view.kind === 'detail') {
     return <div className="p-6"><RequisitionDetail id={view.id} onBack={toList} onEdit={(pb) => go({ kind: 'edit', id: pb.id })} /></div>
@@ -56,8 +65,11 @@ function RequisitionEdit({ id, onBack, onSaved }: RequisitionEditProps) {
   // Only the requesting outlet edits a draft (the Ubah button's own gate). A pasted link to anything else shows the detail.
   const activeOutlet = user?.role === 'admin' ? outletId : (user?.outletId ?? null)
   const mayEdit = !!pb && pb.status === 'draft' && activeOutlet === pb.outletId
+  const bounced = useRef(false)
   useEffect(() => {
-    if (pb && !mayEdit) onBack()
+    if (!pb || mayEdit || bounced.current) return
+    bounced.current = true
+    onBack()
   }, [pb, mayEdit, onBack])
   if (!pb || !mayEdit) {
     return (

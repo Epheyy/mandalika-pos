@@ -8,6 +8,7 @@ import { refundReportFlow, adminPartialRefundFlow } from './backoffice-refund-sc
 import { splitOrderFlow, splitToggleFlow } from './backoffice-split-scenarios'
 import { settingsGuardFlow } from './backoffice-settings-scenarios'
 import { routeDeepLinkFlow, routeGuardFlow } from './backoffice-route-scenarios'
+import { routeBackFlow } from './backoffice-back-scenarios'
 import { productsListFlow } from './backoffice-products-scenarios'
 import { promotionsFlow } from './backoffice-promotions-scenarios'
 import { transferConfirmFlow } from './backoffice-transfer-scenarios'
@@ -186,6 +187,12 @@ test('BO-ROUTE-DEEPLINK a tab or view in the hash path survives a reload, a bare
 test('BO-ROUTE-GUARD a dirty Pengaturan keeps its own tabs unguarded and asks for a typed URL or a Forward that leaves it, refused keeps the hash, history and edit', async ({ page }, info) => {
   const result = await routeGuardFlow(page as ScenarioPage)
   expect(result).toHaveLength(4)
+  await evidence(info, result)
+})
+
+test('BO-ROUTE-BACK Pelanggan list filters and page are URL state, opening a customer is a path, Back and Kembali return to the list as it was (same search, sort, page and request), Forward returns to the customer, a pasted customer link opens the list on Kembali, and junk values fall back to the defaults', async ({ page }, info) => {
+  const result = await routeBackFlow(page as ScenarioPage)
+  expect(result).toHaveLength(6)
   await evidence(info, result)
 })
 

@@ -16,6 +16,8 @@ import { ProductsFilters } from './ProductsFilters'
 import { ProductsTable } from './ProductsTable'
 import { PRODUCT_PAGE_SIZES } from './productsListState'
 import { useProductsList } from './useProductsList'
+import { backOrNavigate, getRouteLocation, previousRouteHash } from '../../lib/router/navigate'
+import { openedFromList } from './editorClose'
 
 interface ProductsListViewProps {
   categories: Category[]
@@ -74,7 +76,15 @@ export function ProductsListView({ categories, refetchCategories, tabs }: Produc
   }, [badId, toast, setOverlay])
 
   const openEditor = (patch: { ubah?: string; baru?: boolean }) => setOverlay(patch)
-  const closeEditor = useCallback(() => setOverlay({ ubah: '', baru: false }, { replace: true }), [setOverlay])
+  // Step back to the list entry the editor was opened from (one Back press afterwards leaves the list); else replace the overlay away.
+  const closeEditor = useCallback(() => {
+    const previous = previousRouteHash()
+    if (previous !== undefined && openedFromList(previous, getRouteLocation().path)) {
+      void backOrNavigate(previous, () => true)
+      return
+    }
+    setOverlay({ ubah: '', baru: false }, { replace: true })
+  }, [setOverlay])
 
   const importDone = () => void Promise.all([list.refetch(), refetchCategories()])
   const totalPages = Math.max(1, Math.ceil(list.total / state.per))
