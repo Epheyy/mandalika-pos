@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { REASON_FILTERS, amountFlagLabel, refundReviewLabel, isStale, payloadSummary, reasonLabel, shouldStepBack, typeLabel } from './reviewLabels'
+import { REASON_FILTERS, amountFlagLabel, outletOf, reasonFilterOf, refundReviewLabel, isStale, payloadSummary, reasonLabel, shouldStepBack, typeLabel } from './reviewLabels'
 
 describe('reviewLabels', () => {
   it('maps reason codes to plain Indonesian', () => {
@@ -77,5 +77,15 @@ describe('refund review texts', () => {
     expect(rows[1]).toEqual(['Barang', 'Baris 2 (Oud) × 1, Baris 3 × 2'])
     expect(rows[2][0]).toBe('Jumlah diklaim tablet')
     expect(rows[2][1]).toContain('50.000')
+  })
+})
+
+describe('URL filters', () => {
+  it('keeps a known reason and an outlet uuid, and drops anything else', () => {
+    expect(reasonFilterOf('forbidden')).toBe('forbidden')
+    expect(reasonFilterOf('none')).toBe('none')
+    expect(reasonFilterOf('bogus')).toBe('')
+    expect(outletOf('3f2a9c1d-1111-4222-8333-444455556666')).toBe('3f2a9c1d-1111-4222-8333-444455556666')
+    expect(outletOf('abc')).toBe('')
   })
 })

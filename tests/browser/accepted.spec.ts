@@ -12,6 +12,7 @@ import { productsListFlow } from './backoffice-products-scenarios'
 import { promotionsFlow } from './backoffice-promotions-scenarios'
 import { transferConfirmFlow } from './backoffice-transfer-scenarios'
 import { opnameConfirmFlow } from './backoffice-opname-scenarios'
+import { approvalsErpFlow } from './backoffice-d3c-scenarios'
 import { posRequisition } from './pos-requisition-scenarios'
 import { posSplitTender, posSplitOffline, posSplitRefund, posSplitOff, posSplitDraft } from './pos-split-scenarios'
 
@@ -130,7 +131,7 @@ test('POS-RECAP all pages cached and actual panel remount keeps complete snapsho
 
 test('BO-REVIEW-RESOLVE head office resolves a parked tablet item and the badge clears', async ({ page }, info) => {
   const result = await reviewResolveFlow(page as ScenarioPage)
-  expect(result).toHaveLength(4)
+  expect(result).toHaveLength(5)
   await evidence(info, result)
 })
 
@@ -209,6 +210,12 @@ test('BO-TRANSFER-CONFIRM Kirim and Batalkan ask first, Batal leaves the draft, 
 test('BO-OPNAME-CONFIRM Mulai, Selesai and cancel on a product Opname ask first, Selesai names the net difference, Batal changes nothing, and a confirm writes once', async ({ page }, info) => {
   const result = await opnameConfirmFlow(page as ScenarioPage)
   expect(result).toHaveLength(5)
+  await evidence(info, result)
+})
+
+test('BO-D3C-APPROVALS-ERP Persetujuan Stok filters are URL state that leave the badge alone, and the ERP relay run and retry ask first and call the server once', async ({ page }, info) => {
+  const result = await approvalsErpFlow(page as ScenarioPage)
+  expect(result).toHaveLength(8)
   await evidence(info, result)
 })
 

@@ -5,9 +5,6 @@ import { api } from '../../api'
 import { useAuth } from '../../auth'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import {
-  adjustmentDelta,
-  adjustmentDrift,
-  adjustmentResultQty,
   countDetailRows,
   newIdempotencyKey,
   reasonLabel,
@@ -17,6 +14,7 @@ import { Badge } from '../../ui/Badge'
 import { Button } from '../../ui/Button'
 import { Textarea } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
+import { adjustmentStrip, type AdjustmentStrip } from './approvalStrip'
 import { PinModal } from './PinModal'
 
 interface ApprovalDetailProps {
@@ -37,26 +35,34 @@ function Row({ k, v }: { k: string; v: string | number }) {
   )
 }
 
+function Strip({ strip }: { strip: AdjustmentStrip }) {
+  return (
+    <dl className="grid grid-cols-3 gap-3" aria-label="Perbandingan stok">
+      {strip.cells.map((c) => (
+        <div key={c.title} className="rounded-xl border border-gray-100 bg-paper-0 p-3">
+          <dt className="text-xs font-bold text-ink-700">{c.title}</dt>
+          <dd className="mt-1 text-2xl font-black tabular-nums text-gray-900">{c.value}</dd>
+          <dd className="mt-0.5 text-xs text-ink-700">{c.note}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
 function AdjustmentBody({ r }: { r: AdjustmentRequest }) {
-  const delta = adjustmentDelta(r.qtyAtRequest, r.requestedNewQty)
-  const drift = adjustmentDrift(r.qtyAtRequest, r.liveQty)
-  const resulting = adjustmentResultQty(r.liveQty, delta)
+  const strip = adjustmentStrip(r)
   return (
     <div className="space-y-2">
       <Row k="Produk" v={`${r.productName ?? r.productId} · ${r.variantSize}`} />
-      <Row k="Stok saat diajukan" v={r.qtyAtRequest} />
-      <Row k="Jumlah baru diminta" v={r.requestedNewQty} />
-      <Row k="Stok sekarang" v={r.liveQty ?? '-'} />
-      <Row k="Perubahan stok sejak pengajuan" v={signed(drift)} />
-      <Row k="Selisih yang akan diterapkan" v={signed(delta)} />
+      <Strip strip={strip} />
       <Row k="Alasan" v={reasonLabel(r.reasonCode)} />
       {r.reasonText && <Row k="Keterangan" v={r.reasonText} />}
-      {resulting !== null && resulting < 0 && (
-        <p role="alert" className="text-xs font-bold text-red-700 bg-red-50 rounded-xl p-3">Stok akan menjadi minus: {resulting}</p>
+      {strip.goesNegative && (
+        <p role="alert" className="text-xs font-bold text-red-700 bg-red-50 rounded-xl p-3">Stok akan menjadi minus: {strip.resultingQty}</p>
       )}
-      {drift !== 0 && (
+      {strip.drifted && (
         <p className="text-xs text-amber-700 bg-amber-50 rounded-xl p-3">
-          Stok berubah sejak pengajuan. Yang diterapkan adalah selisih ({signed(delta)}), bukan jumlah baru.
+          Stok berubah sejak pengajuan. Yang diterapkan adalah selisih ({signed(strip.delta)}), bukan jumlah baru.
         </p>
       )}
       {(r.events ?? []).length > 0 && (

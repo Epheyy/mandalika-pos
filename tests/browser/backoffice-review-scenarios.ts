@@ -52,6 +52,12 @@ export const reviewResolveFlow = async (page: ScenarioPage) => {
   await row.click()
   // exact: the raw JSON <pre> also contains the receipt number.
   await page.getByText('BSD-G0007', { exact: true }).waitFor()
+  // Raw codes and the payload stay behind "Detail teknis" until asked for.
+  check(!(await page.getByText(KEY, { exact: true }).isVisible()), 'the raw sync key is hidden by default')
+  await page.getByRole('button', { name: 'Detail teknis' }).click()
+  await page.getByText(KEY, { exact: true }).waitFor()
+  await page.getByText('forbidden', { exact: true }).waitFor()
+  results.push({ step: 'detail-teknis', key: KEY })
   await page.getByLabel('Catatan penyelesaian').fill('  refund manual  ')
   await page.getByRole('button', { name: 'Tandai selesai' }).click()
   await page.getByText('Tidak ada item terbuka').waitFor()

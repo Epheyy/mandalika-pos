@@ -11,6 +11,7 @@ import { Badge } from '../../ui/Badge'
 import { Card } from '../../ui/Card'
 import { EmptyState } from '../../ui/EmptyState'
 import { Input, Select } from '../../ui/Field'
+import { Switch } from '../../ui/Switch'
 import {
   KIND_FILTERS,
   OVERSELL_CHANGED,
@@ -166,10 +167,17 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
           </Select>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <label className="flex items-center gap-2 text-xs text-gray-600">
-            <input type="checkbox" checked={useRange} onChange={(e) => setUseRange(e.target.checked)} />
-            Batasi ke rentang tanggal laporan ({dateFrom} s/d {dateTo})
-          </label>
+          <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-paper-0 px-3 py-2">
+            <Switch checked={useRange} onChange={setUseRange} label="Ikuti rentang tanggal" />
+            <div>
+              <p className="text-sm font-bold text-gray-900">Ikuti rentang tanggal</p>
+              <p className="text-xs text-ink-700">
+                {useRange
+                  ? `Hanya ${dateFrom} s/d ${dateTo}. Angka di sidebar tetap menghitung semua tanggal.`
+                  : 'Mati: semua tanggal, sama dengan angka di sidebar.'}
+              </p>
+            </div>
+          </div>
           <Button variant="secondary" size="sm" icon={<Download className="w-3.5 h-3.5" />} onClick={() => void doExport()}>
             Ekspor CSV
           </Button>

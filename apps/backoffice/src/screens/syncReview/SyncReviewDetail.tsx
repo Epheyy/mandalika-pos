@@ -26,6 +26,40 @@ export function SyncReviewDetail({ item, onClose, onResolved }: Props) {
   )
 }
 
+/** Raw codes and the full payload for whoever has to dig; hidden until asked for. */
+function TechnicalDetails({ item }: { item: SyncReviewItem }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div>
+      <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)}
+        className="text-xs font-bold text-gray-500 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong">
+        Detail teknis
+      </button>
+      {open && (
+        <div className="mt-2 space-y-2">
+          <dl className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+            <TechRow label="Kode alasan" value={item.reviewCode ?? '—'} />
+            <TechRow label="Kunci sinkron" value={item.idempotencyKey} />
+            {item.lastError && item.lastError !== item.reviewReason && <TechRow label="Error terakhir" value={item.lastError} />}
+          </dl>
+          <pre className="text-[11px] bg-gray-900 text-gray-100 rounded-xl p-3 overflow-x-auto max-h-64">
+            {JSON.stringify(item.payload, null, 2)}
+          </pre>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TechRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-[10px] font-black text-gray-400 uppercase tracking-wider">{label}</dt>
+      <dd className="text-gray-800 font-mono break-all">{value}</dd>
+    </div>
+  )
+}
+
 function DetailBody({ item, onResolved }: { item: SyncReviewItem; onResolved: () => void }) {
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
@@ -67,16 +101,10 @@ function DetailBody({ item, onResolved }: { item: SyncReviewItem; onResolved: ()
           <dd className="text-gray-800 font-semibold">{item.ownerName ?? '—'}</dd>
         </div>
       </dl>
-      <div className="text-xs text-gray-600 space-y-1">
-        <p><span className="font-bold">Alasan server:</span> {refundReviewLabel(item.reviewReason) ?? item.reviewReason ?? '—'}</p>
-        {item.lastError && item.lastError !== item.reviewReason && <p><span className="font-bold">Error terakhir:</span> {item.lastError}</p>}
-      </div>
-      <details>
-        <summary className="text-xs font-bold text-gray-500 cursor-pointer">Data lengkap</summary>
-        <pre className="mt-2 text-[11px] bg-gray-900 text-gray-100 rounded-xl p-3 overflow-x-auto max-h-64">
-          {JSON.stringify(item.payload, null, 2)}
-        </pre>
-      </details>
+      <p className="text-xs text-gray-600">
+        <span className="font-bold">Alasan server:</span> {refundReviewLabel(item.reviewReason) ?? item.reviewReason ?? '—'}
+      </p>
+      <TechnicalDetails item={item} />
       {item.resolvedAt ? (
         <p className="text-sm text-gray-700">
           Diselesaikan oleh <b>{item.resolvedByName ?? '—'}</b> · {fmtWib(item.resolvedAt)}<br />{item.resolutionNote}

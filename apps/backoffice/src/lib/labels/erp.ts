@@ -2,12 +2,12 @@ import type { ErpOutboxItem } from '@mandalika/api'
 import type { LabelMap } from './types'
 
 export const ERP_STATUS = {
-  pending: { label: 'Menunggu', tone: 'neutral' },
-  held: { label: 'Ditahan', tone: 'warn' },
-  sending: { label: 'Mengirim', tone: 'neutral' },
-  delivered: { label: 'Terkirim', tone: 'ok' },
-  replayed: { label: 'Diulang', tone: 'ok' },
-  dead: { label: 'Gagal', tone: 'danger' },
+  pending: { label: 'Menunggu', tone: 'neutral', hint: 'Menunggu giliran dikirim ke ERP.' },
+  held: { label: 'Ditahan', tone: 'warn', hint: 'Ditahan karena ada yang perlu dicek dulu. Alasannya tertulis di kolom Alasan.' },
+  sending: { label: 'Mengirim', tone: 'neutral', hint: 'Sedang dikirim ke ERP.' },
+  delivered: { label: 'Terkirim', tone: 'ok', hint: 'ERP sudah menerima dokumen ini.' },
+  replayed: { label: 'Diulang', tone: 'ok', hint: 'ERP sudah punya dokumen ini, jadi tidak tercatat dua kali.' },
+  dead: { label: 'Gagal', tone: 'danger', hint: 'Gagal setelah beberapa kali percobaan. Cek penyebabnya, lalu kirim ulang.' },
 } as const satisfies LabelMap<ErpOutboxItem['status']>
 
 export const ERP_KIND = {
