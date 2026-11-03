@@ -5,16 +5,18 @@ interface TabsProps<T extends string> {
   onChange: (value: T) => void
   tabs: ReadonlyArray<{ id: T; label: string; dirty?: boolean }>
   className?: string
+  /** For a strip nested under another one: its data-tab-key becomes "scope.id", so keys stay unique on the page. */
+  scope?: string
 }
 
 /** Segmented control (e.g. Pengguna / Manajemen Role). */
-export function Tabs<T extends string>({ value, onChange, tabs, className }: TabsProps<T>) {
+export function Tabs<T extends string>({ value, onChange, tabs, className, scope }: TabsProps<T>) {
   return (
     <div className={cn('flex bg-gray-100 rounded-xl p-1', className)}>
       {tabs.map((t) => (
         <button type="button"
           key={t.id}
-          data-tab-key={t.id}
+          data-tab-key={scope ? `${scope}.${t.id}` : t.id}
           aria-pressed={value === t.id}
           onClick={() => onChange(t.id)}
           className={cn(

@@ -111,7 +111,7 @@ export const routeDeepLinkFlow = async (page: ScenarioPage) => {
   check((await hashOf(page)) === '#/inventori/bahan', 'the URL is not rewritten meanwhile')
   await tabItem(page, 'bahan').waitFor()
   await page.waitForFunction(() => document.querySelector('[data-tab-key="bahan"]')?.getAttribute('aria-pressed') === 'true')
-  check((await tabItem(page, 'stok-masuk').count()) === 1, 'the Bahan inner tabs are on show')
+  check((await tabItem(page, 'bahan.stok-masuk').count()) === 1, 'the Bahan inner tabs are on show')
   check((await hashOf(page)) === '#/inventori/bahan', 'the URL still names Bahan')
   results.push({ step: 'gated-tab-re-resolves' })
   return results

@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react'
+import { lazy, Suspense } from 'react'
 import { fetchAllPages, type ListOrdersParams } from '@mandalika/api'
 import type { Order, Product, Promotion } from '@mandalika/api'
 import { format } from 'date-fns'
@@ -25,6 +25,8 @@ import { Tabs } from '../ui/Tabs'
 import { EmptyState } from '../ui/EmptyState'
 import { CHART_SERIES } from '../ui/chartColors'
 import { KpiCard, RankedList } from './dashboard/components'
+import { useListState } from '../lib/router/useListState'
+import { DASHBOARD_SCHEMA, periodFromSlug, periodSlug } from './dashboard/periodRoute'
 import {
   type Period,
   PERIOD_TABS,
@@ -73,7 +75,10 @@ function ChartFallback({ height }: { height: number }) {
 export default function Dashboard() {
   const { user } = useAuth()
   const { outletId } = useOutlet()
-  const [period, setPeriod] = useState<Period>('7d')
+  // The period is in the URL (#/ringkasan?periode=30h); the default stays out of it.
+  const [query, setQuery] = useListState(DASHBOARD_SCHEMA)
+  const period = periodFromSlug(query.periode)
+  const setPeriod = (p: Period) => setQuery({ periode: periodSlug(p) })
 
   // Orders inside the period (+ previous period for deltas) are fetched twice (A27 net revenue):
   // the sale side WITHOUT a status filter (cancelled rows are dropped client-side) and the refunds

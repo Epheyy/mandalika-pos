@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import type { InventoryOverviewLocation } from '@mandalika/api'
-import { Package, Search, Store, Warehouse as WarehouseIcon } from 'lucide-react'
+import { Package, Store, Warehouse as WarehouseIcon } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
@@ -8,14 +8,19 @@ import { Card } from '../../ui/Card'
 import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 import { LocationStockView } from './LocationStockView'
-
-const PAGE_SIZE_DEFAULT = 25
-
-interface LocationTarget {
-  kind: 'outlet' | 'warehouse'
-  id: string
-  name: string
-}
+import { useListState } from '../../lib/router/useListState'
+import { useRoute } from '../../lib/router/useRoute'
+import { backOrNavigate, navigate } from '../../lib/router/navigate'
+import { FilterBar } from '../../ui/FilterBar'
+import {
+  OVERVIEW_SCHEMA,
+  kindFilterCode,
+  kindFilterOf,
+  locationFromPath,
+  locationHash,
+  overviewPageOf,
+  overviewSizeOf,
+} from '../inventory/overviewRoute'
 
 type KindFilter = 'outlet' | 'warehouse' | 'semua'
 
@@ -58,11 +63,17 @@ export function OverviewMatrix() {
   const q = usePolledQuery(() => api.getInventoryOverview(), [])
   const data = q.data
 
-  const [selectedLoc, setSelectedLoc] = useState<LocationTarget | null>(null)
-  const [kindFilter, setKindFilter] = useState<KindFilter>('outlet')
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT)
+  // Search, location type, page and page size are in the URL; so is the location opened from a column header.
+  const [state, setState] = useListState(OVERVIEW_SCHEMA)
+  const search = state.q
+  const kindFilter = kindFilterOf(state.jenis)
+  const pageSize = overviewSizeOf(state.per)
+  const route = useRoute()
+  const picked = locationFromPath(route.path, ['inventori', 'stok'])
+  const selectedLoc = useMemo(() => {
+    const hit = picked && data ? data.locations.find((l) => l.kind === picked.kind && l.id === picked.id) : undefined
+    return hit ? { kind: hit.kind, id: hit.id, name: hit.name } : null
+  }, [picked?.kind, picked?.id, data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // All hooks must run unconditionally before any early return
   const filteredLocations = useMemo(() => {
@@ -85,27 +96,22 @@ export function OverviewMatrix() {
   }, [data, search])
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
+  // A page past the end (a stale link) shows the last one.
+  const page = Math.min(overviewPageOf(state.hal), totalPages)
   const visibleRows = filteredRows.slice((page - 1) * pageSize, page * pageSize)
 
-  // Drill-in: render LocationStockView when a location column header is clicked
+  // Drill-in: one location's stock, opened from a column header. "Kembali" steps back to the matrix as it was.
+  if (picked && !data) return <TableSkeleton />
   if (selectedLoc) {
-    return <LocationStockView location={selectedLoc} onBack={() => setSelectedLoc(null)} />
+    const toMatrix = () => void backOrNavigate('#/inventori/stok', (path) => locationFromPath(path, ['inventori', 'stok']) === null)
+    return <LocationStockView location={selectedLoc} onBack={toMatrix} />
   }
 
-  const handleKindChange = (k: KindFilter) => {
-    setKindFilter(k)
-    setPage(1)
-  }
+  const handleKindChange = (k: KindFilter) => setState({ jenis: kindFilterCode(k), hal: 1 })
 
-  const handleSearch = (v: string) => {
-    setSearch(v)
-    setPage(1)
-  }
+  const handleSearch = (v: string) => setState({ q: v, hal: 1 }, { replace: true })
 
-  const handlePageSizeChange = (s: number) => {
-    setPageSize(s)
-    setPage(1)
-  }
+  const handlePageSizeChange = (s: number) => setState({ per: s, hal: 1 })
 
   return (
     <div className="space-y-3">
@@ -128,18 +134,7 @@ export function OverviewMatrix() {
           ))}
         </div>
 
-        {/* Product search */}
-        <div className="relative flex-1 min-w-[180px] max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Cari produk…"
-            aria-label="Cari produk"
-            className="w-full pl-8 pr-3 py-1.5 text-sm bg-white border border-gray-200 rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-400 transition"
-          />
-        </div>
+        <FilterBar.Search label="Cari produk" placeholder="Cari produk…" value={search} onChange={handleSearch} />
       </div>
 
       <Card className="overflow-hidden">
@@ -166,7 +161,7 @@ export function OverviewMatrix() {
                       <LocationHeaderButton
                         loc={loc}
                         onClick={() =>
-                          setSelectedLoc({ kind: loc.kind, id: loc.id, name: loc.name })
+                          void navigate(locationHash(['inventori', 'stok'], { kind: loc.kind, id: loc.id }))
                         }
                       />
                     </th>
@@ -231,7 +226,7 @@ export function OverviewMatrix() {
           page={page}
           totalPages={totalPages}
           total={filteredRows.length}
-          onChange={setPage}
+          onChange={(hal) => setState({ hal })}
           pageSize={pageSize}
           onPageSizeChange={handlePageSizeChange}
           className=" mt-1"

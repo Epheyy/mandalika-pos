@@ -14,6 +14,8 @@ import {
 interface MergeReviewProps {
   candidateId: string
   onBack: () => void
+  /** After a merge or dismissal the record is gone: leave for good. Defaults to onBack. */
+  onDone?: () => void
 }
 
 function CustomerSummary({ c, label }: { c: Customer; label: string }) {
@@ -92,7 +94,7 @@ function mergeReducer(state: MergeState, action: MergeAction): MergeState {
   }
 }
 
-export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
+export default function MergeReview({ candidateId, onBack, onDone = onBack }: MergeReviewProps) {
   const [review, dispatch] = useReducer(mergeReducer, initialMergeState)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
@@ -161,7 +163,7 @@ export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
     setActionErr(null)
     try {
       await api.mergeDupCandidate(candidateId, { keeperId: keeper.id, fieldChoices: choices })
-      onBack()
+      onDone()
     } catch (e: unknown) {
       setActionErr(e instanceof Error ? e.message : 'Gagal menggabungkan pelanggan')
     } finally {
@@ -174,7 +176,7 @@ export default function MergeReview({ candidateId, onBack }: MergeReviewProps) {
     setActionErr(null)
     try {
       await api.dismissDupCandidate(candidateId)
-      onBack()
+      onDone()
     } catch (e: unknown) {
       setActionErr(e instanceof Error ? e.message : 'Gagal melewati duplikat')
     } finally {

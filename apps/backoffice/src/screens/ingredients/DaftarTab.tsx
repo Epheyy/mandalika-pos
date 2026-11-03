@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchAllPages, type Ingredient, type IngredientCategory, type ListResult } from '@mandalika/api'
-import { Edit2, Search, FlaskConical, Trash2 } from 'lucide-react'
+import { Edit2, FlaskConical, Trash2 } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
@@ -13,6 +13,9 @@ import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 import { IngredientFormModal } from './IngredientFormModal'
 import { DeleteIngredientModal } from './DeleteIngredientModal'
+import { useListState } from '../../lib/router/useListState'
+import { FilterBar } from '../../ui/FilterBar'
+import { DAFTAR_SCHEMA, bahanPageOf, bahanSizeOf, categoryOf } from './bahanRoute'
 
 
 const formatIDR = (n: number | null | undefined) => {
@@ -46,10 +49,12 @@ const downloadIngredientTemplate = () => {
 }
 
 export default function DaftarTab() {
-  const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('')
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
+  // Search, category, page and page size are in the URL (#/inventori/bahan/daftar?q=&kategori=&hal=&per=).
+  const [state, setState] = useListState(DAFTAR_SCHEMA)
+  const search = state.q
+  const categoryFilter = categoryOf(state.kategori)
+  const page = bahanPageOf(state.hal)
+  const pageSize = bahanSizeOf(state.per)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Ingredient | null>(null)
   const [deleting, setDeleting] = useState<Ingredient | null>(null)
@@ -90,15 +95,9 @@ export default function DaftarTab() {
 
   const closeModal = () => setShowModal(false)
 
-  const handleSearchChange = (value: string) => {
-    setSearch(value)
-    setPage(1)
-  }
+  const handleSearchChange = (value: string) => setState({ q: value, hal: 1 }, { replace: true })
 
-  const handleCategoryChange = (value: string) => {
-    setCategoryFilter(value)
-    setPage(1)
-  }
+  const handleCategoryChange = (value: string) => setState({ kategori: value, hal: 1 })
 
   const refetchAfterImport = () => {
     void Promise.all([q.refetch(), api.listIngredientCategories().then(setCategories)])
@@ -109,17 +108,7 @@ export default function DaftarTab() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative max-w-xs w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder="Cari nama atau SKU..."
-              className={`${fieldClass} pl-9`}
-              aria-label="Cari bahan"
-            />
-          </div>
+          <FilterBar.Search label="Cari bahan" placeholder="Cari nama atau SKU..." value={search} onChange={handleSearchChange} />
 
           {/* Category filter */}
           <select
@@ -235,9 +224,9 @@ export default function DaftarTab() {
         page={page}
         totalPages={totalPages}
         total={total}
-        onChange={setPage}
+        onChange={(hal) => setState({ hal })}
         pageSize={pageSize}
-        onPageSizeChange={(s) => { setPageSize(s); setPage(1) }}
+        onPageSizeChange={(per) => setState({ per, hal: 1 })}
         className="mt-4"
       />
 

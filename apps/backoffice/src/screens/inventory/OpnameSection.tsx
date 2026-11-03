@@ -32,7 +32,7 @@ export default function OpnameSection({ recipesEnabled }: OpnameSectionProps) {
     <div>
       {recipesEnabled && (
         <div className="px-6 pt-4 pb-2">
-          <Tabs value={subTab} onChange={setSubTab} tabs={tabs} />
+          <Tabs value={subTab} onChange={setSubTab} tabs={tabs} scope="opname" />
         </div>
       )}
       {subTab === 'produk' && <StockCount />}
