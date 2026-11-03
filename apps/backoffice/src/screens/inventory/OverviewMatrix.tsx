@@ -101,9 +101,9 @@ export function OverviewMatrix() {
   const visibleRows = filteredRows.slice((page - 1) * pageSize, page * pageSize)
 
   // Drill-in: one location's stock, opened from a column header. "Kembali" steps back to the matrix as it was.
-  if (picked && !data) return <TableSkeleton />
+  if (picked && !data && q.loading) return <TableSkeleton />
   if (selectedLoc) {
-    const toMatrix = () => void backOrNavigate('#/inventori/stok', (path) => locationFromPath(path, ['inventori', 'stok']) === null)
+    const toMatrix = () => void backOrNavigate('#/inventori/stok', (path) => path[0] === 'inventori' && path[1] === 'stok' && locationFromPath(path, ['inventori', 'stok']) === null)
     return <LocationStockView location={selectedLoc} onBack={toMatrix} />
   }
 

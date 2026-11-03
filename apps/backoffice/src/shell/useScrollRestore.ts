@@ -22,7 +22,8 @@ function restoreWhenReachable(el: HTMLElement, top: number): () => void {
   }
   // The person taking over the scroll wins over the restore.
   for (const type of USER_SCROLL_EVENTS) el.addEventListener(type, stop, { passive: true })
-  step()
+  // The move fires before React renders the entry: wait a frame, or the first check measures the outgoing screen.
+  frame = requestAnimationFrame(step)
   return stop
 }
 

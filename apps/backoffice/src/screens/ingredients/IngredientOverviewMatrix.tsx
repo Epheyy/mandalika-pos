@@ -100,9 +100,9 @@ export function IngredientOverviewMatrix() {
   const visibleRows = filteredRows.slice((page - 1) * pageSize, page * pageSize)
 
   // Drill-in: one location's stock, opened from a column header. "Kembali" steps back to the matrix as it was.
-  if (picked && !data) return <TableSkeleton />
+  if (picked && !data && q.loading) return <TableSkeleton />
   if (selectedLoc) {
-    const toMatrix = () => void backOrNavigate('#/inventori/bahan', (path) => locationFromPath(path, ['inventori', 'bahan'], 1) === null)
+    const toMatrix = () => void backOrNavigate('#/inventori/bahan', (path) => path[0] === 'inventori' && path[1] === 'bahan' && locationFromPath(path, ['inventori', 'bahan'], 1) === null)
     return <IngredientLocationStockView location={selectedLoc} onBack={toMatrix} />
   }
 

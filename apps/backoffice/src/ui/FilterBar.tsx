@@ -78,6 +78,8 @@ function SearchField({ value, onChange, label, placeholder, debounceMs = DEFAULT
   useEffect(() => {
     if (value !== emitted.current) {
       emitted.current = value
+      // A keystroke still waiting to be emitted belongs to the old value: drop it.
+      if (timer.current) clearTimeout(timer.current)
       setText(value)
     }
   }, [value])

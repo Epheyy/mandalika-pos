@@ -204,6 +204,7 @@ export function createRouter(env: HistoryEnv): Router {
     matches: (path: readonly string[]) => boolean,
     fallbackOpts: NavigateOptions = {},
   ): Promise<boolean> => {
+    if (expectTraversal) return false // our own step back has not landed yet: a second one would overshoot
     const previous = previousHash()
     if (previous === undefined || !matches(parseHash(previous).path)) return navigate(fallback, fallbackOpts)
     if (asking) return false

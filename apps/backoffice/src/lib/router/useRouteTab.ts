@@ -14,15 +14,17 @@ export function useRouteTab<K extends string>(
   base: readonly string[],
   tabs: readonly PathTab<K>[],
 ): readonly [K | undefined, (key: K) => void] {
-  const { path } = useRoute()
+  const { path, query } = useRoute()
   const active = activeTab(tabs, segmentAfter(path, base))
   const select = useCallback(
     (key: K) => {
       const slug = slugForTab(tabs, key)
-      // Clicking the tab already on show (a bare path shows the first) only spells the URL out: no new history entry.
-      if (slug !== undefined) void navigate(buildHash([...base, slug]), { replace: key === active })
+      // Clicking the tab a bare path already shows only spells the URL out: no new history entry. Anywhere deeper
+      // (a filtered list, a detail) the click is a real move and keeps the entry it leaves.
+      const bare = path.length === base.length && Object.keys(query).length === 0
+      if (slug !== undefined) void navigate(buildHash([...base, slug]), { replace: bare && key === active })
     },
-    [base, tabs, active],
+    [base, tabs, active, path, query],
   )
   return [active, select]
 }

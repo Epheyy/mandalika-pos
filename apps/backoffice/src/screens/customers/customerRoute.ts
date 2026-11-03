@@ -2,7 +2,7 @@
  * Pelanggan's places and list filters as URL state (D4). Pure: parsed from the hash path and query, tested in node.
  *   #/pelanggan/daftar?q=&urut=&tag=&segmen=&hal=&per=      the list (a bare #/pelanggan is the same)
  *   #/pelanggan/daftar/<id>                                  a customer; #/pelanggan/<id> opens it too
- *   #/pelanggan/pengingat?hari=&jenis=&hal=                  reminders; /pengingat/<id> opens the customer over them
+ *   #/pelanggan/pengingat?hari=&jenis=&rhal=                 reminders; /pengingat/<id> opens the customer over them
  *   #/pelanggan/duplikat[/<id>]                              duplicate review
  *   #/pelanggan/loyalitas[/kondisi]                          loyalty settings / special conditions
  */
@@ -41,6 +41,9 @@ export const customerHash = (view: 'daftar' | 'pengingat', id: string): string =
 export const dupReviewHash = (id: string): string => buildHash([...CUSTOMER_BASE, 'duplikat', id])
 export const loyaltyHash = (sub: LoyaltySub): string =>
   buildHash([...CUSTOMER_BASE, 'loyalitas', ...(sub === 'conditions' ? ['kondisi'] : [])])
+
+/** The list tab (Daftar, bare or named) with no customer page over it. */
+export const routedViewIsList = (path: readonly string[]): boolean => isListPath(path, 'daftar')
 
 /** A path that shows `view` itself (no customer page or review over it): where "Kembali" should land. */
 export function isListPath(path: readonly string[], view: CustomerView): boolean {
@@ -85,7 +88,7 @@ export interface ReminderListQuery extends Record<string, string | number | bool
 export const REMINDER_LIST_SCHEMA: ListSchema<ReminderListQuery> = {
   hari: { key: 'hari', default: 7 },
   jenis: { key: 'jenis', default: 'all' },
-  hal: { key: 'hal', default: 1 },
+  hal: { key: 'rhal', default: 1 },
 }
 
 /** A page number from the URL: a whole number, 1 or more. */

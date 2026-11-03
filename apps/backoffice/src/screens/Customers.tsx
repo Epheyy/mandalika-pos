@@ -48,6 +48,7 @@ import { tagChipClasses } from './customers/tagColors'
 import { ProductVariantPicker } from './customers/ProductVariantPicker'
 import {
   CUSTOMER_LIST_SCHEMA,
+  routedViewIsList,
   REMINDER_LIST_SCHEMA,
   REMINDER_PAGE_SIZE,
   customerHash,
@@ -113,7 +114,14 @@ const exportCustomers = async (fmt: 'csv' | 'xlsx') => {
 export default function Customers() {
   const { outletId } = useOutlet()
   // Everything the list shows is in the URL: search, sort, tag, segment, page and page size (defaults stay out of it).
-  const [list, setList] = useListState(CUSTOMER_LIST_SCHEMA)
+  const [urlList, setList] = useListState(CUSTOMER_LIST_SCHEMA)
+  const route = useRoute()
+  // While a customer is open the URL no longer carries the list's filters; keep the list keyed on the last list state,
+  // so Back finds its data in place (no refetch, no skeleton that would clamp a restored scroll).
+  const lastList = useRef(urlList)
+  const onCustomerPage = customerPlace(route.path, 'daftar').customerId !== null || customerPlace(route.path, 'pengingat').customerId !== null
+  if (!onCustomerPage) lastList.current = urlList
+  const list = onCustomerPage ? lastList.current : urlList
   const search = list.q
   const sort = sortOf(list.urut)
   const tagId = idOf(list.tag)
@@ -134,10 +142,12 @@ export default function Customers() {
   const total = cq.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   // A page past the end (a stale link, or rows deleted meanwhile) comes back empty: land on the last page instead.
+  // Only on the list itself, and only on an answer to THIS page (a poll hook keeps the previous answer for a render).
+  const onList = !onCustomerPage && routedViewIsList(route.path)
   useEffect(() => {
-    if (cq.loading || !cq.data || page <= 1 || customers.length > 0) return
+    if (!onList || cq.loading || !cq.data || cq.data.meta?.page !== page || page <= 1 || customers.length > 0) return
     setList({ hal: Math.min(page - 1, totalPages) }, { replace: true })
-  }, [cq.loading, cq.data, page, customers.length, totalPages, setList])
+  }, [onList, cq.loading, cq.data, page, customers.length, totalPages, setList])
 
   const lq = usePolledQuery<LoyaltySettings>(() => api.getLoyaltySettings(), [])
   const condQ = usePolledQuery<LoyaltyCondition[]>(() => api.listLoyaltyConditions(), [])
@@ -152,7 +162,6 @@ export default function Customers() {
   // The view, the customer page, the duplicate under review and the loyalty sub-view all live in the path.
   const { tab: routedView, setTab: setView } = useScreenTabs<CustomerView>('customers', null)
   const view = routedView ?? 'daftar'
-  const route = useRoute()
   const place = customerPlace(route.path, view)
   const selectedId = place.customerId
   const selectedDupId = place.dupId
