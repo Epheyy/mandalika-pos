@@ -14,6 +14,7 @@ const MAPS: Record<string, LabelMap<string>> = {
   ERP_KIND: labels.ERP_KIND,
   LEDGER_KIND: labels.LEDGER_KIND,
   LEDGER_BUCKET: labels.LEDGER_BUCKET,
+  LEDGER_ERP_STATUS: labels.LEDGER_ERP_STATUS,
   REASON_CODE: labels.REASON_CODE,
   SYNC_REVIEW_REASON: labels.SYNC_REVIEW_REASON,
   ROLE: labels.ROLE,

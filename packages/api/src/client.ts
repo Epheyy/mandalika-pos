@@ -404,8 +404,9 @@ export interface Api {
   updateWarehouse: (id: string, input: WarehouseInput) => Promise<void>
   deleteWarehouse: (id: string) => Promise<void>
   getWarehouseStock: (id: string) => Promise<WarehouseStockRow[]>
-  createLocationGoodsReceipt: (loc: { kind: 'outlet' | 'warehouse'; id: string }, input: GoodsReceiptInput) => Promise<void>
-  adjustLocationStock: (loc: { kind: 'outlet' | 'warehouse'; id: string }, input: WarehouseAdjustInput) => Promise<void>
+  /** Additive stock write: a double submit applies twice, so the key is required (one per form open). */
+  createLocationGoodsReceipt: (loc: { kind: 'outlet' | 'warehouse'; id: string }, input: GoodsReceiptInput, idempotencyKey: string) => Promise<void>
+  adjustLocationStock: (loc: { kind: 'outlet' | 'warehouse'; id: string }, input: WarehouseAdjustInput, idempotencyKey: string) => Promise<void>
   setOutletPar: (outletId: string, input: OutletParInput) => Promise<void>
   getInventoryOverview: () => Promise<InventoryOverviewResponse>
   getIngredientOverview: () => Promise<IngredientOverviewResponse>
@@ -940,11 +941,11 @@ export function createClient(opts: ClientOptions): Api {
     },
     getWarehouseStock: (id) =>
       data<WarehouseStockRow[]>('GET', `${API}/warehouses/${id}/stock`),
-    createLocationGoodsReceipt: async (loc, input) => {
-      await request('POST', `${API}/inventory/goods-receipt?kind=${loc.kind}&id=${loc.id}`, input)
+    createLocationGoodsReceipt: async (loc, input, idempotencyKey) => {
+      await request('POST', `${API}/inventory/goods-receipt?kind=${loc.kind}&id=${loc.id}`, input, idemRequired(idempotencyKey))
     },
-    adjustLocationStock: async (loc, input) => {
-      await request('POST', `${API}/inventory/adjust?kind=${loc.kind}&id=${loc.id}`, input)
+    adjustLocationStock: async (loc, input, idempotencyKey) => {
+      await request('POST', `${API}/inventory/adjust?kind=${loc.kind}&id=${loc.id}`, input, idemRequired(idempotencyKey))
     },
     setOutletPar: async (outletId, input) => {
       await request('PUT', `${API}/inventory/outlet-par?id=${outletId}`, input)

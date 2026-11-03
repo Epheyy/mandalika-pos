@@ -1,5 +1,6 @@
-// Kartu Stok (S1): the Ringkasan row opens the card, the saldo header and rows render, paging
-// and the Hadiah chip reach the API as the right query, and Unduh CSV saves the server file
+// Kartu Stok (S1, D3a): the Ringkasan row opens the card (its SKU and location ride in the URL), the saldo header
+// and rows render, paging and the Hadiah chip reach the API as the right query, Unduh CSV saves the server file,
+// and the two stock writes (Barang Masuk, Penyesuaian Stok) each send one Idempotency-Key per open
 // (synthetic API, no real backend).
 import type { ScenarioPage } from './fixture'
 import { openBackoffice, openTab } from './fixture'
@@ -30,8 +31,10 @@ export const stockCardFlow = async (page: ScenarioPage) => {
   const summaryCalls: URLSearchParams[] = []
   const exportCalls: URLSearchParams[] = []
   const skuCalls: URLSearchParams[] = []
-  const receiptPosts: Array<{ query: URLSearchParams; body: Record<string, unknown> }> = []
+  const receiptPosts: Array<{ query: URLSearchParams; body: Record<string, unknown>; key: string | undefined }> = []
+  const adjustPosts: Array<{ query: URLSearchParams; body: Record<string, unknown>; key: string | undefined }> = []
   let denySummary = true
+  let failNextReceipt = true
 
   await page.unrouteAll({ behavior: 'wait' })
   await page.route('http://127.0.0.1:59999/api/v1/**', async (route) => {
@@ -64,7 +67,16 @@ export const stockCardFlow = async (page: ScenarioPage) => {
       return route.fulfill({ json: { data: [{ productId: PRODUCT, productName: 'Canvas Bag', variantSize: 'Std', sku: 'CB-STD', stock: -3 }] } })
     }
     if (path.endsWith('/inventory/goods-receipt') && req.method() === 'POST') {
-      receiptPosts.push({ query: url.searchParams, body: JSON.parse(req.postData() ?? '{}') as Record<string, unknown> })
+      receiptPosts.push({ query: url.searchParams, body: JSON.parse(req.postData() ?? '{}') as Record<string, unknown>, key: req.headers()['idempotency-key'] })
+      // the first attempt fails (the answer may be lost): the retry must carry the same key
+      if (failNextReceipt) {
+        failNextReceipt = false
+        return route.fulfill({ status: 503, json: { error: 'layanan sementara tidak tersedia' } })
+      }
+      return route.fulfill({ json: { ok: true } })
+    }
+    if (path.endsWith('/inventory/adjust') && req.method() === 'POST') {
+      adjustPosts.push({ query: url.searchParams, body: JSON.parse(req.postData() ?? '{}') as Record<string, unknown>, key: req.headers()['idempotency-key'] })
       return route.fulfill({ json: { ok: true } })
     }
     if (path.endsWith('/inventory/movements/export')) {
@@ -99,16 +111,20 @@ export const stockCardFlow = async (page: ScenarioPage) => {
   await summaryRow.click()
   await page.getByText('Canvas Bag · Std (CB-STD)').first().waitFor()
   await page.getByText('Saldo Akhir').first().waitFor()
-  await page.getByRole('button', { name: 'Buat penyesuaian' }).waitFor()
-  await page.getByText('Hadiah', { exact: true }).nth(1).waitFor() // the row badge, next to the chip
-  await page.getByText('Minus', { exact: true }).nth(1).waitFor()
+  await page.getByRole('button', { name: 'Tambah penyesuaian', exact: true }).waitFor()
+  // the badges sit in their own rows, next to the chips of the same names
+  await page.getByRole('row', { name: /INV-3/ }).getByText('Hadiah', { exact: true }).waitFor()
+  await page.getByRole('row', { name: /INV-2/ }).getByText('Minus', { exact: true }).waitFor()
   await page.getByText('Tercatat terlambat', { exact: true }).waitFor()
+  // the SKU and the location are in the URL, so the card can be bookmarked
+  const cardHash = new URL(page.url()).hash
+  check(cardHash.startsWith('#/inventori/stok/kartu-stok?') && cardHash.includes(`sku=${PRODUCT}%7CStd`) && cardHash.includes(`lokasi=outlet%3A${OUTLET}`), `card url ${cardHash}`)
   const first = listCalls.find((q) => !q.get('cursor') && !q.get('giveaway'))
   check(!!first && first.get('productId') === PRODUCT && first.get('variantSize') === 'Std' && first.get('locationId') === OUTLET, 'card query')
   results.push({ step: 'card-opens-on-sku', query: first?.toString() })
 
   await page.getByRole('button', { name: 'Muat lebih banyak' }).click()
-  await page.getByText('goods_receipt', { exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Dokumen barang masuk', exact: true }).waitFor()
   check(listCalls.some((q) => q.get('cursor') === 'c1'), 'cursor sent')
   await page.getByRole('button', { name: 'Muat lebih banyak' }).waitFor({ state: 'detached' })
   results.push({ step: 'paging', rows: 3 })
@@ -116,7 +132,7 @@ export const stockCardFlow = async (page: ScenarioPage) => {
   // Pergerakan buckets are signed columns, Garansi is marked on the receipt row
   await page.getByText('Garansi', { exact: true }).waitFor()
   // the Dokumen cell of the receipt row opens the receipt in place
-  await page.getByRole('button', { name: 'goods_receipt', exact: true }).click()
+  await page.getByRole('button', { name: 'Dokumen barang masuk', exact: true }).click()
   const heading = page.getByRole('heading', { name: 'Barang Masuk', exact: true })
   await heading.waitFor()
   await page.getByText('Penggantian garansi', { exact: true }).waitFor()
@@ -125,20 +141,46 @@ export const stockCardFlow = async (page: ScenarioPage) => {
   await heading.waitFor({ state: 'detached' })
   results.push({ step: 'document-link' })
 
-  // "Catat barang masuk" opens the existing goods-in form on this SKU and location
-  await page.getByRole('button', { name: 'Catat barang masuk', exact: true }).click()
+  // "Tambah barang masuk" opens the goods-in panel on this SKU and location
+  await page.getByRole('button', { name: 'Tambah barang masuk', exact: true }).click()
   await heading.waitFor()
   await page.getByLabel('Qty masuk Canvas Bag Std').fill('3')
   await page.getByLabel(/Penggantian garansi/).check()
-  await page.getByRole('button', { name: 'Catat Barang Masuk', exact: true }).click()
+  await page.getByRole('button', { name: 'Simpan barang masuk', exact: true }).click()
+  // the first attempt is refused: the panel stays open with the message
+  await page.getByRole('alert').filter({ hasText: /layanan sementara tidak tersedia/ }).waitFor()
+  check(receiptPosts.length === 1 && !!receiptPosts[0].key, 'first receipt attempt carries an Idempotency-Key')
+  await page.getByRole('button', { name: 'Simpan barang masuk', exact: true }).click()
   await heading.waitFor({ state: 'detached' })
-  const post = receiptPosts[0]
-  check(receiptPosts.length === 1 && post.query.get('kind') === 'outlet' && post.query.get('id') === OUTLET, 'receipt post location')
+  const post = receiptPosts[1]
+  check(receiptPosts.length === 2 && post.query.get('kind') === 'outlet' && post.query.get('id') === OUTLET, 'receipt post location')
   check(post.body.source === 'warranty' && JSON.stringify(post.body.items).includes(`"productId":"${PRODUCT}"`) && JSON.stringify(post.body.items).includes('"qty":3'), 'receipt post body')
-  results.push({ step: 'shortcut-goods-in' })
+  check(post.key === receiptPosts[0].key, 'the retry reuses the key of the first attempt')
+  results.push({ step: 'shortcut-goods-in-retry-same-key' })
+
+  // a new open starts with empty lines and its own key
+  await page.getByRole('button', { name: 'Tambah barang masuk', exact: true }).click()
+  await heading.waitFor()
+  check(await page.getByLabel('Qty masuk Canvas Bag Std').inputValue() === '', 'a reopened panel starts empty')
+  await page.getByLabel('Qty masuk Canvas Bag Std').fill('1')
+  await page.getByRole('button', { name: 'Simpan barang masuk', exact: true }).click()
+  await heading.waitFor({ state: 'detached' })
+  check(receiptPosts.length === 3 && !!receiptPosts[2].key && receiptPosts[2].key !== receiptPosts[0].key, 'a new open sends a new key')
+  results.push({ step: 'shortcut-goods-in-new-open-new-key' })
+
+  // "Tambah penyesuaian": the panel states the change, and the write carries a key
+  await page.getByRole('button', { name: 'Tambah penyesuaian', exact: true }).click()
+  await page.getByRole('heading', { name: 'Penyesuaian Stok', exact: true }).waitFor()
+  await page.getByLabel('Jumlah Baru').fill('2')
+  await page.getByText('Stok sekarang -3 → baru 2 (+5)', { exact: true }).waitFor()
+  await page.getByLabel('Alasan').selectOption('found')
+  await page.getByRole('button', { name: 'Simpan penyesuaian', exact: true }).click()
+  await page.getByRole('heading', { name: 'Penyesuaian Stok', exact: true }).waitFor({ state: 'detached' })
+  check(adjustPosts.length === 1 && !!adjustPosts[0].key && adjustPosts[0].body.newQty === 2 && adjustPosts[0].query.get('id') === OUTLET, 'adjust post')
+  results.push({ step: 'shortcut-adjust' })
 
   await page.getByRole('button', { name: 'Hadiah', exact: true }).click()
-  await page.getByText('goods_receipt', { exact: true }).waitFor({ state: 'detached' })
+  await page.getByRole('row', { name: /INV-2/ }).waitFor({ state: 'detached' }) // only the giveaway row is left
   check(listCalls.some((q) => q.get('giveaway') === 'true'), 'giveaway filter sent')
   results.push({ step: 'giveaway-chip' })
 
