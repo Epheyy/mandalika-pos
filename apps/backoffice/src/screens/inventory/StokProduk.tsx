@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useRouteTab } from '../../lib/router/useRouteTab'
 import { PageHeader } from '../../ui/PageHeader'
 import { Tabs } from '../../ui/Tabs'
 import { MovementSummary } from './MovementSummary'
@@ -8,13 +9,22 @@ import { StockCard, type StockCardTarget } from './StockCard'
 type SubTab = 'overview' | 'pergerakan' | 'kartu'
 
 const SUB_TABS: ReadonlyArray<{ id: SubTab; label: string }> = [
-  { id: 'overview', label: 'Overview' },
+  { id: 'overview', label: 'Ikhtisar' },
   { id: 'pergerakan', label: 'Pergerakan' },
   { id: 'kartu', label: 'Kartu Stok' },
 ]
 
+// #/inventori/stok/<slug>; a bare #/inventori/stok is Ikhtisar.
+const BASE = ['inventori', 'stok'] as const
+const PATH_TABS: ReadonlyArray<{ key: SubTab; slug: string }> = [
+  { key: 'overview', slug: 'ikhtisar' },
+  { key: 'pergerakan', slug: 'pergerakan' },
+  { key: 'kartu', slug: 'kartu-stok' },
+]
+
 export default function StokProduk() {
-  const [subTab, setSubTab] = useState<SubTab>('overview')
+  const [routed, setSubTab] = useRouteTab<SubTab>(BASE, PATH_TABS)
+  const subTab = routed ?? 'overview'
   // A summary row click opens the card on that SKU; the key remounts the card for each new target.
   const [target, setTarget] = useState<StockCardTarget | null>(null)
   const [targetKey, setTargetKey] = useState(0)
@@ -29,7 +39,7 @@ export default function StokProduk() {
     <div className="p-6 space-y-5">
       <PageHeader
         title="Stok Produk"
-        subtitle="Overview dan pergerakan stok di semua lokasi"
+        subtitle="Ikhtisar dan pergerakan stok di semua lokasi"
       />
 
       <Tabs value={subTab} onChange={setSubTab} tabs={SUB_TABS} />

@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { StockRequisition } from '@mandalika/api'
-import { ClipboardList, Plus } from 'lucide-react'
+import { ArrowLeft, ClipboardList, Plus } from 'lucide-react'
 import { api } from '../../api'
 import { useAuth } from '../../auth'
 import { useOutlet } from '../../outlet'
@@ -13,30 +13,61 @@ import { EmptyState } from '../../ui/EmptyState'
 import { Select } from '../../ui/Field'
 import { PageHeader } from '../../ui/PageHeader'
 import { Pagination } from '../../ui/Pagination'
+import { navigate } from '../../lib/router/navigate'
+import { useRoute } from '../../lib/router/useRoute'
 import { RequisitionDetail } from './RequisitionDetail'
 import { RequisitionForm } from './RequisitionForm'
 import { REQUISITION_STATUS, fmtDate } from './requisitionStatus'
-
-type View =
-  | { kind: 'list' }
-  | { kind: 'create' }
-  | { kind: 'edit'; pb: StockRequisition }
-  | { kind: 'detail'; id: string }
+import { requisitionHash, requisitionViewFromPath } from './requisitionRoute'
 
 /** Permintaan Barang screen. Outlet staff see their own outlet's requests; the warehouse sees every submitted one. */
 export default function Requisitions() {
-  const [view, setView] = useState<View>({ kind: 'list' })
+  // The view lives in the path: #/permintaan-barang, /baru, /<id>, /<id>/ubah.
+  const view = requisitionViewFromPath(useRoute().path)
+  const go = (to: Parameters<typeof requisitionHash>[0], replace = false) => void navigate(requisitionHash(to), { replace })
+  const toList = () => go({ kind: 'list' })
+  // A saved form replaces its own entry, so Back does not return to a form that is already submitted.
+  const saved = (id: string) => go({ kind: 'detail', id }, true)
   if (view.kind === 'create') {
-    return <div className="p-6"><RequisitionForm onCancel={() => setView({ kind: 'list' })} onSaved={(id) => setView({ kind: 'detail', id })} /></div>
+    return <div className="p-6"><RequisitionForm onCancel={toList} onSaved={saved} /></div>
   }
   if (view.kind === 'edit') {
-    const id = view.pb.id
-    return <div className="p-6"><RequisitionForm draft={view.pb} onCancel={() => setView({ kind: 'detail', id })} onSaved={(sid) => setView({ kind: 'detail', id: sid })} /></div>
+    return <div className="p-6"><RequisitionEdit id={view.id} onBack={() => go({ kind: 'detail', id: view.id }, true)} onSaved={saved} /></div>
   }
   if (view.kind === 'detail') {
-    return <div className="p-6"><RequisitionDetail id={view.id} onBack={() => setView({ kind: 'list' })} onEdit={(pb) => setView({ kind: 'edit', pb })} /></div>
+    return <div className="p-6"><RequisitionDetail id={view.id} onBack={toList} onEdit={(pb) => go({ kind: 'edit', id: pb.id })} /></div>
   }
-  return <RequisitionList onCreate={() => setView({ kind: 'create' })} onOpen={(id) => setView({ kind: 'detail', id })} />
+  return <RequisitionList onCreate={() => go({ kind: 'create' })} onOpen={(id) => go({ kind: 'detail', id })} />
+}
+
+interface RequisitionEditProps {
+  id: string
+  onBack: () => void
+  onSaved: (id: string) => void
+}
+
+/** The edit form for a draft, loaded by id so a reload or a pasted link lands on it. */
+function RequisitionEdit({ id, onBack, onSaved }: RequisitionEditProps) {
+  // Loaded once: the form seeds its fields from the draft, and a poll must not re-seed what the user is typing.
+  const q = usePolledQuery<StockRequisition>(() => api.getRequisition(id), [id], 24 * 3600 * 1000)
+  const { user } = useAuth()
+  const { outletId } = useOutlet()
+  const pb = q.data
+  // Only the requesting outlet edits a draft (the Ubah button's own gate). A pasted link to anything else shows the detail.
+  const activeOutlet = user?.role === 'admin' ? outletId : (user?.outletId ?? null)
+  const mayEdit = !!pb && pb.status === 'draft' && activeOutlet === pb.outletId
+  useEffect(() => {
+    if (pb && !mayEdit) onBack()
+  }, [pb, mayEdit, onBack])
+  if (!pb || !mayEdit) {
+    return (
+      <div className="space-y-5">
+        <PageHeader title="Permintaan Barang" actions={<Button variant="secondary" icon={<ArrowLeft className="w-4 h-4" />} onClick={onBack}>Kembali</Button>} />
+        <Card className="p-8">{q.error ? <p className="text-sm text-red-600">{q.error}</p> : <TableSkeleton />}</Card>
+      </div>
+    )
+  }
+  return <RequisitionForm draft={pb} onCancel={onBack} onSaved={onSaved} />
 }
 
 interface RequisitionListProps {

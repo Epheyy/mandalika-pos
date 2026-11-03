@@ -15,6 +15,7 @@ import { IconButton } from '../ui/IconButton'
 import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
+import { useScreenTabs } from '../lib/router/useScreenTabs'
 import { PERMS, PermissionPicker } from './users/PermissionPicker'
 import { AddUserModal } from './users/AddUserModal'
 import { RoleModal } from './users/RoleModal'
@@ -104,7 +105,8 @@ export default function Users() {
   const roles = rq.data ?? []
   const outlets = oq.data ?? []
   const outletNameOf = (id?: string | null) => outlets.find((o) => o.id === id)?.name
-  const [tab, setTab] = useState<'users' | 'roles'>('users')
+  const { strip: tabStrip, tab: routedTab, setTab } = useScreenTabs<'users' | 'roles'>('users', me)
+  const tab = routedTab ?? 'users'
 
   const [editUser, dispatch] = useReducer(editUserReducer, initialEditUser)
   const { editingUser, editRole, editPerms, editOutletId, pin, clearPin } = editUser
@@ -193,10 +195,7 @@ export default function Users() {
             <Tabs
               value={tab}
               onChange={setTab}
-              tabs={[
-                { id: 'users', label: 'Pengguna' },
-                { id: 'roles', label: 'Manajemen Role' },
-              ]}
+              tabs={tabStrip}
             />
             {tab === 'users' && (
               <>

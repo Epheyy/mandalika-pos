@@ -12,7 +12,7 @@ import type {
 import { fetchAllPages } from '@mandalika/api'
 import {
   Plus, Search, Edit2, Trash2, Users, Phone, Mail, Star,
-  ToggleLeft, ToggleRight, Gift, Cake,
+  Gift, Cake,
 } from 'lucide-react'
 import { api } from '../api'
 import { loadAllProducts } from '../lib/loadAll'
@@ -24,6 +24,7 @@ import { exportToCSV, exportToXLSX } from '../lib/csvUtils'
 import { CUSTOMER_TEMPLATE_ROWS } from '../lib/importTemplates'
 import { ImportExportBar } from '../components/ImportExportBar'
 import { Button } from '../ui/Button'
+import { Switch } from '../ui/Switch'
 import { Input, Select, Field } from '../ui/Field'
 import { Modal } from '../ui/Modal'
 import { Card } from '../ui/Card'
@@ -32,6 +33,7 @@ import { IconButton } from '../ui/IconButton'
 import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
+import { useScreenTabs } from '../lib/router/useScreenTabs'
 import { Pagination } from '../ui/Pagination'
 import CustomerDetail from './customers/CustomerDetail'
 import DupCandidates from './customers/DupCandidates'
@@ -39,6 +41,8 @@ import MergeReview from './customers/MergeReview'
 import { SegmentManager } from './customers/SegmentManager'
 import { tagChipClasses } from './customers/tagColors'
 import { ProductVariantPicker } from './customers/ProductVariantPicker'
+
+type CustomerView = 'daftar' | 'pengingat' | 'duplikat' | 'loyalitas'
 
 const DEFAULT_LOYALTY: LoyaltySettings = {
   enabled: true,
@@ -123,9 +127,16 @@ export default function Customers() {
   const conditions = condQ.data ?? []
   const products = pq.data ?? []
 
-  const [view, setView] = useState<'daftar' | 'pengingat' | 'duplikat' | 'loyalitas'>('daftar')
+  // The view lives in the path (#/pelanggan/duplikat); a bare #/pelanggan is Daftar. The detail page stays a state swap for now.
+  const { tab: routedView, setTab: setView } = useScreenTabs<CustomerView>('customers', null)
+  const view = routedView ?? 'daftar'
   const [subTab, setSubTab] = useState<'general' | 'conditions'>('general')
   const [selectedDupId, setSelectedDupId] = useState<string | null>(null)
+  // Back/Forward between views closes the customer page and the duplicate review left open on the other one.
+  useEffect(() => {
+    setSelectedId(null)
+    setSelectedDupId(null)
+  }, [view])
   const [dupRefresh, setDupRefresh] = useState(0)
   const dupCountQ = usePolledQuery<{ data: DupCandidate[]; meta?: { total: number; page: number; limit: number } }>(
     () => api.listDupCandidates('pending', 1, 1),
@@ -342,9 +353,7 @@ export default function Customers() {
                   <p className="font-bold text-gray-900 text-sm">Sistem Poin</p>
                   <p className="text-xs text-gray-400">Pelanggan mendapat poin setiap transaksi</p>
                 </div>
-                <button type="button" onClick={() => setLoyaltyForm((f) => ({ ...f, enabled: !f.enabled }))}>
-                  {loyaltyForm.enabled ? <ToggleRight className="w-7 h-7 text-gold-600" /> : <ToggleLeft className="w-7 h-7 text-gray-400" />}
-                </button>
+                <Switch label="Sistem Poin" checked={loyaltyForm.enabled} onChange={(enabled) => setLoyaltyForm((f) => ({ ...f, enabled }))} />
               </div>
               {loyaltyForm.enabled && (
                 <>

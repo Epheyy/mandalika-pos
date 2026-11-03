@@ -16,7 +16,10 @@ import { TRANSFER_STATUS } from '../../lib/labels/transfer'
 import { EmptyState } from '../../ui/EmptyState'
 import { PageHeader } from '../../ui/PageHeader'
 import { Pagination } from '../../ui/Pagination'
+import { navigate } from '../../lib/router/navigate'
+import { useRoute } from '../../lib/router/useRoute'
 import { TransferForm } from './TransferForm'
+import { transferHash, transferViewFromPath } from './transferRoute'
 import { ReceiveModal } from './ReceiveModal'
 import { SuratJalanPanel } from './SuratJalanPanel'
 
@@ -33,8 +36,6 @@ function toToIso(date: string): string {
 }
 
 
-type View = { kind: 'list' } | { kind: 'create' } | { kind: 'detail'; id: string }
-
 const STATUS: Record<string, { label: string; tone: BadgeToneName }> = Object.fromEntries(
   Object.entries(TRANSFER_STATUS).map(([k, v]) => [k, { label: v.label, tone: badgeTone(v.tone) }]),
 )
@@ -43,7 +44,9 @@ const fmtDate = (s?: string | null) =>
   s ? new Date(s).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
 export function Transfers() {
-  const [view, setView] = useState<View>({ kind: 'list' })
+  // The view lives in the path: #/inventori/transfer, /baru, /<id>.
+  const view = transferViewFromPath(useRoute().path)
+  const toList = () => void navigate(transferHash({ kind: 'list' }))
   // Locations for the create form (loaded once at this level).
   const oq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
@@ -53,20 +56,20 @@ export function Transfers() {
       <TransferForm
         outlets={oq.data ?? []}
         warehouses={wq.data ?? []}
-        onCancel={() => setView({ kind: 'list' })}
-        onCreated={(id) => setView({ kind: 'detail', id })}
+        onCancel={toList}
+        onCreated={(id) => void navigate(transferHash({ kind: 'detail', id }), { replace: true })}
       />
     )
   }
   if (view.kind === 'detail') {
-    return <TransferDetail id={view.id} onBack={() => setView({ kind: 'list' })} />
+    return <TransferDetail id={view.id} onBack={toList} />
   }
   return (
     <TransferList
       outlets={oq.data ?? []}
       warehouses={wq.data ?? []}
-      onCreate={() => setView({ kind: 'create' })}
-      onOpen={(id) => setView({ kind: 'detail', id })}
+      onCreate={() => void navigate(transferHash({ kind: 'create' }))}
+      onOpen={(id) => void navigate(transferHash({ kind: 'detail', id }))}
     />
   )
 }

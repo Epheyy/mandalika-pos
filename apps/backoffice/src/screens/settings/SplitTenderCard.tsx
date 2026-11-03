@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Button } from '../../ui/Button'
 import { SettingsCard } from './SettingsCard'
 import { Modal } from '../../ui/Modal'
-import { Toggle } from './Toggle'
+import { Switch } from '../../ui/Switch'
 
 /** D-50 warning shown on the card and again in the confirm before switching on. */
 export const SPLIT_TENDER_WARNING =
@@ -27,10 +27,10 @@ export function SplitTenderCard({ enabled, changed, onChange }: Props) {
           <p className="font-bold text-gray-900">Bayar terpisah</p>
           <p className="text-xs text-gray-400">Satu transaksi bisa dibayar dengan beberapa metode (label: Split-Payment)</p>
         </div>
-        <Toggle
+        <Switch
           label="Bayar terpisah"
           checked={enabled}
-          onClick={() => (enabled ? onChange(false) : setConfirming(true))}
+          onChange={() => (enabled ? onChange(false) : setConfirming(true))}
         />
       </div>
       <p className="text-xs font-bold text-amber-700 bg-amber-50 rounded-xl px-3 py-2">{SPLIT_TENDER_WARNING}</p>

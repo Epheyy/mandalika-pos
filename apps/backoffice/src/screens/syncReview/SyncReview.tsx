@@ -8,6 +8,7 @@ import { Card } from '../../ui/Card'
 import { EmptyState } from '../../ui/EmptyState'
 import { PageHeader } from '../../ui/PageHeader'
 import { Tabs } from '../../ui/Tabs'
+import { useScreenTabs } from '../../lib/router/useScreenTabs'
 import { Pagination } from '../../ui/Pagination'
 import { Select } from '../../ui/Field'
 import { REASON_FILTERS, fmtWib, isStale, reasonLabel, shouldStepBack, typeLabel } from './reviewLabels'
@@ -16,7 +17,9 @@ import { SyncReviewDetail } from './SyncReviewDetail'
 type Status = 'open' | 'resolved'
 
 export default function SyncReview() {
-  const [status, setStatus] = useState<Status>('open')
+  // Terbuka / Selesai live in the path (#/tinjauan-sinkron/selesai); a bare #/tinjauan-sinkron is Terbuka.
+  const { tab: routedStatus, setTab: setStatus } = useScreenTabs<Status>('syncReview', null)
+  const status: Status = routedStatus ?? 'open'
   const [outletId, setOutletId] = useState('')
   const [reviewCode, setReviewCode] = useState('')
   const [page, setPage] = useState(1)
@@ -33,6 +36,12 @@ export default function SyncReview() {
   const total = q.data?.meta?.total ?? 0
   const openCount = q.data?.openCount ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+  // Back/Forward between Terbuka and Selesai must not carry the page or an open detail over to the other list.
+  useEffect(() => {
+    setPage(1)
+    setSelected(null)
+  }, [status])
 
   // Resolving the last row on a later page (here or by another user) leaves it empty.
   useEffect(() => {

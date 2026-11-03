@@ -28,11 +28,7 @@ export default function Products() {
             <Tabs
               value={d.tab}
               onChange={d.setTab}
-              tabs={[
-                { id: 'products', label: 'Produk' },
-                { id: 'categories', label: 'Kategori' },
-                { id: 'bundles', label: 'Bundle' },
-              ]}
+              tabs={d.tabStrip}
             />
             {d.tab === 'products' && (
               <>

@@ -8,7 +8,21 @@
  */
 export type LeaveGuard = () => Promise<boolean>
 
-const guards: LeaveGuard[] = []
+export interface GuardOptions {
+  /**
+   * Path prefix the guard's screen owns, e.g. ['pengaturan']. A move that stays under it (a tab inside the same
+   * screen, where the unsaved work survives) is not a leave, so the guard is not asked. Without a scope every move
+   * is a leave. Moves without a destination (signing out) always ask.
+   */
+  scope?: readonly string[]
+}
+
+interface Entry {
+  guard: LeaveGuard
+  scope: readonly string[] | undefined
+}
+
+const guards: Entry[] = []
 
 interface OpenQuestion {
   guard: LeaveGuard
@@ -35,11 +49,12 @@ function syncUnloadWarning(): void {
 }
 
 /** Push a guard; returns the function that removes exactly this one. */
-export function pushLeaveGuard(guard: LeaveGuard): () => void {
-  guards.push(guard)
+export function pushLeaveGuard(guard: LeaveGuard, opts: GuardOptions = {}): () => void {
+  const entry: Entry = { guard, scope: opts.scope }
+  guards.push(entry)
   syncUnloadWarning()
   return () => {
-    const at = guards.lastIndexOf(guard)
+    const at = guards.lastIndexOf(entry)
     if (at >= 0) guards.splice(at, 1)
     syncUnloadWarning()
     // A screen that unmounts with its question still open (the session ended, say) can never answer it:
@@ -50,14 +65,23 @@ export function pushLeaveGuard(guard: LeaveGuard): () => void {
 
 export const hasLeaveGuard = (): boolean => guards.length > 0
 
+const isUnder = (path: readonly string[], scope: readonly string[]): boolean => scope.every((seg, i) => path[i] === seg)
+
+/** True when moving to `target` (a path; undefined = leaving the screen altogether) must ask the top guard first. */
+export function guardCovers(target?: readonly string[]): boolean {
+  const top = guards[guards.length - 1]
+  if (!top) return false
+  return !(target && top.scope && isUnder(target, top.scope))
+}
+
 /**
  * Asks the top guard only. True when nothing is guarded or the guard allows leaving.
  * One question at a time: asking again while it is open returns the same answer instead of asking twice.
  */
-export function confirmLeave(): Promise<boolean> {
+export function confirmLeave(target?: readonly string[]): Promise<boolean> {
   if (open) return open.promise
-  const top = guards[guards.length - 1]
-  if (!top) return Promise.resolve(true)
+  if (!guardCovers(target)) return Promise.resolve(true)
+  const top = guards[guards.length - 1].guard
   let abandon!: () => void
   const abandoned = new Promise<boolean>((resolve) => {
     abandon = () => resolve(false)

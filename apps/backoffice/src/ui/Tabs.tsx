@@ -15,6 +15,7 @@ export function Tabs<T extends string>({ value, onChange, tabs, className }: Tab
         <button type="button"
           key={t.id}
           data-tab-key={t.id}
+          aria-pressed={value === t.id}
           onClick={() => onChange(t.id)}
           className={cn(
             'px-3 py-1.5 rounded-lg text-xs font-bold transition-colors',

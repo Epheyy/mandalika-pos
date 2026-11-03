@@ -6,6 +6,7 @@ import { validateProductForm } from './validateForm'
 import { loadAllProducts } from '../../lib/loadAll'
 import { useOutlet } from '../../outlet'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
+import { useScreenTabs } from '../../lib/router/useScreenTabs'
 import { uploadImage } from '../../lib/uploadImage'
 import { exportToCSV, exportToXLSX, buildExportName } from '../../lib/csvUtils'
 import { PRODUCT_TEMPLATE_ROWS } from '../../lib/importTemplates'
@@ -28,7 +29,9 @@ export function useProductsData() {
   const categories = cq.data ?? []
   const bundles = bq.data ?? []
 
-  const [tab, setTab] = useState<'products' | 'categories' | 'bundles'>('products')
+  // The tab lives in the path (#/produk/kategori); a bare #/produk is Produk.
+  const { strip: tabStrip, tab: routedTab, setTab } = useScreenTabs<'products' | 'categories' | 'bundles'>('products', null)
+  const tab = routedTab ?? 'products'
   const [search, setSearch] = useState('')
   const [fCat, setFCat] = useState('')
   const [open, setOpen] = useState(false)
@@ -327,7 +330,7 @@ export function useProductsData() {
     pqLoading: pq.loading,
     refetchCats: cq.refetch,
     // tab + filters
-    tab, setTab, search, setSearch, fCat, setFCat,
+    tab, tabStrip, setTab, search, setSearch, fCat, setFCat,
     // product modal
     open, setOpen, editing, setEditing, form, setForm, busy, err, setErr,
     uploading, onImage, removeImage, makeMainImage,

@@ -219,6 +219,71 @@ describe('navigate with a leave guard', () => {
   })
 })
 
+describe('a guard scoped to its own screen', () => {
+  const scoped = () => {
+    const ask = vi.fn(async () => false)
+    offs.push(pushLeaveGuard(ask, { scope: ['pengaturan'] }))
+    return ask
+  }
+
+  it('moves between its own tabs without asking, and asks for a move out', async () => {
+    const env = new FakeBrowser('#/pengaturan/outlet-gudang')
+    const router = createRouter(env)
+    const ask = scoped()
+    expect(await router.navigate('#/pengaturan/transaksi')).toBe(true)
+    expect(ask).not.toHaveBeenCalled()
+    expect(await router.navigate('#/laporan')).toBe(false)
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(env.current()).toBe('#/pengaturan/transaksi')
+  })
+
+  it('follows Back and Forward between its own tabs without asking', async () => {
+    const env = new FakeBrowser('#/pengaturan/outlet-gudang')
+    const router = createRouter(env)
+    await router.navigate('#/pengaturan/transaksi')
+    const ask = scoped()
+    env.back()
+    await settle()
+    expect(router.getLocation().path).toEqual(['pengaturan', 'outlet-gudang'])
+    env.forward()
+    await settle()
+    expect(router.getLocation().path).toEqual(['pengaturan', 'transaksi'])
+    expect(ask).not.toHaveBeenCalled()
+  })
+
+  it('adopts a typed URL inside its scope and still guards one outside it', async () => {
+    const env = new FakeBrowser('#/pengaturan/outlet-gudang')
+    const router = createRouter(env)
+    const ask = scoped()
+    env.typeUrl('#/pengaturan/operasional')
+    await settle()
+    expect(router.getLocation().path).toEqual(['pengaturan', 'operasional'])
+    expect(ask).not.toHaveBeenCalled()
+    env.typeUrl('#/laporan')
+    await settle()
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(env.current()).toBe('#/pengaturan/operasional')
+    expect(router.getLocation().path).toEqual(['pengaturan', 'operasional'])
+  })
+
+  it('a refused Back out of the scope keeps Forward history', async () => {
+    const env = new FakeBrowser('#/laporan/refund')
+    const router = createRouter(env)
+    await router.navigate('#/pengaturan/outlet-gudang')
+    await router.navigate('#/pengaturan/transaksi')
+    const ask = scoped()
+    env.back() // to outlet-gudang: inside the scope, no question
+    await settle()
+    env.back() // to laporan: out of scope, refused
+    await settle()
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(env.current()).toBe('#/pengaturan/outlet-gudang')
+    env.forward()
+    await settle()
+    expect(router.getLocation().path).toEqual(['pengaturan', 'transaksi'])
+  })
+})
+
 describe('leave guard edge cases', () => {
   it('a guard that goes away with its question open does not lock the router', async () => {
     const { env, router } = await threeEntries()

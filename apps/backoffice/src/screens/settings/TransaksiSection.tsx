@@ -7,7 +7,7 @@ import { Input, Select, Field } from '../../ui/Field'
 import { SettingsCard } from './SettingsCard'
 import type { CardId } from './settingsDiff'
 import { IconButton } from '../../ui/IconButton'
-import { Toggle } from './Toggle'
+import { Switch } from '../../ui/Switch'
 import { SplitTenderCard } from './SplitTenderCard'
 import { isSplitMethodId } from '../../lib/splitPayment'
 
@@ -35,7 +35,7 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
             <p className="font-bold text-gray-900">Aktifkan PPN</p>
             <p className="text-xs text-gray-400">Pajak dihitung di kasir</p>
           </div>
-          <Toggle label="Aktifkan pajak" checked={s.taxEnabled} onClick={() => setS((p) => ({ ...p, taxEnabled: !p.taxEnabled }))} />
+          <Switch label="Aktifkan pajak" checked={s.taxEnabled} onChange={() => setS((p) => ({ ...p, taxEnabled: !p.taxEnabled }))} />
         </div>
         {s.taxEnabled && (
           <Input
@@ -51,7 +51,7 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
             <p className="font-bold text-gray-900">Pembulatan Harga</p>
             <p className="text-xs text-gray-400">Membulatkan total transaksi</p>
           </div>
-          <Toggle label="Aktifkan pembulatan" checked={s.roundingEnabled} onClick={() => setS((p) => ({ ...p, roundingEnabled: !p.roundingEnabled }))} />
+          <Switch label="Aktifkan pembulatan" checked={s.roundingEnabled} onChange={() => setS((p) => ({ ...p, roundingEnabled: !p.roundingEnabled }))} />
         </div>
         {s.roundingEnabled && (
           <div className="grid grid-cols-2 gap-4">
@@ -90,18 +90,18 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1.5 text-xs text-gray-500">
                     Tunai (masuk laci kas)
-                    <Toggle
+                    <Switch
                       label={`Metode ${pm.label} masuk laci kas`}
                       checked={isCash}
                       size="sm"
-                      onClick={() => setS((p) => ({ ...p, paymentMethods: p.paymentMethods.map((x) => x.id === pm.id ? { ...x, isCash: !isCash } : x) }))}
+                      onChange={() => setS((p) => ({ ...p, paymentMethods: p.paymentMethods.map((x) => x.id === pm.id ? { ...x, isCash: !isCash } : x) }))}
                     />
                   </span>
-                  <Toggle
+                  <Switch
                     label={`Aktifkan metode ${pm.label}`}
                     checked={pm.isEnabled}
                     size="sm"
-                    onClick={() => setS((p) => ({ ...p, paymentMethods: p.paymentMethods.map((x) => x.id === pm.id ? { ...x, isEnabled: !x.isEnabled } : x) }))}
+                    onChange={() => setS((p) => ({ ...p, paymentMethods: p.paymentMethods.map((x) => x.id === pm.id ? { ...x, isEnabled: !x.isEnabled } : x) }))}
                   />
                   {!['cash', 'card', 'qris', 'transfer'].includes(pm.id) && !isCash && (
                     <IconButton tone="danger" onClick={() => setS((p) => ({ ...p, paymentMethods: p.paymentMethods.filter((x) => x.id !== pm.id) }))}>
@@ -162,7 +162,7 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
         />
         <div className="flex items-center justify-between py-2 border-b border-gray-100">
           <p className="font-bold text-gray-900 text-sm">Cetak struk otomatis</p>
-          <Toggle label="Cetak struk otomatis" checked={!!s.receipt.autoPrint} size="sm" onClick={() => setReceipt('autoPrint', !s.receipt.autoPrint)} />
+          <Switch label="Cetak struk otomatis" checked={!!s.receipt.autoPrint} size="sm" onChange={() => setReceipt('autoPrint', !s.receipt.autoPrint)} />
         </div>
         {([['headerText', 'Teks Header'], ['footerText', 'Teks Footer']] as const).map(([k, label]) => (
           <Input
@@ -187,7 +187,7 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
             ] as const).map(([k, label]) => (
               <div key={k} className="flex items-center justify-between px-4 py-3 border-b border-gray-50 last:border-0">
                 <p className="font-bold text-gray-900 text-sm">{label}</p>
-                <Toggle label={label} checked={!!s.receipt[k]} size="sm" onClick={() => setReceipt(k, !s.receipt[k])} />
+                <Switch label={label} checked={!!s.receipt[k]} size="sm" onChange={() => setReceipt(k, !s.receipt[k])} />
               </div>
             ))}
           </div>

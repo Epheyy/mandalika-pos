@@ -5,6 +5,7 @@ import { ArrowLeft, Ban, Check, ExternalLink, Pencil, Send, Truck, X } from 'luc
 import { api } from '../../api'
 import { useAuth } from '../../auth'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
+import { navigate } from '../../lib/router/navigate'
 import { useOutlet } from '../../outlet'
 import { TableSkeleton } from '../../components/Skeleton'
 import { Badge } from '../../ui/Badge'
@@ -12,6 +13,7 @@ import { Button } from '../../ui/Button'
 import { Card } from '../../ui/Card'
 import { Select, Textarea, fieldClass } from '../../ui/Field'
 import { PageHeader } from '../../ui/PageHeader'
+import { transferHash } from '../transfers/transferRoute'
 import {
   EVENT_LABEL, REQUISITION_CHAIN, REQUISITION_STATUS, TRANSFER_STATUS_LABEL,
   canRefulfil, chainIndex, fmtDate, fmtDateTime,
@@ -23,9 +25,9 @@ interface RequisitionDetailProps {
   onEdit: (pb: StockRequisition) => void
 }
 
-/** Ask the shell to switch to the Inventori screen (it hosts the Transfer tab). */
-function openTransfers(): void {
-  window.dispatchEvent(new CustomEvent('mandalika:nav', { detail: 'warehouses' }))
+/** Open the linked transfer on Inventori > Transfer. */
+function openTransfer(transferId: string): void {
+  void navigate(transferHash({ kind: 'detail', id: transferId }))
 }
 
 function StatusChain({ status }: { status: StockRequisition['status'] }) {
@@ -79,6 +81,7 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
   }
 
   const items = pb.items ?? []
+  const linkedTransferId = pb.transfer?.id
   // A non-admin's active outlet is their own (the context outletId stays null for them).
   const activeOutlet = isAdmin ? outletId : (user?.outletId ?? null)
   const ownOutlet = canRequest && activeOutlet === pb.outletId
@@ -162,7 +165,7 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
               {TRANSFER_STATUS_LABEL[pb.transfer.status] ?? pb.transfer.status}
             </Badge>
             {canWarehouse && (
-              <Button size="sm" variant="secondary" icon={<ExternalLink className="w-3.5 h-3.5" />} onClick={openTransfers}>
+              <Button size="sm" variant="secondary" icon={<ExternalLink className="w-3.5 h-3.5" />} onClick={() => linkedTransferId && openTransfer(linkedTransferId)}>
                 Buka Transfer
               </Button>
             )}

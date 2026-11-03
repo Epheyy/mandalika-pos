@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseHash } from './hash'
-import { ROUTES, SECTIONS, groupBySection, hashFor, resolveLocation, routeById, visibleRoutes } from './routes'
+import { ROUTES, SECTIONS, canSeeTab, groupBySection, hashFor, resolveLocation, routeById, tabForPath, tabsOf, visibleRoutes } from './routes'
 
 const admin = { role: 'admin', permissions: [] }
 const manager = { role: 'manager', permissions: ['manage_products', 'view_reports'] }
@@ -80,5 +80,48 @@ describe('resolveLocation', () => {
 
   it('hashFor writes the canonical hash', () => {
     expect(hashFor(routeById('warehouses')!)).toBe('#/inventori')
+  })
+})
+
+describe('screen tabs', () => {
+  it('names the final labels (D-22, D-77)', () => {
+    expect(routeById('dashboard')?.label).toBe('Ringkasan')
+    expect(routeById('errors')?.label).toBe('Log Kesalahan')
+  })
+
+  it('gives every tab a unique key and slug within its screen, with lowercase slugs', () => {
+    for (const r of ROUTES) {
+      const tabs = r.tabs ?? []
+      expect(new Set(tabs.map((t) => t.key)).size).toBe(tabs.length)
+      expect(new Set(tabs.map((t) => t.slug)).size).toBe(tabs.length)
+      for (const t of tabs) expect(t.slug).toMatch(/^[a-z]+(-[a-z]+)*$/)
+    }
+  })
+
+  it('keeps the Laporan and Inventori tab keys the browser scenarios click', () => {
+    expect(tabsOf('reports').map((t) => t.key)).toEqual(['orders', 'export', 'shifts', 'grants', 'codeReport', 'refund', 'oversell'])
+    expect(tabsOf('warehouses').map((t) => t.key)).toEqual(['stok', 'transfer', 'bahan', 'opname'])
+    expect(tabsOf('settings').map((t) => t.key)).toEqual(['locations', 'transaksi', 'operasional', 'recipe'])
+  })
+
+  it('canSeeTab: admin sees all, others need the tab permission, no permission means anyone', () => {
+    const [orders, exportTab] = tabsOf('reports')
+    const txOnly = { role: 'manager', permissions: ['view_transactions'] }
+    expect(canSeeTab(orders, admin)).toBe(true)
+    expect(canSeeTab(orders, txOnly)).toBe(true)
+    expect(canSeeTab(exportTab, txOnly)).toBe(false)
+    expect(canSeeTab(tabsOf('settings')[0], null)).toBe(true)
+    expect(canSeeTab(orders, null)).toBe(false)
+  })
+
+  it('tabForPath: the named tab, else the first one this user may open', () => {
+    const reports = routeById('reports')!
+    const reportsOnly = { role: 'manager', permissions: ['view_reports'] }
+    expect(tabForPath(reports, ['laporan', 'refund'], admin)?.key).toBe('refund')
+    expect(tabForPath(reports, ['laporan'], admin)?.key).toBe('orders')
+    expect(tabForPath(reports, ['laporan'], reportsOnly)?.key).toBe('export') // no Transaksi without view_transactions
+    expect(tabForPath(reports, ['laporan', 'transaksi'], reportsOnly)?.key).toBe('export')
+    expect(tabForPath(reports, ['laporan', 'tidak-ada'], admin)?.key).toBe('orders')
+    expect(tabForPath(routeById('dashboard')!, ['ringkasan'], admin)).toBeUndefined()
   })
 })

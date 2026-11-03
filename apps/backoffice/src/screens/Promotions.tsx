@@ -20,6 +20,7 @@ import { IconButton } from '../ui/IconButton'
 import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
+import { useScreenTabs } from '../lib/router/useScreenTabs'
 import { promotionKeyError } from './promotions/promotionKeyValidation'
 import { PromoFormModal } from './promotions/PromoFormModal'
 import { DiscountCodeFormModal } from './promotions/DiscountCodeFormModal'
@@ -117,7 +118,8 @@ export default function Promotions() {
   const products = pq.data ?? []
   const outlets = ouq.data ?? []
 
-  const [tab, setTab] = useState<'promotions' | 'codes'>('promotions')
+  const { strip: tabStrip, tab: routedTab, setTab } = useScreenTabs<'promotions' | 'codes'>('promotions', user)
+  const tab = routedTab ?? 'promotions'
   const [promoOpen, setPromoOpen] = useState(false)
   const [editingPromo, setEditingPromo] = useState<Promotion | null>(null)
   const [promoForm, setPromoForm] = useState<PromotionInput>(EMPTY_PROMO)
@@ -273,10 +275,7 @@ export default function Promotions() {
             <Tabs
               value={tab}
               onChange={setTab}
-              tabs={[
-                { id: 'promotions', label: 'Promosi' },
-                { id: 'codes', label: 'Kode Diskon' },
-              ]}
+              tabs={tabStrip}
             />
             <ImportExportBar
               onExport={(fmt) =>
