@@ -18,7 +18,7 @@ selects a new evidence directory; old runs are never overwritten.
 `required-scenarios.json` inventories the accepted historical scenarios and their
 required, redundant or intentionally manual classification. The ordinary typed
 Playwright tests call imported fixture functions, not evaluated snippet strings.
-The 33 required test IDs include compound rendered journeys and 13 separately
+The required test IDs (the count lives in `required-scenarios.json`) include compound rendered journeys and 13 separately
 reported real-React hook races. The discovery check and completion reporter reject
 missing/duplicate/unregistered IDs, skips/fixmes, expected failures, unexecuted
 tests and failures. `forbidOnly` is unconditional, retries are zero, and the first
@@ -63,3 +63,10 @@ S0a/S0b rendered fixtures use successful test storage and simulated permission
 transport; their backend/database assertions remain in the separate mandatory
 PostgreSQL gate. Local Windows results do not establish hosted Ubuntu execution.
 Full A34/T29 and all release gates remain open.
+
+## Backoffice scenario helpers
+
+Backoffice scenarios open the app with `openBackoffice(page)` and move with `navTo(page, navId)` /
+`openTab(page, navId, tabKey)` from `fixture.ts`. Sidebar items carry `data-nav-id` (the ids in
+`apps/backoffice/src/lib/router/routes.ts`) and `ui/Tabs` buttons carry `data-tab-key`, so label renames
+never touch a scenario. Install the scenario's API route first, then call `openBackoffice`.

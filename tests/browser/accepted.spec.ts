@@ -167,7 +167,7 @@ test('BO-SPLIT-TOGGLE Bayar terpisah is off by default with the D-50 warning, as
 
 test('BO-SETTINGS-GUARD Pengaturan shows no save bar on open, guards leaving with unsaved edits, and saves only changed fields merged onto a fresh GET', async ({ page }, info) => {
   const result = await settingsGuardFlow(page as ScenarioPage)
-  expect(result).toHaveLength(3)
+  expect(result).toHaveLength(5)
   await evidence(info, result)
 })
 
