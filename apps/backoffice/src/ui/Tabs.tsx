@@ -3,7 +3,7 @@ import { cn } from './cn'
 interface TabsProps<T extends string> {
   value: T
   onChange: (value: T) => void
-  tabs: ReadonlyArray<{ id: T; label: string }>
+  tabs: ReadonlyArray<{ id: T; label: string; dirty?: boolean }>
   className?: string
 }
 
@@ -21,6 +21,7 @@ export function Tabs<T extends string>({ value, onChange, tabs, className }: Tab
           )}
         >
           {t.label}
+          {t.dirty && <span aria-hidden="true" data-dirty="true" className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-amber-500 align-middle" />}
         </button>
       ))}
     </div>
