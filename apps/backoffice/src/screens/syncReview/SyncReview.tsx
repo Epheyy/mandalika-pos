@@ -44,7 +44,10 @@ export default function SyncReview() {
   const reviewCode = reasonFilterOf(state.alasan)
   const pageSize = PAGE_SIZES.includes(state.per) ? state.per : LIST_SCHEMA.per.default
   const page = Math.max(1, Math.floor(state.hal))
-  const [selected, setSelected] = useState<SyncReviewItem | null>(null)
+  // The opened row remembers which list it came from, so Back/Forward between Terbuka and Selesai never shows it on the other.
+  const [opened, setOpened] = useState<{ item: SyncReviewItem; status: Status } | null>(null)
+  const selected = opened?.status === status ? opened.item : null
+  const setSelected = (item: SyncReviewItem | null) => setOpened(item ? { item, status } : null)
 
   const q = usePolledQuery<SyncReviewItemList>(
     () => api.listSyncReviewItems({ status, page, limit: pageSize, outletId, reviewCode }),
@@ -56,11 +59,6 @@ export default function SyncReview() {
   const total = q.data?.meta?.total ?? 0
   const openCount = q.data?.openCount ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-
-  // Back/Forward between Terbuka and Selesai must not carry an open detail over to the other list.
-  useEffect(() => {
-    setSelected(null)
-  }, [status])
 
   // Resolving the last row on a later page (here or by another user) leaves it empty.
   useEffect(() => {
