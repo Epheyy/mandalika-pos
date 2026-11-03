@@ -488,6 +488,27 @@ func TestBusinessDatePostgres(t *testing.T) {
 		exec(`UPDATE orders SET discount_breakdown='[{"label":"BD10","amount":5}]'::jsonb WHERE id=$1`, id)
 	})
 
+	sub("6c code report ignores orders whose discount_breakdown is jsonb null", func(t *testing.T) {
+		var id string
+		if err := pool.QueryRow(ctx, `SELECT id::text FROM orders WHERE idempotency_key='w-1715'`).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		// Every other order gets a jsonb null (not SQL NULL); w-1715 keeps a real array.
+		exec(`UPDATE orders SET discount_breakdown='null'::jsonb WHERE id<>$1 AND discount_breakdown IS NULL`, id)
+		defer exec(`UPDATE orders SET discount_breakdown=NULL WHERE discount_breakdown='null'::jsonb`)
+		code, out := call(tokAdmin, "GET", "/discount-code-report?dateFrom=2026-10-20&dateTo=2026-10-20", nil)
+		if code != 200 {
+			t.Fatalf("report with jsonb null orders: %d %v", code, out)
+		}
+		rows, _ := out["data"].([]any)
+		if len(rows) != 1 {
+			t.Fatalf("rows=%d want only the array order's code", len(rows))
+		}
+		if m, _ := rows[0].(map[string]any); m["code"] != "BD10" {
+			t.Errorf("code=%v want BD10", m["code"])
+		}
+	})
+
 	sub("7 functions never raise and triggers fill fixture inserts", func(t *testing.T) {
 		if got := str(`SELECT business_date_at('00000000-0000-4000-8b00-0000000000ff'::uuid,'2026-10-19T17:30:00Z')::text`); got != "2026-10-20" {
 			t.Errorf("unknown outlet must fall back to Asia/Jakarta: %s", got)

@@ -123,12 +123,13 @@ type CodeReportFilters struct{ DateFrom, DateTo, OutletID string }
 // orders.discount_breakdown components whose label matches a real
 // discount_codes.code — NOT orders.discount_amount. Completed orders only.
 // Day bounds are business days (orders.business_date). Status is derived in SQL.
+// discount_breakdown may be SQL NULL or a jsonb null scalar (legacy writes); only arrays are expanded.
 // usage_limit NULL or 0 means UNLIMITED, matching service/promo_validate.go (only > 0 is enforced):
 // such codes are never 'kuota habis' and report remaining NULL.
 func (r *Repo) DiscountCodeReport(ctx context.Context, f CodeReportFilters, page, limit int) (api.DiscountCodeReportSummary, []api.DiscountCodeReportRow, int, error) {
 	var sum api.DiscountCodeReportSummary
 	where := `FROM orders o
-		CROSS JOIN LATERAL jsonb_array_elements(COALESCE(o.discount_breakdown, '[]'::jsonb)) b
+		CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(o.discount_breakdown) = 'array' THEN o.discount_breakdown ELSE '[]'::jsonb END) b
 		JOIN discount_codes dc ON dc.code = (b->>'label')
 		LEFT JOIN promotions p ON p.id = dc.promotion_id
 		WHERE o.status IN ('completed','partially_refunded')
