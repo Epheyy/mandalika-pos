@@ -66,8 +66,8 @@ export default function ApprovalQueue() {
 
   // Approving or rejecting the last row of a later page leaves it empty: step back.
   useEffect(() => {
-    if (!q.loading && !q.error && items.length === 0 && page > 1) setState({ hal: page - 1 }, { replace: true })
-  }, [q.loading, q.error, items.length, page, setState])
+    if (!q.loading && !q.error && q.data?.meta?.page === page && items.length === 0 && page > 1) setState({ hal: page - 1 }, { replace: true })
+  }, [q.loading, q.error, q.data, items.length, page, setState])
 
   const onDone = async () => {
     setSelected(null)

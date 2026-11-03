@@ -21,6 +21,13 @@ export const REASON_FILTERS: ReadonlyArray<{ id: string; label: string }> = [
   { id: 'none', label: 'Gagal berulang (versi lama)' },
 ]
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** An outlet id from the URL; anything else (a stale or pasted link) means "all outlets", not a 400 from the server. */
+export function outletOf(value: string): string {
+  return UUID.test(value) ? value : ''
+}
+
 /** A reason filter from the URL; a value that is not one of the options means "all reasons". */
 export function reasonFilterOf(value: string): string {
   return REASON_FILTERS.some((r) => r.id === value) ? value : ''

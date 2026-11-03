@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ErpOutboxItem, ErpRelayReport } from '@mandalika/api'
 import { Cable } from 'lucide-react'
 import { api } from '../../api'
@@ -144,6 +144,11 @@ export default function ErpOutboxScreen() {
   const total = q.data?.meta?.total ?? 0
   const counts = q.data?.counts
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+  // A pasted or stale page number past the end (or the last row of a later page retried away): step back.
+  useEffect(() => {
+    if (!q.loading && !q.error && q.data?.meta?.page === page && rows.length === 0 && page > 1) setState({ hal: page - 1 }, { replace: true })
+  }, [q.loading, q.error, q.data, rows.length, page, setState])
 
   const chips = [
     { id: ALL_STATUSES, label: 'Semua' },

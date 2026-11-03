@@ -8,11 +8,15 @@ import { Card } from '../../ui/Card'
 import { EmptyState } from '../../ui/EmptyState'
 import { PageHeader } from '../../ui/PageHeader'
 import { Tabs } from '../../ui/Tabs'
+import { buildHash } from '../../lib/router/hash'
+import { navigate } from '../../lib/router/navigate'
+import { routeById, tabsOf } from '../../lib/router/routes'
+import { slugForTab } from '../../lib/router/tabs'
 import { useScreenTabs } from '../../lib/router/useScreenTabs'
 import { useListState, type ListSchema } from '../../lib/router/useListState'
 import { FilterBar } from '../../ui/FilterBar'
 import { Pagination } from '../../ui/Pagination'
-import { REASON_FILTERS, fmtWib, isStale, reasonFilterOf, reasonLabel, shouldStepBack, typeLabel } from './reviewLabels'
+import { REASON_FILTERS, fmtWib, isStale, outletOf, reasonFilterOf, reasonLabel, shouldStepBack, typeLabel } from './reviewLabels'
 import { SyncReviewDetail } from './SyncReviewDetail'
 
 type Status = 'open' | 'resolved'
@@ -37,16 +41,24 @@ const PAGE_SIZES = [25, 50, 100]
 
 export default function SyncReview() {
   // Terbuka / Selesai live in the path (#/tinjauan-sinkron/selesai); a bare #/tinjauan-sinkron is Terbuka.
-  const { tab: routedStatus, setTab: setStatus } = useScreenTabs<Status>('syncReview', null)
+  const { tab: routedStatus } = useScreenTabs<Status>('syncReview', null)
   const status: Status = routedStatus ?? 'open'
   const [state, setState] = useListState(LIST_SCHEMA)
-  const outletId = state.outlet
+  const outletId = outletOf(state.outlet)
   const reviewCode = reasonFilterOf(state.alasan)
   const pageSize = PAGE_SIZES.includes(state.per) ? state.per : LIST_SCHEMA.per.default
   const page = Math.max(1, Math.floor(state.hal))
+  // Switching Terbuka/Selesai keeps the outlet and reason filters but starts again on page 1.
+  const setStatus = (next: Status) => {
+    const slug = slugForTab(tabsOf<Status>('syncReview'), next)
+    if (slug === undefined) return
+    void navigate(buildHash([routeById('syncReview')?.path ?? 'tinjauan-sinkron', slug], { outlet: outletId, alasan: reviewCode }))
+  }
   // The opened row remembers which list it came from, so Back/Forward between Terbuka and Selesai never shows it on the other.
   const [opened, setOpened] = useState<{ item: SyncReviewItem; status: Status } | null>(null)
-  const selected = opened?.status === status ? opened.item : null
+  // Back/Forward to the other list drops the open row (reset during render, no effect needed).
+  if (opened && opened.status !== status) setOpened(null)
+  const selected = opened?.item ?? null
   const setSelected = (item: SyncReviewItem | null) => setOpened(item ? { item, status } : null)
 
   const q = usePolledQuery<SyncReviewItemList>(
@@ -62,8 +74,8 @@ export default function SyncReview() {
 
   // Resolving the last row on a later page (here or by another user) leaves it empty.
   useEffect(() => {
-    if (shouldStepBack({ loading: q.loading, error: q.error, rowCount: rows.length, page })) setState({ hal: page - 1 }, { replace: true })
-  }, [q.loading, q.error, rows.length, page, setState])
+    if (shouldStepBack({ loading: q.loading || q.data?.meta?.page !== page, error: q.error, rowCount: rows.length, page })) setState({ hal: page - 1 }, { replace: true })
+  }, [q.loading, q.error, q.data, rows.length, page, setState])
 
   return (
     <div className="p-6 space-y-5">

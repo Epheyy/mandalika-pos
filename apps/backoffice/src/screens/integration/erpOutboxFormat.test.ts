@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   ALL_STATUSES, canRetry, emptyTitle, kindFilterOf, kindLabel, locationText, refText, relaySummary, retryConsequence,
-  showsNextAttempt, statusFilterOf, statusLabel, STATUS_ORDER,
+  showsNextAttempt, statusFilterOf, STATUS_LABEL, STATUS_ORDER,
 } from './erpOutboxFormat'
 
 const report = { disabled: false, claimed: 6, delivered: 3, replayed: 1, held: 2, retried: 1, dead: 4, released: 0 }
 
 describe('erpOutboxFormat', () => {
   it('labels statuses and kinds in Indonesian', () => {
-    expect(statusLabel('dead')).toBe('Gagal')
-    expect(statusLabel('replayed')).toBe('Diulang')
+    expect(STATUS_LABEL.dead).toBe('Gagal')
+    expect(STATUS_LABEL.replayed).toBe('Diulang')
     expect(kindLabel('transfer_cancel')).toBe('Batal transfer')
     expect(kindLabel('write_off')).toBe('Penghapusan')
   })

@@ -17,7 +17,6 @@ const STATUS_RANK: Record<ErpStatus, number> = { dead: 0, held: 1, pending: 2, s
 export const STATUS_ORDER = (Object.keys(STATUS_RANK) as ErpStatus[]).sort((a, b) => STATUS_RANK[a] - STATUS_RANK[b])
 export const KIND_ORDER = Object.keys(KIND_LABEL) as ErpKind[]
 
-export const statusLabel = (s: ErpStatus): string => STATUS_LABEL[s] ?? s
 export const kindLabel = (k: ErpKind): string => KIND_LABEL[k] ?? k
 
 /** Statuses a document can be re-queued from (server answers 409 for pending/sending). */
