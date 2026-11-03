@@ -295,9 +295,12 @@ func TestListParamsPostgres(t *testing.T) {
 		}
 		// The holder's name stays hidden from a caller without manage_promotions, filtered or not.
 		tokNoPromo := issue(mgrA, "manager", outA, "manage_inventory")
-		rows, _, _ := list("/discount-codes?q=siti&page=1", tokNoPromo)
+		rows, _, _ := list("/discount-codes?q=kode-s&page=1", tokNoPromo)
 		if len(rows) != 1 || rows[0]["customerName"] != nil {
 			t.Errorf("customer name must be hidden: %v", rows)
+		}
+		if rows, _, _ := list("/discount-codes?q=pemegang&page=1", tokNoPromo); len(rows) != 0 {
+			t.Errorf("the holder name must not be searchable without manage_promotions: %v", rows)
 		}
 		bad("/discount-codes?status=expired", tokAdmin)
 	})

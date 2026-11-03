@@ -35,6 +35,9 @@ func promoStatusWhere(status string) string {
 // PromoListFilter narrows the promotion and discount-code lists; empty fields match everything.
 type PromoListFilter struct {
 	Q, Status, Type string
+	// SearchHolder lets a discount-code search also match the holder's name. Only for callers who may
+	// see it (manage_promotions): otherwise the search would reveal what WithoutCustomerNames hides.
+	SearchHolder bool
 }
 
 // IsZero reports whether no filter is set.
@@ -60,13 +63,17 @@ func (r *Repo) PromotionsPage(ctx context.Context, f PromoListFilter, page, limi
 }
 
 // DiscountCodesPage is DiscountCodes plus the backoffice filters and paging (see PromotionsPage).
-// The search matches the code and, for a customer-assigned code, the holder's name.
+// The search matches the code and, with SearchHolder, a customer-assigned code's holder name.
 func (r *Repo) DiscountCodesPage(ctx context.Context, f PromoListFilter, page, limit int) ([]api.DiscountCode, int, error) {
 	var args []any
 	where := `true`
 	if f.Q != "" {
 		args = append(args, likePattern(f.Q))
-		where += fmt.Sprintf(` AND (code ILIKE $%[1]d OR EXISTS (SELECT 1 FROM customers c WHERE c.id = discount_codes.customer_id AND c.name ILIKE $%[1]d))`, len(args))
+		where += fmt.Sprintf(` AND (code ILIKE $%[1]d`, len(args))
+		if f.SearchHolder {
+			where += fmt.Sprintf(` OR EXISTS (SELECT 1 FROM customers c WHERE c.id = discount_codes.customer_id AND c.name ILIKE $%[1]d)`, len(args))
+		}
+		where += `)`
 	}
 	if f.Type != "" {
 		args = append(args, f.Type)

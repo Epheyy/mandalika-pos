@@ -247,6 +247,7 @@ func (h *Handlers) DiscountCodes(w http.ResponseWriter, r *http.Request) {
 		if f.IsZero() && !paged {
 			rows, _, err = h.Repo.DiscountCodes(r.Context())
 		} else {
+			f.SearchHolder = showNames
 			rows, total, err = h.Repo.DiscountCodesPage(r.Context(), f, page, limit)
 		}
 		if err != nil {
