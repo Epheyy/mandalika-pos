@@ -143,9 +143,20 @@ func ckey(r *http.Request) string {
 // ── Catalog / reference (global) ──────────────────────────
 
 func (h *Handlers) Products(w http.ResponseWriter, r *http.Request) {
+	f, ok := productFilter(w, r)
+	if !ok {
+		return
+	}
 	h.cached(w, r, ckey(r), func() (any, int, error) {
 		p, l := pageLimit(r)
-		rows, total, err := h.Repo.Products(r.Context(), scope(r), p, l)
+		var rows []api.Product
+		var total int
+		var err error
+		if f.IsZero() {
+			rows, total, err = h.Repo.Products(r.Context(), scope(r), p, l)
+		} else {
+			rows, total, err = h.Repo.ProductsFiltered(r.Context(), scope(r), p, l, f)
+		}
 		if err != nil {
 			return nil, 500, err
 		}
@@ -194,12 +205,23 @@ func (h *Handlers) Outlets(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) Promotions(w http.ResponseWriter, r *http.Request) {
+	f, page, limit, paged, ok := promoListParams(w, r)
+	if !ok {
+		return
+	}
 	h.cached(w, r, ckey(r), func() (any, int, error) {
-		rows, _, err := h.Repo.Promotions(r.Context())
+		if f.IsZero() && !paged {
+			rows, _, err := h.Repo.Promotions(r.Context())
+			if err != nil {
+				return nil, 500, err
+			}
+			return api.PromotionListResponse{Data: rows}, 200, nil
+		}
+		rows, total, err := h.Repo.PromotionsPage(r.Context(), f, page, limit)
 		if err != nil {
 			return nil, 500, err
 		}
-		return api.PromotionListResponse{Data: rows}, 200, nil
+		return api.PromotionListResponse{Data: rows, Meta: promoMeta(paged, total, page, limit)}, 200, nil
 	})
 }
 
@@ -214,15 +236,26 @@ func discountCodesCacheKey(r *http.Request) string {
 
 func (h *Handlers) DiscountCodes(w http.ResponseWriter, r *http.Request) {
 	showNames := auth.HasPermission(r.Context(), "manage_promotions")
+	f, page, limit, paged, ok := promoListParams(w, r)
+	if !ok {
+		return
+	}
 	h.cached(w, r, discountCodesCacheKey(r), func() (any, int, error) {
-		rows, _, err := h.Repo.DiscountCodes(r.Context())
+		var rows []api.DiscountCode
+		var total int
+		var err error
+		if f.IsZero() && !paged {
+			rows, _, err = h.Repo.DiscountCodes(r.Context())
+		} else {
+			rows, total, err = h.Repo.DiscountCodesPage(r.Context(), f, page, limit)
+		}
 		if err != nil {
 			return nil, 500, err
 		}
 		if !showNames {
 			rows = read.WithoutCustomerNames(rows)
 		}
-		return api.DiscountCodeListResponse{Data: rows}, 200, nil
+		return api.DiscountCodeListResponse{Data: rows, Meta: promoMeta(paged, total, page, limit)}, 200, nil
 	})
 }
 

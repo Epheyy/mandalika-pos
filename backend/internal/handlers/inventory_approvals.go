@@ -312,7 +312,8 @@ func (h *Handlers) CancelAdjustmentRequest(w http.ResponseWriter, r *http.Reques
 // ListInventoryApprovals is the Persetujuan Stok queue: pending adjustment requests and
 // submitted counts in one paged list. Each kind is shown only to a caller holding its
 // permission (manage_inventory / manage_stock_count), so a count-only user never sees an
-// adjustment request. pendingCount is the same filtered total, for the nav badge.
+// adjustment request. pendingCount is the pending total the caller may see, whatever outletId/kind
+// narrow the list to, for the nav badge.
 func (h *Handlers) ListInventoryApprovals(w http.ResponseWriter, r *http.Request) {
 	if s := r.URL.Query().Get("status"); s != "" && s != "pending" {
 		httpx.Err(w, http.StatusBadRequest, "status tidak valid")
@@ -324,11 +325,15 @@ func (h *Handlers) ListInventoryApprovals(w http.ResponseWriter, r *http.Request
 		httpx.Err(w, http.StatusForbidden, "missing permission: manage_inventory or manage_stock_count")
 		return
 	}
+	f, ok := approvalFilter(w, r)
+	if !ok {
+		return
+	}
 	p, l := pageLimit(r)
-	items, total, err := h.Repo.ApprovalQueue(r.Context(), scope(r), seeAdj, seeCnt, p, l)
+	items, total, pending, err := h.Repo.ApprovalQueueFiltered(r.Context(), scope(r), seeAdj, seeCnt, f, p, l)
 	if err != nil {
 		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, api.ApprovalQueueResponse{Data: items, PendingCount: total, Meta: meta(total, p, l)})
+	writeJSON(w, http.StatusOK, api.ApprovalQueueResponse{Data: items, PendingCount: pending, Meta: meta(total, p, l)})
 }

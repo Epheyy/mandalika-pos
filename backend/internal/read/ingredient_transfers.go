@@ -75,7 +75,7 @@ func (r *Repo) IngredientTransfers(ctx context.Context, page, limit int, status,
 	}
 	args = append(args, limit, off(page, limit))
 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total %s %s
-	  ORDER BY t.created_at DESC LIMIT $%d OFFSET $%d`,
+	  ORDER BY t.created_at DESC, t.id DESC LIMIT $%d OFFSET $%d`,
 		ingTransferObj, ingTransferFrom, where, len(args)-1, len(args))
 	return listJSON[api.IngredientTransfer](ctx, r.Pool, sql, args...)
 }

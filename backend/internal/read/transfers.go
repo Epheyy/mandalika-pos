@@ -86,7 +86,7 @@ func (r *Repo) Transfers(ctx context.Context, status, from, to, locKind, locID s
 	}
 	args = append(args, limit, off(page, limit))
 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total %s %s
-	  ORDER BY t.created_at DESC LIMIT $%d OFFSET $%d`,
+	  ORDER BY t.created_at DESC, t.id DESC LIMIT $%d OFFSET $%d`,
 		transferObj, transferFrom, where, len(args)-1, len(args))
 	return listJSON[api.Transfer](ctx, r.Pool, sql, args...)
 }

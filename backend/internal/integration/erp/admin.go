@@ -35,7 +35,7 @@ type OutboxItem struct {
 	Part, PartCount, Attempts                      int
 	NextAttemptAt                                  time.Time
 	LastHTTPStatus                                 *int
-	LastError, HoldReason                          *string
+	LastError, HoldReason, LocationName            *string
 	CreatedAt, UpdatedAt                           time.Time
 	DeliveredAt                                    *time.Time
 }
@@ -50,7 +50,9 @@ type OutboxDetail struct {
 
 const itemColumns = `o.id::text, o.document_id::text, o.kind, o.location_type, o.location_id::text,
   o.ref_type, o.ref_id::text, COALESCE(o.ref_number,''), o.status, o.part, o.part_count, o.attempts,
-  o.next_attempt_at, o.last_http_status, o.last_error, o.hold_reason, o.created_at, o.updated_at, o.delivered_at`
+  o.next_attempt_at, o.last_http_status, o.last_error, o.hold_reason, o.created_at, o.updated_at, o.delivered_at,
+  COALESCE((SELECT l.name FROM outlets l WHERE l.id = o.location_id),
+           (SELECT w.name FROM warehouses w WHERE w.id = o.location_id))`
 
 const (
 	countsSQL = `SELECT status, count(*) FROM erp_outbox GROUP BY status`
@@ -177,7 +179,7 @@ func Retry(ctx context.Context, pool *pgxpool.Pool, id string) (OutboxItem, erro
 func itemDests(it *OutboxItem) []any {
 	return []any{&it.ID, &it.DocumentID, &it.Kind, &it.LocationType, &it.LocationID,
 		&it.RefType, &it.RefID, &it.RefNumber, &it.Status, &it.Part, &it.PartCount, &it.Attempts,
-		&it.NextAttemptAt, &it.LastHTTPStatus, &it.LastError, &it.HoldReason, &it.CreatedAt, &it.UpdatedAt, &it.DeliveredAt}
+		&it.NextAttemptAt, &it.LastHTTPStatus, &it.LastError, &it.HoldReason, &it.CreatedAt, &it.UpdatedAt, &it.DeliveredAt, &it.LocationName}
 }
 
 func contains(set []string, v string) bool {

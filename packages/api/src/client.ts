@@ -33,6 +33,14 @@ export type ErpOutboxDetail = S['ErpOutboxDetail']
 export type ErpOutboxCounts = S['ErpOutboxCounts']
 export type ErpRelayReport = S['ErpRelayReport']
 export type ListErpOutboxParams = Query<'listErpOutbox'>
+/** Optional backoffice filters of the product list (D2-API); the page and limit stay positional. */
+export type ProductListFilter = Omit<Query<'listProducts'>, 'page' | 'limit' | 'outletId'>
+/** Optional paging and filters of the promotion and discount-code lists; page makes the answer carry a meta. */
+export type PromoListParams = Omit<Query<'listPromotions'>, 'outletId'>
+export type ListGoodsReceiptsParams = Query<'listGoodsReceipts'>
+export type GoodsReceiptListItem = S['GoodsReceiptListItem']
+/** outletId and kind narrow the Persetujuan Stok list; pendingCount ignores them. */
+export type ApprovalListFilter = Pick<Query<'listInventoryApprovals'>, 'outletId' | 'kind'>
 export interface ErpOutboxList { items: ErpOutboxItem[]; meta: Meta; counts: ErpOutboxCounts }
 export type CustomRole = S['CustomRole']
 export type ReportSummary = S['ReportSummary']
@@ -257,7 +265,7 @@ export interface Api {
   updateOutlet: (id: string, input: OutletInput) => Promise<Outlet>
 
   // products / categories / bundles
-  listProducts: (page?: number, limit?: number) => Promise<ListResult<Product>>
+  listProducts: (page?: number, limit?: number, filter?: ProductListFilter) => Promise<ListResult<Product>>
   createProduct: (input: ProductInput) => Promise<Product>
   updateProduct: (id: string, input: ProductInput) => Promise<Product>
   deleteProduct: (id: string) => Promise<void>
@@ -340,10 +348,13 @@ export interface Api {
 
   // promotions / discount codes
   listPromotions: () => Promise<Promotion[]>
+  /** Paged and filtered; the response always has a meta when page or limit is sent. An old backend ignores the parameters and returns the whole list. */
+  listPromotionsPage: (params: PromoListParams) => Promise<ListResult<Promotion>>
   createPromotion: (input: PromotionInput) => Promise<Promotion>
   updatePromotion: (id: string, input: PromotionInput) => Promise<Promotion>
   deletePromotion: (id: string) => Promise<void>
   listDiscountCodes: () => Promise<DiscountCode[]>
+  listDiscountCodesPage: (params: PromoListParams) => Promise<ListResult<DiscountCode>>
   createDiscountCode: (input: DiscountCodeInput) => Promise<DiscountCode>
   createDiscountCodeBatch: (input: DiscountCodeBatchInput) => Promise<DiscountCode[]>
   updateDiscountCode: (id: string, input: DiscountCodeInput) => Promise<DiscountCode>
@@ -410,6 +421,7 @@ export interface Api {
   /** The kartu stok SKU picker: variants matching q that have a ledger row at the location. */
   listMovementSkus: (params: MovementSkuParams) => Promise<MovementSkuResponse>
   /** One goods receipt with its lines, read-only (opened from a kartu stok row). */
+  listGoodsReceipts: (params?: ListGoodsReceiptsParams) => Promise<ListResult<GoodsReceiptListItem>>
   getGoodsReceipt: (id: string) => Promise<GoodsReceiptDetail>
   getOutletGiveaway: (outletId: string) => Promise<OutletGiveaway>
   setOutletGiveaway: (outletId: string, input: OutletGiveawayInput, idempotencyKey: string) => Promise<OutletGiveaway>
@@ -419,7 +431,7 @@ export interface Api {
   approveAdjustmentRequest: (id: string, input: InventoryApproveInput, idempotencyKey: string) => Promise<AdjustmentRequestApproveResult>
   rejectAdjustmentRequest: (id: string, input: InventoryRejectInput, idempotencyKey: string) => Promise<AdjustmentRequest>
   cancelAdjustmentRequest: (id: string, idempotencyKey: string, input?: InventoryCancelInput) => Promise<AdjustmentRequest>
-  listInventoryApprovals: (page?: number, limit?: number) => Promise<ApprovalQueueResponse>
+  listInventoryApprovals: (page?: number, limit?: number, filter?: ApprovalListFilter) => Promise<ApprovalQueueResponse>
   listRequisitions: (params?: ListRequisitionsParams, opts?: RequestOptions) => Promise<ListResult<StockRequisition>>
   getRequisition: (id: string, opts?: RequestOptions) => Promise<StockRequisition>
   createRequisition: (input: StockRequisitionInput, idempotencyKey: string, opts?: RequestOptions) => Promise<StockRequisition>
@@ -739,8 +751,8 @@ export function createClient(opts: ClientOptions): Api {
     createOutlet: (input) => data<Outlet>('POST', `${API}/outlets`, input),
     updateOutlet: (id, input) => data<Outlet>('PUT', `${API}/outlets/${id}`, input),
 
-    listProducts: (page = 1, limit = 200) =>
-      list<Product>(`${API}/products`, { page, limit }),
+    listProducts: (page = 1, limit = 200, filter) =>
+      request<ListResult<Product>>('GET', `${API}/products${qsMulti({ page, limit, ...filter })}`),
     createProduct: (input) => data<Product>('POST', `${API}/products`, input),
     updateProduct: (id, input) => data<Product>('PUT', `${API}/products/${id}`, input),
     deleteProduct: async (id) => {
@@ -854,12 +866,16 @@ export function createClient(opts: ClientOptions): Api {
       data<LoyaltySettings>('PUT', `${API}/settings/loyalty`, input),
 
     listPromotions: () => data<Promotion[]>('GET', `${API}/promotions`),
+    listPromotionsPage: (params) =>
+      request<ListResult<Promotion>>('GET', `${API}/promotions${qsMulti(params)}`),
     createPromotion: (input) => data<Promotion>('POST', `${API}/promotions`, input),
     updatePromotion: (id, input) => data<Promotion>('PUT', `${API}/promotions/${id}`, input),
     deletePromotion: async (id) => {
       await request('DELETE', `${API}/promotions/${id}`)
     },
     listDiscountCodes: () => data<DiscountCode[]>('GET', `${API}/discount-codes`),
+    listDiscountCodesPage: (params) =>
+      request<ListResult<DiscountCode>>('GET', `${API}/discount-codes${qsMulti(params)}`),
     createDiscountCode: (input) =>
       data<DiscountCode>('POST', `${API}/discount-codes`, input),
     createDiscountCodeBatch: (input) =>
@@ -945,6 +961,8 @@ export function createClient(opts: ClientOptions): Api {
     getMovementLedgerSummary: (params) =>
       request<MovementLedgerSummaryResponse>('GET', `${API}/inventory/movements/summary${qsMulti(params)}`),
     exportMovementLedgerSummary: (params) => requestCsv(`${API}/inventory/movements/summary/export${qsMulti(params)}`),
+    listGoodsReceipts: (params) =>
+      request<ListResult<GoodsReceiptListItem>>('GET', `${API}/inventory/goods-receipts${qsMulti(params ?? {})}`),
     getGoodsReceipt: (id) => request<GoodsReceiptDetail>('GET', `${API}/inventory/goods-receipts/${id}`),
     listMovementSkus: (params) =>
       request<MovementSkuResponse>('GET', `${API}/inventory/movements/skus${qsMulti(params)}`),
@@ -962,8 +980,8 @@ export function createClient(opts: ClientOptions): Api {
       data<AdjustmentRequest>('POST', `${API}/inventory/adjustment-requests/${id}/reject`, input, idemRequired(idempotencyKey)),
     cancelAdjustmentRequest: (id, idempotencyKey, input) =>
       data<AdjustmentRequest>('POST', `${API}/inventory/adjustment-requests/${id}/cancel`, input ?? {}, idemRequired(idempotencyKey)),
-    listInventoryApprovals: (page, limit) =>
-      request<ApprovalQueueResponse>('GET', `${API}/inventory/approvals?status=pending${page ? `&page=${page}` : ''}${limit ? `&limit=${limit}` : ''}`),
+    listInventoryApprovals: (page, limit, filter) =>
+      request<ApprovalQueueResponse>('GET', `${API}/inventory/approvals${qsMulti({ status: 'pending', page, limit, ...filter })}`),
     listRequisitions: (params, reqOpts) =>
       request<ListResult<StockRequisition>>('GET', `${API}/requisitions${qsMulti(params ?? {})}`, undefined, reqOpts),
     getRequisition: (id, reqOpts) => data<StockRequisition>('GET', `${API}/requisitions/${id}`, undefined, reqOpts),

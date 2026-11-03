@@ -6,9 +6,9 @@ import (
 	"github.com/mandalika/pos-backend/internal/api"
 )
 
-func (r *Repo) Promotions(ctx context.Context) ([]api.Promotion, int, error) {
-	return listJSON[api.Promotion](ctx, r.Pool,
-		`SELECT json_build_object('id',id,'name',name,'description',description,
+// promotionObj and discountCodeObj are the row shapes of the promotion and discount-code lists, shared
+// by the full lists the tablet and the pickers read and by the paged backoffice lists.
+const promotionObj = `json_build_object('id',id,'name',name,'description',description,
 		   'type',type,'value',value,'minPurchase',min_purchase,
 		   'applicableProductIds',applicable_product_ids,
 		   'applicableVariantKeys',applicable_variant_keys,
@@ -21,7 +21,19 @@ func (r *Repo) Promotions(ctx context.Context) ([]api.Promotion, int, error) {
 		   'bxgyConfig',bxgy_config,
 		   'tieredConfig',tiered_config,
 		   'bundleConfig',bundle_config,
-		   'createdAt',created_at) FROM promotions ORDER BY created_at DESC`)
+		   'createdAt',created_at)`
+
+const discountCodeObj = `json_build_object('id',id,'code',code,'promotionId',promotion_id,
+		   'type',type,'value',value,'minPurchase',min_purchase,
+		   'usageLimit',usage_limit,'perCustomerLimit',per_customer_limit,
+		   'customerId',customer_id,'customerName',(SELECT name FROM customers WHERE id=discount_codes.customer_id),
+		   'usageCount',usage_count,'isActive',is_active,
+		   'startDate',start_date,'endDate',end_date,'combinable',combinable,
+		   'createdAt',created_at)`
+
+func (r *Repo) Promotions(ctx context.Context) ([]api.Promotion, int, error) {
+	return listJSON[api.Promotion](ctx, r.Pool,
+		`SELECT `+promotionObj+` FROM promotions ORDER BY created_at DESC`)
 }
 
 // WithoutCustomerNames returns a copy of the codes with the holder's name removed
@@ -37,13 +49,7 @@ func WithoutCustomerNames(in []api.DiscountCode) []api.DiscountCode {
 
 func (r *Repo) DiscountCodes(ctx context.Context) ([]api.DiscountCode, int, error) {
 	return listJSON[api.DiscountCode](ctx, r.Pool,
-		`SELECT json_build_object('id',id,'code',code,'promotionId',promotion_id,
-		   'type',type,'value',value,'minPurchase',min_purchase,
-		   'usageLimit',usage_limit,'perCustomerLimit',per_customer_limit,
-		   'customerId',customer_id,'customerName',(SELECT name FROM customers WHERE id=discount_codes.customer_id),
-		   'usageCount',usage_count,'isActive',is_active,
-		   'startDate',start_date,'endDate',end_date,'combinable',combinable,
-		   'createdAt',created_at)
+		`SELECT `+discountCodeObj+`
 		   FROM discount_codes ORDER BY created_at DESC`)
 }
 
@@ -61,12 +67,6 @@ func (r *Repo) DiscountCodesByIDs(ctx context.Context, ids []string) ([]api.Disc
 // just created the codes (a keyed batch answers from inside its receipt claim).
 func DiscountCodesByIDsOn(ctx context.Context, q RowQuerier, ids []string) ([]api.DiscountCode, error) {
 	return oneJSON[[]api.DiscountCode](ctx, q,
-		`SELECT COALESCE(json_agg(json_build_object('id',id,'code',code,'promotionId',promotion_id,
-		   'type',type,'value',value,'minPurchase',min_purchase,
-		   'usageLimit',usage_limit,'perCustomerLimit',per_customer_limit,
-		   'customerId',customer_id,'customerName',(SELECT name FROM customers WHERE id=discount_codes.customer_id),
-		   'usageCount',usage_count,'isActive',is_active,
-		   'startDate',start_date,'endDate',end_date,'combinable',combinable,
-		   'createdAt',created_at) ORDER BY created_at DESC), '[]'::json)
+		`SELECT COALESCE(json_agg(`+discountCodeObj+` ORDER BY created_at DESC), '[]'::json)
 		   FROM discount_codes WHERE id = ANY($1::uuid[])`, ids)
 }

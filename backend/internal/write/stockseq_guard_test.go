@@ -34,12 +34,13 @@ var stockSeqAllowlist = map[string]bool{
 	"internal/service/lockorder.go":     false,
 	"internal/write/import_products.go": false,
 	// D13 guard: row locks and RETURNING checks around zero-stock deletes/moves only
-	"internal/write/stock_guard.go":    false,
-	"internal/read/oversell.go":        false,
-	"internal/read/catalog.go":         false,
-	"internal/read/outlet_giveaway.go": false, // read-only: the giveaway pull lookup joins the stock row
-	"internal/read/inventory.go":       false,
-	"internal/read/skumapping.go":      false, // read-only has_stock check for the ERP mapping export
+	"internal/write/stock_guard.go":      false,
+	"internal/read/oversell.go":          false,
+	"internal/read/catalog.go":           false,
+	"internal/read/products_filtered.go": false,
+	"internal/read/outlet_giveaway.go":   false, // read-only: the giveaway pull lookup joins the stock row
+	"internal/read/inventory.go":         false,
+	"internal/read/skumapping.go":        false, // read-only has_stock check for the ERP mapping export
 	// ledger reads (post-read / backfill lock); never writes stock (plan §2.5, D2b)
 	"internal/ledger/ledger.go":   false,
 	"internal/ledger/backfill.go": false,

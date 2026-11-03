@@ -40,7 +40,7 @@ func (r *Repo) ErrorLogs(ctx context.Context, outletID, source, from, to string,
 	}
 	args = append(args, limit, off(page, limit))
 	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM error_logs e%s
-	  ORDER BY e.created_at DESC LIMIT $%d OFFSET $%d`,
+	  ORDER BY e.created_at DESC, e.id DESC LIMIT $%d OFFSET $%d`,
 		errorLogObj, cond, len(args)-1, len(args))
 	return listJSON[api.ErrorLog](ctx, r.Pool, sql, args...)
 }

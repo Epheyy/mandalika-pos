@@ -169,7 +169,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List products */
+        /** List products (optional backoffice filters; without them the list is unchanged) */
         get: operations["listProducts"];
         put?: never;
         /** Create product (Backoffice; bumps content version) */
@@ -517,7 +517,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List promotions (outlet-honored) */
+        /** List promotions (outlet-honored; optional paging and filters) */
         get: operations["listPromotions"];
         put?: never;
         /** Create promotion (Backoffice) */
@@ -535,7 +535,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List discount codes */
+        /** List discount codes (optional paging and filters) */
         get: operations["listDiscountCodes"];
         put?: never;
         /** Create discount code (Backoffice) */
@@ -946,6 +946,23 @@ export interface paths {
         put?: never;
         /** Receive goods into an outlet OR warehouse (Backoffice) */
         post: operations["createLocationGoodsReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory/goods-receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Barang Masuk list, newest first, within the caller's location scope (manage_inventory) */
+        get: operations["listGoodsReceipts"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2929,6 +2946,7 @@ export interface components {
             locationType: "outlet" | "warehouse";
             /** Format: uuid */
             locationId: string;
+            locationName?: string | null;
             refType: string;
             /** Format: uuid */
             refId: string;
@@ -3200,6 +3218,28 @@ export interface components {
             createdAt: string;
             createdByName?: string;
             items: components["schemas"]["GoodsReceiptDetailItem"][];
+        };
+        /** @description One row of the Barang Masuk list (no lines; GET the receipt for them). */
+        GoodsReceiptListItem: {
+            /** Format: uuid */
+            id: string;
+            locationType: components["schemas"]["InventoryLocationType"];
+            /** Format: uuid */
+            locationId: string;
+            locationName?: string;
+            supplier?: string;
+            note?: string;
+            /** @enum {string} */
+            source: "supply" | "warranty";
+            /** Format: date-time */
+            createdAt: string;
+            createdByName?: string;
+            lineCount: number;
+            totalQty: number;
+        };
+        GoodsReceiptListResponse: {
+            data: components["schemas"]["GoodsReceiptListItem"][];
+            meta: components["schemas"]["Meta"];
         };
         WarehouseAdjustInput: {
             /** Format: uuid */
@@ -4199,6 +4239,7 @@ export interface components {
         };
         PromotionListResponse: {
             data: components["schemas"]["Promotion"][];
+            meta?: components["schemas"]["Meta"];
         };
         DiscountCode: {
             /** Format: uuid */
@@ -4226,6 +4267,7 @@ export interface components {
         };
         DiscountCodeListResponse: {
             data: components["schemas"]["DiscountCode"][];
+            meta?: components["schemas"]["Meta"];
         };
         CartItem: {
             productId: string;
@@ -6433,6 +6475,13 @@ export interface operations {
             query?: {
                 page?: components["parameters"]["Page"];
                 limit?: components["parameters"]["Limit"];
+                /** @description contains-match on name, brand, or a variant SKU/barcode */
+                q?: string;
+                categoryId?: string;
+                active?: boolean;
+                /** @description low = an active variant with 1-2 in stock; out = an active variant with none (stock of the scoped outlet, or summed over outlets) */
+                stock?: "low" | "out";
+                sort?: "terbaru" | "nama";
             };
             header?: {
                 /** @description Active outlet override (admin only, or must match token outlet). */
@@ -7152,7 +7201,15 @@ export interface operations {
     };
     listPromotions: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description present = paged, with meta; absent = the whole list as before */
+                page?: number;
+                limit?: number;
+                q?: string;
+                /** @description derived from isActive and the start/end dates (Asia/Jakarta business day) */
+                status?: "aktif" | "terjadwal" | "berakhir" | "nonaktif";
+                type?: string;
+            };
             header?: {
                 /** @description Active outlet override (admin only, or must match token outlet). */
                 "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
@@ -7199,7 +7256,15 @@ export interface operations {
     };
     listDiscountCodes: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description present = paged, with meta; absent = the whole list as before */
+                page?: number;
+                limit?: number;
+                q?: string;
+                /** @description derived from isActive and the start/end dates (Asia/Jakarta business day) */
+                status?: "aktif" | "terjadwal" | "berakhir" | "nonaktif";
+                type?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -8154,6 +8219,48 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    listGoodsReceipts: {
+        parameters: {
+            query?: {
+                locationType?: components["schemas"]["InventoryLocationType"];
+                locationId?: string;
+                /** @description first day (YYYY-MM-DD, Asia/Jakarta) or an RFC 3339 instant */
+                dari?: string;
+                /** @description last day, inclusive (YYYY-MM-DD, Asia/Jakarta) or an RFC 3339 instant, exclusive */
+                sampai?: string;
+                /** @description supplier, note, or an item product name / SKU */
+                q?: string;
+                source?: "supply" | "warranty";
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description goods receipts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoodsReceiptListResponse"];
+                };
+            };
+            /** @description invalid filter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
         };
     };
     getGoodsReceipt: {
@@ -11821,6 +11928,9 @@ export interface operations {
         parameters: {
             query?: {
                 status?: "pending";
+                /** @description only documents of this outlet (warehouse documents have none) */
+                outletId?: string;
+                kind?: "adjustment" | "count";
                 page?: components["parameters"]["Page"];
                 limit?: components["parameters"]["Limit"];
             };
@@ -11830,7 +11940,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description pending approvals and the pending count */
+            /** @description pending approvals and the pending count (pendingCount ignores outletId and kind) */
             200: {
                 headers: {
                     [name: string]: unknown;

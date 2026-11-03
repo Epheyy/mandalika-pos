@@ -306,6 +306,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Get("/inventory/movements/summary", h.LedgerMovementSummary)
 				r.Get("/inventory/movements/summary/export", h.ExportMovementLedgerSummary)
 				r.Get("/inventory/movements/skus", h.MovementSkus)
+				r.Get("/inventory/goods-receipts", h.ListGoodsReceipts)
 				r.Get("/inventory/goods-receipts/{id}", h.GetGoodsReceipt)
 				// transfers (mesh; static path registered before /{id})
 				r.Get("/transfers", h.Transfers)
