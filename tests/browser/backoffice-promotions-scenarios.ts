@@ -14,7 +14,7 @@ const day = (offset: number) => new Date(Date.now() + 7 * 3600_000 + offset * 86
 const FILLERS = 25
 
 type Row = Record<string, any>
-interface Call { method: string; path: string; query: Record<string, string>; body?: any }
+interface Call { method: string; path: string; query: Record<string, string>; body?: any; key?: string }
 interface State {
   promotions: Row[]
   codes: Row[]
@@ -22,6 +22,8 @@ interface State {
   failSave: boolean
   failDelete: boolean
   failBatch: boolean
+  /** Statuses the next batch POSTs answer with before one succeeds (a 503 is an answer that may have landed). */
+  batchFailures: number[]
   /** When set, a promotion PUT waits for it (a save that is still in flight). */
   holdSave: Promise<void> | null
 }
@@ -61,7 +63,7 @@ const makeState = (): State => ({
       combinable: false, createdAt: '2026-10-03T03:00:00Z',
     },
   ],
-  calls: [], failSave: false, failDelete: false, failBatch: false, holdSave: null,
+  calls: [], failSave: false, failDelete: false, failBatch: false, batchFailures: [], holdSave: null,
 })
 
 /** The server's derived status over is_active / start_date / end_date, the WIB business day. */
@@ -87,7 +89,7 @@ async function mockApi(page: ScenarioPage, state: State) {
     const query = Object.fromEntries(url.searchParams)
     const method = req.method()
     const body = method === 'GET' || method === 'DELETE' ? undefined : JSON.parse(req.postData() ?? '{}')
-    state.calls.push({ method, path, query, body })
+    state.calls.push({ method, path, query, body, key: req.headers()['idempotency-key'] })
     const json = (data: unknown, status = 200) => route.fulfill({ status, json: data })
     if (path.startsWith('/auth/')) return json({ data: { access: 'SYNTHETIC-NON-TOKEN', refresh: 'SYNTHETIC-NON-TOKEN', user } })
     if (path === '/outlets') return json({ data: [{ id: OUTLET, name: 'MV Outlet', isActive: true, timezone: 'Asia/Jakarta' }] })
@@ -118,11 +120,20 @@ async function mockApi(page: ScenarioPage, state: State) {
         return json({ data: { ok: true } })
       }
     }
-    if (path === '/discount-codes/batch' && method === 'POST') return state.failBatch ? json({ error: 'Awalan sudah dipakai kode lain' }, 422) : json({ data: [] })
+    if (path === '/discount-codes/batch' && method === 'POST') {
+      if (state.failBatch) return json({ error: 'Awalan sudah dipakai kode lain' }, 422)
+      const failure = state.batchFailures.shift()
+      if (failure) return json({ error: 'Layanan sedang sibuk' }, failure)
+      const made = Array.from({ length: Number(body.count) || 0 }, (_, i) => ({ id: idOf(900 + i, 'c'), code: `${body.prefix}${String(i).padStart(4, '0')}`, type: body.type, value: body.value, usageLimit: body.usageLimit ?? null }))
+      return json({ data: made })
+    }
     return json({ data: [], meta: { total: 0, page: 1, limit: 50 } })
   })
 }
 
+/** Text of the focused element (the button a keystroke would press). */
+const focusedName = (page: ScenarioPage) =>
+  page.evaluate(() => (document.activeElement?.closest('[role="alertdialog"]') ? (document.activeElement.textContent?.trim() ?? '') : '(outside the question)'))
 const hashQuery = (page: ScenarioPage) => page.evaluate(() => Object.fromEntries(new URLSearchParams(location.hash.split('?')[1] ?? '')))
 const lastList = (calls: Call[], path: string) => [...calls].reverse().find((c) => c.method === 'GET' && c.path === path && 'page' in c.query && c.query.limit !== '1' && c.query.limit !== '200')
 const puts = (state: State, path: string) => state.calls.filter((c) => c.method === 'PUT' && c.path.startsWith(path))
@@ -423,6 +434,7 @@ async function codesTab(page: ScenarioPage, state: State, results: object[]) {
   await generate.click()
   await confirm.getByText('Buat 25 kode aktif?', { exact: true }).waitFor()
   await confirm.getByText('Tablet memakainya setelah sinkron berikutnya.', { exact: true }).waitFor()
+  check((await focusedName(page)) === 'Batal', `the D-79 question starts on Batal, got ${await focusedName(page)}`)
   await confirm.getByRole('button', { name: 'Batal', exact: true }).click()
   await confirm.waitFor({ state: 'detached' })
   check(await batchTitle.isVisible() && (await jumlah.inputValue()) === '25', 'Batal keeps the batch panel open with the form intact')
@@ -430,6 +442,25 @@ async function codesTab(page: ScenarioPage, state: State, results: object[]) {
   await generate.click()
   await confirm.getByRole('button', { name: 'Buat kode', exact: true }).waitFor()
   // The worst double click: the confirm, then Generate again in the same task, before "Membuat..." has rendered.
+  // Chromium blocks a download that follows an await (no user gesture) once the page has already downloaded, so the
+  // code-list CSV is read where the app hands it to the browser: the anchor click.
+  await page.evaluate(() => {
+    const w = window as unknown as { __csv: { name: string; text: string }[] }
+    w.__csv = []
+    const blobs = new Map<string, Blob>()
+    const makeUrl = URL.createObjectURL.bind(URL)
+    URL.createObjectURL = (obj: Blob | MediaSource) => {
+      const url = makeUrl(obj)
+      if (obj instanceof Blob) blobs.set(url, obj)
+      return url
+    }
+    const real = HTMLAnchorElement.prototype.click
+    HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
+      const blob = blobs.get(this.href)
+      if (this.download && blob) void blob.text().then((text) => w.__csv.push({ name: this.download, text }))
+      else real.call(this)
+    }
+  })
   await page.evaluate(() => {
     const button = (name: string) => [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === name)
     button('Buat kode')?.click()
@@ -437,6 +468,10 @@ async function codesTab(page: ScenarioPage, state: State, results: object[]) {
   })
   await batchTitle.waitFor({ state: 'detached' })
   check((await confirm.count()) === 0, 'a second click does not ask a second time')
+  await page.waitForFunction(() => (window as unknown as { __csv: unknown[] }).__csv.length > 0)
+  const csvFile = (await page.evaluate(() => (window as unknown as { __csv: { name: string; text: string }[] }).__csv))[0]
+  check(csvFile.name.startsWith('kode-diskon-batch_') && csvFile.text.includes('Kode') && csvFile.text.trim().split(/\r\n|\n/).length === 26, `batch CSV ${csvFile.name}: ${csvFile.text.slice(0, 60)}`)
+  await page.getByText('25 kode dibuat. Daftar kode sudah diunduh.', { exact: true }).waitFor()
   check(batches().length === 1, `a double click sends one batch, got ${batches().length}`)
   check(batches()[0].body.count === 25 && batches()[0].body.isActive === true, 'the batch sent is the one asked about: 25 codes, active')
   results.push({ step: 'batch-asks-with-count' })
@@ -460,9 +495,44 @@ async function codesTab(page: ScenarioPage, state: State, results: object[]) {
   await batchTitle.waitFor({ state: 'detached' })
   results.push({ step: 'batch-error-visible' })
 
+  // Idempotency: a batch answered 503 may already exist, so the retry from the same panel carries the SAME key; a
+  // reopened panel is a new batch with a new key. A success reports the count and downloads the code list.
+  await page.getByRole('button', { name: 'Buat Massal', exact: true }).click()
+  await batchTitle.waitFor()
+  await jumlah.fill('3')
+  state.calls.length = 0
+  state.batchFailures = [503]
+  await generate.click()
+  await confirm.getByRole('button', { name: 'Buat kode', exact: true }).click()
+  await page.getByRole('alert').filter({ hasText: 'tekan Generate lagi' }).waitFor()
+  check(await batchTitle.isVisible(), 'an answer of 503 keeps the panel open')
+  // closing and reopening after an unclear answer keeps the form and the key: the batch may already exist
+  await page.getByRole('button', { name: 'Batal', exact: true }).click()
+  await batchTitle.waitFor({ state: 'detached' })
+  await page.getByRole('button', { name: 'Buat Massal', exact: true }).click()
+  await batchTitle.waitFor()
+  check((await jumlah.inputValue()) === '3', 'a reopen after an unclear answer keeps the form')
+  await generate.click()
+  await confirm.getByRole('button', { name: 'Buat kode', exact: true }).click()
+  await batchTitle.waitFor({ state: 'detached' })
+  await page.getByText('3 kode dibuat. Daftar kode sudah diunduh.', { exact: true }).waitFor()
+  check(batches().length === 2, `the failed and the retried attempt, got ${batches().length}`)
+  const [first, retry] = batches().map((c) => c.key ?? '')
+  check(first !== '' && first === retry, `the retry reuses the Idempotency-Key (${first} / ${retry})`)
+  await page.getByRole('button', { name: 'Buat Massal', exact: true }).click()
+  await batchTitle.waitFor()
+  await jumlah.fill('3')
+  await generate.click()
+  await confirm.getByRole('button', { name: 'Buat kode', exact: true }).click()
+  await batchTitle.waitFor({ state: 'detached' })
+  const reopened = batches()[2]?.key ?? ''
+  check(reopened !== '' && reopened !== first, `a panel reopened after a success sends a new key (${first} / ${reopened})`)
+  results.push({ step: 'batch-idempotency-key' })
+
   // turning a code ON asks first, in the code's words
   await rowOf(page, 'HEMAT10').getByRole('switch', { name: 'Status HEMAT10', exact: true }).click()
   await confirm.getByText('Aktifkan kode HEMAT10?', { exact: true }).waitFor()
+  check((await focusedName(page)) === 'Batal', `the list Switch question starts on Batal, got ${await focusedName(page)}`)
   await confirm.getByRole('button', { name: 'Batal', exact: true }).click()
   await confirm.waitFor({ state: 'detached' })
   results.push({ step: 'code-on-asks-first' })

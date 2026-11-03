@@ -356,7 +356,8 @@ export interface Api {
   listDiscountCodes: () => Promise<DiscountCode[]>
   listDiscountCodesPage: (params: PromoListParams) => Promise<ListResult<DiscountCode>>
   createDiscountCode: (input: DiscountCodeInput) => Promise<DiscountCode>
-  createDiscountCodeBatch: (input: DiscountCodeBatchInput) => Promise<DiscountCode[]>
+  /** Needs an Idempotency-Key: a retry of a batch that may already have landed must not create a second set of active codes. */
+  createDiscountCodeBatch: (input: DiscountCodeBatchInput, idempotencyKey: string) => Promise<DiscountCode[]>
   updateDiscountCode: (id: string, input: DiscountCodeInput) => Promise<DiscountCode>
   deleteDiscountCode: (id: string) => Promise<void>
 
@@ -879,8 +880,8 @@ export function createClient(opts: ClientOptions): Api {
       request<ListResult<DiscountCode>>('GET', `${API}/discount-codes${qsMulti(params)}`),
     createDiscountCode: (input) =>
       data<DiscountCode>('POST', `${API}/discount-codes`, input),
-    createDiscountCodeBatch: (input) =>
-      data<DiscountCode[]>('POST', `${API}/discount-codes/batch`, input),
+    createDiscountCodeBatch: (input, idempotencyKey) =>
+      data<DiscountCode[]>('POST', `${API}/discount-codes/batch`, input, idemRequired(idempotencyKey)),
     updateDiscountCode: (id, input) =>
       data<DiscountCode>('PUT', `${API}/discount-codes/${id}`, input),
     deleteDiscountCode: async (id) => {

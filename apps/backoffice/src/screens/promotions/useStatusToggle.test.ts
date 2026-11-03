@@ -145,7 +145,7 @@ describe('confirmActivation', () => {
   it('uses the D-79 words for promos and for codes, and returns the answer', async () => {
     const confirm = vi.fn(async () => ({ confirmed: false }))
     expect(await confirmActivation(confirm, 'kode', 'HEMAT10')).toBe(false)
-    expect(confirm).toHaveBeenCalledWith({ title: 'Aktifkan kode HEMAT10?', consequence: 'Tablet memakainya setelah sinkron berikutnya.', confirmLabel: 'Aktifkan' })
+    expect(confirm).toHaveBeenCalledWith({ title: 'Aktifkan kode HEMAT10?', consequence: 'Tablet memakainya setelah sinkron berikutnya.', confirmLabel: 'Aktifkan', initialFocus: 'cancel' })
   })
 })
 
@@ -177,7 +177,7 @@ describe('confirmBatchActivation', () => {
   it('names the number of codes in the D-79 words and returns the answer', async () => {
     const confirm = vi.fn(async () => ({ confirmed: true }))
     expect(await confirmBatchActivation(confirm, 25)).toBe(true)
-    expect(confirm).toHaveBeenCalledWith({ title: 'Buat 25 kode aktif?', consequence: 'Tablet memakainya setelah sinkron berikutnya.', confirmLabel: 'Buat kode' })
+    expect(confirm).toHaveBeenCalledWith({ title: 'Buat 25 kode aktif?', consequence: 'Tablet memakainya setelah sinkron berikutnya.', confirmLabel: 'Buat kode', initialFocus: 'cancel' })
     confirm.mockResolvedValueOnce({ confirmed: false })
     expect(await confirmBatchActivation(confirm, 25)).toBe(false)
   })
