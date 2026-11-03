@@ -2,7 +2,7 @@
 // and the Hadiah chip reach the API as the right query, and Unduh CSV saves the server file
 // (synthetic API, no real backend).
 import type { ScenarioPage } from './fixture'
-import { BO } from './fixture'
+import { openBackoffice, openTab } from './fixture'
 
 const OUTLET = '00000000-0000-4000-8f69-0000000000a1'
 const PRODUCT = '00000000-0000-4000-8f69-0000000000c1'
@@ -80,17 +80,9 @@ export const stockCardFlow = async (page: ScenarioPage) => {
     }
     return route.fulfill({ json: { data: [], meta: { total: 0, page: 1, limit: 50 } } })
   })
-  await page.goto(BO)
-  await page.evaluate(() => {
-    localStorage.clear()
-    localStorage.setItem('mandalika.backoffice.refresh', 'SYNTHETIC-NON-TOKEN')
-    localStorage.setItem('mandalika.backoffice.loginDate', new Date().toLocaleDateString('sv-SE'))
-  })
-  await page.reload()
-  await page.setViewportSize({ width: 1440, height: 1000 })
+  await openBackoffice(page)
 
-  await page.getByRole('button', { name: 'Inventori', exact: true }).click()
-  await page.getByRole('button', { name: 'Pergerakan', exact: true }).click()
+  await openTab(page, 'warehouses', 'pergerakan')
   // a refused read shows its error, not the empty-state text
   await page.getByRole('alert').filter({ hasText: /lokasi di luar cakupan/ }).waitFor()
   check(await page.getByText('Tidak ada pergerakan stok dalam rentang waktu ini').count() === 0, 'empty state shown next to the error')

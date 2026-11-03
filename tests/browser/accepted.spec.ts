@@ -1,4 +1,4 @@
-import { test, expect, evidence, POS, BO, type ScenarioPage } from './fixture'
+import { test, expect, evidence, POS, BO, openBackoffice, type ScenarioPage } from './fixture'
 import { setupPos, qualifyPos, posBoundaries, physicalQueue, guestSales, addCustomer, posRecap, posAutoPull, posStockDrift, posLineSheet, posPromoSheet, posCustomerProfile, posHeldOrders, posGiveaway } from './pos-scenarios'
 import { setupBackoffice, backofficeChecks, transactionsChecks, qualifyBackoffice, reportsRaces } from './backoffice-scenarios'
 import { reviewResolveFlow } from './backoffice-review-scenarios'
@@ -13,13 +13,7 @@ import { posSplitTender, posSplitOffline, posSplitRefund, posSplitOff, posSplitD
 test('BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate toggle', async ({ page }, info) => {
   const p = page as ScenarioPage
   await setupPos(p)
-  await p.goto(BO)
-  await p.evaluate(() => {
-    localStorage.clear()
-    localStorage.setItem('mandalika.backoffice.refresh', 'SYNTHETIC-NON-TOKEN')
-    localStorage.setItem('mandalika.backoffice.loginDate', new Date().toLocaleDateString('sv-SE'))
-  })
-  await p.reload()
+  await openBackoffice(p, { viewport: false })
   const result = await qualifyBackoffice(p)
   expect(result).toHaveLength(6)
   await evidence(info, result)

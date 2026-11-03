@@ -2,7 +2,7 @@
 // apply sends Idempotency-Key + dryRun false + the preview's hash/summary, success text shows
 // (synthetic API, no real backend).
 import type { ScenarioPage } from './fixture'
-import { BO } from './fixture'
+import { openBackoffice, navTo } from './fixture'
 
 const summary = (over: Partial<Record<'create' | 'update' | 'skip' | 'error' | 'warning' | 'newCategories', number>> = {}) =>
   ({ create: 0, update: 0, skip: 0, error: 0, warning: 0, newCategories: 0, ...over })
@@ -48,16 +48,9 @@ export const csvImportFlow = async (page: ScenarioPage) => {
     }
     return route.fulfill({ json: { data: [], meta: { total: 0, page: 1, limit: 50 } } })
   })
-  await page.goto(BO)
-  await page.evaluate(() => {
-    localStorage.clear()
-    localStorage.setItem('mandalika.backoffice.refresh', 'SYNTHETIC-NON-TOKEN')
-    localStorage.setItem('mandalika.backoffice.loginDate', new Date().toLocaleDateString('sv-SE'))
-  })
-  await page.reload()
-  await page.setViewportSize({ width: 1440, height: 1000 })
+  await openBackoffice(page)
 
-  await page.getByRole('button', { name: 'Pelanggan', exact: true }).click()
+  await navTo(page, 'customers')
   const picker = page.getByLabel('Impor dari file CSV')
   await picker.setInputFiles({ name: 'pelanggan.csv', mimeType: 'text/csv', buffer: Buffer.from(badFile) })
 

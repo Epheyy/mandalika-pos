@@ -204,6 +204,7 @@ export default function App() {
             visible.map(({ id, label, icon: Icon }) => (
               <button type="button"
                 key={id}
+                data-nav-id={id}
                 onClick={async () => {
                   if (id !== active?.id && !(await confirmLeave())) return
                   setActiveId(id)

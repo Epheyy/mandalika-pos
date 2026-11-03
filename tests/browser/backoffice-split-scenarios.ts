@@ -1,7 +1,7 @@
 // C6c backoffice split payment: Transaksi list/detail/filter/CSV, the admin refund payout chips, and the
 // "Bayar terpisah" setting (synthetic API, no real backend).
 import type { ScenarioPage } from './fixture'
-import { BO } from './fixture'
+import { openBackoffice, navTo, openTab, clickTab } from './fixture'
 
 const OUTLET = '00000000-0000-4000-8f6a-0000000000a1'
 const uuid = (n: number) => `00000000-0000-4000-8f6a-${String(n).padStart(12, '0')}`
@@ -16,17 +16,6 @@ const METHODS = [
 const EMPTY_SUMMARY = {
   from: null, to: null, outletId: null, totalSales: 0, totalOrders: 0, grossSales: 0, grossOrders: 0, totalRefunds: 0, refundedOrders: 0,
   netSales: 0, avgOrderValue: 0, byPaymentMethod: {}, grossByPaymentMethod: {}, refundsByPaymentMethod: {}, topProducts: [], dailySales: [],
-}
-
-const login = async (page: ScenarioPage) => {
-  await page.goto(BO)
-  await page.evaluate(() => {
-    localStorage.clear()
-    localStorage.setItem('mandalika.backoffice.refresh', 'SYNTHETIC-NON-TOKEN')
-    localStorage.setItem('mandalika.backoffice.loginDate', new Date().toLocaleDateString('sv-SE'))
-  })
-  await page.reload()
-  await page.setViewportSize({ width: 1440, height: 1000 })
 }
 
 const line = (lineNo: number, name: string, qty: number, net: number, over: Record<string, unknown> = {}) => ({
@@ -86,8 +75,8 @@ export const splitOrderFlow = async (page: ScenarioPage) => {
     }
     return route.fulfill({ json: { data: [], meta: { total: 0, page: 1, limit: 50 } } })
   })
-  await login(page)
-  await page.getByRole('button', { name: 'Laporan', exact: true }).click()
+  await openBackoffice(page)
+  await navTo(page, 'reports')
 
   // list: the split order reads "Split-Payment", the single one keeps its method; the ⚠ Bayar badge titles the reason
   const splitRow = page.getByRole('button', { name: /INV-S-1001/ })
@@ -149,7 +138,7 @@ export const splitOrderFlow = async (page: ScenarioPage) => {
   results.push({ step: 'single-no-chips' })
 
   // Ekspor CSV: Metode Bayar lists the lines, Metode Refund the payout
-  await page.getByRole('button', { name: 'Ekspor', exact: true }).click()
+  await clickTab(page, 'export')
   await page.evaluate(() => {
     (window as any).__csv = []
     URL.createObjectURL = (b: any) => { (window as any).__csv.push(b.text()); return 'blob:synthetic' }
@@ -190,9 +179,8 @@ export const splitToggleFlow = async (page: ScenarioPage) => {
     }
     return route.fulfill({ json: { data: [], meta: { total: 0, page: 1, limit: 50 } } })
   })
-  await login(page)
-  await page.getByRole('button', { name: 'Pengaturan', exact: true }).click()
-  await page.getByRole('button', { name: 'Transaksi', exact: true }).click()
+  await openBackoffice(page)
+  await openTab(page, 'settings', 'transaksi')
 
   // off by default, with the D-50 warning on the card
   const toggle = page.getByRole('switch', { name: 'Bayar terpisah', exact: true })

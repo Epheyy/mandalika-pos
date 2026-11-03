@@ -63,6 +63,45 @@ export const test = base.extend<{ isolatedNetwork: void }>({
 })
 export { expect }
 
+// Backoffice scenario helpers (Fase D1b). Sidebar items carry data-nav-id and Tabs buttons carry
+// data-tab-key, so label renames never touch the scenarios again. The scenario still installs its own
+// API route before calling openBackoffice.
+export type BackofficeNavId =
+  | 'dashboard' | 'products' | 'customers' | 'promotions' | 'reports' | 'warehouses' | 'approvals'
+  | 'requisitions' | 'users' | 'syncReview' | 'settings' | 'erpOutbox' | 'errors'
+
+/** Load the backoffice signed in with the synthetic refresh token. `viewport: false` keeps the context default. */
+export async function openBackoffice(page: Page, opts: { viewport?: boolean } = {}) {
+  await page.goto(BO)
+  await page.evaluate(() => {
+    localStorage.clear()
+    localStorage.setItem('mandalika.backoffice.refresh', 'SYNTHETIC-NON-TOKEN')
+    localStorage.setItem('mandalika.backoffice.loginDate', new Date().toLocaleDateString('sv-SE'))
+  })
+  await page.reload()
+  if (opts.viewport !== false) await page.setViewportSize({ width: 1440, height: 1000 })
+}
+
+/** The sidebar item for a screen (exactly one per nav id). */
+export const navItem = (page: Page, navId: BackofficeNavId) => page.locator(`[data-nav-id="${navId}"]`)
+
+export async function navTo(page: Page, navId: BackofficeNavId) {
+  await navItem(page, navId).click()
+}
+
+/** A Tabs button by its stable key, on the screen that is currently open. */
+export const tabItem = (page: Page, tabKey: string) => page.locator(`[data-tab-key="${tabKey}"]`)
+
+export async function clickTab(page: Page, tabKey: string) {
+  await tabItem(page, tabKey).click()
+}
+
+/** Open a screen from the sidebar, then one of its tabs. */
+export async function openTab(page: Page, navId: BackofficeNavId, tabKey: string) {
+  await navTo(page, navId)
+  await clickTab(page, tabKey)
+}
+
 export async function evidence(info, value: unknown) {
   // Only in-memory synthetic fixture/captured data; never save storageState.
   await info.attach('synthetic-scenario-evidence', { body: JSON.stringify(value, null, 2), contentType: 'application/json' })
