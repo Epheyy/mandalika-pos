@@ -21,6 +21,9 @@ export interface ConfirmDialogProps {
   confirmLabel: string
   cancelLabel?: string
   tone?: 'default' | 'danger'
+  /** 'cancel' starts focus on Batal even for a default-tone question, so a fast double Enter cannot answer it unread
+   *  (the D-79 activation questions). Unset keeps the usual start: Batal for danger, else the field or confirm. */
+  initialFocus?: 'cancel'
   busy?: boolean
   /** Server refusal, shown inside the dialog (role="alert"); the dialog stays open. */
   error?: string | null
@@ -36,7 +39,13 @@ const BUTTON =
   'px-4 py-2.5 rounded-xl text-sm font-bold transition-colors focus:outline-none focus-visible:ring-2 ' +
   'focus-visible:ring-brand-strong disabled:cursor-not-allowed disabled:opacity-50'
 
-/** Modal question. role="alertdialog"; focus starts on Batal for a danger action, else on the text field or
+/** Where focus lands when the dialog opens. */
+export function initialFocusTarget(o: { tone?: 'default' | 'danger'; initialFocus?: 'cancel'; hasInput: boolean }): 'cancel' | 'field' | 'confirm' {
+  if (o.tone === 'danger' || o.initialFocus === 'cancel') return 'cancel'
+  return o.hasInput ? 'field' : 'confirm'
+}
+
+/** Modal question. role="alertdialog"; focus starts on Batal for a danger action or `initialFocus="cancel"`, else on the text field or
  *  the confirm button; Escape and the backdrop cancel, except while busy. */
 export function ConfirmDialog(props: ConfirmDialogProps) {
   if (!props.open) return null
@@ -49,6 +58,7 @@ function ConfirmBody({
   confirmLabel,
   cancelLabel = 'Batal',
   tone = 'default',
+  initialFocus,
   busy = false,
   error,
   extra,
@@ -74,7 +84,10 @@ function ConfirmBody({
   useFocusTrap(
     true,
     panel,
-    () => (tone === 'danger' ? cancelBtn.current : (textarea.current ?? textbox.current ?? confirmBtn.current)),
+    () =>
+      initialFocusTarget({ tone, initialFocus, hasInput: !!input }) === 'cancel'
+        ? cancelBtn.current
+        : (textarea.current ?? textbox.current ?? confirmBtn.current),
     layer,
   )
 

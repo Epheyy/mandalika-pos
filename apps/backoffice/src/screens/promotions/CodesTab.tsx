@@ -3,6 +3,7 @@ import type { DiscountCode, DiscountCodeBatchInput, Promotion } from '@mandalika
 import { Layers, Plus } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
+import { newIdempotencyKey } from '../../lib/inventoryApproval'
 import { buildExportName, exportToCSV, exportToXLSX } from '../../lib/csvUtils'
 import { Button } from '../../ui/Button'
 import { ExportButton, type ExportFormat } from '../../ui/ExportButton'
@@ -11,6 +12,8 @@ import { Pagination } from '../../ui/Pagination'
 import { useConfirm } from '../../ui/ConfirmDialog'
 import { useToast } from '../../ui/Toast'
 import { DeleteConfirmDialog } from '../products/DeleteConfirmDialog'
+import { isAmbiguousFailure } from '../warehouses/stockWrite'
+import { batchWriteError, createBatchKeyHolder } from './batchWrite'
 import { CodeEditorHost } from './CodeEditorHost'
 import { CodesTable } from './CodesTable'
 import { DiscountCodeBatchModal } from './DiscountCodeBatchModal'
@@ -41,8 +44,6 @@ const STATUS_KIND: StatusToggleKind<DiscountCode> = {
   },
 }
 
-const messageOf = (e: unknown, fallback: string): string => (e instanceof Error && e.message ? e.message : fallback)
-
 export function CodesTab({ tabs }: CodesTabProps) {
   const list = usePromoList<DiscountCode>('codes', fetchPage)
   const toast = useToast()
@@ -65,13 +66,26 @@ export function CodesTab({ tabs }: CodesTabProps) {
   const [batchBusy, setBatchBusy] = useState(false)
   const [batchError, setBatchError] = useState<string | null>(null)
 
+  // One key per form open, never rotated by edits: a retry of a batch that may already have landed cannot create a
+  // second set of active codes. It is dropped when the form closes, so a reopen is a new batch.
+  const batchKey = useRef(createBatchKeyHolder(newIdempotencyKey)).current
+  // True after an answer that may hide a landed batch (no answer, 5xx): closing and reopening then keeps the form and
+  // the key, so the next Generate is a replay and not a second batch. Cleared by a success or a definite refusal.
+  const batchUnclear = useRef(false)
   const openBatch = () => {
+    if (batchUnclear.current) {
+      setBatchOpen(true)
+      return
+    }
+    batchKey.drop()
     setBatchForm({ ...EMPTY_BATCH })
     setBatchError(null)
     setBatchOpen(true)
   }
   const closeBatch = () => {
-    if (!batchBusy) setBatchOpen(false)
+    if (batchBusy) return
+    if (!batchUnclear.current) batchKey.drop()
+    setBatchOpen(false)
   }
   // Held from the click through the question and the send: `batchBusy` is state and lags a render, so a second click
   // landing just after the confirm closes would otherwise send a second batch.
@@ -96,15 +110,18 @@ export function CodesTab({ tabs }: CodesTabProps) {
       setBatchBusy(true)
       setBatchError(null)
       try {
-        const created = await api.createDiscountCodeBatch(input)
+        const created = await api.createDiscountCodeBatch(input, batchKey.current())
         await list.refetch()
+        batchKey.drop()
+        batchUnclear.current = false
         setBatchOpen(false)
         if (created.length) {
           exportToCSV(created.map((c) => ({ Kode: c.code, Tipe: c.type, Nilai: c.value, Kuota: c.usageLimit ?? 0 })), 'kode-diskon-batch')
           toast({ message: `${created.length} kode dibuat. Daftar kode sudah diunduh.`, tone: 'ok' })
         }
       } catch (e: unknown) {
-        setBatchError(messageOf(e, 'Kode massal gagal dibuat.'))
+        batchUnclear.current = isAmbiguousFailure(e)
+        setBatchError(batchWriteError(e, 'Kode massal gagal dibuat.'))
       } finally {
         setBatchBusy(false)
       }

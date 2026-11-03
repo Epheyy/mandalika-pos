@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { ConfirmDialog, useConfirm } from './ConfirmDialog'
+import { ConfirmDialog, initialFocusTarget, useConfirm } from './ConfirmDialog'
 import { DataTable, groupRuns, type Column } from './DataTable'
 import { ExportButton, exportButtonName } from './ExportButton'
 import { presetRange, FilterBar } from './FilterBar'
@@ -104,6 +104,17 @@ describe('groupRuns', () => {
       { label: null, span: 1 },
       { label: 'G', span: 1 },
     ])
+  })
+})
+
+describe('initialFocusTarget: where a ConfirmDialog starts', () => {
+  it('starts on the confirm button for a plain question, the field when there is one', () => {
+    expect(initialFocusTarget({ hasInput: false })).toBe('confirm')
+    expect(initialFocusTarget({ hasInput: true })).toBe('field')
+  })
+  it('starts on Batal for a danger action', () => expect(initialFocusTarget({ tone: 'danger', hasInput: true })).toBe('cancel'))
+  it('starts on Batal when asked, even for a default-tone question (the D-79 activation questions)', () => {
+    expect(initialFocusTarget({ initialFocus: 'cancel', hasInput: false })).toBe('cancel')
   })
 })
 

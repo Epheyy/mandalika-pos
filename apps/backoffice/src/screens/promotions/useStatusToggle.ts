@@ -87,6 +87,7 @@ export async function confirmActivation(confirm: StatusToggleDeps['confirm'], no
     title: `Aktifkan ${noun} ${name}?`,
     consequence: ACTIVATION_CONSEQUENCE,
     confirmLabel: 'Aktifkan',
+    initialFocus: 'cancel',
   })
   return answer.confirmed
 }
@@ -103,6 +104,7 @@ export async function confirmBatchActivation(confirm: StatusToggleDeps['confirm'
     title: `Buat ${count} kode aktif?`,
     consequence: ACTIVATION_CONSEQUENCE,
     confirmLabel: 'Buat kode',
+    initialFocus: 'cancel',
   })
   return answer.confirmed
 }
