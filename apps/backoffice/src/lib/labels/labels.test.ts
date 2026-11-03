@@ -8,6 +8,7 @@ const TONES = ['ok', 'warn', 'danger', 'info', 'neutral', 'promo', 'reward']
 const MAPS: Record<string, LabelMap<string>> = {
   TRANSFER_STATUS: labels.TRANSFER_STATUS,
   REQUISITION_STATUS: labels.REQUISITION_STATUS,
+  GOODS_RECEIPT_SOURCE: labels.GOODS_RECEIPT_SOURCE,
   OPNAME_STATUS: labels.OPNAME_STATUS,
   ORDER_STATUS: labels.ORDER_STATUS,
   ERP_STATUS: labels.ERP_STATUS,

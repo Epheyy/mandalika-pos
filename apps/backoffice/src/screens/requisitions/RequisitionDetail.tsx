@@ -12,10 +12,14 @@ import { Badge } from '../../ui/Badge'
 import { Button } from '../../ui/Button'
 import { Card } from '../../ui/Card'
 import { Select, Textarea, fieldClass } from '../../ui/Field'
+import { useConfirm } from '../../ui/ConfirmDialog'
 import { PageHeader } from '../../ui/PageHeader'
+import { StatusBadge } from '../../ui/StatusBadge'
+import { TRANSFER_STATUS } from '../../lib/labels/transfer'
+import { requisitionConfirm, type RequisitionAction } from './requisitionConfirm'
 import { transferHash } from '../transfers/transferRoute'
 import {
-  EVENT_LABEL, REQUISITION_CHAIN, REQUISITION_STATUS, TRANSFER_STATUS_LABEL,
+  EVENT_LABEL, REQUISITION_CHAIN, REQUISITION_STATUS,
   canRefulfil, chainIndex, fmtDate, fmtDateTime,
 } from './requisitionStatus'
 
@@ -68,7 +72,9 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   // One Idempotency-Key per action until it succeeds: a retry of a failed or double-clicked action replays, not repeats.
-  const keys = useRef<Record<string, string>>({})
+  // A key is tied to the payload it was minted for: an action whose content changed (other quantities) gets a new key.
+  const keys = useRef<Record<string, { key: string; signature: string }>>({})
+  const ask = useConfirm()
 
   const pb = q.data
   if (!pb) {
@@ -87,12 +93,14 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
   const ownOutlet = canRequest && activeOutlet === pb.outletId
   const approvedFor = (itemId: string, requested: number) => approved[itemId] ?? String(requested)
 
-  const act = async (name: string, fn: (key: string) => Promise<unknown>) => {
-    const key = (keys.current[name] ??= crypto.randomUUID())
+  const act = async (name: string, fn: (key: string) => Promise<unknown>, signature = '') => {
+    const kept = keys.current[name]
+    const entry = kept && kept.signature === signature ? kept : { key: crypto.randomUUID(), signature }
+    keys.current[name] = entry
     setBusy(true)
     setErr(null)
     try {
-      await fn(key)
+      await fn(entry.key)
       delete keys.current[name]
       await q.refetch()
     } catch (e: unknown) {
@@ -102,13 +110,29 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
     }
   }
 
+  /** Asks first; the action runs only on a yes. The key logic of `act` still applies, so a retry replays. */
+  const confirmThen = async (
+    action: RequisitionAction,
+    name: string,
+    fn: (key: string) => Promise<unknown>,
+    detail: { approvedUnits?: number; warehouseName?: string; signature?: string } = {},
+  ) => {
+    const { confirmed } = await ask(requisitionConfirm(action, { number: pb.number, refulfil: canRefulfil(pb), ...detail }))
+    if (confirmed) await act(name, fn, detail.signature)
+  }
+
   const approve = () => {
     const lines = items.map((it) => ({ itemId: it.id, approvedQty: Number(approvedFor(it.id, it.requestedQty)) }))
     if (!warehouseId) return setErr('Pilih gudang sumber.')
     if (lines.some((l, i) => !Number.isInteger(l.approvedQty) || l.approvedQty < 0 || l.approvedQty > items[i].requestedQty)) {
       return setErr('Qty disetujui harus bilangan bulat antara 0 dan qty diminta.')
     }
-    void act('approve', (key) => api.approveRequisition(pb.id, { warehouseId, items: lines, note: note.trim() || undefined }, key))
+    const body = { warehouseId, items: lines, note: note.trim() || undefined }
+    void confirmThen('approve', 'approve', (key) => api.approveRequisition(pb.id, body, key), {
+      approvedUnits: lines.reduce((sum, l) => sum + l.approvedQty, 0),
+      warehouseName: (warehouses.data ?? []).find((w) => w.id === warehouseId)?.name,
+      signature: JSON.stringify(body),
+    })
   }
   const reject = () => {
     if (!note.trim()) return setErr('Catatan penolakan wajib diisi.')
@@ -131,14 +155,14 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
             {ownOutlet && pb.status === 'draft' && (
               <>
                 <Button variant="secondary" icon={<Pencil className="w-4 h-4" />} onClick={() => onEdit(pb)}>Ubah</Button>
-                <Button icon={<Send className="w-4 h-4" />} loading={busy} onClick={() => act('submit', (k) => api.submitRequisition(pb.id, k))}>Ajukan</Button>
+                <Button icon={<Send className="w-4 h-4" />} loading={busy} onClick={() => void confirmThen('submit', 'submit', (k) => api.submitRequisition(pb.id, k))}>Ajukan</Button>
               </>
             )}
             {ownOutlet && (pb.status === 'draft' || pb.status === 'submitted') && (
-              <Button variant="danger" icon={<Ban className="w-4 h-4" />} loading={busy} onClick={() => act('cancel', (k) => api.cancelRequisition(pb.id, k))}>Batalkan</Button>
+              <Button variant="danger" icon={<Ban className="w-4 h-4" />} loading={busy} onClick={() => void confirmThen('cancel', 'cancel', (k) => api.cancelRequisition(pb.id, k))}>Batalkan</Button>
             )}
             {canWarehouse && !participant && (pb.status === 'approved' || canRefulfil(pb)) && (
-              <Button icon={<Truck className="w-4 h-4" />} loading={busy} onClick={() => act('fulfil', (k) => api.fulfilRequisition(pb.id, k))}>
+              <Button icon={<Truck className="w-4 h-4" />} loading={busy} onClick={() => void confirmThen('fulfil', 'fulfil', (k) => api.fulfilRequisition(pb.id, k))}>
                 {canRefulfil(pb) ? 'Buat Transfer Ulang' : 'Buat Transfer'}
               </Button>
             )}
@@ -161,9 +185,7 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="text-gray-500">Transfer:</span>
             <span className="font-mono font-bold text-gray-900">{pb.transfer.transferNo}</span>
-            <Badge tone={pb.transfer.status === 'completed' ? 'success' : pb.transfer.status === 'cancelled' ? 'neutral' : 'warning'}>
-              {TRANSFER_STATUS_LABEL[pb.transfer.status] ?? pb.transfer.status}
-            </Badge>
+            <StatusBadge map={TRANSFER_STATUS} value={pb.transfer.status} />
             {canWarehouse && (
               <Button size="sm" variant="secondary" icon={<ExternalLink className="w-3.5 h-3.5" />} onClick={() => linkedTransferId && openTransfer(linkedTransferId)}>
                 Buka Transfer

@@ -8,6 +8,7 @@ import { refundReportFlow, adminPartialRefundFlow } from './backoffice-refund-sc
 import { splitOrderFlow, splitToggleFlow } from './backoffice-split-scenarios'
 import { settingsGuardFlow } from './backoffice-settings-scenarios'
 import { routeDeepLinkFlow, routeGuardFlow } from './backoffice-route-scenarios'
+import { transferConfirmFlow } from './backoffice-transfer-scenarios'
 import { posRequisition } from './pos-requisition-scenarios'
 import { posSplitTender, posSplitOffline, posSplitRefund, posSplitOff, posSplitDraft } from './pos-split-scenarios'
 
@@ -180,6 +181,12 @@ test('BO-ROUTE-DEEPLINK a tab or view in the hash path survives a reload, a bare
 
 test('BO-ROUTE-GUARD a dirty Pengaturan keeps its own tabs unguarded and asks for a typed URL or a Forward that leaves it, refused keeps the hash, history and edit', async ({ page }, info) => {
   const result = await routeGuardFlow(page as ScenarioPage)
+  expect(result).toHaveLength(4)
+  await evidence(info, result)
+})
+
+test('BO-TRANSFER-CONFIRM Kirim and Batalkan ask first, Batal leaves the draft, a refused send keeps the dialog and retries with the same key, and a confirm calls the write once', async ({ page }, info) => {
+  const result = await transferConfirmFlow(page as ScenarioPage)
   expect(result).toHaveLength(4)
   await evidence(info, result)
 })

@@ -448,9 +448,9 @@ export interface Api {
   getTransferLocationStock: (kind: string, id: string) => Promise<WarehouseStockRow[]>
   createTransfer: (input: TransferCreateInput) => Promise<{ id: string }>
   updateTransfer: (id: string, input: TransferCreateInput) => Promise<void>
-  sendTransfer: (id: string) => Promise<void>
+  sendTransfer: (id: string, idempotencyKey: string) => Promise<void>
   receiveTransfer: (id: string, input: TransferReceiveInput) => Promise<void>
-  cancelTransfer: (id: string) => Promise<void>
+  cancelTransfer: (id: string, idempotencyKey: string) => Promise<void>
   outletTransfers: (status: 'completed' | 'cancelled') => Promise<Transfer[]>
 
   // ingredients / recipe inventory (SP-Recipe-1)
@@ -1016,14 +1016,14 @@ export function createClient(opts: ClientOptions): Api {
     updateTransfer: async (id, input) => {
       await request('PUT', `${API}/transfers/${id}`, input)
     },
-    sendTransfer: async (id) => {
-      await request('POST', `${API}/transfers/${id}/send`)
+    sendTransfer: async (id, idempotencyKey) => {
+      await request('POST', `${API}/transfers/${id}/send`, undefined, idemRequired(idempotencyKey))
     },
     receiveTransfer: async (id, input) => {
       await request('POST', `${API}/transfers/${id}/receive`, input)
     },
-    cancelTransfer: async (id) => {
-      await request('POST', `${API}/transfers/${id}/cancel`)
+    cancelTransfer: async (id, idempotencyKey) => {
+      await request('POST', `${API}/transfers/${id}/cancel`, undefined, idemRequired(idempotencyKey))
     },
     outletTransfers: (status) =>
       data<Transfer[]>('GET', `${API}/sync/outlet-transfers?status=${status}`),

@@ -6,9 +6,10 @@ import { useScreenTabs } from '../lib/router/useScreenTabs'
 import { Transfers } from './transfers/Transfers'
 import Ingredients from './ingredients/Ingredients'
 import StokProduk from './inventory/StokProduk'
+import { GoodsReceiptsList } from './inventory/GoodsReceiptsList'
 import OpnameSection from './inventory/OpnameSection'
 
-type InventoriTab = 'stok' | 'transfer' | 'bahan' | 'opname'
+type InventoriTab = 'stok' | 'transfer' | 'barangMasuk' | 'bahan' | 'opname'
 
 export default function Inventori() {
   const { user } = useAuth()
@@ -53,6 +54,11 @@ export default function Inventori() {
       {activeTab === 'transfer' && canInventory && (
         <div className="px-6 pb-6 pt-2">
           <Transfers />
+        </div>
+      )}
+      {activeTab === 'barangMasuk' && canInventory && (
+        <div className="px-6 pb-6 pt-2">
+          <GoodsReceiptsList />
         </div>
       )}
       {activeTab === 'bahan' && canInventory && recipesEnabled && (
