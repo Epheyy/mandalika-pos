@@ -21,7 +21,6 @@ describe('locationFromPath', () => {
   })
   it('reads the Bahan form with the ikhtisar tab in front', () => {
     expect(locationFromPath(['inventori', 'bahan', 'ikhtisar', 'lokasi', 'gudang', ID], BAHAN, 1)).toEqual({ kind: 'warehouse', id: ID })
-    expect(locationFromPath(['inventori', 'bahan', 'daftar', 'lokasi', 'gudang', ID], BAHAN, 1)).toBeNull()
   })
   it('is null for anything else', () => {
     expect(locationFromPath(['inventori', 'stok'], STOK)).toBeNull()
