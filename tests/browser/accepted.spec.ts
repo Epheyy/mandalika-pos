@@ -10,6 +10,7 @@ import { settingsGuardFlow } from './backoffice-settings-scenarios'
 import { routeDeepLinkFlow, routeGuardFlow } from './backoffice-route-scenarios'
 import { productsListFlow } from './backoffice-products-scenarios'
 import { transferConfirmFlow } from './backoffice-transfer-scenarios'
+import { opnameConfirmFlow } from './backoffice-opname-scenarios'
 import { posRequisition } from './pos-requisition-scenarios'
 import { posSplitTender, posSplitOffline, posSplitRefund, posSplitOff, posSplitDraft } from './pos-split-scenarios'
 
@@ -195,6 +196,12 @@ test('BO-PRODUCTS-LIST Produk filters and paging are server requests and URL sta
 test('BO-TRANSFER-CONFIRM Kirim and Batalkan ask first, Batal leaves the draft, a refused send keeps the dialog and retries with the same key, a transfer changed under the dialog is refused, and a confirm calls the write once', async ({ page }, info) => {
   const result = await transferConfirmFlow(page as ScenarioPage)
   expect(result).toHaveLength(5)
+  await evidence(info, result)
+})
+
+test('BO-OPNAME-CONFIRM Mulai, Selesai and cancel on a product Opname ask first, Selesai names the net difference, Batal changes nothing, and a confirm writes once', async ({ page }, info) => {
+  const result = await opnameConfirmFlow(page as ScenarioPage)
+  expect(result).toHaveLength(4)
   await evidence(info, result)
 })
 

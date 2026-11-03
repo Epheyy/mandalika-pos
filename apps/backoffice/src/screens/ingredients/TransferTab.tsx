@@ -9,14 +9,16 @@ import { ImportExportBar } from '../../components/ImportExportBar'
 import { Button } from '../../ui/Button'
 import { Select, fieldClass } from '../../ui/Field'
 import { Card } from '../../ui/Card'
-import { Badge } from '../../ui/Badge'
-import { badgeTone, type BadgeToneName } from '../../lib/labels/badgeTone'
+import { StatusBadge } from '../../ui/StatusBadge'
+import { useConfirm } from '../../ui/ConfirmDialog'
+import { labelOf } from '../../lib/labels/types'
 import { TRANSFER_STATUS } from '../../lib/labels/transfer'
 import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 import { IngredientTransferForm } from './IngredientTransferForm'
 import { IngredientReceiveModal } from './IngredientReceiveModal'
 import { SuratJalanIngredientPanel } from './SuratJalanIngredientPanel'
+import { cancelIngredientTransferConfirm, cancelReason, sendIngredientTransferConfirm } from './ingredientTransferConfirm'
 
 // ISO date string "YYYY-MM-DD" → "YYYY-MM-DDT00:00:00Z"
 function toFromIso(date: string): string {
@@ -29,10 +31,6 @@ function toToIso(date: string): string {
   d.setUTCDate(d.getUTCDate() + 1)
   return d.toISOString().replace(/\.\d{3}Z$/, 'Z')
 }
-
-const STATUS: Record<string, { label: string; tone: BadgeToneName }> = Object.fromEntries(
-  Object.entries(TRANSFER_STATUS).map(([k, v]) => [k, { label: v.label, tone: badgeTone(v.tone) }]),
-)
 
 const fmtDate = (s?: string | null) =>
   s
@@ -96,7 +94,7 @@ export default function TransferTab() {
       No: t.transferNo,
       Sumber: t.source.name ?? t.source.id,
       Tujuan: t.dest.name ?? t.dest.id,
-      Status: STATUS[t.status]?.label ?? t.status,
+      Status: labelOf(TRANSFER_STATUS, t.status).label,
       Dibuat: fmtDate(t.createdAt),
     }))
     const locName =
@@ -104,7 +102,7 @@ export default function TransferTab() {
         ? (locKind === 'outlet' ? outlets : warehouses).find((l) => l.id === locId)?.name
         : undefined
     const name = buildExportName('transfer-bahan', [
-      filterStatus ? (STATUS[filterStatus]?.label ?? filterStatus) : undefined,
+      filterStatus ? labelOf(TRANSFER_STATUS, filterStatus).label : undefined,
       locName,
       fromDate ? `dari-${fromDate}` : undefined,
       toDate ? `sd-${toDate}` : undefined,
@@ -213,7 +211,6 @@ export default function TransferTab() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {rows.map((t) => {
-                  const s = STATUS[t.status] ?? STATUS.draft
                   return (
                     <tr
                       key={t.id}
@@ -230,7 +227,7 @@ export default function TransferTab() {
                         {t.dest.name ?? t.dest.id}
                       </td>
                       <td className="px-5 py-3">
-                        <Badge tone={s.tone}>{s.label}</Badge>
+                        <StatusBadge map={TRANSFER_STATUS} value={t.status} />
                       </td>
                       <td className="px-5 py-3 text-sm text-gray-500">{fmtDate(t.createdAt)}</td>
                     </tr>
@@ -284,6 +281,7 @@ function TransferDetail({ transfer: t, onDismiss, onRefresh }: TransferDetailPro
   const [receiving, setReceiving] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const ask = useConfirm()
 
   // Re-fetch the full transfer to get up-to-date items after an action.
   const detailQ = usePolledQuery<IngredientTransfer>(
@@ -306,7 +304,6 @@ function TransferDetail({ transfer: t, onDismiss, onRefresh }: TransferDetailPro
     }
   }
 
-  const s = STATUS[transfer.status] ?? STATUS.draft
   const sourceName = transfer.source.name ?? transfer.source.id
   const destName = transfer.dest.name ?? transfer.dest.id
 
@@ -321,13 +318,16 @@ function TransferDetail({ transfer: t, onDismiss, onRefresh }: TransferDetailPro
           </div>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          <Badge tone={s.tone}>{s.label}</Badge>
+          <StatusBadge map={TRANSFER_STATUS} value={transfer.status} />
           {transfer.status === 'draft' && (
             <Button
               size="sm"
               icon={<Send className="w-3.5 h-3.5" />}
               loading={busy}
-              onClick={() => act(() => api.sendIngredientTransfer(transfer.id))}
+              onClick={async () => {
+                if (!(await ask(sendIngredientTransferConfirm(transfer))).confirmed) return
+                void act(() => api.sendIngredientTransfer(transfer.id))
+              }}
             >
               Kirim
             </Button>
@@ -347,10 +347,10 @@ function TransferDetail({ transfer: t, onDismiss, onRefresh }: TransferDetailPro
               variant="danger"
               icon={<Ban className="w-3.5 h-3.5" />}
               loading={busy}
-              onClick={() => {
-                const reason = window.prompt('Alasan pembatalan:')
-                if (reason == null) return
-                void act(() => api.cancelIngredientTransfer(transfer.id, reason || 'Dibatalkan'))
+              onClick={async () => {
+                const answer = await ask(cancelIngredientTransferConfirm(transfer))
+                if (!answer.confirmed) return
+                void act(() => api.cancelIngredientTransfer(transfer.id, cancelReason(answer.value)))
               }}
             >
               Batalkan

@@ -296,6 +296,12 @@
       "source": "tests/browser/backoffice-transfer-scenarios.ts"
     },
     {
+      "id": "BO-OPNAME-CONFIRM",
+      "finding": "D3b",
+      "description": "Product Opname: Mulai opens a question and Batal leaves the count planned, confirming starts it once; Selesai saves an unsaved edit first and states the net difference of the saved count (10 to 4 and 5 to 6 is -5) and Batal completes nothing, confirming completes once; the cancel button asks, Kembali sends nothing and confirming cancels once",
+      "source": "tests/browser/backoffice-opname-scenarios.ts"
+    },
+    {
       "id": "POS-REQUISITION",
       "finding": "inventory-controls-S6",
       "description": "Cashier Permintaan Barang: menu hidden without request_stock; create sends Idempotency-Key and outlet; a failed submit retries with the same key; transfer chain shows Dikirim and Buka Terima Transfer opens the receive panel; cancel a draft; a lost create answer then an edit replays the old key (one PB, then one update) and is resolved when the panel next opens online; offline refuses the save with no request leaving the tablet; zero approve/reject/fulfil requests across the run",
