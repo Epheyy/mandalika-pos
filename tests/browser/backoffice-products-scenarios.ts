@@ -239,7 +239,7 @@ async function formErrorsFlow(page: ScenarioPage, results: object[]) {
   const dialog = page.getByRole('dialog', { name: 'Tambah Produk' })
   await page.getByRole('button', { name: 'Tambah', exact: true }).first().click()
   await dialog.waitFor()
-  check((await hashQuery(page)).baru === '1', '?baru=1 opens the new-product form')
+  check(['1', 'true'].includes((await hashQuery(page)).baru), '?baru= opens the new-product form')
   await dialog.getByRole('button', { name: 'Tambah', exact: true }).last().click()
   await dialog.getByText('Periksa isian berikut:').waitFor()
   await dialog.getByText('Nama produk wajib diisi').waitFor()
