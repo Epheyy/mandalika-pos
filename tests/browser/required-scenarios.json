@@ -262,8 +262,14 @@
     {
       "id": "BO-SPLIT-TOGGLE",
       "finding": "C6c",
-      "description": "Pengaturan > Transaksi: Bayar terpisah is off by default and shows the D-50 warning, switching on asks to confirm (Batal keeps it off), the reserved method id split is refused client-side, and Simpan Semua sends splitTenderEnabled",
+      "description": "Pengaturan > Transaksi: Bayar terpisah is off by default and shows the D-50 warning, switching on asks to confirm (Batal keeps it off), the reserved method id split is refused client-side, and Simpan perubahan sends splitTenderEnabled; a second save after another edit omits the untouched flag",
       "source": "tests/browser/backoffice-split-scenarios.ts"
+    },
+    {
+      "id": "BO-SETTINGS-GUARD",
+      "finding": "D1-P",
+      "description": "Pengaturan: no save bar on open; an edit shows the bar and dirty cues and the sidebar asks Simpan perubahan Pengaturan? (Tetap di sini keeps the edit, Buang perubahan navigates); a save after another admin changed taxRate sends the fresh taxRate plus only the edited field and omits untouched present-only keys, with a cache-bypassing GET before and after the PUT",
+      "source": "tests/browser/backoffice-settings-scenarios.ts"
     },
     {
       "id": "POS-REQUISITION",

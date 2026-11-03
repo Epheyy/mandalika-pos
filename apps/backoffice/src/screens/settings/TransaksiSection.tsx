@@ -4,7 +4,8 @@ import { isCashMethod } from '@mandalika/types'
 import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '../../ui/Button'
 import { Input, Select, Field } from '../../ui/Field'
-import { Card } from '../../ui/Card'
+import { SettingsCard } from './SettingsCard'
+import type { CardId } from './settingsDiff'
 import { IconButton } from '../../ui/IconButton'
 import { Toggle } from './Toggle'
 import { SplitTenderCard } from './SplitTenderCard'
@@ -15,10 +16,11 @@ interface TransaksiSectionProps {
   setS: Dispatch<SetStateAction<AppSettings>>
   newPay: string
   setNewPay: Dispatch<SetStateAction<string>>
+  changed: ReadonlySet<CardId>
 }
 
 /** Transaksi tab: Pajak & Pembulatan · Metode Pembayaran · Struk. */
-export function TransaksiSection({ s, setS, newPay, setNewPay }: TransaksiSectionProps) {
+export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: TransaksiSectionProps) {
   const [payError, setPayError] = useState<string | null>(null)
   const setReceipt = (k: string, v: unknown) =>
     setS((p) => ({ ...p, receipt: { ...p.receipt, [k]: v } }))
@@ -26,7 +28,7 @@ export function TransaksiSection({ s, setS, newPay, setNewPay }: TransaksiSectio
   return (
     <div className="max-w-2xl space-y-5">
       {/* Sub-section: Pajak & Pembulatan */}
-      <Card className="p-6 space-y-5">
+      <SettingsCard changed={changed.has('tax')} className="p-6 space-y-5">
         <h3 className="font-black text-gray-900">Pajak &amp; Pembulatan</h3>
         <div className="flex items-center justify-between py-3 border-b border-gray-100">
           <div>
@@ -73,10 +75,10 @@ export function TransaksiSection({ s, setS, newPay, setNewPay }: TransaksiSectio
             </Select>
           </div>
         )}
-      </Card>
+      </SettingsCard>
 
       {/* Sub-section: Metode Pembayaran */}
-      <Card className="p-6 space-y-5">
+      <SettingsCard changed={changed.has('payments')} className="p-6 space-y-5">
         <h3 className="font-black text-gray-900">Metode Pembayaran</h3>
         <div className="space-y-2">
           {s.paymentMethods.map((pm) => {
@@ -142,12 +144,12 @@ export function TransaksiSection({ s, setS, newPay, setNewPay }: TransaksiSectio
           />
         </div>
         {payError && <p role="alert" className="text-xs font-bold text-red-600">{payError}</p>}
-      </Card>
+      </SettingsCard>
 
-      <SplitTenderCard enabled={!!s.splitTenderEnabled} onChange={(v) => setS((p) => ({ ...p, splitTenderEnabled: v }))} />
+      <SplitTenderCard changed={changed.has('split')} enabled={!!s.splitTenderEnabled} onChange={(v) => setS((p) => ({ ...p, splitTenderEnabled: v }))} />
 
       {/* Sub-section: Struk */}
-      <Card className="p-6 space-y-5">
+      <SettingsCard changed={changed.has('receipt')} className="p-6 space-y-5">
         <h3 className="font-black text-gray-900">Pengaturan Struk</h3>
         <Input
           label="Jumlah Salinan"
@@ -190,7 +192,7 @@ export function TransaksiSection({ s, setS, newPay, setNewPay }: TransaksiSectio
             ))}
           </div>
         </Field>
-      </Card>
+      </SettingsCard>
     </div>
   )
 }

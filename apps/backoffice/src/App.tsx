@@ -41,6 +41,7 @@ import { useSyncReviewCount } from './screens/syncReview/useSyncReviewCount'
 import { useOversellOpenCount } from './screens/reports/useOversellOpenCount'
 import { useOutlet } from './outlet'
 import { canSeeNav } from './lib/navAccess'
+import { confirmLeave } from './lib/navGuard'
 
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, perm: 'view_dashboard', C: Dashboard },
@@ -138,7 +139,10 @@ export default function App() {
   useEffect(() => {
     const go = (e: Event) => {
       const id = (e as CustomEvent<unknown>).detail
-      if (typeof id === 'string') setActiveId(id)
+      if (typeof id !== 'string') return
+      void confirmLeave().then((ok) => {
+        if (ok) setActiveId(id)
+      })
     }
     window.addEventListener('mandalika:nav', go)
     return () => window.removeEventListener('mandalika:nav', go)
@@ -200,7 +204,8 @@ export default function App() {
             visible.map(({ id, label, icon: Icon }) => (
               <button type="button"
                 key={id}
-                onClick={() => {
+                onClick={async () => {
+                  if (id !== active?.id && !(await confirmLeave())) return
                   setActiveId(id)
                   setSidebarOpen(false)
                 }}
@@ -247,7 +252,9 @@ export default function App() {
             </div>
           </div>
           <button type="button"
-            onClick={logout}
+            onClick={async () => {
+              if (await confirmLeave()) logout()
+            }}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all"
           >
             <LogOut className="w-4 h-4" /> Keluar

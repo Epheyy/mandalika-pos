@@ -6,6 +6,7 @@ import { csvImportFlow } from './backoffice-import-scenarios'
 import { stockCardFlow } from './backoffice-stockcard-scenarios'
 import { refundReportFlow, adminPartialRefundFlow } from './backoffice-refund-scenarios'
 import { splitOrderFlow, splitToggleFlow } from './backoffice-split-scenarios'
+import { settingsGuardFlow } from './backoffice-settings-scenarios'
 import { posRequisition } from './pos-requisition-scenarios'
 import { posSplitTender, posSplitOffline, posSplitRefund, posSplitOff, posSplitDraft } from './pos-split-scenarios'
 
@@ -167,6 +168,12 @@ test('BO-SPLIT-ORDER Split-Payment shows in list and detail lines, filters by Sp
 test('BO-SPLIT-TOGGLE Bayar terpisah is off by default with the D-50 warning, asks before switching on, refuses the reserved id, and saves the flag', async ({ page }, info) => {
   const result = await splitToggleFlow(page as ScenarioPage)
   expect(result).toHaveLength(5)
+  await evidence(info, result)
+})
+
+test('BO-SETTINGS-GUARD Pengaturan shows no save bar on open, guards leaving with unsaved edits, and saves only changed fields merged onto a fresh GET', async ({ page }, info) => {
+  const result = await settingsGuardFlow(page as ScenarioPage)
+  expect(result).toHaveLength(3)
   await evidence(info, result)
 })
 

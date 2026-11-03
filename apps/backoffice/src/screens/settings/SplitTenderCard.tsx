@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button } from '../../ui/Button'
-import { Card } from '../../ui/Card'
+import { SettingsCard } from './SettingsCard'
 import { Modal } from '../../ui/Modal'
 import { Toggle } from './Toggle'
 
@@ -12,14 +12,15 @@ export const SPLIT_TENDER_OFF_NOTE =
 
 interface Props {
   enabled: boolean
+  changed?: boolean
   onChange: (next: boolean) => void
 }
 
-/** Transaksi tab: "Bayar terpisah" (split payment) switch. Switching on asks first; it still needs "Simpan Semua". */
-export function SplitTenderCard({ enabled, onChange }: Props) {
+/** Transaksi tab: "Bayar terpisah" (split payment) switch. Switching on asks first; it still needs "Simpan perubahan". */
+export function SplitTenderCard({ enabled, changed, onChange }: Props) {
   const [confirming, setConfirming] = useState(false)
   return (
-    <Card className="p-6 space-y-4">
+    <SettingsCard changed={changed} className="p-6 space-y-4">
       <h3 className="font-black text-gray-900">Pembayaran Terpisah</h3>
       <div className="flex items-center justify-between py-1">
         <div>
@@ -48,9 +49,9 @@ export function SplitTenderCard({ enabled, onChange }: Props) {
       >
         <div className="space-y-2 text-sm">
           <p>{SPLIT_TENDER_WARNING}</p>
-          <p className="text-xs text-gray-500">Perubahan berlaku setelah menekan "Simpan Semua"; tablet mengambilnya saat sinkron berikutnya.</p>
+          <p className="text-xs text-gray-500">Berlaku setelah Anda menekan Simpan perubahan. Tablet mengambilnya saat sinkron berikutnya.</p>
         </div>
       </Modal>
-    </Card>
+    </SettingsCard>
   )
 }

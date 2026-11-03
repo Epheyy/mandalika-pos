@@ -170,6 +170,7 @@ export const splitOrderFlow = async (page: ScenarioPage) => {
 export const splitToggleFlow = async (page: ScenarioPage) => {
   const results: object[] = []
   const puts: Array<Record<string, unknown>> = []
+  const server: Record<string, unknown> = { taxEnabled: false, taxRate: 0, roundingEnabled: false, paymentMethods: METHODS, receipt: { headerText: '', footerText: '' }, allowNegativeStock: true }
   const expectPuts = async (n: number) => { for (let i = 0; i < 50 && puts.length < n; i++) await new Promise((r) => setTimeout(r, 100)); check(puts.length === n, `expected ${n} saves, got ${puts.length}`) }
 
   await page.unrouteAll({ behavior: 'wait' })
@@ -182,9 +183,10 @@ export const splitToggleFlow = async (page: ScenarioPage) => {
       if (req.method() === 'PUT') {
         const body = JSON.parse(req.postData() ?? '{}') as Record<string, unknown>
         puts.push(body)
-        return route.fulfill({ json: { data: body } })
+        Object.assign(server, body) // stateful: a later GET returns what the last PUT saved
+        return route.fulfill({ json: { data: { ok: true } } })
       }
-      return route.fulfill({ json: { data: { taxEnabled: false, taxRate: 0, roundingEnabled: false, paymentMethods: METHODS, receipt: { headerText: '', footerText: '' }, allowNegativeStock: true } } })
+      return route.fulfill({ json: { data: server } })
     }
     return route.fulfill({ json: { data: [], meta: { total: 0, page: 1, limit: 50 } } })
   })
@@ -203,6 +205,7 @@ export const splitToggleFlow = async (page: ScenarioPage) => {
   // switching on asks first; Batal leaves it off
   await toggle.click()
   await page.getByRole('heading', { name: 'Aktifkan Bayar terpisah?' }).waitFor()
+  await page.getByText('Berlaku setelah Anda menekan Simpan perubahan.').waitFor()
   await page.getByRole('button', { name: 'Batal', exact: true }).click()
   check((await toggle.getAttribute('aria-checked')) === 'false', 'cancel keeps it off')
   check(puts.length === 0, 'nothing saved by the confirm dialog')
@@ -217,18 +220,21 @@ export const splitToggleFlow = async (page: ScenarioPage) => {
   await page.getByRole('alert').filter({ hasText: 'dicadangkan' }).waitFor()
   results.push({ step: 'reserved-id' })
 
-  // Simpan Semua sends the flag; switching off needs no confirm
-  await page.getByRole('button', { name: 'Simpan Semua' }).click()
-  await page.getByText('Pengaturan disimpan!').waitFor()
+  // Simpan perubahan sends the flag; the bar confirms and the confirm text says when it applies
+  await page.getByRole('button', { name: 'Simpan perubahan', exact: true }).click()
+  await page.getByText('Pengaturan disimpan · tablet mengambilnya saat sinkron berikutnya').waitFor()
   check(puts.length === 1 && puts[0].splitTenderEnabled === true, `saved body ${JSON.stringify(puts[0])}`)
   check(!(puts[0].paymentMethods as Array<{ id: string }>).some((m) => m.id === 'split'), 'no split method saved')
+  check((await toggle.getAttribute('aria-checked')) === 'true', 'the re-GET keeps the saved flag on')
   results.push({ step: 'save-flag', body: puts[0] })
 
-  // a save with the toggle untouched omits the key, so a stale tab cannot undo the kill switch
-  await page.getByRole('button', { name: 'Simpan Semua' }).click()
-  await page.waitForFunction(() => true)
+  // a second save follows a second edit and omits the untouched key, so a stale tab cannot undo the kill switch
+  await page.getByRole('switch', { name: 'Cetak struk otomatis', exact: true }).click()
+  await page.getByRole('button', { name: 'Simpan perubahan', exact: true }).click()
   await expectPuts(2)
   check(!('splitTenderEnabled' in puts[1]), `untouched save omits the flag ${JSON.stringify(puts[1].splitTenderEnabled)}`)
+  check((puts[1].receipt as Record<string, unknown>).autoPrint === true, 'second save carries the edit')
+  await page.getByText('Pengaturan disimpan · tablet mengambilnya saat sinkron berikutnya').waitFor()
   await toggle.click()
   check((await toggle.getAttribute('aria-checked')) === 'false', 'off needs no confirm')
   results.push({ step: 'untouched-omits' })

@@ -38,6 +38,7 @@ export function LocationsSection() {
   const [outletFormOpen, setOutletFormOpen] = useState(false)
   const [editingOutlet, setEditingOutlet] = useState<Outlet | null>(null)
   const [toggleErr, setToggleErr] = useState<string | null>(null)
+  const [deactivating, setDeactivating] = useState<Outlet | null>(null)
 
   const openAddWarehouse = () => {
     setEditingWarehouse(null)
@@ -98,7 +99,7 @@ export function LocationsSection() {
         {/* ── OUTLET SECTION ── */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-black text-gray-400 uppercase tracking-wider">Outlet</p>
+            <p className="text-xs font-black text-gray-400 uppercase tracking-wider">Outlet <Badge className="ml-1 normal-case tracking-normal">Disimpan langsung</Badge></p>
             <Button
               size="sm"
               variant="secondary"
@@ -141,7 +142,7 @@ export function LocationsSection() {
                     <Edit2 className="w-3.5 h-3.5" />
                   </IconButton>
                   <button type="button"
-                    onClick={() => toggleOutlet(o)}
+                    onClick={() => (o.isActive ? setDeactivating(o) : void toggleOutlet(o))}
                     className="p-1.5 rounded-lg text-gray-400 hover:text-gold-600 transition-colors"
                     aria-label={o.isActive ? 'Nonaktifkan outlet' : 'Aktifkan outlet'}
                   >
@@ -160,7 +161,7 @@ export function LocationsSection() {
         {/* ── GUDANG SECTION ── */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-black text-gray-400 uppercase tracking-wider">Gudang</p>
+            <p className="text-xs font-black text-gray-400 uppercase tracking-wider">Gudang <Badge className="ml-1 normal-case tracking-normal">Disimpan langsung</Badge></p>
             <Button
               size="sm"
               variant="secondary"
@@ -269,6 +270,31 @@ export function LocationsSection() {
           <p className="text-sm text-gray-400">Data tidak dapat dikembalikan.</p>
           {delErr && <p className="text-sm text-red-600 mt-2">{delErr}</p>}
         </div>
+      </Modal>
+
+      <Modal
+        open={deactivating !== null}
+        onClose={() => setDeactivating(null)}
+        title={`Nonaktifkan outlet ${deactivating?.name ?? ''}?`}
+        size="sm"
+        footer={
+          <div className="flex gap-2 w-full">
+            <Button variant="secondary" className="flex-1" onClick={() => setDeactivating(null)}>Batal</Button>
+            <Button
+              variant="danger"
+              className="flex-1"
+              onClick={() => {
+                const o = deactivating
+                setDeactivating(null)
+                if (o) void toggleOutlet(o)
+              }}
+            >
+              Ya, nonaktifkan
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm">Outlet tidak lagi muncul di pilihan outlet kasir dan daftar lokasi stok. Data lama tetap tersimpan dan outlet bisa diaktifkan lagi. Berlaku langsung, tanpa tombol Simpan.</p>
       </Modal>
     </>
   )

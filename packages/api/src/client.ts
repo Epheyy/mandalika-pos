@@ -507,7 +507,8 @@ export interface Api {
   deleteCustomRole: (id: string) => Promise<void>
 
   // settings / reports / uploads
-  getAppSettings: () => Promise<AppSettings>
+  /** `fresh` adds a nonce query so the server's shared read cache (keyed on the query string) cannot serve a stale copy. */
+  getAppSettings: (opts?: { fresh?: boolean }) => Promise<AppSettings>
   updateAppSettings: (input: AppSettings) => Promise<AppSettings>
   reportSummary: (params?: ReportSummaryParams) => Promise<ReportSummary>
   signUpload: (folder?: string) => Promise<UploadSignature>
@@ -1170,7 +1171,8 @@ export function createClient(opts: ClientOptions): Api {
       await request('DELETE', `${API}/custom-roles/${id}`)
     },
 
-    getAppSettings: () => data<AppSettings>('GET', `${API}/settings/app`),
+    getAppSettings: (opts) =>
+      data<AppSettings>('GET', `${API}/settings/app${opts?.fresh ? `?_=${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}` : ''}`),
     updateAppSettings: (input) => data<AppSettings>('PUT', `${API}/settings/app`, input),
     reportSummary: (params) =>
       data<ReportSummary>('GET', `${API}/reports/summary${qs(params)}`),
