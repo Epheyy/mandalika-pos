@@ -1,7 +1,8 @@
 import { ChevronRight, Menu } from 'lucide-react'
 import type { User } from '@mandalika/api'
 import { OutletSwitcher } from '../outlet'
-import { sectionLabel, type RouteDef } from '../lib/router/routes'
+import { sectionLabel, tabForPath, type RouteDef } from '../lib/router/routes'
+import { useRoute } from '../lib/router/useRoute'
 import { UserMenu } from './UserMenu'
 
 interface HeaderProps {
@@ -13,6 +14,9 @@ interface HeaderProps {
 }
 
 export function Header({ route, user, onOpenMenu, onLogout }: HeaderProps) {
+  const { path } = useRoute()
+  // Screens with tabs add the tab on show: a bare path means the first tab this user may open.
+  const tab = route ? tabForPath(route, path, user) : undefined
   return (
     <header className="flex h-16 flex-shrink-0 items-center gap-4 border-b border-paper-2 bg-white px-4 sm:px-8">
       <button
@@ -30,9 +34,19 @@ export function Header({ route, user, onOpenMenu, onLogout }: HeaderProps) {
             <li aria-hidden="true" className="flex">
               <ChevronRight className="h-3.5 w-3.5" />
             </li>
-            <li aria-current="page" className="font-semibold text-ink-900">
+            <li aria-current={tab ? undefined : 'page'} className={tab ? undefined : 'font-semibold text-ink-900'}>
               {route.label}
             </li>
+            {tab && (
+              <>
+                <li aria-hidden="true" className="flex">
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </li>
+                <li aria-current="page" className="font-semibold text-ink-900">
+                  {tab.label}
+                </li>
+              </>
+            )}
           </ol>
         )}
       </nav>

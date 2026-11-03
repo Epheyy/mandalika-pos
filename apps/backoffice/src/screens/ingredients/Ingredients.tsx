@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRouteTab } from '../../lib/router/useRouteTab'
 import DaftarTab from './DaftarTab'
 import StokMasukTab from './StokMasukTab'
 import PenyesuaianTab from './PenyesuaianTab'
@@ -8,15 +8,23 @@ import { IngredientOverviewMatrix } from './IngredientOverviewMatrix'
 type Inner = 'overview' | 'daftar' | 'stok-masuk' | 'penyesuaian' | 'transfer'
 
 const INNER_TABS: { id: Inner; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
+  { id: 'overview', label: 'Ikhtisar' },
   { id: 'daftar', label: 'Daftar' },
   { id: 'stok-masuk', label: 'Stok Masuk' },
   { id: 'penyesuaian', label: 'Penyesuaian' },
   { id: 'transfer', label: 'Transfer' },
 ]
 
+// #/inventori/bahan/<slug>; a bare #/inventori/bahan is Ikhtisar.
+const BASE = ['inventori', 'bahan'] as const
+const PATH_TABS: ReadonlyArray<{ key: Inner; slug: string }> = INNER_TABS.map((t) => ({
+  key: t.id,
+  slug: t.id === 'overview' ? 'ikhtisar' : t.id,
+}))
+
 export default function Ingredients() {
-  const [inner, setInner] = useState<Inner>('overview')
+  const [routed, setInner] = useRouteTab<Inner>(BASE, PATH_TABS)
+  const inner = routed ?? 'overview'
 
   const cls = (k: Inner) =>
     `px-3 py-1.5 text-sm transition-colors ${
@@ -32,6 +40,8 @@ export default function Ingredients() {
           <button
             key={t.id}
             type="button"
+            data-tab-key={t.id}
+            aria-pressed={inner === t.id}
             onClick={() => setInner(t.id)}
             className={cls(t.id)}
           >

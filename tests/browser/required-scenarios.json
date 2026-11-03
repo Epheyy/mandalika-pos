@@ -272,6 +272,18 @@
       "source": "tests/browser/backoffice-settings-scenarios.ts"
     },
     {
+      "id": "BO-ROUTE-DEEPLINK",
+      "finding": "D1b",
+      "description": "Routed tabs and views: #/laporan/refund survives a reload and fills the breadcrumb; a bare #/laporan or an unknown tab shows the first tab and a tab click writes the path with Back and Forward moving between tabs; #/inventori/transfer/<id> opens the detail after a reload and Kembali returns to the list; #/inventori/bahan shows the first tab until recipesEnabled loads, then lands on Bahan with the URL untouched",
+      "source": "tests/browser/backoffice-route-scenarios.ts"
+    },
+    {
+      "id": "BO-ROUTE-GUARD",
+      "finding": "D1b",
+      "description": "Leave guard with routed tabs: a dirty Pengaturan switches its own tabs and follows Back and Forward between them without asking (edit and dirty dot stay); a typed URL out of the screen asks, Tetap di sini keeps hash, history entry and edit, Buang perubahan opens it as a push; a Forward that leaves the dirty screen asks, a refused one leaves history untouched and an allowed one lands on the same entry",
+      "source": "tests/browser/backoffice-route-scenarios.ts"
+    },
+    {
       "id": "POS-REQUISITION",
       "finding": "inventory-controls-S6",
       "description": "Cashier Permintaan Barang: menu hidden without request_stock; create sends Idempotency-Key and outlet; a failed submit retries with the same key; transfer chain shows Dikirim and Buka Terima Transfer opens the receive panel; cancel a draft; a lost create answer then an edit replays the old key (one PB, then one update) and is resolved when the panel next opens online; offline refuses the save with no request leaving the tablet; zero approve/reject/fulfil requests across the run",

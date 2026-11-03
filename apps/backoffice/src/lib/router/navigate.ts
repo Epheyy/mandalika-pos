@@ -8,7 +8,7 @@
  *
  * The engine talks to the browser only through HistoryEnv, so tests drive it with a fake history stack.
  */
-import { confirmLeave, hasLeaveGuard } from '../navGuard'
+import { confirmLeave, guardCovers } from '../navGuard'
 import { EMPTY_LOCATION, normalizeHash, parseHash, type Location } from './hash'
 
 export interface HistoryEnv {
@@ -105,7 +105,7 @@ export function createRouter(env: HistoryEnv): Router {
     let leave = false
     try {
       await restore()
-      leave = await confirmLeave()
+      leave = await confirmLeave(parseHash(targetHash).path)
     } finally {
       asking = false
     }
@@ -134,7 +134,7 @@ export function createRouter(env: HistoryEnv): Router {
       void restore() // another move while a question is open: put it back, keep asking
       return
     }
-    if (!hasLeaveGuard()) {
+    if (!guardCovers(parseHash(env.hash()).path)) {
       adopt()
       return
     }
@@ -146,11 +146,12 @@ export function createRouter(env: HistoryEnv): Router {
     const target = normalizeHash(to)
     if (target === committed) return true
     if (asking) return false
-    if (hasLeaveGuard()) {
+    const targetPath = parseHash(target).path
+    if (guardCovers(targetPath)) {
       asking = true
       let leave = false
       try {
-        leave = await confirmLeave()
+        leave = await confirmLeave(targetPath)
       } finally {
         asking = false
       }

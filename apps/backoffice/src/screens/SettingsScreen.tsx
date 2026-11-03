@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { ToggleRight, Upload, X } from 'lucide-react'
+import { Upload, X } from 'lucide-react'
 import { uploadImage, getThumbnailUrl } from '../lib/uploadImage'
 import { useUnsavedChanges } from '../lib/useUnsavedChanges'
 import { Button } from '../ui/Button'
@@ -8,24 +8,24 @@ import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { PageHeader } from '../ui/PageHeader'
 import { SaveBar } from '../ui/SaveBar'
 import { Tabs } from '../ui/Tabs'
+import { routeById } from '../lib/router/routes'
+import { useScreenTabs } from '../lib/router/useScreenTabs'
 import { LocationsSection } from './settings/LocationsSection'
 import { SettingsCard } from './settings/SettingsCard'
 import { TransaksiSection } from './settings/TransaksiSection'
-import { Toggle } from './settings/Toggle'
+import { Switch } from '../ui/Switch'
 import { SAVED_MESSAGE, useSettingsDraft } from './settings/useSettingsDraft'
 import type { TabId } from './settings/settingsDiff'
 
-const sections = [
-  { id: 'locations', label: 'Outlet & Gudang' },
-  { id: 'transaksi', label: 'Transaksi' },
-  { id: 'operasional', label: 'Operasional' },
-  { id: 'recipe', label: 'Resep & Bahan' },
-] as const
+// Moves inside Pengaturan (its own tabs) are not a leave: the draft survives them, so the guard only asks for moves out.
+const SETTINGS_SCOPE = [routeById('settings')?.path ?? 'pengaturan'] as const
 
 export default function SettingsScreen() {
   const { draft: s, setDraft: setS, changes, items, markers, conflicts, resolve, status, save, discard, fail, loaded, loadError } = useSettingsDraft()
   const [newPay, setNewPay] = useState('')
-  const [section, setSection] = useState<TabId>('locations')
+  // The section lives in the path (#/pengaturan/transaksi); a bare #/pengaturan is Outlet & Gudang.
+  const { strip: sections, tab: routedSection, setTab: setSection } = useScreenTabs<TabId>('settings', null)
+  const section: TabId = routedSection ?? 'locations'
   const [logoUploading, setLogoUploading] = useState(false)
   const logoFileRef = useRef<HTMLInputElement>(null)
   const [leaveAsk, setLeaveAsk] = useState<((leave: boolean) => void) | null>(null)
@@ -33,7 +33,7 @@ export default function SettingsScreen() {
   const approverRoles = s.receiveApproverRoles ?? []
 
   const askLeave = useCallback(() => new Promise<boolean>((resolveLeave) => setLeaveAsk(() => resolveLeave)), [])
-  useUnsavedChanges(changes.length > 0, askLeave)
+  useUnsavedChanges(changes.length > 0, askLeave, SETTINGS_SCOPE)
   const answerLeave = (leave: boolean) => {
     leaveAsk?.(leave)
     setLeaveAsk(null)
@@ -94,7 +94,7 @@ export default function SettingsScreen() {
                 <p className="font-bold text-gray-900">Izinkan Stok Minus</p>
                 <p className="text-xs text-gray-400">Jika nonaktif, kasir diberi peringatan saat menjual melebihi stok (masih bisa dilanjutkan).</p>
               </div>
-              <Toggle label="Izinkan stok minus" checked={s.allowNegativeStock} onClick={() => setS((p) => ({ ...p, allowNegativeStock: !p.allowNegativeStock }))} />
+              <Switch label="Izinkan stok minus" checked={s.allowNegativeStock} onChange={() => setS((p) => ({ ...p, allowNegativeStock: !p.allowNegativeStock }))} />
             </div>
           </SettingsCard>
         </>
@@ -116,7 +116,7 @@ export default function SettingsScreen() {
                 <p className="font-bold text-gray-900">Buka Shift Otomatis</p>
                 <p className="text-xs text-gray-400">Shift dibuka otomatis saat kasir login</p>
               </div>
-              <Toggle label="Buka shift otomatis" checked={s.autoOpenShift} onClick={() => setS((p) => ({ ...p, autoOpenShift: !p.autoOpenShift }))} />
+              <Switch label="Buka shift otomatis" checked={s.autoOpenShift} onChange={() => setS((p) => ({ ...p, autoOpenShift: !p.autoOpenShift }))} />
             </div>
           </SettingsCard>
 
@@ -128,7 +128,7 @@ export default function SettingsScreen() {
                 <p className="font-bold text-gray-900">Wajib persetujuan stok</p>
                 <p className="text-xs text-gray-400">Koreksi stok dan opname harus disetujui peran penyetuju (di bawah) dengan PIN, penyetuju bukan pengaju (four-eyes).</p>
               </div>
-              <Toggle label="Wajib persetujuan stok" checked={s.inventoryApprovalRequired ?? false} onClick={() => setS((p) => ({ ...p, inventoryApprovalRequired: !p.inventoryApprovalRequired }))} />
+              <Switch label="Wajib persetujuan stok" checked={s.inventoryApprovalRequired ?? false} onChange={() => setS((p) => ({ ...p, inventoryApprovalRequired: !p.inventoryApprovalRequired }))} />
             </div>
           </SettingsCard>
 
@@ -143,17 +143,17 @@ export default function SettingsScreen() {
                   <p className="font-bold text-gray-900 text-sm capitalize">Admin</p>
                   <p className="text-xs text-gray-400">Admin selalu dapat menyetujui.</p>
                 </div>
-                <ToggleRight className="w-6 h-6 text-gold-600" />
+                <Switch label="Admin selalu dapat menyetujui" checked disabled size="sm" onChange={() => {}} />
               </div>
               {/* Manager & cashier — real interactive toggles */}
               {(['manager', 'cashier'] as const).map((role) => (
                 <div key={role} className="flex items-center justify-between px-4 py-3 border-b border-gray-50 last:border-0">
                   <p className="font-bold text-gray-900 text-sm capitalize">{role}</p>
-                  <Toggle
+                  <Switch
                     label={`Jadikan ${role} sebagai approver`}
                     checked={approverRoles.includes(role)}
                     size="sm"
-                    onClick={() => setS((p) => {
+                    onChange={() => setS((p) => {
                       const cur = p.receiveApproverRoles ?? []
                       return { ...p, receiveApproverRoles: cur.includes(role) ? cur.filter((r) => r !== role) : [...cur, role] }
                     })}
@@ -267,10 +267,10 @@ export default function SettingsScreen() {
             <div>
               <p className="font-bold text-gray-900">Aktifkan modul Resep &amp; Bahan</p>
             </div>
-            <Toggle
+            <Switch
               label="Aktifkan modul Resep & Bahan"
               checked={s.recipesEnabled ?? false}
-              onClick={() => setS((p) => ({ ...p, recipesEnabled: !p.recipesEnabled }))}
+              onChange={() => setS((p) => ({ ...p, recipesEnabled: !p.recipesEnabled }))}
             />
           </div>
         </SettingsCard>

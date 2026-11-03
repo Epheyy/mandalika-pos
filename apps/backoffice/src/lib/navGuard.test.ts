@@ -1,5 +1,42 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { confirmLeave, hasLeaveGuard, pushLeaveGuard } from './navGuard'
+import { confirmLeave, guardCovers, hasLeaveGuard, pushLeaveGuard } from './navGuard'
+
+describe('scoped guards', () => {
+  it('does not ask for a move that stays under the guard scope', async () => {
+    const ask = vi.fn(async () => false)
+    const off = pushLeaveGuard(ask, { scope: ['pengaturan'] })
+    expect(guardCovers(['pengaturan', 'transaksi'])).toBe(false)
+    expect(await confirmLeave(['pengaturan', 'operasional'])).toBe(true)
+    expect(ask).not.toHaveBeenCalled()
+    off()
+  })
+
+  it('asks for a move out of the scope, and for a move with no destination', async () => {
+    const ask = vi.fn(async () => false)
+    const off = pushLeaveGuard(ask, { scope: ['pengaturan'] })
+    expect(guardCovers(['laporan'])).toBe(true)
+    expect(await confirmLeave(['laporan'])).toBe(false)
+    expect(await confirmLeave()).toBe(false) // signing out
+    expect(ask).toHaveBeenCalledTimes(2)
+    off()
+  })
+
+  it('an unscoped guard asks for every move', async () => {
+    const off = pushLeaveGuard(async () => false)
+    expect(guardCovers(['pengaturan', 'transaksi'])).toBe(true)
+    expect(await confirmLeave(['pengaturan', 'transaksi'])).toBe(false)
+    off()
+  })
+
+  it('only the top guard decides: an unscoped overlay guard on a scoped screen guard', async () => {
+    const offScreen = pushLeaveGuard(async () => true, { scope: ['pengaturan'] })
+    const offOverlay = pushLeaveGuard(async () => false)
+    expect(await confirmLeave(['pengaturan', 'transaksi'])).toBe(false)
+    offOverlay()
+    expect(await confirmLeave(['pengaturan', 'transaksi'])).toBe(true)
+    offScreen()
+  })
+})
 
 describe('navGuard', () => {
   it('lets navigation through when no guard is registered', async () => {

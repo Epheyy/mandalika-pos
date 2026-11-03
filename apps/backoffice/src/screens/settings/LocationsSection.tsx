@@ -6,14 +6,13 @@ import {
   Plus,
   Edit2,
   Trash2,
-  ToggleLeft,
-  ToggleRight,
 } from 'lucide-react'
 import { api } from '../../api'
 import { useOutlet } from '../../outlet'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { Button } from '../../ui/Button'
 import { Modal } from '../../ui/Modal'
+import { Switch } from '../../ui/Switch'
 import { Badge } from '../../ui/Badge'
 import { IconButton } from '../../ui/IconButton'
 import { EmptyState } from '../../ui/EmptyState'
@@ -141,17 +140,12 @@ export function LocationsSection() {
                   <IconButton onClick={() => openEditOutlet(o)} aria-label={`Edit outlet ${o.name}`}>
                     <Edit2 className="w-3.5 h-3.5" />
                   </IconButton>
-                  <button type="button"
-                    onClick={() => (o.isActive ? setDeactivating(o) : void toggleOutlet(o))}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-gold-600 transition-colors"
-                    aria-label={o.isActive ? 'Nonaktifkan outlet' : 'Aktifkan outlet'}
-                  >
-                    {o.isActive ? (
-                      <ToggleRight className="w-5 h-5 text-gold-600" />
-                    ) : (
-                      <ToggleLeft className="w-5 h-5" />
-                    )}
-                  </button>
+                  <Switch
+                    label={o.isActive ? 'Nonaktifkan outlet' : 'Aktifkan outlet'}
+                    checked={o.isActive}
+                    size="sm"
+                    onChange={() => (o.isActive ? setDeactivating(o) : void toggleOutlet(o))}
+                  />
                 </div>
               </div>
             ))}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { AppSettings, Outlet } from '@mandalika/api'
 import { api } from '../api'
 import { useAuth } from '../auth'
@@ -18,6 +18,7 @@ import { Input, Select } from '../ui/Field'
 import { Card } from '../ui/Card'
 import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
+import { useScreenTabs } from '../lib/router/useScreenTabs'
 
 type ReportTab = 'orders' | 'export' | 'shifts' | 'grants' | 'codeReport' | 'refund' | 'oversell'
 
@@ -27,26 +28,18 @@ export default function Reports() {
 
   const isAdmin = user?.role === 'admin'
   const perms = user?.permissions ?? []
-  const canViewTransactions = isAdmin || perms.includes('view_transactions')
   const canViewReports = isAdmin || perms.includes('view_reports')
 
   const canAcknowledgeOversell = isAdmin || perms.includes('manage_stock_count')
   const oversellOpen = useOversellOpenCount(canViewReports, outletId ?? null)
 
-  const visibleTabs = useMemo(() => {
-    const t: { id: ReportTab; label: string }[] = []
-    if (canViewTransactions) t.push({ id: 'orders', label: 'Transaksi' })
-    if (canViewReports) t.push({ id: 'export', label: 'Ekspor' })
-    if (canViewReports) t.push({ id: 'shifts', label: 'Shift' })
-    if (canViewReports) t.push({ id: 'grants', label: 'Hadiah Promo' })
-    if (canViewReports) t.push({ id: 'codeReport', label: 'Kode Diskon' })
-    if (canViewReports) t.push({ id: 'refund', label: 'Refund' })
-    if (canViewReports) t.push({ id: 'oversell', label: oversellOpen > 0 ? `Stok Minus (${oversellOpen})` : 'Stok Minus' })
-    return t
-  }, [canViewTransactions, canViewReports, oversellOpen])
-
-  const defaultTab: ReportTab = canViewTransactions ? 'orders' : 'export'
-  const [tab, setTab] = useState<ReportTab>(defaultTab)
+  // The tab lives in the path (#/laporan/refund); a bare #/laporan is the first tab this user may open.
+  const { tabs: routeTabs, tab: routedTab, setTab } = useScreenTabs<ReportTab>('reports', user)
+  const visibleTabs = routeTabs.map((t) => ({
+    id: t.key,
+    label: t.key === 'oversell' && oversellOpen > 0 ? `${t.label} (${oversellOpen})` : t.label,
+  }))
+  const tab: ReportTab = routedTab ?? 'export'
   // Local calendar date; the server reads dateFrom/dateTo as business days (the day in each
   // outlet's own timezone, a shift's sales on its opening day).
   const [dateFrom, setDateFrom] = useState(() => localDay())

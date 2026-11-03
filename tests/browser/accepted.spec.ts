@@ -7,6 +7,7 @@ import { stockCardFlow } from './backoffice-stockcard-scenarios'
 import { refundReportFlow, adminPartialRefundFlow } from './backoffice-refund-scenarios'
 import { splitOrderFlow, splitToggleFlow } from './backoffice-split-scenarios'
 import { settingsGuardFlow } from './backoffice-settings-scenarios'
+import { routeDeepLinkFlow, routeGuardFlow } from './backoffice-route-scenarios'
 import { posRequisition } from './pos-requisition-scenarios'
 import { posSplitTender, posSplitOffline, posSplitRefund, posSplitOff, posSplitDraft } from './pos-split-scenarios'
 
@@ -168,6 +169,18 @@ test('BO-SPLIT-TOGGLE Bayar terpisah is off by default with the D-50 warning, as
 test('BO-SETTINGS-GUARD Pengaturan shows no save bar on open, guards leaving with unsaved edits, and saves only changed fields merged onto a fresh GET', async ({ page }, info) => {
   const result = await settingsGuardFlow(page as ScenarioPage)
   expect(result).toHaveLength(5)
+  await evidence(info, result)
+})
+
+test('BO-ROUTE-DEEPLINK a tab or view in the hash path survives a reload, a bare or unknown tab shows the first, Back and Forward move between tabs, and a gated tab re-resolves when its setting loads', async ({ page }, info) => {
+  const result = await routeDeepLinkFlow(page as ScenarioPage)
+  expect(result).toHaveLength(4)
+  await evidence(info, result)
+})
+
+test('BO-ROUTE-GUARD a dirty Pengaturan keeps its own tabs unguarded and asks for a typed URL or a Forward that leaves it, refused keeps the hash, history and edit', async ({ page }, info) => {
+  const result = await routeGuardFlow(page as ScenarioPage)
+  expect(result).toHaveLength(4)
   await evidence(info, result)
 })
 
