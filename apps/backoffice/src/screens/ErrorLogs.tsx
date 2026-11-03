@@ -38,7 +38,8 @@ export default function ErrorLogs() {
   const [source, setSource] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
-  const [openId, setOpenId] = useState<string | null>(null)
+  // The clicked row itself, not an id into the polled page: a new error pushing it off page 1 must not close the panel.
+  const [opened, setOpened] = useState<ErrorLog | null>(null)
 
   const q = usePolledQuery<ListResult<ErrorLog>>(
     () =>
@@ -52,7 +53,6 @@ export default function ErrorLogs() {
   const rows = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const opened = rows.find((r) => r.id === openId) ?? null
 
   const exportErrorLogs = async (fmt: ExportFormat) => {
     const all = await fetchAllPages((page, limit) =>
@@ -123,8 +123,8 @@ export default function ErrorLogs() {
         error={q.error ? 'Log kesalahan gagal dimuat.' : null}
         onRetry={() => void q.refetch()}
         empty={<EmptyState icon={<AlertTriangle />} title="Tidak ada kesalahan tercatat" />}
-        onRowClick={(e) => setOpenId(e.id)}
-        selectedKey={openId}
+        onRowClick={setOpened}
+        selectedKey={opened?.id ?? null}
         columnPrefsKey="mandalika.bo.errorLogs.columns"
         footer={
           <Pagination
@@ -140,7 +140,7 @@ export default function ErrorLogs() {
 
       <SlideOver
         open={opened !== null}
-        onClose={() => setOpenId(null)}
+        onClose={() => setOpened(null)}
         title="Detail Kesalahan"
         subtitle={opened ? `${labelOf(ERROR_SOURCE, opened.source).label}${opened.kind ? ` · ${opened.kind}` : ''}` : undefined}
         width="lg"

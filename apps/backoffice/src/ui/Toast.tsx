@@ -26,65 +26,73 @@ interface Live extends ToastInput {
   key: number
 }
 
-/** Mount once near the root. The role="status" region only exists while a toast is showing (never role="alert"). */
+/** Mount once near the root. The role="status" region is always mounted (so announcements are
+ *  picked up) and never role="alert". */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Live[]>([])
   const next = useRef(0)
-  const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>())
 
   const dismiss = useCallback((key: number) => {
-    const t = timers.current.get(key)
-    if (t) clearTimeout(t)
-    timers.current.delete(key)
     setItems((xs) => xs.filter((x) => x.key !== key))
   }, [])
 
-  const push = useCallback<Push>(
-    (t) => {
-      const key = ++next.current
-      setItems((xs) => [...xs, { ...t, key }])
-      timers.current.set(key, setTimeout(() => dismiss(key), t.durationMs ?? DEFAULT_DURATION_MS))
-    },
-    [dismiss],
-  )
-
-  useEffect(() => {
-    const live = timers.current
-    return () => live.forEach((t) => clearTimeout(t))
+  const push = useCallback<Push>((t) => {
+    setItems((xs) => [...xs, { ...t, key: ++next.current }])
   }, [])
 
   return (
     <ToastCtx.Provider value={push}>
       {children}
-      {items.length > 0 && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="fixed bottom-4 right-4 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2"
-          style={{ zIndex: OVERLAY_Z.toast }}
-        >
-          {items.map((t) => (
-            <div
-              key={t.key}
-              className={cn('flex items-center gap-3 rounded-xl border-l-4 bg-white px-4 py-3 text-sm font-bold shadow-lg', TONE[t.tone ?? 'info'])}
-            >
-              <span className="flex-1">{t.message}</span>
-              {t.action && (
-                <button
-                  type="button"
-                  className="rounded-lg px-2 py-1 text-xs font-black underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-                  onClick={() => {
-                    t.action?.onClick()
-                    dismiss(t.key)
-                  }}
-                >
-                  {t.action.label}
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      <div
+        role="status"
+        aria-live="polite"
+        className="fixed bottom-4 right-4 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2"
+        style={{ zIndex: OVERLAY_Z.toast }}
+      >
+        {items.map((t) => (
+          <ToastItem key={t.key} toast={t} onDismiss={() => dismiss(t.key)} />
+        ))}
+      </div>
     </ToastCtx.Provider>
+  )
+}
+
+/** Auto-dismisses after its duration, but not while hovered or focused (WCAG 2.2.1). */
+function ToastItem({ toast, onDismiss }: { toast: Live; onDismiss: () => void }) {
+  const [paused, setPaused] = useState(false)
+  const dismiss = useRef(onDismiss)
+  useEffect(() => {
+    dismiss.current = onDismiss
+  })
+  const duration = toast.durationMs ?? DEFAULT_DURATION_MS
+
+  useEffect(() => {
+    if (paused) return
+    const t = setTimeout(() => dismiss.current(), duration)
+    return () => clearTimeout(t)
+  }, [paused, duration])
+
+  return (
+    <div
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+      className={cn('flex items-center gap-3 rounded-xl border-l-4 bg-white px-4 py-3 text-sm font-bold shadow-lg', TONE[toast.tone ?? 'info'])}
+    >
+      <span className="flex-1">{toast.message}</span>
+      {toast.action && (
+        <button
+          type="button"
+          className="rounded-lg px-2 py-1 text-xs font-black underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong"
+          onClick={() => {
+            toast.action?.onClick()
+            onDismiss()
+          }}
+        >
+          {toast.action.label}
+        </button>
+      )}
+    </div>
   )
 }

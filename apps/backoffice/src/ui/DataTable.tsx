@@ -162,7 +162,7 @@ export function DataTable<Row>({
         {sortable ? (
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+            className="inline-flex items-center gap-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong"
             onClick={() =>
               onSortChange?.({ key: c.sortKey as string, dir: sorted === 'asc' ? 'desc' : 'asc' })
             }
@@ -186,7 +186,6 @@ export function DataTable<Row>({
             variant="ghost"
             size="sm"
             icon={<Columns3 className="h-3.5 w-3.5" aria-hidden="true" />}
-            aria-haspopup="true"
             aria-expanded={chooser}
             onClick={() => setChooser((v) => !v)}
           >
@@ -228,10 +227,7 @@ export function DataTable<Row>({
                     key={`${run.label ?? 'x'}-${i}`}
                     scope="colgroup"
                     colSpan={run.span}
-                    className={cn(
-                      'border-b border-gray-200 bg-paper-1 px-4 pt-2 text-left text-[11px] font-black uppercase tracking-wider text-ink-700',
-                      stickyHeader && 'sticky top-0 z-[2]',
-                    )}
+                    className="border-b border-gray-200 bg-paper-1 px-4 pt-2 text-left text-[11px] font-black uppercase tracking-wider text-ink-700"
                   >
                     {run.label}
                   </th>
@@ -263,7 +259,6 @@ export function DataTable<Row>({
                 return (
                   <tr
                     key={key}
-                    aria-selected={onRowClick ? selected : undefined}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                     className={cn(onRowClick && 'cursor-pointer hover:bg-paper-0', selected && 'bg-paper-1')}
                   >
@@ -273,12 +268,13 @@ export function DataTable<Row>({
                         <td
                           key={c.id}
                           style={cellStyle(c, i === 0 && selected ? { boxShadow: MARKER } : undefined)}
-                          className={cn('bg-inherit px-4 py-3 align-middle text-gray-900', cellClass(c))}
+                          className={cn('bg-white px-4 py-3 align-middle text-gray-900', cellClass(c))}
                         >
                           {i === 0 && onRowClick ? (
                             <button
                               type="button"
-                              className="rounded text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                              aria-current={selected ? 'true' : undefined}
+                              className="rounded text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 onRowClick(row)

@@ -34,7 +34,7 @@ export interface ConfirmDialogProps {
 
 const BUTTON =
   'px-4 py-2.5 rounded-xl text-sm font-bold transition-colors focus:outline-none focus-visible:ring-2 ' +
-  'focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-50'
+  'focus-visible:ring-brand-strong disabled:cursor-not-allowed disabled:opacity-50'
 
 /** Modal question. role="alertdialog"; focus starts on Batal for a danger action, else on the text field or
  *  the confirm button; Escape and the backdrop cancel, except while busy. */
@@ -70,15 +70,18 @@ function ConfirmBody({
   const cancel = () => {
     if (!busy) onCancel()
   }
-  useOverlayLayer(true, cancel)
-  useFocusTrap(true, panel, () =>
-    tone === 'danger' ? cancelBtn.current : (textarea.current ?? textbox.current ?? confirmBtn.current),
+  const layer = useOverlayLayer(true, cancel)
+  useFocusTrap(
+    true,
+    panel,
+    () => (tone === 'danger' ? cancelBtn.current : (textarea.current ?? textbox.current ?? confirmBtn.current)),
+    layer,
   )
 
   const missing = !!input?.required && value.trim() === ''
   const danger = tone === 'danger'
   const fieldClass =
-    'w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40'
+    'w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-strong'
 
   return (
     <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: OVERLAY_Z.confirm }}>
@@ -187,6 +190,7 @@ export function useConfirm(): Ask {
 }
 
 interface Pending {
+  seq: number
   opts: ConfirmOptions
   resolve: (r: ConfirmResult) => void
 }
@@ -194,12 +198,13 @@ interface Pending {
 /** Mount once near the root. Asking while a question is open declines the open one first. */
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState<Pending | null>(null)
+  const seq = useRef(0)
   const ask = useCallback<Ask>(
     (opts) =>
       new Promise<ConfirmResult>((resolve) => {
         setPending((prev) => {
           prev?.resolve({ confirmed: false })
-          return { opts, resolve }
+          return { seq: ++seq.current, opts, resolve }
         })
       }),
     [],
@@ -213,6 +218,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       {children}
       {pending && (
         <ConfirmDialog
+          key={pending.seq}
           {...pending.opts}
           open
           onCancel={() => settle({ confirmed: false })}

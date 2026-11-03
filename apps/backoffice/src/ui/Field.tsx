@@ -13,7 +13,7 @@ export const fieldClass =
   'placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500/40 ' +
   'focus:border-gold-400 transition'
 
-const labelClass = 'block text-xs font-black text-gray-400 uppercase tracking-widest mb-2'
+const labelClass = 'block text-xs font-black text-ink-700 uppercase tracking-widest mb-2'
 
 interface FieldShellProps {
   /** id of the control, so the label is associated with it. */
@@ -33,7 +33,7 @@ export function Field({ htmlFor, label, hint, error, children }: FieldShellProps
       {error ? (
         <p id={htmlFor ? `${htmlFor}-error` : undefined} className="text-[11px] text-red-600 mt-1">{error}</p>
       ) : hint ? (
-        <p id={htmlFor ? `${htmlFor}-hint` : undefined} className="text-[11px] text-gray-400 mt-1">{hint}</p>
+        <p id={htmlFor ? `${htmlFor}-hint` : undefined} className="text-[11px] text-ink-700 mt-1">{hint}</p>
       ) : null}
     </div>
   )
@@ -42,15 +42,24 @@ export function Field({ htmlFor, label, hint, error, children }: FieldShellProps
 type FieldExtras = { label?: ReactNode; hint?: ReactNode; error?: ReactNode }
 
 /** The control's id (caller's, else generated) and the a11y attributes derived from error/hint. */
-function useControlA11y(id: string | undefined, error: ReactNode, hint: ReactNode) {
+function useControlA11y(
+  id: string | undefined,
+  error: ReactNode,
+  hint: ReactNode,
+  callerDescribedBy?: string,
+  callerInvalid?: boolean | 'true' | 'false' | 'grammar' | 'spelling',
+) {
   const generated = useId()
   const controlId = id ?? generated
   return {
     controlId,
     attrs: {
       id: controlId,
-      'aria-invalid': error ? (true as const) : undefined,
-      'aria-describedby': error ? `${controlId}-error` : hint ? `${controlId}-hint` : undefined,
+      'aria-invalid': error ? (true as const) : callerInvalid,
+      'aria-describedby':
+        [callerDescribedBy, error ? `${controlId}-error` : hint ? `${controlId}-hint` : undefined]
+          .filter(Boolean)
+          .join(' ') || undefined,
     },
   }
 }
@@ -62,7 +71,7 @@ export function Input({
   className,
   ...rest
 }: InputHTMLAttributes<HTMLInputElement> & FieldExtras) {
-  const { controlId, attrs } = useControlA11y(rest.id, error, hint)
+  const { controlId, attrs } = useControlA11y(rest.id, error, hint, rest['aria-describedby'], rest['aria-invalid'])
   return (
     <Field htmlFor={controlId} label={label} hint={hint} error={error}>
       <input className={cn(fieldClass, !!error && 'border-red-300', className)} {...rest} {...attrs} />
@@ -78,7 +87,7 @@ export function Textarea({
   rows = 3,
   ...rest
 }: TextareaHTMLAttributes<HTMLTextAreaElement> & FieldExtras) {
-  const { controlId, attrs } = useControlA11y(rest.id, error, hint)
+  const { controlId, attrs } = useControlA11y(rest.id, error, hint, rest['aria-describedby'], rest['aria-invalid'])
   return (
     <Field htmlFor={controlId} label={label} hint={hint} error={error}>
       <textarea
@@ -99,7 +108,7 @@ export function Select({
   children,
   ...rest
 }: SelectHTMLAttributes<HTMLSelectElement> & FieldExtras) {
-  const { controlId, attrs } = useControlA11y(rest.id, error, hint)
+  const { controlId, attrs } = useControlA11y(rest.id, error, hint, rest['aria-describedby'], rest['aria-invalid'])
   return (
     <Field htmlFor={controlId} label={label} hint={hint} error={error}>
       <select className={cn(fieldClass, !!error && 'border-red-300', className)} {...rest} {...attrs}>

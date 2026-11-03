@@ -92,7 +92,7 @@ export function ExportButton({
         title={tooltip(single ? name : `${name} (${formats.map((f) => FORMAT_NAME[f]).join(' / ')})`, rowCount, filterSummary)}
         {...(single
           ? { onClick: () => void run(single) }
-          : { onClick: () => setMenu((v) => !v), 'aria-haspopup': 'menu' as const, 'aria-expanded': menu, 'aria-controls': menuId })}
+          : { onClick: () => setMenu((v) => !v), 'aria-expanded': menu, 'aria-controls': menuId })}
       >
         {single ? `Unduh ${FORMAT_NAME[single]}${qualifier ? ` ${qualifier}` : ''}` : (
           <>
@@ -104,15 +104,12 @@ export function ExportButton({
       {!single && menu && (
         <div
           id={menuId}
-          role="menu"
-          aria-label={name}
           className="absolute right-0 top-full z-10 mt-1 min-w-36 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
         >
           {formats.map((f) => (
             <button
               key={f}
               type="button"
-              role="menuitem"
               onClick={() => void run(f)}
               className="w-full px-4 py-2.5 text-left text-xs font-bold text-ink-700 hover:bg-paper-1 focus:bg-paper-1 focus:outline-none"
             >

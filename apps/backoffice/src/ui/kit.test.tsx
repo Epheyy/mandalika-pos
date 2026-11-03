@@ -81,7 +81,7 @@ describe('DataTable markup', () => {
   it('puts a real button in the first cell of a clickable row and marks the selected row', () => {
     const html = render({ onRowClick: noop, selectedKey: '2' })
     expect(html).toContain('<button type="button" class="rounded text-left')
-    expect(html).toContain('aria-selected="true"')
+    expect(html).toContain('aria-current="true"')
     expect(html).toContain('inset 3px 0 0')
   })
 
@@ -251,7 +251,8 @@ describe('Switch, ExportButton, FilterBar, overlay stack, additive props', () =>
   it('ExportButton with two formats is a menu button called Unduh, and is disabled at zero rows', () => {
     const two = renderToStaticMarkup(<ExportButton formats={['csv', 'xlsx']} rowCount={null} filterSummary={[]} onExport={noop} />)
     expect(two).toContain('aria-label="Unduh"')
-    expect(two).toContain('aria-haspopup="menu"')
+    expect(two).toContain('aria-expanded="false"')
+    expect(two).not.toContain('role="menu"')
     const zero = renderToStaticMarkup(<ExportButton rowCount={0} filterSummary={[]} onExport={noop} />)
     expect(zero).toMatch(/\sdisabled(=|\s|>)/)
   })
@@ -312,5 +313,40 @@ describe('Switch, ExportButton, FilterBar, overlay stack, additive props', () =>
 
   it('Field without error has no aria-invalid', () => {
     expect(renderToStaticMarkup(<Input label="Nama" />)).not.toContain('aria-invalid')
+  })
+})
+
+describe('review fixes', () => {
+  it('a toast region is always mounted as role=status and never role=alert', async () => {
+    const { ToastProvider } = await import('./Toast')
+    const html = renderToStaticMarkup(
+      <ToastProvider>
+        <p>x</p>
+      </ToastProvider>,
+    )
+    expect(html).toContain('role="status"')
+    expect(html).not.toContain('role="alert"')
+  })
+
+  it('chip count is separated from the label for the accessible name', () => {
+    const html = renderToStaticMarkup(
+      <FilterBar.Chips items={[{ id: 'a', label: 'Masuk', count: 12 }]} value="a" onChange={noop} />,
+    )
+    expect(html).toContain('Masuk<span class="sr-only"> </span>')
+    expect(html).not.toContain('opacity-80')
+  })
+
+  it('Field keeps a caller aria-describedby next to its own error id', () => {
+    const html = renderToStaticMarkup(<Input label="Nama" error="Wajib" id="n" aria-describedby="extra" />)
+    expect(html).toContain('aria-describedby="extra n-error"')
+  })
+
+  it('only the column row of a grouped header is sticky', () => {
+    const html = renderToStaticMarkup(
+      <DataTable caption="c" columns={COLS} rows={ROWS} rowKey={(r) => r.id} />,
+    )
+    const group = html.match(/<th[^>]*scope="colgroup"[^>]*>/)?.[0] ?? ''
+    expect(group).not.toContain('sticky')
+    expect(html).toContain('sticky top-0')
   })
 })

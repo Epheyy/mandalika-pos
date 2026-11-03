@@ -52,8 +52,8 @@ function SlideOverBody({
   const requestClose = () => (isDirty() ? setConfirming(true) : onClose())
 
   // While the guard is up it is the top layer, so Escape reaches it and not this panel.
-  useOverlayLayer(true, requestClose)
-  useFocusTrap(true, panel)
+  const layer = useOverlayLayer(true, requestClose)
+  useFocusTrap(true, panel, undefined, layer)
 
   const focusField = (fieldId: string) => document.getElementById(fieldId)?.focus()
 
@@ -83,7 +83,7 @@ function SlideOverBody({
             type="button"
             aria-label="Tutup"
             onClick={requestClose}
-            className="flex-shrink-0 rounded-xl p-2 text-ink-700 hover:bg-paper-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+            className="flex-shrink-0 rounded-xl p-2 text-ink-700 hover:bg-paper-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>

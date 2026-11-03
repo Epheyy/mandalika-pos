@@ -19,9 +19,10 @@ export function resetOverlayStack(): void {
  * Registers an overlay as a layer while `active`, and runs `onEscape` for Escape only while it is the
  * top layer. A layer with no Escape behaviour still passes `() => {}` so it swallows the key instead of
  * letting the layer underneath close (the RecipeSlideOver-over-ProductFormModal bug).
+ * Returns the layer id so a focus trap can stand down while another layer is on top.
  * Runs in effects only, so it is a no-op under renderToStaticMarkup.
  */
-export function useOverlayLayer(active: boolean, onEscape: () => void): void {
+export function useOverlayLayer(active: boolean, onEscape: () => void): string {
   const layerId = useId()
   const handler = useRef(onEscape)
   useEffect(() => {
@@ -31,7 +32,8 @@ export function useOverlayLayer(active: boolean, onEscape: () => void): void {
     if (!active) return
     stack.push(layerId)
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || !isTopOverlay(layerId)) return
+      // An inner control (e.g. a picker) that already used this Escape keeps it.
+      if (e.key !== 'Escape' || e.defaultPrevented || !isTopOverlay(layerId)) return
       e.stopPropagation()
       handler.current()
     }
@@ -42,4 +44,5 @@ export function useOverlayLayer(active: boolean, onEscape: () => void): void {
       if (at >= 0) stack.splice(at, 1)
     }
   }, [active, layerId])
+  return layerId
 }

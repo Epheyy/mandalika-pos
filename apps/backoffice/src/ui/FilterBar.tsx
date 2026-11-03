@@ -15,9 +15,9 @@ interface FilterBarProps {
 
 const CONTROL =
   'rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none ' +
-  'focus:ring-2 focus:ring-brand/40'
+  'focus:ring-2 focus:ring-brand-strong'
 const CHIP =
-  'rounded-full border px-3 py-1.5 text-xs font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40'
+  'rounded-full border px-3 py-1.5 text-xs font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong'
 
 /** Layout shell for a list's filters. Values live in the screen (useListState); parts are static members. */
 export function FilterBar({ children, actions, onReset, activeCount }: FilterBarProps) {
@@ -31,7 +31,7 @@ export function FilterBar({ children, actions, onReset, activeCount }: FilterBar
             <button
               type="button"
               onClick={onReset}
-              className="rounded-lg px-2 py-1 text-xs font-bold text-ink-700 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+              className="rounded-lg px-2 py-1 text-xs font-bold text-ink-700 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong"
             >
               Atur ulang filter{activeCount ? ` (${activeCount})` : ''}
             </button>
@@ -195,7 +195,12 @@ function Chips(props: ChipsProps) {
           )}
         >
           {it.label}
-          {it.count !== undefined && <span className="ml-1.5 tabular-nums opacity-80">{it.count}</span>}
+          {it.count !== undefined && (
+            <>
+              <span className="sr-only"> </span>
+              <span className="ml-1.5 tabular-nums">{it.count}</span>
+            </>
+          )}
         </button>
       ))}
     </div>

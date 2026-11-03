@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from 'react'
+import { isTopOverlay } from './overlayStack'
 
 const FOCUSABLE =
   'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
@@ -16,6 +17,8 @@ export function useFocusTrap(
   active: boolean,
   container: RefObject<HTMLElement | null>,
   initial?: () => HTMLElement | null | undefined,
+  /** The overlay layer id; while another layer is on top this trap leaves Tab alone. */
+  layerId?: string,
 ): void {
   useEffect(() => {
     const root = container.current
@@ -24,7 +27,7 @@ export function useFocusTrap(
     const first = initial?.() ?? focusableIn(root)[0] ?? root
     first.focus()
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return
+      if (e.key !== 'Tab' || (layerId !== undefined && !isTopOverlay(layerId))) return
       const items = focusableIn(root)
       if (items.length === 0) {
         e.preventDefault()
@@ -49,5 +52,5 @@ export function useFocusTrap(
     }
     // `initial` is read once on open; the trap must not re-run (and steal focus) when it changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, container])
+  }, [active, container, layerId])
 }

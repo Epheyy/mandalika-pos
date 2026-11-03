@@ -26,7 +26,7 @@ export function Switch({ checked, onChange, label, size = 'md', disabled, classN
       onClick={() => onChange(!checked)}
       className={cn(
         'relative inline-flex flex-shrink-0 items-center rounded-full p-0.5 transition-colors',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-50',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong disabled:cursor-not-allowed disabled:opacity-50',
         checked ? 'bg-brand-strong' : 'bg-ink-500',
         TRACK[size],
         className,
