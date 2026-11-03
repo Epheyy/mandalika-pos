@@ -63,7 +63,7 @@ export function VariantRows({
           ] as const
           const rowErrors = fields.map((f) => errors[f.id]).filter((m): m is string => !!m)
           return (
-            <div key={v.id || v.size || `new-${i}`} className="grid grid-cols-12 gap-2 items-center">
+            <div key={v.id ?? `new-${i}`} className="grid grid-cols-12 gap-2 items-center">
               {fields.map(({ k, id, span, ph, num, label, value }) => (
                 <input key={k} id={id} type={num ? 'number' : 'text'} value={value} onChange={(e) => onUpdVariant(i, k, e.target.value)} placeholder={ph} aria-label={label}
                   aria-invalid={errors[id] ? true : undefined}

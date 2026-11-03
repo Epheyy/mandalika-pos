@@ -268,6 +268,7 @@ async function recipeLayerFlow(page: ScenarioPage, state: { products: MockProduc
   check((await editor.count()) === 1, 'Escape closed only the recipe layer')
   await page.keyboard.press('Escape')
   await editor.waitFor({ state: 'detached' })
+  check((await page.getByRole('alertdialog').count()) === 0, 'an untouched editor closes without a question')
   results.push({ step: 'escape-top-layer-only' })
 }
 

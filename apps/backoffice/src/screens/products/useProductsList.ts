@@ -43,8 +43,10 @@ export function useProductsList(categories: readonly Category[]) {
 
   // The server answers total 0 beyond the last page: ask for the real total once, then step back to the last page.
   const pastEnd = query.data !== undefined && isPastLastPage(hal, rows.length)
+  // Not while the editor is open: stepping back is a navigation, and a dirty editor's leave guard would ask about it.
+  const overlayOpen = state.ubah !== '' || state.baru
   useEffect(() => {
-    if (!pastEnd) return
+    if (!pastEnd || overlayOpen) return
     let alive = true
     api
       .listProducts(1, 1, filter)
@@ -53,7 +55,7 @@ export function useProductsList(categories: readonly Category[]) {
     return () => {
       alive = false
     }
-  }, [pastEnd, hal, per, filter, setRawState])
+  }, [pastEnd, overlayOpen, hal, per, filter, setRawState])
 
   /** A filter change goes back to page 1 in the same move; typing a search replaces the entry instead of adding one. */
   const setFilter = useCallback(

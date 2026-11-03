@@ -53,7 +53,8 @@ export function ProductEditorHost({ productId, categories, closeEditor, refetchL
   })
 
   const askLeave = async (): Promise<boolean> => {
-    if (answered.current) return true
+    // Nothing unsaved (or already answered): leaving needs no question, so a plain x on an untouched form just closes.
+    if (answered.current || !(editor.dirty || recipeDirty)) return true
     const answer = await confirm({
       title: 'Buang perubahan?',
       consequence: 'Perubahan pada produk ini belum disimpan dan akan hilang.',
