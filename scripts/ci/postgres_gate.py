@@ -72,7 +72,7 @@ GATES = (
     ("LP", "TestListParamsPostgres", 26478, "lp"),
 )
 # Fixture ports must stay below Linux's default ephemeral range (32768-60999): an earlier test's client socket can
-# be assigned a fixed port in that range and sit in TIME-WAIT for ~60 s, failing the next fixture start with
+# be assigned a fixed port in that range and stay busy (open or TIME-WAIT) and fail the next fixture start with
 # "expected fixture port already occupied" (cleanup=not-created). Tests pin the same ports (gate_fixture_test.go).
 EPHEMERAL_PORT_MIN = 32768
 TABLES = "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"

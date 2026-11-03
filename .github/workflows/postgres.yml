@@ -28,7 +28,11 @@ jobs:
         working-directory: backend
       - name: Runner fail-closed contracts
         run: python3 -m unittest discover -s scripts/ci -p 'test_*.py' -v
-      - name: Eight mandatory fresh PostgreSQL 18.3 fixtures (race enabled)
+      - name: Keep fixture ports out of the kernel's ephemeral pool
+        run: |
+          cat /proc/sys/net/ipv4/ip_local_port_range
+          sudo sysctl -w net.ipv4.ip_local_reserved_ports=26439-26478
+      - name: Forty mandatory fresh PostgreSQL 18.3 fixtures (race enabled)
         run: python3 scripts/ci/postgres_gate.py --output artifacts/postgres/result.json
       - name: Sanitized fixture lifecycle and test evidence
         if: always()
