@@ -3,13 +3,14 @@ import { useAuth } from './auth'
 import { useOutlet } from './outlet'
 import { confirmLeave } from './lib/navGuard'
 import { navigate } from './lib/router/navigate'
-import { groupBySection, hashFor, resolveLocation, routeById, visibleRoutes } from './lib/router/routes'
+import { groupBySection, resolveLocation, visibleRoutes } from './lib/router/routes'
 import { useRoute } from './lib/router/useRoute'
 import { Header } from './shell/Header'
 import { LoginScreen } from './shell/LoginScreen'
 import { AccessDenied, LoadingFill, ScreenHost } from './shell/ScreenHost'
 import { Sidebar } from './shell/Sidebar'
 import { useNavBadges } from './shell/navBadges'
+import { useScrollRestore } from './shell/useScrollRestore'
 
 export default function App() {
   const { user, ready, logout } = useAuth()
@@ -31,21 +32,8 @@ export default function App() {
     if (user && resolution.kind === 'redirect') void navigate(resolution.to, { replace: true })
   }, [user, resolution])
 
-  // Screens that ask the shell to switch by nav id (Permintaan Barang -> Inventori). Goes away once they call navigate().
-  useEffect(() => {
-    const go = (e: Event) => {
-      const id = (e as CustomEvent<unknown>).detail
-      const route = typeof id === 'string' ? routeById(id) : undefined
-      if (route) void navigate(hashFor(route))
-    }
-    window.addEventListener('mandalika:nav', go)
-    return () => window.removeEventListener('mandalika:nav', go)
-  }, [])
-
-  // A new screen starts at the top (main is the scroll box).
-  useEffect(() => {
-    mainRef.current?.scrollTo({ top: 0 })
-  }, [activeId])
+  // main is the scroll box: a new place starts at the top, Back/Forward restores where the entry was.
+  useScrollRestore(mainRef)
 
   if (!ready) return <div className="flex min-h-screen items-center justify-center text-ink-500">Memuat…</div>
   if (!user) return <LoginScreen />

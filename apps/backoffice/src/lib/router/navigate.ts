@@ -28,21 +28,44 @@ export interface NavigateOptions {
   replace?: boolean
 }
 
+/** How the router got to the new entry: a push or replace it made itself, or the browser moving along history. */
+export type MoveKind = 'push' | 'replace' | 'pop'
+
+/** One committed move, handed to move listeners before the screen re-renders (the old screen is still on show). */
+export interface RouteMove {
+  kind: MoveKind
+  from: { idx: number; path: readonly string[] }
+  to: { idx: number; path: readonly string[] }
+}
+
 export interface Router {
   getLocation(): Location
   /** Resolves true when the move happened, false when a leave guard refused or a question is already open. */
   navigate(to: string, opts?: NavigateOptions): Promise<boolean>
   subscribe(listener: () => void): () => void
+  /** Called synchronously on every committed move, before subscribers re-render. */
+  subscribeMoves(listener: (move: RouteMove) => void): () => void
+  /** The hash of the entry right before the current one, when the router created it in this page load. */
+  previousHash(): string | undefined
+  /**
+   * In-app "Kembali": when the previous entry satisfies `matches` (the list the user came from) step back to it, so
+   * its filters, page and scroll are still there; otherwise navigate to `fallback`. Asks the leave guard like any move.
+   */
+  back(fallback: string, matches: (path: readonly string[]) => boolean, fallbackOpts?: NavigateOptions): Promise<boolean>
 }
 
 const SETTLE_TIMEOUT_MS = 1000
 
 export function createRouter(env: HistoryEnv): Router {
   const listeners = new Set<() => void>()
+  const moveListeners = new Set<(move: RouteMove) => void>()
+  // idx -> hash of the entries this page load has seen, to know what a step back lands on.
+  const seen = new Map<number, string>()
   let committed = normalizeHash(env.hash())
   let location: Location = parseHash(committed)
   let idx = env.stateIdx() ?? 0
   if (env.stateIdx() === null) env.stamp(idx)
+  seen.set(idx, committed)
 
   // True while a leave question is open: further moves are refused or put back.
   let asking = false
@@ -50,10 +73,15 @@ export function createRouter(env: HistoryEnv): Router {
   let expectTraversal = false
   let traversalTimer: ReturnType<typeof setTimeout> | undefined
 
-  const commit = (hash: string, at: number): void => {
+  const commit = (hash: string, at: number, kind: MoveKind): void => {
+    const from = { idx, path: location.path }
     committed = normalizeHash(hash)
     location = parseHash(committed)
     idx = at
+    if (kind === 'push') for (const k of [...seen.keys()]) if (k >= at) seen.delete(k)
+    seen.set(at, committed)
+    const move: RouteMove = { kind, from, to: { idx: at, path: location.path } }
+    for (const l of [...moveListeners]) l(move)
     for (const l of [...listeners]) l()
   }
 
@@ -63,10 +91,10 @@ export function createRouter(env: HistoryEnv): Router {
     if (at === null) {
       // A typed URL or plain anchor: always a push from the entry we were on.
       env.stamp(idx + 1)
-      commit(env.hash(), idx + 1)
+      commit(env.hash(), idx + 1, 'push')
       return
     }
-    commit(env.hash(), at)
+    commit(env.hash(), at, at === idx ? 'replace' : 'pop')
   }
 
   // An entry with no idx is never settled, even at our hash: a typed alias of the current hash is a new entry.
@@ -119,7 +147,7 @@ export function createRouter(env: HistoryEnv): Router {
     }
     // A typed URL (or a stamp equal to ours): re-issue it as a push.
     env.push(idx + 1, targetHash)
-    commit(targetHash, idx + 1)
+    commit(targetHash, idx + 1, 'push')
   }
 
   const onExternal = (): void => {
@@ -161,11 +189,41 @@ export function createRouter(env: HistoryEnv): Router {
     if (undoing) await undoing
     if (opts.replace) {
       env.replace(idx, target)
-      commit(target, idx)
+      commit(target, idx, 'replace')
     } else {
       env.push(idx + 1, target)
-      commit(target, idx + 1)
+      commit(target, idx + 1, 'push')
     }
+    return true
+  }
+
+  const previousHash = (): string | undefined => seen.get(idx - 1)
+
+  const back = async (
+    fallback: string,
+    matches: (path: readonly string[]) => boolean,
+    fallbackOpts: NavigateOptions = {},
+  ): Promise<boolean> => {
+    const previous = previousHash()
+    if (previous === undefined || !matches(parseHash(previous).path)) return navigate(fallback, fallbackOpts)
+    if (asking) return false
+    const targetPath = parseHash(previous).path
+    if (guardCovers(targetPath)) {
+      asking = true
+      let leave = false
+      try {
+        leave = await confirmLeave(targetPath)
+      } finally {
+        asking = false
+      }
+      if (!leave) return false
+    }
+    if (undoing) await undoing
+    // The popstate of this step is ours: follow it without asking the guard again.
+    expectTraversal = true
+    clearTimeout(traversalTimer)
+    traversalTimer = setTimeout(() => { expectTraversal = false }, SETTLE_TIMEOUT_MS)
+    env.go(-1)
     return true
   }
 
@@ -178,6 +236,14 @@ export function createRouter(env: HistoryEnv): Router {
         listeners.delete(listener)
       }
     },
+    subscribeMoves(listener) {
+      moveListeners.add(listener)
+      return () => {
+        moveListeners.delete(listener)
+      }
+    },
+    previousHash,
+    back,
   }
 }
 
@@ -208,6 +274,13 @@ const sharedRouter = (): Router => (shared ??= createRouter(browserEnv))
 
 export const navigate = (to: string, opts?: NavigateOptions): Promise<boolean> => sharedRouter().navigate(to, opts)
 export const subscribeRoute = (listener: () => void): (() => void) => sharedRouter().subscribe(listener)
+export const subscribeMoves = (listener: (move: RouteMove) => void): (() => void) => sharedRouter().subscribeMoves(listener)
 export const getRouteLocation = (): Location => sharedRouter().getLocation()
+export const previousRouteHash = (): string | undefined => sharedRouter().previousHash()
+export const backOrNavigate = (
+  fallback: string,
+  matches: (path: readonly string[]) => boolean,
+  fallbackOpts?: NavigateOptions,
+): Promise<boolean> => sharedRouter().back(fallback, matches, fallbackOpts)
 /** What renders on the server and under renderToStaticMarkup, where there is no window. */
 export const getServerRouteLocation = (): Location => EMPTY_LOCATION

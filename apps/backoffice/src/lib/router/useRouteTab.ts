@@ -19,9 +19,10 @@ export function useRouteTab<K extends string>(
   const select = useCallback(
     (key: K) => {
       const slug = slugForTab(tabs, key)
-      if (slug !== undefined) void navigate(buildHash([...base, slug]))
+      // Clicking the tab already on show (a bare path shows the first) only spells the URL out: no new history entry.
+      if (slug !== undefined) void navigate(buildHash([...base, slug]), { replace: key === active })
     },
-    [base, tabs],
+    [base, tabs, active],
   )
   return [active, select]
 }
