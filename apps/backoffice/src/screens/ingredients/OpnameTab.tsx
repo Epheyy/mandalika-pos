@@ -21,6 +21,13 @@ import { IconButton } from '../../ui/IconButton'
 import { EmptyState } from '../../ui/EmptyState'
 import { PageHeader } from '../../ui/PageHeader'
 import { Pagination } from '../../ui/Pagination'
+import { useConfirm } from '../../ui/ConfirmDialog'
+import {
+  UNSAVED_COUNT_MESSAGE,
+  completeIngredientCountConfirm,
+  startIngredientCountConfirm,
+  summarizeIngredientCount,
+} from './opnameConfirm'
 
 const fmtQty = (n: number | null | undefined) => {
   if (n == null) return '—'
@@ -170,6 +177,8 @@ export default function OpnameTab() {
   const [busy, setBusy] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [pageErr, setPageErr] = useState<string | null>(null)
+  const ask = useConfirm()
   // draft counted values: Record<stockCountId, Record<itemId, counted>>
   const [draft, setDraft] = useState<Record<string, Record<string, number>>>({})
   const [form, setForm] = useState({
@@ -205,11 +214,15 @@ export default function OpnameTab() {
   }
 
   const startSC = async (sc: IngredientStockCount) => {
+    if (!(await ask(startIngredientCountConfirm(sc.name))).confirmed) return
     setActiveId(sc.id)
+    setPageErr(null)
     try {
       await api.startIngredientStockCount(sc.id)
       setExpanded(sc.id)
       await scq.refetch()
+    } catch (e: unknown) {
+      setPageErr(e instanceof Error ? e.message : 'Gagal memulai opname.')
     } finally {
       setActiveId(null)
     }
@@ -226,6 +239,7 @@ export default function OpnameTab() {
     setActiveId(sc.id)
     const items = sc.items ?? []
     const counted = countedFor(sc)
+    setPageErr(null)
     try {
       await api.saveIngredientStockCount(sc.id, {
         items: items.map((it) => ({
@@ -234,18 +248,21 @@ export default function OpnameTab() {
         })),
       })
       await scq.refetch()
+    } catch (e: unknown) {
+      setPageErr(e instanceof Error ? e.message : 'Gagal menyimpan hitungan.')
     } finally {
       setActiveId(null)
     }
   }
 
   const completeSC = async (sc: IngredientStockCount) => {
+    // Only saved quantities are completed by the server: unsaved ones would be silently left out.
+    if (Object.keys(countedFor(sc)).length > 0) return setPageErr(UNSAVED_COUNT_MESSAGE)
     const locationLabel = sc.location.name ?? sc.location.id
-    const ok = window.confirm(
-      `Selesaikan opname? Qty bahan di ${locationLabel} akan diperbarui sesuai jumlah yang dihitung.`,
-    )
-    if (!ok) return
+    const summary = summarizeIngredientCount(sc.items ?? [])
+    if (!(await ask(completeIngredientCountConfirm(sc.name, locationLabel, summary))).confirmed) return
     setActiveId(sc.id)
+    setPageErr(null)
     try {
       await api.completeIngredientStockCount(sc.id)
       setDraft((d) => {
@@ -254,6 +271,8 @@ export default function OpnameTab() {
         return n
       })
       await scq.refetch()
+    } catch (e: unknown) {
+      setPageErr(e instanceof Error ? e.message : 'Gagal menyelesaikan opname.')
     } finally {
       setActiveId(null)
     }
@@ -277,11 +296,18 @@ export default function OpnameTab() {
                 setOpen(true)
               }}
             >
-              Buat Opname Baru
+              Tambah opname
             </Button>
           </>
         }
       />
+
+      {pageErr && (
+        <div role="alert" className="bg-red-50 text-red-700 rounded-xl px-4 py-3 text-sm flex justify-between gap-3">
+          <span>{pageErr}</span>
+          <button type="button" className="font-bold" onClick={() => setPageErr(null)}>Tutup</button>
+        </div>
+      )}
 
       <div className="space-y-3">
         {scq.loading ? (
@@ -393,14 +419,14 @@ export default function OpnameTab() {
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Buat Opname Baru"
+        title="Tambah opname"
         footer={
           <>
             <Button variant="secondary" className="flex-1" onClick={() => setOpen(false)}>
               Batal
             </Button>
             <Button className="flex-1" loading={busy} onClick={createSC}>
-              {busy ? 'Membuat...' : 'Buat Opname'}
+              {busy ? 'Membuat...' : 'Tambah opname'}
             </Button>
           </>
         }

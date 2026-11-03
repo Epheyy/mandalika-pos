@@ -22,9 +22,11 @@ import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/PageHeader'
 import { Pagination } from '../ui/Pagination'
 import { countStatusLabel, countStatusTone, isApprovalRequired, varianceLines } from '../lib/inventoryApproval'
+import { useConfirm } from '../ui/ConfirmDialog'
 import { SubmitCountModal } from './approvals/SubmitCountModal'
 import { notifyApprovalsChanged } from './approvals/useApprovalCount'
 import { CountCsvPanel } from './stockcount/CountCsvPanel'
+import { cancelCountConfirm, completeCountConfirm, lineDifference, startCountConfirm, summarizeCount } from './stockcount/countConfirm'
 
 
 const tone = countStatusTone
@@ -44,6 +46,7 @@ export default function StockCount() {
   const setq = usePolledQuery<AppSettings>(() => api.getAppSettings(), [], 300000)
   const approvalOn = setq.data?.inventoryApprovalRequired === true
   const [submitFor, setSubmitFor] = useState<StockCount | null>(null)
+  const ask = useConfirm()
   const stockCounts = scq.data?.data ?? []
   const scTotal = scq.data?.meta?.total ?? 0
   const scTotalPages = Math.max(1, Math.ceil(scTotal / pageSize))
@@ -157,7 +160,7 @@ export default function StockCount() {
       setForm({ name: '', locationKey: '', plannedDate: localDay(), notes: '' })
       await scq.refetch()
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'Gagal membuat stock count.')
+      setErr(e instanceof Error ? e.message : 'Gagal membuat opname.')
     } finally {
       authStore.outletId = prev
       setBusy(false)
@@ -165,22 +168,24 @@ export default function StockCount() {
   }
 
   const start = async (sc: StockCount) => {
+    if (!(await ask(startCountConfirm(sc.name))).confirmed) return
     setPageErr(null)
     try {
       await api.updateStockCount(sc.id, { status: 'in_progress' })
       setExpanded(sc.id)
     } catch (e) {
-      fail(e, 'Gagal memulai stock count.')
+      fail(e, 'Gagal memulai opname.')
     }
     await scq.refetch()
   }
   const cancel = async (sc: StockCount) => {
+    if (!(await ask(cancelCountConfirm(sc.name, sc.status))).confirmed) return
     setPageErr(null)
     try {
       await api.updateStockCount(sc.id, { status: 'cancelled' })
       dropEdits(sc.id)
     } catch (e) {
-      fail(e, 'Gagal membatalkan stock count.')
+      fail(e, 'Gagal membatalkan opname.')
     }
     await scq.refetch()
   }
@@ -216,10 +221,9 @@ export default function StockCount() {
     }
   }
   const complete = async (sc: StockCount) => {
-    const ok = window.confirm(
-      'Selesaikan stock count? Selisih hitungan akan diterapkan ke stok saat ini. Penjualan yang terjadi selama penghitungan tetap dihitung.',
-    )
-    if (!ok) return
+    // The net is figured from what is on screen, unsaved edits included, with the same formula as the Selisih column.
+    const { confirmed } = await ask(completeCountConfirm(sc.name, summarizeCount(itemsFor(sc))))
+    if (!confirmed) return
     setActiveId(sc.id)
     setPageErr(null)
     try {
@@ -237,7 +241,7 @@ export default function StockCount() {
       if (isApprovalRequired(e)) {
         setPageErr('Persetujuan stok wajib. Gunakan "Ajukan Persetujuan".')
         await setq.refetch()
-      } else fail(e, 'Gagal menyelesaikan stock count.')
+      } else fail(e, 'Gagal menyelesaikan opname.')
       await scq.refetch()
     } finally {
       setActiveId(null)
@@ -253,7 +257,7 @@ export default function StockCount() {
       if (!ok) return setPageErr((m) => m ?? 'Ada hitungan yang belum tersimpan. Periksa lalu coba lagi.')
       setSubmitFor(await api.getStockCount(sc.id))
     } catch (e) {
-      fail(e, 'Gagal memuat stock count.')
+      fail(e, 'Gagal memuat opname.')
     } finally {
       setActiveId(null)
     }
@@ -293,7 +297,7 @@ export default function StockCount() {
   return (
     <div className="p-6 space-y-5">
       <PageHeader
-        title="Stock Count"
+        title="Opname Produk"
         subtitle="Selisih hitungan diterapkan ke stok saat ini. Transaksi tetap berjalan."
         actions={
           <>
@@ -302,7 +306,7 @@ export default function StockCount() {
               exportDisabled={scTotal === 0}
             />
             <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setErr(null); setOpen(true) }}>
-              Buat Stock Count
+              Tambah opname
             </Button>
           </>
         }
@@ -320,7 +324,7 @@ export default function StockCount() {
           <TableSkeleton />
         ) : stockCounts.length === 0 ? (
           <Card>
-            <EmptyState icon={<ClipboardList />} title="Belum ada stock count" />
+            <EmptyState icon={<ClipboardList />} title="Belum ada opname produk" />
           </Card>
         ) : (
           stockCounts.map((sc) => {
@@ -365,7 +369,7 @@ export default function StockCount() {
                       </>
                     )}
                     {['planned', 'in_progress'].includes(sc.status) && (
-                      <IconButton tone="danger" onClick={() => cancel(sc)}>
+                      <IconButton tone="danger" aria-label={`Batalkan opname ${sc.name}`} onClick={() => cancel(sc)}>
                         <XCircle className="w-4 h-4" />
                       </IconButton>
                     )}
@@ -394,7 +398,7 @@ export default function StockCount() {
                     <table className="w-full">
                       <thead className="sticky top-0 bg-gray-50">
                         <tr>
-                          {['Produk', 'Varian', 'SKU', 'Stok Beku', 'Stok Aktual', 'Selisih', ...(sc.status === 'completed' ? ['Stok Sebelum → Sesudah'] : [])].map((h) => (
+                          {['Produk', 'Varian', 'SKU', 'Stok sistem', 'Stok dihitung', 'Selisih', ...(sc.status === 'completed' ? ['Stok Sebelum → Sesudah'] : [])].map((h) => (
                             <th key={h} className="text-left px-4 py-2 text-xs font-black text-gray-400 uppercase">{h}</th>
                           ))}
                         </tr>
@@ -409,7 +413,7 @@ export default function StockCount() {
                             <td className="px-4 py-2">
                               {sc.status === 'in_progress' ? (
                                 <div className="flex items-center gap-2">
-                                  <input type="number" min={0} value={it.actualQty ?? ''} onChange={(e) => setQty(sc, it, e.target.value)} onBlur={() => void saveLine(sc, it)} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }} aria-label={`Jumlah aktual ${it.productName}${it.variantSize ? ` ${it.variantSize}` : ''}`} className={`${fieldClass} w-20 px-2 py-1 text-center`} />
+                                  <input type="number" min={0} value={it.actualQty ?? ''} onChange={(e) => setQty(sc, it, e.target.value)} onBlur={() => void saveLine(sc, it)} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }} aria-label={`Jumlah dihitung ${it.productName}${it.variantSize ? ` ${it.variantSize}` : ''}`} className={`${fieldClass} w-20 px-2 py-1 text-center`} />
                                   {it.countedAt && edits[sc.id]?.[lineKey(it)] === undefined && (
                                     <span className="text-[10px] text-gray-400">dihitung {format(parseISO(it.countedAt), 'HH:mm')}</span>
                                   )}
@@ -420,7 +424,7 @@ export default function StockCount() {
                             </td>
                             <td className="px-4 py-2">
                               {(() => {
-                                const diff = it.difference ?? (it.actualQty != null ? it.actualQty - (it.baselineQty ?? it.frozenQty) : null)
+                                const diff = lineDifference(it)
                                 return diff != null ? (
                                   <span className={`text-sm font-black ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-gray-400'}`}>
                                     {diff > 0 ? '+' : ''}{diff}
@@ -466,11 +470,11 @@ export default function StockCount() {
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Buat Stock Count"
+        title="Tambah opname"
         footer={
           <>
             <Button variant="secondary" className="flex-1" onClick={() => setOpen(false)}>Batal</Button>
-            <Button className="flex-1" loading={busy} onClick={createSC}>{busy ? 'Membuat...' : 'Buat Stock Count'}</Button>
+            <Button className="flex-1" loading={busy} onClick={createSC}>{busy ? 'Membuat...' : 'Tambah opname'}</Button>
           </>
         }
       >
