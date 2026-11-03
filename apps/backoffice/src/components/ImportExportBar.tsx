@@ -10,6 +10,8 @@ export interface ImportExportBarProps {
   /** Build + trigger the export. Caller maps its data to rows then calls exportToCSV/exportToXLSX. */
   onExport: (fmt: ExportFormat) => Promise<void> | void
   exportDisabled?: boolean
+  /** Plain-words filters the export honours ("Status: Aktif"); shown in the button's tooltip. */
+  filterSummary?: readonly string[]
   /** Which server-side CSV import this bar drives (A39). Omit to render export-only. */
   importKind?: ImportKind
   /** Called after a successful import so the screen can refetch its lists. */
@@ -20,6 +22,7 @@ export interface ImportExportBarProps {
 export function ImportExportBar({
   onExport,
   exportDisabled,
+  filterSummary = [],
   importKind,
   onImported,
   onTemplate,
@@ -56,7 +59,7 @@ export function ImportExportBar({
         <ExportButton
           formats={['csv', 'xlsx']}
           rowCount={null}
-          filterSummary={[]}
+          filterSummary={filterSummary}
           disabled={exportDisabled}
           onExport={onExport}
         />

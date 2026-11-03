@@ -1,45 +1,47 @@
-import type { Product, Category } from '@mandalika/api'
+import type { Category } from '@mandalika/api'
 import { Edit2, Trash2, Tag } from 'lucide-react'
-import { Card } from '../../ui/Card'
-import { IconButton } from '../../ui/IconButton'
+import { DataTable, type Column } from '../../ui/DataTable'
 import { EmptyState } from '../../ui/EmptyState'
+import { IconButton } from '../../ui/IconButton'
 
 interface CategoriesTableProps {
   categories: Category[]
-  products: Product[]
+  /** Products per category id; missing or null = not known (shown as a dash). */
+  counts: Readonly<Record<string, number | null>>
+  loading?: boolean
+  error?: string | null
+  onRetry?: () => void
   onEdit: (c: Category) => void
-  onDelete: (id: string) => void
+  onDelete: (c: Category) => void
 }
 
-export function CategoriesTable({ categories, products, onEdit, onDelete }: CategoriesTableProps) {
+export function CategoriesTable({ categories, counts, loading, error, onRetry, onEdit, onDelete }: CategoriesTableProps) {
+  const columns: Column<Category>[] = [
+    { id: 'name', header: 'Nama', cell: (c) => <span className="font-bold text-gray-900">{c.name}</span> },
+    { id: 'description', header: 'Deskripsi', cell: (c) => <span className="text-sm text-gray-500">{c.description || '—'}</span> },
+    { id: 'count', header: 'Jumlah Produk', align: 'right', cell: (c) => <span className="text-sm font-bold text-gold-600">{counts[c.id] ?? '—'}</span> },
+    {
+      id: 'actions',
+      header: 'Aksi',
+      align: 'right',
+      cell: (c) => (
+        <div className="flex items-center justify-end gap-1">
+          <IconButton aria-label={`Ubah ${c.name}`} onClick={() => onEdit(c)}><Edit2 className="w-4 h-4" /></IconButton>
+          <IconButton tone="danger" aria-label={`Hapus ${c.name}`} onClick={() => onDelete(c)}><Trash2 className="w-4 h-4" /></IconButton>
+        </div>
+      ),
+    },
+  ]
   return (
-    <Card className="overflow-hidden">
-      {categories.length === 0 ? (
-        <EmptyState icon={<Tag />} title="Belum ada kategori" />
-      ) : (
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50">
-              {['Nama', 'Deskripsi', 'Jumlah Produk', 'Aksi'].map((h) => <th key={h} className="text-left px-5 py-3 text-xs font-black text-gray-400 uppercase">{h}</th>)}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {categories.map((c) => (
-              <tr key={c.id} className="hover:bg-gray-50">
-                <td className="px-5 py-3 font-bold text-gray-900">{c.name}</td>
-                <td className="px-5 py-3 text-sm text-gray-500">{c.description || '—'}</td>
-                <td className="px-5 py-3 text-sm font-bold text-gold-600">{products.filter((p) => p.categoryId === c.id).length}</td>
-                <td className="px-5 py-3">
-                  <div className="flex items-center justify-end gap-1">
-                    <IconButton onClick={() => onEdit(c)}><Edit2 className="w-4 h-4" /></IconButton>
-                    <IconButton tone="danger" onClick={() => onDelete(c.id)}><Trash2 className="w-4 h-4" /></IconButton>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </Card>
+    <DataTable
+      caption="Daftar kategori produk"
+      columns={columns}
+      rows={categories}
+      rowKey={(c) => c.id}
+      loading={loading}
+      error={error}
+      onRetry={onRetry}
+      empty={<EmptyState icon={<Tag />} title="Belum ada kategori" />}
+    />
   )
 }

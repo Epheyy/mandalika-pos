@@ -26,6 +26,9 @@ function lineFromServer(l: RecipeIngredientLine): EditLine {
   }
 }
 
+const signatureOf = (lines: EditLine[], notes: string): string =>
+  JSON.stringify({ lines: lines.map((l) => [l.ingredientId, l.qty]), notes })
+
 interface UseRecipeArgs { productId: string; variantId: string }
 
 export function useRecipe({ productId, variantId }: UseRecipeArgs) {
@@ -35,7 +38,10 @@ export function useRecipe({ productId, variantId }: UseRecipeArgs) {
   const [lines, setLines] = useState<EditLine[]>([])
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // What the server last gave us (lines + notes), to tell unsaved edits from a fresh load.
+  const [loadedSignature, setLoadedSignature] = useState<string | null>(null)
 
   const loadCurrent = useCallback(async () => {
     setLoading(true)
@@ -47,9 +53,11 @@ export function useRecipe({ productId, variantId }: UseRecipeArgs) {
       ])
       setRecipe(rec)
       setVersions(vers)
+      const loadedLines = (rec?.items ?? []).map(lineFromServer)
       setViewingVersionId(null)
-      setLines((rec?.items ?? []).map(lineFromServer))
+      setLines(loadedLines)
       setNotes('')
+      setLoadedSignature(signatureOf(loadedLines, ''))
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Gagal memuat resep.')
     } finally {
@@ -63,9 +71,11 @@ export function useRecipe({ productId, variantId }: UseRecipeArgs) {
     setLoading(true)
     try {
       const v = await api.getRecipeVersion(productId, variantId, versionId)
+      const versionLines = v.items.map(lineFromServer)
       setViewingVersionId(versionId)
-      setLines(v.items.map(lineFromServer))
+      setLines(versionLines)
       setNotes(v.notes ?? '')
+      setLoadedSignature(signatureOf(versionLines, v.notes ?? ''))
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Gagal memuat versi.')
     } finally {
@@ -82,6 +92,7 @@ export function useRecipe({ productId, variantId }: UseRecipeArgs) {
         return false
       }
     }
+    setSaving(true)
     try {
       await api.saveVariantRecipe(productId, variantId, {
         expectedCurrentVersionId: recipe?.currentVersionId ?? undefined,
@@ -98,6 +109,8 @@ export function useRecipe({ productId, variantId }: UseRecipeArgs) {
       }
       setErr(e instanceof Error ? e.message : 'Gagal menyimpan resep.')
       return false
+    } finally {
+      setSaving(false)
     }
   }, [lines, notes, productId, variantId, recipe, loadCurrent])
 
@@ -117,8 +130,10 @@ export function useRecipe({ productId, variantId }: UseRecipeArgs) {
   }, [productId, variantId, recipe, loadCurrent])
 
   const isViewingHistory = viewingVersionId !== null
+  // An old version is read-only, so only the current one can hold unsaved edits.
+  const dirty = !isViewingHistory && loadedSignature !== null && signatureOf(lines, notes) !== loadedSignature
   return {
-    recipe, versions, lines, setLines, notes, setNotes, loading, err, setErr,
+    recipe, versions, lines, setLines, notes, setNotes, loading, saving, dirty, err, setErr,
     isViewingHistory, viewingVersionId, viewVersion, loadCurrent, save, restore,
   }
 }
