@@ -24,6 +24,9 @@ export function slugForTab<K extends string>(tabs: readonly PathTab<K>[], key: K
   return tabs.find((t) => t.key === key)?.slug
 }
 
+/** A path segment that is a record id. Ids go into API URLs, so anything else (a decoded "../x") is not one. */
+export const isUuidSegment = (segment: string): boolean => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment)
+
 /** The segment right after `base`, or undefined when the path is not under `base`. */
 export function segmentAfter(path: readonly string[], base: readonly string[], offset = 0): string | undefined {
   if (base.some((b, i) => path[i] !== b)) return undefined
