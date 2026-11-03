@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { DiscountCode, DiscountCodeBatchInput, Promotion } from '@mandalika/api'
 import { Layers, Plus } from 'lucide-react'
 import { api } from '../../api'
@@ -47,7 +47,7 @@ export function CodesTab({ tabs }: CodesTabProps) {
   const list = usePromoList<DiscountCode>('codes', fetchPage)
   const toast = useToast()
   const confirm = useConfirm()
-  const del =useRowDelete<DiscountCode>(removeCode, list.refetch, 'Gagal menghapus kode diskon.')
+  const del = useRowDelete<DiscountCode>(removeCode, list.refetch, 'Gagal menghapus kode diskon.')
   const status = useStatusToggle(STATUS_KIND, list.refetch)
   // Names for "Tertaut: …" and the batch picker. The code list is paged, the promotions are not.
   const promos = usePolledQuery<Promotion[]>(fetchAllPromotions, [], 60_000)
@@ -76,6 +76,14 @@ export function CodesTab({ tabs }: CodesTabProps) {
   // Held from the click through the question and the send: `batchBusy` is state and lags a render, so a second click
   // landing just after the confirm closes would otherwise send a second batch.
   const batchInFlight = useRef(false)
+  // The question outlives this screen (the provider sits at the root): a confirm after a route change sends nothing.
+  const aliveRef = useRef(true)
+  useEffect(() => {
+    aliveRef.current = true
+    return () => {
+      aliveRef.current = false
+    }
+  }, [])
   const generateBatch = async () => {
     if (batchInFlight.current) return
     batchInFlight.current = true
@@ -84,6 +92,7 @@ export function CodesTab({ tabs }: CodesTabProps) {
       // N active codes reach the tablets on the next sync, so ask first (D-79). Batal leaves the panel and its error as
       // they were and sends nothing.
       if (batchNeedsConfirm(input) && !(await confirmBatchActivation(confirm, input.count))) return
+      if (!aliveRef.current) return
       setBatchBusy(true)
       setBatchError(null)
       try {
