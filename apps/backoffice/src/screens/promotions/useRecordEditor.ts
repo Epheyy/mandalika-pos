@@ -15,6 +15,11 @@ interface RecordEditorArgs<Row extends { id: string }, Input> {
   problemsOf: (input: Input) => FormProblem[]
   /** Called after a successful save (refetch the list, close the editor). */
   onSaved: () => void | Promise<void>
+  /**
+   * Asked just before a save is sent, with the form and the row as loaded (null for a new one). Resolving false
+   * cancels the save: the editor stays open, the form intact, nothing sent.
+   */
+  confirmSave?: (input: Input, row: Row | null) => Promise<boolean>
   /** Shown when the save is refused without a message. */
   saveFailure: string
   loadFailure: string
@@ -29,7 +34,7 @@ const messageOf = (e: unknown, fallback: string): string => (e instanceof Error 
  * therefore never dirty and saves exactly what was loaded.
  */
 export function useRecordEditor<Row extends { id: string }, Input>(args: RecordEditorArgs<Row, Input>) {
-  const { recordId, fetchAll, toInput, empty, create, update, problemsOf, onSaved, saveFailure, loadFailure } = args
+  const { recordId, fetchAll, toInput, empty, create, update, problemsOf, onSaved, confirmSave, saveFailure, loadFailure } = args
   const [form, setForm] = useState<Input>(empty)
   const [row, setRow] = useState<Row | null>(null)
   const [load, setLoad] = useState<EditorLoad>(recordId ? 'loading' : 'ready')
@@ -81,8 +86,19 @@ export function useRecordEditor<Row extends { id: string }, Input>(args: RecordE
   // A new form opens quiet: "wajib diisi" appears once the user has touched something, other problems at once.
   const shownProblems = dirty ? problems : problems.filter((p) => p.kind !== 'required')
 
+  const askingRef = useRef(false)
   const save = async () => {
-    if (busy || problems.length > 0) return
+    if (busy || askingRef.current || problems.length > 0) return
+    if (confirmSave) {
+      askingRef.current = true
+      let ok = false
+      try {
+        ok = await confirmSave(form, row)
+      } finally {
+        askingRef.current = false
+      }
+      if (!ok || !aliveRef.current) return
+    }
     setBusy(true)
     setErr(null)
     try {

@@ -77,8 +77,8 @@ export function promotionToInput(p: Promotion): PromotionInput {
   }
 }
 
-/** A copy for "Duplikat": same body, a suffixed name. Created with the original's active flag (see the PR notes). */
-export const duplicateInput = (p: Promotion): PromotionInput => ({ ...promotionToInput(p), name: `${p.name} (Salinan)` })
+/** A copy for "Duplikat": same body, a suffixed name, and always inactive: a copy must not reach tablets unasked (D-79). */
+export const duplicateInput = (p: Promotion): PromotionInput => ({ ...promotionToInput(p), name: `${p.name} (Salinan)`, isActive: false })
 
 const tiersOf = (form: PromotionInput): TierRow[] => (form.tieredConfig?.tiers ?? []) as TierRow[]
 const slotsOf = (form: PromotionInput): BundleSlotRow[] => (form.bundleConfig?.slots ?? []) as BundleSlotRow[]

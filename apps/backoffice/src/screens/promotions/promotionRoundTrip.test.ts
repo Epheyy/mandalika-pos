@@ -76,8 +76,8 @@ describe.each(Object.entries(FIXTURES))('promotionToInput round trip: %s', (_typ
     for (const key of PROMOTION_INPUT_KEYS) expect(out, `missing ${key}`).toHaveProperty(key)
   })
 
-  it('a duplicate differs only in the name', () => {
-    expect(duplicateInput(promo)).toEqual({ ...promotionToInput(promo), name: 'Promo Lengkap (Salinan)' })
+  it('a duplicate differs only in the name and is saved inactive', () => {
+    expect(duplicateInput({ ...promo, isActive: true })).toEqual({ ...promotionToInput(promo), name: 'Promo Lengkap (Salinan)', isActive: false })
   })
 
   it('does not mutate the stored promotion', () => {
