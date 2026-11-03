@@ -195,9 +195,9 @@ test('BO-PRODUCTS-LIST Produk filters and paging are server requests and URL sta
   await evidence(info, result)
 })
 
-test('BO-PROMO-LIST Promosi and Kode Diskon filters and paging are server requests and URL state that survive a reload and feed the export, the status Switch asks before turning on and turning off undoes from a fresh read, an untouched edit sends every field back, and a refused save, delete or batch stays visible', async ({ page }, info) => {
+test('BO-PROMO-LIST Promosi and Kode Diskon filters and paging are server requests and URL state that survive a reload and feed the export, the status Switch asks before turning on and turning off undoes from a fresh read, an untouched edit sends every field back, Buat Massal asks with the count before creating active codes, and a refused save, delete or batch stays visible', async ({ page }, info) => {
   const result = await promotionsFlow(page as ScenarioPage)
-  expect(result).toHaveLength(17)
+  expect(result).toHaveLength(18)
   await evidence(info, result)
 })
 
