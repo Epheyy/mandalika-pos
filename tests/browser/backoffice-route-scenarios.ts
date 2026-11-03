@@ -28,7 +28,12 @@ interface MockOptions {
   settingsDelayMs?: number
 }
 
+/** Every API request the mock saw since the last mockApi(), with its query. */
+const calls: Array<{ path: string; query: URLSearchParams }> = []
+const lastCall = (suffix: string) => [...calls].reverse().find((c) => c.path.endsWith(suffix))
+
 async function mockApi(page: ScenarioPage, opts: MockOptions = {}) {
+  calls.length = 0
   await page.unrouteAll({ behavior: 'wait' })
   await page.route('http://127.0.0.1:59999/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname
@@ -39,8 +44,16 @@ async function mockApi(page: ScenarioPage, opts: MockOptions = {}) {
       return route.fulfill({ json: { data: settings({ recipesEnabled: opts.recipesEnabled ?? false }) } })
     }
     if (path.endsWith('/reports/summary')) return route.fulfill({ json: { data: EMPTY_SUMMARY } })
+    calls.push({ path, query: new URL(route.request().url()).searchParams })
     if (path.endsWith('/refund-report')) {
-      return route.fulfill({ json: { summary: { count: 0, totalAmount: 0, flaggedCount: 0 }, data: [], meta: { total: 0, page: 1, limit: 50 } } })
+      // 120 refunds, none on show: three pages at 50, so a deep link to page 2 is a real page and is not clamped.
+      return route.fulfill({ json: { summary: { count: 120, totalAmount: 0, flaggedCount: 0 }, data: [], meta: { total: 120, page: 1, limit: 50 } } })
+    }
+    if (path.endsWith('/orders')) {
+      // 500 orders, or 7 under the Refund status; none on show. The answer echoes the page and limit it was asked for.
+      const q = new URL(route.request().url()).searchParams
+      const total = q.get('status') === 'refunded' ? 7 : 500
+      return route.fulfill({ json: { data: [], meta: { total, page: Number(q.get('page') ?? 1), limit: Number(q.get('limit') ?? 50) } } })
     }
     if (path.endsWith('/inventory/overview') || path.endsWith('/inventory/ingredient-overview')) return route.fulfill({ json: { locations: [], rows: [] } })
     if (path.endsWith(`/transfers/${TRANSFER_ID}`)) return route.fulfill({ json: { data: TRANSFER } })
@@ -84,13 +97,13 @@ export const routeDeepLinkFlow = async (page: ScenarioPage) => {
   await tabItem(page, 'orders').waitFor()
   check(await pressed(page, 'orders'), 'an unknown tab falls back to the first')
   await clickTab(page, 'export')
-  check((await hashOf(page)) === '#/laporan/ekspor', `Ekspor click writes the path, got ${await hashOf(page)}`)
+  check((await hashOf(page)) === '#/laporan/ekspor', `Unduh data click writes the path, got ${await hashOf(page)}`)
   await page.goBack()
   await page.waitForFunction(() => location.hash === '#/laporan/tidak-ada')
   check(await pressed(page, 'orders'), 'Back returns to the first tab')
   await page.goForward()
   await page.waitForFunction(() => location.hash === '#/laporan/ekspor')
-  check(await pressed(page, 'export'), 'Forward returns to Ekspor')
+  check(await pressed(page, 'export'), 'Forward returns to Unduh data')
   results.push({ step: 'bare-unknown-and-history' })
 
   // (c) a transfer detail is a path: #/inventori/transfer/<id> opens it after a reload, Kembali goes to the list
@@ -114,6 +127,76 @@ export const routeDeepLinkFlow = async (page: ScenarioPage) => {
   check((await tabItem(page, 'bahan.stok-masuk').count()) === 1, 'the Bahan inner tabs are on show')
   check((await hashOf(page)) === '#/inventori/bahan', 'the URL still names Bahan')
   results.push({ step: 'gated-tab-re-resolves' })
+
+  // (e) Laporan filters are in the URL: a deep link to a tab with dates, a flag and a page fills the controls and the request
+  await mockApi(page)
+  await deepLink(page, '#/laporan/refund?dari=2026-10-01&sampai=2026-10-31&tanda=any&hal=2')
+  await tabItem(page, 'refund').waitFor()
+  const dari = page.getByLabel('Dari', { exact: true })
+  const sampai = page.getByLabel('Sampai', { exact: true })
+  const flagSelect = page.locator('select').filter({ has: page.locator('option[value="over_total"]') })
+  const statusSelect = page.locator('select').filter({ has: page.locator('option[value="partially_refunded"]') })
+  const paySelect = page.locator('select').filter({ has: page.locator('option[value="qris"]') })
+  await page.waitForFunction(() => document.querySelector('input[type="date"]') !== null)
+  check((await dari.inputValue()) === '2026-10-01', 'Dari comes from the URL')
+  check((await sampai.inputValue()) === '2026-10-31', 'Sampai comes from the URL')
+  check((await flagSelect.inputValue()) === 'any', 'the warning filter comes from the URL')
+  await page.waitForFunction(() => location.hash.includes('hal=2'))
+  const refundReq = lastCall('/refund-report')
+  check(refundReq?.query.get('dateFrom') === '2026-10-01' && refundReq.query.get('dateTo') === '2026-10-31', 'the request carries the dates')
+  check(refundReq?.query.get('flag') === 'any' && refundReq.query.get('page') === '2', 'the request carries flag and page 2')
+  check(/hal=2/.test(await hashOf(page)), `page 2 stays in the URL, got ${await hashOf(page)}`)
+  results.push({ step: 'laporan-refund-deep-link' })
+
+  // a tab switch carries Dari/Sampai and drops the tab's own keys
+  await clickTab(page, 'export')
+  await page.waitForFunction(() => location.hash.startsWith('#/laporan/ekspor'))
+  check((await hashOf(page)) === '#/laporan/ekspor?dari=2026-10-01&sampai=2026-10-31', `tab switch carries the dates only, got ${await hashOf(page)}`)
+  check((await dari.inputValue()) === '2026-10-01', 'Dari survives the tab switch')
+  results.push({ step: 'laporan-tab-switch-carries-dates' })
+
+  // the Unduh data tab with status and payment
+  await deepLink(page, '#/laporan/ekspor?status=refunded&bayar=qris')
+  await tabItem(page, 'export').waitFor()
+  await page.waitForFunction(() => document.querySelector('input[type="date"]') !== null)
+  check((await statusSelect.inputValue()) === 'refunded', 'Status comes from the URL')
+  check((await paySelect.inputValue()) === 'qris', 'Pembayaran comes from the URL')
+  await page.waitForFunction(() => location.hash.includes('status=refunded'))
+  const ordersReq = lastCall('/orders')
+  check(ordersReq?.query.get('status') === 'refunded' && ordersReq.query.get('paymentMethod') === 'qris', 'the orders request carries status and payment')
+  results.push({ step: 'laporan-export-deep-link' })
+
+  // (f) junk values fall back to the defaults
+  await mockApi(page)
+  await deepLink(page, '#/laporan/ekspor?status=zzz&hal=-3&dari=nope&per=7')
+  await tabItem(page, 'export').waitFor()
+  await page.waitForFunction(() => document.querySelector('input[type="date"]') !== null)
+  const localToday = await page.evaluate(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })
+  check((await statusSelect.inputValue()) === '', 'junk status falls back to all statuses')
+  check((await dari.inputValue()) === localToday, 'junk Dari falls back to today')
+  await page.waitForFunction(() => (document.querySelector('main')?.innerText ?? '') !== '')
+  const junkReq = lastCall('/orders')
+  check(junkReq !== undefined && !junkReq.query.has('status') && junkReq.query.get('page') === '1' && junkReq.query.get('limit') === '50', 'junk status, hal and per fall back in the request')
+  results.push({ step: 'laporan-junk-values' })
+
+  // (g) Back after a narrowing filter lands on the page it left: the clamp must not run on the previous answer
+  await mockApi(page)
+  await deepLink(page, '#/laporan/transaksi?hal=4')
+  await tabItem(page, 'orders').waitFor()
+  await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('500 transaksi'))
+  const orderStatus = page.locator('select').filter({ has: page.locator('option[value="cancelled"]') })
+  await orderStatus.selectOption('refunded')
+  await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('7 transaksi'))
+  check(!/hal=/.test(await hashOf(page)) && /status=refunded/.test(await hashOf(page)), `the filter starts again on page 1, got ${await hashOf(page)}`)
+  await page.goBack()
+  await page.waitForFunction(() => location.hash.includes('hal=4'))
+  await page.waitForFunction(() => document.querySelector('main')?.innerText.includes('500 transaksi'))
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+  check(/hal=4/.test(await hashOf(page)) && !/status=/.test(await hashOf(page)), `Back keeps page 4, got ${await hashOf(page)}`)
+  results.push({ step: 'laporan-back-keeps-page' })
   return results
 }
 

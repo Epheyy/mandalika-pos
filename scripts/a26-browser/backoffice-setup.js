@@ -26,9 +26,9 @@ async (page) => {
   await page.reload();
   await page.setViewportSize({width:1440,height:1000});
   await page.getByRole('button',{name:'Laporan',exact:true}).click();
-  await page.getByRole('button',{name:'Ekspor',exact:true}).click();
+  await page.getByRole('button',{name:'Unduh data',exact:true}).click();
   await page.evaluate(()=>{window.__a26csv=[];URL.createObjectURL=b=>{window.__a26csv.push(b.text());return 'blob:synthetic';};HTMLAnchorElement.prototype.click=function(){};});
-  await page.getByRole('button',{name:'Export CSV',exact:true}).click();
+  await page.getByRole('button',{name:'Unduh CSV',exact:true}).click();
   const csv=await page.evaluate(()=>Promise.all(window.__a26csv));
   return {expected:51,rows:csv[0]?.split('\n').length-1,calls:page.__a26.calls,body:(await page.locator('body').innerText()).slice(-1300)};
 }

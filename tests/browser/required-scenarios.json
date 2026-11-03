@@ -244,7 +244,7 @@
     {
       "id": "BO-REFUND-LIST",
       "finding": "C4c",
-      "description": "Laporan > Refund: one row per refund with Refund ke-N, amount of record, claimed amount and warning badge; flag select sends flag to the API, paging sends page/limit, Export Refund CSV pages at limit=200 and downloads the per-refund CSV",
+      "description": "Laporan > Refund: one row per refund with Refund ke-N, amount of record, claimed amount and warning badge; flag select sends flag to the API, paging sends page/limit, Unduh CSV refund pages at limit=200 and downloads the per-refund CSV",
       "source": "tests/browser/backoffice-refund-scenarios.ts"
     },
     {
@@ -256,7 +256,7 @@
     {
       "id": "BO-SPLIT-ORDER",
       "finding": "C6c",
-      "description": "Transaksi with a split order: list shows Split-Payment (never the raw id) and the ⚠ Bayar reason, detail lists each payment line with reference and change, the payment filter offers Split-Payment and sends it to the API, the admin refund shows payout chips for split orders only (default preselected) and posts the chosen payoutMethod, and the Ekspor CSV writes the lines as \"QRIS 751.000; Tunai 500.000\"",
+      "description": "Transaksi with a split order: list shows Split-Payment (never the raw id) and the ⚠ Bayar reason, detail lists each payment line with reference and change, the payment filter offers Split-Payment and sends it to the API, the admin refund shows payout chips for split orders only (default preselected) and posts the chosen payoutMethod, and the Unduh CSV writes the lines as \"QRIS 751.000; Tunai 500.000\"",
       "source": "tests/browser/backoffice-split-scenarios.ts"
     },
     {

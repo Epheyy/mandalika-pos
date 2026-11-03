@@ -82,7 +82,7 @@ const tab = (key: string, slug: string, label: string, perm?: string): RouteTab 
 // Slugs are the final Indonesian names (D-69). The first tab is what a bare "#/<screen>" shows.
 const REPORT_TABS: readonly RouteTab[] = [
   tab('orders', 'transaksi', 'Transaksi', 'view_transactions'),
-  tab('export', 'ekspor', 'Ekspor', 'view_reports'),
+  tab('export', 'ekspor', 'Unduh data', 'view_reports'),
   tab('shifts', 'shift', 'Shift', 'view_reports'),
   tab('grants', 'hadiah-promo', 'Hadiah Promo', 'view_reports'),
   tab('codeReport', 'kode-diskon', 'Kode Diskon', 'view_reports'),

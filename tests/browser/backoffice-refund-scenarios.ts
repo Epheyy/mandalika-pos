@@ -89,7 +89,7 @@ export const refundReportFlow = async (page: ScenarioPage) => {
 
   // per-refund CSV pages the filtered set at limit=200
   const waiting = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Export Refund CSV' }).click()
+  await page.getByRole('button', { name: 'Unduh CSV refund', exact: true }).click()
   const download = await waiting
   const chunks: Buffer[] = []
   for await (const chunk of (await download.createReadStream()) as AsyncIterable<Buffer>) chunks.push(chunk)

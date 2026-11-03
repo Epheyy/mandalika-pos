@@ -30,7 +30,7 @@ export function ShiftsTab({ dateFrom, dateTo, outletId, outlets }: ShiftsTabProp
   }, [outletId, dateFrom, dateTo])
   const shifts = sq.data ?? []
   const REFUND_SHIFT_LABEL = 'Refund penjualan shift'
-  const REFUND_SHIFT_HINT = 'Mengikuti shift yang membuat penjualan. Tab Ekspor menghitung refund pada hari refund, jadi angkanya bisa berbeda.'
+  const REFUND_SHIFT_HINT = 'Mengikuti shift yang membuat penjualan. Tab Unduh data menghitung refund pada hari refund, jadi angkanya bisa berbeda.'
   const outletName = (oid: string) => outlets.find((o) => o.id === oid)?.name || oid
 
   const exportSh = () =>
@@ -74,7 +74,7 @@ export function ShiftsTab({ dateFrom, dateTo, outletId, outlets }: ShiftsTabProp
           disabled={sq.loading || !!sq.error || !sq.data}
           icon={<Download className="w-4 h-4" />}
         >
-          Export CSV
+          Unduh CSV
         </Button>
       </div>
       {sq.data && (

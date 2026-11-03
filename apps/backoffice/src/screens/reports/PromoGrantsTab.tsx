@@ -1,5 +1,5 @@
 import type { ChangeEvent } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Gift } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
@@ -8,6 +8,8 @@ import { Select } from '../../ui/Field'
 import { Card } from '../../ui/Card'
 import { EmptyState } from '../../ui/EmptyState'
 import { Button } from '../../ui/Button'
+import { useListState, type ListSchema } from '../../lib/router/useListState'
+import { PAGE_ONLY_SCHEMA, isAnswerFor, pageOf, pageToClamp, uuidOf } from './reportFilters'
 import { fetchAllPages, type components } from '@mandalika/api'
 
 type Report = components['schemas']['PromoRewardGrantReport']
@@ -15,6 +17,19 @@ type Promotion = components['schemas']['Promotion']
 type Product = components['schemas']['Product']
 
 const LIMIT = 50
+
+interface GrantsListState {
+  promo: string
+  produk: string
+  hal: number
+  [key: string]: string | number
+}
+
+const GRANTS_SCHEMA: ListSchema<GrantsListState> = {
+  promo: { key: 'promo', default: '' },
+  produk: { key: 'produk', default: '' },
+  hal: PAGE_ONLY_SCHEMA.hal,
+}
 
 interface BreakdownRow {
   key: string
@@ -34,13 +49,12 @@ interface PromoGrantsTabProps {
  * and filterable by promotion/product. Reuses `listPromoRewardGrants`
  * (SP-Promo grant-reporting-view, Task 4). */
 export function PromoGrantsTab({ dateFrom, dateTo, outletId }: PromoGrantsTabProps) {
-  const [promotionId, setPromotionId] = useState('')
-  const [productId, setProductId] = useState('')
-  const [page, setPage] = useState(1)
-
-  // Reset to page 1 when the hub narrows the set (date range / outlet), else the
-  // user can be stranded on a now-empty page while summary cards still total.
-  useEffect(() => setPage(1), [dateFrom, dateTo, outletId])
+  // Filters and page are URL state (#/laporan/hadiah-promo?promo=<id>&produk=<id>&hal=2). The hub sets hal back
+  // to 1 when it narrows the set (date range / outlet), else the user can be stranded on a now-empty page.
+  const [state, setState] = useListState(GRANTS_SCHEMA)
+  const promotionId = uuidOf(state.promo)
+  const productId = uuidOf(state.produk)
+  const page = pageOf(state.hal)
 
   const pq = usePolledQuery<Promotion[]>(() => api.listPromotions(), [])
   const prq = usePolledQuery<Product[]>(() => fetchAllPages((page, limit) => api.listProducts(page, limit)), [outletId])
@@ -65,14 +79,8 @@ export function PromoGrantsTab({ dateFrom, dateTo, outletId }: PromoGrantsTabPro
   const summary = report?.summary
   const meta = report?.meta
 
-  const handlePromotionChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    setPromotionId(e.target.value)
-    setPage(1)
-  }
-  const handleProductChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    setProductId(e.target.value)
-    setPage(1)
-  }
+  const handlePromotionChange = (e: ChangeEvent<HTMLSelectElement>) => setState({ promo: e.target.value, hal: 1 })
+  const handleProductChange = (e: ChangeEvent<HTMLSelectElement>) => setState({ produk: e.target.value, hal: 1 })
 
   const byPromotionRows: BreakdownRow[] = (summary?.byPromotion ?? []).map((b, i) => ({
     key: b.promotionId ?? `${b.promotionName ?? 'promo'}-${i}`,
@@ -88,6 +96,13 @@ export function PromoGrantsTab({ dateFrom, dateTo, outletId }: PromoGrantsTabPro
   }))
 
   const totalPages = meta ? Math.max(1, Math.ceil(meta.total / (meta.limit || LIMIT))) : 1
+  // A page past the end (a stale link) moves to the last page.
+  useEffect(() => {
+    if (rq.loading || rq.error || !isAnswerFor(meta, page)) return
+    if (!meta) return
+    const target = pageToClamp(page, meta.total, meta.limit || LIMIT)
+    if (target !== null) setState({ hal: target }, { replace: true })
+  }, [rq.loading, rq.error, meta, page, setState])
 
   return (
     <div className="space-y-5">
@@ -178,14 +193,14 @@ export function PromoGrantsTab({ dateFrom, dateTo, outletId }: PromoGrantsTabPro
             Halaman {meta.page} dari {totalPages} · {meta.total} baris
           </p>
           <div className="flex gap-2">
-            <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+            <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setState({ hal: Math.max(1, page - 1) })}>
               Sebelumnya
             </Button>
             <Button
               variant="secondary"
               size="sm"
               disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() => setState({ hal: page + 1 })}
             >
               Berikutnya
             </Button>

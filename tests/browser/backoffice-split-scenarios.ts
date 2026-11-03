@@ -137,14 +137,14 @@ export const splitOrderFlow = async (page: ScenarioPage) => {
   check((await page.getByRole('radiogroup', { name: 'Dikembalikan lewat' }).count()) === 0, 'single-method order has no payout chips')
   results.push({ step: 'single-no-chips' })
 
-  // Ekspor CSV: Metode Bayar lists the lines, Metode Refund the payout
+  // Unduh CSV: Metode Bayar lists the lines, Metode Refund the payout
   await clickTab(page, 'export')
   await page.evaluate(() => {
     (window as any).__csv = []
     URL.createObjectURL = (b: any) => { (window as any).__csv.push(b.text()); return 'blob:synthetic' }
     HTMLAnchorElement.prototype.click = function () {}
   })
-  await page.getByRole('button', { name: 'Export CSV', exact: true }).click()
+  await page.getByRole('button', { name: 'Unduh CSV', exact: true }).click()
   await page.waitForFunction(() => (window as any).__csv.length > 0)
   const csv = String(await page.evaluate(() => (window as any).__csv[0]))
   const rows = csv.replace(/^﻿/, '').split(/\r?\n/)

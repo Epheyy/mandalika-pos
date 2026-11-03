@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { fetchAllPages } from '@mandalika/api'
 import type { RefundReport } from '@mandalika/api'
 import { Download, RotateCcw } from 'lucide-react'
@@ -12,12 +12,29 @@ import { Card } from '../../ui/Card'
 import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 import { Select } from '../../ui/Field'
+import { useListState, type ListSchema } from '../../lib/router/useListState'
+import { PAGING_SCHEMA, enumOf, isAnswerFor, pageOf, pageSizeOf, pageToClamp } from './reportFilters'
 import {
   REFUND_FLAG_OPTIONS, claimedIfDifferent, flagLabel, flagTone, formatRefundTime, itemSummary,
   refundCsvRows, scopeLabel, type RefundFlagFilter,
 } from './refundReport'
 
-const HEADERS = ['Waktu refund', 'No. struk', 'Outlet', 'Kasir / Oleh', 'Cakupan', 'Barang & qty', 'Jumlah', 'Diklaim tablet', 'Alasan']
+interface RefundListState {
+  tanda: string
+  hal: number
+  per: number
+  [key: string]: string | number
+}
+
+const REFUND_SCHEMA: ListSchema<RefundListState> = {
+  tanda: { key: 'tanda', default: '' },
+  hal: PAGING_SCHEMA.hal,
+  per: PAGING_SCHEMA.per,
+}
+
+const REFUND_FLAGS = REFUND_FLAG_OPTIONS.map((o) => o.value)
+
+const HEADERS =['Waktu refund', 'No. struk', 'Outlet', 'Kasir / Oleh', 'Cakupan', 'Barang & qty', 'Jumlah', 'Diklaim tablet', 'Alasan']
 
 interface RefundReportTabProps {
   dateFrom: string
@@ -28,9 +45,12 @@ interface RefundReportTabProps {
 /** Laporan > Refund (remounted by the hub on date/outlet change, so paging restarts): one row per refund (C4c) over the hub's refund-day range, with the
  * server's amount warnings; the CSV pages the whole filtered set with the same filters. */
 export function RefundReportTab({ dateFrom, dateTo, outletId }: RefundReportTabProps) {
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(50)
-  const [flag, setFlag] = useState<RefundFlagFilter>('')
+  // The warning filter and the page are URL state (#/laporan/refund?tanda=any&hal=2); the hub remounts this tab
+  // on a date or outlet change and sets hal back to 1 in the same patch.
+  const [state, setState] = useListState(REFUND_SCHEMA)
+  const page = pageOf(state.hal)
+  const pageSize = pageSizeOf(state.per)
+  const flag = enumOf<RefundFlagFilter>(state.tanda, REFUND_FLAGS, '')
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
 
@@ -44,6 +64,13 @@ export function RefundReportTab({ dateFrom, dateTo, outletId }: RefundReportTabP
   const summary = rq.data?.summary
   const total = rq.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+  // A page past the end (a stale link) moves to the last page.
+  useEffect(() => {
+    if (rq.loading || rq.error || !rq.data || !isAnswerFor(rq.data.meta, page, pageSize)) return
+    const target = pageToClamp(page, total, pageSize)
+    if (target !== null) setState({ hal: target }, { replace: true })
+  }, [rq.loading, rq.error, rq.data, page, total, pageSize, setState])
 
   const runExport = async () => {
     setExporting(true)
@@ -66,7 +93,7 @@ export function RefundReportTab({ dateFrom, dateTo, outletId }: RefundReportTabP
       {exportError && <p role="alert" className="text-sm text-red-600">{exportError}</p>}
 
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <Select label="Peringatan" value={flag} onChange={(e) => { setFlag(e.target.value as RefundFlagFilter); setPage(1) }} className="w-auto">
+        <Select label="Peringatan" value={flag} onChange={(e) => setState({ tanda: e.target.value, hal: 1 })} className="w-auto">
           {REFUND_FLAG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </Select>
         <Button
@@ -75,7 +102,7 @@ export function RefundReportTab({ dateFrom, dateTo, outletId }: RefundReportTabP
           disabled={exporting || !!rq.error || total === 0}
           icon={<Download className="w-4 h-4" />}
         >
-          {exporting ? 'Menyiapkan…' : 'Export Refund CSV'}
+          {exporting ? 'Menyiapkan…' : 'Unduh CSV refund'}
         </Button>
       </div>
 
@@ -148,9 +175,9 @@ export function RefundReportTab({ dateFrom, dateTo, outletId }: RefundReportTabP
           page={page}
           totalPages={totalPages}
           total={total}
-          onChange={setPage}
+          onChange={(p) => setState({ hal: p })}
           pageSize={pageSize}
-          onPageSizeChange={(n) => { setPageSize(n); setPage(1) }}
+          onPageSizeChange={(n) => setState({ per: n, hal: 1 })}
         />
       )}
     </div>
