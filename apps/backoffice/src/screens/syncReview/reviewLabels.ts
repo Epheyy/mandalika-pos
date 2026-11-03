@@ -21,6 +21,11 @@ export const REASON_FILTERS: ReadonlyArray<{ id: string; label: string }> = [
   { id: 'none', label: 'Gagal berulang (versi lama)' },
 ]
 
+/** A reason filter from the URL; a value that is not one of the options means "all reasons". */
+export function reasonFilterOf(value: string): string {
+  return REASON_FILTERS.some((r) => r.id === value) ? value : ''
+}
+
 export function reasonLabel(code: string | null | undefined): string {
   if (!code) return 'Gagal berulang (versi lama)'
   return REASONS[code] ?? `Ditolak (${code})`

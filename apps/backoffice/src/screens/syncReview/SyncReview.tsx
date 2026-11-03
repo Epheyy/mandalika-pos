@@ -9,21 +9,41 @@ import { EmptyState } from '../../ui/EmptyState'
 import { PageHeader } from '../../ui/PageHeader'
 import { Tabs } from '../../ui/Tabs'
 import { useScreenTabs } from '../../lib/router/useScreenTabs'
+import { useListState, type ListSchema } from '../../lib/router/useListState'
+import { FilterBar } from '../../ui/FilterBar'
 import { Pagination } from '../../ui/Pagination'
-import { Select } from '../../ui/Field'
-import { REASON_FILTERS, fmtWib, isStale, reasonLabel, shouldStepBack, typeLabel } from './reviewLabels'
+import { REASON_FILTERS, fmtWib, isStale, reasonFilterOf, reasonLabel, shouldStepBack, typeLabel } from './reviewLabels'
 import { SyncReviewDetail } from './SyncReviewDetail'
 
 type Status = 'open' | 'resolved'
+
+interface ReviewListState {
+  outlet: string
+  alasan: string
+  hal: number
+  per: number
+  [key: string]: string | number
+}
+
+// Terbuka / Selesai live in the path, and a tab switch drops the query, so these filters belong to one tab.
+const LIST_SCHEMA: ListSchema<ReviewListState> = {
+  outlet: { key: 'outlet', default: '' },
+  alasan: { key: 'alasan', default: '' },
+  hal: { key: 'hal', default: 1 },
+  per: { key: 'per', default: 25 },
+}
+
+const PAGE_SIZES = [25, 50, 100]
 
 export default function SyncReview() {
   // Terbuka / Selesai live in the path (#/tinjauan-sinkron/selesai); a bare #/tinjauan-sinkron is Terbuka.
   const { tab: routedStatus, setTab: setStatus } = useScreenTabs<Status>('syncReview', null)
   const status: Status = routedStatus ?? 'open'
-  const [outletId, setOutletId] = useState('')
-  const [reviewCode, setReviewCode] = useState('')
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
+  const [state, setState] = useListState(LIST_SCHEMA)
+  const outletId = state.outlet
+  const reviewCode = reasonFilterOf(state.alasan)
+  const pageSize = PAGE_SIZES.includes(state.per) ? state.per : LIST_SCHEMA.per.default
+  const page = Math.max(1, Math.floor(state.hal))
   const [selected, setSelected] = useState<SyncReviewItem | null>(null)
 
   const q = usePolledQuery<SyncReviewItemList>(
@@ -37,32 +57,31 @@ export default function SyncReview() {
   const openCount = q.data?.openCount ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
-  // Back/Forward between Terbuka and Selesai must not carry the page or an open detail over to the other list.
+  // Back/Forward between Terbuka and Selesai must not carry an open detail over to the other list.
   useEffect(() => {
-    setPage(1)
     setSelected(null)
   }, [status])
 
   // Resolving the last row on a later page (here or by another user) leaves it empty.
   useEffect(() => {
-    if (shouldStepBack({ loading: q.loading, error: q.error, rowCount: rows.length, page })) setPage(page - 1)
-  }, [q.loading, q.error, rows.length, page])
+    if (shouldStepBack({ loading: q.loading, error: q.error, rowCount: rows.length, page })) setState({ hal: page - 1 }, { replace: true })
+  }, [q.loading, q.error, rows.length, page, setState])
 
   return (
     <div className="p-6 space-y-5">
       <PageHeader title="Tinjauan Sinkron"
         subtitle="Item sinkron yang ditolak server dari semua tablet. Perbaiki secara manual bila perlu, lalu tandai selesai." />
-      <div className="flex flex-wrap items-end gap-3">
-        <Tabs<Status> value={status} onChange={(v) => { setStatus(v); setPage(1) }}
+      <FilterBar
+        onReset={() => setState({ outlet: '', alasan: '', hal: 1 })}
+        activeCount={(outletId ? 1 : 0) + (reviewCode ? 1 : 0)}
+      >
+        <Tabs<Status> value={status} onChange={(v) => setStatus(v)}
           tabs={[{ id: 'open', label: `Terbuka (${openCount})` }, { id: 'resolved', label: 'Selesai' }]} />
-        <Select aria-label="Filter outlet" value={outletId} onChange={(e) => { setOutletId(e.target.value); setPage(1) }}>
-          <option value="">Semua outlet</option>
-          {(outletsQ.data ?? []).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-        </Select>
-        <Select aria-label="Filter alasan" value={reviewCode} onChange={(e) => { setReviewCode(e.target.value); setPage(1) }}>
-          {REASON_FILTERS.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
-        </Select>
-      </div>
+        <FilterBar.Select label="Outlet" value={outletId} onChange={(v) => setState({ outlet: v, hal: 1 })}
+          options={[{ value: '', label: 'Semua outlet' }, ...(outletsQ.data ?? []).map((o) => ({ value: o.id, label: o.name }))]} />
+        <FilterBar.Select label="Alasan" value={reviewCode} onChange={(v) => setState({ alasan: v, hal: 1 })}
+          options={REASON_FILTERS.map((r) => ({ value: r.id, label: r.label }))} />
+      </FilterBar>
       {q.error && <p role="alert" className="text-sm text-red-600">{q.error}</p>}
       <Card className="overflow-hidden">
         {q.loading && rows.length === 0 ? (
@@ -75,8 +94,8 @@ export default function SyncReview() {
           </ul>
         )}
       </Card>
-      <Pagination page={page} totalPages={totalPages} total={total} onChange={setPage}
-        pageSize={pageSize} onPageSizeChange={(s) => { setPageSize(s); setPage(1) }} />
+      <Pagination page={page} totalPages={totalPages} total={total} onChange={(p) => setState({ hal: p })}
+        pageSize={pageSize} onPageSizeChange={(s) => setState({ per: s, hal: 1 })} />
       <SyncReviewDetail item={selected} onClose={() => setSelected(null)}
         onResolved={() => { setSelected(null); void q.refetch() }} />
     </div>
