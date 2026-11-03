@@ -929,6 +929,8 @@ wave 4:                                            └─ D4 ─ D5 (optional)
 
 ## 9. Owner decisions (D-register, continuing at D-67)
 
+**Decided 2026-11-03: the owner takes every recommended default below (D-67 to D-84), including the planner-decided ones.** UI polish, visual extras and animation are decided by the owner after all phases end; until then the kit is built plainly to this spec.
+
 | ID | Decision | Recommended default |
 |---|---|---|
 | D-67 | Router implementation *(planner-decided; owner may veto)* | **Hand-rolled hash router** in `BO/lib/router` (2.2); alternative react-router v7 `createHashRouter` (adds a dependency) |
