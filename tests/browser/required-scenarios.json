@@ -284,6 +284,12 @@
       "source": "tests/browser/backoffice-route-scenarios.ts"
     },
     {
+      "id": "BO-PRODUCTS-LIST",
+      "finding": "D2a",
+      "description": "Produk list: search, status, kategori and stok are server parameters and URL state that survive a reload, a page past the end steps back to the last page, the export walks every page of the matching products only; the editor slide-over (?ubah=) reloads by id, asks one question for Escape and browser Back on unsaved work, closes without asking after a save, shows field errors with a focusing summary and layers the recipe editor so Escape closes only the top layer; a refused delete keeps the server reason in the dialog",
+      "source": "tests/browser/backoffice-products-scenarios.ts"
+    },
+    {
       "id": "POS-REQUISITION",
       "finding": "inventory-controls-S6",
       "description": "Cashier Permintaan Barang: menu hidden without request_stock; create sends Idempotency-Key and outlet; a failed submit retries with the same key; transfer chain shows Dikirim and Buka Terima Transfer opens the receive panel; cancel a draft; a lost create answer then an edit replays the old key (one PB, then one update) and is resolved when the panel next opens online; offline refuses the save with no request leaving the tablet; zero approve/reject/fulfil requests across the run",
