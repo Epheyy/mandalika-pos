@@ -28,7 +28,7 @@ import {
   startIngredientCountConfirm,
   summarizeIngredientCount,
 } from './opnameConfirm'
-import { buildIngredientCountSaveItems } from './opnameSave'
+import { buildIngredientCountSaveItems, parseCountInput, withCountEntry, withoutSavedEntries } from './opnameSave'
 
 const fmtQty = (n: number | null | undefined) => {
   if (n == null) return '—'
@@ -41,7 +41,7 @@ interface ItemsTableProps {
   sc: IngredientStockCount
   items: IngredientStockCountItem[]
   counted: Record<string, number>
-  onCountChange: (itemId: string, val: number) => void
+  onCountChange: (itemId: string, val: number | null) => void
 }
 
 function ItemsTable({ sc, items, counted, onCountChange }: ItemsTableProps) {
@@ -72,7 +72,7 @@ function ItemsTable({ sc, items, counted, onCountChange }: ItemsTableProps) {
                       type="number"
                       step="any"
                       value={counted[it.id] !== undefined ? counted[it.id] : (it.counted ?? '')}
-                      onChange={(e) => onCountChange(it.id, parseFloat(e.target.value) || 0)}
+                      onChange={(e) => onCountChange(it.id, parseCountInput(e.target.value))}
                       className={`${fieldClass} w-24 px-2 py-1 text-center`}
                       aria-label="Jumlah dihitung"
                     />
@@ -229,11 +229,8 @@ export default function OpnameTab() {
     }
   }
 
-  const setQty = (sc: IngredientStockCount, itemId: string, val: number) => {
-    setDraft((d) => ({
-      ...d,
-      [sc.id]: { ...(d[sc.id] ?? {}), [itemId]: val },
-    }))
+  const setQty = (sc: IngredientStockCount, itemId: string, val: number | null) => {
+    setDraft((d) => ({ ...d, [sc.id]: withCountEntry(d[sc.id] ?? {}, itemId, val) }))
   }
 
   const saveProgress = async (sc: IngredientStockCount) => {
@@ -244,12 +241,8 @@ export default function OpnameTab() {
     setPageErr(null)
     try {
       await api.saveIngredientStockCount(sc.id, { items: saveItems })
-      // Saved: the server now holds these quantities, so they are no longer unsaved.
-      setDraft((d) => {
-        const rest = { ...d }
-        delete rest[sc.id]
-        return rest
-      })
+      // Saved: the server now holds these quantities. Edits made while the request was in flight stay in the draft.
+      setDraft((d) => ({ ...d, [sc.id]: withoutSavedEntries(d[sc.id] ?? {}, saveItems) }))
       await scq.refetch()
     } catch (e: unknown) {
       setPageErr(e instanceof Error ? e.message : 'Gagal menyimpan hitungan.')

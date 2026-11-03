@@ -88,12 +88,12 @@ async function mockApi(page: ScenarioPage) {
     }
     return route.fulfill({ json: { data: [], meta: { total: 0, page: 1, limit: 50 } } })
   })
-  return { calls, ingredientSaves }
+  return { calls, ingredientSaves, ingredientCount }
 }
 
 export const opnameConfirmFlow = async (page: ScenarioPage) => {
   const results: object[] = []
-  const { calls, ingredientSaves } = await mockApi(page)
+  const { calls, ingredientSaves, ingredientCount } = await mockApi(page)
   await openBackoffice(page)
   await page.evaluate(() => { location.hash = '#/inventori/opname' })
   await page.reload()
