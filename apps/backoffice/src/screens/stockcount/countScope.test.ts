@@ -26,6 +26,27 @@ describe('withCountScope', () => {
     await withCountScope(store, { outletId: null, warehouseId: null }, async () => { seen = store.outletId })
     expect(seen).toBe('home')
   })
+  it('overlapping calls restore the original scope whatever order they finish in', async () => {
+    const store = { outletId: null as string | null }
+    const seen: (string | null)[] = []
+    let releaseA: () => void = () => {}
+    const a = withCountScope(store, { outletId: 'o1', warehouseId: null }, async () => {
+      seen.push(store.outletId)
+      await new Promise<void>((r) => { releaseA = r })
+    })
+    const b = withCountScope(store, { outletId: 'o2', warehouseId: null }, async () => { seen.push(store.outletId) })
+    await Promise.resolve()
+    releaseA()
+    await Promise.all([a, b])
+    expect(seen).toEqual(['o1', 'o2'])
+    expect(store.outletId).toBeNull()
+  })
+  it('a failed call does not block the next one', async () => {
+    const store = { outletId: null as string | null }
+    await expect(withCountScope(store, { outletId: 'o1', warehouseId: null }, async () => { throw new Error('x') })).rejects.toThrow('x')
+    expect(await withCountScope(store, { outletId: 'o2', warehouseId: null }, async () => store.outletId)).toBe('o2')
+    expect(store.outletId).toBeNull()
+  })
   it('returns the call result', async () => {
     const store = { outletId: null as string | null }
     expect(await withCountScope(store, { outletId: 'o1', warehouseId: null }, async () => 42)).toBe(42)

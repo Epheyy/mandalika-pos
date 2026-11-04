@@ -30,7 +30,13 @@ type DiscountCode struct {
 // linked to a promotion follows that promotion's type and value (the backoffice disables the fields), so its own
 // value is not checked.
 func validateDiscountCodeBasics(d DiscountCode) error {
+	if !d.IsActive {
+		return nil // an old invalid code can still be switched off (the list resends the whole row)
+	}
 	if d.PromotionID == "" {
+		if d.Type != "percentage" && d.Type != "fixed" {
+			return fmt.Errorf("type must be percentage or fixed")
+		}
 		if err := validateDiscountValue(d.Type, d.Value); err != nil {
 			return err
 		}

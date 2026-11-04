@@ -303,7 +303,12 @@ func validateDateOrder(start, end string) error {
 	return nil
 }
 
+// An inactive row may be saved as it is (switching an old invalid promotion off from the list resends the whole
+// row), so the value/date rules apply to active ones only; the form itself always checks.
 func validatePromotionBasics(p Promotion) error {
+	if !p.IsActive {
+		return nil
+	}
 	if err := validateDiscountValue(p.Type, p.Value); err != nil {
 		return err
 	}

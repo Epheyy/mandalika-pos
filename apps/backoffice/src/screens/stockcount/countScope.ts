@@ -11,19 +11,29 @@ export interface OutletScopeStore {
  * outlet fixes that. A warehouse count (or a row with no outlet) is exempt server-side and runs as it is. The
  * previous scope is always restored, even when the call throws.
  */
+const queues = new WeakMap<OutletScopeStore, Promise<unknown>>()
+
 export async function withCountScope<T>(
   store: OutletScopeStore,
   count: Pick<StockCount, 'outletId' | 'warehouseId'>,
   fn: () => Promise<T>,
 ): Promise<T> {
   if (count.warehouseId || !count.outletId) return fn()
-  const prev = store.outletId
-  store.outletId = count.outletId
-  try {
-    return await fn()
-  } finally {
-    store.outletId = prev
+  const outletId = count.outletId
+  // The scope is one global value, so scoped calls take turns: two overlapping saves (different lines run in
+  // parallel) must not interleave their save/restore and leave the admin stuck on one outlet.
+  const run = async (): Promise<T> => {
+    const prev = store.outletId
+    store.outletId = outletId
+    try {
+      return await fn()
+    } finally {
+      store.outletId = prev
+    }
   }
+  const turn = (queues.get(store) ?? Promise.resolve()).then(run, run)
+  queues.set(store, turn.catch(() => undefined))
+  return turn
 }
 
 const NOT_FOUND_TEXT = 'Opname tidak ditemukan. Muat ulang halaman; bila masih gagal, pilih outlet opname ini di bagian atas lalu coba lagi.'

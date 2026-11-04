@@ -752,7 +752,7 @@ func TestStockCountPostgres(t *testing.T) {
 		}
 	})
 
-	sub("15 one planned count per location", func(t *testing.T) {
+	sub("17 one planned count per location", func(t *testing.T) {
 		pid := newProduct(10)
 		first := create(line(pid, nil))
 		// A second planned count at the same outlet is refused with the Indonesian message.

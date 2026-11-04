@@ -24,7 +24,7 @@ type CustomRole struct {
 // previously saved silently.
 func validateCustomRole(c CustomRole) error {
 	if strings.TrimSpace(c.Name) == "" {
-		return fmt.Errorf("role name is required")
+		return fmt.Errorf("Nama role wajib diisi")
 	}
 	for _, p := range c.Permissions {
 		if strings.TrimSpace(p) != "" {
