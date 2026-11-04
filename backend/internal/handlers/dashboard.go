@@ -1,13 +1,19 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/httpx"
 	"github.com/mandalika/pos-backend/internal/read"
 )
+
+// dashboardTimeout bounds one aggregate: "Semua" scans every order (about 8 s for 300k orders across outlets), so a runaway
+// query is cancelled server-side and the screen keeps its previous numbers.
+const dashboardTimeout = 20 * time.Second
 
 // maxTzOffsetMin bounds the viewer's UTC offset (minutes): UTC-14:00 .. UTC+14:00 covers every zone.
 const maxTzOffsetMin = 14 * 60
@@ -58,7 +64,9 @@ func (h *Handlers) DashboardAggregate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.cached(w, r, ckey(r), func() (any, int, error) {
-		v, err := h.Repo.DashboardAggregate(r.Context(), f)
+		ctx, cancel := context.WithTimeout(r.Context(), dashboardTimeout)
+		defer cancel()
+		v, err := h.Repo.DashboardAggregate(ctx, f)
 		if err != nil {
 			return nil, 500, err
 		}

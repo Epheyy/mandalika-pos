@@ -120,14 +120,27 @@ Handler `h.DashboardAggregate`: `dayRange` on the four dates, `trend` enum and `
   "unsupported" for 5 minutes (then re-probes, so a backend deployed mid-session is picked up). Any other error is NOT swallowed (previous data stays, error shows). Refresh stays 12 s. The fetch records its
   own `now`; the view (windows, trend skeleton) is built with that same `now`, so a render across midnight cannot mix days. Low-stock keeps reading the #61 product cache; promotions keep their 60 s poll.
 
-## 6. Indexes at 30k-500k customers
+## 6. Indexes and scale (measured)
 
-As-is, no migration planned: `idx_orders_outlet_business_date`, `idx_orders_business_date` (sale window), `idx_order_refunds_outlet_day` + `idx_order_refunds_order` (refund window, with the added
-`r.outlet_id` predicate), `idx_order_items_order`, `idx_order_refund_items_item`, tender lines via `tenderlines.SetLines`. Before the PR is done: `EXPLAIN (ANALYZE, BUFFERS)` on a throwaway ~300k-order / ~900k-item
-cluster (local PG 18, never Neon) for today / 30d / all x CrossAll / one outlet; record timings in the PR. A cross-outlet refund window reads `order_refunds` by `refund_business_date` alone, which
-`(outlet_id, refund_business_date)` does not serve on PostgreSQL < 18; `ReportSummary` has the same shape today. If it matters: `CREATE INDEX idx_order_refunds_refund_bd ON order_refunds(refund_business_date)`
-in the next migration (additive), else document the numbers. "Semua" is a full aggregate per poll; the 15 s cache bounds N open dashboards to 1 query per 15 s per (scope, window). If "Semua" proves slow:
-longer TTL for the no-`dateFrom` key and a `statement_timeout`; a daily rollup table is a separate slice. Still strictly cheaper than shipping every order twice.
+No migration. The statement uses `idx_orders_outlet_business_date` / `idx_orders_business_date` (sale window), `idx_order_refunds_outlet_day` (refund window, with the added `r.outlet_id`
+predicate), `idx_order_items_order`, `idx_order_refund_items_item` and tender lines via `tenderlines.SetLines`; `EXPLAIN (ANALYZE, BUFFERS)` was read for the "Semua" one-outlet statement only: index scan on `idx_orders_business_date` for the window, bitmap scan on `idx_order_refunds_outlet_day`,
+a hash join over `order_items` (a seq scan of the whole table, which is the window there) and a parallel seq scan of `orders` inside the refunds semi-join. The plans of the narrow windows were not
+inspected; their timings below are the evidence.
+Measured on a throwaway local PostgreSQL 18 (never Neon): 300k orders over 12 months (about 830 a day, 2 outlets, 900k items, 7.5k refunds, 50k customers), default `work_mem` (4 MB, so the sorts spill):
+
+| window | cross-outlet | one outlet |
+|---|---|---|
+| today (+ yesterday) | 27-68 ms | - |
+| 7 days (+ previous 7) | 0.29 s | - |
+| 30 days (+ previous 30) | 1.0-1.1 s | 0.6 s |
+| "Semua" (150k-300k orders) | 8.2-9.5 s | 4.5-4.9 s |
+
+Cost is linear in the orders of the window; the time goes to sorts and scans of `sb` (about 0.5 s per 150k orders for the build, about 1 s for the items join, 0.3-0.9 s per grouped pass).
+Today the same screen downloads and JSON-parses every order of the window twice per poll, which at this size is minutes and hundreds of MB, so the aggregate is strictly cheaper, but "Semua" is
+not cheap at 3M orders (about 80 s). Mitigations in this change: a 20 s deadline on the statement (the query is cancelled, the screen keeps its previous numbers and shows the error) and
+the existing 15 s read cache. Not done, owner decision when it matters: serve "Semua" from a daily rollup table or accept a 60 s freshness for that one period (the read cache is dropped on every write,
+so on a busy fleet it does not save the recompute). The cross-outlet refund window reads `order_refunds` by `refund_business_date` alone, which `(outlet_id, refund_business_date)` does
+not serve on PostgreSQL < 18; the refund set is small (7.5k rows here) so it did not show up.
 
 ## 7. Parity proof (the main risk)
 
@@ -171,6 +184,9 @@ jsonb guard, real tie-break, `previous` optional, `r.outlet_id` + `EXPLAIN (ANAL
 `X-Outlet-Id`, fetch-time `now`, rollout wording, re-probe, Opus review tier. Not verified (no access): real outlet timezones on Neon, whether production totals carry cents (fixture covers both), real timings.
 
 ## 10. Decisions taken (veto-able, none blocking)
+
+Review (Opus `reviewer`, 2026-11-04) HIGH fixed: label-only orders with a SQL NULL breakdown were dropped from the promo tally (`NOT (NULL AND NULL)`); fixture now covers it, a `[]` breakdown with a listed promotion, 19 ranked products and 12 cashiers (top 10 / top 8 truncate). MEDIUM: scale measured above, deadline added; plan/commit completeness fixed; `isAggregate` guard covers every required field. Accepted LOW: ties between lines of ONE order follow `product_id` (the list's item order is unspecified), payment-mix ties by method name, `tzOffset` is the offset at fetch time.
+
 
 (a) Open to any authenticated user like `/orders` (not `view_reports`). (b) Quirks 1-3 kept. (c) `has_line` rule: nothing to decide: the dashboard sends no payment-method filter, so the aggregate counts the same
 orders as the client; the one place `has_line` matters (`sbl`) is handled explicitly. Review tier: Opus `reviewer` on the generated types, money numbers and outlet scope.
