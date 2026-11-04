@@ -82,6 +82,17 @@ export async function openBackoffice(page: Page, opts: { viewport?: boolean } = 
   if (opts.viewport !== false) await page.setViewportSize({ width: 1440, height: 1000 })
 }
 
+/**
+ * Land on a deep link the way a pasted URL does: set the hash, then load the page fresh. A fresh load starts
+ * on a bare URL and the app's landing redirect writes the first route a moment later, so wait for that route
+ * before overwriting it (otherwise the redirect can land after our hash and send the reload to Ringkasan).
+ */
+export async function deepLink(page: Page, hash: string) {
+  await page.waitForFunction(() => location.hash.length > 1)
+  await page.evaluate((h) => { location.hash = h }, hash)
+  await page.reload()
+}
+
 /** The sidebar item for a screen (exactly one per nav id). */
 export const navItem = (page: Page, navId: BackofficeNavId) => page.locator(`[data-nav-id="${navId}"]`)
 

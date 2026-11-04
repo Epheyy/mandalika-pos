@@ -1,7 +1,7 @@
 // Fase D5b: Bahan Daftar as a DataTable whose category filter is a SERVER parameter (categoryId), so it covers every matching
 // ingredient across pages, not just the rows of one page; plus the delete question (usage block, refusal reason). Synthetic API.
 import type { ScenarioPage } from './fixture'
-import { openBackoffice, navItem } from './fixture'
+import { openBackoffice, deepLink, navItem } from './fixture'
 
 const OUTLET = '00000000-0000-4000-8f6b-0000000000a1'
 const CAT_OIL = '00000000-0000-4000-8f6b-0000000000c1'
@@ -70,11 +70,6 @@ async function mockApi(page: ScenarioPage, state: { all: MockIngredient[]; calls
 }
 
 const hashOf = (page: ScenarioPage) => page.evaluate(() => location.hash)
-
-async function deepLink(page: ScenarioPage, hash: string) {
-  await page.evaluate((h) => { location.hash = h }, hash)
-  await page.reload()
-}
 
 export const bahanDaftarFlow = async (page: ScenarioPage) => {
   const results: object[] = []

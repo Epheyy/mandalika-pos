@@ -1,7 +1,7 @@
 // Fase D3b: Opname Mulai, Selesai and cancel ask first; Selesai names the net difference that will be applied
 // (synthetic API, no real backend).
 import type { ScenarioPage } from './fixture'
-import { openBackoffice } from './fixture'
+import { openBackoffice, deepLink } from './fixture'
 
 const OUTLET = '00000000-0000-4000-8f6b-0000000000a1'
 const RUN_ID = '00000000-0000-4000-8f6b-0000000000e1'
@@ -95,8 +95,7 @@ export const opnameConfirmFlow = async (page: ScenarioPage) => {
   const results: object[] = []
   const { calls, ingredientSaves, ingredientCount } = await mockApi(page)
   await openBackoffice(page)
-  await page.evaluate(() => { location.hash = '#/inventori/opname' })
-  await page.reload()
+  await deepLink(page, '#/inventori/opname')
   await page.getByRole('heading', { name: 'Opname Produk' }).waitFor()
   const updates = (id: string) => calls.filter((c) => c.id === id && c.kind === 'update')
   const statusOf = (c: Call) => (c.body as { status?: string }).status
@@ -152,8 +151,7 @@ export const opnameConfirmFlow = async (page: ScenarioPage) => {
   // (e) ingredient Opname: Simpan sends only the line entered now. Melati (saved 9) and Cendana (never counted) are
   // not in the request, so Selesai later leaves Cendana alone instead of zeroing it.
   settings.recipesEnabled = true
-  await page.evaluate(() => { location.hash = '#/inventori/opname/bahan' })
-  await page.reload()
+  await deepLink(page, '#/inventori/opname/bahan')
   await page.getByText('Opname Bahan Uji').waitFor()
   await page.getByText('1/3 dihitung').waitFor()
   await page.getByRole('button', { name: 'Simpan', exact: true }).click()

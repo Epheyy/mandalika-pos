@@ -1,7 +1,7 @@
 // Fase D5b: the Pelanggan list as a DataTable over the server paging contract (OFFSET page/limit + q/sort), its filters and
 // page as URL state that survive a reload, and the edit slide-over with its single leave question. Synthetic API.
 import type { ScenarioPage } from './fixture'
-import { openBackoffice, navItem } from './fixture'
+import { openBackoffice, deepLink, navItem } from './fixture'
 
 const OUTLET = '00000000-0000-4000-8f6b-0000000000a1'
 const user = { id: 'synthetic-admin', displayName: 'MV Admin', role: 'admin', outletId: null, permissions: [] }
@@ -74,11 +74,6 @@ async function mockApi(page: ScenarioPage, state: State) {
 
 const hashOf = (page: ScenarioPage) => page.evaluate(() => location.hash)
 const searchBox = (page: ScenarioPage) => page.getByLabel('Cari pelanggan')
-
-async function deepLink(page: ScenarioPage, hash: string) {
-  await page.evaluate((h) => { location.hash = h }, hash)
-  await page.reload()
-}
 
 const putCalls = (state: State) => state.calls.filter((c) => c.method === 'PUT')
 

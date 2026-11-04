@@ -1,7 +1,7 @@
 // Fase D4: browser Back/Forward across list -> detail -> list on Pelanggan. The list's filters and page live in the
 // URL, the customer page is a path, and Back (or Kembali) returns to the list exactly as it was (synthetic API).
 import type { ScenarioPage } from './fixture'
-import { openBackoffice, navItem } from './fixture'
+import { openBackoffice, deepLink, navItem } from './fixture'
 
 const OUTLET = '00000000-0000-4000-8f6b-0000000000a1'
 const user = { id: 'synthetic-admin', displayName: 'MV Admin', role: 'admin', outletId: null, permissions: [] }
@@ -49,11 +49,6 @@ async function mockApi(page: ScenarioPage, requests: ListRequest[]) {
 const hashOf = (page: ScenarioPage) => page.evaluate(() => location.hash)
 const idxOf = (page: ScenarioPage) => page.evaluate(() => (history.state as { idx?: number } | null)?.idx ?? -1)
 const searchBox = (page: ScenarioPage) => page.getByLabel('Cari pelanggan')
-
-async function deepLink(page: ScenarioPage, hash: string) {
-  await page.evaluate((h) => { location.hash = h }, hash)
-  await page.reload()
-}
 
 export const routeBackFlow = async (page: ScenarioPage) => {
   const results: object[] = []
