@@ -50,6 +50,7 @@ export function aggregate(orders: Order[], methods: PaymentMethodCfg[]): Breakdo
     refundTotal: 0, refundItems: 0, cashSales: 0, gross: 0, discount: 0,
     tax: 0, surcharge: 0, net: 0,
   }
+  let partRefunds = 0 // refunds of orders still counted in gross (part-refunded sales)
   for (const o of orders) {
     if (o.status === 'cancelled') continue
     // C4b: money back to customers, from the server's refund rows. A fully refunded order without the field is
@@ -76,6 +77,7 @@ export function aggregate(orders: Order[], methods: PaymentMethodCfg[]): Breakdo
     }
     // Sales are what the drawer kept: the total less what was refunded (a part-refunded order is still a sale).
     const kept = o.total - refunded
+    partRefunds += refunded
     b.totalSales += kept
     b.totalOrders += 1
     for (const [m, v] of Object.entries(keptByMethod(o, kept, refunded, methods))) {
@@ -90,7 +92,10 @@ export function aggregate(orders: Order[], methods: PaymentMethodCfg[]): Breakdo
     const residual = o.total - (o.subtotal - o.discountAmount + o.taxAmount)
     if (residual > 0) b.surcharge += residual
   }
-  b.net = b.gross - b.discount
+  // CS-4: one definition app-wide: sales after discounts minus refunds, same number as the backoffice Laporan
+  // Shift (sale-day gross after discount minus refunds). A fully refunded order is not in gross (above), so its
+  // refund is not subtracted again: only refunds of orders that are in gross (part-refunded) come off.
+  b.net = b.gross - b.discount - partRefunds
   return b
 }
 

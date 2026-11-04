@@ -324,10 +324,10 @@ export const Cart = memo(function Cart({
               <RemoveButton label="Hapus kode" onClick={() => onRemovePromoCode(c.code)} />
             </div>
           ))}
-          {hasPromo && derived.promoDiscountAmount > 0 && (
+          {hasPromo && derived.appliedPromoDiscountAmount > 0 && (
             <div className="tnum flex justify-between text-promo">
               <span>Hemat promo</span>
-              <span>−{formatRupiah(derived.promoDiscountAmount)}</span>
+              <span>−{formatRupiah(derived.appliedPromoDiscountAmount)}</span>
             </div>
           )}
           {discountRunning > 0 && (

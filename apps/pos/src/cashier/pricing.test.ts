@@ -381,3 +381,33 @@ describe('C1 discountParts / roundingAmount feed a slip that adds up', () => {
     expect(p.discountParts).toEqual([{ label: 'Promo A', amount: 80000 }, { label: 'Promo B', amount: 20000 }])
   })
 })
+
+describe('P-17 displayed savings never exceed the applied discount', () => {
+  const code150 = { code: 'X150', value: 150, type: 'percentage' } as any
+
+  it('a 150% code on Rp 100.000: promo component is clamped to the applied total', () => {
+    const res = computePricing({ ...base, appliedPromotions: [], appliedPromoCodes: [code150] })
+    expect(res.discountAmount).toBe(100000)
+    expect(res.appliedPromoDiscountAmount).toBe(100000) // not 150000
+    expect(res.total).toBe(0)
+  })
+
+  it('promo + code + manual components sum to the applied discount', () => {
+    const promo = { id: 'a', name: 'A', type: 'percentage', value: 60, combinable: true } as any
+    const res = computePricing({
+      ...base, appliedPromotions: [promo], appliedPromoCodes: [{ code: 'Y', value: 70000, type: 'fixed' }],
+      discountType: 'fixed', discountRunning: 30000,
+    })
+    expect(res.discountAmount).toBe(100000)
+    expect(res.appliedPromoDiscountAmount + (res.discountAmount - res.appliedPromoDiscountAmount)).toBe(100000)
+    expect(res.appliedPromoDiscountAmount).toBeLessThanOrEqual(res.discountAmount)
+    expect(res.discountParts.reduce((s, d) => s + d.amount, 0)).toBe(res.discountAmount)
+  })
+
+  it('does not change the order total the server receives (already clamped)', () => {
+    const res = computePricing({ ...base, appliedPromotions: [], appliedPromoCodes: [code150] })
+    expect(res.taxableAmount).toBe(0)
+    expect(res.total).toBe(0)
+    expect(res.discountAmount).toBe(res.subtotal)
+  })
+})
