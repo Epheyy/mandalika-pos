@@ -1,23 +1,26 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { fetchAllPages } from '@mandalika/api'
 import type { RefundReport } from '@mandalika/api'
-import { Download, RotateCcw } from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { BRAND } from '../../lib/brand'
 import { buildExportName, exportToCSV } from '../../lib/csvUtils'
 import { Badge } from '../../ui/Badge'
-import { Button } from '../../ui/Button'
 import { Card } from '../../ui/Card'
+import { DataTable, type Column } from '../../ui/DataTable'
 import { EmptyState } from '../../ui/EmptyState'
+import { ExportButton } from '../../ui/ExportButton'
+import { FilterBar } from '../../ui/FilterBar'
 import { Pagination } from '../../ui/Pagination'
-import { Select } from '../../ui/Field'
 import { useListState, type ListSchema } from '../../lib/router/useListState'
-import { PAGING_SCHEMA, enumOf, isAnswerFor, pageOf, pageSizeOf, pageToClamp } from './reportFilters'
+import { PAGING_SCHEMA, enumOf, isAnswerFor, pageOf, pageSizeOf, pageToClamp, totalPagesOf } from './reportFilters'
 import {
   REFUND_FLAG_OPTIONS, claimedIfDifferent, flagLabel, flagTone, formatRefundTime, itemSummary,
   refundCsvRows, scopeLabel, type RefundFlagFilter,
 } from './refundReport'
+
+type RefundRow = RefundReport['data'][number]
 
 interface RefundListState {
   tanda: string
@@ -34,7 +37,49 @@ const REFUND_SCHEMA: ListSchema<RefundListState> = {
 
 const REFUND_FLAGS = REFUND_FLAG_OPTIONS.map((o) => o.value)
 
-const HEADERS =['Waktu refund', 'No. struk', 'Outlet', 'Kasir / Oleh', 'Cakupan', 'Barang & qty', 'Jumlah', 'Diklaim tablet', 'Alasan']
+const REFUND_COLUMNS: Column<RefundRow>[] = [
+  { id: 'waktu', header: 'Waktu refund', cell: (r) => <span className="whitespace-nowrap">{formatRefundTime(r.refundedAt)}</span> },
+  {
+    id: 'struk',
+    header: 'No. struk',
+    cell: (r) => (
+      <span className="whitespace-nowrap font-mono font-bold">
+        {r.orderNumber}
+        <span className="block font-sans text-xs font-normal text-ink-700">Refund ke-{r.seq}</span>
+      </span>
+    ),
+  },
+  { id: 'outlet', header: 'Outlet', cell: (r) => r.outletName },
+  {
+    id: 'kasir',
+    header: 'Kasir / Oleh',
+    cell: (r) => (
+      <>
+        {r.cashierName}
+        <span className="block text-xs text-ink-700">Oleh {r.refundedByName || '—'}</span>
+      </>
+    ),
+  },
+  { id: 'cakupan', header: 'Cakupan', cell: (r) => <Badge tone={r.scope === 'partial' ? 'gold' : 'neutral'}>{scopeLabel(r.scope)}</Badge> },
+  { id: 'barang', header: 'Barang & qty', cell: (r) => <span className="block max-w-xs">{itemSummary(r.items) || '—'}</span> },
+  { id: 'jumlah', header: 'Jumlah', align: 'right', cell: (r) => <span className="whitespace-nowrap font-black">{BRAND.currency.format(r.amount)}</span> },
+  {
+    id: 'diklaim',
+    header: 'Diklaim tablet',
+    align: 'right',
+    cell: (r) => {
+      const claimed = claimedIfDifferent(r)
+      if (claimed === null) return '—'
+      return (
+        <span className="whitespace-nowrap">
+          {BRAND.currency.format(claimed)}
+          <Badge tone={flagTone(r.amountWarning)} className="ml-2">{flagLabel(r.amountWarning) || 'Beda'}</Badge>
+        </span>
+      )
+    },
+  },
+  { id: 'alasan', header: 'Alasan', cell: (r) => <span className="block max-w-xs">{r.reason}</span> },
+]
 
 interface RefundReportTabProps {
   dateFrom: string
@@ -51,8 +96,6 @@ export function RefundReportTab({ dateFrom, dateTo, outletId }: RefundReportTabP
   const page = pageOf(state.hal)
   const pageSize = pageSizeOf(state.per)
   const flag = enumOf<RefundFlagFilter>(state.tanda, REFUND_FLAGS, '')
-  const [exporting, setExporting] = useState(false)
-  const [exportError, setExportError] = useState<string | null>(null)
 
   const filters = { dateFrom, dateTo, outletId: outletId || undefined, flag: flag || undefined }
   const rq = usePolledQuery<RefundReport>(
@@ -63,7 +106,7 @@ export function RefundReportTab({ dateFrom, dateTo, outletId }: RefundReportTabP
   const rows = rq.data?.data ?? []
   const summary = rq.data?.summary
   const total = rq.data?.meta?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const totalPages = totalPagesOf(total, pageSize)
 
   // A page past the end (a stale link) moves to the last page.
   useEffect(() => {
@@ -72,39 +115,29 @@ export function RefundReportTab({ dateFrom, dateTo, outletId }: RefundReportTabP
     if (target !== null) setState({ hal: target }, { replace: true })
   }, [rq.loading, rq.error, rq.data, page, total, pageSize, setState])
 
+  // A failed export is shown by the ExportButton itself (it keeps the server's message).
   const runExport = async () => {
-    setExporting(true)
-    setExportError(null)
-    try {
-      const all = await fetchAllPages((p, limit) => api.listRefundReport({ ...filters, page: p, limit }))
-      exportToCSV(refundCsvRows(all), buildExportName('laporan-refund', [dateFrom, dateTo, flag]))
-    } catch (e: unknown) {
-      setExportError(e instanceof Error ? e.message : 'Gagal mengekspor data lengkap.')
-    } finally {
-      setExporting(false)
-    }
+    const all = await fetchAllPages((p, limit) => api.listRefundReport({ ...filters, page: p, limit }))
+    exportToCSV(refundCsvRows(all), buildExportName('laporan-refund', [dateFrom, dateTo, flag]))
   }
 
   return (
     <div className="space-y-5">
-      {rq.error && (
-        <p role="alert" className="text-sm text-red-600">Gagal memuat data. Data sebelumnya mungkin ditampilkan. {rq.error}</p>
-      )}
-      {exportError && <p role="alert" className="text-sm text-red-600">{exportError}</p>}
-
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <Select label="Peringatan" value={flag} onChange={(e) => setState({ tanda: e.target.value, hal: 1 })} className="w-auto">
-          {REFUND_FLAG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </Select>
-        <Button
-          variant="secondary"
-          onClick={() => void runExport()}
-          disabled={exporting || !!rq.error || total === 0}
-          icon={<Download className="w-4 h-4" />}
-        >
-          {exporting ? 'Menyiapkan…' : 'Unduh CSV refund'}
-        </Button>
-      </div>
+      <FilterBar
+        onReset={() => setState({ tanda: '', hal: 1 })}
+        activeCount={flag ? 1 : 0}
+        actions={
+          <ExportButton
+            qualifier="refund"
+            rowCount={rq.data ? total : null}
+            filterSummary={[dateFrom && `dari ${dateFrom}`, dateTo && `sampai ${dateTo}`, flag && `peringatan ${REFUND_FLAG_OPTIONS.find((o) => o.value === flag)?.label ?? flag}`].filter(Boolean) as string[]}
+            disabled={!!rq.error}
+            onExport={runExport}
+          />
+        }
+      >
+        <FilterBar.Select label="Peringatan" value={flag} onChange={(v) => setState({ tanda: v, hal: 1 })} options={REFUND_FLAG_OPTIONS} />
+      </FilterBar>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="p-4">
@@ -121,65 +154,28 @@ export function RefundReportTab({ dateFrom, dateTo, outletId }: RefundReportTabP
         </Card>
       </div>
 
-      <Card className="overflow-hidden">
-        {rows.length === 0 ? (
-          <EmptyState icon={<RotateCcw />} title={rq.loading ? 'Memuat data…' : 'Belum ada refund pada rentang ini'} />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  {HEADERS.map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {rows.map((r) => {
-                  const claimed = claimedIfDifferent(r)
-                  return (
-                    <tr key={r.id} className="hover:bg-gray-50 align-top">
-                      <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{formatRefundTime(r.refundedAt)}</td>
-                      <td className="px-4 py-3 text-sm font-mono font-bold text-gray-900 whitespace-nowrap">
-                        {r.orderNumber}
-                        <span className="block text-xs font-sans font-normal text-gray-400">Refund ke-{r.seq}</span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{r.outletName}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {r.cashierName}
-                        <span className="block text-xs text-gray-400">Oleh {r.refundedByName || '—'}</span>
-                      </td>
-                      <td className="px-4 py-3"><Badge tone={r.scope === 'partial' ? 'gold' : 'neutral'}>{scopeLabel(r.scope)}</Badge></td>
-                      <td className="px-4 py-3 text-sm text-gray-600 max-w-xs">{itemSummary(r.items) || '—'}</td>
-                      <td className="px-4 py-3 text-sm font-black text-gold-600 whitespace-nowrap">{BRAND.currency.format(r.amount)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                        {claimed === null ? '—' : (
-                          <>
-                            {BRAND.currency.format(claimed)}
-                            <Badge tone={flagTone(r.amountWarning)} className="ml-2">{flagLabel(r.amountWarning) || 'Beda'}</Badge>
-                          </>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 max-w-xs">{r.reason}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-
-      {totalPages > 1 && (
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          total={total}
-          onChange={(p) => setState({ hal: p })}
-          pageSize={pageSize}
-          onPageSizeChange={(n) => setState({ per: n, hal: 1 })}
-        />
-      )}
+      <DataTable
+        caption="Daftar refund"
+        columns={REFUND_COLUMNS}
+        rows={rows}
+        rowKey={(r) => r.id}
+        loading={rq.loading && !rq.data}
+        error={rq.error ? `Gagal memuat data. Data sebelumnya mungkin ditampilkan. ${rq.error}` : null}
+        onRetry={() => void rq.refetch()}
+        empty={<EmptyState icon={<RotateCcw />} title="Belum ada refund pada rentang ini" />}
+        footer={
+          totalPages > 1 ? (
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              onChange={(p) => setState({ hal: p })}
+              pageSize={pageSize}
+              onPageSizeChange={(n) => setState({ per: n, hal: 1 })}
+            />
+          ) : undefined
+        }
+      />
     </div>
   )
 }

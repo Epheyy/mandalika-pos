@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  UNBOUNDED_DAY, carriedDays, isAnswerFor, dayOf, dayToQuery, enumOf, isDay, pageOf, pageSizeOf, pageToClamp, paymentOf, uuidOf, withCurrent,
+  UNBOUNDED_DAY, carriedDays, isAnswerFor, dayOf, dayToQuery, enumOf, isDay, pageOf, pageSizeOf, pageToClamp, totalPagesOf, paymentOf, uuidOf, withCurrent,
 } from './reportFilters'
 
 describe('pageOf / pageSizeOf', () => {
@@ -135,5 +135,18 @@ describe('carriedDays', () => {
   })
   it('passes absent dates through as undefined', () => {
     expect(carriedDays({}, 'export', 'shifts')).toEqual({ dari: undefined, sampai: undefined })
+  })
+})
+
+describe('totalPagesOf', () => {
+  it('counts pages and never drops below one', () => {
+    expect(totalPagesOf(0, 50)).toBe(1)
+    expect(totalPagesOf(50, 50)).toBe(1)
+    expect(totalPagesOf(51, 50)).toBe(2)
+    expect(totalPagesOf(120, 50)).toBe(3)
+  })
+  it('treats a bad limit or total as one page', () => {
+    expect(totalPagesOf(10, 0)).toBe(1)
+    expect(totalPagesOf(Number.NaN, 50)).toBe(1)
   })
 })

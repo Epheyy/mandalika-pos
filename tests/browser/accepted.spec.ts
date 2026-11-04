@@ -14,6 +14,7 @@ import { promotionsFlow } from './backoffice-promotions-scenarios'
 import { transferConfirmFlow } from './backoffice-transfer-scenarios'
 import { opnameConfirmFlow } from './backoffice-opname-scenarios'
 import { approvalsErpFlow } from './backoffice-d3c-scenarios'
+import { reportPagerFlow, roleDeleteFlow } from './backoffice-d5a-scenarios'
 import { posRequisition } from './pos-requisition-scenarios'
 import { posSplitTender, posSplitOffline, posSplitRefund, posSplitOff, posSplitDraft } from './pos-split-scenarios'
 
@@ -223,6 +224,18 @@ test('BO-OPNAME-CONFIRM Mulai, Selesai and cancel on a product Opname ask first,
 test('BO-D3C-APPROVALS-ERP Persetujuan Stok filters are URL state that leave the badge alone, and the ERP relay run and retry ask first and call the server once', async ({ page }, info) => {
   const result = await approvalsErpFlow(page as ScenarioPage)
   expect(result).toHaveLength(8)
+  await evidence(info, result)
+})
+
+test('BO-D5A-REPORT-PAGER a Laporan table on the kit pager asks the server for its fixed page size, and page 2 survives next, a reload and Back', async ({ page }, info) => {
+  const result = await reportPagerFlow(page as ScenarioPage)
+  expect(result).toHaveLength(4)
+  await evidence(info, result)
+})
+
+test('BO-D5A-ROLE-DELETE Pengguna role delete asks in a ConfirmDialog, sends once, and keeps the server reason inside the open dialog', async ({ page }, info) => {
+  const result = await roleDeleteFlow(page as ScenarioPage)
+  expect(result).toHaveLength(3)
   await evidence(info, result)
 })
 

@@ -2,14 +2,16 @@ import { fetchAllPages } from '@mandalika/api'
 import type { ListShiftsParams, Outlet, Shift } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
-import { Download, ShoppingBag } from 'lucide-react'
+import { ShoppingBag } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { exportToCSV, buildExportName } from '../../lib/csvUtils'
 import { BRAND } from '../../lib/brand'
-import { Button } from '../../ui/Button'
 import { Card } from '../../ui/Card'
+import { DataTable, type Column } from '../../ui/DataTable'
 import { EmptyState } from '../../ui/EmptyState'
+import { ExportButton } from '../../ui/ExportButton'
+import { FilterBar } from '../../ui/FilterBar'
 import { CASH_REFUNDS_PAID_HEADER, cashRefundsPaidCell } from '../refundDisplay'
 
 interface ShiftsTabProps {
@@ -17,6 +19,33 @@ interface ShiftsTabProps {
   dateTo: string
   outletId: string | null | undefined
   outlets: Outlet[]
+}
+
+const money = (n: number) => BRAND.currency.format(n)
+const whenShort = (iso: string | null | undefined) => (iso ? format(parseISO(iso), 'dd MMM HH:mm', { locale: idLocale }) : '-')
+
+const REFUND_SHIFT_LABEL = 'Refund penjualan shift'
+const REFUND_SHIFT_HINT = 'Mengikuti shift yang membuat penjualan. Tab Unduh data menghitung refund pada hari refund, jadi angkanya bisa berbeda.'
+
+function shiftColumns(outletName: (id: string) => string): Column<Shift>[] {
+  return [
+    { id: 'kasir', header: 'Kasir', cell: (s) => <span className="font-bold">{s.cashierName}</span> },
+    { id: 'outlet', header: 'Outlet', cell: (s) => outletName(s.outletId) },
+    { id: 'dibuka', header: 'Dibuka', cell: (s) => <span className="whitespace-nowrap text-xs">{whenShort(s.openedAt)}</span> },
+    {
+      id: 'ditutup',
+      header: 'Ditutup',
+      cell: (s) => (s.closedAt ? <span className="whitespace-nowrap text-xs">{whenShort(s.closedAt)}</span> : <span className="text-xs font-bold text-ok">Buka</span>),
+    },
+    { id: 'transaksi', header: 'Transaksi', align: 'right', cell: (s) => <span className="font-bold">{s.totalOrders}</span> },
+    { id: 'refund', header: REFUND_SHIFT_LABEL, align: 'right', cell: (s) => <span className="font-bold text-danger" title={REFUND_SHIFT_HINT}>{money(s.totalRefunds || 0)}</span> },
+    { id: 'refund-tunai', header: CASH_REFUNDS_PAID_HEADER, align: 'right', cell: (s) => <span className="text-xs">{cashRefundsPaidCell(s, money)}</span> },
+    { id: 'penjualan', header: 'Penjualan', align: 'right', cell: (s) => <span className="font-black">{money(s.totalSales)}</span> },
+    { id: 'tunai', header: 'Tunai', align: 'right', cell: (s) => <span className="text-xs">{money(s.cashSales)}</span> },
+    { id: 'qris', header: 'QRIS', align: 'right', cell: (s) => <span className="text-xs">{money(s.qrisSales)}</span> },
+    { id: 'transfer', header: 'Transfer', align: 'right', cell: (s) => <span className="text-xs">{money(s.transferSales)}</span> },
+    { id: 'kartu', header: 'Kartu', align: 'right', cell: (s) => <span className="text-xs">{money(s.cardSales)}</span> },
+  ]
 }
 
 /** Laporan > Shift: shifts opened inside the WIB date range (server filtered on
@@ -29,9 +58,8 @@ export function ShiftsTab({ dateFrom, dateTo, outletId, outlets }: ShiftsTabProp
     return fetchAllPages((page, limit) => api.listShifts({ ...params, page, limit }))
   }, [outletId, dateFrom, dateTo])
   const shifts = sq.data ?? []
-  const REFUND_SHIFT_LABEL = 'Refund penjualan shift'
-  const REFUND_SHIFT_HINT = 'Mengikuti shift yang membuat penjualan. Tab Unduh data menghitung refund pada hari refund, jadi angkanya bisa berbeda.'
   const outletName = (oid: string) => outlets.find((o) => o.id === oid)?.name || oid
+  const columns = shiftColumns(outletName)
 
   const exportSh = () =>
     exportToCSV(
@@ -67,16 +95,18 @@ export function ShiftsTab({ dateFrom, dateTo, outletId, outlets }: ShiftsTabProp
         </p>
       )}
       {sq.loading && <p role="status">Memuat data lengkap…</p>}
-      <div className="flex justify-end">
-        <Button
-          variant="secondary"
-          onClick={exportSh}
-          disabled={sq.loading || !!sq.error || !sq.data}
-          icon={<Download className="w-4 h-4" />}
-        >
-          Unduh CSV
-        </Button>
-      </div>
+      <FilterBar
+        actions={
+          <ExportButton
+            rowCount={sq.data ? shifts.length : null}
+            filterSummary={[outletId ? outletName(outletId) : 'Semua outlet', dateFrom ? `dari ${dateFrom}` : 'semua tanggal', dateTo ? `sampai ${dateTo}` : ''].filter(Boolean)}
+            disabled={sq.loading || !!sq.error || !sq.data}
+            onExport={exportSh}
+          />
+        }
+      >
+        <FilterBar.Scope />
+      </FilterBar>
       {sq.data && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -92,41 +122,13 @@ export function ShiftsTab({ dateFrom, dateTo, outletId, outlets }: ShiftsTabProp
               </Card>
             ))}
           </div>
-          <Card className="overflow-hidden">
-            {shifts.length === 0 ? (
-              <EmptyState icon={<ShoppingBag />} title="Tidak ada shift" />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50">
-                      {['Kasir', 'Outlet', 'Dibuka', 'Ditutup', 'Transaksi', REFUND_SHIFT_LABEL, CASH_REFUNDS_PAID_HEADER, 'Penjualan', 'Tunai', 'QRIS', 'Transfer', 'Kartu'].map((h) => (
-                        <th key={h} title={h === REFUND_SHIFT_LABEL ? REFUND_SHIFT_HINT : undefined} className="text-left px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {shifts.map((s) => (
-                      <tr key={s.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-bold text-gray-900 text-sm">{s.cashierName}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{outletName(s.outletId)}</td>
-                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{s.openedAt ? format(parseISO(s.openedAt), 'dd MMM HH:mm', { locale: idLocale }) : '-'}</td>
-                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{s.closedAt ? format(parseISO(s.closedAt), 'dd MMM HH:mm', { locale: idLocale }) : <span className="text-green-600 font-bold">Buka</span>}</td>
-                        <td className="px-4 py-3 text-sm font-bold text-gray-900">{s.totalOrders}</td>
-                        <td className="px-4 py-3 text-sm font-bold text-red-600">{BRAND.currency.format(s.totalRefunds || 0)}</td>
-                        <td className="px-4 py-3 text-xs text-gray-600">{cashRefundsPaidCell(s, (n) => BRAND.currency.format(n))}</td>
-                        <td className="px-4 py-3 text-sm font-black text-gold-600">{BRAND.currency.format(s.totalSales)}</td>
-                        <td className="px-4 py-3 text-xs text-gray-600">{BRAND.currency.format(s.cashSales)}</td>
-                        <td className="px-4 py-3 text-xs text-gray-600">{BRAND.currency.format(s.qrisSales)}</td>
-                        <td className="px-4 py-3 text-xs text-gray-600">{BRAND.currency.format(s.transferSales)}</td>
-                        <td className="px-4 py-3 text-xs text-gray-600">{BRAND.currency.format(s.cardSales)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+          <DataTable
+            caption="Shift pada rentang tanggal"
+            columns={columns}
+            rows={shifts}
+            rowKey={(s) => s.id}
+            empty={<EmptyState icon={<ShoppingBag />} title="Tidak ada shift" />}
+          />
         </>
       )}
     </>

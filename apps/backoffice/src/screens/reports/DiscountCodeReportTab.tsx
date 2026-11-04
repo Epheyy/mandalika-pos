@@ -4,23 +4,30 @@ import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { BRAND } from '../../lib/brand'
 import { Card } from '../../ui/Card'
-import { Badge } from '../../ui/Badge'
+import { DataTable, type Column } from '../../ui/DataTable'
 import { EmptyState } from '../../ui/EmptyState'
-import { Button } from '../../ui/Button'
+import { StatusBadge } from '../../ui/StatusBadge'
+import { DISCOUNT_CODE_STATUS } from '../../lib/labels/discountCode'
 import { useListState } from '../../lib/router/useListState'
-import { PAGE_ONLY_SCHEMA, isAnswerFor, pageOf, pageToClamp } from './reportFilters'
+import { PAGE_ONLY_SCHEMA, isAnswerFor, pageOf, pageToClamp, totalPagesOf } from './reportFilters'
+import { ReportPager } from './ReportPager'
 import type { components } from '@mandalika/api'
 
 type Report = components['schemas']['DiscountCodeReport']
 
 const LIMIT = 50
 
-const STATUS_TONE: Record<string, 'success' | 'warning' | 'neutral'> = {
-  aktif: 'success',
-  'kuota habis': 'warning',
-  kedaluwarsa: 'neutral',
-  nonaktif: 'neutral',
-}
+/** A code row with its position: a code can repeat when the report splits it by promotion. */
+type CodeRow = Report['data'][number] & { rowIndex: number }
+
+const CODE_COLUMNS: Column<CodeRow>[] = [
+  { id: 'kode', header: 'Kode', cell: (c) => <span className="font-mono font-bold">{c.code}</span> },
+  { id: 'promosi', header: 'Promosi', cell: (c) => c.promotionName ?? '—' },
+  { id: 'penukaran', header: 'Penukaran', align: 'right', cell: (c) => c.redemptions ?? 0 },
+  { id: 'nilai', header: 'Nilai', align: 'right', cell: (c) => <span className="font-black">{BRAND.currency.format(c.valueGiven ?? 0)}</span> },
+  { id: 'sisa', header: 'Sisa kuota', align: 'right', cell: (c) => c.remaining ?? '∞' },
+  { id: 'status', header: 'Status', cell: (c) => <StatusBadge map={DISCOUNT_CODE_STATUS} value={c.status} /> },
+]
 
 interface DiscountCodeReportTabProps {
   dateFrom: string
@@ -45,11 +52,10 @@ export function DiscountCodeReportTab({ dateFrom, dateTo, outletId }: DiscountCo
   )
 
   const report = rq.data
-  const rows = report?.data ?? []
+  const rows: CodeRow[] = (report?.data ?? []).map((c, rowIndex) => ({ ...c, rowIndex }))
   const summary = report?.summary
   const meta = report?.meta
 
-  const totalPages = meta ? Math.max(1, Math.ceil(meta.total / (meta.limit || LIMIT))) : 1
   // A page past the end (a stale link) moves to the last page.
   useEffect(() => {
     if (rq.loading || rq.error || !isAnswerFor(meta, page)) return
@@ -75,65 +81,17 @@ export function DiscountCodeReportTab({ dateFrom, dateTo, outletId }: DiscountCo
         </Card>
       </div>
 
-      <Card className="overflow-hidden">
-        {rows.length === 0 ? (
-          <EmptyState icon={<Tag />} title="Belum ada penukaran kode pada rentang ini" />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  {['Kode', 'Promosi', 'Penukaran', 'Nilai', 'Sisa kuota', 'Status'].map((h) => (
-                    <th
-                      key={h}
-                      className="text-left px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-wider whitespace-nowrap"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {rows.map((c, i) => (
-                  <tr key={`${c.code ?? 'code'}-${i}`} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-mono font-bold text-gray-900">{c.code}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{c.promotionName ?? '—'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{c.redemptions ?? 0}</td>
-                    <td className="px-4 py-3 text-sm font-black text-gold-600">
-                      {BRAND.currency.format(c.valueGiven ?? 0)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{c.remaining ?? '∞'}</td>
-                    <td className="px-4 py-3">
-                      <Badge tone={STATUS_TONE[c.status ?? ''] ?? 'neutral'}>{c.status}</Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-
-      {meta && meta.total > LIMIT && (
-        <div className="flex items-center justify-between px-1">
-          <p className="text-xs text-gray-400">
-            Halaman {meta.page} dari {totalPages} · {meta.total} baris
-          </p>
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setState({ hal: Math.max(1, page - 1) })}>
-              Sebelumnya
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setState({ hal: page + 1 })}
-            >
-              Berikutnya
-            </Button>
-          </div>
-        </div>
-      )}
+      <DataTable
+        caption="Penukaran kode diskon"
+        columns={CODE_COLUMNS}
+        rows={rows}
+        rowKey={(c) => `${c.code ?? 'code'}-${c.rowIndex}`}
+        loading={rq.loading && !rq.data}
+        error={rq.error ? `Gagal memuat laporan kode diskon. ${rq.error}` : null}
+        onRetry={() => void rq.refetch()}
+        empty={<EmptyState icon={<Tag />} title="Belum ada penukaran kode pada rentang ini" />}
+        footer={meta && totalPagesOf(meta.total, meta.limit || LIMIT) > 1 ? <ReportPager page={page} total={meta.total} limit={meta.limit || LIMIT} onChange={(p) => setState({ hal: p })} /> : undefined}
+      />
     </div>
   )
 }

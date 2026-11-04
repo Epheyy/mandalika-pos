@@ -1,20 +1,22 @@
-import type { ChangeEvent } from 'react'
 import { useEffect } from 'react'
 import { Gift } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { BRAND } from '../../lib/brand'
-import { Select } from '../../ui/Field'
 import { Card } from '../../ui/Card'
+import { DataTable, type Column } from '../../ui/DataTable'
 import { EmptyState } from '../../ui/EmptyState'
-import { Button } from '../../ui/Button'
+import { FilterBar } from '../../ui/FilterBar'
 import { useListState, type ListSchema } from '../../lib/router/useListState'
-import { PAGE_ONLY_SCHEMA, isAnswerFor, pageOf, pageToClamp, uuidOf } from './reportFilters'
+import { PAGE_ONLY_SCHEMA, isAnswerFor, pageOf, pageToClamp, totalPagesOf, uuidOf } from './reportFilters'
+import { ReportPager } from './ReportPager'
 import { fetchAllPages, type components } from '@mandalika/api'
 
 type Report = components['schemas']['PromoRewardGrantReport']
 type Promotion = components['schemas']['Promotion']
 type Product = components['schemas']['Product']
+/** A grant row with its position: the report has no row id and two grants can match on every field. */
+type Grant = Report['data'][number] & { rowIndex: number }
 
 const LIMIT = 50
 
@@ -30,6 +32,15 @@ const GRANTS_SCHEMA: ListSchema<GrantsListState> = {
   produk: { key: 'produk', default: '' },
   hal: PAGE_ONLY_SCHEMA.hal,
 }
+
+const GRANT_COLUMNS: Column<Grant>[] = [
+  { id: 'tanggal', header: 'Tanggal', cell: (g) => <span className="whitespace-nowrap text-xs">{g.createdAt ? new Date(g.createdAt).toLocaleDateString('id-ID') : '-'}</span> },
+  { id: 'order', header: 'No. Order', cell: (g) => <span className="font-bold">{g.orderNumber ?? '-'}</span> },
+  { id: 'promosi', header: 'Promosi', cell: (g) => g.promotionName ?? '-' },
+  { id: 'produk', header: 'Produk', cell: (g) => `${g.productName ?? '-'}${g.variantSize ? ` · ${g.variantSize}` : ''}` },
+  { id: 'qty', header: 'Qty', align: 'right', cell: (g) => g.quantity ?? 0 },
+  { id: 'nilai', header: 'Nilai', align: 'right', cell: (g) => <span className="font-black">{BRAND.currency.format(g.valueGivenAway ?? 0)}</span> },
+]
 
 interface BreakdownRow {
   key: string
@@ -75,12 +86,9 @@ export function PromoGrantsTab({ dateFrom, dateTo, outletId }: PromoGrantsTabPro
   const promotions = pq.data ?? []
   const products = prq.data ?? []
   const report = rq.data
-  const rows = report?.data ?? []
+  const rows: Grant[] = (report?.data ?? []).map((g, rowIndex) => ({ ...g, rowIndex }))
   const summary = report?.summary
   const meta = report?.meta
-
-  const handlePromotionChange = (e: ChangeEvent<HTMLSelectElement>) => setState({ promo: e.target.value, hal: 1 })
-  const handleProductChange = (e: ChangeEvent<HTMLSelectElement>) => setState({ produk: e.target.value, hal: 1 })
 
   const byPromotionRows: BreakdownRow[] = (summary?.byPromotion ?? []).map((b, i) => ({
     key: b.promotionId ?? `${b.promotionName ?? 'promo'}-${i}`,
@@ -95,7 +103,6 @@ export function PromoGrantsTab({ dateFrom, dateTo, outletId }: PromoGrantsTabPro
     items: b.items ?? 0,
   }))
 
-  const totalPages = meta ? Math.max(1, Math.ceil(meta.total / (meta.limit || LIMIT))) : 1
   // A page past the end (a stale link) moves to the last page.
   useEffect(() => {
     if (rq.loading || rq.error || !isAnswerFor(meta, page)) return
@@ -106,24 +113,20 @@ export function PromoGrantsTab({ dateFrom, dateTo, outletId }: PromoGrantsTabPro
 
   return (
     <div className="space-y-5">
-      <Card className="p-4 flex flex-wrap gap-3 items-end">
-        <Select label="Promosi" value={promotionId} onChange={handlePromotionChange} className="w-auto">
-          <option value="">Semua promosi</option>
-          {promotions.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </Select>
-        <Select label="Produk" value={productId} onChange={handleProductChange} className="w-auto">
-          <option value="">Semua produk</option>
-          {products.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </Select>
-      </Card>
+      <FilterBar onReset={() => setState({ promo: '', produk: '', hal: 1 })} activeCount={(promotionId ? 1 : 0) + (productId ? 1 : 0)}>
+        <FilterBar.Select
+          label="Promosi"
+          value={promotionId}
+          onChange={(v) => setState({ promo: v, hal: 1 })}
+          options={[{ value: '', label: 'Semua promosi' }, ...promotions.map((p) => ({ value: p.id, label: p.name }))]}
+        />
+        <FilterBar.Select
+          label="Produk"
+          value={productId}
+          onChange={(v) => setState({ produk: v, hal: 1 })}
+          options={[{ value: '', label: 'Semua produk' }, ...products.map((p) => ({ value: p.id, label: p.name }))]}
+        />
+      </FilterBar>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="p-4">
@@ -145,68 +148,17 @@ export function PromoGrantsTab({ dateFrom, dateTo, outletId }: PromoGrantsTabPro
         <BreakdownTable title="Per Produk" rows={byProductRows} />
       </div>
 
-      <Card className="overflow-hidden">
-        {rows.length === 0 ? (
-          <EmptyState icon={<Gift />} title="Belum ada hadiah promo pada rentang ini" />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  {['Tanggal', 'No. Order', 'Promosi', 'Produk', 'Qty', 'Nilai'].map((h) => (
-                    <th
-                      key={h}
-                      className="text-left px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-wider whitespace-nowrap"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {rows.map((g, i) => (
-                  <tr key={`${g.orderId ?? ''}-${g.productId ?? ''}-${g.variantSize ?? ''}-${i}`} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                      {g.createdAt ? new Date(g.createdAt).toLocaleDateString('id-ID') : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm font-bold text-gray-900">{g.orderNumber ?? '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{g.promotionName ?? '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {g.productName ?? '-'}
-                      {g.variantSize ? ` · ${g.variantSize}` : ''}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{g.quantity ?? 0}</td>
-                    <td className="px-4 py-3 text-sm font-black text-gold-600">
-                      {BRAND.currency.format(g.valueGivenAway ?? 0)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-
-      {meta && meta.total > LIMIT && (
-        <div className="flex items-center justify-between px-1">
-          <p className="text-xs text-gray-400">
-            Halaman {meta.page} dari {totalPages} · {meta.total} baris
-          </p>
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setState({ hal: Math.max(1, page - 1) })}>
-              Sebelumnya
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setState({ hal: page + 1 })}
-            >
-              Berikutnya
-            </Button>
-          </div>
-        </div>
-      )}
+      <DataTable
+        caption="Hadiah promo yang diberikan"
+        columns={GRANT_COLUMNS}
+        rows={rows}
+        rowKey={(g) => `${g.orderId ?? ''}-${g.productId ?? ''}-${g.variantSize ?? ''}-${g.rowIndex}`}
+        loading={rq.loading && !rq.data}
+        error={rq.error ? `Gagal memuat hadiah promo. ${rq.error}` : null}
+        onRetry={() => void rq.refetch()}
+        empty={<EmptyState icon={<Gift />} title="Belum ada hadiah promo pada rentang ini" />}
+        footer={meta && totalPagesOf(meta.total, meta.limit || LIMIT) > 1 ? <ReportPager page={page} total={meta.total} limit={meta.limit || LIMIT} onChange={(p) => setState({ hal: p })} /> : undefined}
+      />
     </div>
   )
 }

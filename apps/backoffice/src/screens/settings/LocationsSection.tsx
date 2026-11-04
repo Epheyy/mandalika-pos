@@ -11,6 +11,7 @@ import { api } from '../../api'
 import { useOutlet } from '../../outlet'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { Button } from '../../ui/Button'
+import { ConfirmDialog } from '../../ui/ConfirmDialog'
 import { Modal } from '../../ui/Modal'
 import { Switch } from '../../ui/Switch'
 import { Badge } from '../../ui/Badge'
@@ -32,6 +33,7 @@ export function LocationsSection() {
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null)
   const [delId, setDelId] = useState<string | null>(null)
   const [delErr, setDelErr] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   // Outlet CRUD state
   const [outletFormOpen, setOutletFormOpen] = useState(false)
@@ -55,14 +57,17 @@ export function LocationsSection() {
   }
 
   const del = async () => {
-    if (!delId) return
+    if (!delId || deleting) return
+    setDeleting(true)
+    setDelErr(null)
     try {
       await api.deleteWarehouse(delId)
       setDelId(null)
-      setDelErr(null)
       await wq.refetch()
     } catch (e: unknown) {
       setDelErr(e instanceof Error ? e.message : 'Gagal menghapus gudang.')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -230,41 +235,21 @@ export function LocationsSection() {
         />
       )}
 
-      {/* Delete warehouse confirmation */}
-      <Modal
+      {/* Delete warehouse confirmation: a refusal (409) stays inside the dialog */}
+      <ConfirmDialog
         open={!!delId}
-        onClose={() => {
+        title={`Hapus gudang ${warehouses.find((w) => w.id === delId)?.name ?? ''}?`}
+        consequence="Data tidak dapat dikembalikan."
+        confirmLabel="Hapus gudang"
+        tone="danger"
+        busy={deleting}
+        error={delErr}
+        onConfirm={() => void del()}
+        onCancel={() => {
           setDelId(null)
           setDelErr(null)
         }}
-        size="sm"
-        footer={
-          <>
-            <Button
-              variant="secondary"
-              className="flex-1"
-              onClick={() => {
-                setDelId(null)
-                setDelErr(null)
-              }}
-            >
-              Batal
-            </Button>
-            <Button variant="danger" className="flex-1" onClick={del}>
-              Ya, Hapus
-            </Button>
-          </>
-        }
-      >
-        <div className="text-center">
-          <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Trash2 className="w-7 h-7 text-red-500" />
-          </div>
-          <h3 className="text-xl font-black text-gray-900 mb-2">Konfirmasi Hapus</h3>
-          <p className="text-sm text-gray-400">Data tidak dapat dikembalikan.</p>
-          {delErr && <p className="text-sm text-red-600 mt-2">{delErr}</p>}
-        </div>
-      </Modal>
+      />
 
       <Modal
         open={deactivating !== null}

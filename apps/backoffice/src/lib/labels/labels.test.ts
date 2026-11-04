@@ -21,6 +21,7 @@ const MAPS: Record<string, LabelMap<string>> = {
   ROLE: labels.ROLE,
   ERROR_SOURCE: labels.ERROR_SOURCE,
   PAYMENT_METHOD: labels.PAYMENT_METHOD,
+  DISCOUNT_CODE_STATUS: labels.DISCOUNT_CODE_STATUS,
 }
 
 describe.each(Object.entries(MAPS))('%s', (_name, map) => {
