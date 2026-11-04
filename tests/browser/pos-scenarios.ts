@@ -226,7 +226,7 @@ export const posRecap = async (page: ScenarioPage) =>{
   // These checks read the system's recorded totals; blind count (default ON since 2026-11-05) hides them until counted.
   await page.evaluate(()=>{localStorage.setItem('pos_blindCount','0')});
   await page.reload();
-  await page.getByRole('button',{name:'Menu',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Menu',exact:true}).click(); // the reload closed the menu the scenario started in
   const now=new Date().toISOString();
   const shift={id:'a26-active',outletId:'synthetic',outletName:'Synthetic Outlet',cashierId:'synthetic',cashierName:'Synthetic Cashier',openedAt:now,status:'open',startingCash:1100000,totalSales:401000,totalOrders:401,cashSales:401000,cardSales:0,qrisSales:0,transferSales:0};
   page.__a26pos={fail:null,offline:false,calls:[]};
