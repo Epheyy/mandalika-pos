@@ -71,6 +71,7 @@ export interface PricingResult {
   manualDiscountAmount: number
   promoDiscountAmount: number
   appliedPromoDiscountAmount: number
+  appliedManualDiscountAmount: number
   discountAmount: number
   taxableAmount: number
   taxAmount: number
@@ -435,6 +436,7 @@ export function computePricing(input: PricingInput): PricingResult {
     // (promo and codes come first in display order, so their clamped share is min(sum, subtotal)).
     promoDiscountAmount,
     appliedPromoDiscountAmount: Math.min(promoDiscountAmount, subtotal),
+    appliedManualDiscountAmount: discountAmount - Math.min(promoDiscountAmount, subtotal),
     discountAmount,
     taxableAmount,
     taxAmount,

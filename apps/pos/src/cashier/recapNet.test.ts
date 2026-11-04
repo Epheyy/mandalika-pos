@@ -41,3 +41,18 @@ describe('CS-4 Penjualan Bersih = gross - discount - refunds', () => {
     expect(b.net).toBe(60000)
   })
 })
+
+describe('slip arithmetic with one part and one full refund', () => {
+  it('Kotor - Diskon - deducted refunds = Bersih; full refund is its own info figure', () => {
+    const b = aggregate([
+      order({ id: 'a', subtotal: 200000, discountAmount: 20000, total: 180000, refundedAmount: 50000, items: [{ quantity: 2, refundedQty: 1 }] }),
+      order({ id: 'b', subtotal: 100000, discountAmount: 0, total: 100000, status: 'refunded', refundedAmount: 100000 }),
+    ], methods)
+    const deducted = b.refundTotal - b.refundFullTotal
+    expect(b.refundTotal).toBe(150000)
+    expect(b.refundFullTotal).toBe(100000)
+    expect(deducted).toBe(50000)
+    expect(b.gross - b.discount - deducted).toBe(b.net)
+    expect(b.net).toBe(130000)
+  })
+})

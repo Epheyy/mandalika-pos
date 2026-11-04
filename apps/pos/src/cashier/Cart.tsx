@@ -337,6 +337,7 @@ export const Cart = memo(function Cart({
                 <span className="truncate">
                   Diskon manual{' '}
                   {discountType === 'percentage' ? `${discountRunning}%` : formatRupiah(discountRunning)}
+                  {' · '}−{formatRupiah(derived.appliedManualDiscountAmount)}
                 </span>
               </span>
               <RemoveButton label="Hapus diskon" onClick={onClearDiscount} />

@@ -42,3 +42,20 @@ describe('shift recap slip: unsynced and legacy refund notes', () => {
     expect(t).toContain('tidak dihitung')
   })
 })
+
+describe('shift recap slip: full refunds are an info line outside Kotor (CS-4)', () => {
+  const base = {
+    title: 'Rekap Shift', outletName: 'BSD', cashierName: 'Kasir', openedAt: null, closedAt: null,
+    startingCash: null, closingCash: null, methods: [], totalRecorded: 0, totalCounted: null, cashIn: null, cashOut: null,
+    gross: 200000, refundTotal: 50000, refundCount: 2, discount: 20000, surcharge: 0, net: 130000, tax: 0, totalSales: 130000, totalOrders: 1,
+    generatedAt: new Date('2026-10-11T00:00:00Z'),
+  } as RecapData
+  it('prints the deducted line and the info line separately', () => {
+    const t = txt(buildRecap({ ...base, refundFullTotal: 100000 }, settings))
+    expect(t).toContain(pad('Pengembalian Kotor', '-' + money(50000)))
+    expect(t).toContain('Refund penuh ' + money(100000) + ' (di luar Kotor)')
+  })
+  it('prints no info line without full refunds', () => {
+    expect(txt(buildRecap(base, settings))).not.toContain('Refund penuh')
+  })
+})

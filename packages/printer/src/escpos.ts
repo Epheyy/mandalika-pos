@@ -300,6 +300,8 @@ export interface RecapData {
   parkedRefundTotal?: number
   gross: number
   refundTotal: number
+  /** Refunds of fully refunded orders: info line only, they are not inside Penjualan Kotor. */
+  refundFullTotal?: number
   refundCount: number
   discount: number
   surcharge: number
@@ -373,6 +375,7 @@ export function buildRecap(data: RecapData, settings: ReceiptSettings): Uint8Arr
   if (data.refundCount > 0) b.line(pad('Pengembalian', String(data.refundCount)))
   b.line(pad('Penjualan Kotor', money(data.gross)))
   if (data.refundTotal > 0) b.line(pad('Pengembalian Kotor', '-' + money(data.refundTotal)))
+  if ((data.refundFullTotal ?? 0) > 0) b.line('Refund penuh ' + money(data.refundFullTotal ?? 0) + ' (di luar Kotor)')
   if (data.discount > 0) b.line(pad('Diskon', '-' + money(data.discount)))
   if (data.surcharge > 0) b.line(pad('Biaya tambahan', money(data.surcharge)))
   b.line(pad('Penjualan Bersih', money(data.net)))

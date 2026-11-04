@@ -160,6 +160,12 @@ function ShiftRecapPanelBody({
   const rows = useMemo(() => recapRows(paymentMethods, cur?.byMethod ?? {}), [paymentMethods, cur?.byMethod])
   // P-15: the selisih text awaiting the cashier's Tutup Shift confirmation (null = no dialog).
   const [closeConfirm, setCloseConfirm] = useState<string | null>(null)
+  // Android Back with the selisih dialog open closes only the dialog; the typed counts stay.
+  useEffect(() => {
+    if (!backRef || closeConfirm === null) return
+    backRef.current = () => { setCloseConfirm(null); return true }
+    return () => { backRef.current = null }
+  }, [backRef, closeConfirm])
 
   const [history, setHistory] = useState<Shift[]>([])
   const [historySearch, setHistorySearch] = useState('')
@@ -396,7 +402,8 @@ function ShiftRecapPanelBody({
     parkedRefundCount: curRecap.parkedCount,
     parkedRefundTotal: curRecap.parkedTotal,
     gross: live?.gross ?? 0,
-    refundTotal: live?.refundTotal ?? 0,
+    refundTotal: (live?.refundTotal ?? 0) - (live?.refundFullTotal ?? 0),
+    refundFullTotal: live?.refundFullTotal ?? 0,
     refundCount: live?.refundCount ?? 0,
     discount: live?.discount ?? 0,
     surcharge: live?.surcharge ?? 0,
@@ -794,7 +801,8 @@ function ShiftRecapPanelBody({
                 <span>Tipe</span><span>Nominal</span>
               </div>
               {sumRow('Penjualan Kotor', formatRupiah(live?.gross ?? 0))}
-              {sumRow('Pengembalian Kotor', formatRupiah(live?.refundTotal ?? 0))}
+              {sumRow('Pengembalian Kotor', formatRupiah((live?.refundTotal ?? 0) - (live?.refundFullTotal ?? 0)))}
+              {(live?.refundFullTotal ?? 0) > 0 && <p className="text-[11px] text-gray-400 pb-1">Refund penuh: {formatRupiah(live?.refundFullTotal ?? 0)} (tidak termasuk di Kotor)</p>}
               {sumRow('Diskon', formatRupiah(live?.discount ?? 0))}
               {sumRow('Surcharge', formatRupiah(live?.surcharge ?? 0))}
               {sumRow('Penjualan Bersih', formatRupiah(live?.net ?? 0), true)}
@@ -850,7 +858,8 @@ function ShiftRecapPanelBody({
               cashOut: selectedFlows.filter((f) => isCashOut(f.type)).reduce((sum, f) => sum + f.amount, 0),
               crossShiftRefunds: histRecap.crossTotal,
               gross: b.gross,
-              refundTotal: b.refundTotal,
+              refundTotal: b.refundTotal - b.refundFullTotal,
+              refundFullTotal: b.refundFullTotal,
               refundCount: b.refundCount,
               discount: b.discount,
               surcharge: b.surcharge,

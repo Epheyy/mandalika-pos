@@ -411,3 +411,17 @@ describe('P-17 displayed savings never exceed the applied discount', () => {
     expect(res.discountAmount).toBe(res.subtotal)
   })
 })
+
+describe('P-17 manual discount shows the applied amount', () => {
+  it('Rp 200.000 manual on a Rp 100.000 cart applies Rp 100.000; components sum to the total', () => {
+    const res = computePricing({ ...base, appliedPromotions: [], appliedPromoCodes: [], discountType: 'fixed', discountRunning: 200000 })
+    expect(res.appliedManualDiscountAmount).toBe(100000)
+    expect(res.appliedPromoDiscountAmount + res.appliedManualDiscountAmount).toBe(res.discountAmount)
+  })
+  it('promo takes the cap first, manual shows only what is left (0 here)', () => {
+    const res = computePricing({ ...base, appliedPromotions: [], appliedPromoCodes: [{ code: 'X150', value: 150, type: 'percentage' } as any], discountType: 'fixed', discountRunning: 30000 })
+    expect(res.appliedPromoDiscountAmount).toBe(100000)
+    expect(res.appliedManualDiscountAmount).toBe(0)
+    expect(res.appliedPromoDiscountAmount + res.appliedManualDiscountAmount).toBe(res.discountAmount)
+  })
+})
