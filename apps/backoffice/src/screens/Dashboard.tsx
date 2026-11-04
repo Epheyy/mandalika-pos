@@ -1,6 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { fetchAllPages, type ListOrdersParams } from '@mandalika/api'
-import type { Order, Promotion } from '@mandalika/api'
+import type { Promotion } from '@mandalika/api'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import {
@@ -29,27 +28,8 @@ import { CHART_SERIES } from '../ui/chartColors'
 import { KpiCard, RankedList } from './dashboard/components'
 import { useListState } from '../lib/router/useListState'
 import { DASHBOARD_SCHEMA, periodFromSlug, periodSlug } from './dashboard/periodRoute'
-import {
-  type Period,
-  PERIOD_TABS,
-  dashboardFetchWindow,
-  periodInterval,
-  prevInterval,
-  completedIn,
-  salesIn,
-  refundsIn as refundsInWindow,
-  netKpis,
-  netPaymentBreakdown,
-  refundSideOrNull,
-  computeKpis,
-  delta,
-  buildTrend,
-  productRanking,
-  lowStock,
-  promoUsage,
-  paymentBreakdown,
-  cashierPerformance,
-} from './dashboard/metrics'
+import { type Period, PERIOD_TABS, dashboardFetchWindow, lowStock } from './dashboard/metrics'
+import { dashboardView, fetchDashboard, type DashboardData } from './dashboard/fetchDashboard'
 
 // recharts is code-split out of the dashboard's initial bundle; the chart bodies
 // live in ./dashboard/Charts and load on first render behind a sized fallback.
@@ -62,12 +42,6 @@ const PaymentChart = lazy(() =>
 const CashierChart = lazy(() =>
   import('./dashboard/Charts').then((m) => ({ default: m.CashierChart })),
 )
-
-/** Sale side (completed + refunded, by sale day) and refund side (by refund day); null = unsupported/failed. */
-interface DashboardOrders {
-  sale: Order[]
-  refund: Order[] | null
-}
 
 /** Height-reserving placeholder so lazy chart loading does not shift layout. */
 function ChartFallback({ height }: { height: number }) {
@@ -86,30 +60,11 @@ export default function Dashboard() {
   const period = periodFromSlug(query.periode)
   const setPeriod = (p: Period) => setQuery({ periode: periodSlug(p) })
 
-  // Orders inside the period (+ previous period for deltas) are fetched twice (A27 net revenue):
-  // the sale side WITHOUT a status filter (cancelled rows are dropped client-side) and the refunds
-  // recognised on their refund day. The window is recomputed per fetch so the 12 s poll slides past
-  // midnight. If the refund side is unavailable (older backend, or the request fails) the dashboard
-  // falls back to completed-only numbers instead of showing a wrong net.
+  // One poll = one request: the server aggregate of the period (+ previous period for deltas) computed from the
+  // same windows the client math used. A backend without the route (404/405) falls back to today's computation over
+  // the full order lists (see fetchDashboard); the window deps below keep the poll sliding past midnight.
   const win = dashboardFetchWindow(period)
-  const oq = usePolledQuery<DashboardOrders>(
-    async () => {
-      const w = dashboardFetchWindow(period)
-      const params: ListOrdersParams = {}
-      if (w.dateFrom) params.dateFrom = w.dateFrom
-      if (w.dateTo) params.dateTo = w.dateTo
-      const [sale, refund] = await Promise.all([
-        fetchAllPages((page, limit) => api.listOrders({ ...params, page, limit })),
-        // A request failure is NOT swallowed (keeps the previous data / shows the error); only an
-        // unsupported response (old backend) maps to null via refundSideOrNull.
-        fetchAllPages((page, limit) => api.listOrders({ ...params, dateBasis: 'refund', page, limit })).then(
-          refundSideOrNull,
-        ),
-      ])
-      return { sale, refund }
-    },
-    [outletId, period, win.dateFrom, win.dateTo],
-  )
+  const oq = usePolledQuery<DashboardData>(() => fetchDashboard(api, period), [outletId, period, win.dateFrom, win.dateTo])
   // Only the low-stock card and the promo names read these: the shared product list (served for up to a minute, then
   // refreshed while the tab stays open) and the promotion list on a minute poll, so the order polls above stay the
   // only 12 s traffic. The order numbers do not depend on either.
@@ -127,43 +82,18 @@ export default function Dashboard() {
 
   if (!oq.data || !pq.data) return <p role="alert" className="p-6 text-red-600">Gagal memuat data lengkap. {oq.error || pq.error}</p>
 
-  const orders = oq.data.sale
-  const refundRows = oq.data.refund
   const products = pq.data ?? []
   const promotions = prq.data ?? []
 
   const now = new Date()
-  const iv = periodInterval(period, now)
-  const ivPrev = prevInterval(period, now)
-  const completed = completedIn(orders, iv)
-  const completedPrev = ivPrev ? completedIn(orders, ivPrev) : []
-
-  const kpis = computeKpis(completed)
-  const kpisPrev = computeKpis(completedPrev)
-
-  // Net = gross sales by sale day minus refunds by refund day; completed-only when refunds are unknown.
-  const net = refundRows ? netKpis(orders, refundRows, iv) : null
-  const netPrev = refundRows && ivPrev ? netKpis(orders, refundRows, ivPrev) : null
-  const revenue = net ? net.net : kpis.revenue
-  const revenuePrev = netPrev ? netPrev.net : kpisPrev.revenue
-
-  const trend = refundRows
-    ? buildTrend(salesIn(orders, iv), period, now, refundsInWindow(refundRows, iv))
-    : buildTrend(completed, period, now)
-  const trendEmpty = trend.every((t) => t.revenue === 0 && t.orders === 0) && !(refundRows && refundsInWindow(refundRows, iv).length > 0)
-  const ranking = productRanking(completed)
-  const top = ranking.slice(0, 10)
-  const bottom = [...ranking].reverse().slice(0, 10)
+  const v = dashboardView(oq.data, period, promotions)
+  const net = v.net
   const stock = lowStock(products)
   const outCount = stock.filter((s) => s.stock <= 0).length
   const lowCount = stock.length - outCount
-  const promo = promoUsage(completed, promotions)
-  const pay = refundRows ? netPaymentBreakdown(orders, refundRows, iv) : paymentBreakdown(completed)
+  const { trend, trendEmpty, pay, promo, cashiers } = v
   const payPositive = pay.filter((p) => p.amount > 0)
   const payTotal = payPositive.reduce((s, p) => s + p.amount, 0)
-  const cashiers = cashierPerformance(completed)
-
-  const aov = kpis.orders ? kpis.revenue / kpis.orders : 0
 
   return (
     <div className="p-6 space-y-6">
@@ -174,7 +104,7 @@ export default function Dashboard() {
       />
 
       {(oq.error || pq.error) && <p role="alert" className="text-sm text-red-600">Gagal memperbarui data lengkap; menampilkan data sebelumnya. {oq.error || pq.error}</p>}
-      {!refundRows && (
+      {!net && (
         <p className="text-xs text-gray-400">
           Data refund belum tersedia; penjualan menampilkan transaksi selesai saja (belum dikurangi refund).
         </p>
@@ -182,41 +112,41 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           label="Penjualan"
-          value={BRAND.currency.format(revenue)}
+          value={BRAND.currency.format(v.revenue)}
           sub={
             net
               ? `Kotor ${BRAND.currency.format(net.gross)} / Refund ${BRAND.currency.format(net.refunds)}`
-              : `${kpis.orders} transaksi`
+              : `${v.orders} transaksi`
           }
           icon={<TrendingUp className="w-5 h-5" />}
-          deltaPct={delta(revenue, ivPrev ? revenuePrev : null)}
+          deltaPct={v.deltaRevenue}
         />
         <KpiCard
           label="Transaksi"
-          value={String(kpis.orders)}
-          sub={`${BRAND.currency.format(Math.round(aov))} / transaksi`}
+          value={String(v.orders)}
+          sub={`${BRAND.currency.format(Math.round(v.aov))} / transaksi`}
           icon={<ShoppingBag className="w-5 h-5" />}
-          deltaPct={delta(kpis.orders, ivPrev ? kpisPrev.orders : null)}
+          deltaPct={v.deltaOrders}
         />
         <KpiCard
           label="Produk Terjual"
-          value={kpis.itemsSold.toLocaleString('id-ID')}
-          sub={`${ranking.length} jenis produk`}
+          value={v.itemsSold.toLocaleString('id-ID')}
+          sub={`${v.distinctProducts} jenis produk`}
           icon={<Package className="w-5 h-5" />}
-          deltaPct={delta(kpis.itemsSold, ivPrev ? kpisPrev.itemsSold : null)}
+          deltaPct={v.deltaItems}
         />
         <KpiCard
           label="Pelanggan"
-          value={String(kpis.customers)}
+          value={String(v.customers)}
           sub="pelanggan teridentifikasi"
           icon={<Users className="w-5 h-5" />}
-          deltaPct={delta(kpis.customers, ivPrev ? kpisPrev.customers : null)}
+          deltaPct={v.deltaCustomers}
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2 p-5">
-          <h3 className="font-black text-gray-900 mb-4">{refundRows ? 'Tren Penjualan (Bersih)' : 'Tren Penjualan'}</h3>
+          <h3 className="font-black text-gray-900 mb-4">{net ? 'Tren Penjualan (Bersih)' : 'Tren Penjualan'}</h3>
           {trendEmpty ? (
             <div className="h-52 flex items-center justify-center text-gray-300 text-sm">
               Belum ada data penjualan
@@ -266,7 +196,7 @@ export default function Dashboard() {
             <h3 className="font-black text-gray-900">Produk Penjualan Teratas</h3>
           </div>
           <RankedList
-            rows={top.map((p) => ({ name: p.name, right: `${p.qty.toLocaleString('id-ID')} Pcs` }))}
+            rows={v.top.map((p) => ({ name: p.name, right: `${p.qty.toLocaleString('id-ID')} Pcs` }))}
             empty="Belum ada penjualan"
           />
         </Card>
@@ -277,7 +207,7 @@ export default function Dashboard() {
             <h3 className="font-black text-gray-900">Produk Penjualan Terbawah</h3>
           </div>
           <RankedList
-            rows={bottom.map((p) => ({ name: p.name, right: `${p.qty.toLocaleString('id-ID')} Pcs` }))}
+            rows={v.bottom.map((p) => ({ name: p.name, right: `${p.qty.toLocaleString('id-ID')} Pcs` }))}
             empty="Belum ada penjualan"
           />
         </Card>
