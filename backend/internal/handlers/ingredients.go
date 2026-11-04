@@ -13,7 +13,11 @@ import (
 func (h *Handlers) Ingredients(w http.ResponseWriter, r *http.Request) {
 	p, l := pageLimit(r)
 	q := r.URL.Query().Get("q")
-	rows, total, err := h.Repo.Ingredients(r.Context(), p, l, q)
+	categoryID, ok := uuidParam(w, r, "categoryId")
+	if !ok {
+		return
+	}
+	rows, total, err := h.Repo.Ingredients(r.Context(), p, l, q, categoryID)
 	if err != nil {
 		writeErr(w, r, 500, err)
 		return

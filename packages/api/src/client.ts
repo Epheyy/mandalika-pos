@@ -456,7 +456,7 @@ export interface Api {
   outletTransfers: (status: 'completed' | 'cancelled') => Promise<Transfer[]>
 
   // ingredients / recipe inventory (SP-Recipe-1)
-  listIngredients: (opts?: { page?: number; limit?: number; q?: string }) => Promise<ListResult<Ingredient>>
+  listIngredients: (opts?: { page?: number; limit?: number; q?: string; categoryId?: string }) => Promise<ListResult<Ingredient>>
   createIngredient: (input: IngredientInput) => Promise<void>
   updateIngredient: (id: string, input: IngredientInput) => Promise<void>
   deleteIngredient: (id: string) => Promise<void>
