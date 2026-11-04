@@ -9,8 +9,14 @@ const { spawnSync } = require('node:child_process');
 const option = name => { const i = process.argv.indexOf(name); return i < 0 ? undefined : process.argv[i + 1]; };
 const root = path.resolve(option('--root') || process.cwd());
 const rootRequire = createRequire(path.join(root, 'package.json'));
-const versions = { '3.1.5': '1.1.20', '5.1.9': '2.1.6', '10.2.5': '5.0.11' };
-const oldVersions = { '3.1.5': '1.1.14', '5.1.9': '2.1.0', '10.2.5': '5.0.6' };
+// Dependabot sweep 2026-11: every minimatch consumer (eslint stack, typescript-estree, redocly,
+// glob 14 under @capacitor/cli -> rimraf) is overridden to the single patched 11.x line, which
+// depends on the single patched brace-expansion 5.x line (GHSA-q2hr-2g5m-vwhr, GHSA-g3hv-75wg-m249).
+// Known limit: minimatch 11 has no default export, so ESM imports of @eslint/eslintrc / config-array
+// would fail; eslint 9 loads their CJS builds (named Minimatch only). Revisit on an eslint upgrade.
+// The old --baseline before mode was removed with the 1.x/2.x/10.x lines it compared.
+const versions = { '11.0.4': '5.0.12' };
+const modern = v => Number(v.split('.')[0]) >= 10; // named-export API, CJS + ESM
 const limits = { timeoutMs: 5000, heapMiB: 96, stackKiB: 512, outputBytes: 65536, fixtureBytes: 65536 };
 const kinds = ['benign', 'matching', 'count-budget', 'length-budget', 'intermediate-budget', 'repeated-literal'];
 const cases = Object.keys(versions).flatMap(v => kinds.map(k => `${v}/${k}`)).concat('glob', 'esm');
@@ -22,8 +28,8 @@ function consumer(version) {
   const brace = JSON.parse(fs.readFileSync(braceFile));
   const api = parentRequire('brace-expansion');
   const minimatch = parentRequire('./' + parent.main);
-  assert.equal(typeof api, version === '10.2.5' ? 'object' : 'function');
-  const expand = version === '10.2.5' ? api.expand : api;
+  assert.equal(typeof api, modern(version) ? 'object' : 'function');
+  const expand = modern(version) ? api.expand : api;
   assert.equal(typeof expand, 'function');
   return { file, parent, braceFile, brace, expand, minimatch };
 }
@@ -65,7 +71,7 @@ async function worker(name, dir) {
     assert.equal(bytesUnder(dir), before, 'selection cannot mutate fixtures');
     detail = { selected, bytesBefore: before, bytesAfter: bytesUnder(dir) };
   } else if (name === 'esm') {
-    const c = consumer('10.2.5');
+    const c = consumer('11.0.4');
     const module = await import(pathToFileURL(path.resolve(path.dirname(c.file), c.parent.exports['.'].import.default)).href);
     const brace = await import(pathToFileURL(path.resolve(path.dirname(c.braceFile), c.brace.exports['.'].import.default)).href);
     assert.deepEqual(module.braceExpand('{a,b}'), ['a', 'b']);
@@ -86,7 +92,7 @@ async function worker(name, dir) {
       assert.deepEqual(minimatch.braceExpand('{a,b}', { nobrace: true }), ['{a,b}']);
       const m = new minimatch.Minimatch('{a,a,b}');
       assert(m.match('a') && m.match('b') && !m.match('c'));
-      if (version === '10.2.5') assert.deepEqual(minimatch.braceExpand('{1..8}', { braceExpandMax: 2 }), ['1', '2']);
+      if (modern(version)) assert.deepEqual(minimatch.braceExpand('{1..8}', { braceExpandMax: 2 }), ['1', '2']);
     } else if (kind === 'count-budget') {
       // Exercise the documented optional count budget without a large allocation.
       assert.deepEqual(expand('{1..16}', { max: 3 }), ['1', '2', '3']);
@@ -118,17 +124,21 @@ async function worker(name, dir) {
 if (option('--worker')) {
   worker(option('--worker'), path.resolve(option('--dir'))).catch(e => { console.error(e); process.exitCode = 1; });
 } else {
-  const expected = option('--baseline') === 'before' ? oldVersions : versions;
+  const expected = versions;
   const parents = Object.keys(versions).map(v => {
     const c = consumer(v);
     assert.equal(c.brace.version, expected[v]);
     assert(rootRequire('semver').satisfies(c.brace.version, c.parent.dependencies['brace-expansion']));
     return { parent: `minimatch@${v}`, range: c.parent.dependencies['brace-expansion'],
-      selected: c.brace.version, path: c.braceFile, api: v === '10.2.5' ? 'named expand; CJS/ESM' : 'callable CJS' };
+      selected: c.brace.version, path: c.braceFile, api: modern(v) ? 'named expand; CJS/ESM' : 'callable CJS' };
   });
   const lock = rootRequire('yaml').parse(fs.readFileSync(path.join(root, 'pnpm-lock.yaml'), 'utf8'));
   assert.deepEqual(Object.keys(lock.packages).filter(k => k.startsWith('brace-expansion@')).sort(),
     Object.values(expected).map(v => `brace-expansion@${v}`).sort());
+  // No vulnerable minimatch (<11.0.1) or glob (<14.0.2) may remain anywhere in the lockfile.
+  assert.deepEqual(Object.keys(lock.packages).filter(k => k.startsWith('minimatch@')).sort(),
+    Object.keys(versions).map(v => `minimatch@${v}`).sort());
+  assert.deepEqual(Object.keys(lock.packages).filter(k => k.startsWith('glob@')).sort(), ['glob@14.0.2']);
   const results = [];
   for (const name of cases) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mandalika-brace-'));
