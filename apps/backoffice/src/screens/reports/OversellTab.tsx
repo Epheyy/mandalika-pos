@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Download } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
-import type { OversellBreakdown, OversellReport } from '@mandalika/api'
+import type { OversellBreakdown, OversellRecord, OversellReport } from '@mandalika/api'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { exportToCSV } from '../../lib/csvUtils'
@@ -10,10 +10,14 @@ import { Button } from '../../ui/Button'
 import { Badge } from '../../ui/Badge'
 import { Card } from '../../ui/Card'
 import { EmptyState } from '../../ui/EmptyState'
-import { Input, Select } from '../../ui/Field'
+import { DataTable, type Column } from '../../ui/DataTable'
+import { ExportButton } from '../../ui/ExportButton'
+import { Input } from '../../ui/Field'
+import { FilterBar } from '../../ui/FilterBar'
 import { Switch } from '../../ui/Switch'
 import { useListState, type ListSchema } from '../../lib/router/useListState'
-import { PAGE_ONLY_SCHEMA, enumOf, isAnswerFor, pageOf, pageToClamp, uuidOf } from './reportFilters'
+import { PAGE_ONLY_SCHEMA, enumOf, isAnswerFor, pageOf, pageToClamp, totalPagesOf, uuidOf } from './reportFilters'
+import { ReportPager } from './ReportPager'
 import {
   KIND_FILTERS,
   OVERSELL_CHANGED,
@@ -77,6 +81,98 @@ interface OversellTabProps {
 
 const when = (iso: string) => format(parseISO(iso), 'dd MMM yyyy HH:mm', { locale: idLocale })
 
+interface ColumnOptions {
+  canAcknowledge: boolean
+  selected: ReadonlySet<string>
+  onToggle: (id: string) => void
+  expanded: string | null
+  onExpand: (id: string | null) => void
+}
+
+function oversellColumns({ canAcknowledge, selected, onToggle, expanded, onExpand }: ColumnOptions): Column<OversellRecord>[] {
+  const pick: Column<OversellRecord>[] = canAcknowledge
+    ? [
+        {
+          id: 'pilih',
+          header: 'Pilih',
+          width: 56,
+          hideable: false,
+          cell: (r) => (
+            <input
+              type="checkbox"
+              aria-label={`Pilih ${r.orderNumber}`}
+              disabled={!!r.acknowledgedAt}
+              checked={selected.has(r.id)}
+              onChange={() => onToggle(r.id)}
+            />
+          ),
+        },
+      ]
+    : []
+  return [
+    ...pick,
+    { id: 'waktu', header: 'Waktu jual', cell: (r) => <span className="whitespace-nowrap text-xs">{when(r.soldAt)}</span> },
+    {
+      id: 'order',
+      header: 'No. transaksi',
+      cell: (r) => (
+        <button
+          type="button"
+          aria-expanded={expanded === r.id}
+          title="Lihat detail baris"
+          onClick={() => onExpand(expanded === r.id ? null : r.id)}
+          className="rounded font-mono font-bold underline decoration-dotted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong"
+        >
+          {r.orderNumber}
+        </button>
+      ),
+    },
+    {
+      id: 'produk',
+      header: 'Produk',
+      cell: (r) => (
+        <>
+          {lineLabel(r)}
+          {r.kind !== 'shortage' && <span className="block text-[11px] text-danger">{kindLabel(r.kind)}</span>}
+        </>
+      ),
+    },
+    { id: 'qty', header: 'Qty', align: 'right', cell: (r) => r.quantity },
+    { id: 'stok', header: 'Stok', align: 'right', cell: (r) => <span className="whitespace-nowrap">{r.stockBefore == null ? '—' : `${r.stockBefore} → ${r.stockAfter}`}</span> },
+    { id: 'kurang', header: 'Kurang', align: 'right', cell: (r) => <span className="font-black text-danger">{r.shortfall}</span> },
+    { id: 'kasir', header: 'Kasir', cell: (r) => r.cashierName },
+    { id: 'jalur', header: 'Jalur', cell: (r) => <span className="text-xs">{channelLabel(r.channel)}</span> },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: (r) => (
+        <Badge tone={r.orderStatus === 'completed' || r.orderStatus === 'partially_refunded' ? 'neutral' : 'danger'}>{orderStatusLabel(r.orderStatus)}</Badge>
+      ),
+    },
+    { id: 'cek', header: 'Cek', cell: (r) => (r.acknowledgedAt ? <Badge tone="success">Dicek</Badge> : <Badge tone="warning">Belum</Badge>) },
+  ]
+}
+
+function OversellDetail({ row, sameOrder, onClose }: { row: OversellRecord; sameOrder: readonly OversellRecord[]; onClose: () => void }) {
+  return (
+    <Card className="space-y-1 px-5 py-4 text-xs text-ink-700">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-black text-gray-900">Detail {row.orderNumber}</h3>
+        <Button variant="ghost" size="sm" onClick={onClose}>Tutup</Button>
+      </div>
+      <p>Outlet: <b>{row.outletName}</b> · SKU: <b>{row.sku || '—'}</b> · Stok sekarang: <b>{row.currentStock ?? '—'}</b></p>
+      <p>Dijual {when(row.soldAt)} · diterapkan server {when(row.recordedAt)} · jeda sinkron <b>{syncLagLabel(row.soldAt, row.recordedAt)}</b></p>
+      <p>Shift: {row.shiftId ?? '—'} · Perangkat: {row.deviceId ?? '—'}</p>
+      {row.acknowledgedAt && (
+        <p>Dicek oleh <b>{row.acknowledgedByName ?? '—'}</b> pada {when(row.acknowledgedAt)}{row.acknowledgeNote ? ` — "${row.acknowledgeNote}"` : ''}</p>
+      )}
+      {sameOrder.length > 0 && (
+        <p>Baris lain di transaksi ini (halaman ini): {sameOrder.map((x) => `${lineLabel(x)} (kurang ${x.shortfall})`).join('; ')}</p>
+      )}
+    </Card>
+  )
+}
+
 /** Remembers every option seen so a narrowed filter does not shrink its own list. */
 function useRememberedOptions(rows: ReadonlyArray<OversellBreakdown> | undefined) {
   const [seen, setSeen] = useState<Record<string, string>>({})
@@ -137,7 +233,6 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
   const rows = report?.data ?? []
   const summary = report?.summary
   const meta = report?.meta
-  const totalPages = meta ? Math.max(1, Math.ceil(meta.total / (meta.limit || LIMIT))) : 1
   // A page past the end (the last open line acknowledged away, a stale link) moves to the last page.
   useEffect(() => {
     if (rq.loading || rq.error || !isAnswerFor(meta, page)) return
@@ -175,18 +270,18 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
     }
   }
 
+  // A failed export is shown by the ExportButton itself (it keeps the server's message); a cut-off export is a note here.
   const doExport = async () => {
     setExportNote(null)
-    try {
-      const { rows: all, truncated } = await collectOversellForExport((p, l) =>
-        api.listOversellReport({ ...filters, page: p, limit: l }),
-      )
-      exportToCSV(oversellCsvRows(all), `stok-minus_${dateFrom}_${dateTo}`, { appendDate: false })
-      if (truncated) setExportNote('Data terpotong: hanya 5.000 baris pertama yang diekspor. Persempit filter lalu ekspor lagi.')
-    } catch (e: unknown) {
-      setExportNote(e instanceof Error ? e.message : 'Unduhan gagal')
-    }
+    const { rows: all, truncated } = await collectOversellForExport((p, l) =>
+      api.listOversellReport({ ...filters, page: p, limit: l }),
+    )
+    exportToCSV(oversellCsvRows(all), `stok-minus_${dateFrom}_${dateTo}`, { appendDate: false })
+    if (truncated) setExportNote('Data terpotong: hanya 5.000 baris pertama yang diekspor. Persempit filter lalu ekspor lagi.')
   }
+
+  const columns = oversellColumns({ canAcknowledge, selected, onToggle: toggle, expanded, onExpand: setExpanded })
+  const expandedRow = expanded ? rows.find((r) => r.id === expanded) : undefined
 
   return (
     <div className="space-y-5">
@@ -198,46 +293,57 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
         <Stat value={summary?.openCount ?? 0} label="Belum dicek" tone="warning" />
       </div>
 
-      <Card className="p-4 space-y-3">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Select label="Status" value={status} onChange={(e) => setState({ status: oversellStatusToQuery(e.target.value), hal: 1 })}>
-            {STATUS_FILTERS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-          </Select>
-          <Select label="Jenis" value={kind} onChange={(e) => setState({ jenis: e.target.value, hal: 1 })}>
-            {KIND_FILTERS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-          </Select>
-          <Select label="Produk" value={productId} onChange={(e) => setState({ produk: e.target.value, hal: 1 })}>
-            <option value="">Semua produk</option>
-            {withKnown(productOptions, productId).map((o) => <option key={o.key} value={o.key}>{o.name}</option>)}
-          </Select>
-          <Select label="Kasir" value={cashierId} onChange={(e) => setState({ kasir: e.target.value, hal: 1 })}>
-            <option value="">Semua kasir</option>
-            {withKnown(cashierOptions, cashierId).map((o) => <option key={o.key} value={o.key}>{o.name}</option>)}
-          </Select>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-paper-0 px-3 py-2">
-            <Switch checked={useRange} onChange={(on) => setState({ rentang: on, hal: 1 })} label="Ikuti rentang tanggal" />
-            <div>
-              <p className="text-sm font-bold text-gray-900">Ikuti rentang tanggal</p>
-              <p className="text-xs text-ink-700">
-                {useRange
-                  ? `Hanya ${dateFrom} s/d ${dateTo}. Angka di sidebar tetap menghitung semua tanggal.`
-                  : 'Mati: semua tanggal, sama dengan angka di sidebar.'}
-              </p>
-            </div>
+      <div className="space-y-3">
+        <FilterBar
+          onReset={() => setState({ status: 'open', jenis: '', produk: '', kasir: '', rentang: false, hal: 1 })}
+          activeCount={(status !== 'open' ? 1 : 0) + (kind ? 1 : 0) + (productId ? 1 : 0) + (cashierId ? 1 : 0) + (useRange ? 1 : 0)}
+          actions={
+            <ExportButton
+              rowCount={meta ? meta.total : null}
+              filterSummary={[useRange ? `${dateFrom} s/d ${dateTo}` : 'semua tanggal', status && `status ${STATUS_FILTERS.find((o) => o.id === status)?.label ?? status}`, kind && `jenis ${KIND_FILTERS.find((o) => o.id === kind)?.label ?? kind}`].filter(Boolean) as string[]}
+              onExport={doExport}
+            />
+          }
+        >
+          <FilterBar.Select
+            label="Status"
+            value={status}
+            onChange={(v) => setState({ status: oversellStatusToQuery(v), hal: 1 })}
+            options={STATUS_FILTERS.map((o) => ({ value: o.id, label: o.label }))}
+          />
+          <FilterBar.Select label="Jenis" value={kind} onChange={(v) => setState({ jenis: v, hal: 1 })} options={KIND_FILTERS.map((o) => ({ value: o.id, label: o.label }))} />
+          <FilterBar.Select
+            label="Produk"
+            value={productId}
+            onChange={(v) => setState({ produk: v, hal: 1 })}
+            options={[{ value: '', label: 'Semua produk' }, ...withKnown(productOptions, productId).map((o) => ({ value: o.key, label: o.name }))]}
+          />
+          <FilterBar.Select
+            label="Kasir"
+            value={cashierId}
+            onChange={(v) => setState({ kasir: v, hal: 1 })}
+            options={[{ value: '', label: 'Semua kasir' }, ...withKnown(cashierOptions, cashierId).map((o) => ({ value: o.key, label: o.name }))]}
+          />
+        </FilterBar>
+        <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-paper-0 px-3 py-2">
+          <Switch checked={useRange} onChange={(on) => setState({ rentang: on, hal: 1 })} label="Ikuti rentang tanggal" />
+          <div>
+            <p className="text-sm font-bold text-gray-900">Ikuti rentang tanggal</p>
+            <p className="text-xs text-ink-700">
+              {useRange
+                ? `Hanya ${dateFrom} s/d ${dateTo}. Angka di sidebar tetap menghitung semua tanggal.`
+                : 'Mati: semua tanggal, sama dengan angka di sidebar.'}
+            </p>
           </div>
-          <Button variant="secondary" size="sm" icon={<Download className="w-3.5 h-3.5" />} onClick={() => void doExport()}>
-            Unduh CSV
-          </Button>
         </div>
         {exportNote && <p role="status" className="text-xs text-amber-700">{exportNote}</p>}
-        <p className="text-[11px] text-gray-400">
+        <p className="text-[11px] text-ink-700">
           Stok sebelum/sesudah adalah saldo server saat penjualan diterapkan, bukan angka di layar tablet.
           Penjualan offline yang terlambat sinkron bisa tercatat kurang karena penjualan lain di antaranya;
           lihat kolom jeda sinkron sebelum menyimpulkan kesalahan kasir.
         </p>
-      </Card>
+      </div>
+
 
       {(summary?.byProduct.length ?? 0) > 0 && (
         <div className="grid lg:grid-cols-2 gap-4">
@@ -246,11 +352,10 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
         </div>
       )}
 
-      {rq.error && <p role="alert" className="text-sm text-red-600">{rq.error}</p>}
       {actionError && <p role="alert" className="text-sm text-red-600">{actionError}</p>}
 
       {canAcknowledge && selected.size > 0 && (
-        <Card className="p-4 flex flex-wrap items-end gap-3 border-gold-200">
+        <Card className="p-4 flex flex-wrap items-end gap-3 border-brand-strong">
           <div className="flex-1 min-w-56">
             <Input
               label={`Catatan (opsional, ${selected.size} baris dipilih)`}
@@ -264,100 +369,40 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
         </Card>
       )}
 
-      <Card className="overflow-hidden">
-        {rows.length === 0 ? (
-          <EmptyState icon={<AlertTriangle />} title={rq.loading ? 'Memuat…' : 'Tidak ada baris stok minus pada filter ini'} />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  {canAcknowledge && (
-                    <th className="px-4 py-3 w-8">
-                      <input
-                        type="checkbox"
-                        aria-label="Pilih semua yang belum dicek"
-                        checked={allOpenSelected}
-                        disabled={openRows.length === 0}
-                        onChange={() => setSelected(allOpenSelected ? new Set() : new Set(openRows.map((r) => r.id)))}
-                      />
-                    </th>
-                  )}
-                  {['Waktu jual', 'No. transaksi', 'Produk', 'Qty', 'Stok', 'Kurang', 'Kasir', 'Jalur', 'Status', 'Cek'].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {rows.map((r) => {
-                  const sameOrder = rows.filter((x) => x.orderId === r.orderId && x.id !== r.id)
-                  return (
-                    <Fragment key={r.id}>
-                      <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => setExpanded(expanded === r.id ? null : r.id)}>
-                        {canAcknowledge && (
-                          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              aria-label={`Pilih ${r.orderNumber}`}
-                              disabled={!!r.acknowledgedAt}
-                              checked={selected.has(r.id)}
-                              onChange={() => toggle(r.id)}
-                            />
-                          </td>
-                        )}
-                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{when(r.soldAt)}</td>
-                        <td className="px-4 py-3 text-sm font-mono font-bold text-gray-900">{r.orderNumber}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          {lineLabel(r)}
-                          {r.kind !== 'shortage' && <span className="block text-[11px] text-red-600">{kindLabel(r.kind)}</span>}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">{r.quantity}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                          {r.stockBefore == null ? '—' : `${r.stockBefore} → ${r.stockAfter}`}
-                        </td>
-                        <td className="px-4 py-3 text-sm font-black text-red-600">{r.shortfall}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{r.cashierName}</td>
-                        <td className="px-4 py-3 text-xs text-gray-600">{channelLabel(r.channel)}</td>
-                        <td className="px-4 py-3">
-                          <Badge tone={r.orderStatus === 'completed' || r.orderStatus === 'partially_refunded' ? 'neutral' : 'danger'}>{orderStatusLabel(r.orderStatus)}</Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          {r.acknowledgedAt ? <Badge tone="success">Dicek</Badge> : <Badge tone="warning">Belum</Badge>}
-                        </td>
-                      </tr>
-                      {expanded === r.id && (
-                        <tr className="bg-gray-50">
-                          <td colSpan={canAcknowledge ? 11 : 10} className="px-5 py-4 text-xs text-gray-600 space-y-1">
-                            <p>Outlet: <b>{r.outletName}</b> · SKU: <b>{r.sku || '—'}</b> · Stok sekarang: <b>{r.currentStock ?? '—'}</b></p>
-                            <p>Dijual {when(r.soldAt)} · diterapkan server {when(r.recordedAt)} · jeda sinkron <b>{syncLagLabel(r.soldAt, r.recordedAt)}</b></p>
-                            <p>Shift: {r.shiftId ?? '—'} · Perangkat: {r.deviceId ?? '—'}</p>
-                            {r.acknowledgedAt && (
-                              <p>Dicek oleh <b>{r.acknowledgedByName ?? '—'}</b> pada {when(r.acknowledgedAt)}{r.acknowledgeNote ? ` — "${r.acknowledgeNote}"` : ''}</p>
-                            )}
-                            {sameOrder.length > 0 && (
-                              <p>Baris lain di transaksi ini (halaman ini): {sameOrder.map((x) => `${lineLabel(x)} (kurang ${x.shortfall})`).join('; ')}</p>
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-
-      {meta && meta.total > LIMIT && (
-        <div className="flex items-center justify-between px-1">
-          <p className="text-xs text-gray-400">Halaman {meta.page} dari {totalPages} · {meta.total} baris</p>
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setState({ hal: Math.max(1, page - 1) })}>Sebelumnya</Button>
-            <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setState({ hal: page + 1 })}>Berikutnya</Button>
-          </div>
-        </div>
+      {canAcknowledge && openRows.length > 0 && (
+        <label className="flex items-center gap-2 text-xs font-bold text-ink-700">
+          <input
+            type="checkbox"
+            aria-label="Pilih semua yang belum dicek"
+            checked={allOpenSelected}
+            onChange={() => setSelected(allOpenSelected ? new Set() : new Set(openRows.map((r) => r.id)))}
+          />
+          Pilih semua yang belum dicek
+        </label>
       )}
+
+      {expandedRow && (
+        <OversellDetail
+          row={expandedRow}
+          sameOrder={rows.filter((x) => x.orderId === expandedRow.orderId && x.id !== expandedRow.id)}
+          onClose={() => setExpanded(null)}
+        />
+      )}
+
+      <DataTable
+        caption="Baris stok minus"
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.id}
+        selectedKey={expanded}
+        loading={rq.loading && !rq.data}
+        error={rq.error ? `Gagal memuat laporan stok minus. ${rq.error}` : null}
+        onRetry={() => void rq.refetch()}
+        empty={<EmptyState icon={<AlertTriangle />} title="Tidak ada baris stok minus pada filter ini" />}
+        footer={meta && totalPagesOf(meta.total, meta.limit || LIMIT) > 1 ? <ReportPager page={page} total={meta.total} limit={meta.limit || LIMIT} onChange={(p) => setState({ hal: p })} /> : undefined}
+      />
+
+
     </div>
   )
 }

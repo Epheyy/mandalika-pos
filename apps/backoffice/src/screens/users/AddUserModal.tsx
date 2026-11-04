@@ -3,10 +3,8 @@ import { Button } from '../../ui/Button'
 import { Input, Select, Field } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
 import { PermissionPicker } from './PermissionPicker'
-import { ROLE } from '../../lib/labels/role'
-
-type Role = 'admin' | 'manager' | 'cashier'
-const ROLE_LABEL: Record<Role, string> = { admin: ROLE.admin.label, manager: ROLE.manager.label, cashier: ROLE.cashier.label }
+import { RolePicker } from './RolePicker'
+import type { Role } from './roles'
 
 type NewUserForm = {
   displayName: string
@@ -24,10 +22,12 @@ interface AddUserModalProps {
   setNf: React.Dispatch<React.SetStateAction<NewUserForm>>
   busy: boolean
   outlets: Outlet[]
+  /** The server's refusal of the last save, shown inside the dialog. */
+  error?: string | null
   onSave: () => void
 }
 
-function AddUserModal({ open, onClose, nf, setNf, busy, outlets, onSave }: AddUserModalProps) {
+function AddUserModal({ open, onClose, nf, setNf, busy, outlets, error, onSave }: AddUserModalProps) {
   return (
     <Modal
       open={open}
@@ -41,6 +41,7 @@ function AddUserModal({ open, onClose, nf, setNf, busy, outlets, onSave }: AddUs
       }
     >
       <div className="space-y-4">
+        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         {[
           { k: 'displayName' as const, label: 'Nama *', type: 'text' },
           { k: 'email' as const, label: 'Email *', type: 'email' },
@@ -49,11 +50,7 @@ function AddUserModal({ open, onClose, nf, setNf, busy, outlets, onSave }: AddUs
           <Input key={k} label={label} type={type} value={nf[k]} onChange={(e) => setNf((f) => ({ ...f, [k]: e.target.value }))} />
         ))}
         <Field label="Role">
-          <div className="grid grid-cols-3 gap-2">
-            {(['admin', 'manager', 'cashier'] as Role[]).map((r) => (
-              <button type="button" key={r} onClick={() => setNf((f) => ({ ...f, role: r }))} className={`py-2 text-sm font-bold rounded-xl border-2 ${nf.role === r ? 'border-gold-600 bg-gold-50 text-gold-700' : 'border-gray-200 text-gray-500'}`}>{ROLE_LABEL[r]}</button>
-            ))}
-          </div>
+          <RolePicker value={nf.role} onChange={(r) => setNf((f) => ({ ...f, role: r }))} />
         </Field>
         <Select
           label="Outlet"

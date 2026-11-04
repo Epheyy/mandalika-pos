@@ -136,3 +136,9 @@ export interface PageOnlyState {
 export const PAGE_ONLY_SCHEMA: ListSchema<PageOnlyState> = {
   hal: { key: 'hal', default: 1 },
 }
+
+/** Pages in a server-paged set: at least 1, even for an empty set. */
+export function totalPagesOf(total: number, limit: number): number {
+  if (!Number.isFinite(total) || !Number.isFinite(limit) || limit <= 0) return 1
+  return Math.max(1, Math.ceil(total / limit))
+}

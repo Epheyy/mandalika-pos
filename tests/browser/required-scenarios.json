@@ -320,6 +320,18 @@
       "source": "tests/browser/backoffice-d3c-scenarios.ts"
     },
     {
+      "id": "BO-D5A-REPORT-PAGER",
+      "finding": "D5a",
+      "description": "Laporan Kode Diskon on the kit Pagination: the fixed page size offers one size and reaches the API as limit=50, Berikutnya writes hal=2 and asks page=2, and page 2 survives a reload and Back from another tab",
+      "source": "tests/browser/backoffice-d5a-scenarios.ts"
+    },
+    {
+      "id": "BO-D5A-ROLE-DELETE",
+      "finding": "D5a",
+      "description": "Pengguna role delete opens a ConfirmDialog that names the role and sends nothing until confirmed; a refused delete (409) keeps the dialog open with the server reason and was sent once; Batal closes it",
+      "source": "tests/browser/backoffice-d5a-scenarios.ts"
+    },
+    {
       "id": "POS-REQUISITION",
       "finding": "inventory-controls-S6",
       "description": "Cashier Permintaan Barang: menu hidden without request_stock; create sends Idempotency-Key and outlet; a failed submit retries with the same key; transfer chain shows Dikirim and Buka Terima Transfer opens the receive panel; cancel a draft; a lost create answer then an edit replays the old key (one PB, then one update) and is resolved when the panel next opens online; offline refuses the save with no request leaving the tablet; zero approve/reject/fulfil requests across the run",

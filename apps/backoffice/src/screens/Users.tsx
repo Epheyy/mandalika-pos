@@ -1,13 +1,14 @@
 import { useReducer, useState } from 'react'
 import { fetchAllPages, type User, type CustomRole, type Outlet } from '@mandalika/api'
-import { Edit2, Users as UsersIcon, Shield, Plus, Trash2, Download, Store, KeyRound, X } from 'lucide-react'
+import { Edit2, Users as UsersIcon, Shield, Plus, Trash2, X } from 'lucide-react'
 import { api } from '../api'
 import { useAuth } from '../auth'
 import { usePolledQuery } from '../hooks/usePolledQuery'
-import { TableSkeleton } from '../components/Skeleton'
 import { exportToCSV } from '../lib/csvUtils'
 import { Button } from '../ui/Button'
 import { Select, Field } from '../ui/Field'
+import { DataTable } from '../ui/DataTable'
+import { ExportButton } from '../ui/ExportButton'
 import { Modal } from '../ui/Modal'
 import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
@@ -21,17 +22,10 @@ import { AddUserModal } from './users/AddUserModal'
 import { RoleModal } from './users/RoleModal'
 import { ResetPasswordModal } from './users/ResetPasswordModal'
 import { UNLOCK_PIN_NOTE, unlockReceivePin } from './users/unlockPin'
-
-import { badgeTone, type BadgeToneName } from '../lib/labels/badgeTone'
-import { ROLE } from '../lib/labels/role'
-
-type Role = 'admin' | 'manager' | 'cashier'
-const ROLE_LABEL: Record<Role, string> = { admin: ROLE.admin.label, manager: ROLE.manager.label, cashier: ROLE.cashier.label }
-const ROLE_TONE: Record<Role, BadgeToneName> = {
-  admin: badgeTone(ROLE.admin.tone),
-  manager: badgeTone(ROLE.manager.tone),
-  cashier: badgeTone(ROLE.cashier.tone),
-}
+import { RolePicker } from './users/RolePicker'
+import { ROLE_LABEL, type Role } from './users/roles'
+import { userColumns } from './users/userColumns'
+import { errorText } from './users/formError'
 
 type EditUserState = {
   editingUser: User | null
@@ -122,11 +116,17 @@ export default function Users() {
   const [roleOpen, setRoleOpen] = useState(false)
   const [editingRole, setEditingRole] = useState<CustomRole | null>(null)
   const [roleForm, setRoleForm] = useState({ name: '', permissions: [] as string[] })
-  const [delRole, setDelRole] = useState<string | null>(null)
+  const [delRole, setDelRole] = useState<CustomRole | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [addError, setAddError] = useState<string | null>(null)
+  const [roleError, setRoleError] = useState<string | null>(null)
 
   const saveUser = async () => {
     if (!editingUser) return
     setBusy(true)
+    setSaveError(null)
     try {
       await api.updateUser(editingUser.id, { role: editRole, permissions: editPerms, outletId: editOutletId || null })
       if (clearPin) {
@@ -136,6 +136,8 @@ export default function Users() {
       }
       dispatch({ type: 'CLOSE' })
       await uq.refetch()
+    } catch (e: unknown) {
+      setSaveError(errorText(e, 'Gagal menyimpan akses. Coba lagi.'))
     } finally {
       setBusy(false)
     }
@@ -155,6 +157,7 @@ export default function Users() {
   const addUser = async () => {
     if (!nf.displayName.trim() || !nf.email.trim() || !nf.password) return
     setBusy(true)
+    setAddError(null)
     try {
       await api.createUser({
         email: nf.email.trim(),
@@ -167,6 +170,8 @@ export default function Users() {
       setAddOpen(false)
       setNf({ displayName: '', email: '', password: '', role: 'cashier', outletId: '', permissions: [] })
       await uq.refetch()
+    } catch (e: unknown) {
+      setAddError(errorText(e, 'Gagal menambah pengguna. Coba lagi.'))
     } finally {
       setBusy(false)
     }
@@ -175,15 +180,54 @@ export default function Users() {
   const saveRole = async () => {
     if (!roleForm.name.trim()) return
     setBusy(true)
+    setRoleError(null)
     try {
       if (editingRole) await api.updateCustomRole(editingRole.id, roleForm)
       else await api.createCustomRole(roleForm)
       setRoleOpen(false)
       await rq.refetch()
+    } catch (e: unknown) {
+      setRoleError(errorText(e, 'Gagal menyimpan role. Coba lagi.'))
     } finally {
       setBusy(false)
     }
   }
+
+  const askDeleteRole = (r: CustomRole) => {
+    setDeleteError(null)
+    setDelRole(r)
+  }
+
+  const deleteRole = async () => {
+    if (!delRole || deleting) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await api.deleteCustomRole(delRole.id)
+      setDelRole(null)
+      await rq.refetch()
+    } catch (e: unknown) {
+      setDeleteError(errorText(e, 'Gagal menghapus role. Coba lagi.'))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const columns = userColumns({
+    me,
+    outlets,
+    onResetPassword: setResetTarget,
+    onEdit: (u) => {
+      setUnlockNote(null)
+      setSaveError(null)
+      dispatch({ type: 'OPEN_EDIT', user: u })
+    },
+  })
+  const exportUsers = () =>
+    exportToCSV(
+      users.map((u) => ({ Nama: u.displayName, Email: u.email, Role: ROLE_LABEL[u.role as Role] ?? u.role, Outlet: outletNameOf(u.outletId) || '', Permissions: (u.permissions || []).join(';'), Terdaftar: u.createdAt?.slice(0, 10) || '' })),
+      'pengguna_mandalika',
+    )
 
   return (
     <div className="p-6 space-y-5">
@@ -199,21 +243,14 @@ export default function Users() {
             />
             {tab === 'users' && (
               <>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={<Download className="w-3.5 h-3.5" />}
-                  onClick={() => exportToCSV(users.map((u) => ({ Nama: u.displayName, Email: u.email, Role: u.role, Outlet: outletNameOf(u.outletId) || '', Permissions: (u.permissions || []).join(';'), Terdaftar: u.createdAt?.slice(0, 10) || '' })), 'pengguna_mandalika')}
-                >
-                  Export
-                </Button>
-                <Button icon={<Plus className="w-4 h-4" />} onClick={() => setAddOpen(true)}>
+                <ExportButton rowCount={uq.data ? users.length : null} filterSummary={['semua pengguna']} disabled={!!uq.error || !uq.data} onExport={exportUsers} />
+                <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setAddError(null); setAddOpen(true) }}>
                   Tambah
                 </Button>
               </>
             )}
             {tab === 'roles' && (
-              <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditingRole(null); setRoleForm({ name: '', permissions: [] }); setRoleOpen(true) }}>
+              <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setRoleError(null); setEditingRole(null); setRoleForm({ name: '', permissions: [] }); setRoleOpen(true) }}>
                 Buat Role
               </Button>
             )}
@@ -229,50 +266,21 @@ export default function Users() {
       )}
 
       {tab === 'users' && (
-        <Card className="overflow-hidden">
-          {uq.loading ? (
-            <TableSkeleton />
-          ) : users.length === 0 ? (
-            <EmptyState icon={<UsersIcon />} title="Belum ada pengguna" />
-          ) : (
-            <div className="divide-y divide-gray-50">
-              {users.map((u) => (
-                <div key={u.id} className="px-5 py-4 flex items-center gap-4 hover:bg-gray-50">
-                  <div className="w-10 h-10 rounded-full bg-gold-50 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                    {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" /> : <span className="text-sm font-black text-gold-600">{u.displayName.charAt(0)}</span>}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-bold text-gray-900 text-sm">{u.displayName}</p>
-                      {u.id === me?.id && <span className="text-xs font-bold text-gray-400">(Anda)</span>}
-                    </div>
-                    <p className="text-xs text-gray-400">{u.email}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-                        <Store className="w-3 h-3 flex-shrink-0" />
-                        {outletNameOf(u.outletId) || (u.role === 'admin' ? 'Semua Outlet' : 'Belum diatur')}
-                      </span>
-                      {u.role !== 'admin' && (u.permissions || []).length > 0 && (
-                        <span className="text-xs text-gray-500">· {(u.permissions || []).length} permission aktif</span>
-                      )}
-                    </div>
-                  </div>
-                  <Badge tone={ROLE_TONE[u.role as Role]} className="flex-shrink-0">{ROLE_LABEL[u.role as Role]}</Badge>
-                  {me?.role === 'admin' && u.id !== me?.id && (
-                    <>
-                      <IconButton aria-label={`Reset kata sandi ${u.displayName}`} title="Reset kata sandi" onClick={() => setResetTarget(u)}><KeyRound className="w-4 h-4" /></IconButton>
-                      <IconButton aria-label={`Edit ${u.displayName}`} title="Edit" onClick={() => { setUnlockNote(null); dispatch({ type: 'OPEN_EDIT', user: u }) }}><Edit2 className="w-4 h-4" /></IconButton>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+        <DataTable
+          caption="Daftar pengguna"
+          columns={columns}
+          rows={users}
+          rowKey={(u) => u.id}
+          loading={uq.loading && !uq.data}
+          error={uq.error ? `Gagal memuat pengguna. ${uq.error}` : null}
+          onRetry={() => void uq.refetch()}
+          empty={<EmptyState icon={<UsersIcon />} title="Belum ada pengguna" />}
+        />
       )}
 
       {tab === 'roles' && (
         <div className="space-y-3">
+          {rq.error && <p role="alert" className="text-sm text-danger">Gagal memuat role kustom. {rq.error}</p>}
           {roles.length === 0 ? (
             <Card>
               <EmptyState icon={<Shield />} title="Belum ada role kustom" />
@@ -292,8 +300,8 @@ export default function Users() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <IconButton onClick={() => { setEditingRole(r); setRoleForm({ name: r.name, permissions: [...r.permissions] }); setRoleOpen(true) }}><Edit2 className="w-4 h-4" /></IconButton>
-                    <IconButton tone="danger" onClick={() => setDelRole(r.id)}><Trash2 className="w-4 h-4" /></IconButton>
+                    <IconButton aria-label={`Edit role ${r.name}`} onClick={() => { setRoleError(null); setEditingRole(r); setRoleForm({ name: r.name, permissions: [...r.permissions] }); setRoleOpen(true) }}><Edit2 className="w-4 h-4" /></IconButton>
+                    <IconButton tone="danger" aria-label={`Hapus role ${r.name}`} onClick={() => askDeleteRole(r)}><Trash2 className="w-4 h-4" /></IconButton>
                   </div>
                 </div>
               ))}
@@ -315,12 +323,9 @@ export default function Users() {
         }
       >
         <div className="space-y-5">
+          {saveError && <p role="alert" className="text-sm text-danger">{saveError}</p>}
           <Field label="Role">
-            <div className="grid grid-cols-3 gap-2">
-              {(['admin', 'manager', 'cashier'] as Role[]).map((r) => (
-                <button type="button" key={r} onClick={() => dispatch({ type: 'SET_ROLE', value: r })} className={`py-2.5 text-sm font-bold rounded-xl border-2 ${editRole === r ? 'border-gold-600 bg-gold-50 text-gold-700' : 'border-gray-200 text-gray-500'}`}>{ROLE_LABEL[r]}</button>
-              ))}
-            </div>
+            <RolePicker value={editRole} onChange={(r) => dispatch({ type: 'SET_ROLE', value: r })} />
           </Field>
           <Select
             label="Outlet"
@@ -396,6 +401,7 @@ export default function Users() {
         setNf={setNf}
         busy={busy}
         outlets={outlets}
+        error={addError}
         onSave={addUser}
       />
 
@@ -406,10 +412,13 @@ export default function Users() {
         roleForm={roleForm}
         setRoleForm={setRoleForm}
         busy={busy}
+        error={roleError}
         onSave={saveRole}
         delRole={delRole}
+        deleteError={deleteError}
+        deleting={deleting}
         onCloseDelete={() => setDelRole(null)}
-        onConfirmDelete={async () => { await api.deleteCustomRole(delRole!); setDelRole(null); await rq.refetch() }}
+        onConfirmDelete={() => void deleteRole()}
       />
     </div>
   )

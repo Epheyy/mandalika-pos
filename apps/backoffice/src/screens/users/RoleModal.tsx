@@ -1,6 +1,6 @@
 import type { CustomRole } from '@mandalika/api'
-import { Trash2 } from 'lucide-react'
 import { Button } from '../../ui/Button'
+import { ConfirmDialog } from '../../ui/ConfirmDialog'
 import { Input, Field } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
 import { PermissionPicker } from './PermissionPicker'
@@ -14,13 +14,21 @@ interface RoleModalProps {
   roleForm: RoleForm
   setRoleForm: React.Dispatch<React.SetStateAction<RoleForm>>
   busy: boolean
+  /** The server's refusal of the last save, shown inside the dialog. */
+  error?: string | null
   onSave: () => void
-  delRole: string | null
+  /** The role waiting for its delete answer (null = no question open). */
+  delRole: CustomRole | null
+  /** The server's reason a delete was refused (e.g. the role is still in use); the question stays open. */
+  deleteError?: string | null
+  deleting?: boolean
   onCloseDelete: () => void
   onConfirmDelete: () => void
 }
 
-function RoleModal({ open, onClose, editingRole, roleForm, setRoleForm, busy, onSave, delRole, onCloseDelete, onConfirmDelete }: RoleModalProps) {
+function RoleModal({
+  open, onClose, editingRole, roleForm, setRoleForm, busy, error, onSave, delRole, deleteError, deleting = false, onCloseDelete, onConfirmDelete,
+}: RoleModalProps) {
   return (
     <>
       <Modal
@@ -35,6 +43,7 @@ function RoleModal({ open, onClose, editingRole, roleForm, setRoleForm, busy, on
         }
       >
         <div className="space-y-4">
+          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
           <Input label="Nama Role *" type="text" value={roleForm.name} onChange={(e) => setRoleForm((f) => ({ ...f, name: e.target.value }))} />
           <Field label="Permission">
             <PermissionPicker
@@ -45,23 +54,17 @@ function RoleModal({ open, onClose, editingRole, roleForm, setRoleForm, busy, on
         </div>
       </Modal>
 
-      <Modal
+      <ConfirmDialog
         open={!!delRole}
-        onClose={onCloseDelete}
-        size="sm"
-        footer={
-          <>
-            <Button variant="secondary" className="flex-1" onClick={onCloseDelete}>Batal</Button>
-            <Button variant="danger" className="flex-1" onClick={onConfirmDelete}>Ya, Hapus</Button>
-          </>
-        }
-      >
-        <div className="text-center">
-          <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4"><Trash2 className="w-7 h-7 text-red-500" /></div>
-          <h3 className="text-xl font-black text-gray-900 mb-2">Hapus Role?</h3>
-          <p className="text-sm text-gray-400">Template permission akan hilang.</p>
-        </div>
-      </Modal>
+        title={`Hapus role ${delRole?.name ?? ''}?`}
+        consequence="Template permission ini akan hilang. Pengguna yang sudah memakainya tidak berubah."
+        confirmLabel="Hapus role"
+        tone="danger"
+        busy={deleting}
+        error={deleteError}
+        onConfirm={onConfirmDelete}
+        onCancel={onCloseDelete}
+      />
     </>
   )
 }
