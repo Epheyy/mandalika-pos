@@ -375,6 +375,14 @@ export function promoUsage(completed: Order[], promotions: Promotion[]): PromoUs
       tally.set(c.label, t)
     }
   }
+  return promoUsageFromTally(tally, promotions)
+}
+
+/** The tally joined to every listed promotion (unused ones with 0), most used first; shared with the server aggregate path. */
+export function promoUsageFromTally(
+  tally: ReadonlyMap<string, { count: number; amount: number }>,
+  promotions: readonly Promotion[],
+): PromoUsage {
   const rows: PromoRow[] = promotions
     .map((p) => {
       const t = tally.get(p.name)
@@ -392,6 +400,10 @@ const PAY_LABELS: Record<string, string> = {
   qris: 'QRIS',
   transfer: 'Transfer',
 }
+
+/** Display label of a payment method id. */
+export const payLabel = (method: string): string =>
+  PAY_LABELS[method] ?? method.charAt(0).toUpperCase() + method.slice(1)
 
 export interface PayRow {
   method: string

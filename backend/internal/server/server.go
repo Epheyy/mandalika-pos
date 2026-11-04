@@ -169,6 +169,9 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			// Sales (outlet-scoped in repo via resolved Scope).
 			r.Get("/orders", h.Orders)
 			r.Get("/orders/{id}", h.Order)
+			// Ringkasan aggregate: same audience and outlet clamp as /orders, deliberately NOT under view_reports (view_dashboard is
+			// UI-only, /orders already serves every authenticated user full rows, and this shows less than /orders).
+			r.Get("/reports/dashboard", h.DashboardAggregate)
 			r.Get("/shifts", h.Shifts)
 			r.Get("/shifts/current", h.CurrentShift)
 			r.Get("/shifts/{id}", h.Shift)

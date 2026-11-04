@@ -7,6 +7,7 @@ type Query<K extends keyof operations> = NonNullable<operations[K]['parameters']
 export type ListOrdersParams = Query<'listOrders'>
 export type ListShiftsParams = Query<'listShifts'>
 export type ReportSummaryParams = Query<'reportSummary'>
+export type DashboardAggregateParams = Query<'reportDashboard'>
 
 export type User = S['User']
 export type AuthData = S['AuthData']
@@ -44,6 +45,12 @@ export type ApprovalListFilter = Pick<Query<'listInventoryApprovals'>, 'outletId
 export interface ErpOutboxList { items: ErpOutboxItem[]; meta: Meta; counts: ErpOutboxCounts }
 export type CustomRole = S['CustomRole']
 export type ReportSummary = S['ReportSummary']
+export type DashboardAggregate = S['DashboardAggregate']
+export type DashboardWindow = S['DashboardWindow']
+export type DashboardTrendBucket = S['DashboardTrendBucket']
+export type DashboardProductRow = S['DashboardProductRow']
+export type DashboardCashierRow = S['DashboardCashierRow']
+export type DashboardPromoRow = S['DashboardPromoRow']
 export type Meta = S['Meta']
 export type Warehouse = S['Warehouse']
 export type WarehouseStockRow = S['WarehouseStockRow']
@@ -525,6 +532,8 @@ export interface Api {
   getAppSettings: (opts?: { fresh?: boolean }) => Promise<AppSettings>
   updateAppSettings: (input: AppSettings) => Promise<AppSettings>
   reportSummary: (params?: ReportSummaryParams) => Promise<ReportSummary>
+  /** Ringkasan numbers aggregated on the server (windows, trend granularity); a 404 means an older backend. */
+  reportDashboard: (params: DashboardAggregateParams) => Promise<DashboardAggregate>
   signUpload: (folder?: string) => Promise<UploadSignature>
 }
 
@@ -1196,6 +1205,8 @@ export function createClient(opts: ClientOptions): Api {
     updateAppSettings: (input) => data<AppSettings>('PUT', `${API}/settings/app`, input),
     reportSummary: (params) =>
       data<ReportSummary>('GET', `${API}/reports/summary${qs(params)}`),
+    reportDashboard: (params) =>
+      data<DashboardAggregate>('GET', `${API}/reports/dashboard${qsMulti(params)}`),
     signUpload: (folder) =>
       data<UploadSignature>('POST', `${API}/uploads/sign`, { folder }),
   }
