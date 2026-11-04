@@ -143,6 +143,8 @@ func TestCustomerPrivacyPostgres(t *testing.T) {
 			r.Get("/customers", h.Customers)
 			r.Get("/customers/{id}", h.Customer)
 			r.Get("/customers/by-phone", h.CustomersByPhone)
+			r.Post("/customers", h.CreateCustomer)
+			r.Put("/customers/{id}", h.UpdateCustomer)
 			r.Get("/customers/reminders", h.Reminders)
 			r.Get("/customers/dup-candidates", h.DupCandidates)
 			r.Get("/customers/{id}/points", h.PointTransactions)
