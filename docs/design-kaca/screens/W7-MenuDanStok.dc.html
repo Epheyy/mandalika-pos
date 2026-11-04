@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>W7 Menu Kasir, Pesanan Tersimpan, Promo/BXGY & Stok Outlet</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.k{--blur:20px;--paper0:#fbf9f5;--paper1:#f3efe7;--paper2:#e9e3d8;--ink9:#1a1008;--ink7:#4a3f33;--ink5:#7a6f62;--brand:#b07d18;--brandp:#8f6412;--ok:#1f7a4d;--okbg:#e3f3ea;--warn:#b45309;--warnbg:#fdf0df;--danger:#b42318;--dangerbg:#fbe4e1;--info:#1d4ed8;--infobg:#e3eafc;--promo:#6d28d9;--promobg:#efe7fb;--reward:#0f766e;--rewardbg:#dff3f0;--e:cubic-bezier(.32,.72,0,1);--d-press:160ms;font-family:Roboto,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink9);font-variant-numeric:tabular-nums;background:var(--paper0);font-size:15px;line-height:1.3;-webkit-font-smoothing:antialiased}
+.k *{box-sizing:border-box}
+:where(.k button){font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;font-variant-numeric:tabular-nums;-webkit-tap-highlight-color:transparent}
+:where(.k input,.k select,.k textarea){font:inherit;color:inherit}
+.amb{position:absolute;inset:0;pointer-events:none;background:radial-gradient(520px 420px at 6% 2%, rgba(214,162,58,.30), transparent 70%),radial-gradient(560px 460px at 70% 14%, rgba(236,176,124,.24), transparent 70%),radial-gradient(700px 520px at 36% 104%, rgba(176,125,24,.18), transparent 70%),radial-gradient(420px 380px at 100% 92%, rgba(214,162,58,.20), transparent 70%)}
+.k.m-flat .amb,.k.no-amb .amb{display:none}
+.surf{border:1px solid rgba(255,255,255,.7);box-shadow:inset 0 1px 0 rgba(255,255,255,.85),0 0 0 .5px rgba(26,16,8,.08),0 14px 36px -14px rgba(70,46,10,.28)}
+.k.m-full .surf,.k.m-lite .surf.top{background:rgba(255,253,249,.56);-webkit-backdrop-filter:blur(var(--blur)) saturate(180%);backdrop-filter:blur(var(--blur)) saturate(180%)}
+.k.m-lite .surf.panel,.k.m-noblur .surf{background:rgba(255,252,246,.88)}
+.k.m-flat .surf{background:#fff;border-color:var(--paper2);box-shadow:none}
+.card{background:#fff;border:1px solid var(--paper2);border-radius:12px}
+.k.c-glass .card{background:rgba(255,255,255,.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.9)}
+.group{border-radius:16px;background:rgba(255,255,255,.62);padding:14px 16px}
+.k.m-flat .group{background:var(--paper1)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap}
+.tag.ok{background:var(--okbg);color:var(--ok)}
+.tag.warn{background:var(--warnbg);color:var(--warn)}
+.tag.danger{background:var(--dangerbg);color:var(--danger)}
+.tag.neutral{background:var(--paper1);color:var(--ink7)}
+.tag.promo{background:var(--promobg);color:var(--promo)}
+.tag.reward{background:var(--rewardbg);color:var(--reward)}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.btn{height:44px;padding:0 16px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-size:14px;font-weight:600;background:rgba(26,16,8,.05);color:var(--ink9);white-space:nowrap}
+.btn.primary{background:var(--brandp);color:#fff}
+.btn.danger{background:linear-gradient(180deg,#c22a1d,#a51f14);color:#fff}
+.btn.dline{background:transparent;border:1px solid var(--danger);color:var(--danger)}
+.notice{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-radius:12px;font-size:13px;font-weight:500}
+.notice.warn{background:var(--warnbg);color:var(--warn)}
+.notice.danger{background:var(--dangerbg);color:var(--danger)}
+.notice.ok{background:var(--okbg);color:var(--ok)}
+.bar{height:60px;border-radius:16px;background:linear-gradient(180deg,#a8771a,#93670f);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-weight:700;width:100%;box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 12px 26px -12px rgba(143,100,18,.7)}
+.bar.danger{background:linear-gradient(180deg,#c22a1d,#a51f14)}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{height:42px;padding:0 12px;text-align:left;font-size:12px;font-weight:600;color:var(--ink5);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid rgba(26,16,8,.08)}
+.tbl td{height:50px;padding:0 12px;font-size:14px;border-bottom:1px solid rgba(26,16,8,.06)}
+.tbl .num{text-align:right}
+.inp{height:44px;border-radius:12px;border:1px solid var(--paper2);background:#fff;padding:0 12px;font-size:15px;font-weight:600}
+.inp.err{border:2px solid var(--danger)}
+.sw{width:44px;height:26px;border-radius:13px;background:rgba(26,16,8,.16);position:relative;display:inline-flex;align-items:center;padding:3px}
+.sw::after{content:"";width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform 180ms var(--e)}
+.sw.on{background:var(--brandp)}
+.sw.on::after{transform:translateX(18px)}
+</style>
+</helmet>
+<div class="k {{modeCls}}" style="position: relative; min-height: 960px; overflow: hidden; padding: 24px; --blur: {{blurCss}}">
+  <div class="amb" aria-hidden="true"></div>
+  <div style="position:relative;z-index:1;max-width:1380px;margin:0 auto;display:flex;flex-direction:column;gap:18px">
+    
+  <header class="surf top" style="border-radius:24px;padding:14px 22px;display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <span class="tag ok"><span class="dot"></span>W7 · POS Secondary Drawers &amp; Stock Operations Spec</span>
+      <h1 style="margin:6px 0 0;font-size:22px;font-weight:700">Menu Kasir Terpadu, Pesanan Tersimpan, Diskon/BXGY &amp; Terima Kiriman (Fixes M-10, M-11, N-5, P-17)</h1>
+    </div>
+    <div style="font-size:13px;color:var(--ink7);text-align:right">
+      <b>MenuDrawer.tsx · HeldOrdersSheet.tsx · AdjustmentDrawer.tsx · ReceiveTransferPanel.tsx</b><br>
+      Menggabungkan menu duplikat &amp; mengganti seluruh warna orange/indigo ke Kaca tokens
+    </div>
+  </header>
+
+  <div style="display:grid;grid-template-columns:0.85fr 1.15fr 1fr;gap:16px;align-items:start">
+    <!-- Col 1: Unified MenuDrawer (M-11 & N-5 Fixed) -->
+    <section class="surf top" style="border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:40px;height:40px;border-radius:12px;background:var(--brandp);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700">R</div>
+          <div><b>Reffy · Kasir</b><div style="font-size:12px;color:var(--ink5)">Mandalika BSD · Shift #104</div></div>
+        </div>
+        <button class="btn" style="width:44px;height:44px;padding:0" aria-label="Tutup menu">✕</button>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:var(--ink5);text-transform:uppercase;letter-spacing:.04em;margin-top:4px">Operasional Kasir (Target ≥ 44dp)</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="btn" style="justify-content:space-between;background:#fff;border:1.5px solid var(--brandp);color:var(--brandp)">
+          <span>Pesanan Tersimpan</span><span class="tag warn">2</span>
+        </button>
+        <button class="btn" style="justify-content:space-between">
+          <span>Riwayat &amp; Struk (Server + Tablet Ini)</span><span style="font-size:12px;color:var(--ink5)">M-11 Merged</span>
+        </button>
+        <button class="btn" style="justify-content:space-between">
+          <span>Transfer &amp; Permintaan Barang</span><span class="tag danger">1 dikirim</span>
+        </button>
+        <button class="btn" style="justify-content:space-between">
+          <span>Kas Masuk / Keluar</span><span>›</span>
+        </button>
+        <button class="btn" style="justify-content:space-between">
+          <span>Rekap &amp; Tutup Shift</span><span>›</span>
+        </button>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:var(--ink5);text-transform:uppercase;letter-spacing:.04em;margin-top:6px">Pengaturan Tablet (Satu Pintu)</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="btn" style="justify-content:space-between"><span>Printer, Tampilan &amp; Terminal</span><span>›</span></button>
+        <button class="btn" style="justify-content:space-between"><span>Buka Back Office</span><span>↗</span></button>
+      </div>
+    </section>
+
+    <!-- Col 2: Unified Promo, Kode & Diskon Manual Sheet (M-10 & P-17 Fixed) -->
+    <section class="surf panel" style="border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <button class="btn" style="height:40px;padding:0 12px;color:var(--brandp)">‹ Kembali</button>
+        <h2 style="margin:0;font-size:18px;font-weight:700">Promo, Kode &amp; Diskon</h2>
+        <span style="font-size:13px;font-weight:700;color:var(--ink7)">Subtotal Rp 100.000</span>
+      </div>
+
+      <!-- Segmented 3-tab selector (Promo Otomatis | Kode Voucher | Diskon Manual) -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:4px;border-radius:16px;background:rgba(26,16,8,.06)">
+        <button class="btn" style="height:40px;background:transparent">Promo Toko (2)</button>
+        <button class="btn" style="height:40px;background:transparent">Kode Voucher</button>
+        <button class="btn" style="height:40px;background:#fff;color:var(--brandp);box-shadow:0 2px 8px rgba(70,46,10,.15)">Diskon Manual</button>
+      </div>
+
+      <!-- Manual Discount with 100% / Subtotal Cap + Approver PIN (P-17 Fixed) -->
+      <div class="group" style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <b>Diskon Manual Keranjang</b>
+          <span class="tag neutral">Label keranjang: "Diskon manual" (bukan PROMO)</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button class="btn primary">Nominal (Rp)</button>
+          <button class="btn">Persentase (% · maks 100%)</button>
+        </div>
+        <div>
+          <label style="font-size:13px;font-weight:600;color:var(--ink7)">Nilai potongan (maksimal sebesar subtotal Rp 100.000)</label>
+          <input class="inp err" style="width:100%;margin-top:4px" value="Rp 200.000" />
+          <div style="font-size:12px;color:var(--danger);font-weight:600;margin-top:4px">Potongan manual tidak boleh melebihi subtotal keranjang (Rp 100.000).</div>
+        </div>
+        <div class="notice warn">
+          <span class="dot" style="margin-top:5px"></span>
+          <span>Potongan manual di atas 20% memerlukan PIN Manajer / Supervisor saat diterapkan.</span>
+        </div>
+      </div>
+
+      <!-- BXGY / Bundle Reward Picker inline preview -->
+      <div class="group" style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <b>Pilih Hadiah Promo (Beli 2 Gratis 1 · Sisa 1 pilih)</b>
+          <span class="tag reward">Gratis</span>
+        </div>
+        <div class="card" style="padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
+          <div><b>Amber Oud · 10ml</b><div style="font-size:12px;color:var(--ok)">Stok tersedia: 8 unit · Gratis (Rp 0)</div></div>
+          <div style="display:flex;align-items:center;gap:8px"><button class="btn" style="width:36px;height:36px;padding:0">−</button><b>1</b><button class="btn" style="width:36px;height:36px;padding:0">+</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Col 3: Pesanan Tersimpan + Terima Transfer & Permintaan Barang -->
+    <section style="display:flex;flex-direction:column;gap:16px">
+      <div class="surf panel" style="border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h3 style="margin:0;font-size:17px;font-weight:700">Pesanan Tersimpan (2)</h3>
+          <span class="tag ok">Tersimpan di localStorage</span>
+        </div>
+        <div class="card" style="padding:12px;display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;justify-content:space-between"><b>Ibu Sari · 14:20</b><span style="font-size:13px;color:var(--ink5)">3 item · Rp 640.000</span></div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="btn primary" style="flex:1;height:38px">Lanjutkan</button>
+            <button class="btn dline" style="height:38px">Hapus</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="surf panel" style="border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h3 style="margin:0;font-size:17px;font-weight:700">Terima Transfer · TRF-00014</h3>
+          <span class="tag warn"><span class="dot"></span>Dikirim</span>
+        </div>
+        <p style="margin:0;font-size:13px;color:var(--ink7)">Dari Gudang Utama → Mandalika BSD. Jika jumlah diterima ≠ dikirim (kurang atau lebih), warna status kuning (warn) dan alasan wajib diisi (#13).</p>
+        <div class="card" style="padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
+          <div><b>Night Jasmine 50ml</b><div style="font-size:12px;color:var(--warn)">Dikirim: 10 · Diterima: 12 (Selisih +2 wajib alasan)</div></div>
+          <span class="tag warn">+2 unit</span>
+        </div>
+        <button class="btn primary">Konfirmasi Penerimaan &amp; Cetak Tanda Terima</button>
+      </div>
+    </section>
+  </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"material":{"editor":"enum","options":["Kaca penuh","Kaca ringan","Tanpa blur","Datar"],"default":"Kaca ringan","section":"Material"},"blur":{"editor":"range","default":20,"min":0,"max":40,"step":2,"unit":"px","section":"Material"},"ambient":{"editor":"boolean","default":true,"section":"Material"},"cards":{"editor":"enum","options":["Solid","Kaca"],"default":"Kaca","section":"Material"},"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var MAT = { 'Kaca penuh': 'm-full', 'Kaca ringan': 'm-lite', 'Tanpa blur': 'm-noblur', 'Datar': 'm-flat' };
+    var material = MAT[this.props.material ?? 'Kaca ringan'] || 'm-lite';
+    var ambient = this.props.ambient ?? true;
+    var blur = this.props.blur ?? 20;
+    var cards = this.props.cards ?? 'Kaca';
+    return { modeCls: material + (ambient ? '' : ' no-amb') + (cards === 'Kaca' ? ' c-glass' : ''), blurCss: blur + 'px' };
+  }
+}
+</script>
+</body>
+</html>
