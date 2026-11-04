@@ -61,8 +61,13 @@ export default function DaftarTab() {
   const [categories, setCategories] = useState<IngredientCategory[]>([])
 
   const q = usePolledQuery<ListResult<Ingredient>>(
-    () => api.listIngredients({ page, limit: pageSize, ...(search.trim() ? { q: search.trim() } : {}) }),
-    [page, pageSize, search],
+    () => api.listIngredients({
+      page,
+      limit: pageSize,
+      ...(search.trim() ? { q: search.trim() } : {}),
+      ...(categoryFilter ? { categoryId: categoryFilter } : {}),
+    }),
+    [page, pageSize, search, categoryFilter],
   )
   const ingredients = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
@@ -77,11 +82,6 @@ export default function DaftarTab() {
       .catch(() => { /* non-fatal */ })
     return () => { alive = false }
   }, [])
-
-  // Client-side category filter (category is not a server-side filter param)
-  const filtered = categoryFilter
-    ? ingredients.filter((i) => i.categoryId === categoryFilter)
-    : ingredients
 
   const openAdd = () => {
     setEditing(null)
@@ -158,7 +158,7 @@ export default function DaftarTab() {
       <DataTable
         caption="Daftar bahan"
         columns={columns}
-        rows={filtered}
+        rows={ingredients}
         rowKey={(ing) => ing.id}
         loading={q.loading}
         error={q.error ? `Daftar bahan gagal dimuat: ${q.error}` : null}
