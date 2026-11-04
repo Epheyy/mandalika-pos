@@ -15,6 +15,7 @@ import { productsListFlow } from './backoffice-products-scenarios'
 import { promotionsFlow } from './backoffice-promotions-scenarios'
 import { transferConfirmFlow } from './backoffice-transfer-scenarios'
 import { opnameConfirmFlow } from './backoffice-opname-scenarios'
+import { catalogueIdleFlow } from './backoffice-catalogue-scenarios'
 import { approvalsErpFlow } from './backoffice-d3c-scenarios'
 import { reportPagerFlow, roleDeleteFlow } from './backoffice-d5a-scenarios'
 import { posRequisition } from './pos-requisition-scenarios'
@@ -232,6 +233,12 @@ test('BO-TRANSFER-CONFIRM Kirim and Batalkan ask first, Batal leaves the draft, 
 test('BO-OPNAME-CONFIRM Mulai, Selesai and cancel on a product Opname ask first, Selesai names the net difference, Batal changes nothing, and a confirm writes once', async ({ page }, info) => {
   const result = await opnameConfirmFlow(page as ScenarioPage)
   expect(result).toHaveLength(5)
+  await evidence(info, result)
+})
+
+test('BO-CATALOGUE-CACHE the whole product list is read once per outlet scope, not on every 12 s poll: Opname, Ringkasan and Pelanggan stay quiet while idle, Tambah opname snapshots live stock, and the Ringkasan order numbers keep their poll and their value', async ({ page }, info) => {
+  const result = await catalogueIdleFlow(page as ScenarioPage)
+  expect(result).toHaveLength(4)
   await evidence(info, result)
 })
 

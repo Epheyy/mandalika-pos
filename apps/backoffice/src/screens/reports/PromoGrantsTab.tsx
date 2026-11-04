@@ -10,11 +10,12 @@ import { FilterBar } from '../../ui/FilterBar'
 import { useListState, type ListSchema } from '../../lib/router/useListState'
 import { PAGE_ONLY_SCHEMA, isAnswerFor, pageOf, pageToClamp, totalPagesOf, uuidOf } from './reportFilters'
 import { ReportPager } from './ReportPager'
-import { fetchAllPages, type components } from '@mandalika/api'
+import type { components } from '@mandalika/api'
+import { useCachedList } from '../../hooks/useCachedList'
+import { productCatalogue } from '../../lib/productCatalogue'
 
 type Report = components['schemas']['PromoRewardGrantReport']
 type Promotion = components['schemas']['Promotion']
-type Product = components['schemas']['Product']
 /** A grant row with its position: the report has no row id and two grants can match on every field. */
 type Grant = Report['data'][number] & { rowIndex: number }
 
@@ -68,7 +69,7 @@ export function PromoGrantsTab({ dateFrom, dateTo, outletId }: PromoGrantsTabPro
   const page = pageOf(state.hal)
 
   const pq = usePolledQuery<Promotion[]>(() => api.listPromotions(), [])
-  const prq = usePolledQuery<Product[]>(() => fetchAllPages((page, limit) => api.listProducts(page, limit)), [outletId])
+  const prq = useCachedList(productCatalogue)
   const rq = usePolledQuery<Report>(
     () =>
       api.listPromoRewardGrants({
