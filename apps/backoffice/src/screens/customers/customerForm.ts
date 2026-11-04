@@ -1,4 +1,5 @@
 import type { Customer } from '@mandalika/api'
+import { emailProblem, phoneProblem } from '@mandalika/types'
 
 /** The customer edit form. Every field is text, so "changed" is a plain comparison with the opening values. */
 export interface CustomerForm {
@@ -40,7 +41,24 @@ export function customerBodyOf(form: CustomerForm): CustomerForm {
   }
 }
 
-/** Why the form cannot be saved yet, or null. */
-export function customerFormProblem(form: CustomerForm): string | null {
-  return !form.name.trim() || !form.phone.trim() ? 'Nama & telepon wajib diisi' : null
+export const CUSTOMER_FIELD_ID = { name: 'customer-name', phone: 'customer-phone', email: 'customer-email' } as const
+
+export interface CustomerFormError {
+  fieldId: string
+  /** Short text for the summary at the top of the panel. */
+  label: string
+  /** Text under the field itself. */
+  message: string
+}
+
+/** Everything that blocks a save, one entry per field: name, phone (Indonesian or international) and email. */
+export function customerFormErrors(form: CustomerForm, opened?: CustomerForm): CustomerFormError[] {
+  const errors: CustomerFormError[] = []
+  if (!form.name.trim()) errors.push({ fieldId: CUSTOMER_FIELD_ID.name, label: 'Nama wajib diisi', message: 'Nama wajib diisi' })
+  // A phone or email left as stored is not re-judged (old rows may predate the rule); only an edit is.
+  const phone = opened && form.phone.trim() === opened.phone.trim() && opened.phone.trim() !== '' ? null : phoneProblem(form.phone)
+  if (phone) errors.push({ fieldId: CUSTOMER_FIELD_ID.phone, label: phone, message: phone })
+  const email = opened && form.email.trim() === opened.email.trim() ? null : emailProblem(form.email)
+  if (email) errors.push({ fieldId: CUSTOMER_FIELD_ID.email, label: email, message: email })
+  return errors
 }

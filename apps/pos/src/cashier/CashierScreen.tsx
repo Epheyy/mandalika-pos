@@ -38,7 +38,7 @@ import { CustomerProfileSheet } from './CustomerProfileSheet'
 import { chipRewards, localHistoryFor, planOne, planRepeat, recentCustomers, rewardsAvailableCount } from './customerProfile'
 import { useLoyaltyRewards } from '../hooks/useLoyaltyRewards'
 import { useCustomerProfile } from '../hooks/useCustomerProfile'
-import { awaitingSearch, finderHits, getKnownCustomers, lookupFailureMessage, prefillFromSearch } from './customerFinder'
+import { awaitingSearch, finderHits, getKnownCustomers, lookupFailureMessage, newCustomerProblem, prefillFromSearch } from './customerFinder'
 import { AdjustmentDrawer } from './AdjustmentDrawer'
 import { MenuDrawer } from './MenuDrawer'
 import { ReceiveTransferPanel } from './receive/ReceiveTransferPanel'
@@ -623,8 +623,9 @@ export default function CashierScreen() {
 
   const handleAddCustomer = async () => {
     if (customerGate.current.isBusy()) return
-    if (!newCustomerForm.name.trim() || !newCustomerForm.phone.trim()) {
-      setCustomerError('Nama dan telepon wajib diisi')
+    const problem = newCustomerProblem(newCustomerForm)
+    if (problem) {
+      setCustomerError(problem)
       return
     }
     setIsSavingCustomer(true)

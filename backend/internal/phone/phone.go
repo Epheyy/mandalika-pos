@@ -1,6 +1,6 @@
 // Package phone holds the canonical phone-number normalizer used for exact customer
 // lookup (A30). It has two twins that must stay in lockstep: the SQL function
-// normalize_phone() (migration 0061) and packages/sync/src/phone.ts. All three are
+// normalize_phone() (migration 0061, redefined in 0080) and packages/sync/src/phone.ts. All three are
 // tested against packages/sync/src/__fixtures__/phone-vectors.json.
 package phone
 
@@ -23,10 +23,21 @@ func isEdgeSpace(r rune) bool {
 	return r >= 0x2000 && r <= 0x200A
 }
 
-// Normalize trims the value, strips spaces, '-', '.', '(' and ')', accepts one
-// leading '+', folds a leading country code 62 to 0, and requires digits only.
-// It returns "" when the result is not a plausible phone (non-digit characters, or
-// fewer than MinDigits digits).
+// MaxDigits is the E.164 maximum, country code included.
+const MaxDigits = 15
+
+// Normalize returns the canonical key of a phone number, or "" when it is not a usable phone.
+//
+// Spaces, '-', '.', '(' and ')' are stripped, then:
+//   - a leading '+' or '00' marks an international number: the digits that follow are kept
+//     (country code 62 folds to the Indonesian local form below);
+//   - a leading '0' is an Indonesian local number, kept as is;
+//   - a bare '8...' is an Indonesian mobile number missing its 0: '0' is prepended;
+//   - a bare '62...' folds to the local form; any other bare digits are kept as international.
+//
+// Indonesian numbers are keyed as 0xxx so 0812..., 62812... and +62 812... collide. The key
+// must be digits only, at least MinDigits long, and within the E.164 limit once the country
+// code is counted (MaxDigits), otherwise "".
 func Normalize(raw string) string {
 	s := strings.TrimFunc(raw, isEdgeSpace)
 	s = strings.Map(func(r rune) rune {
@@ -36,7 +47,13 @@ func Normalize(raw string) string {
 		}
 		return r
 	}, s)
-	s = strings.TrimPrefix(s, "+")
+	intl := false
+	switch {
+	case strings.HasPrefix(s, "+"):
+		intl, s = true, s[1:]
+	case strings.HasPrefix(s, "00"):
+		intl, s = true, s[2:]
+	}
 	if s == "" {
 		return ""
 	}
@@ -45,11 +62,30 @@ func Normalize(raw string) string {
 			return ""
 		}
 	}
-	if strings.HasPrefix(s, "62") {
-		s = "0" + s[2:]
+	var key string
+	switch {
+	case intl && strings.HasPrefix(s, "0"):
+		return ""
+	case strings.HasPrefix(s, "620"):
+		key = "0" + s[3:] // +62 (0)812...: the written trunk zero
+	case strings.HasPrefix(s, "62"):
+		key = "0" + s[2:]
+	case !intl && strings.HasPrefix(s, "0"):
+		key = s
+	case !intl && strings.HasPrefix(s, "8"):
+		key = "0" + s
+	default:
+		key = s
 	}
-	if len(s) < MinDigits {
+	if len(key) < MinDigits {
 		return ""
 	}
-	return s
+	digits := len(key)
+	if strings.HasPrefix(key, "0") {
+		digits++ // '0' stands for the 2-digit country code 62
+	}
+	if digits > MaxDigits {
+		return ""
+	}
+	return key
 }

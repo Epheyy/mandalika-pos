@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@mandalika/api'
-import { LOOKUP_BUSY_MESSAGE, awaitingSearch, finderHits, lookupFailureMessage, phoneHint, prefillFromSearch } from './customerFinder'
+import { LOOKUP_BUSY_MESSAGE, awaitingSearch, finderHits, lookupFailureMessage, newCustomerProblem, formatPoints, phoneHint, prefillFromSearch } from './customerFinder'
 
 const alice = { id: 'a', name: 'Alice', phone: '0812-3456-7890', points: 3, totalSpent: 0, visitCount: 0, createdAt: '2026-01-01T00:00:00Z' }
 const budi = { id: 'b', name: 'Budi', phone: '081200000002', points: 0, totalSpent: 0, visitCount: 0, createdAt: '2026-01-01T00:00:00Z' }
@@ -67,5 +67,27 @@ describe('awaitingSearch', () => {
     expect(awaitingSearch('081299998888', false, null)).toBe(false)
     expect(awaitingSearch('0812', true, null)).toBe(false)
     expect(awaitingSearch('', true, null)).toBe(false)
+  })
+})
+
+describe('newCustomerProblem', () => {
+  const ok = { name: 'Sari', phone: '0812-3456-7890', email: '' }
+  it('accepts a valid customer, Indonesian or foreign, with or without email', () => {
+    expect(newCustomerProblem(ok)).toBeNull()
+    expect(newCustomerProblem({ ...ok, phone: '+65 8123 4567', email: 'a@b.co' })).toBeNull()
+  })
+  it('names the first problem in Indonesian', () => {
+    expect(newCustomerProblem({ ...ok, name: ' ' })).toBe('Nama wajib diisi')
+    expect(newCustomerProblem({ ...ok, phone: '' })).toBe('Nomor telepon wajib diisi')
+    expect(newCustomerProblem({ ...ok, phone: 'abc123' })).toBe('Nomor telepon tidak valid')
+    expect(newCustomerProblem({ ...ok, email: 'bukan-email' })).toBe('Format email tidak valid')
+  })
+})
+
+describe('formatPoints', () => {
+  it('uses id-ID thousands separators', () => {
+    expect(formatPoints(0)).toBe('0')
+    expect(formatPoints(1250)).toBe('1.250')
+    expect(formatPoints(1234567)).toBe('1.234.567')
   })
 })

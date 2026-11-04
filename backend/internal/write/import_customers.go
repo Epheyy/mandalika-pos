@@ -95,8 +95,10 @@ func planCustomerImport(ctx context.Context, q pgx.Tx, t *csvimport.Table) (*imp
 // the advisory lock serialises imports, not POS creates: a POS customer with the same
 // phone can land between plan and apply. As a safety net every created row whose phone
 // is already held by an older live customer gets a customer_dup_candidates row (the
-// recordDupCandidate semantics: oldest existing id, on conflict do nothing). Nothing is
-// ever merged.
+// recordDupCandidate semantics: oldest existing id, on conflict do nothing). The safety
+// net also matches on the normalized phone (0812... = 62812... = +62 812...), so a bulk
+// import can no longer add an unflagged duplicate; the plan-time skip stays exact-text (D5).
+// Nothing is ever merged.
 func ApplyCustomerImportCreates(ctx context.Context, tx pgx.Tx, creates []csvimport.CustomerCreate) error {
 	if len(creates) == 0 {
 		return nil
@@ -138,11 +140,11 @@ func ApplyCustomerImportCreates(ctx context.Context, tx pgx.Tx, creates []csvimp
 		INSERT INTO customer_dup_candidates (new_customer_id, existing_customer_id, phone)
 		SELECT ins.id,
 		       (SELECT c.id FROM customers c
-		         WHERE `+normPhoneSQL2+` = ins.phone AND c.merged_into IS NULL
+		         WHERE (`+normPhoneSQL2+` = ins.phone OR (c.phone_norm <> '' AND c.phone_norm = normalize_phone(ins.phone))) AND c.merged_into IS NULL
 		         ORDER BY c.created_at ASC, c.id ASC LIMIT 1),
 		       ins.phone
 		  FROM ins
-		 WHERE EXISTS (SELECT 1 FROM customers c WHERE `+normPhoneSQL2+` = ins.phone AND c.merged_into IS NULL)
+		 WHERE EXISTS (SELECT 1 FROM customers c WHERE (`+normPhoneSQL2+` = ins.phone OR (c.phone_norm <> '' AND c.phone_norm = normalize_phone(ins.phone))) AND c.merged_into IS NULL)
 		ON CONFLICT DO NOTHING`,
 		names, phones, emails, births, annis, notes); err != nil {
 		return err
