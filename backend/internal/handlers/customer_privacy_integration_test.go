@@ -652,7 +652,7 @@ func TestCustomerPrivacyPostgres(t *testing.T) {
 		}
 		// Sync path: a different spelling flags the pair via phone_norm.
 		before = pending()
-		if _, err := svc.CreateCustomer(ctx, service.CreateCustomerInput{ID: "00000000-0000-4000-8f20-0000000000c1", Name: "Sync Spelling", Phone: "6281234567890"}); err != nil {
+		if _, err := svc.CreateCustomer(ctx, service.CreateCustomerInput{ID: "00000000-0000-4000-8f20-0000000000f7", Name: "Sync Spelling", Phone: "6281234567890"}); err != nil {
 			t.Fatal(err)
 		}
 		if after := pending(); after != before+1 {
