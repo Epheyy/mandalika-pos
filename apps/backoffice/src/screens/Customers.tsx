@@ -10,22 +10,19 @@ import type {
   DupCandidate,
 } from '@mandalika/api'
 import { fetchAllPages } from '@mandalika/api'
-import {
-  Plus, Edit2, Trash2, Users, Phone, Mail, Star,
-  Gift, Cake,
-} from 'lucide-react'
+import { Plus, Edit2, Trash2, Gift, Cake } from 'lucide-react'
 import { api } from '../api'
 import { loadAllProducts } from '../lib/loadAll'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
-import { BRAND } from '../lib/brand'
-import { exportToCSV, exportToXLSX } from '../lib/csvUtils'
+import { buildExportName, exportToCSV, exportToXLSX } from '../lib/csvUtils'
 import { CUSTOMER_TEMPLATE_ROWS } from '../lib/importTemplates'
 import { ImportExportBar } from '../components/ImportExportBar'
 import { Button } from '../ui/Button'
 import { Switch } from '../ui/Switch'
 import { Input, Select, Field } from '../ui/Field'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { Modal } from '../ui/Modal'
 import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
@@ -44,7 +41,9 @@ import CustomerDetail from './customers/CustomerDetail'
 import DupCandidates from './customers/DupCandidates'
 import MergeReview from './customers/MergeReview'
 import { SegmentManager } from './customers/SegmentManager'
-import { tagChipClasses } from './customers/tagColors'
+import { CustomerEditorHost } from './customers/CustomerEditorHost'
+import { CustomersTable } from './customers/CustomersTable'
+import { customerExportRows, describeCustomerFilters } from './customers/customerExport'
 import { ProductVariantPicker } from './customers/ProductVariantPicker'
 import {
   CUSTOMER_LIST_SCHEMA,
@@ -95,22 +94,6 @@ const EMPTY_COND: CondForm = {
   activeDays: [], applicableProductIds: [], rewardProductIds: [],
 }
 
-const exportCustomers = async (fmt: 'csv' | 'xlsx') => {
-  const all = await fetchAllPages((page, limit) => api.listCustomers(page, limit))
-  const rows = all.map((c) => ({
-    Nama: c.name,
-    Telepon: c.phone,
-    Email: c.email ?? '',
-    Poin: c.points,
-    'Total Belanja': c.totalSpent,
-    'Jumlah Kunjungan': c.visitCount,
-    Tag: (c.tags ?? []).map((t) => t.name).join(', '),
-    Segmen: c.segment?.name ?? '',
-  }))
-  if (fmt === 'csv') exportToCSV(rows, 'pelanggan')
-  else exportToXLSX(rows, 'pelanggan')
-}
-
 export default function Customers() {
   const { outletId } = useOutlet()
   // Everything the list shows is in the URL: search, sort, tag, segment, page and page size (defaults stay out of it).
@@ -141,6 +124,21 @@ export default function Customers() {
   const customers = cq.data?.data ?? []
   const total = cq.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const activeFilters = [search !== '', sort !== 'belanja', tagId !== '', segmentId !== ''].filter(Boolean).length
+  const filterSummary = describeCustomerFilters(
+    { q: search, sort, tagId, segmentId },
+    (id) => allTags.find((t) => t.id === id)?.name,
+    (id) => allSegments.find((sg) => sg.id === id)?.name,
+  )
+  // Every customer that matches the filters, not just the visible page.
+  const exportCustomers = async (fmt: 'csv' | 'xlsx') => {
+    const all = await fetchAllPages((p, l) => api.listCustomers(p, l, search, sort, tagId, segmentId))
+    if (all.length === 0) return
+    const rows = customerExportRows(all)
+    const name = buildExportName('pelanggan', filterSummary)
+    if (fmt === 'csv') exportToCSV(rows, name)
+    else exportToXLSX(rows, name)
+  }
   // A page past the end (a stale link, or rows deleted meanwhile) comes back empty: land on the last page instead.
   // Only on the list itself, and only on an answer to THIS page (a poll hook keeps the previous answer for a render).
   const onList = !onCustomerPage && routedViewIsList(route.path)
@@ -203,29 +201,21 @@ export default function Customers() {
   const remTotal = remQ.data?.meta?.total ?? 0
   const remTotalPages = Math.max(1, Math.ceil(remTotal / remLimit))
 
-  const [open, setOpen] = useState(false)
-  const [editing, setEditing] = useState<Customer | null>(null)
-  const [form, setForm] = useState({ name: '', phone: '', email: '', birthday: '', anniversary: '', notes: '' })
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-  const [delId, setDelId] = useState<string | null>(null)
-
-  const [phoneDupe, setPhoneDupe] = useState(false)
-  useEffect(() => {
-    if (!open) { setPhoneDupe(false); return }
-    const phone = form.phone.trim()
-    if (!phone) { setPhoneDupe(false); return }
-    let ignore = false
-    const t = setTimeout(async () => {
-      try {
-        const matches = await api.getCustomersByPhone(phone)
-        if (!ignore) setPhoneDupe(matches.some((m) => m.id !== (editing?.id ?? null)))
-      } catch {
-        if (!ignore) setPhoneDupe(false)
-      }
-    }, 300)
-    return () => { clearTimeout(t); ignore = true }
-  }, [open, form.phone, editing?.id])
+  // What failed to load for the view on show (the list's own error is inside its table).
+  const loadErr =
+    view === 'loyalitas'
+      ? lq.error ?? condQ.error
+      : view === 'pengingat'
+        ? remQ.error
+        : view === 'daftar'
+          ? tagsQ.error ?? segmentsQ.error
+          : null
+  // The edit panel, the delete question and the errors of actions that have no dialog of their own.
+  const [editor, setEditor] = useState<{ customer: Customer | null } | null>(null)
+  const [delTarget, setDelTarget] = useState<Customer | null>(null)
+  const [delBusy, setDelBusy] = useState(false)
+  const [delErr, setDelErr] = useState<string | null>(null)
+  const [pageErr, setPageErr] = useState<string | null>(null)
 
   const [loyaltyForm, setLoyaltyForm] = useState<LoyaltySettings>(DEFAULT_LOYALTY)
   // Seed the form from the server ONCE on first load. Guarding with a ref keeps a
@@ -242,51 +232,42 @@ export default function Customers() {
   const [condOpen, setCondOpen] = useState(false)
   const [editingCond, setEditingCond] = useState<LoyaltyCondition | null>(null)
   const [condForm, setCondForm] = useState<CondForm>(EMPTY_COND)
+  const [condBusy, setCondBusy] = useState(false)
+  const [condErr, setCondErr] = useState<string | null>(null)
+  const [condDel, setCondDel] = useState<LoyaltyCondition | null>(null)
+  const [condDelBusy, setCondDelBusy] = useState(false)
+  const [condDelErr, setCondDelErr] = useState<string | null>(null)
 
-  const saveCustomer = async () => {
-    if (!form.name.trim() || !form.phone.trim()) {
-      setErr('Nama & telepon wajib diisi')
-      return
-    }
-    setBusy(true)
-    setErr(null)
-    try {
-      const body = {
-        name: form.name.trim(),
-        phone: form.phone.trim(),
-        email: form.email.trim(),
-        birthday: form.birthday,
-        anniversary: form.anniversary,
-        notes: form.notes.trim(),
-      }
-      if (editing) await api.updateCustomer(editing.id, body)
-      else await api.createCustomer(body)
-      setOpen(false)
-      await cq.refetch()
-    } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'Gagal menyimpan pelanggan.')
-    } finally {
-      setBusy(false)
-    }
+  const askDelete = (c: Customer) => {
+    setDelErr(null)
+    setDelTarget(c)
   }
-
-  const del = async (cid: string) => {
+  // A refused delete keeps the question open with the server's reason; busy blocks a second click.
+  const confirmDelete = async () => {
+    if (!delTarget) return
+    setDelBusy(true)
     try {
-      await api.deleteCustomer(cid)
-      setDelId(null)
-      if (selectedId === cid) exitAfterRemoval()
-      await cq.refetch()
+      await api.deleteCustomer(delTarget.id)
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'Gagal menghapus pelanggan.')
-      setDelId(null)
+      setDelErr(e instanceof Error ? e.message : 'Gagal menghapus pelanggan.')
+      return
+    } finally {
+      setDelBusy(false)
     }
+    const gone = delTarget.id
+    setDelTarget(null)
+    if (selectedId === gone) exitAfterRemoval()
+    await cq.refetch()
   }
 
   const saveLoyalty = async () => {
     setSavingLoyalty(true)
+    setPageErr(null)
     try {
       await api.updateLoyaltySettings(loyaltyForm)
       await lq.refetch()
+    } catch (e: unknown) {
+      setPageErr(`Pengaturan loyalitas gagal disimpan: ${e instanceof Error ? e.message : 'coba lagi.'}`)
     } finally {
       setSavingLoyalty(false)
     }
@@ -301,33 +282,56 @@ export default function Customers() {
       campaignEndDate: c.campaignEndDate, activeDays: c.activeDays || [],
       applicableProductIds: c.applicableProductIds || [], minimumSpend: c.minimumSpend,
     })
+    setCondErr(null)
     setCondOpen(true)
   }
   const saveCond = async () => {
     if (!condForm.name.trim()) {
-      setErr('Nama kondisi wajib diisi')
+      setCondErr('Nama kondisi wajib diisi')
       return
     }
     if (condForm.rewardType === 'product_reward' && !(condForm.rewardProductIds || []).length) {
-      setErr('Pilih minimal satu produk hadiah untuk reward Produk Gratis')
+      setCondErr('Pilih minimal satu produk hadiah untuk reward Produk Gratis')
       return
     }
     if (condForm.type === 'campaign' && (!condForm.campaignStartDate || !condForm.campaignEndDate)) {
-      setErr('Campaign wajib punya tanggal mulai DAN berakhir (tanpa keduanya kondisi tidak akan pernah aktif)')
+      setCondErr('Campaign wajib punya tanggal mulai DAN berakhir (tanpa keduanya kondisi tidak akan pernah aktif)')
       return
     }
-    setBusy(true)
+    setCondBusy(true)
+    setCondErr(null)
     try {
       if (editingCond) await api.updateLoyaltyCondition(editingCond.id, condForm)
       else await api.createLoyaltyCondition(condForm)
       setCondOpen(false)
       await condQ.refetch()
+    } catch (e: unknown) {
+      setCondErr(e instanceof Error ? e.message : 'Gagal menyimpan kondisi.')
     } finally {
-      setBusy(false)
+      setCondBusy(false)
     }
   }
   const toggleCond = async (c: LoyaltyCondition) => {
-    await api.updateLoyaltyCondition(c.id, { ...c, isActive: !c.isActive })
+    setPageErr(null)
+    try {
+      await api.updateLoyaltyCondition(c.id, { ...c, isActive: !c.isActive })
+      await condQ.refetch()
+    } catch (e: unknown) {
+      setPageErr(`Status kondisi "${c.name}" gagal diubah: ${e instanceof Error ? e.message : 'coba lagi.'}`)
+    }
+  }
+  const confirmDeleteCond = async () => {
+    if (!condDel) return
+    setCondDelBusy(true)
+    try {
+      await api.deleteLoyaltyCondition(condDel.id)
+    } catch (e: unknown) {
+      setCondDelErr(e instanceof Error ? e.message : 'Gagal menghapus kondisi.')
+      return
+    } finally {
+      setCondDelBusy(false)
+    }
+    setCondDel(null)
     await condQ.refetch()
   }
 
@@ -338,8 +342,8 @@ export default function Customers() {
           customerId={selectedId}
           loyaltyEnabled={loyalty.enabled}
           onBack={() => { toList(); void cq.refetch() }}
-          onEdit={(c) => { setEditing(c); setForm({ name: c.name, phone: c.phone, email: c.email || '', birthday: c.birthday || '', anniversary: c.anniversary || '', notes: c.notes || '' }); setErr(null); setOpen(true) }}
-          onDelete={(cid) => setDelId(cid)}
+          onEdit={(c) => setEditor({ customer: c })}
+          onDelete={askDelete}
         />
       ) : (
         <div className="p-6 space-y-5">
@@ -361,13 +365,14 @@ export default function Customers() {
             {view === 'daftar' && (
               <>
                 <ImportExportBar
-                  onExport={(fmt) => void exportCustomers(fmt)}
+                  onExport={exportCustomers}
                   exportDisabled={customers.length === 0}
+                  filterSummary={filterSummary}
                   importKind="customers"
                   onImported={() => void cq.refetch()}
                   onTemplate={() => exportToCSV(CUSTOMER_TEMPLATE_ROWS, 'template_pelanggan_mandalika')}
                 />
-                <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setForm({ name: '', phone: '', email: '', birthday: '', anniversary: '', notes: '' }); setErr(null); setOpen(true) }}>
+                <Button icon={<Plus className="w-4 h-4" />} onClick={() => setEditor({ customer: null })}>
                   Tambah
                 </Button>
               </>
@@ -380,6 +385,13 @@ export default function Customers() {
           </>
         }
       />
+
+      {(pageErr || loadErr) && (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-xl bg-danger-bg px-4 py-3 text-sm text-danger">
+          <span>{pageErr ?? loadErr}</span>
+          {pageErr && <Button variant="ghost" size="sm" onClick={() => setPageErr(null)}>Tutup</Button>}
+        </div>
+      )}
 
       {view === 'loyalitas' ? (
         <div className="space-y-4">
@@ -420,7 +432,7 @@ export default function Customers() {
                 </>
               )}
               <p className="text-xs text-gray-400">Nilai aktif: {loyalty.enabled ? 'poin ON' : 'poin OFF'}</p>
-              <Button className="w-full" loading={savingLoyalty} onClick={saveLoyalty}>
+              <Button className="w-full" loading={savingLoyalty} disabled={!lq.data} onClick={saveLoyalty}>
                 {savingLoyalty ? 'Menyimpan...' : 'Simpan Pengaturan'}
               </Button>
             </Card>
@@ -455,8 +467,8 @@ export default function Customers() {
                         <button type="button" onClick={() => toggleCond(c)}>
                           <Badge tone={c.isActive ? 'success' : 'neutral'}>{c.isActive ? 'Aktif' : 'Nonaktif'}</Badge>
                         </button>
-                        <IconButton onClick={() => openEditCond(c)}><Edit2 className="w-4 h-4" /></IconButton>
-                        <IconButton tone="danger" onClick={async () => { await api.deleteLoyaltyCondition(c.id); await condQ.refetch() }}><Trash2 className="w-4 h-4" /></IconButton>
+                        <IconButton aria-label={`Ubah kondisi ${c.name}`} onClick={() => openEditCond(c)}><Edit2 className="w-4 h-4" /></IconButton>
+                        <IconButton tone="danger" aria-label={`Hapus kondisi ${c.name}`} onClick={() => { setCondDelErr(null); setCondDel(c) }}><Trash2 className="w-4 h-4" /></IconButton>
                       </div>
                     </div>
                   ))}
@@ -526,7 +538,7 @@ export default function Customers() {
         <>
           <FilterBar
             onReset={() => setList({ q: '', urut: 'belanja', tag: '', segmen: '', hal: 1 })}
-            activeCount={[search !== '', sort !== 'belanja', tagId !== '', segmentId !== ''].filter(Boolean).length}
+            activeCount={activeFilters}
             actions={<Button variant="secondary" size="sm" onClick={() => setSegModalOpen(true)}>Kelola Segmen</Button>}
           >
             <FilterBar.Search
@@ -554,92 +566,30 @@ export default function Customers() {
               options={[{ value: '', label: 'Semua segmen' }, ...allSegments.map((sg) => ({ value: sg.id, label: sg.name }))]}
             />
           </FilterBar>
-          <Card className="overflow-hidden">
-            {cq.loading ? (
-              <TableSkeleton />
-            ) : customers.length === 0 ? (
-              <EmptyState icon={<Users />} title="Tidak ada pelanggan" />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50">
-                      <th className="text-left px-5 py-3 text-xs font-black text-gray-400 uppercase tracking-wider">Pelanggan</th>
-                      <th className="text-left px-5 py-3 text-xs font-black text-gray-400 uppercase tracking-wider hidden md:table-cell">Kontak</th>
-                      <th className="text-left px-5 py-3 text-xs font-black text-gray-400 uppercase tracking-wider">Total Belanja</th>
-                      {loyalty.enabled && <th className="text-left px-5 py-3 text-xs font-black text-gray-400 uppercase tracking-wider hidden sm:table-cell">Poin</th>}
-                      <th className="text-left px-5 py-3 text-xs font-black text-gray-400 uppercase tracking-wider hidden sm:table-cell">Segmen</th>
-                      <th className="text-right px-5 py-3 text-xs font-black text-gray-400 uppercase tracking-wider">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {customers.map((c) => {
-                      return (
-                        <tr
-                          key={c.id}
-                          className="hover:bg-gray-50 cursor-pointer"
-                          onClick={() => openCustomer(c.id)}
-                        >
-                          <td className="px-5 py-3">
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-full bg-gold-50 flex items-center justify-center flex-shrink-0">
-                                <span className="text-sm font-black text-gold-600">{c.name.charAt(0).toUpperCase()}</span>
-                              </div>
-                              <div>
-                                <p className="font-bold text-gray-900 text-sm">{c.name}</p>
-                                <p className="text-xs text-gray-400">{c.visitCount} kunjungan</p>
-                                {(c.tags ?? []).length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {(c.tags ?? []).slice(0, 3).map((t) => (
-                                      <span key={t.id} className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${tagChipClasses(t.color)}`}>{t.name}</span>
-                                    ))}
-                                    {(c.tags ?? []).length > 3 && <span className="text-[10px] text-gray-400">+{(c.tags ?? []).length - 3}</span>}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-5 py-3 hidden md:table-cell">
-                            <div className="space-y-0.5">
-                              <div className="flex items-center gap-1.5 text-xs text-gray-500"><Phone className="w-3 h-3" /> {c.phone}</div>
-                              {c.email && <div className="flex items-center gap-1.5 text-xs text-gray-400"><Mail className="w-3 h-3" /> {c.email}</div>}
-                            </div>
-                          </td>
-                          <td className="px-5 py-3"><p className="font-black text-gray-900 text-sm">{BRAND.currency.format(c.totalSpent)}</p></td>
-                          {loyalty.enabled && (
-                            <td className="px-5 py-3 hidden sm:table-cell">
-                              <div className="flex items-center gap-1 text-sm font-bold text-gold-600"><Star className="w-3.5 h-3.5" />{c.points.toLocaleString('id-ID')}</div>
-                            </td>
-                          )}
-                          <td className="px-5 py-3 hidden sm:table-cell">
-                            {c.segment
-                              ? <span className={`px-2.5 py-1 text-xs font-bold rounded-full border ${tagChipClasses(c.segment.color)}`}>{c.segment.name}</span>
-                              : <span className="text-xs text-gray-300">—</span>}
-                          </td>
-                          <td className="px-5 py-3">
-                            <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                              <IconButton onClick={() => { setEditing(c); setForm({ name: c.name, phone: c.phone, email: c.email || '', birthday: c.birthday || '', anniversary: c.anniversary || '', notes: c.notes || '' }); setErr(null); setOpen(true) }}><Edit2 className="w-4 h-4" /></IconButton>
-                              <IconButton tone="danger" onClick={() => setDelId(c.id)}><Trash2 className="w-4 h-4" /></IconButton>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
-          {!cq.loading && total > 0 && (
-            <Pagination
-              page={page}
-              totalPages={totalPages}
-              total={total}
-              onChange={(hal) => setList({ hal })}
-              pageSize={pageSize}
-              onPageSizeChange={(per) => setList({ per, hal: 1 })}
-            />
-          )}
+          <CustomersTable
+            rows={customers}
+            loading={cq.loading}
+            error={cq.error ? `Daftar pelanggan gagal dimuat: ${cq.error}` : null}
+            onRetry={() => void cq.refetch()}
+            showPoints={loyalty.enabled}
+            filtered={activeFilters > 0}
+            selectedId={editor?.customer?.id ?? null}
+            onOpen={(c) => openCustomer(c.id)}
+            onEdit={(c) => setEditor({ customer: c })}
+            onDelete={askDelete}
+            footer={
+              total > 0 ? (
+                <Pagination
+                  page={page}
+                  totalPages={totalPages}
+                  total={total}
+                  onChange={(hal) => setList({ hal })}
+                  pageSize={pageSize}
+                  onPageSizeChange={(per) => setList({ per, hal: 1 })}
+                />
+              ) : undefined
+            }
+          />
           </>
         )}
         </div>
@@ -649,44 +599,13 @@ export default function Customers() {
         <SegmentManager segments={allSegments} onChange={() => void segmentsQ.refetch()} />
       </Modal>
 
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        title={editing ? 'Edit Pelanggan' : 'Tambah Pelanggan'}
-        footer={
-          <>
-            <Button variant="secondary" className="flex-1" onClick={() => setOpen(false)}>Batal</Button>
-            <Button className="flex-1" loading={busy} onClick={saveCustomer}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          {[
-            { label: 'Nama *', field: 'name' as const, type: 'text' },
-            { label: 'No. Telepon *', field: 'phone' as const, type: 'tel' },
-            { label: 'Email', field: 'email' as const, type: 'email' },
-          ].map(({ label, field, type }) => (
-            <Input key={field} label={label} type={type} value={form[field]} onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))} />
-          ))}
-          {phoneDupe && (
-            <p className="text-xs text-amber-600">⚠ Nomor telepon ini sudah dipakai pelanggan lain. Tetap bisa disimpan.</p>
-          )}
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Ulang Tahun" type="date" value={form.birthday} onChange={(e) => setForm((f) => ({ ...f, birthday: e.target.value }))} />
-            <Input label="Hari Jadi" type="date" value={form.anniversary} onChange={(e) => setForm((f) => ({ ...f, anniversary: e.target.value }))} />
-          </div>
-          <Field label="Catatan">
-            <textarea
-              aria-label="Catatan"
-              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-400"
-              rows={3}
-              value={form.notes}
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-            />
-          </Field>
-          {err && <p className="text-sm text-red-600">{err}</p>}
-        </div>
-      </Modal>
+      {editor && (
+        <CustomerEditorHost
+          customer={editor.customer}
+          onSaved={() => cq.refetch()}
+          onClose={() => setEditor(null)}
+        />
+      )}
 
       <Modal
         open={condOpen}
@@ -696,7 +615,7 @@ export default function Customers() {
         footer={
           <>
             <Button variant="secondary" className="flex-1" onClick={() => setCondOpen(false)}>Batal</Button>
-            <Button className="flex-1" loading={busy} onClick={saveCond}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
+            <Button className="flex-1" loading={condBusy} onClick={saveCond}>{condBusy ? 'Menyimpan...' : 'Simpan'}</Button>
           </>
         }
       >
@@ -760,26 +679,33 @@ export default function Customers() {
             <input type="checkbox" checked={condForm.isActive} onChange={(e) => setCondForm((f) => ({ ...f, isActive: e.target.checked }))} className="w-4 h-4 accent-gold-600" />
             <span className="text-sm font-bold text-gray-700">Kondisi Aktif</span>
           </label>
+          {condErr && <p role="alert" className="text-sm text-red-600">{condErr}</p>}
         </div>
       </Modal>
 
-      <Modal
-        open={!!delId}
-        onClose={() => setDelId(null)}
-        size="sm"
-        footer={
-          <>
-            <Button variant="secondary" className="flex-1" onClick={() => setDelId(null)}>Batal</Button>
-            <Button variant="danger" className="flex-1" onClick={() => del(delId!)}>Ya, Hapus</Button>
-          </>
-        }
-      >
-        <div className="text-center">
-          <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4"><Trash2 className="w-7 h-7 text-red-500" /></div>
-          <h3 className="text-xl font-black text-gray-900 mb-2">Hapus Pelanggan?</h3>
-          <p className="text-sm text-gray-400">Data poin dan riwayat akan terhapus permanen.</p>
-        </div>
-      </Modal>
+      <ConfirmDialog
+        open={delTarget !== null}
+        title={delTarget ? `Hapus ${delTarget.name}?` : 'Hapus pelanggan?'}
+        consequence="Data poin dan riwayat akan terhapus permanen."
+        confirmLabel="Hapus pelanggan"
+        tone="danger"
+        busy={delBusy}
+        error={delErr}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => { if (!delBusy) setDelTarget(null) }}
+      />
+
+      <ConfirmDialog
+        open={condDel !== null}
+        title={condDel ? `Hapus kondisi "${condDel.name}"?` : 'Hapus kondisi?'}
+        consequence="Kondisi ini berhenti memberi hadiah mulai sekarang. Hadiah yang sudah diberikan tetap tercatat."
+        confirmLabel="Hapus kondisi"
+        tone="danger"
+        busy={condDelBusy}
+        error={condDelErr}
+        onConfirm={() => void confirmDeleteCond()}
+        onCancel={() => { if (!condDelBusy) setCondDel(null) }}
+      />
     </>
   )
 }
