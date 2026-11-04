@@ -270,19 +270,19 @@
  },
  "2026-11-04|7d|admin-all": {
   "net": {
-   "gross": 4950654.33,
-   "grossCount": 14,
+   "gross": 7153654.33,
+   "grossCount": 27,
    "refunds": 1320000,
    "refundedCount": 6,
-   "net": 3630654.33
+   "net": 5833654.33
   },
-  "revenue": 3630654.33,
-  "deltaRevenue": 390.63,
-  "orders": 13,
-  "deltaOrders": 333.33,
-  "aov": 323127.26,
-  "itemsSold": 26,
-  "deltaItems": 766.67,
+  "revenue": 5833654.33,
+  "deltaRevenue": 688.33,
+  "orders": 26,
+  "deltaOrders": 766.67,
+  "aov": 246294.4,
+  "itemsSold": 45,
+  "deltaItems": 1400,
   "customers": 3,
   "deltaCustomers": 50,
   "trend": [
@@ -293,8 +293,8 @@
    },
    {
     "label": "Jum",
-    "revenue": 175000,
-    "orders": 1
+    "revenue": 2203000,
+    "orders": 13
    },
    {
     "label": "Sab",
@@ -308,8 +308,8 @@
    },
    {
     "label": "Sen",
-    "revenue": -240000,
-    "orders": 1
+    "revenue": -65000,
+    "orders": 2
    },
    {
     "label": "Sel",
@@ -327,7 +327,7 @@
    {
     "method": "cash",
     "label": "Tunai",
-    "amount": 1840654.33
+    "amount": 4043654.33
    },
    {
     "method": "qris",
@@ -352,6 +352,11 @@
     "qty": 5
    },
    {
+    "key": "00000000-0000-4000-8e03-000000000002|30ml",
+    "name": "Amber Musk 30ml",
+    "qty": 5
+   },
+   {
     "key": "00000000-0000-4000-8e03-000000000005|30ml",
     "name": "Sandal Wood 30ml",
     "qty": 5
@@ -359,11 +364,6 @@
    {
     "key": "00000000-0000-4000-8e03-000000000004|30ml",
     "name": "Vanilla Noir 30ml",
-    "qty": 4
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
     "qty": 4
    },
    {
@@ -377,60 +377,90 @@
     "qty": 3
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|50ml",
-    "name": "Rose Oud 50ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000018|30ml",
+    "name": "Parfum Tambahan 18 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000016|30ml",
+    "name": "Parfum Tambahan 16 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000014|30ml",
+    "name": "Parfum Tambahan 14 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000012|30ml",
+    "name": "Parfum Tambahan 12 30ml",
+    "qty": 2
    }
   ],
   "bottom": [
    {
+    "key": "00000000-0000-4000-8e03-000000000007|30ml",
+    "name": "Parfum Tambahan 07 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000009|30ml",
+    "name": "Parfum Tambahan 09 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000011|30ml",
+    "name": "Parfum Tambahan 11 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000013|30ml",
+    "name": "Parfum Tambahan 13 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000015|30ml",
+    "name": "Parfum Tambahan 15 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000017|30ml",
+    "name": "Parfum Tambahan 17 30ml",
+    "qty": 1
+   },
+   {
     "key": "00000000-0000-4000-8e03-000000000001|50ml",
     "name": "Rose Oud 50ml",
     "qty": 1
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000003|50ml",
-    "name": "Citrus Zest 50ml",
-    "qty": 3
+    "key": "00000000-0000-4000-8e03-000000000008|30ml",
+    "name": "Parfum Tambahan 08 30ml",
+    "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|30ml",
-    "name": "Rose Oud 30ml",
-    "qty": 4
+    "key": "00000000-0000-4000-8e03-000000000010|30ml",
+    "name": "Parfum Tambahan 10 30ml",
+    "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 4
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000004|30ml",
-    "name": "Vanilla Noir 30ml",
-    "qty": 4
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandal Wood 30ml",
-    "qty": 5
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000006|30ml",
-    "name": "Jasmine 30ml",
-    "qty": 5
+    "key": "00000000-0000-4000-8e03-000000000012|30ml",
+    "name": "Parfum Tambahan 12 30ml",
+    "qty": 2
    }
   ],
-  "distinctProducts": 7,
+  "distinctProducts": 19,
   "promo": {
    "rows": [
     {
      "name": "Promo Rose",
-     "count": 4,
-     "amount": 70000
+     "count": 5,
+     "amount": 75000
     },
     {
      "name": "Diskon Akhir Pekan",
-     "count": 2,
-     "amount": 32345.67
+     "count": 3,
+     "amount": 59345.67
     },
     {
      "name": "Promo Belum Dipakai",
@@ -438,8 +468,8 @@
      "amount": 0
     }
    ],
-   "totalCount": 6,
-   "totalAmount": 102345.67
+   "totalCount": 8,
+   "totalAmount": 134345.67
   },
   "cashiers": [
    {
@@ -451,32 +481,62 @@
    {
     "id": "00000000-0000-4000-8e01-000000000001",
     "name": "Rina",
-    "transactions": 5,
-    "revenue": 1680000
+    "transactions": 6,
+    "revenue": 1855000
    },
    {
     "id": "00000000-0000-4000-8e01-000000000003",
     "name": "Sari",
     "transactions": 2,
     "revenue": 1027654.33
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000006",
+    "name": "Kasir 06",
+    "transactions": 2,
+    "revenue": 345000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000005",
+    "name": "Kasir 05",
+    "transactions": 2,
+    "revenue": 333000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000004",
+    "name": "Kasir 04",
+    "transactions": 2,
+    "revenue": 339000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000012",
+    "name": "Kasir 12",
+    "transactions": 1,
+    "revenue": 115000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000011",
+    "name": "Kasir 11",
+    "transactions": 1,
+    "revenue": 228000
    }
   ]
  },
  "2026-11-04|30d|admin-all": {
   "net": {
-   "gross": 7640654.33,
-   "grossCount": 22,
+   "gross": 9843654.33,
+   "grossCount": 35,
    "refunds": 2000000.5,
    "refundedCount": 8,
-   "net": 5640653.83
+   "net": 7843653.83
   },
-  "revenue": 5640653.83,
-  "deltaRevenue": 2156.26,
-  "orders": 19,
-  "deltaOrders": 1800,
-  "aov": 296876.52,
-  "itemsSold": 34,
-  "deltaItems": 3300,
+  "revenue": 7843653.83,
+  "deltaRevenue": 3037.46,
+  "orders": 32,
+  "deltaOrders": 3100,
+  "aov": 245114.18,
+  "itemsSold": 53,
+  "deltaItems": 5200,
   "customers": 3,
   "deltaCustomers": 200,
   "trend": [
@@ -602,8 +662,8 @@
    },
    {
     "label": "30/10",
-    "revenue": 175000,
-    "orders": 1
+    "revenue": 2203000,
+    "orders": 13
    },
    {
     "label": "31/10",
@@ -617,8 +677,8 @@
    },
    {
     "label": "2/11",
-    "revenue": -240000,
-    "orders": 1
+    "revenue": -65000,
+    "orders": 2
    },
    {
     "label": "3/11",
@@ -636,7 +696,7 @@
    {
     "method": "cash",
     "label": "Tunai",
-    "amount": 3140654.33
+    "amount": 5343654.33
    },
    {
     "method": "qris",
@@ -666,14 +726,14 @@
     "qty": 6
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandal Wood 30ml",
+    "key": "00000000-0000-4000-8e03-000000000002|30ml",
+    "name": "Amber Musk 30ml",
     "qty": 6
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 5
+    "key": "00000000-0000-4000-8e03-000000000005|30ml",
+    "name": "Sandal Wood 30ml",
+    "qty": 6
    },
    {
     "key": "00000000-0000-4000-8e03-000000000003|50ml",
@@ -688,58 +748,88 @@
    {
     "key": "00000000-0000-4000-8e03-000000000001|50ml",
     "name": "Rose Oud 50ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000018|30ml",
+    "name": "Parfum Tambahan 18 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000016|30ml",
+    "name": "Parfum Tambahan 16 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000014|30ml",
+    "name": "Parfum Tambahan 14 30ml",
     "qty": 2
    }
   ],
   "bottom": [
    {
-    "key": "00000000-0000-4000-8e03-000000000001|50ml",
-    "name": "Rose Oud 50ml",
+    "key": "00000000-0000-4000-8e03-000000000007|30ml",
+    "name": "Parfum Tambahan 07 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000009|30ml",
+    "name": "Parfum Tambahan 09 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000011|30ml",
+    "name": "Parfum Tambahan 11 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000013|30ml",
+    "name": "Parfum Tambahan 13 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000015|30ml",
+    "name": "Parfum Tambahan 15 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000017|30ml",
+    "name": "Parfum Tambahan 17 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000008|30ml",
+    "name": "Parfum Tambahan 08 30ml",
     "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|30ml",
-    "name": "Rose Oud 30ml",
-    "qty": 4
+    "key": "00000000-0000-4000-8e03-000000000010|30ml",
+    "name": "Parfum Tambahan 10 30ml",
+    "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000003|50ml",
-    "name": "Citrus Zest 50ml",
-    "qty": 4
+    "key": "00000000-0000-4000-8e03-000000000012|30ml",
+    "name": "Parfum Tambahan 12 30ml",
+    "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 5
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandal Wood 30ml",
-    "qty": 6
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000006|30ml",
-    "name": "Jasmine 30ml",
-    "qty": 6
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000004|30ml",
-    "name": "Vanilla Noir 30ml",
-    "qty": 7
+    "key": "00000000-0000-4000-8e03-000000000014|30ml",
+    "name": "Parfum Tambahan 14 30ml",
+    "qty": 2
    }
   ],
-  "distinctProducts": 7,
+  "distinctProducts": 19,
   "promo": {
    "rows": [
     {
      "name": "Promo Rose",
-     "count": 4,
-     "amount": 70000
+     "count": 5,
+     "amount": 75000
     },
     {
      "name": "Diskon Akhir Pekan",
-     "count": 2,
-     "amount": 32345.67
+     "count": 3,
+     "amount": 59345.67
     },
     {
      "name": "Promo Belum Dipakai",
@@ -747,15 +837,15 @@
      "amount": 0
     }
    ],
-   "totalCount": 6,
-   "totalAmount": 102345.67
+   "totalCount": 8,
+   "totalAmount": 134345.67
   },
   "cashiers": [
    {
     "id": "00000000-0000-4000-8e01-000000000001",
     "name": "Rina",
-    "transactions": 8,
-    "revenue": 2410000
+    "transactions": 9,
+    "revenue": 2585000
    },
    {
     "id": "00000000-0000-4000-8e01-000000000002",
@@ -768,23 +858,53 @@
     "name": "Sari",
     "transactions": 4,
     "revenue": 1647653.83
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000006",
+    "name": "Kasir 06",
+    "transactions": 2,
+    "revenue": 345000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000005",
+    "name": "Kasir 05",
+    "transactions": 2,
+    "revenue": 333000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000004",
+    "name": "Kasir 04",
+    "transactions": 2,
+    "revenue": 339000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000012",
+    "name": "Kasir 12",
+    "transactions": 1,
+    "revenue": 115000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000011",
+    "name": "Kasir 11",
+    "transactions": 1,
+    "revenue": 228000
    }
   ]
  },
  "2026-11-04|all|admin-all": {
   "net": {
-   "gross": 8070654.33,
-   "grossCount": 24,
+   "gross": 10273654.33,
+   "grossCount": 37,
    "refunds": 2180000.5,
    "refundedCount": 9,
-   "net": 5890653.83
+   "net": 8093653.83
   },
-  "revenue": 5890653.83,
+  "revenue": 8093653.83,
   "deltaRevenue": null,
-  "orders": 20,
+  "orders": 33,
   "deltaOrders": null,
-  "aov": 294532.69,
-  "itemsSold": 35,
+  "aov": 245262.24,
+  "itemsSold": 54,
   "deltaItems": null,
   "customers": 3,
   "deltaCustomers": null,
@@ -801,13 +921,13 @@
    },
    {
     "label": "Okt 26",
-    "revenue": 2627999.5,
-    "orders": 11
+    "revenue": 4655999.5,
+    "orders": 23
    },
    {
     "label": "Nov 26",
-    "revenue": 3012654.33,
-    "orders": 11
+    "revenue": 3187654.33,
+    "orders": 12
    }
   ],
   "trendEmpty": false,
@@ -815,7 +935,7 @@
    {
     "method": "cash",
     "label": "Tunai",
-    "amount": 3390654.33
+    "amount": 5593654.33
    },
    {
     "method": "qris",
@@ -845,14 +965,14 @@
     "qty": 6
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandal Wood 30ml",
+    "key": "00000000-0000-4000-8e03-000000000002|30ml",
+    "name": "Amber Musk 30ml",
     "qty": 6
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 5
+    "key": "00000000-0000-4000-8e03-000000000005|30ml",
+    "name": "Sandal Wood 30ml",
+    "qty": 6
    },
    {
     "key": "00000000-0000-4000-8e03-000000000001|30ml",
@@ -867,58 +987,88 @@
    {
     "key": "00000000-0000-4000-8e03-000000000001|50ml",
     "name": "Rose Oud 50ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000018|30ml",
+    "name": "Parfum Tambahan 18 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000016|30ml",
+    "name": "Parfum Tambahan 16 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000014|30ml",
+    "name": "Parfum Tambahan 14 30ml",
     "qty": 2
    }
   ],
   "bottom": [
    {
-    "key": "00000000-0000-4000-8e03-000000000001|50ml",
-    "name": "Rose Oud 50ml",
+    "key": "00000000-0000-4000-8e03-000000000007|30ml",
+    "name": "Parfum Tambahan 07 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000009|30ml",
+    "name": "Parfum Tambahan 09 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000011|30ml",
+    "name": "Parfum Tambahan 11 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000013|30ml",
+    "name": "Parfum Tambahan 13 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000015|30ml",
+    "name": "Parfum Tambahan 15 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000017|30ml",
+    "name": "Parfum Tambahan 17 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000008|30ml",
+    "name": "Parfum Tambahan 08 30ml",
     "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000003|50ml",
-    "name": "Citrus Zest 50ml",
-    "qty": 4
+    "key": "00000000-0000-4000-8e03-000000000010|30ml",
+    "name": "Parfum Tambahan 10 30ml",
+    "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|30ml",
-    "name": "Rose Oud 30ml",
-    "qty": 5
+    "key": "00000000-0000-4000-8e03-000000000012|30ml",
+    "name": "Parfum Tambahan 12 30ml",
+    "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 5
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandal Wood 30ml",
-    "qty": 6
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000006|30ml",
-    "name": "Jasmine 30ml",
-    "qty": 6
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000004|30ml",
-    "name": "Vanilla Noir 30ml",
-    "qty": 7
+    "key": "00000000-0000-4000-8e03-000000000014|30ml",
+    "name": "Parfum Tambahan 14 30ml",
+    "qty": 2
    }
   ],
-  "distinctProducts": 7,
+  "distinctProducts": 19,
   "promo": {
    "rows": [
     {
      "name": "Promo Rose",
-     "count": 4,
-     "amount": 70000
+     "count": 5,
+     "amount": 75000
     },
     {
      "name": "Diskon Akhir Pekan",
-     "count": 2,
-     "amount": 32345.67
+     "count": 3,
+     "amount": 59345.67
     },
     {
      "name": "Promo Belum Dipakai",
@@ -926,15 +1076,15 @@
      "amount": 0
     }
    ],
-   "totalCount": 6,
-   "totalAmount": 102345.67
+   "totalCount": 8,
+   "totalAmount": 134345.67
   },
   "cashiers": [
    {
     "id": "00000000-0000-4000-8e01-000000000001",
     "name": "Rina",
-    "transactions": 9,
-    "revenue": 2660000
+    "transactions": 10,
+    "revenue": 2835000
    },
    {
     "id": "00000000-0000-4000-8e01-000000000002",
@@ -947,6 +1097,36 @@
     "name": "Sari",
     "transactions": 4,
     "revenue": 1647653.83
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000006",
+    "name": "Kasir 06",
+    "transactions": 2,
+    "revenue": 345000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000005",
+    "name": "Kasir 05",
+    "transactions": 2,
+    "revenue": 333000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000004",
+    "name": "Kasir 04",
+    "transactions": 2,
+    "revenue": 339000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000012",
+    "name": "Kasir 12",
+    "transactions": 1,
+    "revenue": 115000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000011",
+    "name": "Kasir 11",
+    "transactions": 1,
+    "revenue": 228000
    }
   ]
  },
@@ -1215,19 +1395,19 @@
  },
  "2026-11-04|7d|admin-A": {
   "net": {
-   "gross": 3923000,
-   "grossCount": 12,
+   "gross": 6126000,
+   "grossCount": 25,
    "refunds": 1320000,
    "refundedCount": 6,
-   "net": 2603000
+   "net": 4806000
   },
-  "revenue": 2603000,
-  "deltaRevenue": 603.51,
-  "orders": 11,
-  "deltaOrders": 450,
-  "aov": 288454.55,
-  "itemsSold": 20,
-  "deltaItems": 900,
+  "revenue": 4806000,
+  "deltaRevenue": 1198.92,
+  "orders": 24,
+  "deltaOrders": 1100,
+  "aov": 224000,
+  "itemsSold": 39,
+  "deltaItems": 1850,
   "customers": 3,
   "deltaCustomers": 200,
   "trend": [
@@ -1238,8 +1418,8 @@
    },
    {
     "label": "Jum",
-    "revenue": 175000,
-    "orders": 1
+    "revenue": 2203000,
+    "orders": 13
    },
    {
     "label": "Sab",
@@ -1253,8 +1433,8 @@
    },
    {
     "label": "Sen",
-    "revenue": -240000,
-    "orders": 1
+    "revenue": -65000,
+    "orders": 2
    },
    {
     "label": "Sel",
@@ -1272,7 +1452,7 @@
    {
     "method": "cash",
     "label": "Tunai",
-    "amount": 1253000
+    "amount": 3456000
    },
    {
     "method": "qris",
@@ -1292,6 +1472,11 @@
   ],
   "top": [
    {
+    "key": "00000000-0000-4000-8e03-000000000002|30ml",
+    "name": "Amber Musk 30ml",
+    "qty": 5
+   },
+   {
     "key": "00000000-0000-4000-8e03-000000000005|30ml",
     "name": "Sandal Wood 30ml",
     "qty": 5
@@ -1302,33 +1487,73 @@
     "qty": 4
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 4
-   },
-   {
     "key": "00000000-0000-4000-8e03-000000000001|30ml",
     "name": "Rose Oud 30ml",
     "qty": 4
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000006|30ml",
-    "name": "Jasmine 30ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000018|30ml",
+    "name": "Parfum Tambahan 18 30ml",
+    "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|50ml",
-    "name": "Rose Oud 50ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000016|30ml",
+    "name": "Parfum Tambahan 16 30ml",
+    "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000003|50ml",
-    "name": "Citrus Zest 50ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000014|30ml",
+    "name": "Parfum Tambahan 14 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000012|30ml",
+    "name": "Parfum Tambahan 12 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000010|30ml",
+    "name": "Parfum Tambahan 10 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000008|30ml",
+    "name": "Parfum Tambahan 08 30ml",
+    "qty": 2
    }
   ],
   "bottom": [
    {
+    "key": "00000000-0000-4000-8e03-000000000007|30ml",
+    "name": "Parfum Tambahan 07 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000009|30ml",
+    "name": "Parfum Tambahan 09 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000011|30ml",
+    "name": "Parfum Tambahan 11 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000013|30ml",
+    "name": "Parfum Tambahan 13 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000015|30ml",
+    "name": "Parfum Tambahan 15 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000017|30ml",
+    "name": "Parfum Tambahan 17 30ml",
+    "qty": 1
+   },
+   {
     "key": "00000000-0000-4000-8e03-000000000003|50ml",
     "name": "Citrus Zest 50ml",
     "qty": 1
@@ -1344,38 +1569,23 @@
     "qty": 1
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|30ml",
-    "name": "Rose Oud 30ml",
-    "qty": 4
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 4
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000004|30ml",
-    "name": "Vanilla Noir 30ml",
-    "qty": 4
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandal Wood 30ml",
-    "qty": 5
+    "key": "00000000-0000-4000-8e03-000000000008|30ml",
+    "name": "Parfum Tambahan 08 30ml",
+    "qty": 2
    }
   ],
-  "distinctProducts": 7,
+  "distinctProducts": 19,
   "promo": {
    "rows": [
     {
      "name": "Promo Rose",
-     "count": 4,
-     "amount": 70000
+     "count": 5,
+     "amount": 75000
     },
     {
      "name": "Diskon Akhir Pekan",
-     "count": 1,
-     "amount": 20000
+     "count": 2,
+     "amount": 47000
     },
     {
      "name": "Promo Belum Dipakai",
@@ -1383,8 +1593,8 @@
      "amount": 0
     }
    ],
-   "totalCount": 5,
-   "totalAmount": 90000
+   "totalCount": 7,
+   "totalAmount": 122000
   },
   "cashiers": [
    {
@@ -1396,26 +1606,62 @@
    {
     "id": "00000000-0000-4000-8e01-000000000001",
     "name": "Rina",
-    "transactions": 5,
-    "revenue": 1680000
+    "transactions": 6,
+    "revenue": 1855000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000006",
+    "name": "Kasir 06",
+    "transactions": 2,
+    "revenue": 345000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000005",
+    "name": "Kasir 05",
+    "transactions": 2,
+    "revenue": 333000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000004",
+    "name": "Kasir 04",
+    "transactions": 2,
+    "revenue": 339000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000012",
+    "name": "Kasir 12",
+    "transactions": 1,
+    "revenue": 115000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000011",
+    "name": "Kasir 11",
+    "transactions": 1,
+    "revenue": 228000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000010",
+    "name": "Kasir 10",
+    "transactions": 1,
+    "revenue": 113000
    }
   ]
  },
  "2026-11-04|30d|admin-A": {
   "net": {
-   "gross": 5843000,
-   "grossCount": 18,
+   "gross": 8046000,
+   "grossCount": 31,
    "refunds": 1850000,
    "refundedCount": 7,
-   "net": 3993000
+   "net": 6196000
   },
-  "revenue": 3993000,
-  "deltaRevenue": 1497.2,
-  "orders": 15,
-  "deltaOrders": 1400,
-  "aov": 266200,
-  "itemsSold": 25,
-  "deltaItems": 2400,
+  "revenue": 6196000,
+  "deltaRevenue": 2378.4,
+  "orders": 28,
+  "deltaOrders": 2700,
+  "aov": 221285.71,
+  "itemsSold": 44,
+  "deltaItems": 4300,
   "customers": 3,
   "deltaCustomers": 200,
   "trend": [
@@ -1541,8 +1787,8 @@
    },
    {
     "label": "30/10",
-    "revenue": 175000,
-    "orders": 1
+    "revenue": 2203000,
+    "orders": 13
    },
    {
     "label": "31/10",
@@ -1556,8 +1802,8 @@
    },
    {
     "label": "2/11",
-    "revenue": -240000,
-    "orders": 1
+    "revenue": -65000,
+    "orders": 2
    },
    {
     "label": "3/11",
@@ -1575,7 +1821,7 @@
    {
     "method": "cash",
     "label": "Tunai",
-    "amount": 2553000
+    "amount": 4756000
    },
    {
     "method": "qris",
@@ -1600,14 +1846,14 @@
     "qty": 6
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandal Wood 30ml",
+    "key": "00000000-0000-4000-8e03-000000000002|30ml",
+    "name": "Amber Musk 30ml",
     "qty": 6
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 5
+    "key": "00000000-0000-4000-8e03-000000000005|30ml",
+    "name": "Sandal Wood 30ml",
+    "qty": 6
    },
    {
     "key": "00000000-0000-4000-8e03-000000000001|30ml",
@@ -1620,18 +1866,63 @@
     "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000006|30ml",
-    "name": "Jasmine 30ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000018|30ml",
+    "name": "Parfum Tambahan 18 30ml",
+    "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000003|50ml",
-    "name": "Citrus Zest 50ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000016|30ml",
+    "name": "Parfum Tambahan 16 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000014|30ml",
+    "name": "Parfum Tambahan 14 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000012|30ml",
+    "name": "Parfum Tambahan 12 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000010|30ml",
+    "name": "Parfum Tambahan 10 30ml",
+    "qty": 2
    }
   ],
   "bottom": [
    {
+    "key": "00000000-0000-4000-8e03-000000000007|30ml",
+    "name": "Parfum Tambahan 07 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000009|30ml",
+    "name": "Parfum Tambahan 09 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000011|30ml",
+    "name": "Parfum Tambahan 11 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000013|30ml",
+    "name": "Parfum Tambahan 13 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000015|30ml",
+    "name": "Parfum Tambahan 15 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000017|30ml",
+    "name": "Parfum Tambahan 17 30ml",
+    "qty": 1
+   },
+   {
     "key": "00000000-0000-4000-8e03-000000000003|50ml",
     "name": "Citrus Zest 50ml",
     "qty": 1
@@ -1642,43 +1933,28 @@
     "qty": 1
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|50ml",
-    "name": "Rose Oud 50ml",
+    "key": "00000000-0000-4000-8e03-000000000008|30ml",
+    "name": "Parfum Tambahan 08 30ml",
     "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|30ml",
-    "name": "Rose Oud 30ml",
-    "qty": 4
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 5
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandal Wood 30ml",
-    "qty": 6
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000004|30ml",
-    "name": "Vanilla Noir 30ml",
-    "qty": 6
+    "key": "00000000-0000-4000-8e03-000000000010|30ml",
+    "name": "Parfum Tambahan 10 30ml",
+    "qty": 2
    }
   ],
-  "distinctProducts": 7,
+  "distinctProducts": 19,
   "promo": {
    "rows": [
     {
      "name": "Promo Rose",
-     "count": 4,
-     "amount": 70000
+     "count": 5,
+     "amount": 75000
     },
     {
      "name": "Diskon Akhir Pekan",
-     "count": 1,
-     "amount": 20000
+     "count": 2,
+     "amount": 47000
     },
     {
      "name": "Promo Belum Dipakai",
@@ -1686,38 +1962,74 @@
      "amount": 0
     }
    ],
-   "totalCount": 5,
-   "totalAmount": 90000
+   "totalCount": 7,
+   "totalAmount": 122000
   },
   "cashiers": [
    {
     "id": "00000000-0000-4000-8e01-000000000001",
     "name": "Rina",
-    "transactions": 8,
-    "revenue": 2410000
+    "transactions": 9,
+    "revenue": 2585000
    },
    {
     "id": "00000000-0000-4000-8e01-000000000002",
     "name": "Budi",
     "transactions": 7,
     "revenue": 1583000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000006",
+    "name": "Kasir 06",
+    "transactions": 2,
+    "revenue": 345000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000005",
+    "name": "Kasir 05",
+    "transactions": 2,
+    "revenue": 333000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000004",
+    "name": "Kasir 04",
+    "transactions": 2,
+    "revenue": 339000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000012",
+    "name": "Kasir 12",
+    "transactions": 1,
+    "revenue": 115000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000011",
+    "name": "Kasir 11",
+    "transactions": 1,
+    "revenue": 228000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000010",
+    "name": "Kasir 10",
+    "transactions": 1,
+    "revenue": 113000
    }
   ]
  },
  "2026-11-04|all|admin-A": {
   "net": {
-   "gross": 6093000,
-   "grossCount": 19,
+   "gross": 8296000,
+   "grossCount": 32,
    "refunds": 1850000,
    "refundedCount": 7,
-   "net": 4243000
+   "net": 6446000
   },
-  "revenue": 4243000,
+  "revenue": 6446000,
   "deltaRevenue": null,
-  "orders": 16,
+  "orders": 29,
   "deltaOrders": null,
-  "aov": 265187.5,
-  "itemsSold": 26,
+  "aov": 222275.86,
+  "itemsSold": 45,
   "deltaItems": null,
   "customers": 3,
   "deltaCustomers": null,
@@ -1729,13 +2041,13 @@
    },
    {
     "label": "Okt 26",
-    "revenue": 2008000,
-    "orders": 9
+    "revenue": 4036000,
+    "orders": 21
    },
    {
     "label": "Nov 26",
-    "revenue": 1985000,
-    "orders": 9
+    "revenue": 2160000,
+    "orders": 10
    }
   ],
   "trendEmpty": false,
@@ -1743,7 +2055,7 @@
    {
     "method": "cash",
     "label": "Tunai",
-    "amount": 2803000
+    "amount": 5006000
    },
    {
     "method": "qris",
@@ -1768,14 +2080,14 @@
     "qty": 6
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandal Wood 30ml",
+    "key": "00000000-0000-4000-8e03-000000000002|30ml",
+    "name": "Amber Musk 30ml",
     "qty": 6
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 5
+    "key": "00000000-0000-4000-8e03-000000000005|30ml",
+    "name": "Sandal Wood 30ml",
+    "qty": 6
    },
    {
     "key": "00000000-0000-4000-8e03-000000000001|30ml",
@@ -1788,18 +2100,63 @@
     "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000006|30ml",
-    "name": "Jasmine 30ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000018|30ml",
+    "name": "Parfum Tambahan 18 30ml",
+    "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000003|50ml",
-    "name": "Citrus Zest 50ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000016|30ml",
+    "name": "Parfum Tambahan 16 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000014|30ml",
+    "name": "Parfum Tambahan 14 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000012|30ml",
+    "name": "Parfum Tambahan 12 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000010|30ml",
+    "name": "Parfum Tambahan 10 30ml",
+    "qty": 2
    }
   ],
   "bottom": [
    {
+    "key": "00000000-0000-4000-8e03-000000000007|30ml",
+    "name": "Parfum Tambahan 07 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000009|30ml",
+    "name": "Parfum Tambahan 09 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000011|30ml",
+    "name": "Parfum Tambahan 11 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000013|30ml",
+    "name": "Parfum Tambahan 13 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000015|30ml",
+    "name": "Parfum Tambahan 15 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000017|30ml",
+    "name": "Parfum Tambahan 17 30ml",
+    "qty": 1
+   },
+   {
     "key": "00000000-0000-4000-8e03-000000000003|50ml",
     "name": "Citrus Zest 50ml",
     "qty": 1
@@ -1810,43 +2167,28 @@
     "qty": 1
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|50ml",
-    "name": "Rose Oud 50ml",
+    "key": "00000000-0000-4000-8e03-000000000008|30ml",
+    "name": "Parfum Tambahan 08 30ml",
     "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|30ml",
-    "name": "Rose Oud 30ml",
-    "qty": 5
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 5
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandal Wood 30ml",
-    "qty": 6
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000004|30ml",
-    "name": "Vanilla Noir 30ml",
-    "qty": 6
+    "key": "00000000-0000-4000-8e03-000000000010|30ml",
+    "name": "Parfum Tambahan 10 30ml",
+    "qty": 2
    }
   ],
-  "distinctProducts": 7,
+  "distinctProducts": 19,
   "promo": {
    "rows": [
     {
      "name": "Promo Rose",
-     "count": 4,
-     "amount": 70000
+     "count": 5,
+     "amount": 75000
     },
     {
      "name": "Diskon Akhir Pekan",
-     "count": 1,
-     "amount": 20000
+     "count": 2,
+     "amount": 47000
     },
     {
      "name": "Promo Belum Dipakai",
@@ -1854,21 +2196,57 @@
      "amount": 0
     }
    ],
-   "totalCount": 5,
-   "totalAmount": 90000
+   "totalCount": 7,
+   "totalAmount": 122000
   },
   "cashiers": [
    {
     "id": "00000000-0000-4000-8e01-000000000001",
     "name": "Rina",
-    "transactions": 9,
-    "revenue": 2660000
+    "transactions": 10,
+    "revenue": 2835000
    },
    {
     "id": "00000000-0000-4000-8e01-000000000002",
     "name": "Budi",
     "transactions": 7,
     "revenue": 1583000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000006",
+    "name": "Kasir 06",
+    "transactions": 2,
+    "revenue": 345000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000005",
+    "name": "Kasir 05",
+    "transactions": 2,
+    "revenue": 333000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000004",
+    "name": "Kasir 04",
+    "transactions": 2,
+    "revenue": 339000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000012",
+    "name": "Kasir 12",
+    "transactions": 1,
+    "revenue": 115000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000011",
+    "name": "Kasir 11",
+    "transactions": 1,
+    "revenue": 228000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000010",
+    "name": "Kasir 10",
+    "transactions": 1,
+    "revenue": 113000
    }
   ]
  },
@@ -2835,19 +3213,19 @@
  },
  "2026-11-04|7d|cashier-A": {
   "net": {
-   "gross": 3923000,
-   "grossCount": 12,
+   "gross": 6126000,
+   "grossCount": 25,
    "refunds": 1320000,
    "refundedCount": 6,
-   "net": 2603000
+   "net": 4806000
   },
-  "revenue": 2603000,
-  "deltaRevenue": 603.51,
-  "orders": 11,
-  "deltaOrders": 450,
-  "aov": 288454.55,
-  "itemsSold": 20,
-  "deltaItems": 900,
+  "revenue": 4806000,
+  "deltaRevenue": 1198.92,
+  "orders": 24,
+  "deltaOrders": 1100,
+  "aov": 224000,
+  "itemsSold": 39,
+  "deltaItems": 1850,
   "customers": 3,
   "deltaCustomers": 200,
   "trend": [
@@ -2858,8 +3236,8 @@
    },
    {
     "label": "Jum",
-    "revenue": 175000,
-    "orders": 1
+    "revenue": 2203000,
+    "orders": 13
    },
    {
     "label": "Sab",
@@ -2873,8 +3251,8 @@
    },
    {
     "label": "Sen",
-    "revenue": -240000,
-    "orders": 1
+    "revenue": -65000,
+    "orders": 2
    },
    {
     "label": "Sel",
@@ -2892,7 +3270,7 @@
    {
     "method": "cash",
     "label": "Tunai",
-    "amount": 1253000
+    "amount": 3456000
    },
    {
     "method": "qris",
@@ -2912,6 +3290,11 @@
   ],
   "top": [
    {
+    "key": "00000000-0000-4000-8e03-000000000002|30ml",
+    "name": "Amber Musk 30ml",
+    "qty": 5
+   },
+   {
     "key": "00000000-0000-4000-8e03-000000000005|30ml",
     "name": "Sandal Wood 30ml",
     "qty": 5
@@ -2922,33 +3305,73 @@
     "qty": 4
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 4
-   },
-   {
     "key": "00000000-0000-4000-8e03-000000000001|30ml",
     "name": "Rose Oud 30ml",
     "qty": 4
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000006|30ml",
-    "name": "Jasmine 30ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000018|30ml",
+    "name": "Parfum Tambahan 18 30ml",
+    "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|50ml",
-    "name": "Rose Oud 50ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000016|30ml",
+    "name": "Parfum Tambahan 16 30ml",
+    "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000003|50ml",
-    "name": "Citrus Zest 50ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000014|30ml",
+    "name": "Parfum Tambahan 14 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000012|30ml",
+    "name": "Parfum Tambahan 12 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000010|30ml",
+    "name": "Parfum Tambahan 10 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000008|30ml",
+    "name": "Parfum Tambahan 08 30ml",
+    "qty": 2
    }
   ],
   "bottom": [
    {
+    "key": "00000000-0000-4000-8e03-000000000007|30ml",
+    "name": "Parfum Tambahan 07 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000009|30ml",
+    "name": "Parfum Tambahan 09 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000011|30ml",
+    "name": "Parfum Tambahan 11 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000013|30ml",
+    "name": "Parfum Tambahan 13 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000015|30ml",
+    "name": "Parfum Tambahan 15 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000017|30ml",
+    "name": "Parfum Tambahan 17 30ml",
+    "qty": 1
+   },
+   {
     "key": "00000000-0000-4000-8e03-000000000003|50ml",
     "name": "Citrus Zest 50ml",
     "qty": 1
@@ -2964,38 +3387,23 @@
     "qty": 1
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|30ml",
-    "name": "Rose Oud 30ml",
-    "qty": 4
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 4
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000004|30ml",
-    "name": "Vanilla Noir 30ml",
-    "qty": 4
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandal Wood 30ml",
-    "qty": 5
+    "key": "00000000-0000-4000-8e03-000000000008|30ml",
+    "name": "Parfum Tambahan 08 30ml",
+    "qty": 2
    }
   ],
-  "distinctProducts": 7,
+  "distinctProducts": 19,
   "promo": {
    "rows": [
     {
      "name": "Promo Rose",
-     "count": 4,
-     "amount": 70000
+     "count": 5,
+     "amount": 75000
     },
     {
      "name": "Diskon Akhir Pekan",
-     "count": 1,
-     "amount": 20000
+     "count": 2,
+     "amount": 47000
     },
     {
      "name": "Promo Belum Dipakai",
@@ -3003,8 +3411,8 @@
      "amount": 0
     }
    ],
-   "totalCount": 5,
-   "totalAmount": 90000
+   "totalCount": 7,
+   "totalAmount": 122000
   },
   "cashiers": [
    {
@@ -3016,26 +3424,62 @@
    {
     "id": "00000000-0000-4000-8e01-000000000001",
     "name": "Rina",
-    "transactions": 5,
-    "revenue": 1680000
+    "transactions": 6,
+    "revenue": 1855000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000006",
+    "name": "Kasir 06",
+    "transactions": 2,
+    "revenue": 345000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000005",
+    "name": "Kasir 05",
+    "transactions": 2,
+    "revenue": 333000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000004",
+    "name": "Kasir 04",
+    "transactions": 2,
+    "revenue": 339000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000012",
+    "name": "Kasir 12",
+    "transactions": 1,
+    "revenue": 115000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000011",
+    "name": "Kasir 11",
+    "transactions": 1,
+    "revenue": 228000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000010",
+    "name": "Kasir 10",
+    "transactions": 1,
+    "revenue": 113000
    }
   ]
  },
  "2026-11-04|30d|cashier-A": {
   "net": {
-   "gross": 5843000,
-   "grossCount": 18,
+   "gross": 8046000,
+   "grossCount": 31,
    "refunds": 1850000,
    "refundedCount": 7,
-   "net": 3993000
+   "net": 6196000
   },
-  "revenue": 3993000,
-  "deltaRevenue": 1497.2,
-  "orders": 15,
-  "deltaOrders": 1400,
-  "aov": 266200,
-  "itemsSold": 25,
-  "deltaItems": 2400,
+  "revenue": 6196000,
+  "deltaRevenue": 2378.4,
+  "orders": 28,
+  "deltaOrders": 2700,
+  "aov": 221285.71,
+  "itemsSold": 44,
+  "deltaItems": 4300,
   "customers": 3,
   "deltaCustomers": 200,
   "trend": [
@@ -3161,8 +3605,8 @@
    },
    {
     "label": "30/10",
-    "revenue": 175000,
-    "orders": 1
+    "revenue": 2203000,
+    "orders": 13
    },
    {
     "label": "31/10",
@@ -3176,8 +3620,8 @@
    },
    {
     "label": "2/11",
-    "revenue": -240000,
-    "orders": 1
+    "revenue": -65000,
+    "orders": 2
    },
    {
     "label": "3/11",
@@ -3195,7 +3639,7 @@
    {
     "method": "cash",
     "label": "Tunai",
-    "amount": 2553000
+    "amount": 4756000
    },
    {
     "method": "qris",
@@ -3220,14 +3664,14 @@
     "qty": 6
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandal Wood 30ml",
+    "key": "00000000-0000-4000-8e03-000000000002|30ml",
+    "name": "Amber Musk 30ml",
     "qty": 6
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 5
+    "key": "00000000-0000-4000-8e03-000000000005|30ml",
+    "name": "Sandal Wood 30ml",
+    "qty": 6
    },
    {
     "key": "00000000-0000-4000-8e03-000000000001|30ml",
@@ -3240,18 +3684,63 @@
     "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000006|30ml",
-    "name": "Jasmine 30ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000018|30ml",
+    "name": "Parfum Tambahan 18 30ml",
+    "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000003|50ml",
-    "name": "Citrus Zest 50ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000016|30ml",
+    "name": "Parfum Tambahan 16 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000014|30ml",
+    "name": "Parfum Tambahan 14 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000012|30ml",
+    "name": "Parfum Tambahan 12 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000010|30ml",
+    "name": "Parfum Tambahan 10 30ml",
+    "qty": 2
    }
   ],
   "bottom": [
    {
+    "key": "00000000-0000-4000-8e03-000000000007|30ml",
+    "name": "Parfum Tambahan 07 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000009|30ml",
+    "name": "Parfum Tambahan 09 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000011|30ml",
+    "name": "Parfum Tambahan 11 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000013|30ml",
+    "name": "Parfum Tambahan 13 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000015|30ml",
+    "name": "Parfum Tambahan 15 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000017|30ml",
+    "name": "Parfum Tambahan 17 30ml",
+    "qty": 1
+   },
+   {
     "key": "00000000-0000-4000-8e03-000000000003|50ml",
     "name": "Citrus Zest 50ml",
     "qty": 1
@@ -3262,43 +3751,28 @@
     "qty": 1
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|50ml",
-    "name": "Rose Oud 50ml",
+    "key": "00000000-0000-4000-8e03-000000000008|30ml",
+    "name": "Parfum Tambahan 08 30ml",
     "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|30ml",
-    "name": "Rose Oud 30ml",
-    "qty": 4
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 5
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandal Wood 30ml",
-    "qty": 6
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000004|30ml",
-    "name": "Vanilla Noir 30ml",
-    "qty": 6
+    "key": "00000000-0000-4000-8e03-000000000010|30ml",
+    "name": "Parfum Tambahan 10 30ml",
+    "qty": 2
    }
   ],
-  "distinctProducts": 7,
+  "distinctProducts": 19,
   "promo": {
    "rows": [
     {
      "name": "Promo Rose",
-     "count": 4,
-     "amount": 70000
+     "count": 5,
+     "amount": 75000
     },
     {
      "name": "Diskon Akhir Pekan",
-     "count": 1,
-     "amount": 20000
+     "count": 2,
+     "amount": 47000
     },
     {
      "name": "Promo Belum Dipakai",
@@ -3306,38 +3780,74 @@
      "amount": 0
     }
    ],
-   "totalCount": 5,
-   "totalAmount": 90000
+   "totalCount": 7,
+   "totalAmount": 122000
   },
   "cashiers": [
    {
     "id": "00000000-0000-4000-8e01-000000000001",
     "name": "Rina",
-    "transactions": 8,
-    "revenue": 2410000
+    "transactions": 9,
+    "revenue": 2585000
    },
    {
     "id": "00000000-0000-4000-8e01-000000000002",
     "name": "Budi",
     "transactions": 7,
     "revenue": 1583000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000006",
+    "name": "Kasir 06",
+    "transactions": 2,
+    "revenue": 345000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000005",
+    "name": "Kasir 05",
+    "transactions": 2,
+    "revenue": 333000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000004",
+    "name": "Kasir 04",
+    "transactions": 2,
+    "revenue": 339000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000012",
+    "name": "Kasir 12",
+    "transactions": 1,
+    "revenue": 115000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000011",
+    "name": "Kasir 11",
+    "transactions": 1,
+    "revenue": 228000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000010",
+    "name": "Kasir 10",
+    "transactions": 1,
+    "revenue": 113000
    }
   ]
  },
  "2026-11-04|all|cashier-A": {
   "net": {
-   "gross": 6093000,
-   "grossCount": 19,
+   "gross": 8296000,
+   "grossCount": 32,
    "refunds": 1850000,
    "refundedCount": 7,
-   "net": 4243000
+   "net": 6446000
   },
-  "revenue": 4243000,
+  "revenue": 6446000,
   "deltaRevenue": null,
-  "orders": 16,
+  "orders": 29,
   "deltaOrders": null,
-  "aov": 265187.5,
-  "itemsSold": 26,
+  "aov": 222275.86,
+  "itemsSold": 45,
   "deltaItems": null,
   "customers": 3,
   "deltaCustomers": null,
@@ -3349,13 +3859,13 @@
    },
    {
     "label": "Okt 26",
-    "revenue": 2008000,
-    "orders": 9
+    "revenue": 4036000,
+    "orders": 21
    },
    {
     "label": "Nov 26",
-    "revenue": 1985000,
-    "orders": 9
+    "revenue": 2160000,
+    "orders": 10
    }
   ],
   "trendEmpty": false,
@@ -3363,7 +3873,7 @@
    {
     "method": "cash",
     "label": "Tunai",
-    "amount": 2803000
+    "amount": 5006000
    },
    {
     "method": "qris",
@@ -3388,14 +3898,14 @@
     "qty": 6
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandal Wood 30ml",
+    "key": "00000000-0000-4000-8e03-000000000002|30ml",
+    "name": "Amber Musk 30ml",
     "qty": 6
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 5
+    "key": "00000000-0000-4000-8e03-000000000005|30ml",
+    "name": "Sandal Wood 30ml",
+    "qty": 6
    },
    {
     "key": "00000000-0000-4000-8e03-000000000001|30ml",
@@ -3408,18 +3918,63 @@
     "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000006|30ml",
-    "name": "Jasmine 30ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000018|30ml",
+    "name": "Parfum Tambahan 18 30ml",
+    "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000003|50ml",
-    "name": "Citrus Zest 50ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000016|30ml",
+    "name": "Parfum Tambahan 16 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000014|30ml",
+    "name": "Parfum Tambahan 14 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000012|30ml",
+    "name": "Parfum Tambahan 12 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000010|30ml",
+    "name": "Parfum Tambahan 10 30ml",
+    "qty": 2
    }
   ],
   "bottom": [
    {
+    "key": "00000000-0000-4000-8e03-000000000007|30ml",
+    "name": "Parfum Tambahan 07 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000009|30ml",
+    "name": "Parfum Tambahan 09 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000011|30ml",
+    "name": "Parfum Tambahan 11 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000013|30ml",
+    "name": "Parfum Tambahan 13 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000015|30ml",
+    "name": "Parfum Tambahan 15 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000017|30ml",
+    "name": "Parfum Tambahan 17 30ml",
+    "qty": 1
+   },
+   {
     "key": "00000000-0000-4000-8e03-000000000003|50ml",
     "name": "Citrus Zest 50ml",
     "qty": 1
@@ -3430,43 +3985,28 @@
     "qty": 1
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|50ml",
-    "name": "Rose Oud 50ml",
+    "key": "00000000-0000-4000-8e03-000000000008|30ml",
+    "name": "Parfum Tambahan 08 30ml",
     "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|30ml",
-    "name": "Rose Oud 30ml",
-    "qty": 5
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 5
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandal Wood 30ml",
-    "qty": 6
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000004|30ml",
-    "name": "Vanilla Noir 30ml",
-    "qty": 6
+    "key": "00000000-0000-4000-8e03-000000000010|30ml",
+    "name": "Parfum Tambahan 10 30ml",
+    "qty": 2
    }
   ],
-  "distinctProducts": 7,
+  "distinctProducts": 19,
   "promo": {
    "rows": [
     {
      "name": "Promo Rose",
-     "count": 4,
-     "amount": 70000
+     "count": 5,
+     "amount": 75000
     },
     {
      "name": "Diskon Akhir Pekan",
-     "count": 1,
-     "amount": 20000
+     "count": 2,
+     "amount": 47000
     },
     {
      "name": "Promo Belum Dipakai",
@@ -3474,39 +4014,75 @@
      "amount": 0
     }
    ],
-   "totalCount": 5,
-   "totalAmount": 90000
+   "totalCount": 7,
+   "totalAmount": 122000
   },
   "cashiers": [
    {
     "id": "00000000-0000-4000-8e01-000000000001",
     "name": "Rina",
-    "transactions": 9,
-    "revenue": 2660000
+    "transactions": 10,
+    "revenue": 2835000
    },
    {
     "id": "00000000-0000-4000-8e01-000000000002",
     "name": "Budi",
     "transactions": 7,
     "revenue": 1583000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000006",
+    "name": "Kasir 06",
+    "transactions": 2,
+    "revenue": 345000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000005",
+    "name": "Kasir 05",
+    "transactions": 2,
+    "revenue": 333000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000004",
+    "name": "Kasir 04",
+    "transactions": 2,
+    "revenue": 339000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000012",
+    "name": "Kasir 12",
+    "transactions": 1,
+    "revenue": 115000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000011",
+    "name": "Kasir 11",
+    "transactions": 1,
+    "revenue": 228000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000010",
+    "name": "Kasir 10",
+    "transactions": 1,
+    "revenue": 113000
    }
   ]
  },
  "2026-11-04|7d|cashier-A-foreign": {
   "net": {
-   "gross": 3923000,
-   "grossCount": 12,
+   "gross": 6126000,
+   "grossCount": 25,
    "refunds": 1320000,
    "refundedCount": 6,
-   "net": 2603000
+   "net": 4806000
   },
-  "revenue": 2603000,
-  "deltaRevenue": 603.51,
-  "orders": 11,
-  "deltaOrders": 450,
-  "aov": 288454.55,
-  "itemsSold": 20,
-  "deltaItems": 900,
+  "revenue": 4806000,
+  "deltaRevenue": 1198.92,
+  "orders": 24,
+  "deltaOrders": 1100,
+  "aov": 224000,
+  "itemsSold": 39,
+  "deltaItems": 1850,
   "customers": 3,
   "deltaCustomers": 200,
   "trend": [
@@ -3517,8 +4093,8 @@
    },
    {
     "label": "Jum",
-    "revenue": 175000,
-    "orders": 1
+    "revenue": 2203000,
+    "orders": 13
    },
    {
     "label": "Sab",
@@ -3532,8 +4108,8 @@
    },
    {
     "label": "Sen",
-    "revenue": -240000,
-    "orders": 1
+    "revenue": -65000,
+    "orders": 2
    },
    {
     "label": "Sel",
@@ -3551,7 +4127,7 @@
    {
     "method": "cash",
     "label": "Tunai",
-    "amount": 1253000
+    "amount": 3456000
    },
    {
     "method": "qris",
@@ -3571,6 +4147,11 @@
   ],
   "top": [
    {
+    "key": "00000000-0000-4000-8e03-000000000002|30ml",
+    "name": "Amber Musk 30ml",
+    "qty": 5
+   },
+   {
     "key": "00000000-0000-4000-8e03-000000000005|30ml",
     "name": "Sandal Wood 30ml",
     "qty": 5
@@ -3581,33 +4162,73 @@
     "qty": 4
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 4
-   },
-   {
     "key": "00000000-0000-4000-8e03-000000000001|30ml",
     "name": "Rose Oud 30ml",
     "qty": 4
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000006|30ml",
-    "name": "Jasmine 30ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000018|30ml",
+    "name": "Parfum Tambahan 18 30ml",
+    "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|50ml",
-    "name": "Rose Oud 50ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000016|30ml",
+    "name": "Parfum Tambahan 16 30ml",
+    "qty": 2
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000003|50ml",
-    "name": "Citrus Zest 50ml",
-    "qty": 1
+    "key": "00000000-0000-4000-8e03-000000000014|30ml",
+    "name": "Parfum Tambahan 14 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000012|30ml",
+    "name": "Parfum Tambahan 12 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000010|30ml",
+    "name": "Parfum Tambahan 10 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000008|30ml",
+    "name": "Parfum Tambahan 08 30ml",
+    "qty": 2
    }
   ],
   "bottom": [
    {
+    "key": "00000000-0000-4000-8e03-000000000007|30ml",
+    "name": "Parfum Tambahan 07 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000009|30ml",
+    "name": "Parfum Tambahan 09 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000011|30ml",
+    "name": "Parfum Tambahan 11 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000013|30ml",
+    "name": "Parfum Tambahan 13 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000015|30ml",
+    "name": "Parfum Tambahan 15 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000017|30ml",
+    "name": "Parfum Tambahan 17 30ml",
+    "qty": 1
+   },
+   {
     "key": "00000000-0000-4000-8e03-000000000003|50ml",
     "name": "Citrus Zest 50ml",
     "qty": 1
@@ -3623,38 +4244,23 @@
     "qty": 1
    },
    {
-    "key": "00000000-0000-4000-8e03-000000000001|30ml",
-    "name": "Rose Oud 30ml",
-    "qty": 4
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 4
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000004|30ml",
-    "name": "Vanilla Noir 30ml",
-    "qty": 4
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandal Wood 30ml",
-    "qty": 5
+    "key": "00000000-0000-4000-8e03-000000000008|30ml",
+    "name": "Parfum Tambahan 08 30ml",
+    "qty": 2
    }
   ],
-  "distinctProducts": 7,
+  "distinctProducts": 19,
   "promo": {
    "rows": [
     {
      "name": "Promo Rose",
-     "count": 4,
-     "amount": 70000
+     "count": 5,
+     "amount": 75000
     },
     {
      "name": "Diskon Akhir Pekan",
-     "count": 1,
-     "amount": 20000
+     "count": 2,
+     "amount": 47000
     },
     {
      "name": "Promo Belum Dipakai",
@@ -3662,8 +4268,8 @@
      "amount": 0
     }
    ],
-   "totalCount": 5,
-   "totalAmount": 90000
+   "totalCount": 7,
+   "totalAmount": 122000
   },
   "cashiers": [
    {
@@ -3675,26 +4281,62 @@
    {
     "id": "00000000-0000-4000-8e01-000000000001",
     "name": "Rina",
-    "transactions": 5,
-    "revenue": 1680000
+    "transactions": 6,
+    "revenue": 1855000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000006",
+    "name": "Kasir 06",
+    "transactions": 2,
+    "revenue": 345000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000005",
+    "name": "Kasir 05",
+    "transactions": 2,
+    "revenue": 333000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000004",
+    "name": "Kasir 04",
+    "transactions": 2,
+    "revenue": 339000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000012",
+    "name": "Kasir 12",
+    "transactions": 1,
+    "revenue": 115000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000011",
+    "name": "Kasir 11",
+    "transactions": 1,
+    "revenue": 228000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000010",
+    "name": "Kasir 10",
+    "transactions": 1,
+    "revenue": 113000
    }
   ]
  },
  "2026-11-02|today|admin-all": {
   "net": {
-   "gross": 360000,
-   "grossCount": 1,
+   "gross": 535000,
+   "grossCount": 2,
    "refunds": 600000,
    "refundedCount": 2,
-   "net": -240000
+   "net": -65000
   },
-  "revenue": -240000,
-  "deltaRevenue": -185.71,
-  "orders": 1,
-  "deltaOrders": 0,
-  "aov": 180000,
-  "itemsSold": 1,
-  "deltaItems": 0,
+  "revenue": -65000,
+  "deltaRevenue": -123.21,
+  "orders": 2,
+  "deltaOrders": 100,
+  "aov": 177500,
+  "itemsSold": 2,
+  "deltaItems": 100,
   "customers": 0,
   "deltaCustomers": -100,
   "trend": [
@@ -3745,8 +4387,8 @@
    },
    {
     "label": "09",
-    "revenue": 0,
-    "orders": 0
+    "revenue": 175000,
+    "orders": 1
    },
    {
     "label": "10",
@@ -3829,191 +4471,24 @@
    {
     "method": "cash",
     "label": "Tunai",
-    "amount": -250000
+    "amount": -75000
    }
   ],
   "top": [
    {
     "key": "00000000-0000-4000-8e03-000000000002|30ml",
     "name": "Amber Musk 30ml",
-    "qty": 1
+    "qty": 2
    }
   ],
   "bottom": [
    {
     "key": "00000000-0000-4000-8e03-000000000002|30ml",
     "name": "Amber Musk 30ml",
-    "qty": 1
+    "qty": 2
    }
   ],
   "distinctProducts": 1,
-  "promo": {
-   "rows": [
-    {
-     "name": "Promo Rose",
-     "count": 0,
-     "amount": 0
-    },
-    {
-     "name": "Diskon Akhir Pekan",
-     "count": 0,
-     "amount": 0
-    },
-    {
-     "name": "Promo Belum Dipakai",
-     "count": 0,
-     "amount": 0
-    }
-   ],
-   "totalCount": 0,
-   "totalAmount": 0
-  },
-  "cashiers": [
-   {
-    "id": "00000000-0000-4000-8e01-000000000002",
-    "name": "Budi",
-    "transactions": 1,
-    "revenue": 180000
-   }
-  ]
- },
- "2026-11-02|7d|admin-all": {
-  "net": {
-   "gross": 2098000,
-   "grossCount": 7,
-   "refunds": 970000.5,
-   "refundedCount": 4,
-   "net": 1127999.5
-  },
-  "revenue": 1127999.5,
-  "deltaRevenue": 150.67,
-  "orders": 7,
-  "deltaOrders": 600,
-  "aov": 216857.07,
-  "itemsSold": 10,
-  "deltaItems": 900,
-  "customers": 1,
-  "deltaCustomers": 0,
-  "trend": [
-   {
-    "label": "Sel",
-    "revenue": 369999.5,
-    "orders": 1
-   },
-   {
-    "label": "Rab",
-    "revenue": 100000,
-    "orders": 1
-   },
-   {
-    "label": "Kam",
-    "revenue": 200000,
-    "orders": 1
-   },
-   {
-    "label": "Jum",
-    "revenue": 175000,
-    "orders": 1
-   },
-   {
-    "label": "Sab",
-    "revenue": 243000,
-    "orders": 1
-   },
-   {
-    "label": "Min",
-    "revenue": 280000,
-    "orders": 1
-   },
-   {
-    "label": "Sen",
-    "revenue": -240000,
-    "orders": 1
-   }
-  ],
-  "trendEmpty": false,
-  "pay": [
-   {
-    "method": "qris",
-    "label": "QRIS",
-    "amount": 510000
-   },
-   {
-    "method": "card",
-    "label": "Kartu",
-    "amount": 369999.5
-   },
-   {
-    "method": "cash",
-    "label": "Tunai",
-    "amount": 248000
-   }
-  ],
-  "top": [
-   {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandalwood 30ml",
-    "qty": 3
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000004|30ml",
-    "name": "Vanilla Noir 30ml",
-    "qty": 3
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 2
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000001|30ml",
-    "name": "Rose Oud 30ml",
-    "qty": 1
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000003|50ml",
-    "name": "Citrus Zest 50ml",
-    "qty": 1
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000006|30ml",
-    "name": "Jasmine 30ml",
-    "qty": 0
-   }
-  ],
-  "bottom": [
-   {
-    "key": "00000000-0000-4000-8e03-000000000006|30ml",
-    "name": "Jasmine 30ml",
-    "qty": 0
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000003|50ml",
-    "name": "Citrus Zest 50ml",
-    "qty": 1
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000001|30ml",
-    "name": "Rose Oud 30ml",
-    "qty": 1
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000002|30ml",
-    "name": "Amber Musk 30ml",
-    "qty": 2
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000004|30ml",
-    "name": "Vanilla Noir 30ml",
-    "qty": 3
-   },
-   {
-    "key": "00000000-0000-4000-8e03-000000000005|30ml",
-    "name": "Sandalwood 30ml",
-    "qty": 3
-   }
-  ],
-  "distinctProducts": 6,
   "promo": {
    "rows": [
     {
@@ -4039,20 +4514,263 @@
    {
     "id": "00000000-0000-4000-8e01-000000000002",
     "name": "Budi",
-    "transactions": 3,
-    "revenue": 623000
+    "transactions": 1,
+    "revenue": 180000
    },
    {
     "id": "00000000-0000-4000-8e01-000000000001",
     "name": "Rina",
-    "transactions": 3,
-    "revenue": 525000
+    "transactions": 1,
+    "revenue": 175000
+   }
+  ]
+ },
+ "2026-11-02|7d|admin-all": {
+  "net": {
+   "gross": 4301000,
+   "grossCount": 20,
+   "refunds": 970000.5,
+   "refundedCount": 4,
+   "net": 3330999.5
+  },
+  "revenue": 3330999.5,
+  "deltaRevenue": 640.22,
+  "orders": 20,
+  "deltaOrders": 1900,
+  "aov": 186049.98,
+  "itemsSold": 29,
+  "deltaItems": 2800,
+  "customers": 1,
+  "deltaCustomers": 0,
+  "trend": [
+   {
+    "label": "Sel",
+    "revenue": 369999.5,
+    "orders": 1
    },
    {
-    "id": "00000000-0000-4000-8e01-000000000003",
-    "name": "Sari",
+    "label": "Rab",
+    "revenue": 100000,
+    "orders": 1
+   },
+   {
+    "label": "Kam",
+    "revenue": 200000,
+    "orders": 1
+   },
+   {
+    "label": "Jum",
+    "revenue": 2203000,
+    "orders": 13
+   },
+   {
+    "label": "Sab",
+    "revenue": 243000,
+    "orders": 1
+   },
+   {
+    "label": "Min",
+    "revenue": 280000,
+    "orders": 1
+   },
+   {
+    "label": "Sen",
+    "revenue": -65000,
+    "orders": 2
+   }
+  ],
+  "trendEmpty": false,
+  "pay": [
+   {
+    "method": "cash",
+    "label": "Tunai",
+    "amount": 2451000
+   },
+   {
+    "method": "qris",
+    "label": "QRIS",
+    "amount": 510000
+   },
+   {
+    "method": "card",
+    "label": "Kartu",
+    "amount": 369999.5
+   }
+  ],
+  "top": [
+   {
+    "key": "00000000-0000-4000-8e03-000000000002|30ml",
+    "name": "Amber Musk 30ml",
+    "qty": 3
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000005|30ml",
+    "name": "Sandalwood 30ml",
+    "qty": 3
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000004|30ml",
+    "name": "Vanilla Noir 30ml",
+    "qty": 3
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000018|30ml",
+    "name": "Parfum Tambahan 18 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000016|30ml",
+    "name": "Parfum Tambahan 16 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000014|30ml",
+    "name": "Parfum Tambahan 14 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000012|30ml",
+    "name": "Parfum Tambahan 12 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000010|30ml",
+    "name": "Parfum Tambahan 10 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000008|30ml",
+    "name": "Parfum Tambahan 08 30ml",
+    "qty": 2
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000001|30ml",
+    "name": "Rose Oud 30ml",
+    "qty": 1
+   }
+  ],
+  "bottom": [
+   {
+    "key": "00000000-0000-4000-8e03-000000000006|30ml",
+    "name": "Jasmine 30ml",
+    "qty": 0
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000003|50ml",
+    "name": "Citrus Zest 50ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000007|30ml",
+    "name": "Parfum Tambahan 07 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000009|30ml",
+    "name": "Parfum Tambahan 09 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000011|30ml",
+    "name": "Parfum Tambahan 11 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000013|30ml",
+    "name": "Parfum Tambahan 13 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000015|30ml",
+    "name": "Parfum Tambahan 15 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000017|30ml",
+    "name": "Parfum Tambahan 17 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000001|30ml",
+    "name": "Rose Oud 30ml",
+    "qty": 1
+   },
+   {
+    "key": "00000000-0000-4000-8e03-000000000008|30ml",
+    "name": "Parfum Tambahan 08 30ml",
+    "qty": 2
+   }
+  ],
+  "distinctProducts": 18,
+  "promo": {
+   "rows": [
+    {
+     "name": "Promo Rose",
+     "count": 2,
+     "amount": 10000
+    },
+    {
+     "name": "Diskon Akhir Pekan",
+     "count": 1,
+     "amount": 27000
+    },
+    {
+     "name": "Promo Belum Dipakai",
+     "count": 0,
+     "amount": 0
+    }
+   ],
+   "totalCount": 3,
+   "totalAmount": 37000
+  },
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000001",
+    "name": "Rina",
+    "transactions": 4,
+    "revenue": 700000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000002",
+    "name": "Budi",
+    "transactions": 3,
+    "revenue": 623000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000006",
+    "name": "Kasir 06",
+    "transactions": 2,
+    "revenue": 345000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000005",
+    "name": "Kasir 05",
+    "transactions": 2,
+    "revenue": 333000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000004",
+    "name": "Kasir 04",
+    "transactions": 2,
+    "revenue": 339000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000012",
+    "name": "Kasir 12",
     "transactions": 1,
-    "revenue": 369999.5
+    "revenue": 115000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000011",
+    "name": "Kasir 11",
+    "transactions": 1,
+    "revenue": 228000
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000010",
+    "name": "Kasir 10",
+    "transactions": 1,
+    "revenue": 113000
    }
   ]
  }

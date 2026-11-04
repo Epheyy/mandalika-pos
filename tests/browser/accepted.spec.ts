@@ -16,6 +16,7 @@ import { promotionsFlow } from './backoffice-promotions-scenarios'
 import { transferConfirmFlow } from './backoffice-transfer-scenarios'
 import { opnameConfirmFlow } from './backoffice-opname-scenarios'
 import { catalogueIdleFlow } from './backoffice-catalogue-scenarios'
+import { dashboardAggregateFlow } from './backoffice-dashboard-scenarios'
 import { approvalsErpFlow } from './backoffice-d3c-scenarios'
 import { reportPagerFlow, roleDeleteFlow } from './backoffice-d5a-scenarios'
 import { posRequisition } from './pos-requisition-scenarios'
@@ -239,6 +240,12 @@ test('BO-OPNAME-CONFIRM Mulai, Selesai and cancel on a product Opname ask first,
 test('BO-CATALOGUE-CACHE the whole product list is read once per outlet scope, not on every 12 s poll: Opname, Ringkasan and Pelanggan stay quiet while idle, Tambah opname snapshots live stock, and the Ringkasan order numbers keep their poll and their value', async ({ page }, info) => {
   const result = await catalogueIdleFlow(page as ScenarioPage)
   expect(result).toHaveLength(4)
+  await evidence(info, result)
+})
+
+test('BO-DASHBOARD-AGGREGATE Ringkasan reads one server aggregate per poll instead of every order of the period, shows the same numbers, and falls back to the order lists on a backend without the route', async ({ page }, info) => {
+  const result = await dashboardAggregateFlow(page as ScenarioPage)
+  expect(result).toHaveLength(2)
   await evidence(info, result)
 })
 

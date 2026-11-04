@@ -32,7 +32,7 @@ jobs:
         run: |
           cat /proc/sys/net/ipv4/ip_local_port_range
           sudo sysctl -w net.ipv4.ip_local_reserved_ports=26439-26479
-      - name: Forty mandatory fresh PostgreSQL 18.3 fixtures (race enabled)
+      - name: Forty-one mandatory fresh PostgreSQL 18.3 fixtures (race enabled)
         run: python3 scripts/ci/postgres_gate.py --output artifacts/postgres/result.json
       - name: Sanitized fixture lifecycle and test evidence
         if: always()

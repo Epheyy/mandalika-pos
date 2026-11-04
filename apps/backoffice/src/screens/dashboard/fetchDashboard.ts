@@ -18,6 +18,16 @@ export function resetAggregateProbe(): void {
   unsupported.until = 0
 }
 
+const isAggregate = (v: unknown): v is DashboardAggregate => {
+  const a = v as Partial<DashboardAggregate> | null | undefined
+  const obj = (x: unknown) => typeof x === 'object' && x !== null && !Array.isArray(x)
+  return (
+    !!a && obj(a.current) && Array.isArray(a.trend) && Array.isArray(a.topProducts) && Array.isArray(a.bottomProducts) &&
+    Array.isArray(a.cashiers) && Array.isArray(a.promoTally) && obj(a.grossByPaymentMethod) && obj(a.refundsByPaymentMethod) &&
+    typeof a.distinctProducts === 'number'
+  )
+}
+
 type DashboardApi = Pick<Api, 'reportDashboard' | 'listOrders'>
 
 /** Today's fetch: the sale side without a status filter plus the refund side (A27); an old backend maps the refund side to null. */
@@ -45,7 +55,10 @@ export async function fetchDashboard(api: DashboardApi, period: Period, nowMs: n
   const now = new Date(nowMs)
   if (nowMs >= unsupported.until) {
     try {
-      return { kind: 'aggregate', now, agg: await api.reportDashboard(dashboardAggregateParams(period, now)) }
+      const agg = await api.reportDashboard(dashboardAggregateParams(period, now))
+      // A 200 that is not the aggregate (a proxy or an unknown route answering generically) is "no route" too.
+      if (isAggregate(agg)) return { kind: 'aggregate', now, agg }
+      unsupported.until = nowMs + AGGREGATE_REPROBE_MS
     } catch (e) {
       if (!(e instanceof ApiError) || (e.status !== 404 && e.status !== 405)) throw e
       unsupported.until = nowMs + AGGREGATE_REPROBE_MS

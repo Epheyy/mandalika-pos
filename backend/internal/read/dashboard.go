@@ -157,7 +157,8 @@ comp AS (
                                      THEN b.discount_breakdown ELSE '[]'::jsonb END) e
     UNION ALL
     SELECT b.discount_label, COALESCE(b.discount_amount, 0)
-     WHERE NOT (jsonb_typeof(b.discount_breakdown) = 'array' AND jsonb_array_length(b.discount_breakdown) > 0)
+     -- SQL NULL, jsonb null, {} and [] all take the label path (a CASE: AND does not short-circuit, and NULL AND NULL drops the row)
+     WHERE NOT CASE WHEN jsonb_typeof(b.discount_breakdown) = 'array' THEN jsonb_array_length(b.discount_breakdown) > 0 ELSE false END
   ) c
   WHERE b.win = 'cur' AND %[4]s
 ),

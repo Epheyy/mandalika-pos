@@ -3,7 +3,10 @@ import { ApiError, type DashboardAggregate, type Order } from '@mandalika/api'
 import { AGGREGATE_REPROBE_MS, fetchDashboard, resetAggregateProbe } from './fetchDashboard'
 
 const NOW = Date.parse('2026-11-04T07:00:00Z')
-const agg = { current: {}, trend: [] } as unknown as DashboardAggregate
+const agg = {
+  current: {}, trend: [], topProducts: [], bottomProducts: [], cashiers: [], promoTally: [],
+  grossByPaymentMethod: {}, refundsByPaymentMethod: {}, distinctProducts: 0,
+} as unknown as DashboardAggregate
 
 function fakeApi(opts: { dashboard?: () => Promise<DashboardAggregate>; refundRows?: Order[] }) {
   const reportDashboard = vi.fn((_params: unknown) => (opts.dashboard ? opts.dashboard() : Promise.resolve(agg)))
@@ -37,6 +40,14 @@ describe('fetchDashboard', () => {
     expect(reportDashboard).toHaveBeenCalledTimes(1) // remembered
     await fetchDashboard(api, '7d', NOW + AGGREGATE_REPROBE_MS + 1)
     expect(reportDashboard).toHaveBeenCalledTimes(2) // probed again
+  })
+
+  it('treats a 200 that is not an aggregate (generic answer for an unknown route) as a missing route', async () => {
+    const { api, reportDashboard, listOrders } = fakeApi({ dashboard: () => Promise.resolve({ data: [], meta: {} } as unknown as DashboardAggregate) })
+    expect((await fetchDashboard(api, 'today', NOW)).kind).toBe('orders')
+    expect(listOrders).toHaveBeenCalledTimes(2)
+    await fetchDashboard(api, 'today', NOW + 12_000)
+    expect(reportDashboard).toHaveBeenCalledTimes(1)
   })
 
   it('picks the aggregate up once a backend deployed mid-session answers it', async () => {

@@ -332,6 +332,12 @@
       "source": "tests/browser/backoffice-catalogue-scenarios.ts"
     },
     {
+      "id": "BO-DASHBOARD-AGGREGATE",
+      "finding": "D-perf",
+      "description": "Ringkasan reads the server aggregate: one request per 12 s poll, no order list downloaded, Penjualan Rp 300.000 and Transaksi 3 before and after 30 s idle; against a backend without the route (404) it probes once, falls back to the order lists with the same numbers and keeps their 12 s poll",
+      "source": "tests/browser/backoffice-dashboard-scenarios.ts"
+    },
+    {
       "id": "BO-D3C-APPROVALS-ERP",
       "finding": "D3c",
       "description": "Persetujuan Stok: the Jenis and Outlet filters are server parameters and URL state that survive a reload, and the sidebar badge requests never carry a filter so the badge stays put; Integrasi ERP: the status is URL state (Semua is its own value), locations show names, Kirim sekarang asks first (Batal sends nothing) and a double click on the confirm runs the relay once, the run reads as Terkirim, Ditahan and Gagal counts with setting names only behind Detail teknis, and Kirim ulang asks first and a double click retries the opened document once",
