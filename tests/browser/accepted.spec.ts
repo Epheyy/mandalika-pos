@@ -130,6 +130,8 @@ test('POS-HELD-ORDERS a cart is saved under a name, found again from the menu, r
 
 test('POS-RECAP all pages cached and actual panel remount keeps complete snapshot', async ({ page }, info) => {
   const p = page as ScenarioPage
+  // The checks read recorded totals; blind count (default ON since 2026-11-05) hides them until counted.
+  await p.addInitScript(() => { localStorage.setItem('pos_blindCount', '0') })
   await setupPos(p)
   await p.getByRole('button', { name: 'Menu', exact: true }).click()
   await evidence(info, await posRecap(p))
