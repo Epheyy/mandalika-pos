@@ -2153,6 +2153,83 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/ReportSummary' }
+    DashboardWindow:
+      type: object
+      required: [gross, grossCount, refunds, refundedCount, net, orders, itemsSold, customers, stillSoldRevenue]
+      description: |
+        One window of the Ringkasan aggregate. gross/grossCount = completed+partially refunded+refunded sales by SALE
+        day; refunds/refundedCount = refund rows by REFUND day (distinct orders); net = gross - refunds (may be
+        negative). orders/itemsSold/customers/stillSoldRevenue cover the completed + partially refunded sales by sale
+        day (itemsSold nets refunded units; customers = distinct customerId; stillSoldRevenue = total minus refunds).
+      properties:
+        gross: { type: number, format: double }
+        grossCount: { type: integer }
+        refunds: { type: number, format: double }
+        refundedCount: { type: integer }
+        net: { type: number, format: double }
+        orders: { type: integer }
+        itemsSold: { type: integer }
+        customers: { type: integer }
+        stillSoldRevenue: { type: number, format: double }
+    DashboardTrendBucket:
+      type: object
+      required: [bucket, sales, orders, refunds]
+      description: 'bucket is the 2-digit hour (trend=hour), the business day YYYY-MM-DD (day) or YYYY-MM (month). sales = gross sale money of the bucket, refunds = refund money recognised in it; revenue = sales - refunds.'
+      properties:
+        bucket: { type: string }
+        sales: { type: number, format: double }
+        orders: { type: integer }
+        refunds: { type: number, format: double }
+    DashboardProductRow:
+      type: object
+      required: [productId, productName, variantSize, qty]
+      properties:
+        productId: { type: string }
+        productName: { type: string }
+        variantSize: { type: string }
+        qty: { type: integer }
+    DashboardCashierRow:
+      type: object
+      required: [id, name, transactions, revenue]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        transactions: { type: integer }
+        revenue: { type: number, format: double }
+    DashboardPromoRow:
+      type: object
+      required: [label, count, amount]
+      properties:
+        label: { type: string }
+        count: { type: integer }
+        amount: { type: number, format: double }
+    DashboardAggregate:
+      type: object
+      required: [current, trend, grossByPaymentMethod, refundsByPaymentMethod, topProducts, bottomProducts, distinctProducts, cashiers, promoTally]
+      description: |
+        Everything Ringkasan renders from orders, aggregated server side for the current window (and the previous one
+        when requested). `previous` is absent when no previous window was asked for. Ranking, cashier and promo parts
+        cover the current window only. Same outlet scope as /orders.
+      properties:
+        current: { $ref: '#/components/schemas/DashboardWindow' }
+        previous: { $ref: '#/components/schemas/DashboardWindow' }
+        trend: { type: array, items: { $ref: '#/components/schemas/DashboardTrendBucket' } }
+        grossByPaymentMethod:
+          type: object
+          additionalProperties: { type: number, format: double }
+        refundsByPaymentMethod:
+          type: object
+          additionalProperties: { type: number, format: double }
+        topProducts: { type: array, items: { $ref: '#/components/schemas/DashboardProductRow' } }
+        bottomProducts: { type: array, items: { $ref: '#/components/schemas/DashboardProductRow' } }
+        distinctProducts: { type: integer }
+        cashiers: { type: array, items: { $ref: '#/components/schemas/DashboardCashierRow' } }
+        promoTally: { type: array, items: { $ref: '#/components/schemas/DashboardPromoRow' } }
+    DashboardAggregateResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/DashboardAggregate' }
     IdResponse:
       type: object
       required: [data]
@@ -5790,6 +5867,40 @@ paths:
               schema: { $ref: '#/components/schemas/ReportSummaryResponse' }
         '400': { description: invalid date or status filter }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/reports/dashboard:
+    get:
+      operationId: reportDashboard
+      tags: [reports]
+      summary: Ringkasan aggregate (outlet-scoped; any authenticated user, like /orders)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - $ref: '#/components/parameters/OutletQuery'
+        - $ref: '#/components/parameters/WIBDateFrom'
+        - $ref: '#/components/parameters/WIBDateTo'
+        - name: prevDateFrom
+          in: query
+          description: Previous window start (YYYY-MM-DD). Send with prevDateTo or neither.
+          schema: { type: string, format: date }
+        - name: prevDateTo
+          in: query
+          description: Previous window end (YYYY-MM-DD), must be before the current window starts.
+          schema: { type: string, format: date }
+        - name: trend
+          in: query
+          required: true
+          description: Trend bucket size (hour for a single day, day, month).
+          schema: { type: string, enum: [hour, day, month] }
+        - name: tzOffset
+          in: query
+          description: Minutes east of UTC of the viewer's clock (-840..840). Only used by trend=hour, so the hour buckets match the viewer's local hour.
+          schema: { type: integer, minimum: -840, maximum: 840 }
+      responses:
+        '200':
+          description: sales by sale business day, refunds by refund business day, for the current and optional previous window
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardAggregateResponse' }
+        '400': { description: "invalid date, trend or window combination" }
   /api/v1/categories/{id}:
     parameters:
       - name: id

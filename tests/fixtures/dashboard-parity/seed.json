@@ -1,0 +1,963 @@
+{
+ "outlets": [
+  {
+   "key": "A",
+   "id": "00000000-0000-4000-8e00-000000000001",
+   "name": "DP Outlet A (WIB)",
+   "timezone": "Asia/Jakarta"
+  },
+  {
+   "key": "B",
+   "id": "00000000-0000-4000-8e00-000000000002",
+   "name": "DP Outlet B (WITA)",
+   "timezone": "Asia/Makassar"
+  }
+ ],
+ "cashiers": [
+  {
+   "key": "k1",
+   "id": "00000000-0000-4000-8e01-000000000001",
+   "name": "Rina",
+   "outlet": "A"
+  },
+  {
+   "key": "k2",
+   "id": "00000000-0000-4000-8e01-000000000002",
+   "name": "Budi",
+   "outlet": "A"
+  },
+  {
+   "key": "k3",
+   "id": "00000000-0000-4000-8e01-000000000003",
+   "name": "Sari",
+   "outlet": "B"
+  }
+ ],
+ "customers": [
+  {
+   "key": "u1",
+   "id": "00000000-0000-4000-8e02-000000000001",
+   "name": "Ayu Pelanggan",
+   "phone": "081200000001"
+  },
+  {
+   "key": "u2",
+   "id": "00000000-0000-4000-8e02-000000000002",
+   "name": "Bima Pelanggan",
+   "phone": "081200000002"
+  },
+  {
+   "key": "u3",
+   "id": "00000000-0000-4000-8e02-000000000003",
+   "name": "Citra Pelanggan",
+   "phone": "081200000003"
+  }
+ ],
+ "promotions": [
+  "Promo Rose",
+  "Diskon Akhir Pekan",
+  "Promo Belum Dipakai"
+ ],
+ "orders": [
+  {
+   "n": 1,
+   "id": "00000000-0000-4000-8e05-000000000001",
+   "orderNumber": "DP-0001",
+   "outlet": "A",
+   "cashier": "k1",
+   "customer": "u1",
+   "createdAt": "2026-11-04T02:10:00Z",
+   "businessDate": "2026-11-04",
+   "status": "completed",
+   "method": "cash",
+   "subtotal": 500000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 500000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000000100",
+     "productId": "00000000-0000-4000-8e03-000000000001",
+     "productName": "Rose Oud",
+     "variantSize": "30ml",
+     "quantity": 2,
+     "price": 250000,
+     "subtotal": 500000
+    }
+   ]
+  },
+  {
+   "n": 2,
+   "id": "00000000-0000-4000-8e05-000000000002",
+   "orderNumber": "DP-0002",
+   "outlet": "A",
+   "cashier": "k2",
+   "customer": null,
+   "createdAt": "2026-11-04T03:40:00Z",
+   "businessDate": "2026-11-04",
+   "status": "completed",
+   "method": "card",
+   "subtotal": 400000,
+   "discountAmount": 60000,
+   "discountLabel": "Promo Rose",
+   "total": 340000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000000200",
+     "productId": "00000000-0000-4000-8e03-000000000002",
+     "productName": "Amber Musk",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 180000,
+     "subtotal": 180000
+    },
+    {
+     "id": "00000000-0000-4000-8e04-000000000201",
+     "productId": "00000000-0000-4000-8e03-000000000003",
+     "productName": "Citrus Zest",
+     "variantSize": "50ml",
+     "quantity": 1,
+     "price": 220000,
+     "subtotal": 220000
+    }
+   ],
+   "breakdownJson": "[{\"label\": \"Promo Rose\", \"amount\": 40000}, {\"label\": \"Diskon Akhir Pekan\", \"amount\": 20000}]"
+  },
+  {
+   "n": 3,
+   "id": "00000000-0000-4000-8e05-000000000003",
+   "orderNumber": "DP-0003",
+   "outlet": "A",
+   "cashier": "k1",
+   "customer": "u2",
+   "createdAt": "2026-11-04T05:05:00Z",
+   "businessDate": "2026-11-04",
+   "status": "completed",
+   "method": "split",
+   "subtotal": 350000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 350000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000000300",
+     "productId": "00000000-0000-4000-8e03-000000000001",
+     "productName": "Rose Oud",
+     "variantSize": "50ml",
+     "quantity": 1,
+     "price": 350000,
+     "subtotal": 350000
+    }
+   ],
+   "tenders": [
+    {
+     "method": "cash",
+     "amount": 200000,
+     "tendered": 200000
+    },
+    {
+     "method": "qris",
+     "amount": 150000,
+     "tendered": 150000
+    }
+   ]
+  },
+  {
+   "n": 4,
+   "id": "00000000-0000-4000-8e05-000000000004",
+   "orderNumber": "DP-0004",
+   "outlet": "A",
+   "cashier": "k2",
+   "customer": "u1",
+   "createdAt": "2026-11-04T06:30:00Z",
+   "businessDate": "2026-11-04",
+   "status": "partially_refunded",
+   "method": "transfer",
+   "subtotal": 450000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 450000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000000400",
+     "productId": "00000000-0000-4000-8e03-000000000004",
+     "productName": "Vanilla Noir",
+     "variantSize": "30ml",
+     "quantity": 3,
+     "price": 100000,
+     "subtotal": 300000
+    },
+    {
+     "id": "00000000-0000-4000-8e04-000000000401",
+     "productId": "00000000-0000-4000-8e03-000000000006",
+     "productName": "Jasmine",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 150000,
+     "subtotal": 150000
+    }
+   ],
+   "refunds": [
+    {
+     "id": "00000000-0000-4000-8e06-000000000040",
+     "seq": 1,
+     "scope": "partial",
+     "amount": 100000,
+     "method": "transfer",
+     "at": "2026-11-04T07:00:00Z",
+     "day": "2026-11-04",
+     "items": [
+      {
+       "line": 0,
+       "qty": 1,
+       "amount": 100000
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "n": 5,
+   "id": "00000000-0000-4000-8e05-000000000005",
+   "orderNumber": "DP-0005",
+   "outlet": "A",
+   "cashier": "k1",
+   "customer": null,
+   "createdAt": "2026-11-04T04:00:00Z",
+   "businessDate": "2026-11-04",
+   "status": "cancelled",
+   "method": "cash",
+   "subtotal": 250000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 250000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000000500",
+     "productId": "00000000-0000-4000-8e03-000000000001",
+     "productName": "Rose Oud",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 250000,
+     "subtotal": 250000
+    }
+   ]
+  },
+  {
+   "n": 6,
+   "id": "00000000-0000-4000-8e05-000000000006",
+   "orderNumber": "DP-0006",
+   "outlet": "B",
+   "cashier": "k3",
+   "customer": "u3",
+   "createdAt": "2026-11-04T01:30:00Z",
+   "businessDate": "2026-11-04",
+   "status": "completed",
+   "method": "qris",
+   "subtotal": 440000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 440000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000000600",
+     "productId": "00000000-0000-4000-8e03-000000000003",
+     "productName": "Citrus Zest",
+     "variantSize": "50ml",
+     "quantity": 2,
+     "price": 220000,
+     "subtotal": 440000
+    }
+   ]
+  },
+  {
+   "n": 7,
+   "id": "00000000-0000-4000-8e05-000000000007",
+   "orderNumber": "DP-0007",
+   "outlet": "A",
+   "cashier": "k2",
+   "customer": null,
+   "createdAt": "2026-11-03T18:00:00Z",
+   "businessDate": "2026-11-03",
+   "status": "completed",
+   "method": "cash",
+   "subtotal": 180000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 180000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000000700",
+     "productId": "00000000-0000-4000-8e03-000000000002",
+     "productName": "Amber Musk",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 180000,
+     "subtotal": 180000
+    }
+   ]
+  },
+  {
+   "n": 8,
+   "id": "00000000-0000-4000-8e05-000000000008",
+   "orderNumber": "DP-0008",
+   "outlet": "A",
+   "cashier": "k1",
+   "customer": "u1",
+   "createdAt": "2026-11-03T04:00:00Z",
+   "businessDate": "2026-11-03",
+   "status": "completed",
+   "method": "cash",
+   "subtotal": 430000,
+   "discountAmount": 25000,
+   "discountLabel": "Promo Rose",
+   "total": 405000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000000800",
+     "productId": "00000000-0000-4000-8e03-000000000001",
+     "productName": "Rose Oud",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 250000,
+     "subtotal": 250000
+    },
+    {
+     "id": "00000000-0000-4000-8e04-000000000801",
+     "productId": "00000000-0000-4000-8e03-000000000005",
+     "productName": "Sandal Wood",
+     "variantSize": "30ml",
+     "quantity": 2,
+     "price": 90000,
+     "subtotal": 180000
+    }
+   ],
+   "breakdownJson": "[{\"label\": \"Promo Rose\", \"amount\": 10000}, {\"label\": \"Promo Rose\", \"amount\": 15000}]"
+  },
+  {
+   "n": 9,
+   "id": "00000000-0000-4000-8e05-000000000009",
+   "orderNumber": "DP-0009",
+   "outlet": "A",
+   "cashier": "k2",
+   "customer": "u2",
+   "createdAt": "2026-11-03T08:00:00Z",
+   "businessDate": "2026-11-03",
+   "status": "refunded",
+   "method": "card",
+   "subtotal": 220000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 220000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000000900",
+     "productId": "00000000-0000-4000-8e03-000000000003",
+     "productName": "Citrus Zest",
+     "variantSize": "50ml",
+     "quantity": 1,
+     "price": 220000,
+     "subtotal": 220000
+    }
+   ],
+   "legacy": {
+    "at": "2026-11-04T04:00:00Z",
+    "day": "2026-11-04"
+   }
+  },
+  {
+   "n": 10,
+   "id": "00000000-0000-4000-8e05-000000000010",
+   "orderNumber": "DP-0010",
+   "outlet": "B",
+   "cashier": "k3",
+   "customer": null,
+   "createdAt": "2026-11-03T03:00:00Z",
+   "businessDate": "2026-11-03",
+   "status": "completed",
+   "method": "cash",
+   "subtotal": 600000,
+   "discountAmount": 12345.67,
+   "discountLabel": "Diskon Akhir Pekan",
+   "total": 587654.33,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000001000",
+     "productId": "00000000-0000-4000-8e03-000000000006",
+     "productName": "Jasmine",
+     "variantSize": "30ml",
+     "quantity": 4,
+     "price": 150000,
+     "subtotal": 600000
+    }
+   ],
+   "breakdownJson": "[{\"label\": \"Diskon Akhir Pekan\", \"amount\": 12345.67}]"
+  },
+  {
+   "n": 11,
+   "id": "00000000-0000-4000-8e05-000000000011",
+   "orderNumber": "DP-0011",
+   "outlet": "A",
+   "cashier": "k1",
+   "customer": "u3",
+   "createdAt": "2026-11-01T05:00:00Z",
+   "businessDate": "2026-11-01",
+   "status": "partially_refunded",
+   "method": "qris",
+   "subtotal": 500000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 500000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000001100",
+     "productId": "00000000-0000-4000-8e03-000000000001",
+     "productName": "Rose Oud",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 250000,
+     "subtotal": 250000
+    },
+    {
+     "id": "00000000-0000-4000-8e04-000000001101",
+     "productId": "00000000-0000-4000-8e03-000000000001",
+     "productName": "Rose Oud",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 250000,
+     "subtotal": 250000
+    }
+   ],
+   "refunds": [
+    {
+     "id": "00000000-0000-4000-8e06-000000000110",
+     "seq": 1,
+     "scope": "partial",
+     "amount": 250000,
+     "method": "cash",
+     "at": "2026-11-02T04:00:00Z",
+     "day": "2026-11-02",
+     "items": [
+      {
+       "line": 0,
+       "qty": 1,
+       "amount": 250000
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "n": 12,
+   "id": "00000000-0000-4000-8e05-000000000012",
+   "orderNumber": "DP-0012",
+   "outlet": "A",
+   "cashier": "k2",
+   "customer": null,
+   "createdAt": "2026-10-31T09:00:00Z",
+   "businessDate": "2026-10-31",
+   "status": "completed",
+   "method": "cash",
+   "subtotal": 270000,
+   "discountAmount": 27000,
+   "discountLabel": "KODE10",
+   "total": 243000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000001200",
+     "productId": "00000000-0000-4000-8e03-000000000005",
+     "productName": "Sandalwood",
+     "variantSize": "30ml",
+     "quantity": 3,
+     "price": 90000,
+     "subtotal": 270000
+    }
+   ],
+   "breakdownJson": "[]"
+  },
+  {
+   "n": 13,
+   "id": "00000000-0000-4000-8e05-000000000013",
+   "orderNumber": "DP-0013",
+   "outlet": "A",
+   "cashier": "k1",
+   "customer": null,
+   "createdAt": "2026-10-30T04:00:00Z",
+   "businessDate": "2026-10-30",
+   "status": "completed",
+   "method": "cash",
+   "subtotal": 180000,
+   "discountAmount": 5000,
+   "discountLabel": "Promo Rose",
+   "total": 175000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000001300",
+     "productId": "00000000-0000-4000-8e03-000000000002",
+     "productName": "Amber Musk",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 180000,
+     "subtotal": 180000
+    }
+   ],
+   "breakdownJson": "null"
+  },
+  {
+   "n": 14,
+   "id": "00000000-0000-4000-8e05-000000000014",
+   "orderNumber": "DP-0014",
+   "outlet": "A",
+   "cashier": "k2",
+   "customer": null,
+   "createdAt": "2026-10-29T16:59:00Z",
+   "businessDate": "2026-10-29",
+   "status": "completed",
+   "method": "cash",
+   "subtotal": 200000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 200000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000001400",
+     "productId": "00000000-0000-4000-8e03-000000000004",
+     "productName": "Vanilla Noir",
+     "variantSize": "30ml",
+     "quantity": 2,
+     "price": 100000,
+     "subtotal": 200000
+    }
+   ]
+  },
+  {
+   "n": 15,
+   "id": "00000000-0000-4000-8e05-000000000015",
+   "orderNumber": "DP-0015",
+   "outlet": "A",
+   "cashier": "k1",
+   "customer": null,
+   "createdAt": "2026-10-28T17:30:00Z",
+   "businessDate": "2026-10-28",
+   "status": "completed",
+   "method": "cash",
+   "subtotal": 100000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 100000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000001500",
+     "productId": "00000000-0000-4000-8e03-000000000004",
+     "productName": "Vanilla Noir",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 100000,
+     "subtotal": 100000
+    }
+   ]
+  },
+  {
+   "n": 16,
+   "id": "00000000-0000-4000-8e05-000000000016",
+   "orderNumber": "DP-0016",
+   "outlet": "A",
+   "cashier": "k1",
+   "customer": "u1",
+   "createdAt": "2026-10-25T05:00:00Z",
+   "businessDate": "2026-10-25",
+   "status": "partially_refunded",
+   "method": "cash",
+   "subtotal": 800000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 800000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000001600",
+     "productId": "00000000-0000-4000-8e03-000000000001",
+     "productName": "Rose Oud",
+     "variantSize": "50ml",
+     "quantity": 2,
+     "price": 350000,
+     "subtotal": 700000
+    },
+    {
+     "id": "00000000-0000-4000-8e04-000000001601",
+     "productId": "00000000-0000-4000-8e03-000000000004",
+     "productName": "Vanilla Noir",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 100000,
+     "subtotal": 100000
+    }
+   ],
+   "refunds": [
+    {
+     "id": "00000000-0000-4000-8e06-000000000160",
+     "seq": 1,
+     "scope": "partial",
+     "amount": 350000,
+     "method": "cash",
+     "at": "2026-10-26T05:00:00Z",
+     "day": "2026-10-26",
+     "items": [
+      {
+       "line": 0,
+       "qty": 1,
+       "amount": 350000
+      }
+     ]
+    },
+    {
+     "id": "00000000-0000-4000-8e06-000000000161",
+     "seq": 2,
+     "scope": "partial",
+     "amount": 350000,
+     "method": "qris",
+     "at": "2026-11-02T05:00:00Z",
+     "day": "2026-11-02",
+     "items": [
+      {
+       "line": 0,
+       "qty": 1,
+       "amount": 350000
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "n": 17,
+   "id": "00000000-0000-4000-8e05-000000000017",
+   "orderNumber": "DP-0017",
+   "outlet": "B",
+   "cashier": "k3",
+   "customer": "u3",
+   "createdAt": "2026-10-27T06:00:00Z",
+   "businessDate": "2026-10-27",
+   "status": "partially_refunded",
+   "method": "card",
+   "subtotal": 520000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 520000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000001700",
+     "productId": "00000000-0000-4000-8e03-000000000006",
+     "productName": "Jasmine",
+     "variantSize": "30ml",
+     "quantity": 2,
+     "price": 150000,
+     "subtotal": 300000
+    },
+    {
+     "id": "00000000-0000-4000-8e04-000000001701",
+     "productId": "00000000-0000-4000-8e03-000000000003",
+     "productName": "Citrus Zest",
+     "variantSize": "50ml",
+     "quantity": 1,
+     "price": 220000,
+     "subtotal": 220000
+    }
+   ],
+   "refunds": [
+    {
+     "id": "00000000-0000-4000-8e06-000000000170",
+     "seq": 1,
+     "scope": "partial",
+     "amount": 150000.5,
+     "method": "card",
+     "at": "2026-10-27T10:00:00Z",
+     "day": "2026-10-27",
+     "items": [
+      {
+       "line": 0,
+       "qty": 3,
+       "amount": 150000.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "n": 18,
+   "id": "00000000-0000-4000-8e05-000000000018",
+   "orderNumber": "DP-0018",
+   "outlet": "A",
+   "cashier": "k2",
+   "customer": null,
+   "createdAt": "2026-10-15T04:00:00Z",
+   "businessDate": "2026-10-15",
+   "status": "refunded",
+   "method": "cash",
+   "subtotal": 220000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 220000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000001800",
+     "productId": "00000000-0000-4000-8e03-000000000003",
+     "productName": "Citrus Zest",
+     "variantSize": "50ml",
+     "quantity": 1,
+     "price": 220000,
+     "subtotal": 220000
+    }
+   ],
+   "legacy": {
+    "at": "2026-11-01T03:00:00Z",
+    "day": "2026-11-01"
+   }
+  },
+  {
+   "n": 19,
+   "id": "00000000-0000-4000-8e05-000000000019",
+   "orderNumber": "DP-0019",
+   "outlet": "A",
+   "cashier": "k1",
+   "customer": "u2",
+   "createdAt": "2026-10-10T03:00:00Z",
+   "businessDate": "2026-10-10",
+   "status": "completed",
+   "method": "cash",
+   "subtotal": 530000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 530000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000001900",
+     "productId": "00000000-0000-4000-8e03-000000000001",
+     "productName": "Rose Oud",
+     "variantSize": "50ml",
+     "quantity": 1,
+     "price": 350000,
+     "subtotal": 350000
+    },
+    {
+     "id": "00000000-0000-4000-8e04-000000001901",
+     "productId": "00000000-0000-4000-8e03-000000000002",
+     "productName": "Amber Musk",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 180000,
+     "subtotal": 180000
+    }
+   ]
+  },
+  {
+   "n": 20,
+   "id": "00000000-0000-4000-8e05-000000000020",
+   "orderNumber": "DP-0020",
+   "outlet": "A",
+   "cashier": "k2",
+   "customer": null,
+   "createdAt": "2026-11-02T03:00:00Z",
+   "businessDate": "2026-11-02",
+   "status": "partially_refunded",
+   "method": "qris",
+   "subtotal": 360000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 360000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000002000",
+     "productId": "00000000-0000-4000-8e03-000000000002",
+     "productName": "Amber Musk",
+     "variantSize": "30ml",
+     "quantity": 2,
+     "price": 180000,
+     "subtotal": 360000
+    }
+   ],
+   "refunds": [
+    {
+     "id": "00000000-0000-4000-8e06-000000000200",
+     "seq": 1,
+     "scope": "partial",
+     "amount": 180000,
+     "method": "cash",
+     "at": "2026-11-04T05:00:00Z",
+     "day": "2026-11-04",
+     "items": [
+      {
+       "line": 0,
+       "qty": 1,
+       "amount": 180000
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "n": 21,
+   "id": "00000000-0000-4000-8e05-000000000021",
+   "orderNumber": "DP-0021",
+   "outlet": "A",
+   "cashier": "k1",
+   "customer": null,
+   "createdAt": "2026-10-20T03:00:00Z",
+   "businessDate": "2026-10-20",
+   "status": "refunded",
+   "method": "cash",
+   "subtotal": 180000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 180000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000002100",
+     "productId": "00000000-0000-4000-8e03-000000000002",
+     "productName": "Amber Musk",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 180000,
+     "subtotal": 180000
+    }
+   ],
+   "refunds": [
+    {
+     "id": "00000000-0000-4000-8e06-000000000210",
+     "seq": 1,
+     "scope": "full",
+     "amount": 180000,
+     "method": "cash",
+     "at": "2026-10-22T03:00:00Z",
+     "day": "2026-10-22",
+     "items": [
+      {
+       "line": 0,
+       "qty": 1,
+       "amount": 180000
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "n": 22,
+   "id": "00000000-0000-4000-8e05-000000000022",
+   "orderNumber": "DP-0022",
+   "outlet": "A",
+   "cashier": "k1",
+   "customer": "u1",
+   "createdAt": "2026-09-20T05:00:00Z",
+   "businessDate": "2026-09-20",
+   "status": "completed",
+   "method": "cash",
+   "subtotal": 250000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 250000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000002200",
+     "productId": "00000000-0000-4000-8e03-000000000001",
+     "productName": "Rose Oud",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 250000,
+     "subtotal": 250000
+    }
+   ]
+  },
+  {
+   "n": 23,
+   "id": "00000000-0000-4000-8e05-000000000023",
+   "orderNumber": "DP-0023",
+   "outlet": "B",
+   "cashier": "k3",
+   "customer": null,
+   "createdAt": "2026-08-15T05:00:00Z",
+   "businessDate": "2026-08-15",
+   "status": "refunded",
+   "method": "qris",
+   "subtotal": 180000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 180000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000002300",
+     "productId": "00000000-0000-4000-8e03-000000000002",
+     "productName": "Amber Musk",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 180000,
+     "subtotal": 180000
+    }
+   ],
+   "legacy": {
+    "at": "2026-09-02T05:00:00Z",
+    "day": "2026-09-02"
+   }
+  },
+  {
+   "n": 24,
+   "id": "00000000-0000-4000-8e05-000000000024",
+   "orderNumber": "DP-0024",
+   "outlet": "B",
+   "cashier": "k3",
+   "customer": null,
+   "createdAt": "2026-10-12T04:00:00Z",
+   "businessDate": "2026-10-12",
+   "status": "completed",
+   "method": "transfer",
+   "subtotal": 250000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 250000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000002400",
+     "productId": "00000000-0000-4000-8e03-000000000006",
+     "productName": "Jasmine",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 150000,
+     "subtotal": 150000
+    },
+    {
+     "id": "00000000-0000-4000-8e04-000000002401",
+     "productId": "00000000-0000-4000-8e03-000000000004",
+     "productName": "Vanilla Noir",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 100000,
+     "subtotal": 100000
+    }
+   ]
+  },
+  {
+   "n": 25,
+   "id": "00000000-0000-4000-8e05-000000000025",
+   "orderNumber": "DP-0025",
+   "outlet": "A",
+   "cashier": "k2",
+   "customer": "u3",
+   "createdAt": "2026-10-08T04:00:00Z",
+   "businessDate": "2026-10-08",
+   "status": "completed",
+   "method": "card",
+   "subtotal": 90000,
+   "discountAmount": 0,
+   "discountLabel": null,
+   "total": 90000,
+   "items": [
+    {
+     "id": "00000000-0000-4000-8e04-000000002500",
+     "productId": "00000000-0000-4000-8e03-000000000005",
+     "productName": "Sandalwood",
+     "variantSize": "30ml",
+     "quantity": 1,
+     "price": 90000,
+     "subtotal": 90000
+    }
+   ]
+  }
+ ]
+}

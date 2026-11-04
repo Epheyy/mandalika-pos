@@ -1,0 +1,3195 @@
+{
+ "2026-11-02|7d|admin-all": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 0,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 2,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 3,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandalwood",
+    "qty": 3,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000002",
+    "name": "Budi",
+    "revenue": 623000,
+    "transactions": 3
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000001",
+    "name": "Rina",
+    "revenue": 525000,
+    "transactions": 3
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000003",
+    "name": "Sari",
+    "revenue": 369999.5,
+    "transactions": 1
+   }
+  ],
+  "current": {
+   "customers": 1,
+   "gross": 2098000,
+   "grossCount": 7,
+   "itemsSold": 10,
+   "net": 1127999.5,
+   "orders": 7,
+   "refundedCount": 4,
+   "refunds": 970000.5,
+   "stillSoldRevenue": 1517999.5
+  },
+  "distinctProducts": 6,
+  "grossByPaymentMethod": {
+   "card": 520000,
+   "cash": 718000,
+   "qris": 860000
+  },
+  "previous": {
+   "customers": 1,
+   "gross": 980000,
+   "grossCount": 2,
+   "itemsSold": 1,
+   "net": 450000,
+   "orders": 1,
+   "refundedCount": 2,
+   "refunds": 530000,
+   "stillSoldRevenue": 100000
+  },
+  "promoTally": [
+   {
+    "amount": 5000,
+    "count": 1,
+    "label": "Promo Rose"
+   }
+  ],
+  "refundsByPaymentMethod": {
+   "card": 150000.5,
+   "cash": 470000,
+   "qris": 350000
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandalwood",
+    "qty": 3,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 3,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 2,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 0,
+    "variantSize": "30ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "2026-10-27",
+    "orders": 1,
+    "refunds": 150000.5,
+    "sales": 520000
+   },
+   {
+    "bucket": "2026-10-28",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 100000
+   },
+   {
+    "bucket": "2026-10-29",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 200000
+   },
+   {
+    "bucket": "2026-10-30",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 175000
+   },
+   {
+    "bucket": "2026-10-31",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 243000
+   },
+   {
+    "bucket": "2026-11-01",
+    "orders": 1,
+    "refunds": 220000,
+    "sales": 500000
+   },
+   {
+    "bucket": "2026-11-02",
+    "orders": 1,
+    "refunds": 600000,
+    "sales": 360000
+   }
+  ]
+ },
+ "2026-11-02|today|admin-all": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 1,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000002",
+    "name": "Budi",
+    "revenue": 180000,
+    "transactions": 1
+   }
+  ],
+  "current": {
+   "customers": 0,
+   "gross": 360000,
+   "grossCount": 1,
+   "itemsSold": 1,
+   "net": -240000,
+   "orders": 1,
+   "refundedCount": 2,
+   "refunds": 600000,
+   "stillSoldRevenue": 180000
+  },
+  "distinctProducts": 1,
+  "grossByPaymentMethod": {
+   "qris": 360000
+  },
+  "previous": {
+   "customers": 1,
+   "gross": 500000,
+   "grossCount": 1,
+   "itemsSold": 1,
+   "net": 280000,
+   "orders": 1,
+   "refundedCount": 1,
+   "refunds": 220000,
+   "stillSoldRevenue": 250000
+  },
+  "promoTally": [],
+  "refundsByPaymentMethod": {
+   "cash": 250000,
+   "qris": 350000
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 1,
+    "variantSize": "30ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "10",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 360000
+   },
+   {
+    "bucket": "11",
+    "orders": 0,
+    "refunds": 250000,
+    "sales": 0
+   },
+   {
+    "bucket": "12",
+    "orders": 0,
+    "refunds": 350000,
+    "sales": 0
+   }
+  ]
+ },
+ "2026-11-04|30d|admin-A": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 6,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000001",
+    "name": "Rina",
+    "revenue": 2410000,
+    "transactions": 8
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000002",
+    "name": "Budi",
+    "revenue": 1583000,
+    "transactions": 7
+   }
+  ],
+  "current": {
+   "customers": 3,
+   "gross": 5843000,
+   "grossCount": 18,
+   "itemsSold": 25,
+   "net": 3993000,
+   "orders": 15,
+   "refundedCount": 7,
+   "refunds": 1850000,
+   "stillSoldRevenue": 3993000
+  },
+  "distinctProducts": 7,
+  "grossByPaymentMethod": {
+   "card": 650000,
+   "cash": 3733000,
+   "qris": 1010000,
+   "transfer": 450000
+  },
+  "previous": {
+   "customers": 1,
+   "gross": 250000,
+   "grossCount": 1,
+   "itemsSold": 1,
+   "net": 250000,
+   "orders": 1,
+   "refundedCount": 0,
+   "refunds": 0,
+   "stillSoldRevenue": 250000
+  },
+  "promoTally": [
+   {
+    "amount": 20000,
+    "count": 1,
+    "label": "Diskon Akhir Pekan"
+   },
+   {
+    "amount": 70000,
+    "count": 4,
+    "label": "Promo Rose"
+   }
+  ],
+  "refundsByPaymentMethod": {
+   "card": 220000,
+   "cash": 1180000,
+   "qris": 350000,
+   "transfer": 100000
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "2026-10-08",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 90000
+   },
+   {
+    "bucket": "2026-10-10",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 530000
+   },
+   {
+    "bucket": "2026-10-15",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 220000
+   },
+   {
+    "bucket": "2026-10-20",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 180000
+   },
+   {
+    "bucket": "2026-10-22",
+    "orders": 0,
+    "refunds": 180000,
+    "sales": 0
+   },
+   {
+    "bucket": "2026-10-25",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 800000
+   },
+   {
+    "bucket": "2026-10-26",
+    "orders": 0,
+    "refunds": 350000,
+    "sales": 0
+   },
+   {
+    "bucket": "2026-10-28",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 100000
+   },
+   {
+    "bucket": "2026-10-29",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 200000
+   },
+   {
+    "bucket": "2026-10-30",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 175000
+   },
+   {
+    "bucket": "2026-10-31",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 243000
+   },
+   {
+    "bucket": "2026-11-01",
+    "orders": 1,
+    "refunds": 220000,
+    "sales": 500000
+   },
+   {
+    "bucket": "2026-11-02",
+    "orders": 1,
+    "refunds": 600000,
+    "sales": 360000
+   },
+   {
+    "bucket": "2026-11-03",
+    "orders": 3,
+    "refunds": 0,
+    "sales": 805000
+   },
+   {
+    "bucket": "2026-11-04",
+    "orders": 4,
+    "refunds": 500000,
+    "sales": 1640000
+   }
+  ]
+ },
+ "2026-11-04|30d|admin-B": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 3,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 5,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000003",
+    "name": "Sari",
+    "revenue": 1647653.83,
+    "transactions": 4
+   }
+  ],
+  "current": {
+   "customers": 1,
+   "gross": 1797654.33,
+   "grossCount": 4,
+   "itemsSold": 9,
+   "net": 1647653.83,
+   "orders": 4,
+   "refundedCount": 1,
+   "refunds": 150000.5,
+   "stillSoldRevenue": 1647653.83
+  },
+  "distinctProducts": 3,
+  "grossByPaymentMethod": {
+   "card": 520000,
+   "cash": 587654.33,
+   "qris": 440000,
+   "transfer": 250000
+  },
+  "previous": {
+   "customers": 0,
+   "gross": 0,
+   "grossCount": 0,
+   "itemsSold": 0,
+   "net": 0,
+   "orders": 0,
+   "refundedCount": 0,
+   "refunds": 0,
+   "stillSoldRevenue": 0
+  },
+  "promoTally": [
+   {
+    "amount": 12345.67,
+    "count": 1,
+    "label": "Diskon Akhir Pekan"
+   }
+  ],
+  "refundsByPaymentMethod": {
+   "card": 150000.5
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 3,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 1,
+    "variantSize": "30ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "2026-10-12",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 250000
+   },
+   {
+    "bucket": "2026-10-27",
+    "orders": 1,
+    "refunds": 150000.5,
+    "sales": 520000
+   },
+   {
+    "bucket": "2026-11-03",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 587654.33
+   },
+   {
+    "bucket": "2026-11-04",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 440000
+   }
+  ]
+ },
+ "2026-11-04|30d|admin-all": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 4,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 7,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000001",
+    "name": "Rina",
+    "revenue": 2410000,
+    "transactions": 8
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000002",
+    "name": "Budi",
+    "revenue": 1583000,
+    "transactions": 7
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000003",
+    "name": "Sari",
+    "revenue": 1647653.83,
+    "transactions": 4
+   }
+  ],
+  "current": {
+   "customers": 3,
+   "gross": 7640654.33,
+   "grossCount": 22,
+   "itemsSold": 34,
+   "net": 5640653.83,
+   "orders": 19,
+   "refundedCount": 8,
+   "refunds": 2000000.5,
+   "stillSoldRevenue": 5640653.83
+  },
+  "distinctProducts": 7,
+  "grossByPaymentMethod": {
+   "card": 1170000,
+   "cash": 4320654.33,
+   "qris": 1450000,
+   "transfer": 700000
+  },
+  "previous": {
+   "customers": 1,
+   "gross": 250000,
+   "grossCount": 1,
+   "itemsSold": 1,
+   "net": 250000,
+   "orders": 1,
+   "refundedCount": 0,
+   "refunds": 0,
+   "stillSoldRevenue": 250000
+  },
+  "promoTally": [
+   {
+    "amount": 32345.67,
+    "count": 2,
+    "label": "Diskon Akhir Pekan"
+   },
+   {
+    "amount": 70000,
+    "count": 4,
+    "label": "Promo Rose"
+   }
+  ],
+  "refundsByPaymentMethod": {
+   "card": 370000.5,
+   "cash": 1180000,
+   "qris": 350000,
+   "transfer": 100000
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 7,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 4,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "50ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "2026-10-08",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 90000
+   },
+   {
+    "bucket": "2026-10-10",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 530000
+   },
+   {
+    "bucket": "2026-10-12",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 250000
+   },
+   {
+    "bucket": "2026-10-15",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 220000
+   },
+   {
+    "bucket": "2026-10-20",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 180000
+   },
+   {
+    "bucket": "2026-10-22",
+    "orders": 0,
+    "refunds": 180000,
+    "sales": 0
+   },
+   {
+    "bucket": "2026-10-25",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 800000
+   },
+   {
+    "bucket": "2026-10-26",
+    "orders": 0,
+    "refunds": 350000,
+    "sales": 0
+   },
+   {
+    "bucket": "2026-10-27",
+    "orders": 1,
+    "refunds": 150000.5,
+    "sales": 520000
+   },
+   {
+    "bucket": "2026-10-28",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 100000
+   },
+   {
+    "bucket": "2026-10-29",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 200000
+   },
+   {
+    "bucket": "2026-10-30",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 175000
+   },
+   {
+    "bucket": "2026-10-31",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 243000
+   },
+   {
+    "bucket": "2026-11-01",
+    "orders": 1,
+    "refunds": 220000,
+    "sales": 500000
+   },
+   {
+    "bucket": "2026-11-02",
+    "orders": 1,
+    "refunds": 600000,
+    "sales": 360000
+   },
+   {
+    "bucket": "2026-11-03",
+    "orders": 4,
+    "refunds": 0,
+    "sales": 1392654.33
+   },
+   {
+    "bucket": "2026-11-04",
+    "orders": 5,
+    "refunds": 500000,
+    "sales": 2080000
+   }
+  ]
+ },
+ "2026-11-04|30d|cashier-A": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 6,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000001",
+    "name": "Rina",
+    "revenue": 2410000,
+    "transactions": 8
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000002",
+    "name": "Budi",
+    "revenue": 1583000,
+    "transactions": 7
+   }
+  ],
+  "current": {
+   "customers": 3,
+   "gross": 5843000,
+   "grossCount": 18,
+   "itemsSold": 25,
+   "net": 3993000,
+   "orders": 15,
+   "refundedCount": 7,
+   "refunds": 1850000,
+   "stillSoldRevenue": 3993000
+  },
+  "distinctProducts": 7,
+  "grossByPaymentMethod": {
+   "card": 650000,
+   "cash": 3733000,
+   "qris": 1010000,
+   "transfer": 450000
+  },
+  "previous": {
+   "customers": 1,
+   "gross": 250000,
+   "grossCount": 1,
+   "itemsSold": 1,
+   "net": 250000,
+   "orders": 1,
+   "refundedCount": 0,
+   "refunds": 0,
+   "stillSoldRevenue": 250000
+  },
+  "promoTally": [
+   {
+    "amount": 20000,
+    "count": 1,
+    "label": "Diskon Akhir Pekan"
+   },
+   {
+    "amount": 70000,
+    "count": 4,
+    "label": "Promo Rose"
+   }
+  ],
+  "refundsByPaymentMethod": {
+   "card": 220000,
+   "cash": 1180000,
+   "qris": 350000,
+   "transfer": 100000
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "2026-10-08",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 90000
+   },
+   {
+    "bucket": "2026-10-10",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 530000
+   },
+   {
+    "bucket": "2026-10-15",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 220000
+   },
+   {
+    "bucket": "2026-10-20",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 180000
+   },
+   {
+    "bucket": "2026-10-22",
+    "orders": 0,
+    "refunds": 180000,
+    "sales": 0
+   },
+   {
+    "bucket": "2026-10-25",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 800000
+   },
+   {
+    "bucket": "2026-10-26",
+    "orders": 0,
+    "refunds": 350000,
+    "sales": 0
+   },
+   {
+    "bucket": "2026-10-28",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 100000
+   },
+   {
+    "bucket": "2026-10-29",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 200000
+   },
+   {
+    "bucket": "2026-10-30",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 175000
+   },
+   {
+    "bucket": "2026-10-31",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 243000
+   },
+   {
+    "bucket": "2026-11-01",
+    "orders": 1,
+    "refunds": 220000,
+    "sales": 500000
+   },
+   {
+    "bucket": "2026-11-02",
+    "orders": 1,
+    "refunds": 600000,
+    "sales": 360000
+   },
+   {
+    "bucket": "2026-11-03",
+    "orders": 3,
+    "refunds": 0,
+    "sales": 805000
+   },
+   {
+    "bucket": "2026-11-04",
+    "orders": 4,
+    "refunds": 500000,
+    "sales": 1640000
+   }
+  ]
+ },
+ "2026-11-04|7d|admin-A": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 5,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000002",
+    "name": "Budi",
+    "revenue": 1493000,
+    "transactions": 6
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000001",
+    "name": "Rina",
+    "revenue": 1680000,
+    "transactions": 5
+   }
+  ],
+  "current": {
+   "customers": 3,
+   "gross": 3923000,
+   "grossCount": 12,
+   "itemsSold": 20,
+   "net": 2603000,
+   "orders": 11,
+   "refundedCount": 6,
+   "refunds": 1320000,
+   "stillSoldRevenue": 3173000
+  },
+  "distinctProducts": 7,
+  "grossByPaymentMethod": {
+   "card": 560000,
+   "cash": 1903000,
+   "qris": 1010000,
+   "transfer": 450000
+  },
+  "previous": {
+   "customers": 1,
+   "gross": 900000,
+   "grossCount": 2,
+   "itemsSold": 2,
+   "net": 370000,
+   "orders": 2,
+   "refundedCount": 2,
+   "refunds": 530000,
+   "stillSoldRevenue": 200000
+  },
+  "promoTally": [
+   {
+    "amount": 20000,
+    "count": 1,
+    "label": "Diskon Akhir Pekan"
+   },
+   {
+    "amount": 70000,
+    "count": 4,
+    "label": "Promo Rose"
+   }
+  ],
+  "refundsByPaymentMethod": {
+   "card": 220000,
+   "cash": 650000,
+   "qris": 350000,
+   "transfer": 100000
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "2026-10-29",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 200000
+   },
+   {
+    "bucket": "2026-10-30",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 175000
+   },
+   {
+    "bucket": "2026-10-31",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 243000
+   },
+   {
+    "bucket": "2026-11-01",
+    "orders": 1,
+    "refunds": 220000,
+    "sales": 500000
+   },
+   {
+    "bucket": "2026-11-02",
+    "orders": 1,
+    "refunds": 600000,
+    "sales": 360000
+   },
+   {
+    "bucket": "2026-11-03",
+    "orders": 3,
+    "refunds": 0,
+    "sales": 805000
+   },
+   {
+    "bucket": "2026-11-04",
+    "orders": 4,
+    "refunds": 500000,
+    "sales": 1640000
+   }
+  ]
+ },
+ "2026-11-04|7d|admin-B": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 2,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 4,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000003",
+    "name": "Sari",
+    "revenue": 1027654.33,
+    "transactions": 2
+   }
+  ],
+  "current": {
+   "customers": 1,
+   "gross": 1027654.33,
+   "grossCount": 2,
+   "itemsSold": 6,
+   "net": 1027654.33,
+   "orders": 2,
+   "refundedCount": 0,
+   "refunds": 0,
+   "stillSoldRevenue": 1027654.33
+  },
+  "distinctProducts": 2,
+  "grossByPaymentMethod": {
+   "cash": 587654.33,
+   "qris": 440000
+  },
+  "previous": {
+   "customers": 1,
+   "gross": 520000,
+   "grossCount": 1,
+   "itemsSold": 1,
+   "net": 369999.5,
+   "orders": 1,
+   "refundedCount": 1,
+   "refunds": 150000.5,
+   "stillSoldRevenue": 369999.5
+  },
+  "promoTally": [
+   {
+    "amount": 12345.67,
+    "count": 1,
+    "label": "Diskon Akhir Pekan"
+   }
+  ],
+  "refundsByPaymentMethod": {},
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 2,
+    "variantSize": "50ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "2026-11-03",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 587654.33
+   },
+   {
+    "bucket": "2026-11-04",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 440000
+   }
+  ]
+ },
+ "2026-11-04|7d|admin-all": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 3,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 5,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000002",
+    "name": "Budi",
+    "revenue": 1493000,
+    "transactions": 6
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000001",
+    "name": "Rina",
+    "revenue": 1680000,
+    "transactions": 5
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000003",
+    "name": "Sari",
+    "revenue": 1027654.33,
+    "transactions": 2
+   }
+  ],
+  "current": {
+   "customers": 3,
+   "gross": 4950654.33,
+   "grossCount": 14,
+   "itemsSold": 26,
+   "net": 3630654.33,
+   "orders": 13,
+   "refundedCount": 6,
+   "refunds": 1320000,
+   "stillSoldRevenue": 4200654.33
+  },
+  "distinctProducts": 7,
+  "grossByPaymentMethod": {
+   "card": 560000,
+   "cash": 2490654.33,
+   "qris": 1450000,
+   "transfer": 450000
+  },
+  "previous": {
+   "customers": 2,
+   "gross": 1420000,
+   "grossCount": 3,
+   "itemsSold": 3,
+   "net": 739999.5,
+   "orders": 3,
+   "refundedCount": 3,
+   "refunds": 680000.5,
+   "stillSoldRevenue": 569999.5
+  },
+  "promoTally": [
+   {
+    "amount": 32345.67,
+    "count": 2,
+    "label": "Diskon Akhir Pekan"
+   },
+   {
+    "amount": 70000,
+    "count": 4,
+    "label": "Promo Rose"
+   }
+  ],
+  "refundsByPaymentMethod": {
+   "card": 220000,
+   "cash": 650000,
+   "qris": 350000,
+   "transfer": 100000
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 3,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 1,
+    "variantSize": "50ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "2026-10-29",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 200000
+   },
+   {
+    "bucket": "2026-10-30",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 175000
+   },
+   {
+    "bucket": "2026-10-31",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 243000
+   },
+   {
+    "bucket": "2026-11-01",
+    "orders": 1,
+    "refunds": 220000,
+    "sales": 500000
+   },
+   {
+    "bucket": "2026-11-02",
+    "orders": 1,
+    "refunds": 600000,
+    "sales": 360000
+   },
+   {
+    "bucket": "2026-11-03",
+    "orders": 4,
+    "refunds": 0,
+    "sales": 1392654.33
+   },
+   {
+    "bucket": "2026-11-04",
+    "orders": 5,
+    "refunds": 500000,
+    "sales": 2080000
+   }
+  ]
+ },
+ "2026-11-04|7d|cashier-A": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 5,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000002",
+    "name": "Budi",
+    "revenue": 1493000,
+    "transactions": 6
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000001",
+    "name": "Rina",
+    "revenue": 1680000,
+    "transactions": 5
+   }
+  ],
+  "current": {
+   "customers": 3,
+   "gross": 3923000,
+   "grossCount": 12,
+   "itemsSold": 20,
+   "net": 2603000,
+   "orders": 11,
+   "refundedCount": 6,
+   "refunds": 1320000,
+   "stillSoldRevenue": 3173000
+  },
+  "distinctProducts": 7,
+  "grossByPaymentMethod": {
+   "card": 560000,
+   "cash": 1903000,
+   "qris": 1010000,
+   "transfer": 450000
+  },
+  "previous": {
+   "customers": 1,
+   "gross": 900000,
+   "grossCount": 2,
+   "itemsSold": 2,
+   "net": 370000,
+   "orders": 2,
+   "refundedCount": 2,
+   "refunds": 530000,
+   "stillSoldRevenue": 200000
+  },
+  "promoTally": [
+   {
+    "amount": 20000,
+    "count": 1,
+    "label": "Diskon Akhir Pekan"
+   },
+   {
+    "amount": 70000,
+    "count": 4,
+    "label": "Promo Rose"
+   }
+  ],
+  "refundsByPaymentMethod": {
+   "card": 220000,
+   "cash": 650000,
+   "qris": 350000,
+   "transfer": 100000
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "2026-10-29",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 200000
+   },
+   {
+    "bucket": "2026-10-30",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 175000
+   },
+   {
+    "bucket": "2026-10-31",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 243000
+   },
+   {
+    "bucket": "2026-11-01",
+    "orders": 1,
+    "refunds": 220000,
+    "sales": 500000
+   },
+   {
+    "bucket": "2026-11-02",
+    "orders": 1,
+    "refunds": 600000,
+    "sales": 360000
+   },
+   {
+    "bucket": "2026-11-03",
+    "orders": 3,
+    "refunds": 0,
+    "sales": 805000
+   },
+   {
+    "bucket": "2026-11-04",
+    "orders": 4,
+    "refunds": 500000,
+    "sales": 1640000
+   }
+  ]
+ },
+ "2026-11-04|7d|cashier-A-foreign": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 5,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000002",
+    "name": "Budi",
+    "revenue": 1493000,
+    "transactions": 6
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000001",
+    "name": "Rina",
+    "revenue": 1680000,
+    "transactions": 5
+   }
+  ],
+  "current": {
+   "customers": 3,
+   "gross": 3923000,
+   "grossCount": 12,
+   "itemsSold": 20,
+   "net": 2603000,
+   "orders": 11,
+   "refundedCount": 6,
+   "refunds": 1320000,
+   "stillSoldRevenue": 3173000
+  },
+  "distinctProducts": 7,
+  "grossByPaymentMethod": {
+   "card": 560000,
+   "cash": 1903000,
+   "qris": 1010000,
+   "transfer": 450000
+  },
+  "previous": {
+   "customers": 1,
+   "gross": 900000,
+   "grossCount": 2,
+   "itemsSold": 2,
+   "net": 370000,
+   "orders": 2,
+   "refundedCount": 2,
+   "refunds": 530000,
+   "stillSoldRevenue": 200000
+  },
+  "promoTally": [
+   {
+    "amount": 20000,
+    "count": 1,
+    "label": "Diskon Akhir Pekan"
+   },
+   {
+    "amount": 70000,
+    "count": 4,
+    "label": "Promo Rose"
+   }
+  ],
+  "refundsByPaymentMethod": {
+   "card": 220000,
+   "cash": 650000,
+   "qris": 350000,
+   "transfer": 100000
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 4,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "2026-10-29",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 200000
+   },
+   {
+    "bucket": "2026-10-30",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 175000
+   },
+   {
+    "bucket": "2026-10-31",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 243000
+   },
+   {
+    "bucket": "2026-11-01",
+    "orders": 1,
+    "refunds": 220000,
+    "sales": 500000
+   },
+   {
+    "bucket": "2026-11-02",
+    "orders": 1,
+    "refunds": 600000,
+    "sales": 360000
+   },
+   {
+    "bucket": "2026-11-03",
+    "orders": 3,
+    "refunds": 0,
+    "sales": 805000
+   },
+   {
+    "bucket": "2026-11-04",
+    "orders": 4,
+    "refunds": 500000,
+    "sales": 1640000
+   }
+  ]
+ },
+ "2026-11-04|all|admin-A": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 6,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000001",
+    "name": "Rina",
+    "revenue": 2660000,
+    "transactions": 9
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000002",
+    "name": "Budi",
+    "revenue": 1583000,
+    "transactions": 7
+   }
+  ],
+  "current": {
+   "customers": 3,
+   "gross": 6093000,
+   "grossCount": 19,
+   "itemsSold": 26,
+   "net": 4243000,
+   "orders": 16,
+   "refundedCount": 7,
+   "refunds": 1850000,
+   "stillSoldRevenue": 4243000
+  },
+  "distinctProducts": 7,
+  "grossByPaymentMethod": {
+   "card": 650000,
+   "cash": 3983000,
+   "qris": 1010000,
+   "transfer": 450000
+  },
+  "promoTally": [
+   {
+    "amount": 20000,
+    "count": 1,
+    "label": "Diskon Akhir Pekan"
+   },
+   {
+    "amount": 70000,
+    "count": 4,
+    "label": "Promo Rose"
+   }
+  ],
+  "refundsByPaymentMethod": {
+   "card": 220000,
+   "cash": 1180000,
+   "qris": 350000,
+   "transfer": 100000
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "2026-09",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 250000
+   },
+   {
+    "bucket": "2026-10",
+    "orders": 9,
+    "refunds": 530000,
+    "sales": 2538000
+   },
+   {
+    "bucket": "2026-11",
+    "orders": 9,
+    "refunds": 1320000,
+    "sales": 3305000
+   }
+  ]
+ },
+ "2026-11-04|all|admin-B": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 3,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 5,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000003",
+    "name": "Sari",
+    "revenue": 1647653.83,
+    "transactions": 4
+   }
+  ],
+  "current": {
+   "customers": 1,
+   "gross": 1977654.33,
+   "grossCount": 5,
+   "itemsSold": 9,
+   "net": 1647653.83,
+   "orders": 4,
+   "refundedCount": 2,
+   "refunds": 330000.5,
+   "stillSoldRevenue": 1647653.83
+  },
+  "distinctProducts": 3,
+  "grossByPaymentMethod": {
+   "card": 520000,
+   "cash": 587654.33,
+   "qris": 620000,
+   "transfer": 250000
+  },
+  "promoTally": [
+   {
+    "amount": 12345.67,
+    "count": 1,
+    "label": "Diskon Akhir Pekan"
+   }
+  ],
+  "refundsByPaymentMethod": {
+   "card": 150000.5,
+   "qris": 180000
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 3,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 1,
+    "variantSize": "30ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "2026-08",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 180000
+   },
+   {
+    "bucket": "2026-09",
+    "orders": 0,
+    "refunds": 180000,
+    "sales": 0
+   },
+   {
+    "bucket": "2026-10",
+    "orders": 2,
+    "refunds": 150000.5,
+    "sales": 770000
+   },
+   {
+    "bucket": "2026-11",
+    "orders": 2,
+    "refunds": 0,
+    "sales": 1027654.33
+   }
+  ]
+ },
+ "2026-11-04|all|admin-all": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 4,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 7,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000001",
+    "name": "Rina",
+    "revenue": 2660000,
+    "transactions": 9
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000002",
+    "name": "Budi",
+    "revenue": 1583000,
+    "transactions": 7
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000003",
+    "name": "Sari",
+    "revenue": 1647653.83,
+    "transactions": 4
+   }
+  ],
+  "current": {
+   "customers": 3,
+   "gross": 8070654.33,
+   "grossCount": 24,
+   "itemsSold": 35,
+   "net": 5890653.83,
+   "orders": 20,
+   "refundedCount": 9,
+   "refunds": 2180000.5,
+   "stillSoldRevenue": 5890653.83
+  },
+  "distinctProducts": 7,
+  "grossByPaymentMethod": {
+   "card": 1170000,
+   "cash": 4570654.33,
+   "qris": 1630000,
+   "transfer": 700000
+  },
+  "promoTally": [
+   {
+    "amount": 32345.67,
+    "count": 2,
+    "label": "Diskon Akhir Pekan"
+   },
+   {
+    "amount": 70000,
+    "count": 4,
+    "label": "Promo Rose"
+   }
+  ],
+  "refundsByPaymentMethod": {
+   "card": 370000.5,
+   "cash": 1180000,
+   "qris": 530000,
+   "transfer": 100000
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 7,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 4,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "50ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "2026-08",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 180000
+   },
+   {
+    "bucket": "2026-09",
+    "orders": 1,
+    "refunds": 180000,
+    "sales": 250000
+   },
+   {
+    "bucket": "2026-10",
+    "orders": 11,
+    "refunds": 680000.5,
+    "sales": 3308000
+   },
+   {
+    "bucket": "2026-11",
+    "orders": 11,
+    "refunds": 1320000,
+    "sales": 4332654.33
+   }
+  ]
+ },
+ "2026-11-04|all|cashier-A": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 6,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000001",
+    "name": "Rina",
+    "revenue": 2660000,
+    "transactions": 9
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000002",
+    "name": "Budi",
+    "revenue": 1583000,
+    "transactions": 7
+   }
+  ],
+  "current": {
+   "customers": 3,
+   "gross": 6093000,
+   "grossCount": 19,
+   "itemsSold": 26,
+   "net": 4243000,
+   "orders": 16,
+   "refundedCount": 7,
+   "refunds": 1850000,
+   "stillSoldRevenue": 4243000
+  },
+  "distinctProducts": 7,
+  "grossByPaymentMethod": {
+   "card": 650000,
+   "cash": 3983000,
+   "qris": 1010000,
+   "transfer": 450000
+  },
+  "promoTally": [
+   {
+    "amount": 20000,
+    "count": 1,
+    "label": "Diskon Akhir Pekan"
+   },
+   {
+    "amount": 70000,
+    "count": 4,
+    "label": "Promo Rose"
+   }
+  ],
+  "refundsByPaymentMethod": {
+   "card": 220000,
+   "cash": 1180000,
+   "qris": 350000,
+   "transfer": 100000
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000005",
+    "productName": "Sandal Wood",
+    "qty": 6,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 5,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "2026-09",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 250000
+   },
+   {
+    "bucket": "2026-10",
+    "orders": 9,
+    "refunds": 530000,
+    "sales": 2538000
+   },
+   {
+    "bucket": "2026-11",
+    "orders": 9,
+    "refunds": 1320000,
+    "sales": 3305000
+   }
+  ]
+ },
+ "2026-11-04|today|admin-A": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 2,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000002",
+    "name": "Budi",
+    "revenue": 690000,
+    "transactions": 2
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000001",
+    "name": "Rina",
+    "revenue": 850000,
+    "transactions": 2
+   }
+  ],
+  "current": {
+   "customers": 2,
+   "gross": 1640000,
+   "grossCount": 4,
+   "itemsSold": 8,
+   "net": 1140000,
+   "orders": 4,
+   "refundedCount": 3,
+   "refunds": 500000,
+   "stillSoldRevenue": 1540000
+  },
+  "distinctProducts": 6,
+  "grossByPaymentMethod": {
+   "card": 340000,
+   "cash": 700000,
+   "qris": 150000,
+   "transfer": 450000
+  },
+  "previous": {
+   "customers": 1,
+   "gross": 805000,
+   "grossCount": 3,
+   "itemsSold": 4,
+   "net": 805000,
+   "orders": 2,
+   "refundedCount": 0,
+   "refunds": 0,
+   "stillSoldRevenue": 585000
+  },
+  "promoTally": [
+   {
+    "amount": 20000,
+    "count": 1,
+    "label": "Diskon Akhir Pekan"
+   },
+   {
+    "amount": 40000,
+    "count": 1,
+    "label": "Promo Rose"
+   }
+  ],
+  "refundsByPaymentMethod": {
+   "card": 220000,
+   "cash": 180000,
+   "transfer": 100000
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 2,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "09",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 500000
+   },
+   {
+    "bucket": "10",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 340000
+   },
+   {
+    "bucket": "11",
+    "orders": 0,
+    "refunds": 220000,
+    "sales": 0
+   },
+   {
+    "bucket": "12",
+    "orders": 1,
+    "refunds": 180000,
+    "sales": 350000
+   },
+   {
+    "bucket": "13",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 450000
+   },
+   {
+    "bucket": "14",
+    "orders": 0,
+    "refunds": 100000,
+    "sales": 0
+   }
+  ]
+ },
+ "2026-11-04|today|admin-B": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 2,
+    "variantSize": "50ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000003",
+    "name": "Sari",
+    "revenue": 440000,
+    "transactions": 1
+   }
+  ],
+  "current": {
+   "customers": 1,
+   "gross": 440000,
+   "grossCount": 1,
+   "itemsSold": 2,
+   "net": 440000,
+   "orders": 1,
+   "refundedCount": 0,
+   "refunds": 0,
+   "stillSoldRevenue": 440000
+  },
+  "distinctProducts": 1,
+  "grossByPaymentMethod": {
+   "qris": 440000
+  },
+  "previous": {
+   "customers": 0,
+   "gross": 587654.33,
+   "grossCount": 1,
+   "itemsSold": 4,
+   "net": 587654.33,
+   "orders": 1,
+   "refundedCount": 0,
+   "refunds": 0,
+   "stillSoldRevenue": 587654.33
+  },
+  "promoTally": [],
+  "refundsByPaymentMethod": {},
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 2,
+    "variantSize": "50ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "08",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 440000
+   }
+  ]
+ },
+ "2026-11-04|today|admin-all": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 2,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 3,
+    "variantSize": "50ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000002",
+    "name": "Budi",
+    "revenue": 690000,
+    "transactions": 2
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000001",
+    "name": "Rina",
+    "revenue": 850000,
+    "transactions": 2
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000003",
+    "name": "Sari",
+    "revenue": 440000,
+    "transactions": 1
+   }
+  ],
+  "current": {
+   "customers": 3,
+   "gross": 2080000,
+   "grossCount": 5,
+   "itemsSold": 10,
+   "net": 1580000,
+   "orders": 5,
+   "refundedCount": 3,
+   "refunds": 500000,
+   "stillSoldRevenue": 1980000
+  },
+  "distinctProducts": 6,
+  "grossByPaymentMethod": {
+   "card": 340000,
+   "cash": 700000,
+   "qris": 590000,
+   "transfer": 450000
+  },
+  "previous": {
+   "customers": 1,
+   "gross": 1392654.33,
+   "grossCount": 4,
+   "itemsSold": 8,
+   "net": 1392654.33,
+   "orders": 3,
+   "refundedCount": 0,
+   "refunds": 0,
+   "stillSoldRevenue": 1172654.33
+  },
+  "promoTally": [
+   {
+    "amount": 20000,
+    "count": 1,
+    "label": "Diskon Akhir Pekan"
+   },
+   {
+    "amount": 40000,
+    "count": 1,
+    "label": "Promo Rose"
+   }
+  ],
+  "refundsByPaymentMethod": {
+   "card": 220000,
+   "cash": 180000,
+   "transfer": 100000
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 3,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 2,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 1,
+    "variantSize": "30ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "08",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 440000
+   },
+   {
+    "bucket": "09",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 500000
+   },
+   {
+    "bucket": "10",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 340000
+   },
+   {
+    "bucket": "11",
+    "orders": 0,
+    "refunds": 220000,
+    "sales": 0
+   },
+   {
+    "bucket": "12",
+    "orders": 1,
+    "refunds": 180000,
+    "sales": 350000
+   },
+   {
+    "bucket": "13",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 450000
+   },
+   {
+    "bucket": "14",
+    "orders": 0,
+    "refunds": 100000,
+    "sales": 0
+   }
+  ]
+ },
+ "2026-11-04|today|cashier-A": {
+  "bottomProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 2,
+    "variantSize": "30ml"
+   }
+  ],
+  "cashiers": [
+   {
+    "id": "00000000-0000-4000-8e01-000000000002",
+    "name": "Budi",
+    "revenue": 690000,
+    "transactions": 2
+   },
+   {
+    "id": "00000000-0000-4000-8e01-000000000001",
+    "name": "Rina",
+    "revenue": 850000,
+    "transactions": 2
+   }
+  ],
+  "current": {
+   "customers": 2,
+   "gross": 1640000,
+   "grossCount": 4,
+   "itemsSold": 8,
+   "net": 1140000,
+   "orders": 4,
+   "refundedCount": 3,
+   "refunds": 500000,
+   "stillSoldRevenue": 1540000
+  },
+  "distinctProducts": 6,
+  "grossByPaymentMethod": {
+   "card": 340000,
+   "cash": 700000,
+   "qris": 150000,
+   "transfer": 450000
+  },
+  "previous": {
+   "customers": 1,
+   "gross": 805000,
+   "grossCount": 3,
+   "itemsSold": 4,
+   "net": 805000,
+   "orders": 2,
+   "refundedCount": 0,
+   "refunds": 0,
+   "stillSoldRevenue": 585000
+  },
+  "promoTally": [
+   {
+    "amount": 20000,
+    "count": 1,
+    "label": "Diskon Akhir Pekan"
+   },
+   {
+    "amount": 40000,
+    "count": 1,
+    "label": "Promo Rose"
+   }
+  ],
+  "refundsByPaymentMethod": {
+   "card": 220000,
+   "cash": 180000,
+   "transfer": 100000
+  },
+  "topProducts": [
+   {
+    "productId": "00000000-0000-4000-8e03-000000000004",
+    "productName": "Vanilla Noir",
+    "qty": 2,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 2,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000006",
+    "productName": "Jasmine",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000001",
+    "productName": "Rose Oud",
+    "qty": 1,
+    "variantSize": "50ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000002",
+    "productName": "Amber Musk",
+    "qty": 1,
+    "variantSize": "30ml"
+   },
+   {
+    "productId": "00000000-0000-4000-8e03-000000000003",
+    "productName": "Citrus Zest",
+    "qty": 1,
+    "variantSize": "50ml"
+   }
+  ],
+  "trend": [
+   {
+    "bucket": "09",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 500000
+   },
+   {
+    "bucket": "10",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 340000
+   },
+   {
+    "bucket": "11",
+    "orders": 0,
+    "refunds": 220000,
+    "sales": 0
+   },
+   {
+    "bucket": "12",
+    "orders": 1,
+    "refunds": 180000,
+    "sales": 350000
+   },
+   {
+    "bucket": "13",
+    "orders": 1,
+    "refunds": 0,
+    "sales": 450000
+   },
+   {
+    "bucket": "14",
+    "orders": 0,
+    "refunds": 100000,
+    "sales": 0
+   }
+  ]
+ }
+}

@@ -1911,6 +1911,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ringkasan aggregate (outlet-scoped; any authenticated user, like /orders) */
+        get: operations["reportDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/categories/{id}": {
         parameters: {
             query?: never;
@@ -4868,6 +4885,79 @@ export interface components {
         };
         ReportSummaryResponse: {
             data: components["schemas"]["ReportSummary"];
+        };
+        /**
+         * @description One window of the Ringkasan aggregate. gross/grossCount = completed+partially refunded+refunded sales by SALE
+         *     day; refunds/refundedCount = refund rows by REFUND day (distinct orders); net = gross - refunds (may be
+         *     negative). orders/itemsSold/customers/stillSoldRevenue cover the completed + partially refunded sales by sale
+         *     day (itemsSold nets refunded units; customers = distinct customerId; stillSoldRevenue = total minus refunds).
+         */
+        DashboardWindow: {
+            /** Format: double */
+            gross: number;
+            grossCount: number;
+            /** Format: double */
+            refunds: number;
+            refundedCount: number;
+            /** Format: double */
+            net: number;
+            orders: number;
+            itemsSold: number;
+            customers: number;
+            /** Format: double */
+            stillSoldRevenue: number;
+        };
+        /** @description bucket is the 2-digit hour (trend=hour), the business day YYYY-MM-DD (day) or YYYY-MM (month). sales = gross sale money of the bucket, refunds = refund money recognised in it; revenue = sales - refunds. */
+        DashboardTrendBucket: {
+            bucket: string;
+            /** Format: double */
+            sales: number;
+            orders: number;
+            /** Format: double */
+            refunds: number;
+        };
+        DashboardProductRow: {
+            productId: string;
+            productName: string;
+            variantSize: string;
+            qty: number;
+        };
+        DashboardCashierRow: {
+            id: string;
+            name: string;
+            transactions: number;
+            /** Format: double */
+            revenue: number;
+        };
+        DashboardPromoRow: {
+            label: string;
+            count: number;
+            /** Format: double */
+            amount: number;
+        };
+        /**
+         * @description Everything Ringkasan renders from orders, aggregated server side for the current window (and the previous one
+         *     when requested). `previous` is absent when no previous window was asked for. Ranking, cashier and promo parts
+         *     cover the current window only. Same outlet scope as /orders.
+         */
+        DashboardAggregate: {
+            current: components["schemas"]["DashboardWindow"];
+            previous?: components["schemas"]["DashboardWindow"];
+            trend: components["schemas"]["DashboardTrendBucket"][];
+            grossByPaymentMethod: {
+                [key: string]: number;
+            };
+            refundsByPaymentMethod: {
+                [key: string]: number;
+            };
+            topProducts: components["schemas"]["DashboardProductRow"][];
+            bottomProducts: components["schemas"]["DashboardProductRow"][];
+            distinctProducts: number;
+            cashiers: components["schemas"]["DashboardCashierRow"][];
+            promoTally: components["schemas"]["DashboardPromoRow"][];
+        };
+        DashboardAggregateResponse: {
+            data: components["schemas"]["DashboardAggregate"];
         };
         IdResponse: {
             data: {
@@ -10271,6 +10361,51 @@ export interface operations {
                 content?: never;
             };
             403: components["responses"]["Forbidden"];
+        };
+    };
+    reportDashboard: {
+        parameters: {
+            query: {
+                /** @description Admin-only explicit outlet scope; "all" for cross-outlet. */
+                outletId?: components["parameters"]["OutletQuery"];
+                /** @description Inclusive lower bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable. */
+                dateFrom?: components["parameters"]["WIBDateFrom"];
+                /** @description Inclusive upper bound, a YYYY-MM-DD business day (the day in the outlet's timezone; a shift's sales take the shift's opening date). 400 when unparseable. */
+                dateTo?: components["parameters"]["WIBDateTo"];
+                /** @description Previous window start (YYYY-MM-DD). Send with prevDateTo or neither. */
+                prevDateFrom?: string;
+                /** @description Previous window end (YYYY-MM-DD), must be before the current window starts. */
+                prevDateTo?: string;
+                /** @description Trend bucket size (hour for a single day, day, month). */
+                trend: "hour" | "day" | "month";
+                /** @description Minutes east of UTC of the viewer's clock (-840..840). Only used by trend=hour, so the hour buckets match the viewer's local hour. */
+                tzOffset?: number;
+            };
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description sales by sale business day, refunds by refund business day, for the current and optional previous window */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardAggregateResponse"];
+                };
+            };
+            /** @description invalid date, trend or window combination */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     updateCategory: {

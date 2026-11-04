@@ -1,0 +1,308 @@
+{
+ "scenarios": [
+  {
+   "name": "2026-11-04|today|admin-all",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "today",
+   "scope": "admin-all",
+   "params": {
+    "dateFrom": "2026-11-04",
+    "dateTo": "2026-11-04",
+    "prevDateFrom": "2026-11-03",
+    "prevDateTo": "2026-11-03",
+    "trend": "hour",
+    "tzOffset": 420
+   },
+   "ordersWindow": {
+    "dateFrom": "2026-11-03",
+    "dateTo": "2026-11-04"
+   }
+  },
+  {
+   "name": "2026-11-04|7d|admin-all",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "7d",
+   "scope": "admin-all",
+   "params": {
+    "dateFrom": "2026-10-29",
+    "dateTo": "2026-11-04",
+    "prevDateFrom": "2026-10-22",
+    "prevDateTo": "2026-10-28",
+    "trend": "day"
+   },
+   "ordersWindow": {
+    "dateFrom": "2026-10-22",
+    "dateTo": "2026-11-04"
+   }
+  },
+  {
+   "name": "2026-11-04|30d|admin-all",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "30d",
+   "scope": "admin-all",
+   "params": {
+    "dateFrom": "2026-10-06",
+    "dateTo": "2026-11-04",
+    "prevDateFrom": "2026-09-06",
+    "prevDateTo": "2026-10-05",
+    "trend": "day"
+   },
+   "ordersWindow": {
+    "dateFrom": "2026-09-06",
+    "dateTo": "2026-11-04"
+   }
+  },
+  {
+   "name": "2026-11-04|all|admin-all",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "all",
+   "scope": "admin-all",
+   "params": {
+    "dateTo": "2026-11-04",
+    "trend": "month"
+   },
+   "ordersWindow": {}
+  },
+  {
+   "name": "2026-11-04|today|admin-A",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "today",
+   "scope": "admin-A",
+   "params": {
+    "dateFrom": "2026-11-04",
+    "dateTo": "2026-11-04",
+    "prevDateFrom": "2026-11-03",
+    "prevDateTo": "2026-11-03",
+    "trend": "hour",
+    "tzOffset": 420
+   },
+   "ordersWindow": {
+    "dateFrom": "2026-11-03",
+    "dateTo": "2026-11-04"
+   }
+  },
+  {
+   "name": "2026-11-04|7d|admin-A",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "7d",
+   "scope": "admin-A",
+   "params": {
+    "dateFrom": "2026-10-29",
+    "dateTo": "2026-11-04",
+    "prevDateFrom": "2026-10-22",
+    "prevDateTo": "2026-10-28",
+    "trend": "day"
+   },
+   "ordersWindow": {
+    "dateFrom": "2026-10-22",
+    "dateTo": "2026-11-04"
+   }
+  },
+  {
+   "name": "2026-11-04|30d|admin-A",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "30d",
+   "scope": "admin-A",
+   "params": {
+    "dateFrom": "2026-10-06",
+    "dateTo": "2026-11-04",
+    "prevDateFrom": "2026-09-06",
+    "prevDateTo": "2026-10-05",
+    "trend": "day"
+   },
+   "ordersWindow": {
+    "dateFrom": "2026-09-06",
+    "dateTo": "2026-11-04"
+   }
+  },
+  {
+   "name": "2026-11-04|all|admin-A",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "all",
+   "scope": "admin-A",
+   "params": {
+    "dateTo": "2026-11-04",
+    "trend": "month"
+   },
+   "ordersWindow": {}
+  },
+  {
+   "name": "2026-11-04|today|admin-B",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "today",
+   "scope": "admin-B",
+   "params": {
+    "dateFrom": "2026-11-04",
+    "dateTo": "2026-11-04",
+    "prevDateFrom": "2026-11-03",
+    "prevDateTo": "2026-11-03",
+    "trend": "hour",
+    "tzOffset": 420
+   },
+   "ordersWindow": {
+    "dateFrom": "2026-11-03",
+    "dateTo": "2026-11-04"
+   }
+  },
+  {
+   "name": "2026-11-04|7d|admin-B",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "7d",
+   "scope": "admin-B",
+   "params": {
+    "dateFrom": "2026-10-29",
+    "dateTo": "2026-11-04",
+    "prevDateFrom": "2026-10-22",
+    "prevDateTo": "2026-10-28",
+    "trend": "day"
+   },
+   "ordersWindow": {
+    "dateFrom": "2026-10-22",
+    "dateTo": "2026-11-04"
+   }
+  },
+  {
+   "name": "2026-11-04|30d|admin-B",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "30d",
+   "scope": "admin-B",
+   "params": {
+    "dateFrom": "2026-10-06",
+    "dateTo": "2026-11-04",
+    "prevDateFrom": "2026-09-06",
+    "prevDateTo": "2026-10-05",
+    "trend": "day"
+   },
+   "ordersWindow": {
+    "dateFrom": "2026-09-06",
+    "dateTo": "2026-11-04"
+   }
+  },
+  {
+   "name": "2026-11-04|all|admin-B",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "all",
+   "scope": "admin-B",
+   "params": {
+    "dateTo": "2026-11-04",
+    "trend": "month"
+   },
+   "ordersWindow": {}
+  },
+  {
+   "name": "2026-11-04|today|cashier-A",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "today",
+   "scope": "cashier-A",
+   "params": {
+    "dateFrom": "2026-11-04",
+    "dateTo": "2026-11-04",
+    "prevDateFrom": "2026-11-03",
+    "prevDateTo": "2026-11-03",
+    "trend": "hour",
+    "tzOffset": 420
+   },
+   "ordersWindow": {
+    "dateFrom": "2026-11-03",
+    "dateTo": "2026-11-04"
+   }
+  },
+  {
+   "name": "2026-11-04|7d|cashier-A",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "7d",
+   "scope": "cashier-A",
+   "params": {
+    "dateFrom": "2026-10-29",
+    "dateTo": "2026-11-04",
+    "prevDateFrom": "2026-10-22",
+    "prevDateTo": "2026-10-28",
+    "trend": "day"
+   },
+   "ordersWindow": {
+    "dateFrom": "2026-10-22",
+    "dateTo": "2026-11-04"
+   }
+  },
+  {
+   "name": "2026-11-04|30d|cashier-A",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "30d",
+   "scope": "cashier-A",
+   "params": {
+    "dateFrom": "2026-10-06",
+    "dateTo": "2026-11-04",
+    "prevDateFrom": "2026-09-06",
+    "prevDateTo": "2026-10-05",
+    "trend": "day"
+   },
+   "ordersWindow": {
+    "dateFrom": "2026-09-06",
+    "dateTo": "2026-11-04"
+   }
+  },
+  {
+   "name": "2026-11-04|all|cashier-A",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "all",
+   "scope": "cashier-A",
+   "params": {
+    "dateTo": "2026-11-04",
+    "trend": "month"
+   },
+   "ordersWindow": {}
+  },
+  {
+   "name": "2026-11-04|7d|cashier-A-foreign",
+   "now": "2026-11-04T07:00:00Z",
+   "period": "7d",
+   "scope": "cashier-A-foreign",
+   "params": {
+    "dateFrom": "2026-10-29",
+    "dateTo": "2026-11-04",
+    "prevDateFrom": "2026-10-22",
+    "prevDateTo": "2026-10-28",
+    "trend": "day"
+   },
+   "ordersWindow": {
+    "dateFrom": "2026-10-22",
+    "dateTo": "2026-11-04"
+   }
+  },
+  {
+   "name": "2026-11-02|today|admin-all",
+   "now": "2026-11-02T07:00:00Z",
+   "period": "today",
+   "scope": "admin-all",
+   "params": {
+    "dateFrom": "2026-11-02",
+    "dateTo": "2026-11-02",
+    "prevDateFrom": "2026-11-01",
+    "prevDateTo": "2026-11-01",
+    "trend": "hour",
+    "tzOffset": 420
+   },
+   "ordersWindow": {
+    "dateFrom": "2026-11-01",
+    "dateTo": "2026-11-02"
+   }
+  },
+  {
+   "name": "2026-11-02|7d|admin-all",
+   "now": "2026-11-02T07:00:00Z",
+   "period": "7d",
+   "scope": "admin-all",
+   "params": {
+    "dateFrom": "2026-10-27",
+    "dateTo": "2026-11-02",
+    "prevDateFrom": "2026-10-20",
+    "prevDateTo": "2026-10-26",
+    "trend": "day"
+   },
+   "ordersWindow": {
+    "dateFrom": "2026-10-20",
+    "dateTo": "2026-11-02"
+   }
+  }
+ ]
+}
