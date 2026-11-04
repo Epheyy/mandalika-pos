@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { User } from '@mandalika/api'
 import { api, authStore } from './api'
+import { productCatalogue } from './lib/productCatalogue'
 import { localDay } from './lib/businessDay'
 
 const REFRESH_KEY = 'mandalika.backoffice.refresh'
@@ -36,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authStore.access = null
     authStore.refresh = null
     authStore.userId = null
+    productCatalogue.clear()
     localStorage.removeItem(REFRESH_KEY)
     localStorage.removeItem(LOGIN_DATE_KEY)
     setUser(null)
@@ -108,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(REFRESH_KEY, d.refresh)
     localStorage.setItem(LOGIN_DATE_KEY, today())
     authStore.userId = d.user.id
+    productCatalogue.clear()
     setUser(d.user)
   }, [])
 

@@ -25,6 +25,8 @@ export interface ScopedCache<T> {
   /** The last good entry of the CURRENT scope (stale or not), or undefined. Referentially stable until replaced. */
   peek(): CacheEntry<T> | undefined
   get(opts?: GetOptions): Promise<T>
+  /** Whether the current scope has an entry younger than maxAgeMs (default: the TTL) that no invalidation has outdated. */
+  fresh(maxAgeMs?: number): boolean
   /** Mark every scope stale and notify subscribers (they refetch). Last-good data stays readable. */
   invalidate(): void
   /** Drop every scope's data. */
@@ -61,7 +63,11 @@ export function createScopedCache<T>(options: ScopedCacheOptions<T>): ScopedCach
     const promise = load().then(
       (data) => {
         // A load that straddled an outlet/user switch may mix scopes; never store it.
-        if (scope() !== key) return data
+        if (scope() !== key) {
+          // Not stored, and the slot must not keep answering later callers with this unstored list.
+          if (inflight.get(key)?.promise === promise) inflight.delete(key)
+          return data
+        }
         // A newer load (forced, or after an invalidation) owns the slot; this one only answers its callers.
         if (inflight.get(key)?.promise !== promise) return data
         entries.set(key, { data, at, epoch: startEpoch })
@@ -80,6 +86,10 @@ export function createScopedCache<T>(options: ScopedCacheOptions<T>): ScopedCach
 
   return {
     peek: () => entries.get(scope()),
+    fresh(maxAgeMs = ttlMs) {
+      const hit = entries.get(scope())
+      return hit !== undefined && isFresh(hit, maxAgeMs)
+    },
     get(opts = {}) {
       const key = scope()
       const maxAgeMs = opts.maxAgeMs ?? ttlMs

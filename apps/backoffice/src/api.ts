@@ -48,7 +48,13 @@ const CATALOGUE_WRITES = [
   'adjustLocationStock',
   'setOutletPar',
   'createTransfer',
+  'sendTransfer',
+  'cancelTransfer',
   'receiveTransfer',
+  'createLocationGoodsReceipt',
+  'approveStockCount',
+  'approveAdjustmentRequest',
+  'refundOrder',
 ] as const satisfies ReadonlyArray<keyof Api>
 
 /** The client with the catalogue-changing writes wrapped: once settled (even failed: it may half-apply) => signal. */

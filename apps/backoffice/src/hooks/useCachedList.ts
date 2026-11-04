@@ -36,13 +36,19 @@ export function useCachedList<T>(
   const epoch = useSyncExternalStore(cache.subscribe, cache.epoch, serverEpoch)
   const scope = outlet ? (outlet.outletId ?? '') : cache.scopeKey()
   const [failure, setFailure] = useState<{ scope: string; message: string } | null>(null)
+  // The scope this mount has already had an answer for: after that, an aging entry keeps showing while it refreshes.
+  const [settled, setSettled] = useState<string | null>(null)
 
   useEffect(() => {
     if (!enabled) return
     let alive = true
     const load = () => {
       cache.get({ maxAgeMs }).then(
-        () => alive && setFailure(null),
+        () => {
+          if (!alive) return
+          setFailure(null)
+          setSettled(scope)
+        },
         (e: unknown) => alive && setFailure({ scope, message: e instanceof Error ? e.message : 'load failed' }),
       )
     }
@@ -60,12 +66,15 @@ export function useCachedList<T>(
     try {
       await cache.get({ force: true })
       setFailure(null)
+      setSettled(scope)
     } catch (e: unknown) {
-      setFailure({ scope: cache.scopeKey(), message: e instanceof Error ? e.message : 'load failed' })
+      setFailure({ scope, message: e instanceof Error ? e.message : 'load failed' })
     }
-  }, [cache])
+  }, [cache, scope])
 
-  const data = entry?.data
+  // A screen that has just opened never shows a list older than its own max age (Ringkasan used to hold its skeleton
+  // until a fresh read); once it has an answer it keeps showing the aging list while the refresh runs.
+  const data = settled === scope || cache.fresh(maxAgeMs) ? entry?.data : undefined
   const error = failure && failure.scope === scope ? failure.message : null
   return { data, error, loading: enabled && data === undefined && error === null, refetch }
 }

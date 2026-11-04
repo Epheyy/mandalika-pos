@@ -86,6 +86,20 @@ describe('scopedCache scope', () => {
     expect(cache.peek()).toBeUndefined()
   })
 
+  it('does not leave a dead in-flight slot behind a straddled load: back in the first scope the next get loads again', async () => {
+    const gates = [deferred<string>()]
+    const { cache, load, scope } = setup({ load: () => (load.mock.calls.length === 1 ? gates[0].promise : Promise.resolve('clean-list')) })
+    const pending = cache.get()
+    scope.key = 'u1|outlet-b' // the header is on another outlet when the pages finish
+    gates[0].resolve('mixed-scope-list')
+    await pending
+    scope.key = 'u1|outlet-a' // ...and back again
+    expect(cache.peek()).toBeUndefined()
+    expect(await cache.get()).toBe('clean-list')
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(cache.peek()?.data).toBe('clean-list')
+  })
+
   it('clear() drops every scope', async () => {
     const { cache, scope } = setup()
     await cache.get()
@@ -95,6 +109,23 @@ describe('scopedCache scope', () => {
     expect(cache.peek()).toBeUndefined()
     scope.key = 'u1|outlet-a'
     expect(cache.peek()).toBeUndefined()
+  })
+})
+
+describe('scopedCache fresh()', () => {
+  it('is true only for a current-scope entry younger than the age and not outdated by an invalidation', async () => {
+    const { cache, clock, scope } = setup()
+    expect(cache.fresh()).toBe(false)
+    await cache.get()
+    expect(cache.fresh()).toBe(true)
+    clock.t += 61_000
+    expect(cache.fresh(60_000)).toBe(false)
+    expect(cache.fresh()).toBe(true)
+    scope.key = 'u1|outlet-b'
+    expect(cache.fresh()).toBe(false)
+    scope.key = 'u1|outlet-a'
+    cache.invalidate()
+    expect(cache.fresh()).toBe(false)
   })
 })
 
