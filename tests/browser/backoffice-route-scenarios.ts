@@ -1,7 +1,7 @@
 // Fase D1b: routed tabs and views (deep links) and the leave guard against Forward, typed URLs and the screen's own
 // tabs (synthetic API, no real backend). BO-SETTINGS-GUARD already covers a refused and an allowed Back.
 import type { ScenarioPage } from './fixture'
-import { openBackoffice, navTo, navItem, clickTab, tabItem } from './fixture'
+import { openBackoffice, deepLink, navTo, navItem, clickTab, tabItem } from './fixture'
 
 const OUTLET = '00000000-0000-4000-8f6b-0000000000a1'
 const TRANSFER_ID = '00000000-0000-4000-8f6b-0000000000c1'
@@ -67,12 +67,6 @@ const historyOf = (page: ScenarioPage) =>
 const pressed = async (page: ScenarioPage, tabKey: string) => (await tabItem(page, tabKey).getAttribute('aria-pressed')) === 'true'
 /** The breadcrumb's last item: the screen, or its tab when the screen has tabs. */
 const crumb = (page: ScenarioPage) => page.locator('nav[aria-label="Posisi halaman"] [aria-current="page"]')
-
-/** Land on a deep link the way a pasted URL does: set the hash, then load the page fresh. */
-async function deepLink(page: ScenarioPage, hash: string) {
-  await page.evaluate((h) => { location.hash = h }, hash)
-  await page.reload()
-}
 
 export const routeDeepLinkFlow = async (page: ScenarioPage) => {
   const results: object[] = []

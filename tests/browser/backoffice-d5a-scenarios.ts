@@ -1,7 +1,7 @@
 // Fase D5a: a Laporan table on the kit pager keeps its page across a reload and Back, and the Pengguna role delete asks
 // through the ConfirmDialog and keeps the server's refusal inside it (synthetic API, no real backend).
 import type { ScenarioPage } from './fixture'
-import { openBackoffice, navTo, clickTab } from './fixture'
+import { openBackoffice, deepLink, navTo, clickTab } from './fixture'
 
 const OUTLET = '00000000-0000-4000-8d5a-0000000000a1'
 const ROLE_ID = '00000000-0000-4000-8d5a-0000000000b1'
@@ -50,8 +50,7 @@ export const reportPagerFlow = async (page: ScenarioPage) => {
   const results: object[] = []
   const calls = await mockApi(page)
   await openBackoffice(page)
-  await page.evaluate(() => { location.hash = '#/laporan/kode-diskon' })
-  await page.reload()
+  await deepLink(page, '#/laporan/kode-diskon')
   await page.getByText('Hal 1/3', { exact: true }).waitFor()
   check(calls.codeReport.some((q) => q.get('page') === '1' && q.get('limit') === '50'), 'first page asks for limit 50')
   check((await page.getByRole('combobox', { name: /Baris/ }).locator('option').count()) === 1, 'the fixed page size offers one size')
