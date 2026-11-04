@@ -1,5 +1,6 @@
 import type { ListOrdersParams, Order, ReportSummary } from '@mandalika/api'
 import { isRefundedStatus, refundedMoney } from './reportTotals'
+import { canonicalMethodCode } from '../../lib/paymentLabel'
 
 export interface RefundCsvFields {
   /** Money refunded on the order; '' for an order that is not refunded. */
@@ -62,12 +63,18 @@ export interface BreakdownRow {
 export function breakdownRows(s: Partial<Pick<ReportSummary, 'grossByPaymentMethod' | 'refundsByPaymentMethod'>>): BreakdownRow[] {
   const gross = s.grossByPaymentMethod ?? {}
   const refunds = s.refundsByPaymentMethod ?? {}
-  const methods = [...Object.keys(gross), ...Object.keys(refunds).filter((m) => !(m in gross))]
-  return methods.map((method) => {
-    const g = gross[method] ?? 0
-    const r = refunds[method] ?? 0
-    return { method, gross: g, refunds: r, net: g - r }
-  })
+  // Grouped by canonical code so "Cash"/"cash"/"tunai" are one card (as on the dashboard), first-seen order.
+  const rows = new Map<string, BreakdownRow>()
+  const add = (raw: string, g: number, r: number) => {
+    const method = canonicalMethodCode(raw)
+    const cur = rows.get(method) ?? { method, gross: 0, refunds: 0, net: 0 }
+    const gross2 = cur.gross + g
+    const refunds2 = cur.refunds + r
+    rows.set(method, { method, gross: gross2, refunds: refunds2, net: gross2 - refunds2 })
+  }
+  for (const m of Object.keys(gross)) add(m, gross[m] ?? 0, 0)
+  for (const m of Object.keys(refunds)) add(m, 0, refunds[m] ?? 0)
+  return [...rows.values()]
 }
 
 /** Share of grossSales as a whole percent; 0 when there is no gross. */

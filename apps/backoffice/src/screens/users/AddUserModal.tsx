@@ -43,11 +43,11 @@ function AddUserModal({ open, onClose, nf, setNf, busy, outlets, error, onSave }
       <div className="space-y-4">
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         {[
-          { k: 'displayName' as const, label: 'Nama *', type: 'text' },
-          { k: 'email' as const, label: 'Email *', type: 'email' },
-          { k: 'password' as const, label: 'Kata Sandi *', type: 'password' },
-        ].map(({ k, label, type }) => (
-          <Input key={k} label={label} type={type} value={nf[k]} onChange={(e) => setNf((f) => ({ ...f, [k]: e.target.value }))} />
+          { k: 'displayName' as const, label: 'Nama *', type: 'text', autoComplete: 'off' },
+          { k: 'email' as const, label: 'Email *', type: 'email', autoComplete: 'off' },
+          { k: 'password' as const, label: 'Kata Sandi *', type: 'password', autoComplete: 'new-password' },
+        ].map(({ k, label, type, autoComplete }) => (
+          <Input key={k} label={label} type={type} autoComplete={autoComplete} value={nf[k]} onChange={(e) => setNf((f) => ({ ...f, [k]: e.target.value }))} />
         ))}
         <Field label="Role">
           <RolePicker value={nf.role} onChange={(r) => setNf((f) => ({ ...f, role: r }))} />

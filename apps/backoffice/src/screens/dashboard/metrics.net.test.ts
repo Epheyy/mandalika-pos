@@ -128,14 +128,13 @@ describe('netPaymentBreakdown', () => {
 })
 
 describe('delta', () => {
-  it('rise from a negative previous net is positive (-100 -> -50 is +50%)', () => {
-    expect(delta(-50, -100)).toBe(50)
+  it('is null off a negative previous net (no false +100%)', () => {
+    expect(delta(-50, -100)).toBeNull()
+    expect(delta(0, -100)).toBeNull()
+    expect(delta(100, -100)).toBeNull()
   })
-  it('fall further below a negative previous net is negative (-100 -> -150 is -50%)', () => {
-    expect(delta(-150, -100)).toBe(-50)
-  })
-  it('crossing from negative to positive is positive', () => {
-    expect(delta(100, -100)).toBe(200)
+  it('a real drop to 0 from a positive base is -100%', () => {
+    expect(delta(0, 100)).toBe(-100)
   })
   it('is null when prev is 0 or unavailable', () => {
     expect(delta(10, 0)).toBeNull()

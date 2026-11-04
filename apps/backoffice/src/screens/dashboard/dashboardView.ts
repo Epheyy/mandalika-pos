@@ -1,4 +1,5 @@
 import type { DashboardAggregate, DashboardAggregateParams, Order, Promotion } from '@mandalika/api'
+import { groupPayRows } from '../../lib/paymentLabel'
 import { eachMonthOfInterval, format, parseISO, startOfDay, startOfMonth, subDays } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { localDay } from '../../lib/businessDay'
@@ -18,7 +19,6 @@ import {
   netKpis,
   netPaymentBreakdown,
   paymentBreakdown,
-  payLabel,
   periodInterval,
   prevInterval,
   productRanking,
@@ -176,13 +176,9 @@ export function viewFromAggregate(
   const net: NetKpis = { gross: cur.gross, grossCount: cur.grossCount, refunds: cur.refunds, refundedCount: cur.refundedCount, net: cur.net }
   const trend = trendFromBuckets(agg.trend, period, now)
   const methods = new Set([...Object.keys(agg.grossByPaymentMethod), ...Object.keys(agg.refundsByPaymentMethod)])
-  const pay: PayRow[] = [...methods]
-    .map((method) => ({
-      method,
-      label: payLabel(method),
-      amount: (agg.grossByPaymentMethod[method] ?? 0) - (agg.refundsByPaymentMethod[method] ?? 0),
-    }))
-    .sort((a, b) => b.amount - a.amount || (a.method < b.method ? -1 : 1))
+  const pay: PayRow[] = groupPayRows(
+    [...methods].map((m) => [m, (agg.grossByPaymentMethod[m] ?? 0) - (agg.refundsByPaymentMethod[m] ?? 0)] as const),
+  )
   const productRow = (r: DashboardAggregate['topProducts'][number]): ProductRow => ({
     key: `${r.productId}|${r.variantSize}`,
     name: `${r.productName}${r.variantSize ? ` ${r.variantSize}` : ''}`.trim(),

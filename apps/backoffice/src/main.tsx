@@ -5,10 +5,12 @@ import { AuthProvider } from './auth'
 import { OutletProvider } from './outlet'
 import App from './App'
 import { applyBrandSkin } from './lib/brand'
+import { installChunkReloadGuard } from './lib/chunkReload'
 import { ConfirmProvider } from './ui/ConfirmDialog'
 import { ToastProvider } from './ui/Toast'
 
 applyBrandSkin()
+installChunkReloadGuard()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

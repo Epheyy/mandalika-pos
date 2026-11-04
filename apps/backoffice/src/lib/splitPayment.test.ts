@@ -19,10 +19,11 @@ const SPLIT = {
 }
 
 describe('labels', () => {
-  it('names the sentinel Split-Payment and falls back to the raw id', () => {
+  it('names the sentinel Split-Payment and uses the canonical label', () => {
     expect(methodLabel('split', METHODS)).toBe(SPLIT_LABEL)
     expect(methodLabel(' QRIS ', METHODS)).toBe('QRIS')
-    expect(methodLabel('bca', METHODS)).toBe('bca')
+    expect(methodLabel('bca', METHODS)).toBe('BCA')
+    expect(methodLabel('Cash')).toBe('Tunai')
     expect(orderMethodText({ paymentMethod: 'SPLIT' })).toBe('Split-Payment')
     expect(orderMethodText({ paymentMethod: 'qris' })).toBe('qris')
   })
@@ -125,12 +126,12 @@ describe('filter hint and sync review', () => {
     expect(paymentFilterHint('split', 'Split-Payment')).toContain('Split-Payment')
   })
   it('summarises the tender lines and payout method of queued payloads', () => {
-    expect(tendersLine([{ method: 'qris', amount: 751000 }, { method: 'tunai', amount: 500000 }])).toMatch(/^qris .*751\.000 \+ tunai .*500\.000$/)
+    expect(tendersLine([{ method: 'qris', amount: 751000 }, { method: 'tunai', amount: 500000 }])).toMatch(/^QRIS .*751\.000 \+ Tunai .*500\.000$/)
     expect(tendersLine(undefined)).toBe('')
     const sale = payloadSummary('order', { orderNumber: 'A', paymentMethod: 'split', amountPaid: 1, tenders: [{ method: 'qris', amount: 1 }] })
     expect(sale.find(([k]) => k === 'Metode')?.[1]).toBe('Split-Payment')
     expect(sale.some(([k]) => k === 'Pembayaran')).toBe(true)
     const refund = payloadSummary('refund', { orderNumber: 'A', payoutMethod: 'tunai' })
-    expect(refund.find(([k]) => k === 'Dikembalikan lewat')?.[1]).toBe('tunai')
+    expect(refund.find(([k]) => k === 'Dikembalikan lewat')?.[1]).toBe('Tunai')
   })
 })

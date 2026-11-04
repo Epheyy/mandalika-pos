@@ -77,6 +77,8 @@ interface OversellTabProps {
   dateTo: string
   outletId: string
   canAcknowledge: boolean
+  /** Tells the hub whether the date range applies, so it can disable its Dari/Sampai fields while it does not. */
+  onRangeActiveChange?: (active: boolean) => void
 }
 
 const when = (iso: string) => format(parseISO(iso), 'dd MMM yyyy HH:mm', { locale: idLocale })
@@ -196,7 +198,7 @@ function useRememberedOptions(rows: ReadonlyArray<OversellBreakdown> | undefined
  * line "sudah dicek" (optional note); the sidebar/tab badge counts unchecked lines.
  * Outlet scope rides the request header (outletId here is a refetch dependency only).
  */
-export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: OversellTabProps) {
+export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge, onRangeActiveChange }: OversellTabProps) {
   // Filters and page are URL state (#/laporan/stok-minus?status=semua&jenis=shortage&hal=2).
   const [state, setState] = useListState(OVERSELL_SCHEMA)
   const status = oversellStatusOf(state.status)
@@ -206,6 +208,10 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
   // Off by default so the list matches the badge (all unchecked lines, any date).
   const useRange = state.rentang
   const page = pageOf(state.hal)
+  useEffect(() => {
+    onRangeActiveChange?.(useRange)
+    return () => onRangeActiveChange?.(true)
+  }, [useRange, onRangeActiveChange])
   const [expanded, setExpanded] = useState<string | null>(null)
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [note, setNote] = useState('')
@@ -326,7 +332,7 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
           />
         </FilterBar>
         <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-paper-0 px-3 py-2">
-          <Switch checked={useRange} onChange={(on) => setState({ rentang: on, hal: 1 })} label="Ikuti rentang tanggal" />
+          <Switch checked={useRange} offClassName="bg-paper-2" onChange={(on) => setState({ rentang: on, hal: 1 })} label="Ikuti rentang tanggal" />
           <div>
             <p className="text-sm font-bold text-gray-900">Ikuti rentang tanggal</p>
             <p className="text-xs text-ink-700">
@@ -355,7 +361,7 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge }: Over
       {actionError && <p role="alert" className="text-sm text-red-600">{actionError}</p>}
 
       {canAcknowledge && selected.size > 0 && (
-        <Card className="p-4 flex flex-wrap items-end gap-3 border-brand-strong">
+        <Card className="sticky bottom-3 z-20 p-4 flex flex-wrap items-end gap-3 border-brand-strong shadow-lg">
           <div className="flex-1 min-w-56">
             <Input
               label={`Catatan (opsional, ${selected.size} baris dipilih)`}

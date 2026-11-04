@@ -11,6 +11,7 @@ import {
   PieChart,
   Pie,
 } from 'recharts'
+import { compactRupiah, isAllZero } from '../../lib/axisFormat'
 import { BRAND } from '../../lib/brand'
 import {
   CHART_PRIMARY,
@@ -21,7 +22,6 @@ import {
 } from '../../ui/chartColors'
 import type { TrendPoint, PayRow, CashierRow } from './metrics'
 
-const rb = (v: number) => `${v < 0 ? '-' : ''}Rp ${(Math.abs(v) / 1000).toFixed(0)}rb`
 
 interface TrendChartProps {
   trend: TrendPoint[]
@@ -41,11 +41,12 @@ export function TrendChart({ trend }: TrendChartProps) {
           interval="preserveStartEnd"
         />
         <YAxis
-          tickFormatter={rb}
+          tickFormatter={compactRupiah}
           tick={{ fontSize: 11, fill: CHART_AXIS }}
           axisLine={false}
           tickLine={false}
-          width={56}
+          width={72}
+          hide={isAllZero(trend.map((p) => p.revenue))}
         />
         <Tooltip
           formatter={(v) => [BRAND.currency.format(Number(v)), 'Penjualan']}

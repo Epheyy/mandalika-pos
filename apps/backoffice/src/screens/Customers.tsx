@@ -123,6 +123,11 @@ export default function Customers() {
   const total = cq.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const activeFilters = [search !== '', sort !== 'belanja', tagId !== '', segmentId !== ''].filter(Boolean).length
+  // The header counts every registered customer; while a search/tag/segment narrows the list it adds "· N cocok".
+  const isNarrowed = search !== '' || tagId !== '' || segmentId !== ''
+  const allQ = usePolledQuery(() => (isNarrowed ? api.listCustomers(1, 1, '', 'belanja', '', '') : Promise.resolve(null)), [isNarrowed], 300_000)
+  const registered = isNarrowed ? (allQ.data?.meta?.total ?? null) : total
+  const registeredText = registered === null ? '…' : String(registered)
   const filterSummary = describeCustomerFilters(
     { q: search, sort, tagId, segmentId },
     (id) => allTags.find((t) => t.id === id)?.name,
@@ -345,7 +350,7 @@ export default function Customers() {
         <div className="p-6 space-y-5">
           <PageHeader
         title="Pelanggan"
-        subtitle={`${total} pelanggan terdaftar`}
+        subtitle={isNarrowed ? `${registeredText} pelanggan terdaftar · ${total} cocok` : `${registeredText} pelanggan terdaftar`}
         actions={
           <>
             <Tabs

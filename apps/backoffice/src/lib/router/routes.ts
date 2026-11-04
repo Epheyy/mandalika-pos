@@ -8,6 +8,7 @@ import {
   BarChart3,
   Cable,
   ClipboardCheck,
+  RefreshCw,
   ClipboardList,
   LayoutDashboard,
   Package,
@@ -128,7 +129,7 @@ export const ROUTES: readonly RouteDef[] = [
   { id: 'approvals', path: 'persetujuan-stok', label: 'Persetujuan Stok', section: 'produk-stok', icon: ClipboardCheck, perm: 'manage_inventory', load: () => import('../../screens/approvals/ApprovalQueue') },
   { id: 'requisitions', path: 'permintaan-barang', label: 'Permintaan Barang', section: 'produk-stok', icon: ClipboardList, perm: 'request_stock', load: () => import('../../screens/requisitions/RequisitionList') },
   { id: 'users', path: 'pengguna', label: 'Pengguna', section: 'operasional', icon: UserCog, perm: 'manage_users', load: () => import('../../screens/Users'), tabs: USER_TABS },
-  { id: 'syncReview', path: 'tinjauan-sinkron', label: 'Tinjauan Sinkron', section: 'operasional', icon: ClipboardCheck, perm: 'resolve_sync_review', load: () => import('../../screens/syncReview/SyncReview'), tabs: SYNC_REVIEW_TABS },
+  { id: 'syncReview', path: 'tinjauan-sinkron', label: 'Tinjauan Sinkron', section: 'operasional', icon: RefreshCw, perm: 'resolve_sync_review', load: () => import('../../screens/syncReview/SyncReview'), tabs: SYNC_REVIEW_TABS },
   { id: 'settings', path: 'pengaturan', label: 'Pengaturan', section: 'operasional', icon: Settings, perm: 'manage_settings', load: () => import('../../screens/SettingsScreen'), tabs: SETTINGS_TABS },
   // Admin-only: no role is granted 'manage_erp_integration'; the endpoints are admin-gated server-side.
   { id: 'erpOutbox', path: 'integrasi-erp', label: 'Integrasi ERP', section: 'sistem', icon: Cable, perm: 'manage_erp_integration', load: () => import('../../screens/integration/ErpOutboxScreen') },
