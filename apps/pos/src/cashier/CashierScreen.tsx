@@ -89,6 +89,7 @@ import { brand, hasFeature } from '../brand'
 import { PAYMENT_LABELS, tenderLabel } from '../lib/paymentLabels'
 import { cashPredicate, planSaleTender, salePaymentFields, snapshotTenders } from './tenderSplit'
 import { useSplitDraft } from './useSplitDraft'
+import { useOpenCartDraft } from './useOpenCartDraft'
 import { draftChargedSummary } from './splitDraft'
 
 type FontSize = 'sm' | 'md' | 'lg'
@@ -396,6 +397,17 @@ export default function CashierScreen() {
       ...engine.localReceipts().map((r) => r.orderUuid),
     ]),
     ensureShift, offlineLock, showToast,
+  })
+
+  // P-20: the open cart survives a reload. A split draft, when pending, owns the restore; a draft whose sale is already queued is dropped.
+  const openCart = useOpenCartDraft({
+    outletId: authStore.outletId ?? '', userId: authStore.userId, state, dispatch, showToast,
+    catalogueReady: products.length > 0, splitDraftOrderUuid: splitDraft.pending?.orderUuid ?? null,
+    getEnv: () => ({ products: displayProducts, promotions, discountCodes, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }),
+    saleUuids: () => new Set([
+      ...engine.outbox.all().flatMap((i) => (i.type === 'order' && typeof i.payload.orderUuid === 'string' ? [i.payload.orderUuid] : [])),
+      ...engine.localReceipts().map((r) => r.orderUuid),
+    ]),
   })
 
   // A44 owner decision 2026-10-16: an out-of-stock item is never blocked. The line is
@@ -798,6 +810,8 @@ export default function CashierScreen() {
         }) ?? state.cart
         // C6 D-62: a split sale reuses the uuid minted when split mode started, so a saved draft and the queued
         // sale share one idempotency key (a draft can never become a second sale).
+        const saleUuid = openCart.saleUuidFor(state)
+        await openCart.commitBeforeSale(saleUuid)
         const queued = await engine.enqueue('order', {
         orderNumber: orderNo,
         items: saleItems,
@@ -816,10 +830,11 @@ export default function CashierScreen() {
         shiftId: shift.currentShift?.id || null, // '' = open not yet synced
         quotedTotal: quote.quotedTotal,
         receiptSnapshot: quote.receiptSnapshot,
-      }, state.splitMode && state.splitOrderUuid ? state.splitOrderUuid : undefined)
+      }, saleUuid)
         // The draft goes right after the enqueue resolved, inside the gate; a kill in between leaves a draft whose
         // uuid is already queued, which the next start drops without a prompt.
         await splitDraft.clearForSale(queued.orderUuid)
+        await openCart.clearForSale()
         return queued
       })
       if (outcome.status === 'busy') return
@@ -1384,7 +1399,12 @@ export default function CashierScreen() {
         closeIntent={closeIntent}
         receipt={settings.receipt}
         onOpenShift={shift.openShift}
-        onCloseShift={shift.closeShift}
+        onCloseShift={async (...args) => {
+          const closed = await shift.closeShift(...args)
+          // P-20: a closed shift sells nothing, so its open cart goes too (draft and screen).
+          if (closed) { await openCart.clearForSale(); dispatch({ type: 'CART_CLEAR' }) }
+          return closed
+        }}
         shiftError={shift.shiftError}
         isOpeningShift={shift.isOpeningShift}
         isClosingShift={shift.isClosingShift}

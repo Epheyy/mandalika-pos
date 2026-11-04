@@ -386,6 +386,12 @@
       "source": "tests/browser/pos-split-scenarios.ts"
     },
     {
+      "id": "POS-OPEN-CART",
+      "finding": "P-20",
+      "description": "The open cart is saved on this tablet, restored after a reload, deleted once the sale is queued; a stale draft whose sale is already queued is dropped and the paid cart never reappears",
+      "source": "tests/browser/pos-opencart-scenarios.ts"
+    },
+    {
       "id": "POS-SPLIT-DRAFT",
       "finding": "C6b",
       "description": "An unfinished split payment is saved when the first non-cash line is added, offered back after a reload and restored; the sale uses the draft's orderUuid; a draft whose sale is already queued is dropped silently with exactly one queued sale",
