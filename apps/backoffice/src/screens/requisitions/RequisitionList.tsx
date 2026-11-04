@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { StockRequisition } from '@mandalika/api'
 import { ArrowLeft, ClipboardList, Plus } from 'lucide-react'
 import { api } from '../../api'
@@ -9,23 +9,35 @@ import { TableSkeleton } from '../../components/Skeleton'
 import { Badge } from '../../ui/Badge'
 import { Button } from '../../ui/Button'
 import { Card } from '../../ui/Card'
+import { DataTable, type Column } from '../../ui/DataTable'
 import { EmptyState } from '../../ui/EmptyState'
-import { Select } from '../../ui/Field'
+import { FilterBar } from '../../ui/FilterBar'
 import { PageHeader } from '../../ui/PageHeader'
 import { Pagination } from '../../ui/Pagination'
 import { backOrNavigate, navigate } from '../../lib/router/navigate'
+import { useListState } from '../../lib/router/useListState'
 import { useRoute } from '../../lib/router/useRoute'
 import { RequisitionDetail } from './RequisitionDetail'
 import { RequisitionForm } from './RequisitionForm'
 import { REQUISITION_STATUS, fmtDate } from './requisitionStatus'
-import { requisitionHash, requisitionViewFromPath } from './requisitionRoute'
+import {
+  REQUISITION_LIST_SCHEMA,
+  REQUISITION_PAGE_SIZES,
+  isRequisitionListPath,
+  requisitionHash,
+  requisitionPageOf,
+  requisitionSizeOf,
+  requisitionStatusOf,
+  requisitionViewFromPath,
+} from './requisitionRoute'
 
 /** Permintaan Barang screen. Outlet staff see their own outlet's requests; the warehouse sees every submitted one. */
 export default function Requisitions() {
   // The view lives in the path: #/permintaan-barang, /baru, /<id>, /<id>/ubah.
   const view = requisitionViewFromPath(useRoute().path)
   const go = (to: Parameters<typeof requisitionHash>[0], replace = false) => void navigate(requisitionHash(to), { replace })
-  const toList = () => go({ kind: 'list' })
+  // "Kembali" steps back to the list as it was (filters and page are in its URL); a pasted link has no such entry.
+  const toList = () => void backOrNavigate(requisitionHash({ kind: 'list' }), isRequisitionListPath)
   // A saved new request replaces its own entry, so Back does not return to a form that is already submitted.
   const saved = (id: string) => go({ kind: 'detail', id }, true)
   // Leaving the edit form (saved, cancelled, or not editable after all) steps back to the detail it was opened from,
@@ -87,6 +99,22 @@ interface RequisitionListProps {
   onOpen: (id: string) => void
 }
 
+const LIST_COLUMNS: Column<StockRequisition>[] = [
+  { id: 'number', header: 'No', cell: (r) => <span className="font-mono text-sm text-gray-900">{r.number}</span> },
+  { id: 'outlet', header: 'Outlet', cell: (r) => <span className="text-sm text-gray-500">{r.outletName}</span> },
+  { id: 'warehouse', header: 'Gudang', cell: (r) => <span className="text-sm text-gray-500">{r.warehouseName ?? '—'}</span> },
+  {
+    id: 'status',
+    header: 'Status',
+    cell: (r) => {
+      const s = REQUISITION_STATUS[r.status]
+      return <Badge tone={s.tone}>{s.label}</Badge>
+    },
+  },
+  { id: 'needed', header: 'Dibutuhkan', cell: (r) => <span className="text-sm text-gray-500">{fmtDate(r.neededBy)}</span> },
+  { id: 'transfer', header: 'Transfer', cell: (r) => <span className="font-mono text-sm text-gray-500">{r.transfer?.transferNo ?? '—'}</span> },
+]
+
 function RequisitionList({ onCreate, onOpen }: RequisitionListProps) {
   const { user } = useAuth()
   const { outletId } = useOutlet()
@@ -94,12 +122,14 @@ function RequisitionList({ onCreate, onOpen }: RequisitionListProps) {
   const canRequest = isAdmin || (user?.permissions ?? []).includes('request_stock')
   // An admin raises a PB for one outlet at a time (X-Outlet-Id); without one the server answers 400.
   const needsOutlet = isAdmin && !outletId
-  const [status, setStatus] = useState('')
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
+  // Status, page and page size are URL state (#/permintaan-barang?status=&hal=&per=).
+  const [state, setState] = useListState(REQUISITION_LIST_SCHEMA)
+  const status = requisitionStatusOf(state.status)
+  const page = requisitionPageOf(state.hal)
+  const pageSize = requisitionSizeOf(state.per)
 
   const q = usePolledQuery(
-    () => api.listRequisitions({ ...(status ? { status: status as StockRequisition['status'] } : {}), page, limit: pageSize }),
+    () => api.listRequisitions({ ...(status ? { status } : {}), page, limit: pageSize }),
     [status, page, pageSize],
   )
   const rows = q.data?.data ?? []
@@ -117,51 +147,31 @@ function RequisitionList({ onCreate, onOpen }: RequisitionListProps) {
         ) : undefined}
       />
       {canRequest && needsOutlet && <p className="text-sm text-gray-500">Pilih outlet dulu (menu di kanan atas) untuk membuat permintaan baru.</p>}
-      <div className="min-w-[180px] max-w-xs">
-        <Select label="Status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}>
-          <option value="">Semua status</option>
-          {Object.entries(REQUISITION_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </Select>
-      </div>
-      <Card className="overflow-hidden">
-        {q.loading ? (
-          <TableSkeleton />
-        ) : q.error ? (
-          <p className="p-5 text-sm text-red-600">{q.error}</p>
-        ) : rows.length === 0 ? (
-          <EmptyState icon={<ClipboardList />} title="Belum ada permintaan barang" />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  {['No', 'Outlet', 'Gudang', 'Status', 'Dibutuhkan', 'Transfer'].map((h) => (
-                    <th key={h} className="text-left px-5 py-3 text-xs font-black text-gray-400 uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {rows.map((r) => {
-                  const s = REQUISITION_STATUS[r.status]
-                  return (
-                    <tr key={r.id} onClick={() => onOpen(r.id)} className="hover:bg-gray-50 cursor-pointer">
-                      <td className="px-5 py-3 font-mono text-sm text-gray-900">{r.number}</td>
-                      <td className="px-5 py-3 text-sm text-gray-500">{r.outletName}</td>
-                      <td className="px-5 py-3 text-sm text-gray-500">{r.warehouseName ?? '—'}</td>
-                      <td className="px-5 py-3"><Badge tone={s.tone}>{s.label}</Badge></td>
-                      <td className="px-5 py-3 text-sm text-gray-500">{fmtDate(r.neededBy)}</td>
-                      <td className="px-5 py-3 font-mono text-sm text-gray-500">{r.transfer?.transferNo ?? '—'}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-      <Pagination
-        page={page} totalPages={Math.max(1, Math.ceil(total / pageSize))} total={total} onChange={setPage}
-        pageSize={pageSize} onPageSizeChange={(s) => { setPageSize(s); setPage(1) }}
+      <FilterBar onReset={() => setState({ status: '', hal: 1 })} activeCount={status ? 1 : 0}>
+        <FilterBar.Scope />
+        <FilterBar.Select
+          label="Status"
+          value={status}
+          onChange={(next) => setState({ status: next, hal: 1 })}
+          options={[{ value: '', label: 'Semua status' }, ...Object.entries(REQUISITION_STATUS).map(([k, v]) => ({ value: k, label: v.label }))]}
+        />
+      </FilterBar>
+      <DataTable
+        caption="Daftar permintaan barang"
+        columns={LIST_COLUMNS}
+        rows={rows}
+        rowKey={(r) => r.id}
+        loading={q.loading}
+        error={q.error ? `Daftar permintaan gagal dimuat: ${q.error}` : null}
+        onRetry={() => void q.refetch()}
+        onRowClick={(r) => onOpen(r.id)}
+        empty={<EmptyState icon={<ClipboardList />} title={status ? 'Tidak ada permintaan dengan status ini' : 'Belum ada permintaan barang'} />}
+        footer={
+          <Pagination
+            page={page} totalPages={Math.max(1, Math.ceil(total / pageSize))} total={total} onChange={(hal) => setState({ hal })}
+            pageSize={pageSize} onPageSizeChange={(per) => setState({ per, hal: 1 })} pageSizes={[...REQUISITION_PAGE_SIZES]}
+          />
+        }
       />
     </div>
   )

@@ -1,5 +1,6 @@
 import { buildHash } from '../../lib/router/hash'
 import { isUuidSegment, segmentAfter } from '../../lib/router/tabs'
+import type { ListSchema } from '../../lib/router/useListState'
 
 /** Permintaan Barang's views, as paths under #/permintaan-barang. */
 export type RequisitionView =
@@ -31,3 +32,33 @@ export function requisitionHash(view: RequisitionView): string {
       return buildHash([...REQUISITION_BASE, view.id, 'ubah'])
   }
 }
+
+// ---- list filters (D5b) --------------------------------------------------------------------------------
+// #/permintaan-barang?status=&hal=&per=  Defaults stay out of the URL; junk values fall back to them.
+
+export const REQUISITION_PAGE_SIZES = [25, 50, 100] as const
+const REQUISITION_STATUSES = ['draft', 'submitted', 'approved', 'rejected', 'fulfilled', 'cancelled'] as const
+export type RequisitionStatusFilter = (typeof REQUISITION_STATUSES)[number]
+
+export interface RequisitionListQuery extends Record<string, string | number | boolean> {
+  status: string
+  hal: number
+  per: number
+}
+export const REQUISITION_LIST_SCHEMA: ListSchema<RequisitionListQuery> = {
+  status: { key: 'status', default: '' },
+  hal: { key: 'hal', default: 1 },
+  per: { key: 'per', default: 25 },
+}
+
+/** The API takes only known statuses; anything else in the URL means "all". */
+export const requisitionStatusOf = (raw: string): RequisitionStatusFilter | '' =>
+  (REQUISITION_STATUSES as readonly string[]).includes(raw) ? (raw as RequisitionStatusFilter) : ''
+
+export const requisitionPageOf = (raw: number): number => (Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : 1)
+
+export const requisitionSizeOf = (raw: number): number =>
+  (REQUISITION_PAGE_SIZES as readonly number[]).includes(raw) ? raw : REQUISITION_PAGE_SIZES[0]
+
+/** The list entry, whatever filters it carries: where "Kembali" from a request should land. */
+export const isRequisitionListPath = (path: readonly string[]): boolean => requisitionViewFromPath(path).kind === 'list'
