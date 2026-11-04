@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Download, FileUp, Loader2 } from 'lucide-react'
 import { ApiError, type StockCount, type StockCountImportReport } from '@mandalika/api'
-import { api } from '../../api'
+import { api, authStore } from '../../api'
+import { withCountScope } from './countScope'
 import { Button } from '../../ui/Button'
 import { Modal } from '../../ui/Modal'
 import { canApplyCount, reportFromErrorBody, rowWarnings, summaryChips } from './countCsvState'
@@ -50,7 +51,7 @@ export function CountCsvPanel({ count, onApplied, blocked = false }: CountCsvPan
   const download = async () => {
     setMessage(null)
     try {
-      downloadText(await api.exportStockCount(count.id), `stock-count-${count.name.replace(/[^a-z0-9]+/gi, '-')}.csv`)
+      downloadText(await withCountScope(authStore, count, () => api.exportStockCount(count.id)), `stock-count-${count.name.replace(/[^a-z0-9]+/gi, '-')}.csv`)
     } catch (e) {
       setMessage(errorMessage(e))
     }
@@ -60,7 +61,7 @@ export function CountCsvPanel({ count, onApplied, blocked = false }: CountCsvPan
     setPhase('previewing')
     setMessage(null)
     try {
-      setReport(await api.importStockCount(count.id, { csv: f.csv, fileName: f.name, dryRun: true }))
+      setReport(await withCountScope(authStore, count, () => api.importStockCount(count.id, { csv: f.csv, fileName: f.name, dryRun: true })))
       setPhase('ready')
     } catch (e) {
       setReport(null)
@@ -85,11 +86,11 @@ export function CountCsvPanel({ count, onApplied, blocked = false }: CountCsvPan
     setPhase('applying')
     setMessage(null)
     try {
-      const applied = await api.importStockCount(
+      const applied = await withCountScope(authStore, count, () => api.importStockCount(
         count.id,
         { csv: file.csv, fileName: file.name, dryRun: false, fileSha256: report.fileSha256, expectedSummary: report.summary },
         key.current,
-      )
+      ))
       setReport(applied)
       setPhase('applied')
       onApplied()

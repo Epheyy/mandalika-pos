@@ -179,8 +179,11 @@ func TestStockCountPostgres(t *testing.T) {
 		l["frozenQty"], l["difference"], l["baselineQty"], l["stockBefore"], l["stockAfter"] = 999, 888, 777, 666, 555
 		return l
 	}
+	// create goes through the API. One planned count per location is enforced, so a planned count left over from an
+	// earlier subtest is cancelled first; scenarios that need several planned counts at once use createExtra.
 	create := func(items ...map[string]any) string {
 		cur.Helper()
+		exec(`UPDATE stock_counts SET status='cancelled' WHERE status='planned' AND outlet_id=$1`, outlet)
 		code, body := do("POST", "/stock-counts", map[string]any{"name": "SC count", "items": items}, "")
 		var out struct {
 			Data struct{ ID string } `json:"data"`
@@ -189,6 +192,17 @@ func TestStockCountPostgres(t *testing.T) {
 			cur.Fatalf("create: %d %s", code, body)
 		}
 		return out.Data.ID
+	}
+	// createExtra inserts a planned outlet count directly (the API now refuses a second planned count per location).
+	createExtra := func(pid string) string {
+		cur.Helper()
+		var id string
+		if err := pool.QueryRow(ctx, `INSERT INTO stock_counts(name,status,outlet_id) VALUES('SC extra','planned',$1) RETURNING id`, outlet).Scan(&id); err != nil {
+			cur.Fatal(err)
+		}
+		exec(`INSERT INTO stock_count_items(stock_count_id,product_id,product_name,variant_size,sku,frozen_qty)
+			SELECT $1,$2,'SC product','110ml','SC',COALESCE((SELECT stock FROM outlet_variant_stock WHERE outlet_id=$3 AND product_id=$2 AND variant_size='110ml'),0)`, id, pid, outlet)
+		return id
 	}
 	put := func(id string, body map[string]any) (int, string) { return do("PUT", "/stock-counts/"+id, body, "") }
 	complete := func(id string, items ...map[string]any) (int, string) {
@@ -462,7 +476,7 @@ func TestStockCountPostgres(t *testing.T) {
 		a := create(line(pid, nil))
 		start(a)
 		// Overlap: a second count cannot start at the same location.
-		b := create(line(pid, nil))
+		b := createExtra(pid)
 		code, body := put(b, map[string]any{"status": "in_progress"})
 		must("second start", code, body, 409)
 		if !strings.Contains(body, "masih berjalan") {
@@ -633,7 +647,7 @@ func TestStockCountPostgres(t *testing.T) {
 		const n = 6
 		ids := make([]string, n)
 		for i := range ids {
-			ids[i] = create(line(pid, nil))
+			ids[i] = createExtra(pid)
 		}
 		codes := make([]int, n)
 		var wg sync.WaitGroup
@@ -736,5 +750,24 @@ func TestStockCountPostgres(t *testing.T) {
 		if only(id2).ActualQty != nil {
 			t.Fatal("a planned count must not store counted quantities")
 		}
+	})
+
+	sub("15 one planned count per location", func(t *testing.T) {
+		pid := newProduct(10)
+		first := create(line(pid, nil))
+		// A second planned count at the same outlet is refused with the Indonesian message.
+		code, body := do("POST", "/stock-counts", map[string]any{"name": "SC dup", "items": []map[string]any{line(pid, nil)}}, "")
+		must("second planned", code, body, 409)
+		if !strings.Contains(body, "Sudah ada opname terjadwal") {
+			t.Fatalf("planned message: %s", body)
+		}
+		if n := count(`SELECT count(*) FROM stock_counts WHERE outlet_id=$1 AND status='planned'`, outlet); n != 1 {
+			t.Fatalf("planned counts = %d, want 1", n)
+		}
+		// Once the first is started it is no longer planned, so a new plan is allowed.
+		code, body = put(first, map[string]any{"status": "in_progress"})
+		must("start first", code, body, 200)
+		code, body = do("POST", "/stock-counts", map[string]any{"name": "SC next", "items": []map[string]any{line(pid, nil)}}, "")
+		must("plan after start", code, body, 201)
 	})
 }

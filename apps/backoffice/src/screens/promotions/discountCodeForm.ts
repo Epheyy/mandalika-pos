@@ -1,7 +1,7 @@
 import type { DiscountCode, DiscountCodeBatchInput, DiscountCodeInput } from '@mandalika/api'
-import type { FormProblem } from './promotionForm'
+import { dateOrderProblem, discountValueProblem, type FormProblem } from './promotionForm'
 
-export const CODE_FIELD = { code: 'code-code' } as const
+export const CODE_FIELD = { code: 'code-code', value: 'code-value', endDate: 'code-end-date' } as const
 
 export const EMPTY_CODE: DiscountCodeInput = {
   code: '', type: 'percentage', value: 0, minPurchase: 0, usageLimit: 0, perCustomerLimit: undefined,
@@ -35,7 +35,26 @@ export function codeToInput(c: DiscountCode): DiscountCodeInput {
   }
 }
 
+/** The server's duplicate-code refusal is a generic English "conflicts with existing data"; name the code instead. */
+export function duplicateCodeMessage(code: string): string {
+  return `Kode ${code.trim().toUpperCase()} sudah dipakai. Pilih kode lain.`
+}
+
+/** Re-throws a save failure with the duplicate-code case in Indonesian; any other error passes through unchanged. */
+export function mapCodeSaveError(e: unknown, code: string): unknown {
+  if (e instanceof Error && /conflicts with existing data/i.test(e.message)) return new Error(duplicateCodeMessage(code))
+  return e
+}
+
 export function codeProblems(form: DiscountCodeInput): FormProblem[] {
-  if (form.code.trim()) return []
-  return [{ fieldId: CODE_FIELD.code, label: 'Kode', message: 'Kode wajib diisi.', kind: 'required' }]
+  const out: FormProblem[] = []
+  if (!form.code.trim()) out.push({ fieldId: CODE_FIELD.code, label: 'Kode', message: 'Kode wajib diisi.', kind: 'required' })
+  // A code linked to a promotion follows its type and value (the fields are disabled), so only an unlinked code is checked.
+  if (!form.promotionId) {
+    const v = discountValueProblem(form.type, form.value, CODE_FIELD.value)
+    if (v) out.push(v)
+  }
+  const d = dateOrderProblem(form.startDate, form.endDate, CODE_FIELD.endDate)
+  if (d) out.push(d)
+  return out
 }

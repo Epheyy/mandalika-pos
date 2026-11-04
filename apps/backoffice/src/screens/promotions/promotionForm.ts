@@ -15,6 +15,8 @@ export interface FormProblem {
 
 export const PROMO_FIELD = {
   name: 'promo-name',
+  value: 'promo-value',
+  endDate: 'promo-end-date',
   products: 'promo-products',
   tiers: 'promo-tiers',
   bundle: 'promo-bundle',
@@ -128,6 +130,24 @@ function maxApplicationsMessage(form: PromotionInput): string | null {
   return null
 }
 
+/**
+ * The top-level value of a plain percentage/fixed discount (promotion or code): > 0, and a percentage <= 100.
+ * Mirrors the server (write.validateDiscountValue). Other types keep their numbers in a config blob. A 0 is
+ * `required` (a new form starts at 0 and stays quiet until touched); a value out of range is `invalid`.
+ */
+export function discountValueProblem(type: string, value: number, fieldId: string): FormProblem | null {
+  if (type !== 'percentage' && type !== 'fixed') return null
+  if (!(value > 0)) return { fieldId, label: 'Nilai', message: 'Nilai harus lebih dari 0.', kind: 'required' }
+  if (type === 'percentage' && value > 100) return { fieldId, label: 'Nilai', message: 'Persentase tidak boleh lebih dari 100.', kind: 'invalid' }
+  return null
+}
+
+/** An end date before the start date (both YYYY-MM-DD, so text order is date order). Either empty = fine. */
+export function dateOrderProblem(start: string | undefined, end: string | undefined, fieldId: string): FormProblem | null {
+  if (start && end && end < start) return { fieldId, label: 'Tanggal berakhir', message: 'Tanggal berakhir tidak boleh sebelum tanggal mulai.', kind: 'invalid' }
+  return null
+}
+
 /** Every problem that blocks a save, in form order. Empty means the form may be saved. */
 export function promotionProblems(form: PromotionInput): FormProblem[] {
   const out: FormProblem[] = []
@@ -135,6 +155,10 @@ export function promotionProblems(form: PromotionInput): FormProblem[] {
     if (message) out.push({ fieldId, label, message, kind })
   }
   if (!form.name.trim()) add(PROMO_FIELD.name, 'Nama promosi', 'Nama promosi wajib diisi.', 'required')
+  const valueProblem = discountValueProblem(form.type, form.value, PROMO_FIELD.value)
+  if (valueProblem) out.push(valueProblem)
+  const dateProblem = dateOrderProblem(form.startDate, form.endDate, PROMO_FIELD.endDate)
+  if (dateProblem) out.push(dateProblem)
   add(PROMO_FIELD.hours, 'Jam aktif', hoursMessage(form))
   add(PROMO_FIELD.products, 'Produk promosi', promotionKeyError(form))
   if (form.type === 'tiered') add(PROMO_FIELD.tiers, 'Tingkatan diskon', tieredMessage(tiersOf(form)))

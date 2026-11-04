@@ -29,6 +29,9 @@ func (h *Handlers) CreateStockCount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, err := h.Write.CreateStockCount(r.Context(), outletID, c.userID, body)
+	if countConflict(w, r, err) {
+		return
+	}
 	h.created(w, r, id, err)
 }
 

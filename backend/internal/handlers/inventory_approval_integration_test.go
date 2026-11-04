@@ -510,7 +510,11 @@ func TestInventoryApprovalPostgres(t *testing.T) {
 			code, _, body := call("POST", "/stock-counts", tokMgrA, nextKey(), map[string]any{"name": "second", "items": []map[string]any{
 				{"productId": product, "productName": "AP product", "variantSize": "M", "sku": "AP-M"}}})
 			mustCode("create second", 201, code, body)
-			code, _, _ = call("PUT", "/stock-counts/"+dataID(body), tokMgrA, "", map[string]any{"status": "in_progress"})
+			secondID := dataID(body)
+			code, _, _ = call("PUT", "/stock-counts/"+secondID, tokMgrA, "", map[string]any{"status": "in_progress"})
+			// One planned count per location: drop this one so later counts can be planned.
+			cc, _, cb := call("PUT", "/stock-counts/"+secondID, tokMgrA, "", map[string]any{"status": "cancelled"})
+			mustCode("cancel second", 200, cc, cb)
 			return code
 		}()
 		if other != 409 {
