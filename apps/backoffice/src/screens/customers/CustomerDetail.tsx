@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fetchAllPages, type Customer, type Order, type RewardGrant } from '@mandalika/api'
+import { ApiError, fetchAllPages, type Customer, type Order, type RewardGrant } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import {
@@ -33,7 +33,7 @@ interface CustomerDetailProps {
   loyaltyEnabled: boolean
   onBack: () => void
   onEdit: (c: Customer) => void
-  onDelete: (id: string) => void
+  onDelete: (c: Customer) => void
 }
 
 const fmtDate = (d?: string | null) =>
@@ -46,7 +46,11 @@ export default function CustomerDetail({
 }: CustomerDetailProps) {
   const { outletId } = useOutlet()
   const cq = usePolledQuery<Customer | null>(
-    () => api.getCustomer(customerId).catch(() => null),
+    // Only a 404 means "not found"; any other failure surfaces as a load error with a retry.
+    () => api.getCustomer(customerId).catch((e: unknown) => {
+      if (e instanceof ApiError && e.status === 404) return null
+      throw e
+    }),
     [customerId],
   )
   const oq = usePolledQuery<Order[]>(
@@ -59,6 +63,9 @@ export default function CustomerDetail({
   const [tagBusy, setTagBusy] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const c = cq.data
+  // A failed tag change, interaction add/remove: shown above the page (they used to vanish silently).
+  const [actionErr, setActionErr] = useState<string | null>(null)
+  const failed = (what: string, e: unknown) => setActionErr(`${what}: ${e instanceof Error ? e.message : 'coba lagi.'}`)
 
   const toggleTag = async (tagId: string) => {
     if (!c || tagBusy) return
@@ -68,7 +75,7 @@ export default function CustomerDetail({
     try {
       await api.setCustomerTags(c.id, next)
       await cq.refetch()
-    } catch { /* surfaced on next load; non-blocking */ } finally {
+    } catch (e: unknown) { failed('Gagal mengubah tag', e) } finally {
       setTagBusy(false)
     }
   }
@@ -100,7 +107,7 @@ export default function CustomerDetail({
       } else {
         await iq.refetch()   // already on page 1: deps won't change, so refetch explicitly
       }
-    } catch { /* surfaced on next load */ } finally {
+    } catch (e: unknown) { failed('Gagal menambah interaksi', e) } finally {
       setIBusy(false)
     }
   }
@@ -108,7 +115,7 @@ export default function CustomerDetail({
     if (iBusy) return
     setIBusy(true)
     try { await api.deleteInteraction(customerId, iid); await iq.refetch() }
-    catch { /* non-blocking */ } finally { setIBusy(false) }
+    catch (e: unknown) { failed('Gagal menghapus interaksi', e) } finally { setIBusy(false) }
   }
 
   // Points ledger (SP-CRM-7)
@@ -172,7 +179,14 @@ export default function CustomerDetail({
         <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900 mb-4">
           <ArrowLeft className="w-4 h-4" /> Kembali ke Pelanggan
         </button>
-        <Card><EmptyState icon={<Gift />} title="Pelanggan tidak ditemukan" /></Card>
+        {cq.error ? (
+          <div role="alert" className="flex items-center justify-between gap-3 rounded-xl bg-danger-bg px-4 py-3 text-sm text-danger">
+            <span>Pelanggan gagal dimuat: {cq.error}</span>
+            <Button variant="secondary" size="sm" onClick={() => void cq.refetch()}>Coba lagi</Button>
+          </div>
+        ) : (
+          <Card><EmptyState icon={<Gift />} title="Pelanggan tidak ditemukan" /></Card>
+        )}
       </div>
     )
   }
@@ -185,6 +199,13 @@ export default function CustomerDetail({
       <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900">
         <ArrowLeft className="w-4 h-4" /> Kembali ke Pelanggan
       </button>
+
+      {actionErr && (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-xl bg-danger-bg px-4 py-3 text-sm text-danger">
+          <span>{actionErr}</span>
+          <Button variant="ghost" size="sm" onClick={() => setActionErr(null)}>Tutup</Button>
+        </div>
+      )}
 
       <DetailHeader customer={c} onEdit={onEdit} onDelete={onDelete} />
 

@@ -4785,6 +4785,7 @@ paths:
         - { name: page, in: query, required: false, schema: { type: integer } }
         - { name: limit, in: query, required: false, schema: { type: integer } }
         - { name: q, in: query, required: false, schema: { type: string } }
+        - { name: categoryId, in: query, required: false, description: 'only ingredients of this category; absent = every category', schema: { type: string, format: uuid } }
       responses:
         '200':
           description: ingredients

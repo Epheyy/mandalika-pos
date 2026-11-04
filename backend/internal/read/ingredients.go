@@ -6,8 +6,9 @@ import (
 	"github.com/mandalika/pos-backend/internal/api"
 )
 
-// Ingredients lists ingredients with name/sku filter + pagination.
-func (r *Repo) Ingredients(ctx context.Context, page, limit int, q string) ([]api.Ingredient, int, error) {
+// Ingredients lists ingredients with name/sku filter + pagination. categoryID ("" = every category) narrows the
+// list to one category before paging, so a category filter covers every matching row, not just one page.
+func (r *Repo) Ingredients(ctx context.Context, page, limit int, q, categoryID string) ([]api.Ingredient, int, error) {
 	const sql = `
       SELECT jsonb_build_object(
         'id', i.id, 'name', i.name, 'unit', i.unit, 'sku', i.sku,
@@ -20,9 +21,10 @@ func (r *Repo) Ingredients(ctx context.Context, page, limit int, q string) ([]ap
       FROM ingredients i
       LEFT JOIN ingredient_categories c ON c.id = i.category_id
       WHERE ($3 = '' OR i.name ILIKE '%' || $3 || '%' OR i.sku ILIKE '%' || $3 || '%')
+        AND ($4 = '' OR i.category_id = NULLIF($4, '')::uuid)
       ORDER BY i.is_active DESC, c.sort_order NULLS LAST, i.name ASC
       OFFSET $1 LIMIT $2`
-	return listJSON[api.Ingredient](ctx, r.Pool, sql, off(page, limit), limit, q)
+	return listJSON[api.Ingredient](ctx, r.Pool, sql, off(page, limit), limit, q, categoryID)
 }
 
 // IngredientCategories lists all ingredient categories ordered by sort_order then name.

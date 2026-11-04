@@ -290,6 +290,18 @@
       "source": "tests/browser/backoffice-back-scenarios.ts"
     },
     {
+      "id": "BO-CUSTOMERS-LIST",
+      "finding": "D5b",
+      "description": "Pelanggan list: a captioned DataTable over the server OFFSET page (page, limit, q); search and page size are URL state that survive a reload and feed the request; the edit slide-over closes silently when untouched and asks exactly one question for Escape, the x, Batal and browser Back on unsaved work (Lanjut edit keeps the form, Buang perubahan sends nothing); a refused save keeps its reason in the panel and the retry saves; delete asks first (Batal sends nothing) and a refused delete keeps the server reason in the dialog",
+      "source": "tests/browser/backoffice-customers-scenarios.ts"
+    },
+    {
+      "id": "BO-BAHAN-DAFTAR",
+      "finding": "D5b",
+      "description": "Bahan Daftar: the category filter is the server parameter categoryId (not a filter over one fetched page), so 60 matching ingredients span three pages and every page request carries it and shows only that category; the category is URL state, changing it returns to page 1, a reload restores the select and the request, and Semua kategori sends no parameter; delete blocks an ingredient used by a recipe (variants listed, no delete button) and otherwise asks, keeping a refused delete's server reason inside the dialog",
+      "source": "tests/browser/backoffice-bahan-scenarios.ts"
+    },
+    {
       "id": "BO-PRODUCTS-LIST",
       "finding": "D2a",
       "description": "Produk list: search, status, kategori and stok are server parameters and URL state that survive a reload, a page past the end steps back to the last page, the export walks every page of the matching products only; the editor slide-over (?ubah=) reloads by id, asks one question for Escape and browser Back on unsaved work, closes without asking after a save, shows field errors with a focusing summary and layers the recipe editor so Escape closes only the top layer; a refused delete keeps the server reason in the dialog",

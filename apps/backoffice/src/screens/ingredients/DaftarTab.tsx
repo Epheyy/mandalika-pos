@@ -3,16 +3,16 @@ import { fetchAllPages, type Ingredient, type IngredientCategory, type ListResul
 import { Edit2, FlaskConical, Trash2 } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
-import { TableSkeleton } from '../../components/Skeleton'
 import { ImportExportBar } from '../../components/ImportExportBar'
 import { exportToCSV, exportToXLSX } from '../../lib/csvUtils'
 import { Button } from '../../ui/Button'
-import { fieldClass } from '../../ui/Field'
+import { DataTable, type Column } from '../../ui/DataTable'
+import { IconButton } from '../../ui/IconButton'
 import { Badge } from '../../ui/Badge'
 import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 import { IngredientFormModal } from './IngredientFormModal'
-import { DeleteIngredientModal } from './DeleteIngredientModal'
+import { DeleteIngredientDialog } from './DeleteIngredientDialog'
 import { useListState } from '../../lib/router/useListState'
 import { FilterBar } from '../../ui/FilterBar'
 import { DAFTAR_SCHEMA, bahanPageOf, bahanSizeOf, categoryOf } from './bahanRoute'
@@ -23,9 +23,11 @@ const formatIDR = (n: number | null | undefined) => {
   return n.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
 }
 
-const exportIngredients = async (fmt: 'csv' | 'xlsx') => {
-  // Fetch ALL ingredients for export (not just the current page)
-  const all = await fetchAllPages((page, limit) => api.listIngredients({ page, limit }))
+/** Every ingredient that matches the search and category on screen, not just the visible page. */
+const exportIngredients = async (fmt: 'csv' | 'xlsx', filter: { q: string; categoryId: string }) => {
+  const all = await fetchAllPages((page, limit) =>
+    api.listIngredients({ page, limit, ...(filter.q ? { q: filter.q } : {}), ...(filter.categoryId ? { categoryId: filter.categoryId } : {}) }),
+  )
   const rows = all.map((i) => ({
     Nama: i.name,
     SKU: i.sku || '',
@@ -59,10 +61,17 @@ export default function DaftarTab() {
   const [editing, setEditing] = useState<Ingredient | null>(null)
   const [deleting, setDeleting] = useState<Ingredient | null>(null)
   const [categories, setCategories] = useState<IngredientCategory[]>([])
+  // Without the list the select cannot name the category the URL asks for, so say so instead of showing "Semua kategori".
+  const [categoriesErr, setCategoriesErr] = useState<string | null>(null)
 
   const q = usePolledQuery<ListResult<Ingredient>>(
-    () => api.listIngredients({ page, limit: pageSize, ...(search.trim() ? { q: search.trim() } : {}) }),
-    [page, pageSize, search],
+    () => api.listIngredients({
+      page,
+      limit: pageSize,
+      ...(search.trim() ? { q: search.trim() } : {}),
+      ...(categoryFilter ? { categoryId: categoryFilter } : {}),
+    }),
+    [page, pageSize, search, categoryFilter],
   )
   const ingredients = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
@@ -74,14 +83,9 @@ export default function DaftarTab() {
     api
       .listIngredientCategories()
       .then((cats) => { if (alive) setCategories(cats) })
-      .catch(() => { /* non-fatal */ })
+      .catch((e: unknown) => { if (alive) setCategoriesErr(e instanceof Error ? e.message : 'coba lagi.') })
     return () => { alive = false }
   }, [])
-
-  // Client-side category filter (category is not a server-side filter param)
-  const filtered = categoryFilter
-    ? ingredients.filter((i) => i.categoryId === categoryFilter)
-    : ingredients
 
   const openAdd = () => {
     setEditing(null)
@@ -100,137 +104,97 @@ export default function DaftarTab() {
   const handleCategoryChange = (value: string) => setState({ kategori: value, hal: 1 })
 
   const refetchAfterImport = () => {
-    void Promise.all([q.refetch(), api.listIngredientCategories().then(setCategories)])
+    void Promise.all([q.refetch(), api.listIngredientCategories().then(setCategories)]).catch((e: unknown) =>
+      setCategoriesErr(e instanceof Error ? e.message : 'coba lagi.'),
+    )
   }
 
+  const columns: Column<Ingredient>[] = [
+    { id: 'name', header: 'Nama', cell: (ing) => <span className="font-medium text-gray-900">{ing.name}</span> },
+    { id: 'sku', header: 'SKU', cell: (ing) => <span className="font-mono text-xs text-gray-500">{ing.sku || '—'}</span> },
+    { id: 'unit', header: 'Satuan', cell: (ing) => <span className="text-gray-600">{ing.unit}</span> },
+    { id: 'category', header: 'Kategori', cell: (ing) => <span className="text-gray-500">{ing.categoryName ?? '—'}</span> },
+    { id: 'cost', header: 'Biaya Default', align: 'right', cell: (ing) => <span className="text-gray-700">{formatIDR(ing.defaultUnitCost)}</span> },
+    { id: 'notes', header: 'Catatan', cell: (ing) => <span className="block max-w-[200px] truncate text-gray-500">{ing.notes ?? '—'}</span> },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: (ing) => <Badge tone={ing.isActive ? 'success' : 'neutral'}>{ing.isActive ? 'Aktif' : 'Nonaktif'}</Badge>,
+    },
+    {
+      id: 'actions',
+      header: 'Aksi',
+      align: 'right',
+      cell: (ing) => (
+        <div className="flex items-center justify-end gap-1">
+          <IconButton aria-label={`Ubah ${ing.name}`} title="Edit" onClick={() => openEdit(ing)}><Edit2 className="w-4 h-4" /></IconButton>
+          <IconButton tone="danger" aria-label={`Hapus ${ing.name}`} title="Hapus" onClick={() => setDeleting(ing)}><Trash2 className="w-4 h-4" /></IconButton>
+        </div>
+      ),
+    },
+  ]
+
+  const hasFilter = search !== '' || categoryFilter !== ''
   return (
-    <div>
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
-        <div className="flex items-center gap-3 flex-wrap">
-          <FilterBar.Search label="Cari bahan" placeholder="Cari nama atau SKU..." value={search} onChange={handleSearchChange} />
-
-          {/* Category filter */}
-          <select
-            value={categoryFilter}
-            onChange={(e) => handleCategoryChange(e.target.value)}
-            className={fieldClass + ' w-auto py-2'}
-            aria-label="Filter kategori"
-          >
-            <option value="">Semua kategori</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <ImportExportBar
-            onExport={exportIngredients}
-            importKind="ingredients"
-            onImported={refetchAfterImport}
-            onTemplate={downloadIngredientTemplate}
-          />
-          <Button onClick={openAdd}>+ Tambah Bahan</Button>
-        </div>
-      </div>
-
-      {/* Table */}
-      {q.loading ? (
-        <TableSkeleton rows={5} />
-      ) : q.error ? (
-        <p className="text-sm text-red-600 p-4">{q.error}</p>
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={<FlaskConical />}
-          title={search || categoryFilter ? 'Tidak ditemukan' : 'Belum ada bahan'}
-          subtitle={search || categoryFilter ? 'Coba kata kunci atau filter lain.' : 'Tambah bahan pertama untuk memulai.'}
+    <div className="space-y-4">
+      <FilterBar
+        onReset={() => setState({ q: '', kategori: '', hal: 1 })}
+        activeCount={[search !== '', categoryFilter !== ''].filter(Boolean).length}
+        actions={
+          <>
+            <ImportExportBar
+              onExport={(fmt) => exportIngredients(fmt, { q: search.trim(), categoryId: categoryFilter })}
+              filterSummary={[...(search.trim() ? [`Cari: ${search.trim()}`] : []), ...(categoryFilter ? [`Kategori: ${categories.find((c) => c.id === categoryFilter)?.name ?? 'tidak dikenal'}`] : [])]}
+              importKind="ingredients"
+              onImported={refetchAfterImport}
+              onTemplate={downloadIngredientTemplate}
+            />
+            <Button onClick={openAdd}>+ Tambah Bahan</Button>
+          </>
+        }
+      >
+        <FilterBar.Search label="Cari bahan" placeholder="Cari nama atau SKU..." value={search} onChange={handleSearchChange} />
+        <FilterBar.Select
+          label="Kategori"
+          value={categoryFilter}
+          onChange={handleCategoryChange}
+          options={[{ value: '', label: 'Semua kategori' }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
         />
-      ) : (
-        <div className="overflow-x-auto rounded-2xl border border-gray-100">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 text-left">
-                <th className="px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-widest">
-                  Nama
-                </th>
-                <th className="px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-widest">
-                  SKU
-                </th>
-                <th className="px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-widest">
-                  Satuan
-                </th>
-                <th className="px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-widest">
-                  Kategori
-                </th>
-                <th className="px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-widest text-right">
-                  Biaya Default
-                </th>
-                <th className="px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-widest">
-                  Catatan
-                </th>
-                <th className="px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-widest">
-                  Status
-                </th>
-                <th className="px-4 py-3"><span className="sr-only">Aksi</span></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map((ing) => (
-                <tr key={ing.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-gray-900">{ing.name}</td>
-                  <td className="px-4 py-3 text-gray-500 font-mono text-xs">{ing.sku || '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{ing.unit}</td>
-                  <td className="px-4 py-3 text-gray-500">{ing.categoryName ?? '—'}</td>
-                  <td className="px-4 py-3 text-right text-gray-700 tabular-nums">
-                    {formatIDR(ing.defaultUnitCost)}
-                  </td>
-                  <td className="px-4 py-3 text-gray-500 max-w-[200px] truncate">
-                    {ing.notes ?? '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge tone={ing.isActive ? 'success' : 'neutral'}>
-                      {ing.isActive ? 'Aktif' : 'Nonaktif'}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <button type="button"
-                        onClick={() => openEdit(ing)}
-                        className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gold-600 transition-colors"
-                        title="Edit"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button type="button"
-                        onClick={() => setDeleting(ing)}
-                        className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-red-600 transition-colors"
-                        title="Hapus"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      </FilterBar>
+
+      {categoriesErr && (
+        <p role="alert" className="rounded-xl bg-danger-bg px-4 py-3 text-sm text-danger">
+          Daftar kategori gagal dimuat: {categoriesErr}
+        </p>
       )}
 
-      <Pagination
-        page={page}
-        totalPages={totalPages}
-        total={total}
-        onChange={(hal) => setState({ hal })}
-        pageSize={pageSize}
-        onPageSizeChange={(per) => setState({ per, hal: 1 })}
-        className="mt-4"
+      <DataTable
+        caption="Daftar bahan"
+        columns={columns}
+        rows={ingredients}
+        rowKey={(ing) => ing.id}
+        loading={q.loading}
+        error={q.error ? `Daftar bahan gagal dimuat: ${q.error}` : null}
+        onRetry={() => void q.refetch()}
+        empty={
+          <EmptyState
+            icon={<FlaskConical />}
+            title={hasFilter ? 'Tidak ditemukan' : 'Belum ada bahan'}
+            subtitle={hasFilter ? 'Coba kata kunci atau filter lain.' : 'Tambah bahan pertama untuk memulai.'}
+          />
+        }
+        footer={
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            onChange={(hal) => setState({ hal })}
+            pageSize={pageSize}
+            onPageSizeChange={(per) => setState({ per, hal: 1 })}
+          />
+        }
       />
 
-      {/* Edit modal */}
       {showModal && (
         <IngredientFormModal
           editing={editing}
@@ -239,9 +203,8 @@ export default function DaftarTab() {
         />
       )}
 
-      {/* Delete modal */}
       {deleting && (
-        <DeleteIngredientModal
+        <DeleteIngredientDialog
           ingredient={deleting}
           onClose={() => setDeleting(null)}
           onDone={q.refetch}

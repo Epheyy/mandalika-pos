@@ -24,7 +24,7 @@ const fmtDate = (d?: string | null) =>
 interface DetailHeaderProps {
   customer: Customer
   onEdit: (c: Customer) => void
-  onDelete: (id: string) => void
+  onDelete: (c: Customer) => void
 }
 
 export function DetailHeader({ customer: c, onEdit, onDelete }: DetailHeaderProps) {
@@ -53,7 +53,7 @@ export function DetailHeader({ customer: c, onEdit, onDelete }: DetailHeaderProp
       </div>
       <div className="flex items-center gap-2">
         <Button variant="secondary" icon={<Edit2 className="w-4 h-4" />} onClick={() => onEdit(c)}>Edit</Button>
-        <IconButton tone="danger" onClick={() => onDelete(c.id)}><Trash2 className="w-4 h-4" /></IconButton>
+        <IconButton tone="danger" onClick={() => onDelete(c)}><Trash2 className="w-4 h-4" /></IconButton>
       </div>
     </div>
   )

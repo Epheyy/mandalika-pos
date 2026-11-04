@@ -9,6 +9,8 @@ import { splitOrderFlow, splitToggleFlow } from './backoffice-split-scenarios'
 import { settingsGuardFlow } from './backoffice-settings-scenarios'
 import { routeDeepLinkFlow, routeGuardFlow } from './backoffice-route-scenarios'
 import { routeBackFlow } from './backoffice-back-scenarios'
+import { customersListFlow } from './backoffice-customers-scenarios'
+import { bahanDaftarFlow } from './backoffice-bahan-scenarios'
 import { productsListFlow } from './backoffice-products-scenarios'
 import { promotionsFlow } from './backoffice-promotions-scenarios'
 import { transferConfirmFlow } from './backoffice-transfer-scenarios'
@@ -194,6 +196,18 @@ test('BO-ROUTE-GUARD a dirty Pengaturan keeps its own tabs unguarded and asks fo
 test('BO-ROUTE-BACK Pelanggan list filters and page are URL state, opening a customer is a path, Back and Kembali return to the list as it was (same search, sort, page and request), Forward returns to the customer, a pasted customer link opens the list on Kembali, and junk values fall back to the defaults', async ({ page }, info) => {
   const result = await routeBackFlow(page as ScenarioPage)
   expect(result).toHaveLength(6)
+  await evidence(info, result)
+})
+
+test('BO-CUSTOMERS-LIST Pelanggan is a captioned table over the server page and its search and page size are URL state that survive a reload, the edit slide-over asks one question for Escape, the x, Batal and browser Back on unsaved work, a refused save and a refused delete stay visible, and delete asks first', async ({ page }, info) => {
+  const result = await customersListFlow(page as ScenarioPage)
+  expect(result).toHaveLength(6)
+  await evidence(info, result)
+})
+
+test('BO-BAHAN-DAFTAR Bahan Daftar sends the category as a server parameter so the filter covers every page (60 matching rows over three pages, later pages keep it), the category is URL state that survives a reload, and delete blocks a used ingredient with its variants listed and keeps a refusal reason in the dialog', async ({ page }, info) => {
+  const result = await bahanDaftarFlow(page as ScenarioPage)
+  expect(result).toHaveLength(4)
   await evidence(info, result)
 })
 

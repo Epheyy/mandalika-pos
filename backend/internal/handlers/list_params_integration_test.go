@@ -99,6 +99,7 @@ func TestListParamsPostgres(t *testing.T) {
 	router.Get("/transfers", h.Transfers)
 	router.Get("/ingredient-transfers", h.IngredientTransfers)
 	router.Get("/ingredient-stock-counts", h.IngredientStockCounts)
+	router.Get("/ingredients", h.Ingredients)
 
 	get := func(path, token string) (int, map[string]any) {
 		t.Helper()
@@ -474,5 +475,51 @@ func TestListParamsPostgres(t *testing.T) {
 				t.Errorf("%s = %d %v", path, code, body)
 			}
 		}
+	})
+
+	t.Run("14 ingredients: categoryId narrows the list before paging, unfiltered is unchanged", func(t *testing.T) {
+		const (
+			icA = "00000000-0000-4000-8d03-000000000001"
+			icB = "00000000-0000-4000-8d03-000000000002"
+		)
+		exec(`INSERT INTO ingredient_categories(id,name,sort_order) VALUES($1,'LP Minyak',1),($2,'LP Botol',2)`, icA, icB)
+		for i, r := range []struct{ name, cat string }{
+			{"LP Bahan A1", icA}, {"LP Bahan A2", icA}, {"LP Bahan A3", icA}, {"LP Bahan B1", icB}, {"LP Bahan Tanpa", ""},
+		} {
+			var cat any
+			if r.cat != "" {
+				cat = r.cat
+			}
+			exec(`INSERT INTO ingredients(id,name,unit,category_id) VALUES($1,$2,'g',$3)`,
+				fmt.Sprintf("00000000-0000-4000-8d04-%012d", i+1), r.name, cat)
+		}
+		// Unfiltered: every ingredient, in the existing order (category sort, then name).
+		rows, total, _ := list("/ingredients?q=LP+Bahan", tokAdmin)
+		if total != 5 || len(rows) != 5 {
+			t.Fatalf("unfiltered: %d rows, total %d, want 5", len(rows), total)
+		}
+		// One category spans two pages of two: the filter runs before OFFSET/LIMIT.
+		rows, total, _ = list("/ingredients?categoryId="+icA+"&limit=2&page=1", tokAdmin)
+		if total != 3 || names(rows, "name") != "LP Bahan A1|LP Bahan A2" {
+			t.Fatalf("category A page 1: total %d rows %s", total, names(rows, "name"))
+		}
+		rows, total, _ = list("/ingredients?categoryId="+icA+"&limit=2&page=2", tokAdmin)
+		if total != 3 || names(rows, "name") != "LP Bahan A3" {
+			t.Fatalf("category A page 2: total %d rows %s", total, names(rows, "name"))
+		}
+		rows, _, _ = list("/ingredients?categoryId="+icB, tokAdmin)
+		if names(rows, "name") != "LP Bahan B1" {
+			t.Fatalf("category B: %s", names(rows, "name"))
+		}
+		// It combines with the search, and a category with no match is an empty list, not an error.
+		rows, _, _ = list("/ingredients?categoryId="+icA+"&q=A2", tokAdmin)
+		if names(rows, "name") != "LP Bahan A2" {
+			t.Fatalf("category A + q: %s", names(rows, "name"))
+		}
+		rows, total, _ = list("/ingredients?categoryId=00000000-0000-4000-8d03-0000000000ff", tokAdmin)
+		if len(rows) != 0 || total != 0 {
+			t.Fatalf("unknown category: %d rows, total %d", len(rows), total)
+		}
+		bad("/ingredients?categoryId=not-a-uuid", tokAdmin)
 	})
 }

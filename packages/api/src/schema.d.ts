@@ -8435,6 +8435,8 @@ export interface operations {
                 page?: number;
                 limit?: number;
                 q?: string;
+                /** @description only ingredients of this category; absent = every category */
+                categoryId?: string;
             };
             header?: never;
             path?: never;
