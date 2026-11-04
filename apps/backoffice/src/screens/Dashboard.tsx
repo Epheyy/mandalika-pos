@@ -29,7 +29,7 @@ import { KpiCard, RankedList } from './dashboard/components'
 import { useListState } from '../lib/router/useListState'
 import { DASHBOARD_SCHEMA, periodFromSlug, periodSlug } from './dashboard/periodRoute'
 import { type Period, PERIOD_TABS, dashboardFetchWindow, lowStock } from './dashboard/metrics'
-import { dashboardView, fetchDashboard, type DashboardData } from './dashboard/fetchDashboard'
+import { DASHBOARD_POLL_MS, dashboardView, fetchDashboard, type DashboardData } from './dashboard/fetchDashboard'
 
 // recharts is code-split out of the dashboard's initial bundle; the chart bodies
 // live in ./dashboard/Charts and load on first render behind a sized fallback.
@@ -64,7 +64,11 @@ export default function Dashboard() {
   // same windows the client math used. A backend without the route (404/405) falls back to today's computation over
   // the full order lists (see fetchDashboard); the window deps below keep the poll sliding past midnight.
   const win = dashboardFetchWindow(period)
-  const oq = usePolledQuery<DashboardData>(() => fetchDashboard(api, period), [outletId, period, win.dateFrom, win.dateTo])
+  const oq = usePolledQuery<DashboardData>(
+    () => fetchDashboard(api, period, Date.now(), `${user?.id ?? ''}|${outletId ?? ''}`),
+    [outletId, period, win.dateFrom, win.dateTo],
+    DASHBOARD_POLL_MS,
+  )
   // Only the low-stock card and the promo names read these: the shared product list (served for up to a minute, then
   // refreshed while the tab stays open) and the promotion list on a minute poll, so the order polls above stay the
   // only 12 s traffic. The order numbers do not depend on either.

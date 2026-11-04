@@ -103,6 +103,20 @@ export const dashboardAggregateFlow = async (page: ScenarioPage) => {
   check((await kpi(page, 'Penjualan')) === 'Rp300.000', 'Penjualan unchanged after the polls')
   results.push({ step: 'aggregate-one-request-per-poll', aggregate: served.aggregate })
 
+  // (a2) "Semua" scans every order, so the aggregate is asked for once a minute although the screen polls every 12 s.
+  await deepLink(page, '#/ringkasan?periode=semua')
+  await page.getByText('Penjualan', { exact: true }).first().waitFor()
+  await page.waitForFunction(() => /Rp300\.000/.test(document.body.innerText.replace(/\s/g, '')))
+  const semuaStart = served.aggregate
+  check(served.lastParams.dateFrom === undefined && served.lastParams.trend === 'month', `Semua sends an open start and monthly buckets, got ${JSON.stringify(served.lastParams)}`)
+  await idle(page, 30_000)
+  check(served.aggregate - semuaStart === 0, `Semua is not asked again inside its minute (30 s idle), got ${served.aggregate - semuaStart} more requests`)
+  await idle(page, 70_000)
+  // 100 s: one or two minute-refreshes (the 12 s poll would have asked 8 times).
+  check(served.aggregate - semuaStart >= 1 && served.aggregate - semuaStart <= 2, `Semua is asked about once a minute, got ${served.aggregate - semuaStart} in 100 s`)
+  check((await kpi(page, 'Penjualan')) === 'Rp300.000', 'Penjualan unchanged on Semua')
+  results.push({ step: 'semua-aggregate-once-a-minute', requests: served.aggregate - semuaStart })
+
   // (b) an older backend answers 404: the same numbers from the order lists, probed once, then the old cadence.
   const missing = await mockApi(page, 'missing')
   await page.reload()

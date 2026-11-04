@@ -334,7 +334,7 @@
     {
       "id": "BO-DASHBOARD-AGGREGATE",
       "finding": "D-perf",
-      "description": "Ringkasan reads the server aggregate: one request per 12 s poll, no order list downloaded, Penjualan Rp 300.000 and Transaksi 3 before and after 30 s idle; against a backend without the route (404) it probes once, falls back to the order lists with the same numbers and keeps their 12 s poll",
+      "description": "Ringkasan reads the server aggregate: one request per 12 s poll, no order list downloaded, Penjualan Rp 300.000 and Transaksi 3 before and after 30 s idle, and Semua asks the aggregate about once a minute (none inside its first 30 s, at most two in 100 s); against a backend without the route (404) it probes once, falls back to the order lists with the same numbers and keeps their 12 s poll",
       "source": "tests/browser/backoffice-dashboard-scenarios.ts"
     },
     {

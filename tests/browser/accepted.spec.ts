@@ -245,7 +245,7 @@ test('BO-CATALOGUE-CACHE the whole product list is read once per outlet scope, n
 
 test('BO-DASHBOARD-AGGREGATE Ringkasan reads one server aggregate per poll instead of every order of the period, shows the same numbers, and falls back to the order lists on a backend without the route', async ({ page }, info) => {
   const result = await dashboardAggregateFlow(page as ScenarioPage)
-  expect(result).toHaveLength(2)
+  expect(result).toHaveLength(3)
   await evidence(info, result)
 })
 

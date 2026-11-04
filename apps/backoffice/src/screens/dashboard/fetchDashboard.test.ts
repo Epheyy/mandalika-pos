@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, type DashboardAggregate, type Order } from '@mandalika/api'
-import { AGGREGATE_REPROBE_MS, fetchDashboard, resetAggregateProbe } from './fetchDashboard'
+import { AGGREGATE_REPROBE_MS, DASHBOARD_POLL_MS, aggregateRefreshMs, fetchDashboard, resetAggregateProbe } from './fetchDashboard'
 
 const NOW = Date.parse('2026-11-04T07:00:00Z')
 const agg = {
@@ -73,5 +73,60 @@ describe('fetchDashboard', () => {
     const { api } = fakeApi({ dashboard: () => Promise.reject(new ApiError(404, 'x')), refundRows: [plain] })
     const r = await fetchDashboard(api, 'today', NOW)
     expect(r).toMatchObject({ kind: 'orders', refund: null })
+  })
+})
+
+describe('aggregate refresh cadence ("Semua" is a full scan: once a minute)', () => {
+  beforeEach(() => resetAggregateProbe())
+
+  it('is 60 s for Semua and the 12 s poll for every other period', () => {
+    expect(aggregateRefreshMs('all')).toBe(60_000)
+    for (const p of ['today', '7d', '30d'] as const) expect(aggregateRefreshMs(p)).toBe(DASHBOARD_POLL_MS)
+    expect(DASHBOARD_POLL_MS).toBe(12_000)
+  })
+
+  it('Semua asks the server once per minute even though the screen polls every 12 s', async () => {
+    const { api, reportDashboard } = fakeApi({})
+    const kinds: string[] = []
+    for (let t = 0; t <= 60_000; t += DASHBOARD_POLL_MS) kinds.push((await fetchDashboard(api, 'all', NOW + t, 'u1|o1')).kind)
+    expect(kinds.every((k) => k === 'aggregate')).toBe(true)
+    expect(reportDashboard).toHaveBeenCalledTimes(2) // at 0 s and at 60 s; 12/24/36/48 s were served from the last answer
+    await fetchDashboard(api, 'all', NOW + 60_000 + 59_000, 'u1|o1')
+    expect(reportDashboard).toHaveBeenCalledTimes(2)
+    await fetchDashboard(api, 'all', NOW + 120_000, 'u1|o1')
+    expect(reportDashboard).toHaveBeenCalledTimes(3)
+  })
+
+  it.each(['today', '7d', '30d'] as const)('%s keeps asking on every 12 s poll', async (period) => {
+    const { api, reportDashboard } = fakeApi({})
+    for (let i = 0; i < 5; i++) await fetchDashboard(api, period, NOW + i * DASHBOARD_POLL_MS, 'u1|o1')
+    expect(reportDashboard).toHaveBeenCalledTimes(5)
+  })
+
+  it('never hands one scope, period or day the answer of another', async () => {
+    const { api, reportDashboard } = fakeApi({})
+    await fetchDashboard(api, 'all', NOW, 'u1|o1')
+    await fetchDashboard(api, 'all', NOW + 1_000, 'u1|o2') // another outlet
+    await fetchDashboard(api, 'all', NOW + 2_000, 'u2|o1') // another user
+    expect(reportDashboard).toHaveBeenCalledTimes(3)
+    await fetchDashboard(api, 'all', NOW + 24 * 3_600_000, 'u2|o1') // the next day: the window's end moved
+    expect(reportDashboard).toHaveBeenCalledTimes(4)
+    await fetchDashboard(api, '30d', NOW + 24 * 3_600_000, 'u2|o1') // another period (not throttled anyway)
+    expect(reportDashboard).toHaveBeenCalledTimes(5)
+  })
+
+  it('does not remember a failure: the next poll asks again', async () => {
+    let fail = true
+    const { api, reportDashboard } = fakeApi({ dashboard: () => (fail ? Promise.reject(new ApiError(500, 'boom')) : Promise.resolve(agg)) })
+    await expect(fetchDashboard(api, 'all', NOW, 'u1|o1')).rejects.toBeInstanceOf(ApiError)
+    fail = false
+    expect((await fetchDashboard(api, 'all', NOW + 12_000, 'u1|o1')).kind).toBe('aggregate')
+    expect(reportDashboard).toHaveBeenCalledTimes(2)
+  })
+
+  it('the order-list fallback keeps its 12 s cadence for Semua', async () => {
+    const { api, listOrders } = fakeApi({ dashboard: () => Promise.reject(new ApiError(404, 'x')) })
+    for (let i = 0; i < 3; i++) expect((await fetchDashboard(api, 'all', NOW + i * DASHBOARD_POLL_MS, 'u1|o1')).kind).toBe('orders')
+    expect(listOrders).toHaveBeenCalledTimes(6) // 3 polls x (sale + refund)
   })
 })

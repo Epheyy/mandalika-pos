@@ -1,5 +1,6 @@
 import { ApiError, fetchAllPages, type Api, type DashboardAggregate, type ListOrdersParams, type Order, type Promotion } from '@mandalika/api'
 import { dashboardAggregateParams, viewFromAggregate, viewFromOrders, type DashboardView } from './dashboardView'
+import { localDay } from '../../lib/businessDay'
 import { dashboardFetchWindow, refundSideOrNull, type Period } from './metrics'
 
 /** What one poll returned: the server aggregate, or (older backend) the full order lists to compute from. */
@@ -10,12 +11,30 @@ export type DashboardData =
 /** After a 404/405 the aggregate route is assumed missing for this long, then probed again (a backend deployed mid-session). */
 export const AGGREGATE_REPROBE_MS = 5 * 60_000
 
+/** How often the screen polls (the hook's interval): every period, 12 s. */
+export const DASHBOARD_POLL_MS = 12_000
+
+/**
+ * How often the SERVER AGGREGATE is actually requested. "Semua" scans every order of the outlet scope (about 8 s for
+ * 300k orders, linear), so it is refreshed once a minute; every other period keeps the 12 s refresh. The order-list
+ * fallback keeps its own 12 s cadence (it is the older, heavier path and is not throttled here).
+ */
+export function aggregateRefreshMs(period: Period): number {
+  return period === 'all' ? 60_000 : DASHBOARD_POLL_MS
+}
+
+/** The last aggregate answer per (scope, period, day): lets a 12 s poll return it instead of asking again while it is young. */
+const lastAggregate: { key: string; at: number; data: DashboardData | null } = { key: '', at: 0, data: null }
+
 /** Per-tab memory of "the backend has no aggregate route yet"; module scope so a remount does not re-probe on every poll. */
 const unsupported = { until: 0 }
 
 /** Test hook: forget a remembered 404. */
 export function resetAggregateProbe(): void {
   unsupported.until = 0
+  lastAggregate.key = ''
+  lastAggregate.at = 0
+  lastAggregate.data = null
 }
 
 const isAggregate = (v: unknown): v is DashboardAggregate => {
@@ -49,15 +68,32 @@ async function fetchOrderLists(api: DashboardApi, period: Period, now: Date): Pr
  * One Ringkasan poll. Prefers the server aggregate (one small request). Only a 404/405 (route missing: older
  * backend) falls back to the client computation over the full order lists; every other failure is rethrown so
  * the screen keeps its previous numbers and shows the error. `now` is read once: the windows, the trend
- * skeleton and the numbers all belong to the same instant.
+ * skeleton and the numbers all belong to the same instant. `scopeKey` names who and which outlet scope is asking
+ * (user + outlet), so the "Semua" throttle never hands one scope's numbers to another.
  */
-export async function fetchDashboard(api: DashboardApi, period: Period, nowMs: number = Date.now()): Promise<DashboardData> {
+export async function fetchDashboard(
+  api: DashboardApi,
+  period: Period,
+  nowMs: number = Date.now(),
+  scopeKey = '',
+): Promise<DashboardData> {
   const now = new Date(nowMs)
   if (nowMs >= unsupported.until) {
+    const key = `${scopeKey}|${period}|${localDay(now)}`
+    const refreshMs = aggregateRefreshMs(period)
+    if (refreshMs > DASHBOARD_POLL_MS && lastAggregate.data && lastAggregate.key === key && nowMs - lastAggregate.at < refreshMs) {
+      return lastAggregate.data
+    }
     try {
       const agg = await api.reportDashboard(dashboardAggregateParams(period, now))
       // A 200 that is not the aggregate (a proxy or an unknown route answering generically) is "no route" too.
-      if (isAggregate(agg)) return { kind: 'aggregate', now, agg }
+      if (isAggregate(agg)) {
+        const data: DashboardData = { kind: 'aggregate', now, agg }
+        lastAggregate.key = key
+        lastAggregate.at = nowMs
+        lastAggregate.data = data
+        return data
+      }
       unsupported.until = nowMs + AGGREGATE_REPROBE_MS
     } catch (e) {
       if (!(e instanceof ApiError) || (e.status !== 404 && e.status !== 405)) throw e
