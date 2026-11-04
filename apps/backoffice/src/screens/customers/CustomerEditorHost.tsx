@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Customer } from '@mandalika/api'
 import { api } from '../../api'
+import { useRoute } from '../../lib/router/useRoute'
 import { useUnsavedChanges } from '../../lib/useUnsavedChanges'
 import { useConfirm } from '../../ui/ConfirmDialog'
 import { CustomerFormSlideOver } from './CustomerFormSlideOver'
@@ -38,6 +39,15 @@ export function CustomerEditorHost({ customer, onSaved, onClose }: CustomerEdito
   const editingId = customer?.id ?? null
 
   const setForm = (patch: Partial<CustomerForm>) => setFormState((f) => ({ ...f, ...patch }))
+
+  // The panel is not part of the URL, so any route move (browser Back, a link) takes an untouched panel down with it;
+  // a dirty one was already asked by the guard below, and closes on "Buang perubahan".
+  const route = useRoute()
+  const here = JSON.stringify([route.path, route.query])
+  const openedAt = useRef(here)
+  useEffect(() => {
+    if (here !== openedAt.current && !dirty) onClose()
+  }, [here, dirty, onClose])
 
   useEffect(() => {
     const phone = form.phone.trim()

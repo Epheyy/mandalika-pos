@@ -94,7 +94,7 @@ export function DeleteIngredientDialog({ ingredient, onClose, onDone }: DeleteIn
       consequence={usageLoading ? 'Memeriksa keterkaitan…' : 'Bahan ini hilang dari daftar. Tindakan ini tidak dapat dibatalkan.'}
       confirmLabel="Hapus bahan"
       tone="danger"
-      busy={busy}
+      busy={busy || usageLoading}
       error={error}
       onConfirm={() => void handleDelete()}
       onCancel={onClose}

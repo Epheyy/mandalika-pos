@@ -601,6 +601,7 @@ export default function Customers() {
 
       {editor && (
         <CustomerEditorHost
+          key={editor.customer?.id ?? 'new'}
           customer={editor.customer}
           onSaved={() => cq.refetch()}
           onClose={() => setEditor(null)}

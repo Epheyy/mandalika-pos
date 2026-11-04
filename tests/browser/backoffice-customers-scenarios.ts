@@ -133,6 +133,7 @@ export const customersListFlow = async (page: ScenarioPage) => {
   await panel.waitFor()
   await nameInput.fill('Nama baru')
   await panel.getByText('Perubahan belum disimpan').waitFor()
+  const listHash = await hashOf(page)
   const exits: Array<[string, () => Promise<unknown>]> = [
     ['Escape', () => page.keyboard.press('Escape')],
     ['x', () => panel.getByRole('button', { name: 'Tutup' }).click()],
@@ -146,12 +147,31 @@ export const customersListFlow = async (page: ScenarioPage) => {
     await question.getByRole('button', { name: 'Lanjut edit' }).click()
     await question.waitFor({ state: 'detached' })
     check((await nameInput.inputValue()) === 'Nama baru', `${how}: Lanjut edit keeps the edit`)
-    check((await hashOf(page)).startsWith('#/pelanggan'), `${how}: Lanjut edit stays on Pelanggan`)
+    check((await hashOf(page)) === listHash, `${how}: Lanjut edit keeps the exact hash, got ${await hashOf(page)}`)
   }
   await page.keyboard.press('Escape')
   await question.getByRole('button', { name: 'Buang perubahan' }).click()
   await panel.waitFor({ state: 'detached' })
   check(putCalls(state).length === 0, 'discarding saves nothing')
+  // Back while dirty, answered "Buang perubahan": the move goes ahead AND the panel goes down (nothing saved)
+  await page.getByRole('button', { name: 'Ubah Pelanggan 3', exact: true }).click()
+  await panel.waitFor()
+  await nameInput.fill('Nama lain')
+  await page.evaluate(() => history.back())
+  await question.getByRole('button', { name: 'Buang perubahan' }).click()
+  await panel.waitFor({ state: 'detached' })
+  await page.waitForFunction((h) => location.hash !== h, listHash)
+  check(putCalls(state).length === 0, 'Back + discard saves nothing')
+  // An untouched panel closes with any route move (it is not part of the URL): no question, nothing left over the list
+  await deepLink(page, '#/pelanggan/daftar')
+  await page.getByText('Pelanggan 3', { exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Ubah Pelanggan 3', exact: true }).click()
+  await panel.waitFor()
+  await page.evaluate(() => history.back())
+  await panel.waitFor({ state: 'detached' })
+  check((await question.count()) === 0, 'Back on an untouched panel asks nothing')
+  await deepLink(page, '#/pelanggan/daftar')
+  await page.getByText('Pelanggan 3', { exact: true }).waitFor()
   results.push({ step: 'slideover-one-leave-question' })
 
   // (e) a refused save stays visible in the panel; the retry saves and closes without a question

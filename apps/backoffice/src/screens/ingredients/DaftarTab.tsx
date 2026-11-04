@@ -23,9 +23,11 @@ const formatIDR = (n: number | null | undefined) => {
   return n.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })
 }
 
-const exportIngredients = async (fmt: 'csv' | 'xlsx') => {
-  // Fetch ALL ingredients for export (not just the current page)
-  const all = await fetchAllPages((page, limit) => api.listIngredients({ page, limit }))
+/** Every ingredient that matches the search and category on screen, not just the visible page. */
+const exportIngredients = async (fmt: 'csv' | 'xlsx', filter: { q: string; categoryId: string }) => {
+  const all = await fetchAllPages((page, limit) =>
+    api.listIngredients({ page, limit, ...(filter.q ? { q: filter.q } : {}), ...(filter.categoryId ? { categoryId: filter.categoryId } : {}) }),
+  )
   const rows = all.map((i) => ({
     Nama: i.name,
     SKU: i.sku || '',
@@ -59,6 +61,8 @@ export default function DaftarTab() {
   const [editing, setEditing] = useState<Ingredient | null>(null)
   const [deleting, setDeleting] = useState<Ingredient | null>(null)
   const [categories, setCategories] = useState<IngredientCategory[]>([])
+  // Without the list the select cannot name the category the URL asks for, so say so instead of showing "Semua kategori".
+  const [categoriesErr, setCategoriesErr] = useState<string | null>(null)
 
   const q = usePolledQuery<ListResult<Ingredient>>(
     () => api.listIngredients({
@@ -79,7 +83,7 @@ export default function DaftarTab() {
     api
       .listIngredientCategories()
       .then((cats) => { if (alive) setCategories(cats) })
-      .catch(() => { /* non-fatal */ })
+      .catch((e: unknown) => { if (alive) setCategoriesErr(e instanceof Error ? e.message : 'coba lagi.') })
     return () => { alive = false }
   }, [])
 
@@ -100,7 +104,9 @@ export default function DaftarTab() {
   const handleCategoryChange = (value: string) => setState({ kategori: value, hal: 1 })
 
   const refetchAfterImport = () => {
-    void Promise.all([q.refetch(), api.listIngredientCategories().then(setCategories)])
+    void Promise.all([q.refetch(), api.listIngredientCategories().then(setCategories)]).catch((e: unknown) =>
+      setCategoriesErr(e instanceof Error ? e.message : 'coba lagi.'),
+    )
   }
 
   const columns: Column<Ingredient>[] = [
@@ -137,7 +143,8 @@ export default function DaftarTab() {
         actions={
           <>
             <ImportExportBar
-              onExport={exportIngredients}
+              onExport={(fmt) => exportIngredients(fmt, { q: search.trim(), categoryId: categoryFilter })}
+              filterSummary={[...(search.trim() ? [`Cari: ${search.trim()}`] : []), ...(categoryFilter ? [`Kategori: ${categories.find((c) => c.id === categoryFilter)?.name ?? 'tidak dikenal'}`] : [])]}
               importKind="ingredients"
               onImported={refetchAfterImport}
               onTemplate={downloadIngredientTemplate}
@@ -154,6 +161,12 @@ export default function DaftarTab() {
           options={[{ value: '', label: 'Semua kategori' }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
         />
       </FilterBar>
+
+      {categoriesErr && (
+        <p role="alert" className="rounded-xl bg-danger-bg px-4 py-3 text-sm text-danger">
+          Daftar kategori gagal dimuat: {categoriesErr}
+        </p>
+      )}
 
       <DataTable
         caption="Daftar bahan"
