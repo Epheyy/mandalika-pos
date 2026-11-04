@@ -11,6 +11,10 @@ export interface CachedList<T> {
   refetch: () => Promise<void>
 }
 
+// Server markup (tests render to a string) has no cache: nothing loaded yet.
+const serverEntry = () => undefined
+const serverEpoch = () => 0
+
 /** While mounted, how often an entry older than maxAgeMs is noticed and refreshed (a no-op while it is fresh). */
 const REVALIDATE_CHECK_MS = 15_000
 
@@ -28,8 +32,8 @@ export function useCachedList<T>(
   // outlet, not on authStore.outletId: Opname briefly points the header at another outlet while it creates a count,
   // and that must not start a load of its own.
   const outlet = useOptionalOutlet()
-  const entry = useSyncExternalStore(cache.subscribe, cache.peek)
-  const epoch = useSyncExternalStore(cache.subscribe, cache.epoch)
+  const entry = useSyncExternalStore(cache.subscribe, cache.peek, serverEntry)
+  const epoch = useSyncExternalStore(cache.subscribe, cache.epoch, serverEpoch)
   const scope = outlet ? (outlet.outletId ?? '') : cache.scopeKey()
   const [failure, setFailure] = useState<{ scope: string; message: string } | null>(null)
 
