@@ -272,7 +272,7 @@ export const posRecap = async (page: ScenarioPage) =>{
   await page.getByRole('button',{name:'Riwayat',exact:true}).last().click();
   await page.getByText('Historical 0',{exact:true}).waitFor();
   const finalCache=await page.evaluate(()=>Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith('mandalika.cache.rekap:')).map(k=>[k,localStorage.getItem(k)])));
-  if(JSON.stringify(cache)!==JSON.stringify(finalCache))throw new Error('failed/offline reads modified cache');
+  if(JSON.stringify(cache)!==JSON.stringify(finalCache)){const diff=Object.keys({...cache,...finalCache}).filter(k=>cache[k]!==finalCache[k]).map(k=>{const a=cache[k]??'',b=finalCache[k]??'';let i=0;while(i<a.length&&a[i]===b[i])i++;return `${k} len ${a.length}->${b.length} first diff @${i}: ${a.slice(Math.max(0,i-60),i+60)} => ${b.slice(Math.max(0,i-60),i+60)}`});throw new Error('failed/offline reads modified cache: '+diff.join(' | '))}
   return {active,historical,cacheCounts:{activeOrders:401,activeFlows:401,history:251,historicalOrders:401,historicalFlows:401},failure:'visible stale notice; unchanged complete bytes',reconstruction:'same storage; actual panel remount offline',calls:page.__a26pos.calls};
 }
 
