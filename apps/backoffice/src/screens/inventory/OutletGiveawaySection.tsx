@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { ApiError, type Product } from '@mandalika/api'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
-import { loadAllProducts } from '../../lib/loadAll'
+import { useCachedList } from '../../hooks/useCachedList'
+import { productCatalogue } from '../../lib/productCatalogue'
 import { Button } from '../../ui/Button'
 import { Select } from '../../ui/Field'
 
@@ -22,29 +23,30 @@ export function OutletGiveawaySection({ outletId }: { outletId: string }) {
     async () => {
       // The stock read needs manage_inventory: a 403 leaves a manage_outlets-only user able to
       // configure the giveaway, with "—" for the stock.
-      const [giveaway, products, stock] = await Promise.all([
+      const [giveaway, stock] = await Promise.all([
         api.getOutletGiveaway(outletId),
-        loadAllProducts((page, limit) => api.listProducts(page, limit)),
         api.getTransferLocationStock('outlet', outletId).catch((e: unknown) => {
           if (e instanceof ApiError && e.status === 403) return null // no manage_inventory: stock shows "—"
           throw e // anything else is a real load error
         }),
       ])
-      return { giveaway, products, stock }
+      return { giveaway, stock }
     },
     [outletId],
     REFRESH_MS,
   )
+  // The product list is the shared catalogue (not part of this 60 s poll).
+  const catalogue = useCachedList(productCatalogue)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
-  if (q.loading && !q.data) return <p className="text-xs text-gray-500">Memuat hadiah per transaksi…</p>
-  if (!q.data) return <p className="text-sm text-red-600">{q.error ?? 'Gagal memuat hadiah per transaksi.'}</p>
+  if ((q.loading && !q.data) || (catalogue.loading && !catalogue.data)) return <p className="text-xs text-gray-500">Memuat hadiah per transaksi…</p>
+  if (!q.data || !catalogue.data) return <p className="text-sm text-red-600">{q.error ?? catalogue.error ?? 'Gagal memuat hadiah per transaksi.'}</p>
 
   const { giveaway, stock } = q.data
   // The configured item stays selectable even when it is no longer in the catalogue (name from the setting).
-  const listed = q.data.products
+  const listed = catalogue.data
   const products =
     giveaway.productId && !listed.some((p) => p.id === giveaway.productId)
       ? [

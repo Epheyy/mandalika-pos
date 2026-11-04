@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react'
-import { fetchAllPages, type AppSettings, type StockCountSubmitInput, type StockCount, type StockCountItem, type Product, type Outlet, type Warehouse, type ListResult } from '@mandalika/api'
+import { useMemo, useRef, useState } from 'react'
+import { fetchAllPages, type AppSettings, type StockCountSubmitInput, type StockCount, type StockCountItem, type Outlet, type Warehouse, type ListResult } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { Plus, Play, CheckCircle, Send, XCircle, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
 import { api, authStore } from '../api'
-import { loadAllProducts } from '../lib/loadAll'
+import { activeProducts, productCatalogue } from '../lib/productCatalogue'
+import { useCachedList } from '../hooks/useCachedList'
 import { localDay } from '../lib/businessDay'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
@@ -40,7 +41,8 @@ export default function StockCount() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const scq = usePolledQuery<ListResult<StockCount>>(() => api.listStockCounts(page, pageSize), [outletId, page, pageSize])
-  const pq = usePolledQuery<Product[]>(() => loadAllProducts((p, l) => api.listProducts(p, l)).then((r) => r.filter((p) => p.isActive)), [outletId])
+  // The whole product list is read once per outlet scope (shared cache), not on the 12 s poll.
+  const pq = useCachedList(productCatalogue)
   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
   const setq = usePolledQuery<AppSettings>(() => api.getAppSettings(), [], 300000)
@@ -50,7 +52,7 @@ export default function StockCount() {
   const stockCounts = scq.data?.data ?? []
   const scTotal = scq.data?.meta?.total ?? 0
   const scTotalPages = Math.max(1, Math.ceil(scTotal / pageSize))
-  const products = pq.data ?? []
+  const products = useMemo(() => activeProducts(pq.data) ?? [], [pq.data])
   const outlets = ctxOutlets.length ? ctxOutlets : ouq.data ?? []
   const warehouses = wq.data ?? []
 
@@ -137,9 +139,11 @@ export default function StockCount() {
           items,
         })
       } else {
-        // Outlet count: snapshot from products, switch authStore for admins.
+        // Outlet count: snapshot from products, switch authStore for admins. The frozen quantities are a stock
+        // snapshot, so read the list fresh now (before the scope switch) rather than from the shared cache.
+        const frozen = activeProducts(await productCatalogue.get({ force: true })) ?? []
         if (isAdmin && locId) authStore.outletId = locId
-        const items: StockCountItem[] = products.flatMap((p) =>
+        const items: StockCountItem[] = frozen.flatMap((p) =>
           p.variants.map((v) => ({
             productId: p.id,
             productName: p.name,
@@ -236,7 +240,7 @@ export default function StockCount() {
         async () => {
           await api.completeStockCount(sc.id)
           dropEdits(sc.id)
-          await Promise.all([scq.refetch(), pq.refetch()])
+          await scq.refetch()
         },
       )
       if (!done) setPageErr((m) => m ?? 'Ada hitungan yang belum tersimpan. Periksa lalu coba lagi.')
@@ -270,7 +274,7 @@ export default function StockCount() {
     await api.submitStockCount(submitFor.id, input, key)
     dropEdits(submitFor.id)
     setSubmitFor(null)
-    await Promise.all([scq.refetch(), pq.refetch()])
+    await scq.refetch()
     notifyApprovalsChanged()
   }
 

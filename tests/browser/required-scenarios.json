@@ -326,6 +326,12 @@
       "source": "tests/browser/backoffice-opname-scenarios.ts"
     },
     {
+      "id": "BO-CATALOGUE-CACHE",
+      "finding": "D-perf",
+      "description": "Shared product-catalogue cache: Opname, Ringkasan and Pelanggan fetch the whole product list once instead of every 12 s while idle (30 s fake clock), Tambah opname snapshots stock from a fresh read (7 to 3), and Ringkasan order numbers keep their 12 s poll and read Rp 300.000 throughout",
+      "source": "tests/browser/backoffice-catalogue-scenarios.ts"
+    },
+    {
       "id": "BO-D3C-APPROVALS-ERP",
       "finding": "D3c",
       "description": "Persetujuan Stok: the Jenis and Outlet filters are server parameters and URL state that survive a reload, and the sidebar badge requests never carry a filter so the badge stays put; Integrasi ERP: the status is URL state (Semua is its own value), locations show names, Kirim sekarang asks first (Batal sends nothing) and a double click on the confirm runs the relay once, the run reads as Terkirim, Ditahan and Gagal counts with setting names only behind Detail teknis, and Kirim ulang asks first and a double click retries the opened document once",

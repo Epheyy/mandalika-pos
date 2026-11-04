@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Outlet, Product, Promotion, PromotionInput } from '@mandalika/api'
 import { api } from '../../api'
-import { loadAllProducts } from '../../lib/loadAll'
+import { activeProducts, productCatalogue } from '../../lib/productCatalogue'
 import { useConfirm } from '../../ui/ConfirmDialog'
 import { PromoFormSlideOver } from './PromoFormSlideOver'
 import { EMPTY_PROMO, promotionProblems, promotionToInput } from './promotionForm'
@@ -31,10 +31,12 @@ function usePickerData() {
   const [outletsState, setOutletsState] = useState<'loading' | 'ready' | 'failed'>('loading')
   useEffect(() => {
     let alive = true
-    loadAllProducts((p, l) => api.listProducts(p, l))
+    // The shared catalogue: opening the editor again within its TTL costs no request, and a product saved in this tab refetches.
+    productCatalogue
+      .get()
       .then((all) => {
         if (!alive) return
-        setProducts(all.filter((p) => p.isActive))
+        setProducts(activeProducts(all) ?? [])
         setProductsState('ready')
       })
       .catch(() => alive && setProductsState('failed'))

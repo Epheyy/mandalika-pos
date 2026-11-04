@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { fetchAllPages, type ListOrdersParams } from '@mandalika/api'
-import type { Order, Product, Promotion } from '@mandalika/api'
+import type { Order, Promotion } from '@mandalika/api'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import {
@@ -17,6 +17,8 @@ import { api } from '../api'
 import { useAuth } from '../auth'
 import { useOutlet } from '../outlet'
 import { usePolledQuery } from '../hooks/usePolledQuery'
+import { useCachedList } from '../hooks/useCachedList'
+import { productCatalogue } from '../lib/productCatalogue'
 import { BRAND } from '../lib/brand'
 import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
@@ -72,6 +74,10 @@ function ChartFallback({ height }: { height: number }) {
   return <div className="animate-pulse bg-gray-50 rounded-xl" style={{ height }} />
 }
 
+/** The low-stock card reads the shared product list, at most this stale (it used to be re-read every 12 s). */
+const DASHBOARD_CATALOGUE_MAX_AGE_MS = 60_000
+const DASHBOARD_PROMO_POLL_MS = 60_000
+
 export default function Dashboard() {
   const { user } = useAuth()
   const { outletId } = useOutlet()
@@ -104,11 +110,11 @@ export default function Dashboard() {
     },
     [outletId, period, win.dateFrom, win.dateTo],
   )
-  const pq = usePolledQuery<Product[]>(
-    () => fetchAllPages((page, limit) => api.listProducts(page, limit)),
-    [outletId],
-  )
-  const prq = usePolledQuery<Promotion[]>(() => api.listPromotions(), [outletId])
+  // Only the low-stock card and the promo names read these: the shared product list (served for up to a minute, then
+  // refreshed while the tab stays open) and the promotion list on a minute poll, so the order polls above stay the
+  // only 12 s traffic. The order numbers do not depend on either.
+  const pq = useCachedList(productCatalogue, { maxAgeMs: DASHBOARD_CATALOGUE_MAX_AGE_MS })
+  const prq = usePolledQuery<Promotion[]>(() => api.listPromotions(), [outletId], DASHBOARD_PROMO_POLL_MS)
 
   if (oq.loading || pq.loading)
     return (

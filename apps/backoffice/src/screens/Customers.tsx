@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import type {
   Customer,
   LoyaltySettings,
   LoyaltyCondition,
-  Product,
   Tag,
   Segment,
   Reminder,
@@ -12,8 +11,8 @@ import type {
 import { fetchAllPages } from '@mandalika/api'
 import { Plus, Edit2, Trash2, Gift, Cake } from 'lucide-react'
 import { api } from '../api'
-import { loadAllProducts } from '../lib/loadAll'
-import { useOutlet } from '../outlet'
+import { activeProducts, productCatalogue } from '../lib/productCatalogue'
+import { useCachedList } from '../hooks/useCachedList'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { buildExportName, exportToCSV, exportToXLSX } from '../lib/csvUtils'
@@ -95,7 +94,6 @@ const EMPTY_COND: CondForm = {
 }
 
 export default function Customers() {
-  const { outletId } = useOutlet()
   // Everything the list shows is in the URL: search, sort, tag, segment, page and page size (defaults stay out of it).
   const [urlList, setList] = useListState(CUSTOMER_LIST_SCHEMA)
   const route = useRoute()
@@ -149,13 +147,12 @@ export default function Customers() {
 
   const lq = usePolledQuery<LoyaltySettings>(() => api.getLoyaltySettings(), [])
   const condQ = usePolledQuery<LoyaltyCondition[]>(() => api.listLoyaltyConditions(), [])
-  const pq = usePolledQuery<Product[]>(
-    () => loadAllProducts((p, l) => api.listProducts(p, l)).then((r) => r.filter((p) => p.isActive)),
-    [outletId],
-  )
+  const [condOpen, setCondOpen] = useState(false)
+  // The loyalty product pickers are behind the condition form: read the shared catalogue only while it is open.
+  const pq = useCachedList(productCatalogue, { enabled: condOpen })
   const loyalty = lq.data ?? DEFAULT_LOYALTY
   const conditions = condQ.data ?? []
-  const products = pq.data ?? []
+  const products = useMemo(() => activeProducts(pq.data) ?? [], [pq.data])
 
   // The view, the customer page, the duplicate under review and the loyalty sub-view all live in the path.
   const { tab: routedView, setTab: setView } = useScreenTabs<CustomerView>('customers', null)
@@ -229,7 +226,6 @@ export default function Customers() {
   }, [lq.data])
   const [savingLoyalty, setSavingLoyalty] = useState(false)
 
-  const [condOpen, setCondOpen] = useState(false)
   const [editingCond, setEditingCond] = useState<LoyaltyCondition | null>(null)
   const [condForm, setCondForm] = useState<CondForm>(EMPTY_COND)
   const [condBusy, setCondBusy] = useState(false)
