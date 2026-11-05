@@ -2,17 +2,24 @@ name: backend
 
 on:
   workflow_call:
-  # Every pushed correction needs this baseline on the same SHA as the other gates.
+  # Every gate/prod-hardening push needs this baseline on the same SHA as the other gates.
   push:
+    branches: [prod-hardening, 'gate/**']
   pull_request:
     paths: ['backend/**', '.github/workflows/backend.yml']
 
 permissions:
   contents: read
 
+concurrency:
+  # PR pushes cancel the superseded run; push/gate/workflow_call runs never cancel and never queue behind each other.
+  # Literal workflow name (not github.workflow) so reusable-workflow calls from android-release.yml cannot share a group.
+  group: backend-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
     timeout-minutes: 20
     defaults:
       run:

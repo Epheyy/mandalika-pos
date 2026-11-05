@@ -29,7 +29,7 @@ _rgc_gates_green() {
       return 1
     fi
     if [ -z "$state" ]; then
-      echo "release refused: no $wf push run for ${sha:0:7} yet (CI not started; retry when it is done)" >&2
+      echo "release refused: no $wf push run for ${sha:0:7} yet (CI not started or the sha was never pushed to prod-hardening or a gate/<name> branch, the only branches that start push runs; push it to gate/<name>, then retry when it is done)" >&2
       return 1
     fi
     IFS='|' read -r status conclusion url <<<"$state"

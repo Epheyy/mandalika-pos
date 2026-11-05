@@ -50,10 +50,65 @@ on the same host because their fixed guarded ports intentionally collide.
 unit tests cover parser, environment, redaction, cleanup failure and Docker command
 contracts; these mocks do not replace PostgreSQL integration verification.
 
-`.github/workflows/postgres.yml` runs on push, PR and reusable workflow calls.
+`.github/workflows/postgres.yml` runs on push (only `prod-hardening` and `gate/**`), PR and reusable workflow calls.
 Android build/signing needs JS/TS quality, this database workflow, the existing
 backend gen/vet/fmt/build/race workflow, and the synthetic Chromium browser gate
 at the caller commit (see `tests/browser/README.md`). No signing secrets
 are forwarded to quality jobs. Hosted execution, branch protection and business
 concurrency scenarios remain separate qualifications: the six current fixtures
 exercise sequential transactions/replays, not A13/A42 overlapping operations.
+
+# CI runners: self-hosted GCP VM (primary) with GitHub-hosted fallback
+
+Why: GitHub-hosted minutes for the private repos ran out (2026-11-05) and the owner declined GitHub Team.
+
+## How a workflow picks its runner
+
+The five gates (`quality`, `backend`, `postgres`, `browser`, `dependency-security`) and `react-doctor` use
+`runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}`. The repository variable `CI_RUNS_ON` is a JSON value:
+
+| `CI_RUNS_ON` | Runs on |
+|---|---|
+| unset / empty | GitHub-hosted `ubuntu-latest` (fallback; needs minutes) |
+| `["self-hosted","linux","mandalika"]` | the GCP VM below |
+| `"ubuntu-latest"` (a JSON string, quotes included) | GitHub-hosted, explicitly |
+
+Set on both repos: `gh variable set CI_RUNS_ON -R <owner/repo> --body '["self-hosted","linux","mandalika"]'`.
+**Fall back** with `gh variable delete CI_RUNS_ON -R <owner/repo>` (per repo, takes effect on the next run).
+Branches cut before this change still say `runs-on: ubuntu-latest`: rebase them onto `prod-hardening` to use the VM.
+`android-release.yml` calls the gate workflows too, so it follows the variable; its own `build` job stays GitHub-hosted
+(it needs the signing secrets, which must never reach the VM).
+
+## The VM (`mandalika-ci-runner`, project `mandalika-pos`, `asia-southeast2-a`)
+
+- e2-standard-4 (4 vCPU / 16 GB), 100 GB pd-balanced, on-demand, Ubuntu 24.04, shielded VM, own VPC `ci-runner-net`.
+- No external ingress: the only firewall rule is IAP SSH. Own service account `ci-runner@` with **no roles and no scopes**;
+  jobs are also blocked from the metadata server. No workflow in the gate path uses a secret (only `android-release.yml`'s
+  `build` job does, and it is not on the VM), so the VM holds no production credential.
+- Four runner processes (2 per repo: `origin-1/2` for `Epheyy/mandalika-pos`, `mirror-1/2` for `mandalika-ci/mandalika-pos-ci`),
+  labels `self-hosted, linux, mandalika`, systemd `mandalika-runner@<instance>`. They are persistent (not ephemeral) so no
+  GitHub credential needs to live on the VM; a job hook wipes the workspace before and after every job.
+- Host-wide locks: the Postgres gate (`flock /tmp/mandalika-ci-postgres.lock`, fixed ports 26439-26479) and the browser gate
+  (`/tmp/mandalika-ci-browser.lock`, ports 5183/5184) serialise across all four runners and both repos; the other gates run in
+  parallel. Job timeouts include the lock wait.
+- A systemd timer powers the VM off after 30 minutes with no running job (a stopped VM costs only its disk).
+
+## Operating it
+
+```sh
+scripts/ci/runner-up.sh            # start the VM and wait until runners are online in both repos (run before pushing gate/<name>)
+scripts/ci/runner-up.sh --status   # report only
+```
+
+One-time setup / rebuild (needs project owner): `scripts/ci/runner-create-vm.sh`, wait ~5 min for first boot,
+`scripts/ci/runner-register.sh` (registration tokens via `gh api`, sent over IAP SSH on stdin, never stored or printed),
+`scripts/ci/runner-budget.sh <billing-account-id>`. The mirror is switched exactly like origin: set/delete `CI_RUNS_ON` on
+`mandalika-ci/mandalika-pos-ci`. Auto-start from a webhook is NOT built (follow-up: Cloud Function + `workflow_job` webhook).
+
+## Dedupe rules
+
+`push` triggers only on `prod-hardening` and `gate/**`; PR pushes run once via `pull_request`. PR runs cancel the superseded
+run of the same PR (`cancel-in-progress`); push and gate runs never cancel. Docs-only PRs (`**/*.md`) skip the gates, push runs
+never skip, so `require-green-ci.sh` (newest PUSH run per workflow for the sha) is unchanged: a release sha must have been pushed
+to `prod-hardening` or a `gate/<name>` branch. Branch protection is unavailable on these private free-plan repos (API 403), so
+no check is "required" and skipping docs-only PRs cannot block a merge.

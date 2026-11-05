@@ -1,17 +1,28 @@
 name: Mandatory Chromium browser gate
 
 on:
+  # Push only on the branches that matter: PR pushes are covered by pull_request (no double runs).
+  # require-green-ci.sh and the merge gates read PUSH runs, so prod-hardening and gate/<name> keep them.
+  # Docs-only PRs skip (no branch protection exists to require these checks); push runs never skip.
   push:
+    branches: [prod-hardening, 'gate/**']
   pull_request:
+    paths-ignore: ['**/*.md']
   workflow_call:
 
 permissions:
   contents: read
 
+concurrency:
+  # PR pushes cancel the superseded run; push/gate/workflow_call runs never cancel and never queue behind each other.
+  # Literal workflow name (not github.workflow) so reusable-workflow calls from android-release.yml cannot share a group.
+  group: browser-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   browser:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
+    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 50  # includes time queued on the host-wide port lock
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,10 +37,17 @@ jobs:
       - name: Verify reviewed local vendor bytes before installation
         run: python scripts/ci/dependency_vendor.py
       - run: corepack pnpm install --frozen-lockfile
-      - run: corepack pnpm exec playwright install --with-deps chromium
+      - name: Install Chromium (OS deps only on GitHub-hosted; the self-hosted VM has them preinstalled)
+        run: |
+          if [ "$RUNNER_ENVIRONMENT" = github-hosted ]; then
+            corepack pnpm exec playwright install --with-deps chromium
+          else
+            flock /tmp/mandalika-ci-browser.lock corepack pnpm exec playwright install chromium
+          fi
       - run: corepack pnpm typecheck:browser
       - name: Required synthetic Chromium scenarios
-        run: corepack pnpm browser:ci
+        # Fixed fixture ports 5183/5184 are host-global: serialise across runner processes on a shared VM.
+        run: flock /tmp/mandalika-ci-browser.lock corepack pnpm browser:ci
       - name: Synthetic failure evidence
         if: failure()
         uses: actions/upload-artifact@v4

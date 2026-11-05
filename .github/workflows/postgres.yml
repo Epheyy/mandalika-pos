@@ -1,17 +1,28 @@
 name: Mandatory PostgreSQL integration
 
 on:
+  # Push only on the branches that matter: PR pushes are covered by pull_request (no double runs).
+  # require-green-ci.sh and the merge gates read PUSH runs, so prod-hardening and gate/<name> keep them.
+  # Docs-only PRs skip (no branch protection exists to require these checks); push runs never skip.
   push:
+    branches: [prod-hardening, 'gate/**']
   pull_request:
+    paths-ignore: ['**/*.md']
   workflow_call:
 
 permissions:
   contents: read
 
+concurrency:
+  # PR pushes cancel the superseded run; push/gate/workflow_call runs never cancel and never queue behind each other.
+  # Literal workflow name (not github.workflow) so reusable-workflow calls from android-release.yml cannot share a group.
+  group: postgres-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   postgres:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 60  # includes time queued on the host-wide fixture lock
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,9 +42,13 @@ jobs:
       - name: Keep fixture ports out of the kernel's ephemeral pool
         run: |
           cat /proc/sys/net/ipv4/ip_local_port_range
-          sudo sysctl -w net.ipv4.ip_local_reserved_ports=26439-26479
+          # GitHub-hosted: sudo is passwordless. Self-hosted runners have no sudo; scripts/ci/runner-provision.sh
+          # sets the same reservation at boot, so a refused sudo is fine there.
+          sudo -n sysctl -w net.ipv4.ip_local_reserved_ports=26439-26479 || echo "sudo unavailable: relying on the host's boot-time reservation"
       - name: Forty-one mandatory fresh PostgreSQL 18.3 fixtures (race enabled)
-        run: python3 scripts/ci/postgres_gate.py --output artifacts/postgres/result.json
+        # Fixture ports 26439-26479 and container names are host-global: flock serialises the gate across every
+        # runner process on one self-hosted VM (both repos). A no-op wait on a GitHub-hosted runner.
+        run: flock /tmp/mandalika-ci-postgres.lock python3 scripts/ci/postgres_gate.py --output artifacts/postgres/result.json
       - name: Sanitized fixture lifecycle and test evidence
         if: always()
         uses: actions/upload-artifact@v4
