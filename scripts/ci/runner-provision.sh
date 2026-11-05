@@ -36,6 +36,9 @@ sysctl --system >/dev/null
 iptables -C OUTPUT -d 169.254.169.254 -m owner --uid-owner runner -j REJECT 2>/dev/null \
   || iptables -I OUTPUT -d 169.254.169.254 -m owner --uid-owner runner -j REJECT
 
+# --- jobs only see their own processes (a registration token may be briefly on argv during setup) ----------
+mount -o remount,hidepid=2 /proc
+
 # --- runner binaries (sha256 taken from the official release notes) ------------------------------------
 TEMPLATE=/opt/mandalika-ci/runner-template
 if [ ! -x "$TEMPLATE/run.sh" ]; then
