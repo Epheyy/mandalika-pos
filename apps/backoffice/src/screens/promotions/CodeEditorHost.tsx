@@ -5,7 +5,7 @@ import { useAuth } from '../../auth'
 import { useConfirm } from '../../ui/ConfirmDialog'
 import { CodeFormSlideOver } from './CodeFormSlideOver'
 import { isPhoneOnlyCustomerLookup } from './customerLookupMode'
-import { EMPTY_CODE, codeProblems, codeToInput } from './discountCodeForm'
+import { EMPTY_CODE, codeProblems, codeToInput, mapCodeSaveError } from './discountCodeForm'
 import { useEditorGuard, useLeave } from './useEditorLeave'
 import { useRecordEditor } from './useRecordEditor'
 import { confirmActivation, needsActivationConfirm, wasActiveNow } from './useStatusToggle'
@@ -20,8 +20,8 @@ interface CodeEditorHostProps {
 // Stable functions: the editor hook reads them once, at mount.
 const fetchCodes = () => api.listDiscountCodes()
 const emptyCode = (): DiscountCodeInput => ({ ...EMPTY_CODE })
-const createCode = (input: DiscountCodeInput) => api.createDiscountCode(input)
-const updateCode = (id: string, input: DiscountCodeInput) => api.updateDiscountCode(id, input)
+const createCode = (input: DiscountCodeInput) => api.createDiscountCode(input).catch((e: unknown) => { throw mapCodeSaveError(e, input.code) })
+const updateCode = (id: string, input: DiscountCodeInput) => api.updateDiscountCode(id, input).catch((e: unknown) => { throw mapCodeSaveError(e, input.code) })
 
 /** The discount-code editor overlay, mounted while `?ubah=<id>` / `?baru=1` is in the URL. */
 export function CodeEditorHost({ codeId, closeEditor, refetchList }: CodeEditorHostProps) {

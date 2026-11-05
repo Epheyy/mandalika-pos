@@ -156,6 +156,9 @@ type Promotion struct {
 }
 
 func (r *Repo) CreatePromotion(ctx context.Context, p Promotion) (string, error) {
+	if err := validatePromotionBasics(p); err != nil {
+		return "", err
+	}
 	if p.Type == "buy_x_get_y" {
 		if err := validateBXGY(p.BXGYConfig); err != nil {
 			return "", err
@@ -211,6 +214,9 @@ func (r *Repo) CreatePromotion(ctx context.Context, p Promotion) (string, error)
 }
 
 func (r *Repo) UpdatePromotion(ctx context.Context, id string, p Promotion) error {
+	if err := validatePromotionBasics(p); err != nil {
+		return err
+	}
 	if p.Type == "buy_x_get_y" {
 		if err := validateBXGY(p.BXGYConfig); err != nil {
 			return err
@@ -269,4 +275,42 @@ func (r *Repo) UpdatePromotion(ctx context.Context, id string, p Promotion) erro
 
 func (r *Repo) DeletePromotion(ctx context.Context, id string) error {
 	return r.delete(ctx, "promotions", "promotions", id)
+}
+
+// validateDiscountValue guards the top-level `value` of a plain percentage/fixed promotion or code: it must be
+// > 0 and a percentage must be <= 100. Other types (bogo, bxgy, tiered, bundle) carry their numbers in a config
+// blob and ignore the top-level value, so it is not checked for them. Validated in the write path only: no DB
+// CHECK, since older test rows may hold 0.
+func validateDiscountValue(typ string, value float64) error {
+	switch typ {
+	case "percentage":
+		if value <= 0 || value > 100 {
+			return fmt.Errorf("percentage value must be > 0 and <= 100")
+		}
+	case "fixed":
+		if value <= 0 {
+			return fmt.Errorf("fixed value must be greater than 0")
+		}
+	}
+	return nil
+}
+
+// validateDateOrder rejects an end date before the start date (YYYY-MM-DD strings compare correctly as text).
+func validateDateOrder(start, end string) error {
+	if start != "" && end != "" && end < start {
+		return fmt.Errorf("endDate must not be before startDate")
+	}
+	return nil
+}
+
+// An inactive row may be saved as it is (switching an old invalid promotion off from the list resends the whole
+// row), so the value/date rules apply to active ones only; the form itself always checks.
+func validatePromotionBasics(p Promotion) error {
+	if !p.IsActive {
+		return nil
+	}
+	if err := validateDiscountValue(p.Type, p.Value); err != nil {
+		return err
+	}
+	return validateDateOrder(p.StartDate, p.EndDate)
 }

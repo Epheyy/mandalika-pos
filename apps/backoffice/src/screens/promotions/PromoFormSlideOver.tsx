@@ -106,7 +106,7 @@ export function PromoFormSlideOver(p: PromoFormSlideOverProps) {
           <Section title="Periode dan jadwal">
             <div className="grid grid-cols-2 gap-4">
               <Input label="Mulai" type="date" value={form.startDate || ''} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
-              <Input label="Berakhir" type="date" value={form.endDate || ''} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
+              <Input id={PROMO_FIELD.endDate} label="Berakhir" type="date" value={form.endDate || ''} error={byField[PROMO_FIELD.endDate]} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
             </div>
             <Field label="Hari aktif" hint={days.length === 0 ? 'Semua hari.' : undefined}>
               <div role="group" aria-label="Hari aktif" className="flex flex-wrap gap-1.5">

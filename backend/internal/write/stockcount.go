@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -19,7 +20,24 @@ type CustomRole struct {
 	Permissions []string `json:"permissions"`
 }
 
+// validateCustomRole rejects a role with no name or no permission: an empty template is useless and was
+// previously saved silently.
+func validateCustomRole(c CustomRole) error {
+	if strings.TrimSpace(c.Name) == "" {
+		return fmt.Errorf("Nama role wajib diisi")
+	}
+	for _, p := range c.Permissions {
+		if strings.TrimSpace(p) != "" {
+			return nil
+		}
+	}
+	return fmt.Errorf("Pilih minimal 1 izin")
+}
+
 func (r *Repo) CreateCustomRole(ctx context.Context, c CustomRole) (string, error) {
+	if err := validateCustomRole(c); err != nil {
+		return "", err
+	}
 	var id string
 	err := r.tx(ctx, "customRoles", func(t pgx.Tx) error {
 		if e := t.QueryRow(ctx,
@@ -33,6 +51,9 @@ func (r *Repo) CreateCustomRole(ctx context.Context, c CustomRole) (string, erro
 }
 
 func (r *Repo) UpdateCustomRole(ctx context.Context, id string, c CustomRole) error {
+	if err := validateCustomRole(c); err != nil {
+		return err
+	}
 	return r.tx(ctx, "customRoles", func(t pgx.Tx) error {
 		ct, e := t.Exec(ctx, `UPDATE custom_roles SET name=$1 WHERE id=$2`, c.Name, id)
 		if e != nil {
@@ -79,6 +100,9 @@ var ErrCountDone = apperr.New(apperr.Conflict, "stock count sudah selesai dengan
 
 // ErrCountRunning: another count at the same location is still in progress.
 var ErrCountRunning = apperr.New(apperr.Conflict, "stock count lain di lokasi ini masih berjalan")
+
+// ErrCountPlanned: the location already has a planned count (owner rule: one planned opname per location).
+var ErrCountPlanned = apperr.New(apperr.Conflict, "Sudah ada opname terjadwal untuk lokasi ini. Jadwalkan ulang atau ubah rencana yang ada.")
 
 type StockCountItem struct {
 	ProductID   string `json:"productId"`
@@ -278,6 +302,9 @@ func (r *Repo) CreateStockCount(ctx context.Context, outletID, createdBy string,
 		return "", err
 	}
 	defer t.Rollback(ctx)
+	if e := ensureNoPlannedCount(ctx, t, outletID, s.WarehouseID); e != nil {
+		return "", e
+	}
 	if e := t.QueryRow(ctx, `
 		INSERT INTO stock_counts (name, status, outlet_id, warehouse_id, planned_date, notes, created_by)
 		VALUES ($1,'planned',$2,$3,$4,$5,$6) RETURNING id`,
@@ -289,6 +316,26 @@ func (r *Repo) CreateStockCount(ctx context.Context, outletID, createdBy string,
 		return "", e
 	}
 	return id, t.Commit(ctx)
+}
+
+// ensureNoPlannedCount enforces one planned count per location. The unique indexes only cover in_progress /
+// pending_approval, so this is a write-path check; a per-location advisory lock (held to commit) serializes
+// concurrent creates so both cannot pass it. No migration: counts already planned twice are left alone.
+func ensureNoPlannedCount(ctx context.Context, t pgx.Tx, outletID, warehouseID string) error {
+	loc := countLoc{outletID: outletID, warehouseID: warehouseID}
+	_, col, id := loc.stock()
+	if _, e := t.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('stock_counts_planned:' || $1::text))`, id); e != nil {
+		return e
+	}
+	var exists bool
+	if e := t.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM stock_counts WHERE status='planned' AND `+col+`=$1::uuid)`, id).Scan(&exists); e != nil {
+		return e
+	}
+	if exists {
+		return ErrCountPlanned
+	}
+	return nil
 }
 
 // insertStockItems inserts labelled lines with frozen_qty read from live stock.

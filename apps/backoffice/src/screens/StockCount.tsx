@@ -27,6 +27,7 @@ import { useConfirm } from '../ui/ConfirmDialog'
 import { SubmitCountModal } from './approvals/SubmitCountModal'
 import { notifyApprovalsChanged } from './approvals/useApprovalCount'
 import { CountCsvPanel } from './stockcount/CountCsvPanel'
+import { countErrorMessage, freezeSummary, newestFirst, withCountScope } from './stockcount/countScope'
 import { cancelCountConfirm, completeCountConfirm, lineDifference, startCountConfirm, summarizeCount } from './stockcount/countConfirm'
 
 
@@ -49,7 +50,7 @@ export default function StockCount() {
   const approvalOn = setq.data?.inventoryApprovalRequired === true
   const [submitFor, setSubmitFor] = useState<StockCount | null>(null)
   const ask = useConfirm()
-  const stockCounts = scq.data?.data ?? []
+  const stockCounts = useMemo(() => newestFirst(scq.data?.data ?? []), [scq.data])
   const scTotal = scq.data?.meta?.total ?? 0
   const scTotalPages = Math.max(1, Math.ceil(scTotal / pageSize))
   const products = useMemo(() => activeProducts(pq.data) ?? [], [pq.data])
@@ -74,14 +75,18 @@ export default function StockCount() {
   countsRef.current = stockCounts
   const refetchRef = useRef(scq.refetch)
   refetchRef.current = scq.refetch
+  // Every call about an existing count runs under that count's own outlet: under "Semua outlet" the header sends
+  // none, and the server answers "not found" for an outlet count it cannot place.
+  const onCount = <T,>(sc: StockCount, fn: () => Promise<T>): Promise<T> => withCountScope(authStore, sc, fn)
   const lineSaver = useRef(
     createLineSaver({
       getEdits: () => editsRef.current,
       setEdits: updateEdits,
       send: async (scId, key, value) => {
-        const line = countsRef.current.find((c) => c.id === scId)?.items.find((i) => lineKey(i) === key)
-        if (!line) throw new Error('Baris tidak ditemukan. Muat ulang halaman.')
-        await api.updateStockCount(scId, { items: [{ ...line, actualQty: value }] })
+        const owner = countsRef.current.find((c) => c.id === scId)
+        const line = owner?.items.find((i) => lineKey(i) === key)
+        if (!owner || !line) throw new Error('Baris tidak ditemukan. Muat ulang halaman.')
+        await onCount(owner, () => api.updateStockCount(scId, { items: [{ ...line, actualQty: value }] }))
       },
       refresh: () => refetchRef.current(),
     }),
@@ -111,7 +116,7 @@ export default function StockCount() {
   // Lines with an unsaved edit (read from the ref: never stale inside async work).
   const pendingLines = (sc: StockCount) =>
     sc.items.filter((it) => editsRef.current[sc.id]?.[lineKey(it)] !== undefined)
-  const fail = (e: unknown, fallback: string) => setPageErr(e instanceof Error ? e.message : fallback)
+  const fail = (e: unknown, fallback: string) => setPageErr(countErrorMessage(e, fallback))
 
   const createSC = async () => {
     if (!form.name.trim()) return setErr('Nama wajib diisi')
@@ -139,10 +144,10 @@ export default function StockCount() {
           items,
         })
       } else {
-        // Outlet count: snapshot from products, switch authStore for admins. The frozen quantities are a stock
-        // snapshot, so read the list fresh now (before the scope switch) rather than from the shared cache.
-        const frozen = activeProducts(await productCatalogue.get({ force: true })) ?? []
+        // Outlet count: snapshot from products, switch authStore for admins. The product list is keyed by the
+        // header outlet and carries that outlet's stock, so switch first, then read it fresh (not from the shared cache).
         if (isAdmin && locId) authStore.outletId = locId
+        const frozen = activeProducts(await productCatalogue.get({ force: true })) ?? []
         const items: StockCountItem[] = frozen.flatMap((p) =>
           p.variants.map((v) => ({
             productId: p.id,
@@ -164,7 +169,7 @@ export default function StockCount() {
       setForm({ name: '', locationKey: '', plannedDate: localDay(), notes: '' })
       await scq.refetch()
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'Gagal membuat opname.')
+      setErr(countErrorMessage(e, 'Gagal membuat opname.'))
     } finally {
       authStore.outletId = prev
       setBusy(false)
@@ -175,7 +180,7 @@ export default function StockCount() {
     if (!(await ask(startCountConfirm(sc.name))).confirmed) return
     setPageErr(null)
     try {
-      await api.updateStockCount(sc.id, { status: 'in_progress' })
+      await onCount(sc, () => api.updateStockCount(sc.id, { status: 'in_progress' }))
       setExpanded(sc.id)
     } catch (e) {
       fail(e, 'Gagal memulai opname.')
@@ -186,7 +191,7 @@ export default function StockCount() {
     if (!(await ask(cancelCountConfirm(sc.name, sc.status))).confirmed) return
     setPageErr(null)
     try {
-      await api.updateStockCount(sc.id, { status: 'cancelled' })
+      await onCount(sc, () => api.updateStockCount(sc.id, { status: 'cancelled' }))
       dropEdits(sc.id)
     } catch (e) {
       fail(e, 'Gagal membatalkan opname.')
@@ -231,14 +236,14 @@ export default function StockCount() {
       // Save pending lines first: saving re-captures each line's baseline from live stock, so only the saved count
       // tells the net the server will apply. Saving moves no stock, so a Batal after it is harmless.
       if (!(await flushPending(sc))) return setPageErr((m) => m ?? 'Ada hitungan yang belum tersimpan. Periksa lalu coba lagi.')
-      const saved = await api.getStockCount(sc.id)
+      const saved = await onCount(sc, () => api.getStockCount(sc.id))
       const { confirmed } = await ask(completeCountConfirm(saved.name, summarizeCount(saved.items)))
       if (!confirmed) return
       // Nothing is pending now; the flush stays as the guard it was.
       const done = await completeAfterFlush(
         () => flushPending(sc),
         async () => {
-          await api.completeStockCount(sc.id)
+          await onCount(sc, () => api.completeStockCount(sc.id))
           dropEdits(sc.id)
           await scq.refetch()
         },
@@ -262,7 +267,7 @@ export default function StockCount() {
     try {
       const ok = await flushPending(sc)
       if (!ok) return setPageErr((m) => m ?? 'Ada hitungan yang belum tersimpan. Periksa lalu coba lagi.')
-      setSubmitFor(await api.getStockCount(sc.id))
+      setSubmitFor(await onCount(sc, () => api.getStockCount(sc.id)))
     } catch (e) {
       fail(e, 'Gagal memuat opname.')
     } finally {
@@ -271,7 +276,7 @@ export default function StockCount() {
   }
   const submitCount = async (input: StockCountSubmitInput, key: string) => {
     if (!submitFor) return
-    await api.submitStockCount(submitFor.id, input, key)
+    await onCount(submitFor, () => api.submitStockCount(submitFor.id, input, key))
     dropEdits(submitFor.id)
     setSubmitFor(null)
     await scq.refetch()
@@ -501,7 +506,7 @@ export default function StockCount() {
           <Input label="Tanggal Rencana" type="date" value={form.plannedDate} onChange={(e) => setForm((f) => ({ ...f, plannedDate: e.target.value }))} />
           <Textarea label="Catatan" rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
           <div className="bg-amber-50 rounded-xl p-3 text-xs text-amber-700">
-            Stok {products.length} produk aktif akan dibekukan sebagai referensi.
+            Stok {freezeSummary(products)} akan dibekukan sebagai referensi.
           </div>
           {err && <p className="text-sm text-red-600">{err}</p>}
         </div>

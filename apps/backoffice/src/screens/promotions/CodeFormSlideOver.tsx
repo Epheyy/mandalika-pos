@@ -138,7 +138,7 @@ export function CodeFormSlideOver(p: CodeFormSlideOverProps) {
       footer={
         <SlideOver.Footer dirty={p.dirty}>
           <Button variant="secondary" disabled={p.busy} onClick={p.onClose}>{ready ? 'Batal' : 'Tutup'}</Button>
-          {ready && <Button variant="primary" loading={p.busy} disabled={p.saveBlocked} title={p.saveBlocked ? 'Isi kode dulu.' : undefined} onClick={p.onSave}>Simpan</Button>}
+          {ready && <Button variant="primary" loading={p.busy} disabled={p.saveBlocked} title={p.saveBlocked ? 'Lengkapi isian yang wajib atau perbaiki isian yang salah dulu.' : undefined} onClick={p.onSave}>Simpan</Button>}
         </SlideOver.Footer>
       }
     >
@@ -173,7 +173,7 @@ export function CodeFormSlideOver(p: CodeFormSlideOverProps) {
               <option value="percentage">Persentase (%)</option>
               <option value="fixed">Nominal (Rp)</option>
             </Select>
-            <Input label="Nilai" type="number" value={form.value} disabled={linked} onChange={(e) => setForm((f) => ({ ...f, value: parseFloat(e.target.value) || 0 }))} />
+            <Input id={CODE_FIELD.value} label="Nilai" type="number" value={form.value} error={byField[CODE_FIELD.value]} disabled={linked} onChange={(e) => setForm((f) => ({ ...f, value: parseFloat(e.target.value) || 0 }))} />
           </div>
           {linked && <p className="-mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">Tipe &amp; nilai diikuti dari promosi tertaut.</p>}
           <div className="grid grid-cols-2 gap-4">
@@ -190,7 +190,7 @@ export function CodeFormSlideOver(p: CodeFormSlideOverProps) {
           />
           <div className="grid grid-cols-2 gap-4">
             <Input label="Mulai" type="date" value={form.startDate || ''} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
-            <Input label="Berakhir" type="date" value={form.endDate || ''} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
+            <Input id={CODE_FIELD.endDate} label="Berakhir" type="date" value={form.endDate || ''} error={byField[CODE_FIELD.endDate]} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
           </div>
           <SwitchRow label="Bisa dikombinasikan dengan promo/kode lain" checked={form.combinable ?? false} onChange={(combinable) => setForm((f) => ({ ...f, combinable }))} />
           <SwitchRow label="Kode Aktif" checked={form.isActive} onChange={(isActive) => setForm((f) => ({ ...f, isActive }))} />

@@ -23,7 +23,7 @@ import { RoleModal } from './users/RoleModal'
 import { ResetPasswordModal } from './users/ResetPasswordModal'
 import { UNLOCK_PIN_NOTE, unlockReceivePin } from './users/unlockPin'
 import { RolePicker } from './users/RolePicker'
-import { ROLE_LABEL, type Role } from './users/roles'
+import { ROLE_LABEL, roleFormProblem, type Role } from './users/roles'
 import { userColumns } from './users/userColumns'
 import { errorText } from './users/formError'
 
@@ -178,7 +178,11 @@ export default function Users() {
   }
 
   const saveRole = async () => {
-    if (!roleForm.name.trim()) return
+    const problem = roleFormProblem(roleForm)
+    if (problem) {
+      setRoleError(problem)
+      return
+    }
     setBusy(true)
     setRoleError(null)
     try {

@@ -26,7 +26,28 @@ type DiscountCode struct {
 	CustomerID       string   `json:"customerId"`       // SP-Code-4: assign this code to one customer (empty = unassigned)
 }
 
+// validateDiscountCodeBasics applies the promotion value/date rules to a code (shared with the batch path). A code
+// linked to a promotion follows that promotion's type and value (the backoffice disables the fields), so its own
+// value is not checked.
+func validateDiscountCodeBasics(d DiscountCode) error {
+	if !d.IsActive {
+		return nil // an old invalid code can still be switched off (the list resends the whole row)
+	}
+	if d.PromotionID == "" {
+		if d.Type != "percentage" && d.Type != "fixed" {
+			return fmt.Errorf("type must be percentage or fixed")
+		}
+		if err := validateDiscountValue(d.Type, d.Value); err != nil {
+			return err
+		}
+	}
+	return validateDateOrder(d.StartDate, d.EndDate)
+}
+
 func (r *Repo) CreateDiscountCode(ctx context.Context, d DiscountCode) (string, error) {
+	if err := validateDiscountCodeBasics(d); err != nil {
+		return "", err
+	}
 	var id string
 	err := r.tx(ctx, "discountCodes", func(t pgx.Tx) error {
 		return t.QueryRow(ctx, `
@@ -98,7 +119,7 @@ func validateDiscountCodeBatch(b DiscountCodeBatch) error {
 	if b.Type != "percentage" && b.Type != "fixed" {
 		return fmt.Errorf("type must be percentage or fixed")
 	}
-	return nil
+	return validateDiscountCodeBasics(b.DiscountCode)
 }
 
 // CreateDiscountCodeBatch generates b.Count unique discount codes server-side and
@@ -178,6 +199,9 @@ func (r *Repo) insertDiscountCodeBatch(ctx context.Context, t pgx.Tx, b Discount
 }
 
 func (r *Repo) UpdateDiscountCode(ctx context.Context, id string, d DiscountCode) error {
+	if err := validateDiscountCodeBasics(d); err != nil {
+		return err
+	}
 	return r.tx(ctx, "discountCodes", func(t pgx.Tx) error {
 		ct, e := t.Exec(ctx, `
 			UPDATE discount_codes SET code=$1, promotion_id=$2, type=$3, value=$4,
