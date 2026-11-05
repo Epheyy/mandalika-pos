@@ -89,3 +89,64 @@ func Normalize(raw string) string {
 	}
 	return key
 }
+
+// MinSearchDigits is the fewest subscriber digits worth searching phone_norm by; shorter
+// runs match nearly every customer and cannot use the trigram index.
+const MinSearchDigits = 3
+
+// SearchKeys turns text typed into a customer search box into a phone search.
+//
+// It returns ("", "") unless q is phone-shaped: only digits once spaces, '-', '.', '(' ')' and
+// a leading '+' or '00' are removed. Otherwise:
+//   - norm is Normalize(q), the full canonical key ("" while the number is still partial);
+//   - like is a LIKE pattern over phone_norm, "" when fewer than MinSearchDigits digits follow
+//     the country/trunk prefix. A number written with a prefix is a prefix search: 0812-34,
+//     62812 34 and +62 812 34 all give '081234%', and a foreign +65 8123 gives '658123%', so
+//     a Singapore number is never mistaken for an Indonesian one. Bare digits (8123, 3456) may
+//     be any part of the number, so they give '%8123%'.
+//
+// Callers add `OR phone_norm LIKE like` (trigram indexed) next to the raw-text matches.
+func SearchKeys(q string) (norm, like string) {
+	s := strings.TrimFunc(q, isEdgeSpace)
+	s = strings.Map(func(r rune) rune {
+		switch r {
+		case ' ', '-', '.', '(', ')':
+			return -1
+		}
+		return r
+	}, s)
+	intl := false
+	switch {
+	case strings.HasPrefix(s, "+"):
+		intl, s = true, s[1:]
+	case strings.HasPrefix(s, "00"):
+		intl, s = true, s[2:]
+	}
+	if s == "" {
+		return "", ""
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return "", ""
+		}
+	}
+	norm = Normalize(q)
+	prefix, rest := "", s
+	switch {
+	case strings.HasPrefix(s, "620"):
+		prefix, rest = "0", s[3:]
+	case strings.HasPrefix(s, "62"):
+		prefix, rest = "0", s[2:]
+	case strings.HasPrefix(s, "0"):
+		prefix, rest = "0", s[1:]
+	case intl:
+		rest = s // the foreign country code is part of the key
+	}
+	if len(rest) < MinSearchDigits {
+		return norm, ""
+	}
+	if prefix != "" || intl {
+		return norm, prefix + rest + "%"
+	}
+	return norm, "%" + rest + "%"
+}
