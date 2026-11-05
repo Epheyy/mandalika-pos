@@ -1,6 +1,0 @@
-{"kind":"vite","app":"pos","pid":9108,"port":5183,"event":"starting"}
-{"kind":"vite","app":"pos","pid":9108,"port":5183,"event":"listening"}
-{"kind":"vite","app":"backoffice","pid":1608,"port":5184,"event":"starting"}
-{"kind":"vite","app":"backoffice","pid":1608,"port":5184,"event":"listening"}
-{"kind":"chromium","pid":1644,"event":"starting","executable":"C:\\Users\\MyBook Hype AMD\\AppData\\Local\\ms-playwright\\chromium_headless_shell-1243\\chrome-headless-shell-win64\\chrome-headless-shell.exe"}
-{"kind":"chromium","pid":1644,"event":"closed"}

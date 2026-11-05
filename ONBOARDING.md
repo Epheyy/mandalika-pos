@@ -194,7 +194,8 @@ engine (stacking, buy-X-get-Y, tiered spend, bundles, reward giveaways, grants
 reporting) · discount codes (bulk generation, analytics, per-customer caps,
 customer-assigned) · self-hosted OTA updates for the POS web layer.
 
-Design documents for each of these live in `docs/superpowers/plans/` — one
+Design documents for each of these lived in `docs/superpowers/plans/` (removed 2026-11-05; read them
+with `git show 0fa804c9:docs/superpowers/plans/<file>`). Newer plans live in `docs/plans/`, one
 markdown file per feature slice, dated. If you're wondering *why* something works
 a certain way, that folder is the answer.
 
@@ -321,7 +322,7 @@ cp .env.example .env
 Now open `backend/.env` and set **one** value — pick any local dev password:
 
 ```
-SEED_ADMIN_PASSWORD=devpass123
+SEED_ADMIN_PASSWORD=<your-local-dev-password>
 ```
 
 Everything else in `.env.example` already points at the local Docker containers
@@ -727,10 +728,8 @@ mandalika-pos/
 ├── ONBOARDING.md            ← you are here
 ├── README.md                ← ⚠️ stock Vite template, ignore it
 ├── RUNBOOK.md               deploy / rollback / restore / rotate secrets
-├── DEV_TO_PROD_WALKTHROUGH.md   detailed local→device walkthrough
 ├── PHASE_HANDOFF.md         historical phase notes + session start commands
 ├── SESSION_HANDOFF.md       most recent session state — read when resuming
-├── CUTOVER.md / CUTOVER_WALKTHROUGH.md   the Firestore→Postgres migration
 ├── Makefile                 `make ota-release`
 │
 ├── backend/                 Go API — the authority on all business rules
@@ -817,14 +816,11 @@ Things in this repo that will mislead you. Trust this list over the documents.
    onward): Cloud Run + Neon + Upstash + Cloudflare Pages. `backend/fly.toml`
    was removed on 2026-11-05. **Do not follow the Fly.io sections.**
 
-3. **Vercel is still connected to the repo** (checked 2026-11-05): it builds a preview of
-   every push and serves a production build of `main`. Nothing real depends on it; the
-   backoffice is served by Cloudflare Pages. The `vercel.json` files stay until the Vercel
-   project is disconnected, then they can go.
+3. **Vercel is not used.** The old Vercel project was deleted on 2026-11-05 and the
+   `vercel.json` files removed; the backoffice is served by Cloudflare Pages.
 
-4. **Two docs give different local admin passwords** (`PHASE_HANDOFF.md` says
-   `devpass123`, `DEV_TO_PROD_WALKTHROUGH.md` says `adm_mndlk_2026`). Neither is
-   authoritative — whatever *you* put in `backend/.env` is.
+4. **The local admin password** is whatever *you* put in `backend/.env` as
+   `SEED_ADMIN_PASSWORD`. Older docs printed sample values; never reuse those anywhere.
 
 5. **pnpm version is inconsistent**: CI pins 9.15.0, the lockfile was last written
    by 10.11.1. Use 9.15.0.
@@ -994,7 +990,7 @@ unless they say standing. Reads and authenticated smoke tests are lower stakes.
   `code-simplifier`, `github`, `playwright`, `context7`, `feature-dev`,
   `commit-commands`, `claude-md-management`, `gopls-lsp`, `security-guidance`.
 - **Effort level:** `xhigh`.
-- **Plan docs** go in `docs/superpowers/plans/` as `YYYY-MM-DD-slice-name.md`, one
+- **Plan docs** go in `docs/plans/` as `YYYY-MM-DD-slice-name.md`, one
   per feature slice. This is the project's design-history record — write one for
   any non-trivial slice.
 
@@ -1031,7 +1027,7 @@ Each of these cost a real debugging session. They're one file each under
 | **Neon** | the managed PostgreSQL host. |
 | **Upstash** | the managed Redis host. |
 | **Capgo** | the OTA update system, self-hosted here (bundles in a GCS bucket). |
-| **Slice / SP-x** | one feature increment, each with a design doc in `docs/superpowers/plans/`. |
+| **Slice / SP-x** | one feature increment, each with a design doc in `docs/plans/` (older ones in git history under `docs/superpowers/plans/`). |
 
 ---
 

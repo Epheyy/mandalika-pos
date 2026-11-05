@@ -7,7 +7,8 @@ backend. The project is in development/polishing and not yet production-ready.
   [AGENTS.md](AGENTS.md).
 - Open audit findings: [AUDIT_REPORT.md](AUDIT_REPORT.md), with status in the
   [A01–A44 tracker](docs/AUDIT_COVERAGE_TRACKER.md).
-- Readiness plan: [docs/PRODUCTION_READINESS_PLAN.md](docs/PRODUCTION_READINESS_PLAN.md).
+- Plans and design decisions: [docs/plans/](docs/plans/). The Codex-era readiness plan and audit
+  evidence were removed on 2026-11-05; read them with `git show 0fa804c9:docs/<file>`.
 
 Older deployment notes and phase completion claims are historical; they don't close
 audit findings or count as current verification.

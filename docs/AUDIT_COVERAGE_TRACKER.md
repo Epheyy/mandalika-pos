@@ -1,5 +1,7 @@
 # Canonical audit coverage tracker — A01–A44
 
+> **2026-11-05:** the evidence files this tracker cites (`docs/A2*`–`docs/A34*`, `docs/PRODUCTION_READINESS_*`, `docs/PROGRAMME_*`, ingress packets, relay-era root packets) were removed from the tree. Read any of them with `git show 0fa804c9:<path>`.
+
 > **2026-10-20:** release 8 is live (A28, A27 incl. T7, A05, A30, A41, A08 + A29/A26/A10/A23). Where a row below still says 'revalidation' or 'NOT pushed/released', it is stale. Current truth: `docs/audits/2026-10-20-pre-reaudit-status.md`.
 
 ## A34 release gates — implemented 2026-10-12 (Claude workflow)

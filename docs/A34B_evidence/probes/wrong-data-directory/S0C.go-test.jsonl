@@ -1,9 +1,0 @@
-{"Time":"2026-09-21T15:34:33.0149391+07:00","Action":"start","Package":"github.com/mandalika/pos-backend/internal/handlers"}
-{"Time":"2026-09-21T15:34:33.1704804+07:00","Action":"run","Package":"github.com/mandalika/pos-backend/internal/handlers","Test":"TestSaleInputPostgres"}
-{"Time":"2026-09-21T15:34:33.1710235+07:00","Action":"output","Package":"github.com/mandalika/pos-backend/internal/handlers","Test":"TestSaleInputPostgres","Output":"=== RUN   TestSaleInputPostgres\n"}
-{"Time":"2026-09-21T15:34:33.2185368+07:00","Action":"output","Package":"github.com/mandalika/pos-backend/internal/handlers","Test":"TestSaleInputPostgres","Output":"    sale_input_integration_test.go:53: test cluster directory mismatch\n"}
-{"Time":"2026-09-21T15:34:33.2325882+07:00","Action":"output","Package":"github.com/mandalika/pos-backend/internal/handlers","Test":"TestSaleInputPostgres","Output":"--- FAIL: TestSaleInputPostgres (0.05s)\n"}
-{"Time":"2026-09-21T15:34:33.2325882+07:00","Action":"fail","Package":"github.com/mandalika/pos-backend/internal/handlers","Test":"TestSaleInputPostgres","Elapsed":0.05}
-{"Time":"2026-09-21T15:34:33.2325882+07:00","Action":"output","Package":"github.com/mandalika/pos-backend/internal/handlers","Output":"FAIL\n"}
-{"Time":"2026-09-21T15:34:33.2325882+07:00","Action":"output","Package":"github.com/mandalika/pos-backend/internal/handlers","Output":"FAIL\tgithub.com/mandalika/pos-backend/internal/handlers\t0.218s\n"}
-{"Time":"2026-09-21T15:34:33.2325882+07:00","Action":"fail","Package":"github.com/mandalika/pos-backend/internal/handlers","Elapsed":0.218}

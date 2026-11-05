@@ -1,5 +1,7 @@
 # Mandalika POS — code and readiness-plan audit
 
+> **2026-11-05:** the evidence files this report cites (`docs/A2*`–`docs/A34*`, `docs/PRODUCTION_READINESS_*`, `docs/PROGRAMME_*`, ingress packets, relay-era root packets) were removed from the tree. Read any of them with `git show 0fa804c9:<path>`.
+
 **Review date:** 19 September 2026  
 **Mode:** read-only; no application implementation, repository write, deployment, live database access or production transaction.  
 **Primary snapshot:** uploaded `mandalika-pos.rar`, selectively extracted for analysis.  

@@ -9,8 +9,8 @@ Current status: pre-launch, test data only, not production-ready.
 
 The Codex-execute / ChatGPT-review relay is retired. Claude plans, implements, reviews
 and verifies; the owner decides business policy, scope, risk and release. No review
-packets, ZIP bundles or programme-authority ceremony. `docs/PROGRAMME_EXECUTION_AUTHORITY.md` is
-historical only; the relay-era root packets were removed on 2026-11-05 (still in git history).
+packets, ZIP bundles or programme-authority ceremony. The relay-era packets and programme docs
+were removed on 2026-11-05; read them with `git show 0fa804c9:<path>`.
 
 ### Working rules (every task)
 
@@ -58,7 +58,8 @@ The Sep 2026 Codex audit is kept as a **backlog, not a process**:
   re-add chi `RealIP` (a test guards this). `TRUSTED_PROXY_HOPS` must equal the number of
   proxies in front: 1 for `*.run.app`. Adding a load balancer or custom domain means
   hops=2 **in the same change** that closes direct `run.app` ingress, never mixed.
-- Audit evidence under `docs/A2*`–`docs/A34*` is historical record; don't regenerate it.
+- Audit evidence (`docs/A2*`–`docs/A34*`, the ingress packets) was removed on 2026-11-05; read it with
+  `git show 0fa804c9:docs/<file>`. Don't regenerate it.
 
 ## Branches and deployment
 

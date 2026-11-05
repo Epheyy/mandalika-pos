@@ -1,9 +1,0 @@
-{
-  "content": [
-    {
-      "type": "text",
-      "text": "### Error\nError: A24: ordinary guest with active shift cannot open checkout"
-    }
-  ],
-  "isError": true
-}
