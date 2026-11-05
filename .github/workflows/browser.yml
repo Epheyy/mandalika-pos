@@ -24,7 +24,7 @@ jobs:
     # Trusted runs (push on prod-hardening/gate/**, workflow_call) use CI_RUNS_ON. Untrusted PR code uses CI_RUNS_ON_PR,
     # which defaults to GitHub-hosted and must never name the trusted pool (see scripts/ci/README.md).
     runs-on: ${{ github.event_name == 'pull_request' && fromJSON(vars.CI_RUNS_ON_PR || '"ubuntu-latest"') || fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
-    timeout-minutes: 50  # includes time queued on the host-wide port lock
+    timeout-minutes: 120  # includes time queued on the host-wide port lock
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,12 +44,12 @@ jobs:
           if [ "$RUNNER_ENVIRONMENT" = github-hosted ]; then
             corepack pnpm exec playwright install --with-deps chromium
           else
-            flock /tmp/mandalika-ci-browser.lock corepack pnpm exec playwright install chromium
+            flock /tmp/mandalika-ci-heavy.lock corepack pnpm exec playwright install chromium
           fi
       - run: corepack pnpm typecheck:browser
       - name: Required synthetic Chromium scenarios
-        # Fixed fixture ports 5183/5184 are host-global: serialise across runner processes on a shared VM.
-        run: flock /tmp/mandalika-ci-browser.lock corepack pnpm browser:ci
+        # Fixed fixture ports 5183/5184 are host-global and the gate is CPU-heavy: share the host-wide heavy-gate lock.
+        run: flock /tmp/mandalika-ci-heavy.lock corepack pnpm browser:ci
       - name: Synthetic failure evidence
         if: failure()
         uses: actions/upload-artifact@v4

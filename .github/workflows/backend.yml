@@ -22,7 +22,7 @@ jobs:
     # Trusted runs (push on prod-hardening/gate/**, workflow_call) use CI_RUNS_ON. Untrusted PR code uses CI_RUNS_ON_PR,
     # which defaults to GitHub-hosted and must never name the trusted pool (see scripts/ci/README.md).
     runs-on: ${{ github.event_name == 'pull_request' && fromJSON(vars.CI_RUNS_ON_PR || '"ubuntu-latest"') || fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
-    timeout-minutes: 20
+    timeout-minutes: 120  # includes time queued on the host-wide heavy-gate lock
     defaults:
       run:
         working-directory: backend
@@ -46,4 +46,5 @@ jobs:
         run: python3 ../scripts/ci/codegen_gate.py
       - name: Bounded offline x/mod consumer regressions
         run: python3 ../scripts/ci/xmod-consumer-test.py
-      - run: go test ./... -race
+      - name: go test -race (heavy: host-wide lock shared with the postgres and browser gates)
+        run: flock /tmp/mandalika-ci-heavy.lock go test ./... -race

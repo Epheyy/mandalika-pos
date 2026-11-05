@@ -98,9 +98,11 @@ release gate nothing. Giving PRs their own VM/pool is the follow-up if PR feedba
 - Four runner processes (2 per repo: `origin-1/2` for `Epheyy/mandalika-pos`, `mirror-1/2` for `mandalika-ci/mandalika-pos-ci`),
   labels `self-hosted, linux, mandalika`, systemd `mandalika-runner@<instance>` (`KillMode=control-group`); a job hook wipes the
   workspace before and after every job. Persistent tool caches are not wiped.
-- Host-wide locks: the Postgres gate (`flock /tmp/mandalika-ci-postgres.lock`, fixed ports 26439-26479, leftover gate containers
-  removed under the lock) and the browser gate (`/tmp/mandalika-ci-browser.lock`, ports 5183/5184) serialise across all four
-  runners and both repos; the other gates run in parallel. Job timeouts include the lock wait.
+- Host-wide heavy-gate lock (`flock /tmp/mandalika-ci-heavy.lock`): the backend `go test -race` step, the Postgres gate
+  (fixed ports 26439-26479; leftover gate containers removed under the lock) and the browser gate (ports 5183/5184) run one at a
+  time across all four runners and both repos. Run concurrently on 4 vCPUs they starve each other and trip timing-sensitive
+  tests (observed: `redact` scaling test, browser scenarios), so they are serialised; quality and dependency-security run in
+  parallel. Expect roughly 22 min of heavy work per gate set; job timeouts (120 min) include the lock wait.
 - A systemd timer powers the VM off after 30 minutes with no running job (a stopped VM costs only its disk).
 
 ## Operating it

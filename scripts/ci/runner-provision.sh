@@ -22,7 +22,7 @@ if [ ! -f /var/lib/mandalika-ci.pkgs ]; then
   touch /var/lib/mandalika-ci.pkgs
 fi
 systemctl enable --now docker
-for l in postgres browser; do install -m 0666 /dev/null /tmp/mandalika-ci-$l.lock; done
+for l in heavy; do install -m 0666 /dev/null /tmp/mandalika-ci-$l.lock; done
 
 # --- user: no sudo, docker group (docker access is root-equivalent on this VM; the VM holds no secrets) ----
 id runner >/dev/null 2>&1 || useradd --create-home --shell /bin/bash runner
