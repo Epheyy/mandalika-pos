@@ -46,5 +46,5 @@ jobs:
         run: python3 ../scripts/ci/codegen_gate.py
       - name: Bounded offline x/mod consumer regressions
         run: python3 ../scripts/ci/xmod-consumer-test.py
-      - name: go test -race (heavy: host-wide lock shared with the postgres and browser gates)
+      - name: go test -race (heavy gate, host-wide lock shared with the other heavy gates)
         run: flock /tmp/mandalika-ci-heavy.lock go test ./... -race
