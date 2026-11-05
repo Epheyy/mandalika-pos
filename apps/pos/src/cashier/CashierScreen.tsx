@@ -91,6 +91,7 @@ import { PAYMENT_LABELS, tenderLabel } from '../lib/paymentLabels'
 import { cashPredicate, planSaleTender, salePaymentFields, snapshotTenders } from './tenderSplit'
 import { useSplitDraft } from './useSplitDraft'
 import { useOpenCartDraft } from './useOpenCartDraft'
+import { autoReconcileFingerprint, autoRunAllowed, autoSetWouldChange, hasAutoPromotions } from './autoPromoRun'
 import { draftChargedSummary } from './splitDraft'
 
 type FontSize = 'sm' | 'md' | 'lg'
@@ -335,7 +336,7 @@ export default function CashierScreen() {
     isAddingCustomer, isSavingCustomer, hasActiveAdjustment: !!state.activeAdjustment, showHistory, showLocalReceipts,
     showRecap, showTransferHistory, showRequisitions, showSettings, showMenu, shiftPrompt, closeIntent,
     hasSelectedCustomer: !!state.selectedCustomer, hasSelectedSalesman: !!state.selectedSalesman,
-    appliedPromotionCount: state.appliedPromotions.length, appliedPromoCodeCount: state.appliedPromoCodes.length,
+    appliedPromotionCount: state.appliedPromotions.filter((p) => !state.autoPromotionIds.includes(p.id)).length, appliedPromoCodeCount: state.appliedPromoCodes.length,
     pointsToRedeem: state.pointsToRedeem,
   })
 
@@ -578,6 +579,16 @@ export default function CashierScreen() {
 
   const handleSelectPromotion = (promotion: components['schemas']['Promotion']) => applySelection({ kind: 'direct', promotion })
 
+  // The cart's "Pilih hadiah" row: open the Promo sheet and run the same selection a tap on the card would. A promo
+  // held back for stock has no choice to make, so only the sheet opens (the cashier decides there, as for any manual promo).
+  const handleAutoPrompt = (promotionId: string) => {
+    const promotion = promotions.find((p) => p.id === promotionId)
+    if (!promotion) return
+    setPendingFulfillment(null)
+    dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel: 'promo' })
+    if (state.autoPrompts.find((p) => p.promotionId === promotionId)?.reason === 'pick-gift') handleSelectPromotion(promotion)
+  }
+
   // A customer change silently strips reward lines and bundle/giveaway promos (SET_CUSTOMER), so
   // confirm first when that would actually remove something. The reducer's semantics are unchanged.
   const dismissConfirm = () => { confirm?.onCancel?.(); setConfirm(null) }
@@ -629,10 +640,35 @@ export default function CashierScreen() {
     setPendingFulfillment(null)
   }
 
-  // Whole-owner cleanup: a removed physical effect must not leave a used code.
+  // Whole-owner cleanup: a removed physical effect must not leave a used code. Auto promos are left to the
+  // reconcile below: removing one here would read as the cashier dismissing it.
   useEffect(() => {
-    for (const id of invalidPhysicalPromotionIds(state)) dispatch({ type: 'REMOVE_PROMOTION', id })
-  }, [state.cart, state.appliedPromotions, state.appliedPromoCodes, state.bundleFreed, state.bundleApplications])
+    for (const id of invalidPhysicalPromotionIds(state)) {
+      if (!state.autoPromotionIds.includes(id)) dispatch({ type: 'REMOVE_PROMOTION', id })
+    }
+  }, [state.cart, state.appliedPromotions, state.appliedPromoCodes, state.bundleFreed, state.bundleApplications, state.autoPromotionIds])
+
+  // Promo auto-apply: one pure reconcile installs / removes the auto promos whenever the rung cart, the manual
+  // choices, the dismissed set, the promotions or the clock minute change. Off while a picker, a confirm, the payment
+  // sheet or entered payment lines hold the total still. With no autoApply promotion it never dispatches (today's flow).
+  const autoPromosOn = hasAutoPromotions(promotions)
+  const [autoMinute, setAutoMinute] = useState(() => Math.floor(Date.now() / 60_000))
+  useEffect(() => {
+    if (!autoPromosOn) return
+    const t = setInterval(() => setAutoMinute(Math.floor(Date.now() / 60_000)), 30_000)
+    return () => clearInterval(t)
+  }, [autoPromosOn])
+  const autoAllowed = autoRunAllowed({
+    catalogueReady: products.length > 0, pickerPending: !!pendingFulfillment, successOpen: state.isSuccessOpen,
+    confirmOpen: !!confirm, checkoutOpen: state.isCheckoutOpen, processing: state.isProcessing,
+    splitLocked: state.splitMode && state.tenders.length > 0,
+  })
+  const autoFingerprint = autoReconcileFingerprint(state, promotions, autoMinute)
+  useEffect(() => {
+    if (!autoAllowed || (!autoPromosOn && state.autoPromotionIds.length === 0 && state.autoPrompts.length === 0)) return
+    dispatch({ type: 'RECONCILE_AUTO_PROMOS', promotions, products: displayProducts, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the fingerprint of what the reconcile reads, not on every render
+  }, [autoAllowed, autoPromosOn, autoFingerprint])
 
   const handleAddCustomer = async () => {
     if (customerGate.current.isBusy()) return
@@ -739,9 +775,18 @@ export default function CashierScreen() {
       showToast('Manfaat loyalti dibatalkan: pilih pelanggan terlebih dahulu')
       return
     }
+    // Promo auto-apply: an hour that ended or a promo a pull switched off may change the auto set since the cashier
+    // last looked. Commit it and let them confirm the total they now see (same pattern as the guard below).
+    const autoEnv = { promotions, products: displayProducts, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }
+    // With payment lines already entered the total is locked: only the guards below (which can only remove discounts) run.
+    if (!(state.splitMode && state.tenders.length > 0) && autoSetWouldChange(state, autoEnv)) {
+      dispatch({ type: 'RECONCILE_AUTO_PROMOS', ...autoEnv })
+      showToast('Promo otomatis diperbarui, cek total.')
+      return
+    }
     const invalidPhysical = invalidPhysicalPromotionIds(state)
     if (invalidPhysical.length) {
-      for (const id of invalidPhysical) dispatch({ type: 'REMOVE_PROMOTION', id })
+      for (const id of invalidPhysical) dispatch({ type: 'REMOVE_PROMOTION', id, lapse: true })
       showToast('Promo tidak berlaku lagi (syarat barang berubah). Dihapus dari keranjang.')
       return
     }
@@ -753,7 +798,7 @@ export default function CashierScreen() {
       discountCodes,
       promotions,
       ctx: {
-        now: new Date(),
+        now: autoEnv.ctx.now,
         outletId: authStore.outletId ?? '',
         timezone: outletTimezone,
         hasCustomer: state.selectedCustomer !== null,
@@ -761,7 +806,8 @@ export default function CashierScreen() {
       },
     })
     if (guard.drops.length > 0) {
-      for (const action of guard.actions) dispatch(action)
+      // A guard drop is a lapse, never the cashier's dismissal of an auto promo.
+      for (const action of guard.actions) dispatch(action.type === 'REMOVE_PROMOTION' ? { ...action, lapse: true } : action)
       showToast(guard.messages.join('\n'))
       return
     }
@@ -1269,6 +1315,9 @@ export default function CashierScreen() {
               orderNotes={state.orderNotes}
               appliedPromotions={state.appliedPromotions}
               appliedPromoCodes={state.appliedPromoCodes}
+              autoPromotionIds={state.autoPromotionIds}
+              autoPrompts={state.autoPrompts}
+              onAutoPrompt={handleAutoPrompt}
               onRemovePromotion={(id) => dispatch({ type: 'REMOVE_PROMOTION', id })}
               onRemovePromoCode={(code) => dispatch({ type: 'REMOVE_PROMO_CODE', code })}
               onClearDiscount={() => dispatch({ type: 'CLEAR_DISCOUNT' })}

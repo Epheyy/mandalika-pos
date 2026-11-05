@@ -13,10 +13,12 @@ import { addTenderLine, type TenderLine } from '../tenderSplit'
 import { upsertCartItem, reducePaidQty, restoreBundle, restoreAllBundles, omitKey, clearBundleEntry, evictAllForExclusive, removePromotionEffect } from '../promotionEffects'
 import { planPromotionFulfillment, type PromotionOwner, type FulfillmentChoice } from '../promotionFulfillment'
 import { effectivePromotionSelection, isRedundantPromoCode } from '../promotionSelection'
+import { reconcileAutoPromos, type AutoPrompt, type AutoPromoContext } from '../autoPromos'
 
 type CartItem = components['schemas']['CartItem']
 type Customer = components['schemas']['Customer']
 type Promotion = components['schemas']['Promotion']
+type Product = components['schemas']['Product']
 type PaymentMethod = string
 
 export interface CashierState {
@@ -46,6 +48,13 @@ export interface CashierState {
   appliedPromotions: Promotion[]
   appliedPromoCodes: AppliedPromoCode[]
   promoCodeInput: string
+  // Promo auto-apply (plan 2026-11-05 §2). `autoPromotionIds` = applied promotions the reconcile installed (the
+  // rest of `appliedPromotions` is the cashier's own choice); `dismissedAutoPromotionIds` = auto promos the
+  // cashier removed for THIS sale; `autoPrompts` = qualifying auto promos waiting for a gift choice. All three
+  // reset with the sale. With no `autoApply` promotion in the catalogue they stay empty and nothing changes.
+  autoPromotionIds: string[]
+  dismissedAutoPromotionIds: string[]
+  autoPrompts: AutoPrompt[]
   // Applied bundles' freed sets, keyed by bundle promotion id. A bundle MOVES
   // units paid→reward (reducing the paid line), unlike bxgy/loyalty rewards which
   // ADD extra units. Retaining the freed set (with fullPrice) lets EVERY reward-
@@ -104,9 +113,14 @@ export type CashierAction =
   | { type: 'SET_PROMO_CODE_INPUT'; value: string }
   | { type: 'APPLY_PROMO_CODE'; code: AppliedPromoCode; combinable: boolean }
   | { type: 'APPLY_PROMOTION'; promotion: Promotion }
-  | { type: 'REMOVE_PROMOTION'; id: string }
+  /** `lapse`: removed by a guard because it stopped qualifying, not by the cashier: never a dismissal. */
+  | { type: 'REMOVE_PROMOTION'; id: string; lapse?: boolean }
   | { type: 'REMOVE_PROMO_CODE'; code: string }
   | { type: 'CLEAR_PROMOTIONS' }
+  /** Installs the target auto-promo set atomically (the pure reconcile of autoPromos.ts). */
+  | { type: 'RECONCILE_AUTO_PROMOS'; promotions: Promotion[]; products: Product[]; ctx: AutoPromoContext }
+  /** Held-order / draft restore: the auto promos the cashier had removed (dispatched right after CART_CLEAR). */
+  | { type: 'SET_DISMISSED_AUTO_PROMOS'; ids: string[] }
   | { type: 'OPEN_CHECKOUT'; defaultMethod: PaymentMethod }
   | { type: 'CLOSE_CHECKOUT' }
   | { type: 'SET_PAYMENT_METHOD'; method: PaymentMethod }
@@ -145,6 +159,9 @@ export const CASHIER_INITIAL_STATE: CashierState = {
   appliedPromotions: [],
   appliedPromoCodes: [],
   promoCodeInput: '',
+  autoPromotionIds: [],
+  dismissedAutoPromotionIds: [],
+  autoPrompts: [],
   bundleFreed: {},
   bundleApplications: {},
   isCheckoutOpen: false,
@@ -218,7 +235,43 @@ function evictBundlesForKey(
   return { cart, appliedPromotions, appliedPromoCodes, bundleFreed, bundleApplications }
 }
 
-export function cashierReducer(
+const sameList = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((x, i) => x === b[i])
+
+// A promotion applied in any form (directly or through a linked code) can never be "dismissed".
+const appliedPromotionIds = (s: CashierState): Set<string> =>
+  new Set([...s.appliedPromotions.map((p) => p.id), ...s.appliedPromoCodes.flatMap((c) => (c.promotion ? [c.promotion.id] : []))])
+
+/**
+ * Dismiss semantics for auto promos (plan §2.3). Only the cashier's own removal dismisses (x on one promo, a code
+ * linked to it, "Hapus semua", the toggle of its card); eviction by an exclusive manual choice, a customer change or a
+ * cart edit does not, and neither does the reconcile itself. A manual add un-dismisses (an applied promo is never in the set).
+ */
+function withAutoBookkeeping(prev: CashierState, next: CashierState, action: CashierAction): CashierState {
+  if (action.type === 'RECONCILE_AUTO_PROMOS' || action.type === 'SET_DISMISSED_AUTO_PROMOS') return next
+  if (prev.autoPromotionIds.length === 0 && prev.dismissedAutoPromotionIds.length === 0 && next.autoPromotionIds.length === 0 && next.dismissedAutoPromotionIds.length === 0 && !prev.appliedPromotions.some((p) => p.autoApply === true)) return next
+  const applied = appliedPromotionIds(next)
+  const auto = prev.autoPromotionIds
+  let dismissedNow: string[] = []
+  if (action.type === 'REMOVE_PROMOTION') dismissedNow = action.lapse ? [] : [action.id]
+  else if (action.type === 'REMOVE_PROMO_CODE') {
+    const linked = prev.appliedPromoCodes.find((c) => c.code === action.code)?.promotion?.id
+    if (linked) dismissedNow = [linked]
+  } else if (action.type === 'CLEAR_PROMOTIONS') dismissedNow = auto
+  else if (action.type === 'APPLY_PROMOTION') dismissedNow = [action.promotion.id]
+  // Auto-installed, or an autoApply promo the cashier had added by hand: either way their x must stick.
+  const wasAuto = (id: string): boolean => auto.includes(id) || prev.appliedPromotions.some((p) => p.id === id && p.autoApply === true)
+  dismissedNow = dismissedNow.filter((id) => wasAuto(id) && !applied.has(id))
+  const stillAuto = next.autoPromotionIds.filter((id) => next.appliedPromotions.some((p) => p.id === id))
+  const dismissed = [...new Set([...next.dismissedAutoPromotionIds, ...dismissedNow])].filter((id) => !applied.has(id))
+  if (sameList(stillAuto, next.autoPromotionIds) && sameList(dismissed, next.dismissedAutoPromotionIds)) return next
+  return { ...next, autoPromotionIds: stillAuto, dismissedAutoPromotionIds: dismissed }
+}
+
+export function cashierReducer(state: CashierState, action: CashierAction): CashierState {
+  return withAutoBookkeeping(state, baseReducer(state, action), action)
+}
+
+function baseReducer(
   state: CashierState,
   action: CashierAction,
 ): CashierState {
@@ -393,6 +446,9 @@ export function cashierReducer(
         adjustInputStr: '',
         appliedPromoCodes: [],
         appliedPromotions: [],
+        autoPromotionIds: [],
+        dismissedAutoPromotionIds: [],
+        autoPrompts: [],
         bundleFreed: {},
         bundleApplications: {},
         activeAdjustment: null,
@@ -576,6 +632,25 @@ export function cashierReducer(
         bundleApplications: {},
       }
     }
+
+    case 'RECONCILE_AUTO_PROMOS': {
+      const r = reconcileAutoPromos({
+        state,
+        autoPromotionIds: state.autoPromotionIds,
+        dismissedPromotionIds: state.dismissedAutoPromotionIds,
+        promotions: action.promotions,
+        products: action.products,
+        ctx: action.ctx,
+      })
+      const samePrompts = JSON.stringify(r.prompts) === JSON.stringify(state.autoPrompts)
+      if (!r.changed && samePrompts) return state
+      // The Promo sheet may be open while an auto promo comes or goes: keep it open.
+      const base = r.changed ? { ...r.next, activeAdjustment: state.activeAdjustment } : state
+      return { ...base, autoPromotionIds: r.changed ? r.autoPromotionIds : state.autoPromotionIds, autoPrompts: r.prompts }
+    }
+
+    case 'SET_DISMISSED_AUTO_PROMOS':
+      return { ...state, dismissedAutoPromotionIds: [...new Set(action.ids)] }
 
     case 'OPEN_CHECKOUT':
       return {

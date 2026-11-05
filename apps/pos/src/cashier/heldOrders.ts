@@ -42,6 +42,12 @@ export interface HeldOrder {
   rewardPicks: Record<string, BxgyRewardPick[]>
   /** Points and loyalty reward lines are customer- and online-dependent: not kept, the cashier picks them again. */
   loyaltyDropped: boolean
+  /**
+   * Auto promos the cashier removed for this sale (promo auto-apply). OPTIONAL and unversioned on purpose: an older
+   * held order or draft without it restores as before, and a rollback bundle ignores it. Auto-installed promos are
+   * never stored (`promotions` is manual only): they are recomputed after a restore.
+   */
+  dismissedAutoPromotionIds?: string[]
 }
 
 const isHeldOrder = (v: unknown): v is HeldOrder => {
@@ -50,7 +56,8 @@ const isHeldOrder = (v: unknown): v is HeldOrder => {
   return (
     o.v === 1 && typeof o.id === 'string' && typeof o.name === 'string' && typeof o.heldAt === 'number' &&
     Array.isArray(o.lines) && Array.isArray(o.promotions) && Array.isArray(o.codes) &&
-    !!o.discount && !!o.surcharge && typeof o.rewardPicks === 'object' && o.rewardPicks !== null
+    !!o.discount && !!o.surcharge && typeof o.rewardPicks === 'object' && o.rewardPicks !== null &&
+    (o.dismissedAutoPromotionIds === undefined || Array.isArray(o.dismissedAutoPromotionIds))
   )
 }
 
@@ -66,14 +73,18 @@ export type HeldSource = Pick<
   CashierState,
   | 'cart' | 'selectedCustomer' | 'selectedSalesman' | 'pointsToRedeem' | 'orderNotes' | 'discountRunning' | 'surchargeRunning'
   | 'appliedDiscountType' | 'appliedSurchargeType' | 'discountType' | 'appliedPromotions' | 'appliedPromoCodes' | 'bundleFreed'
->
+> &
+  // Optional so a source without the promo auto-apply fields (older callers, tests) is still a HeldSource.
+  Partial<Pick<CashierState, 'autoPromotionIds' | 'dismissedAutoPromotionIds'>>
 
 /** Snapshot of the draft sale. Pure: reads the state, returns a new object. Throws nothing; an empty cart is the caller's gate. */
 export function heldOrderFromState(state: HeldSource, opts: { id: string; name: string; now: number }): HeldOrder {
   const lines = restoreAllBundles(state.cart, state.bundleFreed).filter((c) => !c.isReward)
   const rewardPicks: Record<string, BxgyRewardPick[]> = {}
+  const auto = state.autoPromotionIds ?? []
+  const dismissed = state.dismissedAutoPromotionIds ?? []
   for (const c of state.cart) {
-    if (!c.isReward || !c.rewardPromotionId || c.rewardPromotionId in state.bundleFreed) continue
+    if (!c.isReward || !c.rewardPromotionId || c.rewardPromotionId in state.bundleFreed || auto.includes(c.rewardPromotionId)) continue
     const pick: BxgyRewardPick = { productId: c.productId, productName: c.productName, variantSize: c.variantSize, net: c.price }
     rewardPicks[c.rewardPromotionId] = [...(rewardPicks[c.rewardPromotionId] ?? []), ...Array.from({ length: c.quantity }, () => pick)]
   }
@@ -90,10 +101,11 @@ export function heldOrderFromState(state: HeldSource, opts: { id: string; name: 
     discount: { value: state.discountRunning, type: state.appliedDiscountType },
     surcharge: { value: state.surchargeRunning, type: state.appliedSurchargeType },
     stagedDiscountType: state.discountType,
-    promotions: state.appliedPromotions.map((p) => ({ id: p.id, name: p.name })),
+    promotions: state.appliedPromotions.filter((p) => !auto.includes(p.id)).map((p) => ({ id: p.id, name: p.name })),
     codes: state.appliedPromoCodes.map((p) => p.code),
     rewardPicks,
     loyaltyDropped: state.pointsToRedeem > 0 || state.cart.some((i) => i.isReward && !!i.rewardConditionId),
+    ...(dismissed.length > 0 ? { dismissedAutoPromotionIds: [...dismissed] } : {}),
   }
 }
 

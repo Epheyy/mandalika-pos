@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import type { components } from '@mandalika/api'
-import { calcPromoDiscount, formatRupiah, linkedPromoShape, tieredNextTier } from './pricing'
+import { calcPromoDiscount, formatRupiah, linkedPromoShape } from './pricing'
+import { tieredOneLiner } from './promoCopy'
 import type { BundleFreedUnit } from './bundle'
 import { validatePromo, violationMessage, type AppliedPromoCode } from './promoValidate'
 import { unmetCartPrecondition, unmetPreconditionLabel } from './promoEligibility'
@@ -14,6 +15,8 @@ interface PromoPanelProps {
   discountCodes: DiscountCode[]
   appliedPromotions: Promotion[]
   appliedPromoCodes: AppliedPromoCode[]
+  /** Promo auto-apply: ids of applied promotions the app installed (tagged "Otomatis"). */
+  autoPromotionIds?: string[]
   cart: CartItem[]
   bundleFreed: Record<string, BundleFreedUnit[]>
   selectionCart?: (promo: Promotion) => CartItem[]
@@ -92,6 +95,7 @@ export const PromoPanel = memo(function PromoPanel({
   discountCodes,
   appliedPromotions,
   appliedPromoCodes,
+  autoPromotionIds = [],
   cart,
   bundleFreed,
   selectionCart,
@@ -235,6 +239,11 @@ export const PromoPanel = memo(function PromoPanel({
                           {p.name}
                         </p>
                         <CombinableTag combinable={!!p.combinable} />
+                        {autoPromotionIds.includes(p.id) && (
+                          <span className="inline-block text-[9px] font-semibold text-gray-600 bg-white/70 rounded px-1.5 py-0.5 leading-none">
+                            Otomatis
+                          </span>
+                        )}
                       </div>
                       <p className="text-[10px] text-green-700/80">{promoRuleLabel(p)}</p>
                     </div>
@@ -304,6 +313,8 @@ export const PromoPanel = memo(function PromoPanel({
                       ? unmetPreconditionLabel(unmet)
                       : null
                   const isApplied = appliedPromotions.some((p) => p.id === promo.id)
+                  // A tiered promo gets ONE line (savings now + the next tier) instead of two unrelated fragments.
+                  const tierLine = invalid ? null : tieredOneLiner(promo, subtotal, savings)
                   return (
                     <button type="button"
                       key={promo.id}
@@ -336,25 +347,13 @@ export const PromoPanel = memo(function PromoPanel({
                       )}
                       <p className="text-[10px] text-indigo-600 mt-1">
                         {promoRuleLabel(promo)}
-                        {!invalid && savings > 0 && (
+                        {!invalid && savings > 0 && !tierLine && (
                           <span className="text-gray-500">
                             {' · '}hemat {formatRupiah(savings)}
                           </span>
                         )}
                       </p>
-                      {promo.type === 'tiered' && (() => {
-                        const nxt = tieredNextTier(promo.tieredConfig, subtotal)
-                        if (!nxt) return null
-                        const hint =
-                          nxt.kind === 'percentage'
-                            ? `hemat ${nxt.value}%`
-                            : `potongan ${formatRupiah(nxt.value)}`
-                        return (
-                          <p className="text-[10px] text-gray-400 mt-0.5">
-                            Belanja {formatRupiah(nxt.gap)} lagi untuk {hint}
-                          </p>
-                        )
-                      })()}
+                      {tierLine && <p className="text-[10px] text-gray-500 mt-0.5">{tierLine}</p>}
                       <div className="mt-1.5">
                         {invalid ? (
                           <span className="text-[10px] text-red-500 font-semibold">

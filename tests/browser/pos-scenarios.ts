@@ -22,6 +22,8 @@ export interface PosSetupOpts {
   giveaway?: { stock: number };
   /** C6: the server setting `splitTenderEnabled` (omitted = the key is absent, as on a backend without C6a). */
   splitTender?: boolean;
+  /** Promo auto-apply: seed one Otomatis 10% promotion (non-combinable, no minimum). */
+  autoPromo?: boolean;
 }
 
 export const setupPos = async (page: ScenarioPage, opts: PosSetupOpts = {}) => {
@@ -31,6 +33,7 @@ export const setupPos = async (page: ScenarioPage, opts: PosSetupOpts = {}) => {
   products.forEach(p=>p.variants.forEach(v=>v.barcode=v.sku));
   const base={value:0,isActive:true,combinable:true,codeOnly:false,minPurchase:0};
   const promotions: any[] =[{...base,id:'bundle',name:'Synthetic Bundle',type:'bundle',bundleConfig:{slots:[{productKeys:[P],quantity:1},{productKeys:[R],quantity:1}],bundlePrice:105000,maxApplications:1}},{...base,id:'bxgy',name:'Synthetic BXGY',type:'buy_x_get_y',bxgyConfig:{buyProductIds:[P],getProductIds:[R],buyQuantity:1,getQuantity:1,getDiscountKind:'percentage',getDiscountValue:50,maxApplications:1}},{...base,id:'generic',name:'Generic Ten',type:'percentage',value:10},{...base,id:'invalid',name:'Invalid Legacy',type:'bundle',bundleConfig:{slots:[{productKeys:[P],quantity:1},{productKeys:[P+'|M'],quantity:1}],bundlePrice:50000,maxApplications:1}}];
+  if (opts.autoPromo) promotions.push({...base,id:'auto-ten',name:'Otomatis Sepuluh',type:'percentage',value:10,combinable:false,autoApply:true,createdAt:'2026-01-01T00:00:00Z'});
   const customer={id:'00000000-0000-4000-8300-000000000081',name:'Synthetic Customer',phone:'+62000000000',points:100,totalSpent:0,visitCount:0};
   const codes=[{id:'code-bundle',code:'Raw-Bundle',promotionId:'bundle'},{id:'code-bxgy',code:'Raw-BXGY',promotionId:'bxgy'},{id:'code-generic',code:'Raw-Generic',promotionId:'generic'},{id:'code-cap',code:'CUSTOMER-CAP',perCustomerLimit:1},{id:'code-assigned',code:'ASSIGNED',customerId:customer.id}].map(c=>({...base,type:'percentage',value:10,usageCount:0,...c}));
   const settings={taxEnabled:false,taxRate:0,roundingEnabled:false,roundingType:'none',allowNegativeStock:true,autoOpenShift:false,paymentMethods:[{id:'cash',label:'Tunai',isEnabled:true},{id:'qris',label:'QRIS',isEnabled:true}],receipt:{headerText:'Synthetic receipt',footerText:'Test only',showTax:false,showCashier:true}};

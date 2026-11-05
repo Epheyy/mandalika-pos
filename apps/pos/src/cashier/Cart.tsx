@@ -9,6 +9,8 @@ import { Button } from '../components/ui/Button'
 import { Stepper } from '../components/ui/Stepper'
 import { LineSheet } from './LineSheet'
 import { sizeOptions } from './lineSizes'
+import { autoPromptLabel } from './promoCopy'
+import type { AutoPrompt } from './autoPromos'
 import { GIVEAWAY_CAPTION, GIVEAWAY_OUT_OF_STOCK, type GiveawayLine } from './giveaway'
 
 type CartItem = components['schemas']['CartItem']
@@ -50,6 +52,10 @@ interface CartProps {
   orderNotes: string
   appliedPromotions: Promotion[]
   appliedPromoCodes: AppliedPromoCode[]
+  /** Promo auto-apply: applied promotions the app installed (shown with an "Otomatis" tag), and the ones waiting for a choice. */
+  autoPromotionIds?: string[]
+  autoPrompts?: AutoPrompt[]
+  onAutoPrompt?: (promotionId: string) => void
   onClearDiscount: () => void
   onRemovePromotion: (id: string) => void
   onRemovePromoCode: (code: string) => void
@@ -57,8 +63,8 @@ interface CartProps {
 }
 
 /** Small coloured tag in front of a promo or reward line. */
-function Tag({ tone, children }: { tone: 'promo' | 'reward'; children: string }) {
-  const palette = tone === 'promo' ? 'bg-promo-bg text-promo' : 'bg-reward-bg text-reward'
+function Tag({ tone, children }: { tone: 'promo' | 'reward' | 'auto'; children: string }) {
+  const palette = tone === 'promo' ? 'bg-promo-bg text-promo' : tone === 'auto' ? 'bg-paper-2 text-ink-700' : 'bg-reward-bg text-reward'
   return <span className={`flex-shrink-0 rounded-md px-1.5 py-0.5 text-xs font-bold ${palette}`}>{children}</span>
 }
 
@@ -99,6 +105,9 @@ export const Cart = memo(function Cart({
   orderNotes,
   appliedPromotions,
   appliedPromoCodes,
+  autoPromotionIds = [],
+  autoPrompts = [],
+  onAutoPrompt,
   onClearDiscount,
   onRemovePromotion,
   onRemovePromoCode,
@@ -287,6 +296,23 @@ export const Cart = memo(function Cart({
         onClose={closeLine}
       />
 
+      {/* Promo auto-apply: a qualifying promo that needs a choice. One quiet row, never an unprompted picker. */}
+      {!isEmpty && autoPrompts.length > 0 && (
+        <div className="flex flex-shrink-0 flex-col gap-1 border-t border-paper-2 px-4 py-2">
+          {autoPrompts.map((p) => (
+            <button
+              key={p.promotionId}
+              type="button"
+              onClick={() => onAutoPrompt?.(p.promotionId)}
+              className="touch flex w-full items-center gap-2 rounded-control bg-promo-bg px-3 text-left text-sm font-semibold text-promo active:opacity-80"
+            >
+              <span className="min-w-0 flex-1 truncate">{autoPromptLabel(p)}</span>
+              <IconChevronRight size={16} />
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Adjustments row */}
       {!isEmpty && (
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-t border-paper-2 px-4 py-2">
@@ -311,6 +337,7 @@ export const Cart = memo(function Cart({
               <span className="flex min-w-0 items-center gap-2">
                 <Tag tone="promo">PROMO</Tag>
                 <span className="truncate">{p.name}</span>
+                {autoPromotionIds.includes(p.id) && <Tag tone="auto">Otomatis</Tag>}
               </span>
               <RemoveButton label="Hapus promo" onClick={() => onRemovePromotion(p.id)} />
             </div>

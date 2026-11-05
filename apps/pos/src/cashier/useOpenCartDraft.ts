@@ -69,7 +69,7 @@ export function useOpenCartDraft({ outletId, userId, state, dispatch, getEnv, ca
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- follows the sale content, not every render
   }, [state.cart, state.selectedCustomer, state.selectedSalesman, state.pointsToRedeem, state.orderNotes, state.discountRunning, state.surchargeRunning,
-    state.appliedDiscountType, state.appliedSurchargeType, state.discountType, state.appliedPromotions, state.appliedPromoCodes, state.bundleFreed,
+    state.appliedDiscountType, state.appliedSurchargeType, state.discountType, state.appliedPromotions, state.appliedPromoCodes, state.bundleFreed, state.dismissedAutoPromotionIds,
     state.splitMode, state.splitOrderUuid, state.isSuccessOpen])
 
   /** Before the enqueue: the draft on disk carries the uuid the sale is about to use (best effort: a failed write does not block the sale). */
