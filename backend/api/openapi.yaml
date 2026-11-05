@@ -1544,6 +1544,9 @@ components:
         codeOnly:
           type: boolean
           description: When true, hidden from the POS panel; reachable only via a linked discount code.
+        autoApply:
+          type: boolean
+          description: When true, the POS adds the promotion to the cart on its own once it qualifies. Cannot be combined with codeOnly. On input, an omitted field keeps the stored value.
         bxgyConfig:
           allOf: [{ $ref: '#/components/schemas/BXGYConfig' }]
           nullable: true
@@ -2781,6 +2784,9 @@ components:
         codeOnly:
           type: boolean
           description: When true, hidden from the POS panel; reachable only via a linked discount code.
+        autoApply:
+          type: boolean
+          description: When true, the POS adds the promotion to the cart on its own once it qualifies. Cannot be combined with codeOnly. On input, an omitted field keeps the stored value.
         bxgyConfig:
           allOf: [{ $ref: '#/components/schemas/BXGYConfig' }]
           nullable: true

@@ -2,6 +2,7 @@ package write
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
@@ -131,28 +132,34 @@ func validateBXGY(c *BXGYConfigInput) error {
 	return nil
 }
 
+var errAutoApplyCodeOnly = errors.New("Promo otomatis tidak bisa sekaligus hanya via kode")
+
 type Promotion struct {
-	Name                   string             `json:"name"`
-	Description            string             `json:"description"`
-	Type                   string             `json:"type"`
-	Value                  float64            `json:"value"`
-	MinPurchase            *float64           `json:"minPurchase"`
-	ApplicableProductIDs   []string           `json:"applicableProductIds"`
-	ApplicableVariantKeys  []string           `json:"applicableVariantKeys"`
-	ApplicableVariantSizes []string           `json:"applicableVariantSizes"`
-	OutletIDs              []string           `json:"outletIds"`
-	Combinable             *bool              `json:"combinable"`
-	CombinableWith         []string           `json:"combinableWith"`
-	CodeOnly               bool               `json:"codeOnly"`
-	ActiveFromHour         string             `json:"activeFromHour"`
-	ActiveToHour           string             `json:"activeToHour"`
-	ActiveDays             []int              `json:"activeDays"`
-	IsActive               bool               `json:"isActive"`
-	StartDate              string             `json:"startDate"`
-	EndDate                string             `json:"endDate"`
-	BXGYConfig             *BXGYConfigInput   `json:"bxgyConfig"`
-	TieredConfig           *TieredConfigInput `json:"tieredConfig"`
-	BundleConfig           *BundleConfigInput `json:"bundleConfig"`
+	Name                   string   `json:"name"`
+	Description            string   `json:"description"`
+	Type                   string   `json:"type"`
+	Value                  float64  `json:"value"`
+	MinPurchase            *float64 `json:"minPurchase"`
+	ApplicableProductIDs   []string `json:"applicableProductIds"`
+	ApplicableVariantKeys  []string `json:"applicableVariantKeys"`
+	ApplicableVariantSizes []string `json:"applicableVariantSizes"`
+	OutletIDs              []string `json:"outletIds"`
+	Combinable             *bool    `json:"combinable"`
+	CombinableWith         []string `json:"combinableWith"`
+	CodeOnly               bool     `json:"codeOnly"`
+	// AutoApply is a pointer: an absent field keeps the stored value on update (a PUT from a client that does
+	// not know the field must not switch it off); an explicit false clears it. Create treats nil as false.
+	// Turning codeOnly on clears it (UPDATE), so a stale client cannot leave both flags set.
+	AutoApply      *bool              `json:"autoApply"`
+	ActiveFromHour string             `json:"activeFromHour"`
+	ActiveToHour   string             `json:"activeToHour"`
+	ActiveDays     []int              `json:"activeDays"`
+	IsActive       bool               `json:"isActive"`
+	StartDate      string             `json:"startDate"`
+	EndDate        string             `json:"endDate"`
+	BXGYConfig     *BXGYConfigInput   `json:"bxgyConfig"`
+	TieredConfig   *TieredConfigInput `json:"tieredConfig"`
+	BundleConfig   *BundleConfigInput `json:"bundleConfig"`
 }
 
 func (r *Repo) CreatePromotion(ctx context.Context, p Promotion) (string, error) {
@@ -202,13 +209,13 @@ func (r *Repo) CreatePromotion(ctx context.Context, p Promotion) (string, error)
 			  applicable_product_ids, applicable_variant_keys,
 			  applicable_variant_sizes, outlet_ids, combinable, combinable_with,
 			  active_from_hour, active_to_hour, active_days, is_active,
-			  start_date, end_date, code_only, bxgy_config, tiered_config, bundle_config)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+			  start_date, end_date, code_only, bxgy_config, tiered_config, bundle_config, auto_apply)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,COALESCE($22::boolean,false))
 			RETURNING id`,
 			p.Name, nullStr(p.Description), p.Type, p.Value, p.MinPurchase,
 			apid, avk, avs, oid, p.Combinable, cw,
 			nullStr(p.ActiveFromHour), nullStr(p.ActiveToHour), ad, p.IsActive,
-			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, bxgy, tiered, bundle).Scan(&id)
+			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, bxgy, tiered, bundle, p.AutoApply).Scan(&id)
 	})
 	return id, err
 }
@@ -260,12 +267,13 @@ func (r *Repo) UpdatePromotion(ctx context.Context, id string, p Promotion) erro
 			  applicable_variant_sizes=$8, outlet_ids=$9, combinable=$10,
 			  combinable_with=$11, active_from_hour=$12, active_to_hour=$13,
 			  active_days=$14, is_active=$15, start_date=$16, end_date=$17, code_only=$18,
-			  bxgy_config=$19, tiered_config=$20, bundle_config=$21
-			WHERE id=$22`,
+			  bxgy_config=$19, tiered_config=$20, bundle_config=$21,
+			  auto_apply=CASE WHEN $18 THEN false ELSE COALESCE($22::boolean, auto_apply) END
+			WHERE id=$23`,
 			p.Name, nullStr(p.Description), p.Type, p.Value, p.MinPurchase,
 			apid, avk, avs, oid, p.Combinable, cw,
 			nullStr(p.ActiveFromHour), nullStr(p.ActiveToHour), ad, p.IsActive,
-			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, bxgy, tiered, bundle, id)
+			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, bxgy, tiered, bundle, p.AutoApply, id)
 		if e == nil && ct.RowsAffected() == 0 {
 			return ErrNotFound
 		}
@@ -306,6 +314,11 @@ func validateDateOrder(start, end string) error {
 // An inactive row may be saved as it is (switching an old invalid promotion off from the list resends the whole
 // row), so the value/date rules apply to active ones only; the form itself always checks.
 func validatePromotionBasics(p Promotion) error {
+	// Checked whether or not the promotion is active: a code-only promotion is never offered in the POS panel,
+	// so it can never auto-apply, and storing both would be a silent no-op.
+	if p.CodeOnly && p.AutoApply != nil && *p.AutoApply {
+		return errAutoApplyCodeOnly
+	}
 	if !p.IsActive {
 		return nil
 	}

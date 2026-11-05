@@ -71,6 +71,7 @@ GATES = (
     ("SP", "TestSplitTenderPostgres", 26477, "sp"),
     ("LP", "TestListParamsPostgres", 26478, "lp"),
     ("DB", "TestDashboardAggregatePostgres", 26479, "db"),
+    ("AA", "TestPromoAutoApplyPostgres", 26480, "aa"),
 )
 # Fixture ports must stay below Linux's default ephemeral range (32768-60999): an earlier test's client socket can
 # be assigned a fixed port in that range and stay busy (open or TIME-WAIT) and fail the next fixture start with
