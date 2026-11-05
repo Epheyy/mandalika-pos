@@ -94,6 +94,10 @@ func Normalize(raw string) string {
 // runs match nearly every customer and cannot use the trigram index.
 const MinSearchDigits = 3
 
+// MinSubstringDigits is the fewest bare digits searched anywhere in the number: three digits
+// match a large share of 500k customers, so a bare run needs one more.
+const MinSubstringDigits = 4
+
 // SearchKeys turns text typed into a customer search box into a phone search.
 //
 // It returns ("", "") unless q is phone-shaped: only digits once spaces, '-', '.', '(' ')' and
@@ -103,7 +107,8 @@ const MinSearchDigits = 3
 //     the country/trunk prefix. A number written with a prefix is a prefix search: 0812-34,
 //     62812 34 and +62 812 34 all give '081234%', and a foreign +65 8123 gives '658123%', so
 //     a Singapore number is never mistaken for an Indonesian one. Bare digits (8123, 3456) may
-//     be any part of the number, so they give '%8123%'.
+//     be any part of the number, so they give '%8123%' (at least MinSubstringDigits). A bare 62 is
+//     only a country code when 8 follows (62812...): 6212345 is just digits from the middle.
 //
 // Callers add `OR phone_norm LIKE like` (trigram indexed) next to the raw-text matches.
 func SearchKeys(q string) (norm, like string) {
@@ -133,20 +138,23 @@ func SearchKeys(q string) (norm, like string) {
 	norm = Normalize(q)
 	prefix, rest := "", s
 	switch {
-	case strings.HasPrefix(s, "620"):
+	case strings.HasPrefix(s, "620") && (intl || strings.HasPrefix(s, "6208")):
 		prefix, rest = "0", s[3:]
-	case strings.HasPrefix(s, "62"):
+	case strings.HasPrefix(s, "62") && (intl || strings.HasPrefix(s, "628")):
 		prefix, rest = "0", s[2:]
 	case strings.HasPrefix(s, "0"):
 		prefix, rest = "0", s[1:]
 	case intl:
 		rest = s // the foreign country code is part of the key
 	}
-	if len(rest) < MinSearchDigits {
-		return norm, ""
-	}
 	if prefix != "" || intl {
+		if len(rest) < MinSearchDigits {
+			return norm, ""
+		}
 		return norm, prefix + rest + "%"
+	}
+	if len(rest) < MinSubstringDigits {
+		return norm, ""
 	}
 	return norm, "%" + rest + "%"
 }

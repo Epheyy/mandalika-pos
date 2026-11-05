@@ -44,6 +44,9 @@ func TestSearchKeys(t *testing.T) {
 		// bare digits may sit anywhere in the number
 		{"81234", "", "%81234%"},
 		{"3456", "", "%3456%"},
+		{"6212345", "", "%6212345%"},
+		{"6221 5550", "", "%62215550%"},
+		{"345", "", ""},
 		// a foreign number is never rewritten as Indonesian
 		{"+65 8123 4567", "6581234567", "6581234567%"},
 		{"+65 8123", "", "658123%"},
