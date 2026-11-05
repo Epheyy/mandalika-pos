@@ -815,10 +815,12 @@ Things in this repo that will mislead you. Trust this list over the documents.
 2. **`RUNBOOK.md` describes Fly.io as the production host.** That's historical.
    The real deployment is the **"Free-tier test cutover"** section (line ~167
    onward): Cloud Run + Neon + Upstash + Cloudflare Pages. `backend/fly.toml`
-   exists but is unused. **Do not follow the Fly.io sections.**
+   was removed on 2026-11-05. **Do not follow the Fly.io sections.**
 
-3. **`vercel.json` is dead.** Vercel is not used. It's a leftover SPA rewrite from
-   before the re-platform.
+3. **Vercel is still connected to the repo** (checked 2026-11-05): it builds a preview of
+   every push and serves a production build of `main`. Nothing real depends on it; the
+   backoffice is served by Cloudflare Pages. The `vercel.json` files stay until the Vercel
+   project is disconnected, then they can go.
 
 4. **Two docs give different local admin passwords** (`PHASE_HANDOFF.md` says
    `devpass123`, `DEV_TO_PROD_WALKTHROUGH.md` says `adm_mndlk_2026`). Neither is

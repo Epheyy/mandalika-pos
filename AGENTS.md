@@ -9,8 +9,8 @@ Current status: pre-launch, test data only, not production-ready.
 
 The Codex-execute / ChatGPT-review relay is retired. Claude plans, implements, reviews
 and verifies; the owner decides business policy, scope, risk and release. No review
-packets, ZIP bundles or programme-authority ceremony. `CHATGPT_CODEX_WORKFLOW.md` and
-`docs/PROGRAMME_EXECUTION_AUTHORITY.md` are historical only.
+packets, ZIP bundles or programme-authority ceremony. `docs/PROGRAMME_EXECUTION_AUTHORITY.md` is
+historical only; the relay-era root packets were removed on 2026-11-05 (still in git history).
 
 ### Working rules (every task)
 
