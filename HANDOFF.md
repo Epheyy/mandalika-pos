@@ -4,9 +4,11 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-05 by Claude (Opus 5.5) - QA-fix wave A-E LIVE: backend `00163-deb` (migrations 0080-0081), backoffice `824a38aa`, POS OTA 2.6.0; see Progress board.
+Last updated: 2026-11-05 by Claude (Opus 5.5) - plans #70 (auto-apply) + #72 (Kaca) merged, owner took all defaults; CI billing-blocked on origin AND the ci mirror; #71 held; see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
+
+> 2026-11-05: **Plans merged, docs only, WITHOUT CI** (owner: "merge #70 & #71, go with the defaults for auto-apply", then "merge #72 with the defaults"). #70 `49903f98` (auto-apply plan, owner took decisions 1-10 as recommended) and #72 `12195806` (Kaca restyle waves, owner took D-85..D-116 as recommended: glass-static, no visible blur; nav merges deferred except M-4/M-8/M-12; Tutup Shift stays in the header, neutral; live "Sisa N" stock as its own Opus slice; no APK). Both change only `docs/plans/*` and HANDOFF.md. **GitHub Actions is billing-blocked on BOTH `Epheyy/mandalika-pos` and `mandalika-ci/mandalika-pos-ci`** ("recent account payments have failed or your spending limit needs to be increased"): every job fails in 1-4 s with 0 steps, so nothing can be gated and `deploy-backend.sh` / `ota-release.sh` will refuse. **#71 (phone search, migration 0082) is HELD**: merged locally as `80572067` on `d474f4fb` but not pushed; gate it once billing is fixed (rebuild the merge on the new tip). In flight: auto-apply S1 PR #73 (migration **0083**, Opus-reviewed, local checks green, `TestPromoAutoApplyPostgres` + codegen gate never run; postgres gate port range extended to 26439-26480), S2 backoffice and S3 POS engine sessions stacked on S1's branch `feat/promo-auto-apply-s1`.
 
 > 2026-11-05: **Promo auto-apply PLAN** (P-21, per-promotion `autoApply`, default off) in `docs/plans/2026-11-05-promo-auto-apply.md`, docs PR only, no code; slices S1 backend+contract (mig 0082) -> S2 backoffice -> S3 POS engine -> S4 POS wiring (OTA 2.7.0, no APK); 10 owner decisions listed with recommended defaults, awaiting owner.
 
