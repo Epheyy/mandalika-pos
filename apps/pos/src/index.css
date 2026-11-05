@@ -1,7 +1,10 @@
 @import 'tailwindcss';
 
+@import '../../../packages/ui-tokens/tokens.css';
+@import '../../../packages/ui-tokens/materials.css';
+
 @theme {
-  /* Override indigo palette → Mandalika Gold */
+  /* Override indigo palette → Mandalika Gold. Legacy remap: stays until slice Z deletes it. */
   --color-indigo-50: #fdf8ee;
   --color-indigo-100: #f9edcc;
   --color-indigo-200: #f0d48a;
@@ -13,39 +16,7 @@
   --color-indigo-800: #6e4a0c;
   --color-indigo-900: #4d3408;
 
-  /* POS UX direction tokens (A1). Additive; the indigo remap above stays. */
-  --color-paper-0: #fbf9f5;
-  --color-paper-1: #f3efe7;
-  --color-paper-2: #e9e3d8;
-  --color-ink-900: #1a1008;
-  --color-ink-700: #4a3f33;
-  --color-ink-500: #7a6f62;
-  --color-brand: #b07d18;
-  --color-brand-pressed: #8f6412;
-  /* Brand palette (D-24, 2026-10-27). A skin re-aliases --color-brand to one of these (D-29). */
-  --color-palette-mandalika: #b07d18;
-  --color-palette-flamboyan: #9b59b6;
-  --color-palette-performance: #a93226;
-  --color-on-brand: #ffffff;
-  --color-ok: #1f7a4d;
-  --color-ok-bg: #e3f3ea;
-  --color-warn: #b45309;
-  --color-warn-bg: #fdf0df;
-  --color-danger: #b42318;
-  --color-danger-bg: #fbe4e1;
-  /* Solid danger surfaces (Refund confirm, lock/shift-error bars). Performance skin maps it to ink-900 (D-28). */
-  --color-danger-solid: var(--color-danger);
-  --color-info: #1d4ed8;
-  --color-info-bg: #e3eafc;
-  --color-promo: #6d28d9;
-  --color-promo-bg: #efe7fb;
-  --color-reward: #0f766e;
-  --color-reward-bg: #dff3f0;
-
-  --radius-control: 12px;
-  --radius-sheet: 16px;
-  --radius-chip: 22px;
-
+  /* The POS ships no Roboto Variable file (system Roboto on the tablet), so it overrides the shared stack. */
   --font-sans: Roboto, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 

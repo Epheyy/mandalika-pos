@@ -1,7 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { applyBrand } from './apply'
 import { BRANDS, darken, type BrandId } from './brands'
 import { resolveBrand } from './index'
+
+/** WCAG 2.x relative luminance contrast of a #rrggbb colour against white. */
+function contrastWithWhite(hex: string): number {
+  const n = parseInt(hex.slice(1), 16)
+  const lin = (c: number) => {
+    const v = c / 255
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+  }
+  const l = 0.2126 * lin((n >> 16) & 0xff) + 0.7152 * lin((n >> 8) & 0xff) + 0.0722 * lin(n & 0xff)
+  return 1.05 / (l + 0.05)
+}
 
 function fakeRoot() {
   const props = new Map<string, string>()
@@ -81,7 +95,12 @@ describe('applyBrand', () => {
   it('sets only brand colours for mandalika (indigo scale stays the css default)', () => {
     const { root, props } = fakeRoot()
     applyBrand(BRANDS.mandalika, root)
-    expect([...props.keys()].sort()).toEqual(['--color-brand', '--color-brand-pressed'])
+    expect([...props.keys()].sort()).toEqual([
+      '--color-brand',
+      '--color-brand-pressed',
+      '--color-brand-strong',
+      '--color-brand-strong-hover',
+    ])
     expect(props.get('--color-brand')).toBe('#b07d18')
     expect(props.get('--color-brand-pressed')).toBe('#8f6412')
   })
@@ -105,5 +124,40 @@ describe('applyBrand', () => {
     expect(props.get('--color-danger-solid')).toBe('var(--color-ink-900)')
     expect(props.has('--color-promo')).toBe(false)
     expect(props.has('--color-info')).toBe(false)
+  })
+})
+
+describe('brand-strong (filled controls behind white 14 px labels, D-73)', () => {
+  it.each<[BrandId, string]>([
+    ['mandalika', '#8f6412'],
+    ['flamboyan', '#9b59b6'],
+    ['performance', '#a93226'],
+  ])('%s carries its strong colour and passes AA with white text', (id, strong) => {
+    expect(BRANDS[id].primaryStrong).toBe(strong)
+    expect(contrastWithWhite(BRANDS[id].primaryStrong)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('Mandalika gold itself fails AA with white (why the strong colour exists); the other skins use their brand colour', () => {
+    expect(contrastWithWhite(BRANDS.mandalika.primary)).toBeLessThan(4.5)
+    expect(BRANDS.flamboyan.primaryStrong).toBe(BRANDS.flamboyan.primary)
+    expect(BRANDS.performance.primaryStrong).toBe(BRANDS.performance.primary)
+  })
+
+  it.each<BrandId>(['mandalika', 'flamboyan', 'performance'])('applyBrand sets strong + hover for %s', (id) => {
+    const { root, props } = fakeRoot()
+    applyBrand(BRANDS[id], root)
+    expect(props.get('--color-brand-strong')).toBe(BRANDS[id].primaryStrong)
+    expect(props.get('--color-brand-strong-hover')).toBe(darken(BRANDS[id].primaryStrong, 0.15))
+  })
+
+  it('Mandalika strong + hover equal the shared token defaults, so the skin is a no-op for it', () => {
+    const { root, props } = fakeRoot()
+    applyBrand(BRANDS.mandalika, root)
+    const tokens = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../../../../packages/ui-tokens/tokens.css'),
+      'utf8',
+    )
+    expect(tokens).toContain(`--color-brand-strong: ${props.get('--color-brand-strong')};`)
+    expect(tokens).toContain(`--color-brand-strong-hover: ${props.get('--color-brand-strong-hover')};`)
   })
 })

@@ -1,4 +1,6 @@
-import type { Brand } from './brands'
+import { darken, type Brand } from './brands'
+
+const STRONG_HOVER_DARKEN = 0.15
 
 const TINT = 'color-mix(in srgb, {c} 12%, white)'
 
@@ -25,6 +27,8 @@ export function applyBrand(brand: Brand, root: HTMLElement = document.documentEl
   const set = (name: string, value: string) => root.style.setProperty(name, value)
   set('--color-brand', brand.primary)
   set('--color-brand-pressed', brand.primaryPressed)
+  set('--color-brand-strong', brand.primaryStrong)
+  set('--color-brand-strong-hover', darken(brand.primaryStrong, STRONG_HOVER_DARKEN))
   if (brand.id !== 'mandalika') {
     for (const [step, tpl] of INDIGO_STEPS) set(`--color-indigo-${step}`, tpl.replace('{p}', brand.primary))
   }

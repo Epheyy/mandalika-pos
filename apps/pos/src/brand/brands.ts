@@ -32,6 +32,8 @@ export type Brand = {
   displayName: string
   primary: string
   primaryPressed: string
+  /** Filled-control surface behind white 14 px labels (>= 4.5:1, D-73). A skin whose brand colour already passes AA uses that colour. */
+  primaryStrong: string
   logo: string
   tagline?: string
   /** Fallback receipt header; the backend app-settings value wins once the snapshot is loaded. */
@@ -60,6 +62,7 @@ export const BRANDS: Readonly<Record<BrandId, Brand>> = {
     displayName: 'Mandalika',
     primary: '#b07d18',
     primaryPressed: '#8f6412',
+    primaryStrong: '#8f6412',
     logo: mandalikaLogo,
     tagline: 'Your Trusted Scent',
     receiptHeader: 'Mandalika Perfume',
@@ -70,6 +73,7 @@ export const BRANDS: Readonly<Record<BrandId, Brand>> = {
     displayName: 'Flamboyan',
     primary: '#9b59b6',
     primaryPressed: darken('#9b59b6', PRESSED_DARKEN),
+    primaryStrong: '#9b59b6',
     logo: flamboyanLogo,
     receiptHeader: 'Flamboyan',
     overrides: { promo: '#1d4ed8', info: '#475569' },
@@ -80,6 +84,7 @@ export const BRANDS: Readonly<Record<BrandId, Brand>> = {
     displayName: 'Performance Perfume',
     primary: '#a93226',
     primaryPressed: darken('#a93226', PRESSED_DARKEN),
+    primaryStrong: '#a93226',
     logo: performanceLogo,
     receiptHeader: 'Performance Perfume',
     overrides: { dangerSolid: 'ink' },

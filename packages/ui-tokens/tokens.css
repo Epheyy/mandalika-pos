@@ -1,9 +1,10 @@
-/* Shared design tokens ("Kertas & Emas"). Plain CSS, no package.json, so the lockfile never changes.
-   Imported by the backoffice (apps/backoffice/src/index.css). The POS moves to this file in its own
-   chore slice (D-76); until then apps/pos/src/index.css keeps its own copy of the same values.
-   A brand skin re-aliases --color-brand (+ pressed/strong) at runtime (apps/backoffice/src/lib/brand.ts).
-   No dark theme (D-12). */
-@theme {
+/* Shared design tokens ("Kertas & Emas" + Kaca). Plain CSS, no package.json, so the lockfile never changes.
+   Imported by both apps (apps/pos/src/index.css, apps/backoffice/src/index.css), together with materials.css.
+   A brand skin re-aliases --color-brand (+ pressed/strong) at runtime (apps/pos/src/brand/apply.ts,
+   apps/backoffice/src/lib/brand.ts). No dark theme (D-12).
+   `@theme static`: every token is emitted on :root even when no utility uses it, because materials.css
+   and the runtime skins read them through var(). */
+@theme static {
   --color-paper-0: #fbf9f5;
   --color-paper-1: #f3efe7;
   --color-paper-2: #e9e3d8;
@@ -43,6 +44,61 @@
   --radius-control: 12px;
   --radius-sheet: 16px;
   --radius-chip: 22px;
+  /* Kaca: floating panel 24, tag 6. Control 12 / sheet 16 / chip 22 are above. */
+  --radius-panel: 24px;
+  --radius-tag: 6px;
+
+  /* Kaca type scale (px). Screens replace ad-hoc text-[..] with these on the slices that touch them. */
+  --text-caption: 12px;
+  --text-secondary: 13px;
+  --text-button: 14px;
+  --text-body: 15px;
+  --text-price: 16px;
+  --text-price-lg: 17px;
+  --text-bar: 20px;
+  --text-title: 22px;
+  --text-amount: 26px;
 
   --font-sans: 'Roboto Variable', Roboto, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* Kaca derived surfaces + motion. Plain :root (not @theme): they are read by var() only. The bar gradients
+   derive from the live skin (--color-brand / --color-brand-strong / --color-danger-solid), so a skin never
+   needs extra hex values (D-99). */
+:root {
+  --bar-primary-top: color-mix(in srgb, var(--color-brand) 88%, var(--color-brand-strong));
+  --bar-primary-bottom: var(--color-brand-strong);
+  --bar-danger-top: color-mix(in srgb, var(--color-danger-solid), white 6%);
+  --bar-danger-bottom: color-mix(in srgb, var(--color-danger-solid), black 8%);
+
+  /* Motion, preset "Pegas" (default, D-109). Animate transform/opacity only (see materials.css, motion guard). */
+  --ease-std: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --d-select: 380ms;
+  --d-enter: 300ms;
+  --d-press: 160ms;
+  --d-toast: 340ms;
+}
+/* Preset "Halus" (D-109 fallback): switch with <html data-motion="halus">. */
+:root[data-motion='halus'] {
+  --ease-std: cubic-bezier(0.2, 0, 0, 1);
+  --ease-pop: cubic-bezier(0.2, 0, 0, 1);
+  --d-select: 200ms;
+  --d-enter: 180ms;
+  --d-press: 120ms;
+  --d-toast: 180ms;
+}
+
+/* No motion when the user (or the Android "Remove animations" setting, to be verified on the A9) asks for it.
+   Loaders are exempt: a frozen spinner/skeleton would read as a hung screen, and they signal progress, not motion
+   for its own sake. */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.animate-spin, .animate-pulse),
+  *:not(.animate-spin, .animate-pulse)::before,
+  *:not(.animate-spin, .animate-pulse)::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

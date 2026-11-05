@@ -1,0 +1,118 @@
+/* Kaca materials (plan docs/plans/2026-11-05-kaca-restyle-waves.md, section 1.2). Imported after tokens.css by
+   both apps. Utilities only: nothing here is emitted until a screen uses the class, so importing this file
+   changes no pixel (D-76).
+
+   Owner rule 1: nothing the user reads over content is see-through. Dialogs, slide-overs, sheets, drawers,
+   toasts and the cart column use `surface-solid`. Blur exists only on non-scrolling chrome and only when
+   <html data-material="glass"> (never the default). The root attribute is set in each app's main.tsx:
+     static (default): glass tint, no blur       glass: tint + blur(20px) saturate(180%)       solid: opaque
+   Blur budget: 0 layers by default, at most 2 (plan 5.1), never inside a scroller. */
+
+:root {
+  --surface-border: rgba(255, 255, 255, 0.7);
+  --surface-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 0 0 0.5px rgba(26, 16, 8, 0.08),
+    0 14px 36px -14px rgba(70, 46, 10, 0.28);
+  --surface-glass-bg: rgba(255, 253, 249, 0.72);
+  --surface-solid-bg: #fffdf9;
+  /* White over paper-0 as a fixed colour: a group can never turn translucent by accident. */
+  --surface-group-bg: color-mix(in srgb, #ffffff 62%, var(--color-paper-0));
+  --surface-card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Chrome that does not scroll (POS header, category bar, BO top bar, docked sidebar). */
+@utility surface-glass {
+  background: var(--surface-glass-bg);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--surface-shadow);
+  :root[data-material='glass'] & {
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+  :root[data-material='solid'] & {
+    background: var(--surface-solid-bg);
+  }
+}
+
+/* Opaque floating surfaces: cart column, sheets, dialogs, slide-overs, drawers, toasts' light variant. */
+@utility surface-solid {
+  background: var(--surface-solid-bg);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--surface-shadow);
+}
+
+/* Tiles, list rows, keypad keys. Solid by default (rule 1; tiles sit inside scrollers). */
+@utility surface-card {
+  background: #ffffff;
+  border: 1px solid var(--color-paper-2);
+  box-shadow: var(--surface-card-shadow);
+}
+
+/* Summaries, customer chip, filter bar. Only ever placed on a solid panel or card. */
+@utility surface-group {
+  background: var(--surface-group-bg);
+}
+
+/* One primary bar per screen (Bayar, Konfirmasi, Pilih...). Derived from the live brand skin. */
+@utility bar-primary {
+  background: linear-gradient(180deg, var(--bar-primary-top), var(--bar-primary-bottom));
+  color: var(--color-on-brand);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 12px 26px -12px color-mix(in srgb, var(--color-brand-strong) 70%, transparent);
+}
+
+/* Destructive primary bar (Refund). Uses danger-solid, so the Performance skin's ink-900 (D-28) still applies. */
+@utility bar-danger {
+  background: linear-gradient(180deg, var(--bar-danger-top), var(--bar-danger-bottom));
+  color: var(--color-on-brand);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 12px 26px -12px color-mix(in srgb, var(--color-danger-solid) 60%, transparent);
+}
+
+/* Press feedback: transform only. */
+@utility press {
+  transition: transform var(--d-press) var(--ease-std);
+  &:active {
+    transform: scale(0.96);
+  }
+}
+@utility press-tile {
+  transition: transform var(--d-press) var(--ease-std);
+  &:active {
+    transform: scale(0.965);
+  }
+}
+@utility press-bar {
+  transition: transform var(--d-press) var(--ease-std);
+  &:active {
+    transform: scale(0.985);
+  }
+}
+
+/* Ambient ground: one fixed, non-scrolling layer behind the page (never background-attachment: fixed, which
+   repaints on Android). K1 mounts the element hidden (<html data-ambient="off">); a later slice turns it on
+   once the screens it sits behind are transparent. Mandalika gets the gold/peach wash, other skins a neutral
+   paper wash (D-87: a purple or red wash would read as promo/danger). */
+.ambient-layer {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  display: none;
+}
+:root[data-ambient='on'] .ambient-layer {
+  display: block;
+  background:
+    radial-gradient(520px 420px at 6% 2%, rgba(214, 162, 58, 0.3), transparent 70%),
+    radial-gradient(560px 460px at 70% 14%, rgba(236, 176, 124, 0.24), transparent 70%),
+    radial-gradient(700px 520px at 36% 104%, rgba(176, 125, 24, 0.18), transparent 70%),
+    radial-gradient(420px 380px at 100% 92%, rgba(214, 162, 58, 0.2), transparent 70%);
+}
+:root[data-ambient='on']:not([data-brand='mandalika']) .ambient-layer {
+  background:
+    radial-gradient(520px 420px at 6% 2%, rgba(233, 227, 216, 0.55), transparent 70%),
+    radial-gradient(560px 460px at 70% 14%, rgba(243, 239, 231, 0.7), transparent 70%),
+    radial-gradient(700px 520px at 36% 104%, rgba(233, 227, 216, 0.4), transparent 70%);
+}
