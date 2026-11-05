@@ -1,5 +1,6 @@
 import type { Order, OrderRefund } from '@mandalika/api'
 import { isCashMethod } from '@mandalika/types'
+import { canonicalMethodLabel } from './paymentLabel'
 
 /** The reserved orders.payment_method sentinel of a split-payment sale (never a real method id). */
 export const SPLIT_METHOD_ID = 'split'
@@ -13,12 +14,11 @@ type TenderLine = NonNullable<Order['tenders']>[number]
 const norm = (s: string) => s.trim().toLowerCase()
 const amountText = (n: number) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n)
 
-/** Display label of a method id: the sentinel, then the configured label, else the raw id. */
+/** Display label of a method id: the sentinel, else the canonical label (case-insensitive; lib/paymentLabel). */
 export function methodLabel(methodId: string, methods?: Methods): string {
   const key = norm(methodId)
   if (key === SPLIT_METHOD_ID) return SPLIT_LABEL
-  const hit = (methods ?? []).find((m) => norm(m.id) === key)
-  return hit?.label?.trim() || methodId
+  return canonicalMethodLabel(methodId, methods)
 }
 
 /** True for the split sentinel (case-insensitive), as the server's isSplitID. */

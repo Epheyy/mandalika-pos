@@ -74,6 +74,9 @@ export default function Reports() {
   const [state, setState] = useListState(HUB_SCHEMA)
   // Once per mount: the default must not roll over at midnight under an open screen (it would remount the tabs).
   const [today] = useState(() => localDay())
+  // Stok Minus can ignore the range (its "Ikuti rentang tanggal" switch); the date fields are then inert.
+  const [oversellFollowsRange, setOversellFollowsRange] = useState(true)
+  const datesInert = tab === 'oversell' && !oversellFollowsRange
   const dateFrom = dayOf(state.dari, today)
   const dateTo = dayOf(state.sampai, today)
   const fStatus = enumOf<string>(state.status, EXPORT_STATUSES, '')
@@ -119,6 +122,7 @@ export default function Reports() {
         <Input
           type="date"
           label="Dari"
+          disabled={datesInert}
           value={dateFrom}
           onChange={(e) => setState({ dari: dayToQuery(e.target.value), hal: 1 }, { replace: true })}
           className="w-auto"
@@ -126,6 +130,7 @@ export default function Reports() {
         <Input
           type="date"
           label="Sampai"
+          disabled={datesInert}
           value={dateTo}
           onChange={(e) => setState({ sampai: dayToQuery(e.target.value), hal: 1 }, { replace: true })}
           className="w-auto"
@@ -164,7 +169,7 @@ export default function Reports() {
       {tab === 'refund' && <RefundReportTab key={`${outletId}|${dateFrom}|${dateTo}`} dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
 
       {tab === 'oversell' && (
-        <OversellTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} canAcknowledge={canAcknowledgeOversell} />
+        <OversellTab onRangeActiveChange={setOversellFollowsRange} dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} canAcknowledge={canAcknowledgeOversell} />
       )}
 
       {tab === 'export' && (

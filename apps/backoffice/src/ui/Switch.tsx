@@ -7,6 +7,8 @@ interface SwitchProps {
   label: string
   size?: 'sm' | 'md'
   disabled?: boolean
+  /** Track colour while off (default: the dark ink tone). */
+  offClassName?: string
   className?: string
 }
 
@@ -15,7 +17,7 @@ const THUMB = { sm: 'h-4 w-4', md: 'h-5 w-5' } as const
 const SHIFT = { sm: 'translate-x-4', md: 'translate-x-5' } as const
 
 /** On/off switch. Replaces settings/Toggle, the raw icon toggles and click-to-mutate status pills. */
-export function Switch({ checked, onChange, label, size = 'md', disabled, className }: SwitchProps) {
+export function Switch({ checked, onChange, label, size = 'md', disabled, offClassName = 'bg-ink-500', className }: SwitchProps) {
   return (
     <button
       type="button"
@@ -27,7 +29,7 @@ export function Switch({ checked, onChange, label, size = 'md', disabled, classN
       className={cn(
         'relative inline-flex flex-shrink-0 items-center rounded-full p-0.5 transition-colors',
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong disabled:cursor-not-allowed disabled:opacity-50',
-        checked ? 'bg-brand-strong' : 'bg-ink-500',
+        checked ? 'bg-brand-strong' : offClassName,
         TRACK[size],
         className,
       )}

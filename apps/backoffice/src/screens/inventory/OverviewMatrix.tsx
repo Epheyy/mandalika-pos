@@ -9,6 +9,7 @@ import { DataTable, type Column } from '../../ui/DataTable'
 import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 import { LocationStockView } from './LocationStockView'
+import { visibleTotal } from '../../lib/matrixTotals'
 import { useListState } from '../../lib/router/useListState'
 import { useRoute } from '../../lib/router/useRoute'
 import { backOrNavigate, navigate } from '../../lib/router/navigate'
@@ -42,7 +43,10 @@ function LocationIcon({ kind }: { kind: 'outlet' | 'warehouse' }) {
 const VARIANT_COL_WIDTH = 280
 
 /** The matrix columns: the sticky variant, one stock column per shown location, then the total. */
-function matrixColumns(locations: readonly InventoryOverviewLocation[]): Column<InventoryOverviewRow>[] {
+function matrixColumns(locations: readonly InventoryOverviewLocation[], allLocationCount: number): Column<InventoryOverviewRow>[] {
+  const locationIds = locations.map((l) => l.id)
+  // A kind filter hides columns; the Total then sums what is shown and the server total (every location) moves to a sub-label.
+  const filtered = locations.length < allLocationCount
   return [
     {
       id: 'variant',
@@ -65,7 +69,17 @@ function matrixColumns(locations: readonly InventoryOverviewLocation[]): Column<
         return <span className={cell?.belowPar === true ? 'font-bold text-red-600' : 'text-gray-700'}>{cell?.stock ?? 0}</span>
       },
     })),
-    { id: 'total', header: 'Total', align: 'right', cell: (row) => <span className="font-bold text-gray-900">{row.total}</span> },
+    {
+      id: 'total',
+      header: 'Total',
+      align: 'right',
+      cell: (row) => (
+        <span className="font-bold text-gray-900">
+          {filtered ? visibleTotal(row.cells, locationIds, (c) => c.stock) : row.total}
+          {filtered && <span className="block text-[11px] font-normal text-gray-400">Semua lokasi: {row.total}</span>}
+        </span>
+      ),
+    },
   ]
 }
 
@@ -162,7 +176,7 @@ export function OverviewMatrix() {
       ) : (
         <DataTable
           caption="Stok produk per lokasi"
-          columns={matrixColumns(filteredLocations)}
+          columns={matrixColumns(filteredLocations, data?.locations.length ?? filteredLocations.length)}
           rows={visibleRows}
           rowKey={(row) => `${row.productId}|${row.variantSize}`}
           loading={q.loading && !data}

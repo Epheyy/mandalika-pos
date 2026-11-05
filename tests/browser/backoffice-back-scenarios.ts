@@ -62,7 +62,8 @@ export const routeBackFlow = async (page: ScenarioPage) => {
   await page.getByText('Pelanggan 26', { exact: true }).waitFor()
   check((await searchBox(page).inputValue()) === 'sari', 'the search box shows q from the URL')
   check((await page.getByRole('button', { name: 'Terbaru' }).getAttribute('aria-pressed')) === 'true', 'Terbaru is pressed')
-  const last = () => requests[requests.length - 1]
+  // The header's unfiltered-total request (limit=1, no q) is not the page list; skip it.
+  const last = () => requests.filter((r) => r.limit !== '1').slice(-1)[0]
   check(last().page === '2' && last().q === 'sari' && last().sort === 'terbaru', `list request carries page, q and sort: ${JSON.stringify(last())}`)
   results.push({ step: 'deep-link-filters' })
 

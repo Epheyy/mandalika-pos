@@ -83,7 +83,8 @@ export const customersListFlow = async (page: ScenarioPage) => {
   await mockApi(page, state)
   await openBackoffice(page)
   await navItem(page, 'dashboard').waitFor()
-  const lastList = () => state.calls.filter((c) => c.method === 'GET' && c.path === '/customers').pop()
+  // The header's unfiltered-total request (limit=1) is not the page list; skip it.
+  const lastList = () => state.calls.filter((c) => c.method === 'GET' && c.path === '/customers' && c.query.limit !== '1').pop()
 
   // (a) a real table: caption, column headers, one row per customer; page 3 of 25 rows is a server request
   await deepLink(page, '#/pelanggan/daftar?hal=3')

@@ -10,6 +10,7 @@ import {
 } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { localDay } from '../../lib/businessDay'
+import { canonicalMethodLabel, groupPayRows } from '../../lib/paymentLabel'
 import { hasRefundIn, isRefundedStatus, methodNetRows, refundedMoney, refundSlices, reportTotals, stillSoldMoney, type RefundWindow } from '../reports/reportTotals'
 
 export type Period = 'today' | '7d' | '30d' | 'all'
@@ -196,10 +197,13 @@ export function computeKpis(completed: Order[]): Kpis {
   return { revenue, orders: completed.length, itemsSold, customers: customers.size }
 }
 
-/** Percent change cur vs prev; null when prev is 0 or unavailable. Uses |prev| so a rise from a negative net is positive. */
+/**
+ * Percent change cur vs prev; null when prev is unavailable or not positive (a percentage off a zero or
+ * negative base is meaningless and read as a false "+100%"). A real drop to 0 from a positive base is -100%.
+ */
 export function delta(cur: number, prev: number | null): number | null {
-  if (prev === null || prev === 0) return null
-  return ((cur - prev) / Math.abs(prev)) * 100
+  if (prev === null || prev <= 0) return null
+  return ((cur - prev) / prev) * 100
 }
 
 export interface TrendPoint {
@@ -394,16 +398,8 @@ export function promoUsageFromTally(
   return { rows, totalCount, totalAmount }
 }
 
-const PAY_LABELS: Record<string, string> = {
-  cash: 'Tunai',
-  card: 'Kartu',
-  qris: 'QRIS',
-  transfer: 'Transfer',
-}
-
-/** Display label of a payment method id. */
-export const payLabel = (method: string): string =>
-  PAY_LABELS[method] ?? method.charAt(0).toUpperCase() + method.slice(1)
+/** Display label of a payment method id (case-insensitive; see lib/paymentLabel). */
+export const payLabel = (method: string): string => canonicalMethodLabel(method)
 
 export interface PayRow {
   method: string
@@ -412,17 +408,11 @@ export interface PayRow {
 }
 
 export function paymentBreakdown(completed: Order[]): PayRow[] {
-  const map = new Map<string, number>()
   // C6a: per (order, method) row (tenders[] lines minus refunds paid out in that method); an older
-  // backend or pre-C6 order falls back to one row keyed by the order method.
-  for (const o of completed) for (const r of methodNetRows(o)) map.set(r.method, (map.get(r.method) ?? 0) + r.net)
-  return [...map.entries()]
-    .map(([method, amount]) => ({
-      method,
-      label: PAY_LABELS[method] ?? method.charAt(0).toUpperCase() + method.slice(1),
-      amount,
-    }))
-    .sort((a, b) => b.amount - a.amount)
+  // backend or pre-C6 order falls back to one row keyed by the order method. Grouped by canonical code.
+  const pairs: [string, number][] = []
+  for (const o of completed) for (const r of methodNetRows(o)) pairs.push([r.method, r.net])
+  return groupPayRows(pairs)
 }
 
 /** Payment mix as NET money (gross by sale day minus refunds by refund day, per original method). */
@@ -433,13 +423,7 @@ export function netPaymentBreakdown(
 ): PayRow[] {
   const t = reportTotals(salesIn(saleRows, iv), refundsIn(refundRows, iv), intervalWindow(iv))
   const methods = new Set([...Object.keys(t.grossByPay), ...Object.keys(t.refundsByPay)])
-  return [...methods]
-    .map((method) => ({
-      method,
-      label: PAY_LABELS[method] ?? method.charAt(0).toUpperCase() + method.slice(1),
-      amount: (t.grossByPay[method] ?? 0) - (t.refundsByPay[method] ?? 0),
-    }))
-    .sort((a, b) => b.amount - a.amount)
+  return groupPayRows([...methods].map((m) => [m, (t.grossByPay[m] ?? 0) - (t.refundsByPay[m] ?? 0)] as const))
 }
 
 export interface CashierRow {

@@ -7,7 +7,7 @@ import { Input } from '../ui/Field'
 
 export function LoginScreen() {
   const { login } = useAuth()
-  const [email, setEmail] = useState('admin@mandalika.local')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)

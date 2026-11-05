@@ -8,6 +8,7 @@ import { Card } from '../../ui/Card'
 import { EmptyState } from '../../ui/EmptyState'
 import { Pagination } from '../../ui/Pagination'
 import { IngredientLocationStockView } from './IngredientLocationStockView'
+import { formatQty, visibleTotal } from '../../lib/matrixTotals'
 import { useListState } from '../../lib/router/useListState'
 import { useRoute } from '../../lib/router/useRoute'
 import { backOrNavigate, navigate } from '../../lib/router/navigate'
@@ -106,6 +107,10 @@ export function IngredientOverviewMatrix() {
     return <IngredientLocationStockView location={selectedLoc} onBack={toMatrix} />
   }
 
+  const locationIds = filteredLocations.map((l) => l.id)
+  // A kind filter hides columns; Total then sums what is shown, the server total (all locations) goes to a sub-label.
+  const filtered = !!data && filteredLocations.length < data.locations.length
+
   const handleKindChange = (k: KindFilter) => setState({ jenis: kindFilterCode(k), hal: 1 })
 
   const handleSearch = (v: string) => setState({ q: v, hal: 1 }, { replace: true })
@@ -200,13 +205,16 @@ export function IngredientOverviewMatrix() {
                             key={loc.id}
                             className="px-4 py-3 text-center text-sm text-gray-700"
                           >
-                            {qty.toFixed(3)}
+                            {formatQty(qty, row.unit)}
                           </td>
                         )
                       })}
                       {/* Sticky Total */}
                       <td className="sticky right-0 bg-white z-10 px-4 py-3 text-right font-bold text-gray-900 text-sm border-l border-gray-200">
-                        {row.total.toFixed(3)}
+                        {filtered ? formatQty(visibleTotal(row.cells, locationIds, (c) => c.qty), row.unit) : formatQty(row.total, row.unit)}
+                        {filtered && (
+                          <span className="block text-[11px] font-normal text-gray-400">Semua lokasi: {formatQty(row.total, row.unit)}</span>
+                        )}
                       </td>
                     </tr>
                   ))

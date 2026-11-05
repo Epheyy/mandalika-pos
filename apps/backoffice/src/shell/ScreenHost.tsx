@@ -2,6 +2,7 @@ import { Component, Suspense, lazy, useState, type ComponentType, type LazyExoti
 import { UserCog } from 'lucide-react'
 import type { RouteDef } from '../lib/router/routes'
 import { Button } from '../ui/Button'
+import { isChunkLoadError, reloadOnceForStaleChunk } from '../lib/chunkReload'
 
 // One lazy component per screen, made once: a new lazy() each render would remount the screen every time.
 const screens = new Map<string, LazyExoticComponent<ComponentType>>()
@@ -51,6 +52,19 @@ class ScreenBoundary extends Component<BoundaryProps, BoundaryState> {
 
   static getDerivedStateFromError(error: Error): BoundaryState {
     return { error }
+  }
+
+  componentDidCatch(error: Error) {
+    // A missing chunk after a deploy: one full reload fetches the new index.html (guarded so it can't loop).
+    if (isChunkLoadError(error)) {
+      let storage: Storage | null = null
+      try {
+        storage = window.sessionStorage
+      } catch {
+        /* storage blocked */
+      }
+      reloadOnceForStaleChunk({ storage, reload: () => window.location.reload() })
+    }
   }
 
   render() {
