@@ -143,7 +143,11 @@ export function PromoFormSlideOver(p: PromoFormSlideOverProps) {
             </Field>
             <Input label="Minimum Pembelian (Rp)" type="number" value={form.minPurchase || ''} onChange={(e) => setForm((f) => ({ ...f, minPurchase: e.target.value === '' ? null : parseFloat(e.target.value) || 0 }))} />
             <SwitchRow label="Bisa dikombinasikan dengan promosi lain" checked={form.combinable ?? false} onChange={(combinable) => setForm((f) => ({ ...f, combinable }))} />
-            <SwitchRow label="Hanya via kode" hint="Disembunyikan dari panel kasir." checked={form.codeOnly ?? false} onChange={(codeOnly) => setForm((f) => ({ ...f, codeOnly }))} />
+            <SwitchRow label="Hanya via kode" hint="Disembunyikan dari panel kasir." checked={form.codeOnly ?? false} onChange={(codeOnly) => setForm((f) => ({ ...f, codeOnly, autoApply: codeOnly ? false : f.autoApply }))} />
+            <div id={PROMO_FIELD.autoApply} tabIndex={-1}>
+              <SwitchRow label="Terapkan otomatis" hint="Masuk ke keranjang kasir sendiri saat syaratnya terpenuhi; kasir tetap bisa menghapusnya. Tidak bisa digabung dengan Hanya via kode." checked={form.autoApply ?? false} onChange={(autoApply) => setForm((f) => ({ ...f, autoApply, codeOnly: autoApply ? false : f.codeOnly }))} />
+              {byField[PROMO_FIELD.autoApply] && <p role="alert" className="mt-1 text-xs font-semibold text-red-600">{byField[PROMO_FIELD.autoApply]}</p>}
+            </div>
             {showVariants && (
               <div id={PROMO_FIELD.products} tabIndex={-1}>
                 <Field label="Varian Spesifik (opsional)" error={byField[PROMO_FIELD.products]}>

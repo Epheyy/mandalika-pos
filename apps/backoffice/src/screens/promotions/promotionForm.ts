@@ -13,6 +13,9 @@ export interface FormProblem {
   kind: 'required' | 'invalid'
 }
 
+/** Mirrors the server's 400 text (validatePromotionBasics). */
+export const AUTO_APPLY_CODE_ONLY_MESSAGE = 'Promo otomatis tidak bisa sekaligus hanya via kode'
+
 export const PROMO_FIELD = {
   name: 'promo-name',
   value: 'promo-value',
@@ -22,6 +25,7 @@ export const PROMO_FIELD = {
   bundle: 'promo-bundle',
   hours: 'promo-hours-from',
   maxApplications: 'promo-max-applications',
+  autoApply: 'promo-auto-apply',
 } as const
 
 export type BxgyConfig = NonNullable<PromotionInput['bxgyConfig']>
@@ -44,7 +48,7 @@ export const DEFAULT_BUNDLE: BundleConfig = { slots: [{ productKeys: [], quantit
 export const EMPTY_PROMO: PromotionInput = {
   name: '', description: '', type: 'percentage', value: 0, minPurchase: 0,
   applicableProductIds: [], applicableVariantKeys: [], isActive: true,
-  combinable: false, codeOnly: false, outletIds: [], activeFromHour: '', activeToHour: '', activeDays: [],
+  combinable: false, codeOnly: false, autoApply: false, outletIds: [], activeFromHour: '', activeToHour: '', activeDays: [],
 }
 
 /**
@@ -73,6 +77,7 @@ export function promotionToInput(p: Promotion): PromotionInput {
     startDate: p.startDate ?? undefined,
     endDate: p.endDate ?? undefined,
     codeOnly: p.codeOnly,
+    autoApply: p.autoApply ?? false,
     bxgyConfig: p.bxgyConfig ?? null,
     tieredConfig: p.tieredConfig ?? null,
     bundleConfig: p.bundleConfig ?? null,
@@ -164,5 +169,6 @@ export function promotionProblems(form: PromotionInput): FormProblem[] {
   if (form.type === 'tiered') add(PROMO_FIELD.tiers, 'Tingkatan diskon', tieredMessage(tiersOf(form)))
   if (form.type === 'bundle') add(PROMO_FIELD.bundle, 'Slot paket', bundleMessage(form, slotsOf(form)))
   add(PROMO_FIELD.maxApplications, 'Batas penerapan', maxApplicationsMessage(form))
+  if (form.autoApply && form.codeOnly) add(PROMO_FIELD.autoApply, 'Terapkan otomatis', AUTO_APPLY_CODE_ONLY_MESSAGE)
   return out
 }

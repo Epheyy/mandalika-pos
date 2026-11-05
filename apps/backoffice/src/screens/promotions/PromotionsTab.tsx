@@ -91,7 +91,7 @@ export function PromotionsTab({ tabs }: PromotionsTabProps) {
       <PageHeader
         title="Promosi"
         count={list.loaded ? `${list.total} promosi` : undefined}
-        subtitle="Diskon otomatis di kasir. Perubahan dipakai tablet setelah sinkron berikutnya."
+        subtitle="Promo bertanda Otomatis langsung masuk ke keranjang kasir saat syaratnya terpenuhi; promo lain ditambahkan kasir lewat panel Promo. Perubahan dipakai tablet setelah sinkron berikutnya."
         actions={
           <>
             {tabs}

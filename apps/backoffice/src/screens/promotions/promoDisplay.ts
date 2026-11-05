@@ -47,6 +47,7 @@ export function promotionExportRows(rows: readonly Promotion[], today: string) {
     Selesai: p.endDate ?? '',
     Status: statusText(p, today),
     Aktif: p.isActive ? 'Ya' : 'Tidak',
+    Otomatis: p.autoApply ? 'Ya' : 'Tidak',
   }))
 }
 

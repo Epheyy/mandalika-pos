@@ -68,3 +68,14 @@ describe('mapCodeSaveError', () => {
     expect(mapCodeSaveError(other, 'ABC')).toBe(other)
   })
 })
+
+describe('promotionProblems autoApply', () => {
+  it('rejects autoApply together with codeOnly, in the server\'s words', () => {
+    const ps = promotionProblems(promo({ type: 'fixed', value: 5000, autoApply: true, codeOnly: true }))
+    expect(ps).toContainEqual(expect.objectContaining({ fieldId: PROMO_FIELD.autoApply, message: 'Promo otomatis tidak bisa sekaligus hanya via kode' }))
+  })
+  it('accepts either flag alone', () => {
+    expect(promotionProblems(promo({ type: 'fixed', value: 5000, autoApply: true }))).toEqual([])
+    expect(promotionProblems(promo({ type: 'fixed', value: 5000, codeOnly: true }))).toEqual([])
+  })
+})
