@@ -59,7 +59,7 @@ cat >/opt/mandalika-ci/hook-clean.sh <<'HOOK'
 #!/usr/bin/env bash
 ws="${GITHUB_WORKSPACE:-}"
 case "$ws" in /home/runner/*/_work/*/*) find "$ws" -mindepth 1 -delete 2>/dev/null || true ;; esac
-rm -rf /home/runner/*/_work/_temp/* 2>/dev/null || true
+# (_temp is the runner's own: deleting it in the job-started hook breaks the job's file commands.)
 exit 0
 HOOK
 chmod 755 /opt/mandalika-ci/hook-clean.sh
