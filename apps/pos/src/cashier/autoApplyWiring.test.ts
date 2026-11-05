@@ -220,6 +220,31 @@ describe('held order and open-cart draft', () => {
   })
 })
 
+describe('review fixes', () => {
+  it('a restore ends with the reconcile: the saved total comes back (split-draft path reopens checkout at once)', () => {
+    const on = reconcile(withCart(line('A', 100000)), [AUTO])
+    const held = heldOrderFromState(on, { id: 'h', name: 'n', now: 1 })
+    const plan = planHeldRestore(held, { products: PRODUCTS, promotions: [AUTO], discountCodes: [], ctx })
+    expect(plan.actions[plan.actions.length - 1]?.type).toBe('RECONCILE_AUTO_PROMOS')
+    expect(plan.result.autoPromotionIds).toEqual(['auto'])
+    expect(plan.result.appliedPromotions.map((p) => p.id)).toEqual(['auto'])
+  })
+
+  it('a guard removal (lapse) never dismisses; the cashier x on a hand-added autoApply promo does', () => {
+    const on = reconcile(withCart(line('A', 100000)), [AUTO])
+    expect(cashierReducer(on, { type: 'REMOVE_PROMOTION', id: 'auto', lapse: true }).dismissedAutoPromotionIds).toEqual([])
+    const manual = cashierReducer(cashierReducer(on, { type: 'REMOVE_PROMOTION', id: 'auto' }), { type: 'APPLY_PROMOTION', promotion: AUTO })
+    const removed = cashierReducer(manual, { type: 'REMOVE_PROMOTION', id: 'auto' })
+    expect(removed.dismissedAutoPromotionIds).toEqual(['auto'])
+    expect(reconcile(removed, [AUTO]).appliedPromotions).toEqual([])
+  })
+
+  it('confirm skips the auto reconcile while payment lines are entered', () => {
+    const src = readFileSync(new URL('./CashierScreen.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+    expect(src).toContain('!(state.splitMode && state.tenders.length > 0) && autoSetWouldChange(state, autoEnv)')
+  })
+})
+
 describe('customerAttachImpact', () => {
   it('does not list an auto bundle or its reward lines, but still lists a manual one', () => {
     const cart = withCart(line('A', 100000), line('B', 50000))
@@ -270,14 +295,19 @@ describe('run gates and fingerprint', () => {
     expect(autoRunAllowed({ ...open, catalogueReady: false })).toBe(false)
   })
 
-  it('an install does not change the fingerprint (no self-trigger); a cart edit, dismissal or promo change does', () => {
+  it('an install settles: one extra run, then a fixed point (no loop); an eviction, cart edit, dismissal or promo change moves it', () => {
     const bundle = bundleOf('bun')
     const promos = [AUTO, bundle]
     const cart = withCart(line('A', 100000), line('B', 50000))
     const before = autoReconcileFingerprint(cart, promos, 1)
     const after = reconcile(cart, promos)
     expect(after.autoPromotionIds.length).toBeGreaterThan(0)
-    expect(autoReconcileFingerprint(after, promos, 1)).toBe(before)
+    const settled = reconcile(after, promos)
+    expect(settled).toBe(after) // the extra run is a no-op
+    expect(autoReconcileFingerprint(settled, promos, 1)).toBe(autoReconcileFingerprint(after, promos, 1))
+    // An auto bundle evicted by a unit tap leaves the rung cart alone but is still seen.
+    const evicted = cashierReducer(after, { type: 'SET_CUSTOMER', customer: null })
+    expect(autoReconcileFingerprint(evicted, promos, 1)).not.toBe(autoReconcileFingerprint(after, promos, 1))
     expect(autoReconcileFingerprint(after, promos, 2)).not.toBe(before)
     expect(autoReconcileFingerprint(withCart(line('A', 100000)), promos, 1)).not.toBe(before)
     expect(autoReconcileFingerprint({ ...cart, dismissedAutoPromotionIds: ['auto'] }, promos, 1)).not.toBe(before)

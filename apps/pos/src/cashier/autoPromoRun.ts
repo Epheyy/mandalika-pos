@@ -17,10 +17,11 @@ export const hasAutoPromotions = (promotions: readonly Promotion[]): boolean =>
 /**
  * Identity of everything the reconcile reads: the RUNG cart (paid lines with every bundle's moved units put back, so
  * installing an auto bundle never changes it), the manual promos and codes, the dismissed set, the customer, the
- * promotions snapshot and the clock minute. The effect keys on this string, so an install cannot re-trigger itself.
+ * promotions snapshot and the clock minute. The auto ids and reward lines are in it too, so an eviction is seen; the
+ * install itself costs one extra run that returns the same state (the reconcile is idempotent), then it settles.
  */
 export function autoReconcileFingerprint(
-  state: Pick<CashierState, 'cart' | 'appliedPromotions' | 'appliedPromoCodes' | 'autoPromotionIds' | 'dismissedAutoPromotionIds' | 'selectedCustomer' | 'bundleFreed'>,
+  state: Pick<CashierState, 'cart' | 'discountRunning' | 'appliedDiscountType' | 'appliedPromotions' | 'appliedPromoCodes' | 'autoPromotionIds' | 'dismissedAutoPromotionIds' | 'selectedCustomer' | 'bundleFreed'>,
   promotions: readonly Promotion[],
   minute: number,
 ): string {
@@ -31,6 +32,10 @@ export function autoReconcileFingerprint(
   // Non-bundle reward lines are not rung; bundle reward lines are, through bundleFreed (restored above).
   return JSON.stringify([
     [...paid.entries()].sort(),
+    // An eviction that leaves the rung cart alone (a bundle's unit tap, a re-selected customer) still shows here.
+    [...state.autoPromotionIds].sort(),
+    state.cart.filter((c) => c.isReward).map((c) => `${c.productId}|${c.variantSize}|${c.quantity}|${c.rewardPromotionId ?? ''}`).sort(),
+    [state.discountRunning, state.appliedDiscountType],
     state.appliedPromotions.filter((p) => !state.autoPromotionIds.includes(p.id)).map((p) => p.id).sort(),
     state.appliedPromoCodes.map((c) => c.code).sort(),
     [...state.dismissedAutoPromotionIds].sort(),

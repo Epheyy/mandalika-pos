@@ -1,5 +1,6 @@
 import type { components } from '@mandalika/api'
 import { resolveConfirmGuard } from './confirmGuard'
+import { hasAutoPromotions } from './autoPromoRun'
 import { heldCustomerRecord, type HeldAdjustment, type HeldOrder } from './heldOrders'
 import { invalidPhysicalPromotionIds, ownerMechanics, planPromotionFulfillment, type FulfillmentChoice, type PromotionOwner } from './promotionFulfillment'
 import { decideApplyCode, type PromoEvalContext } from './promoValidate'
@@ -127,6 +128,9 @@ export function planHeldRestore(held: HeldOrder, env: HeldRestoreEnv): HeldResto
     push({ type: 'REMOVE_PROMOTION', id })
     notes.push('Promo tidak berlaku lagi (syarat barang berubah). Dihapus dari keranjang.')
   }
+  // Auto promos are not stored: install them now so every restore path (held order, open-cart draft, split-payment
+  // draft that reopens the checkout straight away) comes back with the same total it was saved with.
+  if (hasAutoPromotions(env.promotions)) push({ type: 'RECONCILE_AUTO_PROMOS', promotions: env.promotions, products: env.products, ctx: env.ctx })
   if (held.loyaltyDropped) notes.push('Poin dan Hadiah loyalti perlu dipilih ulang')
 
   return { actions, notes, result: state, lossless: retired.length === 0 }

@@ -778,14 +778,15 @@ export default function CashierScreen() {
     // Promo auto-apply: an hour that ended or a promo a pull switched off may change the auto set since the cashier
     // last looked. Commit it and let them confirm the total they now see (same pattern as the guard below).
     const autoEnv = { promotions, products: displayProducts, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }
-    if (autoSetWouldChange(state, autoEnv)) {
+    // With payment lines already entered the total is locked: only the guards below (which can only remove discounts) run.
+    if (!(state.splitMode && state.tenders.length > 0) && autoSetWouldChange(state, autoEnv)) {
       dispatch({ type: 'RECONCILE_AUTO_PROMOS', ...autoEnv })
       showToast('Promo otomatis diperbarui, cek total.')
       return
     }
     const invalidPhysical = invalidPhysicalPromotionIds(state)
     if (invalidPhysical.length) {
-      for (const id of invalidPhysical) dispatch({ type: 'REMOVE_PROMOTION', id })
+      for (const id of invalidPhysical) dispatch({ type: 'REMOVE_PROMOTION', id, lapse: true })
       showToast('Promo tidak berlaku lagi (syarat barang berubah). Dihapus dari keranjang.')
       return
     }
@@ -797,7 +798,7 @@ export default function CashierScreen() {
       discountCodes,
       promotions,
       ctx: {
-        now: new Date(),
+        now: autoEnv.ctx.now,
         outletId: authStore.outletId ?? '',
         timezone: outletTimezone,
         hasCustomer: state.selectedCustomer !== null,
@@ -805,7 +806,8 @@ export default function CashierScreen() {
       },
     })
     if (guard.drops.length > 0) {
-      for (const action of guard.actions) dispatch(action)
+      // A guard drop is a lapse, never the cashier's dismissal of an auto promo.
+      for (const action of guard.actions) dispatch(action.type === 'REMOVE_PROMOTION' ? { ...action, lapse: true } : action)
       showToast(guard.messages.join('\n'))
       return
     }

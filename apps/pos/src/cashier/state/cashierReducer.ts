@@ -113,7 +113,8 @@ export type CashierAction =
   | { type: 'SET_PROMO_CODE_INPUT'; value: string }
   | { type: 'APPLY_PROMO_CODE'; code: AppliedPromoCode; combinable: boolean }
   | { type: 'APPLY_PROMOTION'; promotion: Promotion }
-  | { type: 'REMOVE_PROMOTION'; id: string }
+  /** `lapse`: removed by a guard because it stopped qualifying, not by the cashier: never a dismissal. */
+  | { type: 'REMOVE_PROMOTION'; id: string; lapse?: boolean }
   | { type: 'REMOVE_PROMO_CODE'; code: string }
   | { type: 'CLEAR_PROMOTIONS' }
   /** Installs the target auto-promo set atomically (the pure reconcile of autoPromos.ts). */
@@ -247,17 +248,19 @@ const appliedPromotionIds = (s: CashierState): Set<string> =>
  */
 function withAutoBookkeeping(prev: CashierState, next: CashierState, action: CashierAction): CashierState {
   if (action.type === 'RECONCILE_AUTO_PROMOS' || action.type === 'SET_DISMISSED_AUTO_PROMOS') return next
-  if (prev.autoPromotionIds.length === 0 && prev.dismissedAutoPromotionIds.length === 0 && next.autoPromotionIds.length === 0 && next.dismissedAutoPromotionIds.length === 0) return next
+  if (prev.autoPromotionIds.length === 0 && prev.dismissedAutoPromotionIds.length === 0 && next.autoPromotionIds.length === 0 && next.dismissedAutoPromotionIds.length === 0 && !prev.appliedPromotions.some((p) => p.autoApply === true)) return next
   const applied = appliedPromotionIds(next)
   const auto = prev.autoPromotionIds
   let dismissedNow: string[] = []
-  if (action.type === 'REMOVE_PROMOTION') dismissedNow = [action.id]
+  if (action.type === 'REMOVE_PROMOTION') dismissedNow = action.lapse ? [] : [action.id]
   else if (action.type === 'REMOVE_PROMO_CODE') {
     const linked = prev.appliedPromoCodes.find((c) => c.code === action.code)?.promotion?.id
     if (linked) dismissedNow = [linked]
   } else if (action.type === 'CLEAR_PROMOTIONS') dismissedNow = auto
   else if (action.type === 'APPLY_PROMOTION') dismissedNow = [action.promotion.id]
-  dismissedNow = dismissedNow.filter((id) => auto.includes(id) && !applied.has(id))
+  // Auto-installed, or an autoApply promo the cashier had added by hand: either way their x must stick.
+  const wasAuto = (id: string): boolean => auto.includes(id) || prev.appliedPromotions.some((p) => p.id === id && p.autoApply === true)
+  dismissedNow = dismissedNow.filter((id) => wasAuto(id) && !applied.has(id))
   const stillAuto = next.autoPromotionIds.filter((id) => next.appliedPromotions.some((p) => p.id === id))
   const dismissed = [...new Set([...next.dismissedAutoPromotionIds, ...dismissedNow])].filter((id) => !applied.has(id))
   if (sameList(stillAuto, next.autoPromotionIds) && sameList(dismissed, next.dismissedAutoPromotionIds)) return next
