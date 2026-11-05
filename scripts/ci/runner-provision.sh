@@ -7,7 +7,6 @@ set -euo pipefail
 exec > >(tee -a /var/log/mandalika-provision.log) 2>&1
 echo "== provision $(date -u +%FT%TZ)"
 
-PLAYWRIGHT_VERSION="1.63.0"   # keep equal to @playwright/test in pnpm-lock.yaml (only used to name OS packages)
 IDLE_MINUTES=30
 export DEBIAN_FRONTEND=noninteractive
 
@@ -15,8 +14,11 @@ export DEBIAN_FRONTEND=noninteractive
 if [ ! -f /var/lib/mandalika-ci.pkgs ]; then
   apt-get update -qq
   apt-get install -y -qq docker.io git jq curl ca-certificates tar unzip util-linux build-essential \
-    python3 python3-venv python-is-python3 nodejs npm iptables
-  npx -y "playwright@${PLAYWRIGHT_VERSION}" install-deps chromium   # OS libs for headless Chromium (root, once)
+    python3 python3-venv python-is-python3 iptables
+  # OS libraries for headless Chromium (Ubuntu 24.04 names; host Node is not needed: setup-node supplies it).
+  for p in libasound2t64 libatk-bridge2.0-0t64 libatk1.0-0t64 libatspi2.0-0t64 libcairo2 libcups2t64 libdbus-1-3 libdrm2     libgbm1 libglib2.0-0t64 libnspr4 libnss3 libpango-1.0-0 libx11-6 libxcb1 libxcomposite1 libxdamage1 libxext6     libxfixes3 libxkbcommon0 libxrandr2 libxshmfence1 fonts-liberation fonts-noto-color-emoji fonts-freefont-ttf; do
+    apt-get install -y -qq "$p" || echo "WARN: could not install $p"
+  done
   touch /var/lib/mandalika-ci.pkgs
 fi
 systemctl enable --now docker
@@ -62,10 +64,13 @@ chmod 755 /opt/mandalika-ci/hook-clean.sh
 cat >/opt/mandalika-ci/register.sh <<'REG'
 #!/usr/bin/env bash
 # Usage: printf '%s' "$TOKEN" | sudo /opt/mandalika-ci/register.sh <instance> <repo-url> <extra-label>
+# Windows plink drops piped stdin, so a 4th argument (the token) is accepted as a fallback; it is then briefly in the
+# process list of an idle VM and expires within an hour.
 set -euo pipefail
 inst="$1" url="$2" label="$3"
 [[ "$inst" =~ ^[a-z]+-[0-9]+$ ]] || { echo "bad instance name" >&2; exit 2; }
-IFS= read -r token
+if [ -n "${4:-}" ]; then token="$4"; else IFS= read -r token; fi
+token="${token%$''}"
 dir="/home/runner/$inst"
 if [ ! -d "$dir" ]; then cp -a /opt/mandalika-ci/runner-template "$dir"; chown -R runner:runner "$dir"; fi
 if [ ! -f "$dir/.runner" ]; then
