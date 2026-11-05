@@ -10,7 +10,7 @@ python3 -B scripts/ci/postgres_gate.py --output artifacts/postgres/result.json
 The default runner requires a working Docker engine and Go. It pulls
 `postgres:18.3` (official image pinned by content digest `IMAGE_DIGEST`, pulled by digest from the first mirror in `IMAGE_MIRRORS` that serves it — `mirror.gcr.io`, then AWS ECR Public — so quota errors or hung pulls fall through and no mirror can substitute different bytes), records the resolved image ID/digest, and creates each container
 using that immutable ID. Eight fixtures run sequentially, one fresh tmpfs cluster
-per named Go integration test. Ports 26439–26479 (below the Linux ephemeral range 32768–60999, so outgoing client sockets never take them as local ports; the workflow also reserves the block via ip_local_reserved_ports) must be unused. Only
+per named Go integration test. Ports 26439–26480 (below the Linux ephemeral range 32768–60999, so outgoing client sockets never take them as local ports; the workflow also reserves the block via ip_local_reserved_ports) must be unused. Only
 `127.0.0.1` is published. Each fixture has its own generated synthetic password,
 exact database/user, and explicit unique PGDATA. There is no `.env`, live DSN,
 shared database, or provider-secret fallback.
@@ -99,7 +99,7 @@ release gate nothing. Giving PRs their own VM/pool is the follow-up if PR feedba
   labels `self-hosted, linux, mandalika`, systemd `mandalika-runner@<instance>` (`KillMode=control-group`); a job hook wipes the
   workspace before and after every job. Persistent tool caches are not wiped.
 - Host-wide heavy-gate lock (`flock /tmp/mandalika-ci-heavy.lock`): the quality `pnpm quality:ci` step, the backend `go test -race` step, the Postgres runner unit tests and gate
-  (fixed ports 26439-26479; leftover gate containers removed under the lock) and the browser gate (ports 5183/5184) run one at a
+  (fixed ports 26439-26480; leftover gate containers removed under the lock) and the browser gate (ports 5183/5184) run one at a
   time across all four runners and both repos. Run concurrently on 4 vCPUs they starve each other and trip timing-sensitive
   tests (observed: Go `redact` scaling test, JS `redact` 250 ms budget, browser scenarios, fixture-port unit tests), so they are
   serialised; only dependency-security runs alongside. Expect roughly 25 min of heavy work per gate set; job timeouts (120 min) include the lock wait.

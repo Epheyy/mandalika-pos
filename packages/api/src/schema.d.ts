@@ -4248,6 +4248,8 @@ export interface components {
             endDate?: string | null;
             /** @description When true, hidden from the POS panel; reachable only via a linked discount code. */
             codeOnly?: boolean;
+            /** @description When true, the POS adds the promotion to the cart on its own once it qualifies. Cannot be combined with codeOnly. On input, an omitted field keeps the stored value. */
+            autoApply?: boolean;
             bxgyConfig?: components["schemas"]["BXGYConfig"] | null;
             tieredConfig?: components["schemas"]["TieredConfig"] | null;
             bundleConfig?: components["schemas"]["BundleConfig"] | null;
@@ -5393,6 +5395,8 @@ export interface components {
             endDate?: string;
             /** @description When true, hidden from the POS panel; reachable only via a linked discount code. */
             codeOnly?: boolean;
+            /** @description When true, the POS adds the promotion to the cart on its own once it qualifies. Cannot be combined with codeOnly. On input, an omitted field keeps the stored value. */
+            autoApply?: boolean;
             bxgyConfig?: components["schemas"]["BXGYConfig"] | null;
             tieredConfig?: components["schemas"]["TieredConfig"] | null;
             bundleConfig?: components["schemas"]["BundleConfig"] | null;

@@ -30,7 +30,7 @@ usermod -aG docker runner
 passwd -l runner >/dev/null
 
 # --- kernel: keep gate fixture ports out of the ephemeral pool (the workflow's sudo step is a no-op here) ----
-echo 'net.ipv4.ip_local_reserved_ports = 26439-26479' >/etc/sysctl.d/99-mandalika-ci.conf
+echo 'net.ipv4.ip_local_reserved_ports = 26439-26480' >/etc/sysctl.d/99-mandalika-ci.conf
 sysctl --system >/dev/null
 
 # --- jobs must not reach the metadata server (the service account has no roles anyway; defence in depth) ----
@@ -74,7 +74,8 @@ set -euo pipefail
 inst="$1" url="$2" label="$3"
 [[ "$inst" =~ ^[a-z]+-[0-9]+$ ]] || { echo "bad instance name" >&2; exit 2; }
 if [ -n "${4:-}" ]; then token="$4"; else IFS= read -r token; fi
-token="${token%$''}"
+token="${token%$'
+'}"
 dir="/home/runner/$inst"
 if [ ! -d "$dir" ]; then cp -a /opt/mandalika-ci/runner-template "$dir"; chown -R runner:runner "$dir"; fi
 if [ ! -f "$dir/.runner" ]; then

@@ -18,6 +18,7 @@ const promotionObj = `json_build_object('id',id,'name',name,'description',descri
 		   'activeToHour',active_to_hour,'activeDays',active_days,
 		   'isActive',is_active,'startDate',start_date,'endDate',end_date,
 		   'codeOnly',code_only,
+		   'autoApply',auto_apply,
 		   'bxgyConfig',bxgy_config,
 		   'tieredConfig',tiered_config,
 		   'bundleConfig',bundle_config,
