@@ -68,9 +68,14 @@ func (r *Repo) Customers(ctx context.Context, page, limit int, q, sort, tagId, s
 		args = append(args, segmentId)
 		segFilter = fmt.Sprintf(` AND `+segmentIdSel+` = $%d::uuid`, len(args))
 	}
+	textMatch := `name ILIKE '%' || $3 || '%' OR phone ILIKE '%' || $3 || '%' OR email ILIKE '%' || $3 || '%'`
+	if _, like := phone.SearchKeys(q); like != "" {
+		args = append(args, like)
+		textMatch += fmt.Sprintf(` OR phone_norm LIKE $%d`, len(args))
+	}
 	sql := `SELECT ` + customerObjWithTags + `, count(*) OVER() AS total
 		   FROM customers
-		  WHERE ($3 = '' OR name ILIKE '%' || $3 || '%' OR phone ILIKE '%' || $3 || '%' OR email ILIKE '%' || $3 || '%')
+		  WHERE ($3 = '' OR ` + textMatch + `)
 		    AND merged_into IS NULL` +
 		tagFilter + segFilter + `
 		  ` + order + `
@@ -118,12 +123,19 @@ func (r *Repo) CustomerLookup(ctx context.Context, q string, limit int) ([]api.C
 	if limit < 1 || limit > 20 {
 		limit = 20
 	}
+	norm, like := phone.SearchKeys(q)
+	args := []any{q, limit, norm}
+	phoneNormMatch := ""
+	if like != "" {
+		args = append(args, like)
+		phoneNormMatch = ` OR phone_norm LIKE $4`
+	}
 	rows, _, err := listJSON[api.Customer](ctx, r.Pool,
 		`SELECT `+customerObj+`, count(*) OVER() AS total FROM customers
-		  WHERE (name ILIKE '%' || $1 || '%' OR phone ILIKE '%' || $1 || '%')
+		  WHERE (name ILIKE '%' || $1 || '%' OR phone ILIKE '%' || $1 || '%'`+phoneNormMatch+`)
 		    AND merged_into IS NULL
-		  ORDER BY (phone = $1) DESC, name
-		  LIMIT $2`, q, limit)
+		  ORDER BY (phone = $1 OR ($3 <> '' AND phone_norm = $3)) DESC, name
+		  LIMIT $2`, args...)
 	return rows, err
 }
 

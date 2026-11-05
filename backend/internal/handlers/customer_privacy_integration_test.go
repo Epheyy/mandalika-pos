@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -277,6 +278,69 @@ func TestCustomerPrivacyPostgres(t *testing.T) {
 			if got[0]["email"] != "alice@example.invalid" {
 				t.Errorf("%s typeahead lost the full object: %s", who, body)
 			}
+		}
+	})
+
+	t.Run("customer search finds a number in any spelling (list q and typeahead q)", func(t *testing.T) {
+		const custSG = "00000000-0000-4000-8f20-0000000000a2"
+		exec(`INSERT INTO customers(id,name,phone,created_at) VALUES($1,'Bob Singapore','+65 8123 4567','2026-03-01')`, custSG)
+		defer exec(`DELETE FROM customers WHERE id=$1`, custSG)
+		ids := func(who, path, q string) []string {
+			t.Helper()
+			code, _, body := get(tok[who], path+url.QueryEscape(q))
+			if code != http.StatusOK {
+				t.Fatalf("%s %s%q = %d %s", who, path, q, code, body)
+			}
+			var out []string
+			for _, row := range decode(body) {
+				out = append(out, row["id"].(string))
+			}
+			return out
+		}
+		only := func(got []string, want string) bool { return len(got) == 1 && got[0] == want }
+		for _, path := range []string{"/customers?q=", "/sync/customers/lookup?q="} {
+			for _, who := range []string{"admin", "mgrMC"} {
+				// Alice is stored as 0812-3456-7890; a merged-away twin shares the number and never shows.
+				for _, q := range []string{"081234567890", "6281234567890", "+62 812 3456 7890", "+62 (0)812-3456-7890",
+					"0812-3456", "62812 3456", "+62 812 34", "0812", "Alice", "0812-3456-7890"} {
+					if got := ids(who, path, q); !only(got, custA) {
+						t.Errorf("%s %s%q = %v, want only Alice", who, path, q, got)
+					}
+				}
+				// A bare 8... or middle digits can sit anywhere in a number: Alice is among the hits.
+				for _, q := range []string{"81234567890", "812-3456", "3456"} {
+					found := false
+					for _, id := range ids(who, path, q) {
+						found = found || id == custA
+					}
+					if !found {
+						t.Errorf("%s %s%q did not find Alice", who, path, q)
+					}
+				}
+				// A foreign number is never rewritten as Indonesian, in either direction.
+				for _, q := range []string{"+65 8123 4567", "0065 8123 4567", "+65 8123", "6581234567", "Bob"} {
+					if got := ids(who, path, q); !only(got, custSG) {
+						t.Errorf("%s %s%q = %v, want only the +65 customer", who, path, q, got)
+					}
+				}
+				if got := ids(who, path, "0812-3456"); len(got) != 1 {
+					t.Errorf("%s %s0812-3456 matched the +65 number: %v", who, path, got)
+				}
+				// Too few digits to search by number (the raw text match still runs, and finds nothing here).
+				if got := ids(who, path, "628"); len(got) != 0 {
+					t.Errorf("%s %s628 = %v, want none", who, path, got)
+				}
+			}
+		}
+	})
+
+	t.Run("search spellings stay behind the same scope: cashier typeahead is phone-only", func(t *testing.T) {
+		code, _, body := lookup("cashier", "q="+url.QueryEscape("0812-3456"))
+		if code != http.StatusOK || len(decode(body)) != 0 {
+			t.Fatalf("cashier partial search = %d %s, want empty", code, body)
+		}
+		if code, _, body := get(tok["cashier"], "/customers?q=0812"); code != http.StatusForbidden || strings.Contains(body, "Alice") {
+			t.Fatalf("cashier list = %d %s, want 403 without PII", code, body)
 		}
 	})
 
