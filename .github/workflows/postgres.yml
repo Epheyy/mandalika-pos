@@ -40,7 +40,8 @@ jobs:
       - run: go mod download
         working-directory: backend
       - name: Runner fail-closed contracts
-        run: python3 -m unittest discover -s scripts/ci -p 'test_*.py' -v
+        # These unit tests bind real fixture ports: they must not overlap a running gate on the same host.
+        run: flock /tmp/mandalika-ci-heavy.lock python3 -m unittest discover -s scripts/ci -p 'test_*.py' -v
       - name: Keep fixture ports out of the kernel's ephemeral pool
         run: |
           cat /proc/sys/net/ipv4/ip_local_port_range
