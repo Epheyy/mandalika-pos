@@ -25,6 +25,8 @@ import { DenominationSheet } from './DenominationSheet'
 import { isCountRevealed } from './countRules'
 import { applyRefundRecap, recapFigures, refundRecap, type RefundRecap } from './refundRecap'
 import { aggregate, type Breakdown, type PaymentMethodCfg } from './recapAggregate'
+import { recapRows, differenceLines } from './recapRows'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { RecapLoadGate, ownsFlags, startRefresh, switchTab } from './recapRefresh'
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
@@ -154,6 +156,16 @@ function ShiftRecapPanelBody({
   // and this shift's own sales whose refund has not synced yet.
   const cur = live ? recapFigures(live, currentShift, queuedRefunds, liveOrders) : null
   const curRecap = cur?.rec ?? refundRecap(currentShift, queuedRefunds, liveOrders)
+  // P-16: every enabled method plus any method (disabled or unconfigured) holding money, so rows add up to the total.
+  const rows = useMemo(() => recapRows(paymentMethods, cur?.byMethod ?? {}), [paymentMethods, cur?.byMethod])
+  // P-15: the selisih text awaiting the cashier's Tutup Shift confirmation (null = no dialog).
+  const [closeConfirm, setCloseConfirm] = useState<string | null>(null)
+  // Android Back with the selisih dialog open closes only the dialog; the typed counts stay.
+  useEffect(() => {
+    if (!backRef || closeConfirm === null) return
+    backRef.current = () => { setCloseConfirm(null); return true }
+    return () => { backRef.current = null }
+  }, [backRef, closeConfirm])
 
   const [history, setHistory] = useState<Shift[]>([])
   const [historySearch, setHistorySearch] = useState('')
@@ -320,17 +332,7 @@ function ShiftRecapPanelBody({
     setDepositAmount('')
     setTimeout(() => void loadRekap(), 1700)
   }
-  const handleClose = async () => {
-    // Counted income is mandatory for every enabled method that took money —
-    // the cashier must reconcile each tender before the shift can close.
-    // Blind count requires every enabled field, so the list never hints which methods took money.
-    const needCount = paymentMethods.filter(
-      (p) => p.isEnabled && (blindCount || (live?.byMethod[p.id] ?? 0) > 0) && counted[p.id] === undefined,
-    )
-    if (needCount.length > 0) {
-      setCloseError(`Isi Terhitung dulu untuk: ${needCount.map((m) => m.label).join(', ')}`)
-      return
-    }
+  const runClose = async () => {
     setCloseError(null)
     const saved = await onCloseShift(
       parseInt(closingCash, 10) || 0,
@@ -340,9 +342,29 @@ function ShiftRecapPanelBody({
     setClosingCash('')
     setTimeout(() => void loadRekap(), 1700)
   }
+  const handleClose = async () => {
+    // Counted income is mandatory for every listed method that took money (with blind count, every listed
+    // method) — the cashier must reconcile each tender before the shift can close.
+    const needCount = rows.filter(
+      (r) => (blindCount || r.recorded !== 0 || (live?.byMethod[r.id] ?? 0) > 0) && counted[r.id] === undefined,
+    )
+    if (needCount.length > 0) {
+      setCloseError(`Isi Terhitung dulu untuk: ${needCount.map((m) => m.label).join(', ')}`)
+      return
+    }
+    setCloseError(null)
+    // P-15: a difference is never closed silently; the cashier confirms the selisih per method first.
+    const diffs = differenceLines(rows, counted)
+    if (diffs.length > 0) {
+      const list = diffs.map((d) => `${d.label} ${d.diff > 0 ? '+' : '−'}${formatRupiah(Math.abs(d.diff))}`).join('; ')
+      setCloseConfirm(`Ada selisih: ${list}. Tutup shift dengan selisih ini?`)
+      return
+    }
+    await runClose()
+  }
 
   // D-4: with blind count on, the system's amounts wait until every Terhitung field has a value.
-  const countFieldIds = currentShift ? paymentMethods.filter((p) => p.isEnabled).map((p) => p.id) : []
+  const countFieldIds = currentShift ? rows.map((r) => r.id) : []
   const revealed = isCountRevealed(blindCount, countFieldIds, counted)
 
   const cashIn = currentFlows.filter((f) => !isCashOut(f.type)).reduce((s, f) => s + f.amount, 0)
@@ -369,9 +391,7 @@ function ShiftRecapPanelBody({
     closedAt: currentShift?.closedAt ? new Date(currentShift.closedAt) : null,
     startingCash: currentShift?.startingCash ?? null,
     closingCash: currentShift?.closingCash ?? null,
-    methods: paymentMethods.flatMap((pm) =>
-      pm.isEnabled ? [{ label: pm.label, recorded: cur?.byMethod[pm.id] ?? 0, counted: counted[pm.id] ?? null }] : [],
-    ),
+    methods: rows.map((r) => ({ label: r.label, recorded: r.recorded, counted: counted[r.id] ?? null })),
     totalRecorded: cur?.total ?? 0,
     totalCounted: Object.keys(counted).length ? Object.values(counted).reduce((a, b) => a + b, 0) : null,
     cashIn,
@@ -382,7 +402,8 @@ function ShiftRecapPanelBody({
     parkedRefundCount: curRecap.parkedCount,
     parkedRefundTotal: curRecap.parkedTotal,
     gross: live?.gross ?? 0,
-    refundTotal: live?.refundTotal ?? 0,
+    refundTotal: (live?.refundTotal ?? 0) - (live?.refundFullTotal ?? 0),
+    refundFullTotal: live?.refundFullTotal ?? 0,
     refundCount: live?.refundCount ?? 0,
     discount: live?.discount ?? 0,
     surcharge: live?.surcharge ?? 0,
@@ -494,9 +515,8 @@ function ShiftRecapPanelBody({
             )}
 
             <div className="space-y-2">
-              {paymentMethods.flatMap((pm) => {
-                if (!pm.isEnabled) return []
-                const recorded = cur?.byMethod[pm.id] ?? 0
+              {rows.map((pm) => {
+                const recorded = pm.recorded
                 const hasC = counted[pm.id] !== undefined
                 const diff = (counted[pm.id] ?? 0) - recorded
                 return (
@@ -630,6 +650,13 @@ function ShiftRecapPanelBody({
                 )}
               </div>
             )}
+            <ConfirmDialog
+              open={closeConfirm !== null}
+              message={closeConfirm ?? ''}
+              confirmLabel="Tutup Shift"
+              onCancel={() => setCloseConfirm(null)}
+              onConfirm={() => { setCloseConfirm(null); void runClose() }}
+            />
             {/* Portrait: open the cash-flow / sales summary as an overlay. */}
             <button type="button" onClick={() => setShowMobileDetail(true)}
               className="sm:hidden w-full py-2.5 border border-gray-200 text-gray-600 font-bold text-sm rounded-xl hover:bg-gray-100 transition-all mb-4">
@@ -774,7 +801,8 @@ function ShiftRecapPanelBody({
                 <span>Tipe</span><span>Nominal</span>
               </div>
               {sumRow('Penjualan Kotor', formatRupiah(live?.gross ?? 0))}
-              {sumRow('Pengembalian Kotor', formatRupiah(live?.refundTotal ?? 0))}
+              {sumRow('Pengembalian Kotor', formatRupiah((live?.refundTotal ?? 0) - (live?.refundFullTotal ?? 0)))}
+              {(live?.refundFullTotal ?? 0) > 0 && <p className="text-[11px] text-gray-400 pb-1">Refund penuh: {formatRupiah(live?.refundFullTotal ?? 0)} (tidak termasuk di Kotor)</p>}
               {sumRow('Diskon', formatRupiah(live?.discount ?? 0))}
               {sumRow('Surcharge', formatRupiah(live?.surcharge ?? 0))}
               {sumRow('Penjualan Bersih', formatRupiah(live?.net ?? 0), true)}
@@ -819,10 +847,10 @@ function ShiftRecapPanelBody({
               closedAt: selected.closedAt ? new Date(selected.closedAt) : null,
               startingCash: selected.startingCash,
               closingCash: selected.closingCash ?? null,
-              methods: paymentMethods.map((pm) => ({
-                label: pm.label,
-                recorded: hist.byMethod[pm.id] ?? 0,
-                counted: pm.id in countedMap ? countedMap[pm.id] : null,
+              methods: recapRows(paymentMethods, hist.byMethod).map((r) => ({
+                label: r.label,
+                recorded: r.recorded,
+                counted: r.id in countedMap ? countedMap[r.id] : null,
               })),
               totalRecorded: hist.total,
               totalCounted: hasCounted ? countedTotal : null,
@@ -830,7 +858,8 @@ function ShiftRecapPanelBody({
               cashOut: selectedFlows.filter((f) => isCashOut(f.type)).reduce((sum, f) => sum + f.amount, 0),
               crossShiftRefunds: histRecap.crossTotal,
               gross: b.gross,
-              refundTotal: b.refundTotal,
+              refundTotal: b.refundTotal - b.refundFullTotal,
+              refundFullTotal: b.refundFullTotal,
               refundCount: b.refundCount,
               discount: b.discount,
               surcharge: b.surcharge,

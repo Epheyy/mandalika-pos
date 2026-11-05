@@ -36,6 +36,8 @@ export interface CartDerived {
   subtotal: number
   manualDiscountAmount: number
   promoDiscountAmount: number
+  appliedPromoDiscountAmount: number
+  appliedManualDiscountAmount: number
   discountAmount: number
   taxableAmount: number
   taxAmount: number

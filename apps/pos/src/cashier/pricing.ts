@@ -70,6 +70,8 @@ export interface PricingResult {
   subtotal: number
   manualDiscountAmount: number
   promoDiscountAmount: number
+  appliedPromoDiscountAmount: number
+  appliedManualDiscountAmount: number
   discountAmount: number
   taxableAmount: number
   taxAmount: number
@@ -430,7 +432,11 @@ export function computePricing(input: PricingInput): PricingResult {
   return {
     subtotal,
     manualDiscountAmount,
+    // P-17: display share, clamped like discountAmount (promoDiscountAmount stays the raw Go-parity sum)
+    // (promo and codes come first in display order, so their clamped share is min(sum, subtotal)).
     promoDiscountAmount,
+    appliedPromoDiscountAmount: Math.min(promoDiscountAmount, subtotal),
+    appliedManualDiscountAmount: discountAmount - Math.min(promoDiscountAmount, subtotal),
     discountAmount,
     taxableAmount,
     taxAmount,

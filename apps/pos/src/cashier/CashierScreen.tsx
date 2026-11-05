@@ -17,6 +17,7 @@ import { RequisitionPanel } from './requisitions/RequisitionPanel'
 import { usePrinter } from '../printer'
 import { setBackHandler } from '../native'
 import { readCardPref } from '../lib/cardPrefs'
+import { BLIND_COUNT_DEFAULT } from './countRules'
 import { useAuth } from '../auth'
 import { useOfflineData } from '../hooks/useOfflineData'
 import { useOfflineCap } from '../hooks/useOfflineCap'
@@ -141,8 +142,8 @@ export default function CashierScreen() {
   const [showPrice, setShowPrice] = useState(() => readCardPref('pos_cardPrice', true))
   const [showStock, setShowStock] = useState(() => readCardPref('pos_cardStock', true))
   const [showVariants, setShowVariants] = useState(() => readCardPref('pos_cardVariants', false))
-  // D-4 blind count at Tutup Shift: off unless switched on in Pengaturan.
-  const [blindCount, setBlindCount] = useState(() => readCardPref('pos_blindCount', false))
+  // D-4 blind count at Tutup Shift: ON by default (owner 2026-11-05); a manager can switch it off in Pengaturan.
+  const [blindCount, setBlindCount] = useState(() => readCardPref('pos_blindCount', BLIND_COUNT_DEFAULT))
   const [showSettings, setShowSettings] = useState(false)
   // Which settings section to scroll to when opened from a drawer shortcut.
   const [settingsSection, setSettingsSection] = useState<SettingsSection | undefined>(undefined)

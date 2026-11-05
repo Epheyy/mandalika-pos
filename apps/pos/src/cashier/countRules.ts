@@ -23,3 +23,6 @@ export function isCountRevealed(blind: boolean, fieldIds: readonly string[], cou
   if (!blind) return true
   return fieldIds.every((id) => counted[id] !== undefined)
 }
+
+/** Owner decision 2026-11-05: blind count at Tutup Shift is ON until a manager turns it off in Pengaturan. */
+export const BLIND_COUNT_DEFAULT = true
