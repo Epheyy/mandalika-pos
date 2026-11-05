@@ -1,8 +1,9 @@
 import { memo } from 'react'
 import type { components } from '@mandalika/api'
-import { bundleApplications, bxgyRewardDue, calcPromoDiscount, formatRupiah, linkedPromoShape, tieredNextTier } from './pricing'
+import { calcPromoDiscount, formatRupiah, linkedPromoShape, tieredNextTier } from './pricing'
 import type { BundleFreedUnit } from './bundle'
 import { validatePromo, violationMessage, type AppliedPromoCode } from './promoValidate'
+import { unmetCartPrecondition, unmetPreconditionLabel } from './promoEligibility'
 
 type Promotion = components['schemas']['Promotion']
 type DiscountCode = components['schemas']['DiscountCode']
@@ -293,36 +294,15 @@ export const PromoPanel = memo(function PromoPanel({
                   const candidateCart = selectionCart?.(promo) ?? cart
                   const gatingInvalid = violations.length > 0
                   const savings = gatingInvalid ? 0 : calcPromoDiscount(promo, cart, subtotal)
-                  // buy_x_get_y has a CART precondition (the buy/get items must be
-                  // present in the required quantities) that date/min/etc gating
-                  // can't see. SEPARATE-SET (non-empty getProductIds) is a reward
-                  // giveaway: calcPromoDiscount is always 0 (the saving lives in
-                  // the reward line), so eligibility = "buy criteria met" via
-                  // bxgyRewardDue >= 1. SAME-SET discounts in place → savings > 0.
-                  const isSeparateSet =
-                    promo.type === 'buy_x_get_y' &&
-                    (promo.bxgyConfig?.getProductIds ?? []).length > 0
-                  const bxgyUnmet =
-                    !gatingInvalid &&
-                    promo.type === 'buy_x_get_y' &&
-                    (isSeparateSet
-                      ? bxgyRewardDue(promo.bxgyConfig, candidateCart.filter((c) => !c.isReward)) < 1
-                      : savings <= 0)
-                  // A bundle has a CART precondition (each slot's product keys must
-                  // be present in the required quantity) gating can't see: grey it
-                  // until at least one complete set is buildable from the paid lines.
-                  const bundleUnmet =
-                    !gatingInvalid &&
-                    promo.type === 'bundle' &&
-                    bundleApplications(promo.bundleConfig, candidateCart.filter((c) => !c.isReward)) < 1
-                  const invalid = gatingInvalid || bxgyUnmet || bundleUnmet
+                  // Cart preconditions that gating can't see (bxgy buy criteria,
+                  // bundle sets) live in promoEligibility, shared with auto-apply.
+                  const unmet = gatingInvalid ? null : unmetCartPrecondition(promo, candidateCart, savings)
+                  const invalid = gatingInvalid || unmet !== null
                   const reason = gatingInvalid
                     ? violationMessage(violations[0])
-                    : bxgyUnmet
-                      ? 'Syarat beli belum terpenuhi'
-                      : bundleUnmet
-                        ? 'Syarat bundle belum terpenuhi'
-                        : null
+                    : unmet
+                      ? unmetPreconditionLabel(unmet)
+                      : null
                   const isApplied = appliedPromotions.some((p) => p.id === promo.id)
                   return (
                     <button type="button"
