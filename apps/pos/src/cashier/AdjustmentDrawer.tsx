@@ -129,6 +129,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
         discountCodes={discountCodes}
         appliedPromotions={state.appliedPromotions}
         appliedPromoCodes={state.appliedPromoCodes}
+        autoPromotionIds={state.autoPromotionIds}
         cart={state.cart}
         bundleFreed={state.bundleFreed}
         selectionCart={(promo) => promotionPreviewCart(state, promo)}

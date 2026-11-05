@@ -57,6 +57,10 @@ export function planHeldRestore(held: HeldOrder, env: HeldRestoreEnv): HeldResto
   })
 
   push({ type: 'CART_CLEAR' })
+  // CART_CLEAR resets the dismissed set, so it is restored AFTER the clear (or a removed auto promo would come back).
+  // Auto promos themselves are not stored: the screen's reconcile re-installs them once this restore commits.
+  const dismissedAuto = Array.isArray(held.dismissedAutoPromotionIds) ? held.dismissedAutoPromotionIds.filter((id) => typeof id === 'string') : []
+  if (dismissedAuto.length > 0) push({ type: 'SET_DISMISSED_AUTO_PROMOS', ids: dismissedAuto })
   if (held.customer) push({ type: 'SET_CUSTOMER', customer: heldCustomerRecord(held.customer, held.heldAt) })
   if (held.salesman) push({ type: 'SET_SALESMAN', salesman: held.salesman })
 

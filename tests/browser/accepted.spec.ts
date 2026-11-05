@@ -21,6 +21,7 @@ import { approvalsErpFlow } from './backoffice-d3c-scenarios'
 import { reportPagerFlow, roleDeleteFlow } from './backoffice-d5a-scenarios'
 import { posRequisition } from './pos-requisition-scenarios'
 import { posOpenCart } from './pos-opencart-scenarios'
+import { posAutoPromo } from './pos-autopromo-scenarios'
 import { posSplitTender, posSplitOffline, posSplitRefund, posSplitOff, posSplitDraft } from './pos-split-scenarios'
 
 test('BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate toggle', async ({ page }, info) => {
@@ -592,6 +593,7 @@ for (const [id, title, run, opts] of [
   ['POS-SPLIT-REFUND', 'a split sale is refunded with the cash payout preselected, then with the QRIS chip', posSplitRefund, { splitTender: true }],
   ['POS-SPLIT-OFF', 'no Bagi pembayaran while the setting is off or absent', posSplitOff, {}],
   ['POS-OPEN-CART', 'the open cart is restored after a reload; a draft whose sale is already queued is dropped and the paid cart never reappears', posOpenCart, {}],
+  ['POS-AUTO-PROMO', 'an Otomatis promo enters the cart by itself; the x removes it for the sale (cart edit, hold + resume, reload) and + Tambah re-adds it as manual', posAutoPromo, { autoPromo: true }],
   ['POS-SPLIT-DRAFT', 'an unfinished split payment is offered back after a reload; a draft whose sale is already queued is dropped silently', posSplitDraft, { splitTender: true }],
 ] as const) test(`${id} ${title}`, async ({ page }, info) => {
   const p = page as ScenarioPage

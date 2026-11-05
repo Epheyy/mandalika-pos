@@ -78,6 +78,8 @@ describe('CashierScreen wiring', () => {
       'state.selectedCustomer', 'state.selectedSalesman', 'state.appliedPromotions', 'state.appliedPromoCodes', 'state.pointsToRedeem']) {
       expect(call).toContain(needle) // fed from live state inside the hook call, not merely used elsewhere
     }
+    // Auto-installed promos are recomputed after a catalogue swap, so only the cashier's own choices count here.
+    expect(call).toContain('!state.autoPromotionIds.includes(p.id)')
   })
 })
 
