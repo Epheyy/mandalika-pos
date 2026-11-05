@@ -8,7 +8,7 @@ import { duplicateInput, promotionToInput } from './promotionForm'
 const PROMOTION_INPUT_KEYS = [
   'name', 'description', 'type', 'value', 'minPurchase', 'applicableProductIds', 'applicableVariantKeys',
   'applicableVariantSizes', 'outletIds', 'combinable', 'combinableWith', 'activeFromHour', 'activeToHour',
-  'activeDays', 'isActive', 'startDate', 'endDate', 'codeOnly', 'bxgyConfig', 'tieredConfig', 'bundleConfig',
+  'activeDays', 'isActive', 'startDate', 'endDate', 'codeOnly', 'autoApply', 'bxgyConfig', 'tieredConfig', 'bundleConfig',
 ] as const satisfies readonly (keyof PromotionInput)[]
 
 const P = '00000000-0000-4000-8300-000000000001'
@@ -38,6 +38,7 @@ const base: Promotion = {
   startDate: '2026-11-01',
   endDate: '2026-11-30',
   codeOnly: true,
+  autoApply: false,
   bxgyConfig: null,
   tieredConfig: null,
   bundleConfig: null,
@@ -84,6 +85,21 @@ describe.each(Object.entries(FIXTURES))('promotionToInput round trip: %s', (_typ
     const before = JSON.stringify(promo)
     promotionToInput(promo)
     expect(JSON.stringify(promo)).toBe(before)
+  })
+})
+
+describe('promotionToInput autoApply', () => {
+  it('round-trips true and false (a PUT would otherwise reset it)', () => {
+    expect(promotionToInput({ ...base, codeOnly: false, autoApply: true }).autoApply).toBe(true)
+    expect(promotionToInput({ ...base, autoApply: false }).autoApply).toBe(false)
+  })
+
+  it('treats a missing field (older server) as false', () => {
+    expect(promotionToInput({ ...base, autoApply: undefined }).autoApply).toBe(false)
+  })
+
+  it('a duplicate keeps it', () => {
+    expect(duplicateInput({ ...base, codeOnly: false, autoApply: true }).autoApply).toBe(true)
   })
 })
 

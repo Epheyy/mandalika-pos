@@ -40,6 +40,7 @@ export function PromotionsTable({ rows, today, loading, error, onRetry, selected
           {p.description && <p className="text-xs text-gray-400">{p.description}</p>}
           <div className="mt-0.5 flex flex-wrap gap-1">
             {p.combinable && <Badge tone="gold">Bisa Kombinasi</Badge>}
+            {p.autoApply && <Badge tone="neutral">Otomatis</Badge>}
             {p.codeOnly && <Badge tone="gold">Hanya kode</Badge>}
           </div>
         </div>

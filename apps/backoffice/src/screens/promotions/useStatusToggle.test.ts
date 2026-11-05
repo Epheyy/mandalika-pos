@@ -9,7 +9,7 @@ import {
 
 const promo = (over: Partial<Promotion> = {}): Promotion => ({
   id: 'promo-1', name: 'Diskon Akhir Tahun', type: 'percentage', value: 10, isActive: true, createdAt: '2026-10-01T00:00:00Z',
-  applicableVariantSizes: ['50 ml'], combinableWith: ['other'], outletIds: ['o1', 'gone'], minPurchase: null,
+  autoApply: true, applicableVariantSizes: ['50 ml'], combinableWith: ['other'], outletIds: ['o1', 'gone'], minPurchase: null,
   ...over,
 })
 
@@ -82,11 +82,12 @@ describe('toggleStatus: turning OFF', () => {
     t.server.row = { ...t.server.row, name: 'Diskon Dibenahi', value: 25 }
     t.toasts.at(-1)!.action!.onClick()
     await vi.waitFor(() => expect(t.puts).toHaveLength(2))
-    const undo = t.puts[1].body as { name: string; value: number; isActive: boolean; applicableVariantSizes: string[]; combinableWith: string[]; outletIds: string[] }
+    const undo = t.puts[1].body as { name: string; value: number; isActive: boolean; autoApply: boolean; applicableVariantSizes: string[]; combinableWith: string[]; outletIds: string[] }
     expect(undo.name).toBe('Diskon Dibenahi')
     expect(undo.value).toBe(25)
     expect(undo.isActive).toBe(true)
     // and nothing the form has no control for is lost
+    expect(undo.autoApply).toBe(true)
     expect(undo.applicableVariantSizes).toEqual(['50 ml'])
     expect(undo.combinableWith).toEqual(['other'])
     expect(undo.outletIds).toEqual(['o1', 'gone'])
