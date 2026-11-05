@@ -4,7 +4,7 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-06 by Claude (Opus 5.5) - auto-apply S1-S4 (#73-#76) merged as a stack (a4686a35, gates green); releasing backend -> backoffice -> POS OTA 2.7.0; see Progress board.
+Last updated: 2026-11-06 by Claude (Opus 5.5) - auto-apply backend LIVE (00167-cel, mig 0083); backoffice #74 deploying via Cloudflare; POS OTA 2.7.0 next; see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
