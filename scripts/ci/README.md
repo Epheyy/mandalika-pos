@@ -50,10 +50,79 @@ on the same host because their fixed guarded ports intentionally collide.
 unit tests cover parser, environment, redaction, cleanup failure and Docker command
 contracts; these mocks do not replace PostgreSQL integration verification.
 
-`.github/workflows/postgres.yml` runs on push, PR and reusable workflow calls.
+`.github/workflows/postgres.yml` runs on push (only `prod-hardening` and `gate/**`), PR and reusable workflow calls.
 Android build/signing needs JS/TS quality, this database workflow, the existing
 backend gen/vet/fmt/build/race workflow, and the synthetic Chromium browser gate
 at the caller commit (see `tests/browser/README.md`). No signing secrets
 are forwarded to quality jobs. Hosted execution, branch protection and business
 concurrency scenarios remain separate qualifications: the six current fixtures
 exercise sequential transactions/replays, not A13/A42 overlapping operations.
+
+# CI runners: self-hosted GCP VM (primary) with GitHub-hosted fallback
+
+Why: GitHub-hosted minutes for the private repos ran out (2026-11-05) and the owner declined GitHub Team.
+
+## How a workflow picks its runner
+
+The five gates (`quality`, `backend`, `postgres`, `browser`, `dependency-security`) use
+`runs-on: ${{ github.event_name == 'pull_request' && fromJSON(vars.CI_RUNS_ON_PR || '"ubuntu-latest"') || fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}`.
+Both repository variables hold JSON (a bare `ubuntu-latest` or `[]` breaks every gate: it fails closed, red).
+
+| Variable | Used by | Unset means |
+|---|---|---|
+| `CI_RUNS_ON` | trusted runs: push on `prod-hardening` / `gate/**`, and `workflow_call` (android-release) | GitHub-hosted `ubuntu-latest` |
+| `CI_RUNS_ON_PR` | `pull_request` runs (untrusted: branch code, Dependabot) | GitHub-hosted `ubuntu-latest` |
+
+Trusted pool: `gh variable set CI_RUNS_ON -R <owner/repo> --body '["self-hosted","linux","mandalika"]'`.
+**Never point `CI_RUNS_ON_PR` at the trusted pool**: PR code could then plant state (toolchain/go caches, docker images, the
+runners' GitHub credentials) that later `gate/` runs inherit, and `require-green-ci.sh` trusts those runs. PR runs gate nothing:
+merges are gated by `gate/<name>` push runs, so leaving PRs on hosted runners (they wait while minutes are exhausted) costs the
+release gate nothing. Giving PRs their own VM/pool is the follow-up if PR feedback on a runner is wanted.
+**Fall back** with `gh variable delete CI_RUNS_ON -R <owner/repo>`. Branches cut before this change still say
+`runs-on: ubuntu-latest`: rebase them onto `prod-hardening`. `react-doctor.yml` and the signing `build` job in
+`android-release.yml` always use GitHub-hosted runners. The repo setting "Run workflows from fork pull requests" must stay off
+(it is the real control for fork PRs; the workflow expression is not, as a fork can edit it).
+
+## The VM (`mandalika-ci-runner`, project `mandalika-pos`, `asia-southeast2-a`)
+
+- e2-standard-4 (4 vCPU / 16 GB), 100 GB pd-balanced, on-demand, Ubuntu 24.04, shielded VM, own VPC `ci-runner-net`,
+  OS Login, project SSH keys blocked.
+- No external ingress: the only firewall rule is IAP SSH (outbound is open; the VM has an ephemeral external IP).
+  Own service account `ci-runner@` with **no roles and no scopes**. No gate workflow uses a secret (only `android-release.yml`'s
+  `build` job, which is GitHub-hosted). Host jobs are blocked from the metadata server by an iptables owner rule (advisory:
+  containers and root are not covered; the service account has no permissions anyway).
+- **The VM does hold long-lived runner credentials** (`/home/runner/<instance>/.credentials*`, an RSA key that lets its holder
+  impersonate that runner). All instances run as one uid in the docker group (root-equivalent), so any job on this pool can read
+  them. This is why only trusted runs go on the pool. After any suspected compromise: delete the runners in both repos, delete the
+  VM disk contents (recreate the VM), re-register. Follow-up that removes the exposure: ephemeral JIT runners.
+- Four runner processes (2 per repo: `origin-1/2` for `Epheyy/mandalika-pos`, `mirror-1/2` for `mandalika-ci/mandalika-pos-ci`),
+  labels `self-hosted, linux, mandalika`, systemd `mandalika-runner@<instance>` (`KillMode=control-group`); a job hook wipes the
+  workspace before and after every job. Persistent tool caches are not wiped.
+- Host-wide heavy-gate lock (`flock /tmp/mandalika-ci-heavy.lock`): the quality `pnpm quality:ci` step, the backend `go test -race` step, the Postgres runner unit tests and gate
+  (fixed ports 26439-26479; leftover gate containers removed under the lock) and the browser gate (ports 5183/5184) run one at a
+  time across all four runners and both repos. Run concurrently on 4 vCPUs they starve each other and trip timing-sensitive
+  tests (observed: Go `redact` scaling test, JS `redact` 250 ms budget, browser scenarios, fixture-port unit tests), so they are
+  serialised; only dependency-security runs alongside. Expect roughly 25 min of heavy work per gate set; job timeouts (120 min) include the lock wait.
+- A systemd timer powers the VM off after 30 minutes with no running job (a stopped VM costs only its disk).
+
+## Operating it
+
+```sh
+scripts/ci/runner-up.sh            # start the VM and wait until runners are online in both repos (run before pushing gate/<name>)
+scripts/ci/runner-up.sh --status   # report only
+```
+
+One-time setup / rebuild (needs project owner): `scripts/ci/runner-create-vm.sh`, wait ~5 min for first boot,
+`scripts/ci/runner-register.sh` (tokens via `gh api`; Linux/macOS send them over IAP SSH stdin, Windows `plink` drops stdin so
+the token goes as an argument to the idle VM, valid ~1 h), `scripts/ci/runner-budget.sh <billing-account-id>`. The mirror is
+switched exactly like origin: set/delete the variables on `mandalika-ci/mandalika-pos-ci`. Auto-start from a webhook is NOT built
+(follow-up: Cloud Function + `workflow_job` webhook). Known follow-ups from review: pin the runner version+sha256, separate
+project for the VM, harden the idle check against a job faking `Runner.Worker`.
+
+## Dedupe rules
+
+`push` triggers only on `prod-hardening` and `gate/**`; PR pushes run once via `pull_request`. PR runs cancel the superseded
+run of the same PR (`cancel-in-progress`); push and gate runs never cancel. Docs-only PRs (`**/*.md`) skip the gates; push runs
+never skip, so `require-green-ci.sh` (newest PUSH run per workflow for the sha) is unchanged: a release sha must have been pushed
+to `prod-hardening` or a `gate/<name>` branch. Branch protection is unavailable on these private free-plan repos (API 403), so
+no check is "required" and skipping docs-only PRs cannot block a merge.

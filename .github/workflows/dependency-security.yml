@@ -1,16 +1,29 @@
 name: dependency-security
 
 on:
+  # Push only on the branches that matter: PR pushes are covered by pull_request (no double runs).
+  # require-green-ci.sh and the merge gates read PUSH runs, so prod-hardening and gate/<name> keep them.
+  # Docs-only PRs skip (no branch protection exists to require these checks); push runs never skip.
   push:
+    branches: [prod-hardening, 'gate/**']
   pull_request:
+    paths-ignore: ['**/*.md']
   workflow_call:
 
 permissions:
   contents: read
 
+concurrency:
+  # PR pushes cancel the superseded run; push/gate/workflow_call runs never cancel and never queue behind each other.
+  # Literal workflow name (not github.workflow) so reusable-workflow calls from android-release.yml cannot share a group.
+  group: dependency-security-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   dependency-security:
-    runs-on: ubuntu-latest
+    # Trusted runs (push on prod-hardening/gate/**, workflow_call) use CI_RUNS_ON. Untrusted PR code uses CI_RUNS_ON_PR,
+    # which defaults to GitHub-hosted and must never name the trusted pool (see scripts/ci/README.md).
+    runs-on: ${{ github.event_name == 'pull_request' && fromJSON(vars.CI_RUNS_ON_PR || '"ubuntu-latest"') || fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4

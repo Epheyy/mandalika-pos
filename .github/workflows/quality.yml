@@ -1,18 +1,31 @@
 name: JS/TS Quality
 
-# No path/branch filters: app/package/lockfile/schema/workflow changes all run.
+# No path filters on push (all changes run); pull_request skips docs-only (*.md) changes.
 on:
+  # Push only on the branches that matter: PR pushes are covered by pull_request (no double runs).
+  # require-green-ci.sh and the merge gates read PUSH runs, so prod-hardening and gate/<name> keep them.
+  # Docs-only PRs skip (no branch protection exists to require these checks); push runs never skip.
   push:
+    branches: [prod-hardening, 'gate/**']
   pull_request:
+    paths-ignore: ['**/*.md']
   workflow_call:
 
 permissions:
   contents: read
 
+concurrency:
+  # PR pushes cancel the superseded run; push/gate/workflow_call runs never cancel and never queue behind each other.
+  # Literal workflow name (not github.workflow) so reusable-workflow calls from android-release.yml cannot share a group.
+  group: quality-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   quality:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Trusted runs (push on prod-hardening/gate/**, workflow_call) use CI_RUNS_ON. Untrusted PR code uses CI_RUNS_ON_PR,
+    # which defaults to GitHub-hosted and must never name the trusted pool (see scripts/ci/README.md).
+    runs-on: ${{ github.event_name == 'pull_request' && fromJSON(vars.CI_RUNS_ON_PR || '"ubuntu-latest"') || fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 120  # includes time queued on the host-wide heavy-gate lock
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,7 +42,8 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.0 --activate
       - name: Frozen install, tests, source/test types, builds and API drift
-        run: corepack pnpm quality:ci
+        # Timing-sensitive tests (redact budget) fail when another heavy gate shares the CPU: same host-wide lock.
+        run: flock /tmp/mandalika-ci-heavy.lock corepack pnpm quality:ci
       - name: Restore-script DSN label test (fake DSNs only)
         run: bash scripts/dsn-label.test.sh
       # React Doctor is a separate advisory workflow, not this blocking gate.

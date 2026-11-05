@@ -2,18 +2,27 @@ name: backend
 
 on:
   workflow_call:
-  # Every pushed correction needs this baseline on the same SHA as the other gates.
+  # Every gate/prod-hardening push needs this baseline on the same SHA as the other gates.
   push:
+    branches: [prod-hardening, 'gate/**']
   pull_request:
     paths: ['backend/**', '.github/workflows/backend.yml']
 
 permissions:
   contents: read
 
+concurrency:
+  # PR pushes cancel the superseded run; push/gate/workflow_call runs never cancel and never queue behind each other.
+  # Literal workflow name (not github.workflow) so reusable-workflow calls from android-release.yml cannot share a group.
+  group: backend-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Trusted runs (push on prod-hardening/gate/**, workflow_call) use CI_RUNS_ON. Untrusted PR code uses CI_RUNS_ON_PR,
+    # which defaults to GitHub-hosted and must never name the trusted pool (see scripts/ci/README.md).
+    runs-on: ${{ github.event_name == 'pull_request' && fromJSON(vars.CI_RUNS_ON_PR || '"ubuntu-latest"') || fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 120  # includes time queued on the host-wide heavy-gate lock
     defaults:
       run:
         working-directory: backend
@@ -37,4 +46,5 @@ jobs:
         run: python3 ../scripts/ci/codegen_gate.py
       - name: Bounded offline x/mod consumer regressions
         run: python3 ../scripts/ci/xmod-consumer-test.py
-      - run: go test ./... -race
+      - name: go test -race (heavy gate, host-wide lock shared with the other heavy gates)
+        run: flock /tmp/mandalika-ci-heavy.lock go test ./... -race

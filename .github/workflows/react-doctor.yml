@@ -27,6 +27,7 @@ concurrency:
 
 jobs:
   react-doctor:
+    # Advisory scan with an unpinned third-party action and a write token: never on the shared self-hosted VM.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
