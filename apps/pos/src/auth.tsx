@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { User } from '@mandalika/api'
 import { defaultKV, getKV, getOutboxStore } from '@mandalika/sync'
+import { openCartKey } from './cashier/openCartDraft'
 import { api, authStore } from './api'
 import {
   checkLoginAllowed,
@@ -65,6 +66,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [terminalState, setTerminalState] = useState<TerminalState | null>(null)
 
   const clear = useCallback(() => {
+    // P-20: an open cart never outlives its session (logout, expiry, release): the next sign-in starts clean.
+    // The outlet comes from the terminal binding: on a boot-time rejection authStore.outletId is not set yet.
+    void getKV().removeDurable(openCartKey(readBinding(getKV())?.outletId ?? authStore.outletId ?? '')).catch(() => {})
     authStore.access = null
     authStore.refresh = null
     authStore.outletId = null

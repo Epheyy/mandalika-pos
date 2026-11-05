@@ -80,7 +80,7 @@ export const qualifyPos = async (page: ScenarioPage) =>{
  const result: any[]=[]; const assert=(v,m)=>{if(!v)throw Error(m)};
  page.__a24.products.forEach(p=>p.variants.forEach(v=>v.barcode=v.sku));
  const body=()=>page.locator('body').innerText();
- const fresh=async()=>{await page.reload();await page.getByRole('button',{name:/^Synthetic Scent/}).first().waitFor();for(const sku of ['SYN-M','SYN-L','TEST-M']){await page.getByRole('searchbox').fill(sku);await page.getByRole('searchbox').press('Enter');}await page.getByRole('button',{name:'Bayar',exact:true}).waitFor();};
+ const fresh=async()=>{await page.evaluate(()=>{for(const k of Object.keys(localStorage))if(k.startsWith('mandalika.pos.openCart.'))localStorage.removeItem(k);});await page.reload();await page.getByRole('button',{name:/^Synthetic Scent/}).first().waitFor();for(const sku of ['SYN-M','SYN-L','TEST-M']){await page.getByRole('searchbox').fill(sku);await page.getByRole('searchbox').press('Enter');}await page.getByRole('button',{name:'Bayar',exact:true}).waitFor();};
  const panel=async()=>{await page.getByRole('button',{name:'Promo & Diskon',exact:true}).click();};
  const direct=async(kind)=>{await panel();await page.getByRole('button').filter({hasText:'Synthetic '+kind}).last().click();};
  const code=async(kind)=>{await panel();await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill('Raw-'+kind);await page.getByRole('button',{name:'Pakai',exact:true}).click();};
@@ -116,7 +116,7 @@ export const posBoundaries = async (page: ScenarioPage) =>{
  const out: any[]=[]; const P=page.__a24.products[0].id;const legacy=page.__a24.promotions[3];legacy.type='bundle';legacy.bundleConfig={slots:[{productKeys:[P],quantity:1},{productKeys:[P+'|M'],quantity:1}],bundlePrice:50000,maxApplications:1};
  page.__a24.codes.push({...page.__a24.codes[0],id:'invalid-code',code:'Raw-Invalid',promotionId:'invalid'});
  const scan=async(sku)=>{await page.getByRole('searchbox').fill(sku);await page.getByRole('searchbox').press('Enter');};
- const fresh=async()=>{await page.reload();await page.getByRole('button',{name:/^Synthetic Scent/}).first().waitFor();for(const sku of ['SYN-M','SYN-L','TEST-M'])await scan(sku);};
+ const fresh=async()=>{await page.evaluate(()=>{for(const k of Object.keys(localStorage))if(k.startsWith('mandalika.pos.openCart.'))localStorage.removeItem(k);});await page.reload();await page.getByRole('button',{name:/^Synthetic Scent/}).first().waitFor();for(const sku of ['SYN-M','SYN-L','TEST-M'])await scan(sku);};
  const apply=async(kind,owner)=>{await page.getByRole('button',{name:'Promo & Diskon',exact:true}).click();if(owner==='direct')await page.getByRole('button').filter({hasText:'Synthetic '+kind}).last().click();else {await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill('Raw-'+kind);await page.getByRole('button',{name:'Pakai',exact:true}).click();}await page.getByRole('button',{name:kind==='Bundle'?/Synthetic Scent · MRp/:/Synthetic Tester · MRp/}).click();await page.getByRole('button',{name:'Terapkan',exact:true}).click();};
  for(const kind of ['Bundle','BXGY'])for(const owner of ['direct','linked']){
   await fresh();await apply(kind,owner);
@@ -177,7 +177,7 @@ export const physicalQueue = async (page: ScenarioPage) =>{
 export const guestSales = async (page: ScenarioPage) =>{
  const results: any[]=[]; const assert=(v,m)=>{if(!v)throw Error(m)};
  const box=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('mandalika.pos.outbox')||'[]'));
- const fresh=async()=>{await page.reload();await page.getByRole('button',{name:/^Synthetic Scent/}).first().waitFor();await page.getByRole('searchbox').fill('SYN-M');await page.getByRole('searchbox').press('Enter');};
+ const fresh=async()=>{await page.evaluate(()=>{for(const k of Object.keys(localStorage))if(k.startsWith('mandalika.pos.openCart.'))localStorage.removeItem(k);});await page.reload();await page.getByRole('button',{name:/^Synthetic Scent/}).first().waitFor();await page.getByRole('searchbox').fill('SYN-M');await page.getByRole('searchbox').press('Enter');};
  const select=async()=>{await page.getByRole('button',{name:'+ Pelanggan',exact:true}).click();await page.getByRole('textbox',{name:'Cari pelanggan dengan nomor telepon'}).fill(page.__a24.customer.phone);await page.getByRole('textbox',{name:'Cari pelanggan dengan nomor telepon'}).press('Enter');await page.getByRole('button').filter({hasText:'Synthetic Customer'}).click();};
  const clear=async()=>{await page.getByRole('button',{name:'Lepas',exact:true}).click();const ok=page.getByRole('dialog').getByRole('button',{name:'Lanjutkan',exact:true});if(await ok.count())await ok.click();};
  const panel=()=>page.getByRole('button',{name:/^Promo(?: |$)/}).first().click();
