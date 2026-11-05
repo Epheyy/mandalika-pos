@@ -143,6 +143,8 @@ func TestCustomerPrivacyPostgres(t *testing.T) {
 			r.Get("/customers", h.Customers)
 			r.Get("/customers/{id}", h.Customer)
 			r.Get("/customers/by-phone", h.CustomersByPhone)
+			r.Post("/customers", h.CreateCustomer)
+			r.Put("/customers/{id}", h.UpdateCustomer)
 			r.Get("/customers/reminders", h.Reminders)
 			r.Get("/customers/dup-candidates", h.DupCandidates)
 			r.Get("/customers/{id}/points", h.PointTransactions)
@@ -582,6 +584,79 @@ func TestCustomerPrivacyPostgres(t *testing.T) {
 		}
 		if got := row(newID); got != "Fresh Customer|0877-1234-5678|" {
 			t.Fatalf("new customer row = %s", got)
+		}
+	})
+
+	t.Run("one phone rule: validation, normalized duplicate flagging, never a merge", func(t *testing.T) {
+		send := func(method, path, id, payload string) (int, string) {
+			t.Helper()
+			r := httptest.NewRequest(method, path+id, strings.NewReader(payload))
+			r.Header.Set("Authorization", "Bearer "+tok["admin"])
+			r.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, r)
+			return w.Code, w.Body.String()
+		}
+		pending := func() int {
+			t.Helper()
+			var n int
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM customer_dup_candidates WHERE status='pending'`).Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			return n
+		}
+		// Invalid phone / email are refused with the Indonesian message and nothing is stored.
+		for _, c := range []struct{ body, want string }{
+			{`{"name":"Bad Phone","phone":"abc123"}`, "Nomor telepon tidak valid"},
+			{`{"name":"No Phone","phone":"  "}`, "Nomor telepon wajib diisi"},
+			{`{"name":"Bad Mail","phone":"0877-1111-2222","email":"bukan-email"}`, "Format email tidak valid"},
+		} {
+			code, out := send(http.MethodPost, "/customers", "", c.body)
+			if code != http.StatusBadRequest || !strings.Contains(out, c.want) {
+				t.Fatalf("POST %s = %d %.200s, want 400 %q", c.body, code, out, c.want)
+			}
+		}
+		var junk int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM customers WHERE name IN ('Bad Phone','No Phone','Bad Mail')`).Scan(&junk); err != nil || junk != 0 {
+			t.Fatalf("invalid customers were stored: %d %v", junk, err)
+		}
+		// Foreign numbers are accepted; a different spelling of an existing number is flagged, not merged.
+		code, out := send(http.MethodPost, "/customers", "", `{"name":"Singapore Guest","phone":"+65 8123 4567"}`)
+		if code != http.StatusCreated && code != http.StatusOK {
+			t.Fatalf("foreign number refused: %d %.200s", code, out)
+		}
+		before := pending()
+		code, out = send(http.MethodPost, "/customers", "", `{"name":"Alice Again","phone":"+62 812 3456 7890"}`)
+		if code != http.StatusCreated && code != http.StatusOK {
+			t.Fatalf("create with a shared number: %d %.200s", code, out)
+		}
+		if after := pending(); after != before+1 {
+			t.Fatalf("pending dup candidates %d -> %d, want +1 for the +62 spelling of 0812-3456-7890", before, after)
+		}
+		// An edit that moves a customer onto an existing number (62 spelling) is flagged too.
+		var editID string
+		if err := pool.QueryRow(ctx, `SELECT id FROM customers WHERE name='Singapore Guest'`).Scan(&editID); err != nil {
+			t.Fatal(err)
+		}
+		before = pending()
+		code, out = send(http.MethodPut, "/customers/", editID, `{"name":"Singapore Guest","phone":"62 812-3456-7890"}`)
+		if code != http.StatusOK && code != http.StatusNoContent {
+			t.Fatalf("edit: %d %.200s", code, out)
+		}
+		if after := pending(); after != before+1 {
+			t.Fatalf("pending dup candidates %d -> %d after edit, want +1", before, after)
+		}
+		var merged int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM customers WHERE merged_into IS NOT NULL AND id<>$1`, custOld).Scan(&merged); err != nil || merged != 0 {
+			t.Fatalf("something was auto-merged: %d %v", merged, err)
+		}
+		// Sync path: a different spelling flags the pair via phone_norm.
+		before = pending()
+		if _, err := svc.CreateCustomer(ctx, service.CreateCustomerInput{ID: "00000000-0000-4000-8f20-0000000000f7", Name: "Sync Spelling", Phone: "6281234567890"}); err != nil {
+			t.Fatal(err)
+		}
+		if after := pending(); after != before+1 {
+			t.Fatalf("sync create: pending %d -> %d, want +1", before, after)
 		}
 	})
 }

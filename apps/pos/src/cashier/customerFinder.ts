@@ -1,6 +1,7 @@
 import { ApiError } from '@mandalika/api'
 import type { components } from '@mandalika/api'
 import { KnownCustomers, getKV, normalizePhone } from '@mandalika/sync'
+import { emailProblem, phoneProblem } from '@mandalika/types'
 
 type Customer = components['schemas']['Customer']
 
@@ -66,4 +67,16 @@ let known: KnownCustomers | null = null
 export function getKnownCustomers(): KnownCustomers {
   known ??= new KnownCustomers(getKV())
   return known
+}
+
+/** Loyalty points with Indonesian thousands separators (12.500), never a raw number. */
+const POINTS_FORMAT = new Intl.NumberFormat('id-ID')
+export function formatPoints(points: number): string {
+  return POINTS_FORMAT.format(points)
+}
+
+/** Why the "+ Baru" customer cannot be saved, or null. Same phone/email rules as the backoffice and the server. */
+export function newCustomerProblem(form: { name: string; phone: string; email: string }): string | null {
+  if (!form.name.trim()) return 'Nama wajib diisi'
+  return phoneProblem(form.phone) ?? emailProblem(form.email)
 }

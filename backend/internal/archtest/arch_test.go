@@ -28,7 +28,7 @@ const (
 )
 
 var tiers = map[string]tier{
-	"api": leaf, "apperr": leaf, "bizday": leaf, "phone": leaf, "promotionkeys": leaf,
+	"api": leaf, "apperr": leaf, "bizday": leaf, "phone": leaf, "custrules": leaf, "promotionkeys": leaf,
 	"redact": leaf, "ota": leaf, "csvimport": leaf, "uploads": leaf, "httpx": leaf,
 	"clientip": leaf, "rules": leaf, "tenderlines": leaf,
 	"db": infra, "ledger": infra, "cache": infra, "config": infra, "observability": infra,

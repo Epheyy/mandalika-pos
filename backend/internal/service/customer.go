@@ -112,8 +112,17 @@ func recordDupCandidate(ctx context.Context, tx pgx.Tx, id, phone string) error 
 	}
 	defer sp.Rollback(ctx)
 	var existingID string
+	// Same normalized phone (0812..., 62812... and +62 812... are one number; migration 0080),
+	// or the identical raw text when the value does not normalize. Merged-away rows never match.
 	err = sp.QueryRow(ctx,
-		`SELECT id FROM customers WHERE phone = $1 AND id <> $2 ORDER BY created_at ASC, id ASC LIMIT 1`,
+		`SELECT id FROM (
+		   (SELECT x.id, x.created_at FROM customers x
+		     WHERE x.phone_norm = (SELECT phone_norm FROM customers WHERE id = $2) AND x.phone_norm <> ''
+		       AND x.merged_into IS NULL AND x.id <> $2)
+		   UNION ALL
+		   (SELECT x.id, x.created_at FROM customers x
+		     WHERE x.phone = $1 AND x.merged_into IS NULL AND x.id <> $2)
+		 ) m ORDER BY created_at ASC, id ASC LIMIT 1`,
 		phone, id).Scan(&existingID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil

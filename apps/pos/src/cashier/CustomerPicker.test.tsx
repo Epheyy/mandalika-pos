@@ -117,3 +117,13 @@ describe('CustomerPicker sections (B3)', () => {
     expect(render({ open: false })).toBe('')
   })
 })
+
+describe('CustomerPicker row (internal fields hidden)', () => {
+  const seg = { id: 's1', name: 'VIP-INTERNAL', color: 'gold' }
+  it('hides the internal segment chip and formats points with separators', () => {
+    const html = render({ customers: [{ ...alice, points: 12500, segment: seg } as never], customerSearch: '081234567890' })
+    expect(html).toContain('Alice Priv')
+    expect(html).toContain('12.500 poin')
+    expect(html).not.toContain('VIP-INTERNAL')
+  })
+})

@@ -3,8 +3,7 @@ import type { components } from '@mandalika/api'
 import { normalizePhone } from '@mandalika/sync'
 import { Sheet } from '../components/ui/Sheet'
 import { Button } from '../components/ui/Button'
-import { segmentChipClasses } from './segmentColors'
-import { phoneHint } from './customerFinder'
+import { formatPoints, phoneHint } from './customerFinder'
 import { knownTier } from './customerProfile'
 
 type Customer = components['schemas']['Customer']
@@ -56,8 +55,7 @@ function Row({ c, loyaltyEnabled, onSelect, onOpenProfile }: { c: Customer; loya
           <span className="flex flex-wrap items-center gap-x-1.5 text-[0.8125rem] text-ink-500">
             <span>{c.phone}</span>
             {tier && <span>· {tier}</span>}
-            {loyaltyEnabled && <span>· {c.points} poin</span>}
-            {c.segment && <span className={`rounded-full px-1.5 py-0.5 text-[0.6875rem] font-bold ${segmentChipClasses(c.segment.color)}`}>{c.segment.name}</span>}
+            {loyaltyEnabled && <span>· {formatPoints(c.points)} poin</span>}
           </span>
         </span>
         <span aria-hidden="true" className="flex-shrink-0 text-[0.9375rem] font-semibold text-ink-900">Pilih ›</span>

@@ -1,0 +1,14 @@
+[
+  { "input": "", "ok": true },
+  { "input": "   ", "ok": true },
+  { "input": "budi@example.com", "ok": true },
+  { "input": " budi@example.com ", "ok": true },
+  { "input": "a.b+tag@sub.example.co.id", "ok": true },
+  { "input": "bukan-email", "ok": false },
+  { "input": "budi@", "ok": false },
+  { "input": "@example.com", "ok": false },
+  { "input": "budi@example", "ok": false },
+  { "input": "bu di@example.com", "ok": false },
+  { "input": "a@b@example.com", "ok": false },
+  { "input": "budi@.com", "ok": false }
+]

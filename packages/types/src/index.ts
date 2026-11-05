@@ -353,3 +353,5 @@ export interface StockCount {
   createdBy: string
   createdAt: string
 }
+export { normalizePhone, PHONE_MIN_DIGITS, PHONE_MAX_DIGITS } from './phone'
+export { phoneProblem, emailProblem, PHONE_REQUIRED_MESSAGE, PHONE_INVALID_MESSAGE, EMAIL_INVALID_MESSAGE } from './customerRules'

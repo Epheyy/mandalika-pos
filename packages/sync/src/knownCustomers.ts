@@ -99,7 +99,7 @@ export class KnownCustomers {
     const norm = normalizePhone(raw)
     if (!norm) return []
     return this.#load()
-      .filter((e) => e.phoneNorm === norm)
+      .filter((e) => normalizePhone(e.phone) === norm) // recomputed: a stored key may predate the current rule
       .map((e) => ({
         id: e.id,
         name: e.name,

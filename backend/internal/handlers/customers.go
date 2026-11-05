@@ -5,19 +5,58 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/custrules"
 	"github.com/mandalika/pos-backend/internal/httpx"
 	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
+// validCustomerInput applies the shared phone/email rules (custrules, twin of the backoffice
+// form) and answers 400 with the Indonesian message when a field fails.
+func validCustomerInput(w http.ResponseWriter, r *http.Request, c write.Customer) bool {
+	if err := custrules.CheckPhone(c.Phone); err != nil {
+		httpx.Err(w, http.StatusBadRequest, safeDomainText(r, http.StatusBadRequest, err))
+		return false
+	}
+	if err := custrules.CheckEmail(c.Email); err != nil {
+		httpx.Err(w, http.StatusBadRequest, safeDomainText(r, http.StatusBadRequest, err))
+		return false
+	}
+	return true
+}
+
+// validCustomerUpdate is validCustomerInput for an edit, except that a phone or email left exactly
+// as stored is not re-judged: rows from a CSV import or an older bundle may predate the rule, and a
+// notes-only or birthday edit must still save.
+func (h *Handlers) validCustomerUpdate(w http.ResponseWriter, r *http.Request, id string, c write.Customer) bool {
+	if custrules.CheckPhone(c.Phone) == nil && custrules.CheckEmail(c.Email) == nil {
+		return true
+	}
+	cur, err := h.Repo.Customer(r.Context(), id)
+	if err != nil {
+		return validCustomerInput(w, r, c) // cannot compare: apply the rule as is
+	}
+	if strings.TrimSpace(c.Phone) == strings.TrimSpace(cur.Phone) {
+		c.Phone = "0812-0000-0000" // unchanged: exempt from the check below
+	}
+	if stored, err := cur.Email.Get(); err == nil && strings.TrimSpace(c.Email) == strings.TrimSpace(stored) {
+		c.Email = ""
+	}
+	return validCustomerInput(w, r, c)
+}
+
 func (h *Handlers) CreateCustomer(w http.ResponseWriter, r *http.Request) {
 	c, ok := decodeWrite[write.Customer](w, r)
 	if !ok {
+		return
+	}
+	if !validCustomerInput(w, r, c) {
 		return
 	}
 	id, err := h.Write.CreateCustomer(r.Context(), c)
@@ -27,6 +66,9 @@ func (h *Handlers) CreateCustomer(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) UpdateCustomer(w http.ResponseWriter, r *http.Request) {
 	c, ok := decodeWrite[write.Customer](w, r)
 	if !ok {
+		return
+	}
+	if !h.validCustomerUpdate(w, r, chi.URLParam(r, "id"), c) {
 		return
 	}
 	h.mutated(w, r, h.Write.UpdateCustomer(r.Context(), chi.URLParam(r, "id"), c))

@@ -95,8 +95,10 @@ func planCustomerImport(ctx context.Context, q pgx.Tx, t *csvimport.Table) (*imp
 // the advisory lock serialises imports, not POS creates: a POS customer with the same
 // phone can land between plan and apply. As a safety net every created row whose phone
 // is already held by an older live customer gets a customer_dup_candidates row (the
-// recordDupCandidate semantics: oldest existing id, on conflict do nothing). Nothing is
-// ever merged.
+// recordDupCandidate semantics: oldest existing id, on conflict do nothing). The safety
+// net also matches on the normalized phone (0812... = 62812... = +62 812...), so a bulk
+// import can no longer add an unflagged duplicate; the plan-time skip stays exact-text (D5).
+// Nothing is ever merged.
 func ApplyCustomerImportCreates(ctx context.Context, tx pgx.Tx, creates []csvimport.CustomerCreate) error {
 	if len(creates) == 0 {
 		return nil
@@ -133,16 +135,20 @@ func ApplyCustomerImportCreates(ctx context.Context, tx pgx.Tx, creates []csvimp
 		  INSERT INTO customers (name, phone, email, birthday, anniversary, notes)
 		  SELECT t.n, t.p, NULLIF(t.e,''), NULLIF(t.b,'')::date, NULLIF(t.a,'')::date, NULLIF(t.o,'')
 		    FROM unnest($1::text[],$2::text[],$3::text[],$4::text[],$5::text[],$6::text[]) AS t(n,p,e,b,a,o)
-		  RETURNING id, phone
+		  RETURNING id, phone, phone_norm
 		)
 		INSERT INTO customer_dup_candidates (new_customer_id, existing_customer_id, phone)
-		SELECT ins.id,
-		       (SELECT c.id FROM customers c
-		         WHERE `+normPhoneSQL2+` = ins.phone AND c.merged_into IS NULL
-		         ORDER BY c.created_at ASC, c.id ASC LIMIT 1),
-		       ins.phone
+		SELECT ins.id, m.id, ins.phone
 		  FROM ins
-		 WHERE EXISTS (SELECT 1 FROM customers c WHERE `+normPhoneSQL2+` = ins.phone AND c.merged_into IS NULL)
+		  CROSS JOIN LATERAL (
+		    SELECT u.id FROM (
+		      (SELECT c.id, c.created_at FROM customers c
+		        WHERE c.phone_norm = ins.phone_norm AND ins.phone_norm <> '' AND c.merged_into IS NULL)
+		      UNION ALL
+		      (SELECT c.id, c.created_at FROM customers c
+		        WHERE ins.phone_norm = '' -- a value that does not normalize: exact cleaned text, as before
+		          AND `+normPhoneSQL2+` = ins.phone AND c.merged_into IS NULL)
+		    ) u ORDER BY u.created_at ASC, u.id ASC LIMIT 1) m
 		ON CONFLICT DO NOTHING`,
 		names, phones, emails, births, annis, notes); err != nil {
 		return err
