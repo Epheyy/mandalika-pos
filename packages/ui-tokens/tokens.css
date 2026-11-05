@@ -89,11 +89,13 @@
   --d-toast: 180ms;
 }
 
-/* No motion when the user (or the Android "Remove animations" setting, to be verified on the A9) asks for it. */
+/* No motion when the user (or the Android "Remove animations" setting, to be verified on the A9) asks for it.
+   Loaders are exempt: a frozen spinner/skeleton would read as a hung screen, and they signal progress, not motion
+   for its own sake. */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *:not(.animate-spin, .animate-pulse),
+  *:not(.animate-spin, .animate-pulse)::before,
+  *:not(.animate-spin, .animate-pulse)::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

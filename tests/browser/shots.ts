@@ -44,18 +44,22 @@ export async function captureShot(
   if (!runDir) throw new Error('captureShot: A34C_RUN_DIR is not set (use the checked-in browser:ci runner)')
   const dir = path.join(runDir, 'shots')
   fs.mkdirSync(dir, { recursive: true })
-  const original = page.viewportSize()
+  const original = page.viewportSize() ?? SHOT_VIEWPORTS[viewports[0] ?? 'pos']
   const written: string[] = []
   try {
     for (const viewport of viewports) {
       await page.setViewportSize(SHOT_VIEWPORTS[viewport])
-      await page.evaluate(() => document.fonts.ready)
+      // Fonts ready + two frames, so matchMedia / ResizeObserver re-renders have landed.
+      await page.evaluate(async () => {
+        await document.fonts.ready
+        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+      })
       const file = path.join(dir, shotFileName(name, viewport))
       await page.screenshot({ path: file, fullPage: false })
       written.push(file)
     }
   } finally {
-    if (original) await page.setViewportSize(original)
+    await page.setViewportSize(original)
   }
   return written
 }

@@ -11,15 +11,17 @@ import { fileURLToPath } from 'node:url'
  * and the cleanup slice (Z) asserts it is empty.
  */
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
-const SCAN_ROOTS = ['apps/pos/src', 'apps/backoffice/src']
+const SCAN_ROOTS = ['apps/pos/src', 'apps/backoffice/src', 'packages/ui-tokens']
 const EXTENSIONS = /\.(tsx?|css)$/
-const LAYOUT_PROPS = 'width|height|top|left|right|bottom|margin|padding|border|font-size|inset|gap'
+const LAYOUT_PROPS =
+  'width|height|top|left|right|bottom|margin|padding|border|font-size|inset|gap|grid-template-rows|grid-template-columns'
 
 /** Each pattern is global; one match = one hit. */
 const LAYOUT_TRANSITION_PATTERNS: readonly RegExp[] = [
   /\btransition-all\b/g,
   /\btransition-(?:width|height|spacing)\b/g,
-  new RegExp(String.raw`\btransition-\[[^\]]*\b(?:${LAYOUT_PROPS})\b`, 'g'),
+  new RegExp(String.raw`\btransition-\[[^\]]*\b(?:all|${LAYOUT_PROPS})\b`, 'g'),
+  new RegExp(String.raw`\btransitionProperty\s*:\s*['"][^'"]*\b(?:all|${LAYOUT_PROPS})\b`, 'g'),
   new RegExp(String.raw`\btransition(?:-property)?\s*:[^;{}]*\b(?:all|${LAYOUT_PROPS})\b`, 'g'),
 ]
 
@@ -56,6 +58,9 @@ describe('countLayoutTransitions', () => {
     expect(countLayoutTransitions('class="transition-all duration-200"')).toBe(1)
     expect(countLayoutTransitions('class="transition-[width,opacity]"')).toBe(1)
     expect(countLayoutTransitions('class="transition-width"')).toBe(1)
+    expect(countLayoutTransitions('class="transition-[all]"')).toBe(1)
+    expect(countLayoutTransitions('class="transition-[grid-template-rows]"')).toBe(1)
+    expect(countLayoutTransitions("style={{ transitionProperty: 'height' }}")).toBe(1)
     expect(countLayoutTransitions('.a { transition: height 0.2s ease; }')).toBe(1)
     expect(countLayoutTransitions('.a { transition-property: margin-left; }')).toBe(1)
     expect(countLayoutTransitions('.a { transition: all 0.2s; }')).toBe(1)

@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { applyBrand } from './apply'
 import { BRANDS, darken, type BrandId } from './brands'
 import { resolveBrand } from './index'
@@ -150,7 +153,11 @@ describe('brand-strong (filled controls behind white 14 px labels, D-73)', () =>
   it('Mandalika strong + hover equal the shared token defaults, so the skin is a no-op for it', () => {
     const { root, props } = fakeRoot()
     applyBrand(BRANDS.mandalika, root)
-    expect(props.get('--color-brand-strong')).toBe('#8f6412') // packages/ui-tokens/tokens.css
-    expect(props.get('--color-brand-strong-hover')).toBe('#7a550f') // packages/ui-tokens/tokens.css
+    const tokens = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../../../../packages/ui-tokens/tokens.css'),
+      'utf8',
+    )
+    expect(tokens).toContain(`--color-brand-strong: ${props.get('--color-brand-strong')};`)
+    expect(tokens).toContain(`--color-brand-strong-hover: ${props.get('--color-brand-strong-hover')};`)
   })
 })

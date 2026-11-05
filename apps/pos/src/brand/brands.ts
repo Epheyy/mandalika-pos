@@ -32,7 +32,7 @@ export type Brand = {
   displayName: string
   primary: string
   primaryPressed: string
-  /** Filled-control surface behind white 14 px labels (>= 4.5:1, D-73). Brands whose primary already passes AA use it. */
+  /** Filled-control surface behind white 14 px labels (>= 4.5:1, D-73). A skin whose brand colour already passes AA uses that colour. */
   primaryStrong: string
   logo: string
   tagline?: string
