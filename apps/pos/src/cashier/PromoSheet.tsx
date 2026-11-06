@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { Sheet } from '../components/ui/Sheet'
-import { IconClose } from '../components/ui/icons'
 
 interface PromoSheetProps {
   onClose: () => void
@@ -14,25 +13,22 @@ interface PromoSheetProps {
  *  for the list and brings its own "‹ Kembali" header. */
 export function PromoSheet({ onClose, picker, children }: PromoSheetProps) {
   return (
-    <Sheet open onClose={onClose} variant="side" z={40} maxWidth="max-w-md" closeLabel="Tutup" panelClassName="flex flex-col">
+    <Sheet
+      open
+      onClose={onClose}
+      variant="side"
+      z={40}
+      maxWidth="max-w-md"
+      closeLabel="Tutup"
+      panelClassName="flex flex-col"
+      header={!picker}
+      title={picker ? undefined : 'Promo & Diskon'}
+    >
       <div className="flex h-full min-h-0 flex-col">
         {picker ? (
           picker
         ) : (
-          <>
-            <div className="flex flex-shrink-0 items-center justify-between border-b border-paper-2 py-1 pl-5 pr-2">
-              <h3 className="text-lg font-bold text-ink-900">Promo &amp; Diskon</h3>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Tutup"
-                className="touch inline-flex items-center justify-center rounded-control text-ink-500 active:bg-paper-1"
-              >
-                <IconClose size={22} />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">{children}</div>
-          </>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">{children}</div>
         )}
       </div>
     </Sheet>
