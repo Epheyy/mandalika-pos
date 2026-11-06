@@ -8,7 +8,7 @@ import { localDay } from '../../lib/businessDay'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { exportToCSV, exportToXLSX } from '../../lib/csvUtils'
-import { ImportExportBar } from '../../components/ImportExportBar'
+import { ImportExportMenu } from '../../ui/ImportExportMenu'
 import { Button } from '../../ui/Button'
 import { Input, Select, Textarea, fieldClass } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
@@ -48,11 +48,11 @@ function ItemsTable({ sc, items, counted, onCountChange }: ItemsTableProps) {
   const isEditable = sc.status === 'in_progress'
   const showDiff = sc.status === 'completed' || sc.status === 'in_progress'
   return (
-    <div className="border-t border-gray-100 overflow-x-auto max-h-96 overflow-y-auto">
+    <div className="border-t border-gray-100 overflow-x-auto">
       <table className="w-full">
         <thead className="sticky top-0 bg-gray-50">
           <tr>
-            {['Bahan', 'Satuan', 'Dihitung', ...(showDiff ? ['Selisih'] : [])].map((h) => (
+            {['Bahan', 'Satuan', 'Dihitung', ...(showDiff ? [sc.status === 'in_progress' ? 'Belum disimpan' : 'Selisih'] : [])].map((h) => (
               <th key={h} className="text-left px-4 py-2 text-xs font-black text-gray-400 uppercase">
                 {h}
               </th>
@@ -281,7 +281,7 @@ export default function OpnameTab() {
         subtitle="Hitung stok bahan baku per lokasi (outlet atau gudang)."
         actions={
           <>
-            <ImportExportBar
+            <ImportExportMenu
               onExport={(fmt) => void exportIngredientStockCounts(fmt)}
               exportDisabled={scTotal === 0}
             />
@@ -320,7 +320,7 @@ export default function OpnameTab() {
               (it) => counted[it.id] !== undefined || it.counted != null,
             ).length
             return (
-              <Card key={sc.id} className="overflow-hidden">
+              <Card key={sc.id} className="overflow-clip">
                 {/* Row header */}
                 <div className="px-5 py-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -377,7 +377,11 @@ export default function OpnameTab() {
                       </>
                     )}
 
-                    <IconButton onClick={() => setExpanded(expanded === sc.id ? null : sc.id)}>
+                    <IconButton
+                      label={expanded === sc.id ? `Tutup rincian ${sc.name}` : `Buka rincian ${sc.name}`}
+                      aria-expanded={expanded === sc.id}
+                      onClick={() => setExpanded(expanded === sc.id ? null : sc.id)}
+                    >
                       {expanded === sc.id ? (
                         <ChevronUp className="w-4 h-4" />
                       ) : (

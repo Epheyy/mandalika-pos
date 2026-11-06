@@ -4,9 +4,11 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-06 by Claude (Opus 5.5) - Kaca wave 2 merged (K2 0f1417b0, K3 34a1d089; backoffice via Cloudflare, K3 rides the wave-3 OTA); wave 3 starting; see Progress board.
+Last updated: 2026-11-06 by Claude (Sonnet 5.5) - Kaca B3 Inventori built, PR open, not merged (Cloudflare); see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
+
+> 2026-11-06: **Kaca B3 (Inventori) BUILT, PR open against prod-hardening, NOT merged; ships via Cloudflare (backoffice only, no backend/POS/OTA).** Branch `claude/kaca-b3-inventori-688496` off `ef504ea3`. Display-only: stock writes and opname outlet scope untouched (`countScope.ts` not in the diff). Kartu Stok: left `SkuRail` replaced by a full-width filter row (SKU search with removable pill, Lokasi, Dari-Sampai + quick ranges, jenis chips), Unduh CSV portalled into the Stok Produk page header, single header row, document numbers in body font, movement help in an "Arti jenis gerakan" disclosure. Opname (Produk + Bahan): nested `max-h-96` vertical scroll removed (sideways scroll kept), expand buttons named, in-progress Bahan column relabelled "Belum disimpan" (D-111). Bahan Daftar/Opname/Transfer + Opname Produk headers use `ImportExportMenu`. Transfer: receive modal is now a SlideOver, over-quantity in warn (not green) (#13), outlet destination = "Terima paksa" (secondary) with a confirm naming the TRF + units before the write (#14/D-107, new browser step `forced-receipt-asks-first`), Batalkan as danger text, receive toasts (#22, product + Bahan). Cards holding tables no longer clip (`overflow-clip`). Reviews: Opus reviewer + code-reviewer, findings fixed (sideways scroll, leftover group header row, combobox ARIA dropped, confirm stays open on refusal). Owner to eyeball: Kartu Stok filter row at 1440/768/375, Terima paksa flow, 52 px rows NOT done (kit DataTable has no row-height prop).
 
 > 2026-11-06: **Kaca wave 3 STARTED** (owner: "start Kaca wave 3"): 9 slice sessions P1-P5 + B1/B2/B3/B4b off `34a1d089`, each its own PR; merge order = plan §6 table order (P1, P2, P3, P4, P5, B1, B2, B3, B4b), later slices rebase. B* ship via Cloudflare; P1-P5 + K1/K3 ship together in one batched POS OTA. B4a (Pelanggan + Promosi) may join wave 3 since promo S2 is merged (offered as a card).
 

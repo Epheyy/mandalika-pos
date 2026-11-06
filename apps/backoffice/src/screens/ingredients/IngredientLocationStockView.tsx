@@ -57,7 +57,7 @@ export function IngredientLocationStockView({ location, onBack }: IngredientLoca
         }
       />
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-clip">
         {sq.loading ? (
           <TableSkeleton />
         ) : rows.length === 0 ? (

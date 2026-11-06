@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { MovementSku, StockMovementPage, StockMovementParams, StockMovementRow, WarehouseStockRow } from '@mandalika/api'
 import { PackagePlus, Search, SlidersHorizontal, X } from 'lucide-react'
 import { api } from '../../api'
@@ -8,12 +9,13 @@ import { downloadCsvText } from '../../lib/csvUtils'
 import { LEDGER_BUCKET, LEDGER_ERP_STATUS, LEDGER_KIND } from '../../lib/labels/ledger'
 import { labelOf } from '../../lib/labels/types'
 import { useListState } from '../../lib/router/useListState'
+import { useDismiss } from '../../shell/useDismiss'
 import { Button } from '../../ui/Button'
+import { IconButton } from '../../ui/IconButton'
 import { Card } from '../../ui/Card'
 import { DataTable, type Column } from '../../ui/DataTable'
 import { EmptyState } from '../../ui/EmptyState'
 import { ExportButton } from '../../ui/ExportButton'
-import { fieldClass } from '../../ui/Field'
 import { FilterBar } from '../../ui/FilterBar'
 import { StatusBadge } from '../../ui/StatusBadge'
 import { KIND_GROUPS, daysAgoDay, formatMovementTime, isRecordedLate, refTypeLabel } from './stockCardFormat'
@@ -46,7 +48,7 @@ function skuLabel(r: { productName?: string; variantSize: string; sku?: string }
 const KIND_ITEMS = (kinds: readonly string[]) => kinds.map((k) => ({ id: k, label: labelOf(LEDGER_KIND, k).label }))
 
 /** Kartu Stok: the ledger of one location (and, once picked, one SKU), as `#/inventori/stok/kartu-stok?...`. */
-export function StockCard() {
+export function StockCard({ exportSlot }: { exportSlot?: HTMLElement | null }) {
   const [state, setState] = useListState(KARTU_SCHEMA)
   const loc = useLocationParam(state.lokasi)
   const sku = useMemo(() => decodeSku(state.sku), [state.sku])
@@ -156,29 +158,32 @@ export function StockCard() {
 
   const activeCount = [state.lokasi, state.sku, state.dari, state.sampai, state.jenis].filter((v) => v !== '').length
 
-  return (
-    <div className="flex items-start gap-5">
-      <SkuRail
-        locationType={loc.location?.type}
-        locationId={loc.location?.id}
-        pickedLabel={sku ? pickedLabel : null}
-        onPick={pickSku}
-        onClear={() => setState({ sku: '' })}
-      />
+  const exportButton = (
+    <ExportButton
+      rowCount={null}
+      filterSummary={[`Rentang ${fromDay} s/d ${toDay}`, ...(sku ? [pickedLabel] : ['Semua SKU'])]}
+      disabled={!loc.location}
+      onExport={exportCsv}
+    />
+  )
 
-      <div className="min-w-0 flex-1 space-y-4">
+  return (
+    <div className="space-y-4">
+      {/* The download lives in the page header (portal) when the host gives a slot; otherwise it sits in the filter row. */}
+      {exportSlot && createPortal(exportButton, exportSlot)}
+      <div className="space-y-4">
         <FilterBar
           onReset={() => setState({ lokasi: '', sku: '', dari: '', sampai: '', jenis: '' })}
           activeCount={activeCount}
-          actions={
-            <ExportButton
-              rowCount={null}
-              filterSummary={[`Rentang ${fromDay} s/d ${toDay}`, ...(sku ? [pickedLabel] : ['Semua SKU'])]}
-              disabled={!loc.location}
-              onExport={exportCsv}
-            />
-          }
+          actions={exportSlot ? undefined : exportButton}
         >
+          <SkuCombobox
+            locationType={loc.location?.type}
+            locationId={loc.location?.id}
+            pickedLabel={sku ? pickedLabel : null}
+            onPick={pickSku}
+            onClear={() => setState({ sku: '' })}
+          />
           <FilterBar.Select
             label="Lokasi"
             value={loc.locationKey}
@@ -210,7 +215,7 @@ export function StockCard() {
             const redundant = items.length === 1 && items[0].label === LEDGER_BUCKET[g.bucket].label
             return (
               <div key={g.bucket} className="flex items-center gap-2">
-                {!redundant && <span className="text-xs font-black text-ink-700">{LEDGER_BUCKET[g.bucket].label}</span>}
+                {!redundant && <span className="text-[13px] font-bold text-ink-700">{LEDGER_BUCKET[g.bucket].label}:</span>}
                 <FilterBar.Chips
                   multiple
                   label={LEDGER_BUCKET[g.bucket].label}
@@ -230,6 +235,20 @@ export function StockCard() {
           />
         </div>
 
+        <details className="text-xs text-ink-700">
+          <summary className="w-fit cursor-pointer rounded font-bold underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong">
+            Arti jenis gerakan
+          </summary>
+          <dl className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+            {KIND_GROUPS.map((g) => (
+              <div key={g.bucket} className="flex gap-2">
+                <dt className="font-bold">{LEDGER_BUCKET[g.bucket].label}</dt>
+                <dd>{LEDGER_BUCKET[g.bucket].hint}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+
         {sku && summary && <SaldoHeader label={pickedLabel} summary={summary} />}
         {sku && loc.location && (
           <div className="flex flex-wrap gap-2">
@@ -243,7 +262,7 @@ export function StockCard() {
         )}
         {shortcutError && <p role="alert" className="text-sm text-danger">{shortcutError}</p>}
         {!sku && loc.location && (
-          <p className="text-xs text-ink-700">Pilih satu SKU di kiri untuk melihat saldo awal, total masuk/keluar, dan saldo akhir.</p>
+          <p className="text-xs text-ink-700">Pilih satu SKU di filter untuk melihat saldo awal, total masuk/keluar, dan saldo akhir.</p>
         )}
 
         <DataTable
@@ -299,13 +318,12 @@ interface MovementColumnsInput {
 const nowrap = 'whitespace-nowrap'
 
 /** The 13 ledger columns. Waktu Kejadian and Jenis lead and stay in view while the table scrolls sideways;
- *  Waktu Tercatat sits with the notes because a sticky column has to be one of the leading ones. */
+ *  Waktu Tercatat sits with the notes (a sticky column has to be one of the leading ones). */
 function movementColumns({ zone, showProduct, canReadOrders, onOpenDoc }: MovementColumnsInput): Column<StockMovementRow>[] {
   return [
     {
       id: 'kejadian',
       header: 'Waktu Kejadian',
-      group: 'Waktu',
       sticky: true,
       width: 150,
       cell: (m) => <span className={nowrap}>{formatMovementTime(m.occurredAt, zone)}</span>,
@@ -313,7 +331,6 @@ function movementColumns({ zone, showProduct, canReadOrders, onOpenDoc }: Moveme
     {
       id: 'jenis',
       header: 'Jenis',
-      group: 'Gerakan',
       sticky: true,
       width: 150,
       cell: (m) => <span className={nowrap}>{labelOf(LEDGER_KIND, m.kind).label}</span>,
@@ -323,7 +340,6 @@ function movementColumns({ zone, showProduct, canReadOrders, onOpenDoc }: Moveme
           {
             id: 'produk',
             header: 'Produk',
-            group: 'Gerakan',
             cell: (m: StockMovementRow) => (
               <span className={nowrap}>
                 {m.productName ?? '—'} · {m.variantSize}
@@ -336,35 +352,33 @@ function movementColumns({ zone, showProduct, canReadOrders, onOpenDoc }: Moveme
     {
       id: 'dokumen',
       header: 'Dokumen',
-      group: 'Gerakan',
       cell: (m) => {
         const doc = docRefOf(m, canReadOrders)
         const text = m.kind === 'refund' ? refundLabel(m) : (m.refNumber ?? refTypeLabel(m.refType))
         return (
           <div className={nowrap}>
             {doc ? (
-              <button type="button" className="font-mono text-gold-700 underline underline-offset-2 hover:text-gold-900" onClick={() => onOpenDoc(doc)}>
+              <button type="button" className="text-gold-700 underline underline-offset-2 hover:text-gold-900" onClick={() => onOpenDoc(doc)}>
                 {text}
               </button>
             ) : (
-              <span className="font-mono">{text}</span>
+              <span>{text}</span>
             )}
-            {m.docNumber && <span className="block font-mono text-xs text-ink-700">{m.docNumber}</span>}
+            {m.docNumber && <span className="block text-xs text-ink-700">{m.docNumber}</span>}
             {m.requisitionNumber && <span className="block text-xs text-ink-700">dari {m.requisitionNumber}</span>}
           </div>
         )
       },
     },
-    { id: 'masuk', header: 'Masuk', group: 'Gerakan', align: 'right', cell: (m) => <span className="font-bold text-ok">{m.qty > 0 ? m.qty : ''}</span> },
-    { id: 'keluar', header: 'Keluar', group: 'Gerakan', align: 'right', cell: (m) => <span className="font-bold text-danger">{m.qty < 0 ? -m.qty : ''}</span> },
-    { id: 'saldo', header: 'Saldo', group: 'Gerakan', align: 'right', cell: (m) => <span className="font-black">{m.qtyAfter}</span> },
-    { id: 'oleh', header: 'Oleh', group: 'Siapa', cell: (m) => <span className={nowrap}>{m.actorName ?? ''}</span> },
-    { id: 'penyetuju', header: 'Penyetuju', group: 'Siapa', cell: (m) => <span className={nowrap}>{m.approvedByName ?? ''}</span> },
-    { id: 'alasan', header: 'Alasan', group: 'Catatan', cell: (m) => m.reasonText ?? '' },
+    { id: 'masuk', header: 'Masuk', align: 'right', cell: (m) => <span className="font-bold text-ok">{m.qty > 0 ? m.qty : ''}</span> },
+    { id: 'keluar', header: 'Keluar', align: 'right', cell: (m) => <span className="font-bold text-danger">{m.qty < 0 ? -m.qty : ''}</span> },
+    { id: 'saldo', header: 'Saldo', align: 'right', cell: (m) => <span className="font-black">{m.qtyAfter}</span> },
+    { id: 'oleh', header: 'Oleh', cell: (m) => <span className={nowrap}>{m.actorName ?? ''}</span> },
+    { id: 'penyetuju', header: 'Penyetuju', cell: (m) => <span className={nowrap}>{m.approvedByName ?? ''}</span> },
+    { id: 'alasan', header: 'Alasan', cell: (m) => m.reasonText ?? '' },
     {
       id: 'tanda',
       header: 'Tanda',
-      group: 'Catatan',
       cell: (m) => (
         <span className="flex flex-wrap gap-1">
           {m.isGiveaway && <StatusBadge tone="reward" label="Hadiah" />}
@@ -377,13 +391,11 @@ function movementColumns({ zone, showProduct, canReadOrders, onOpenDoc }: Moveme
     {
       id: 'tercatat',
       header: 'Waktu Tercatat',
-      group: 'Catatan',
       cell: (m) => <span className={`${nowrap} text-ink-700`}>{formatMovementTime(m.recordedAt, zone)}</span>,
     },
     {
       id: 'erp',
       header: 'ERP',
-      group: 'Catatan',
       cell: (m) => (m.erpStatus ? <StatusBadge map={LEDGER_ERP_STATUS} value={m.erpStatus} /> : ''),
     },
   ]
@@ -411,7 +423,7 @@ function SaldoHeader({ label, summary }: { label: string; summary: NonNullable<S
   )
 }
 
-interface SkuRailProps {
+interface SkuComboboxProps {
   locationType: LocationType | undefined
   locationId: string | undefined
   /** The picked SKU's name, or null when no SKU is picked. */
@@ -420,11 +432,15 @@ interface SkuRailProps {
   onClear: () => void
 }
 
-/** The left rail: the picked SKU and a search over the SKUs that have ledger history at the location. The
- *  endpoint answers nothing for an empty query and at most a few rows, so the rail is search-driven. */
-function SkuRail({ locationType, locationId, pickedLabel, onPick, onClear }: SkuRailProps) {
+/** The SKU filter: the picked SKU as a removable pill, or a search over the SKUs that have ledger history at the
+ *  location. The endpoint answers nothing for an empty query and at most a few rows, so it is search-driven. */
+function SkuCombobox({ locationType, locationId, pickedLabel, onPick, onClear }: SkuComboboxProps) {
   const [text, setText] = useState('')
   const [results, setResults] = useState<MovementSku[]>([])
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  const listId = useId()
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const q = text.trim()
@@ -445,34 +461,55 @@ function SkuRail({ locationType, locationId, pickedLabel, onPick, onClear }: Sku
     }
   }, [text, locationType, locationId])
 
+  useDismiss(open, () => setOpen(false), root)
+
   return (
-    <aside aria-label="Pilih SKU" className="w-60 shrink-0 space-y-3">
-      {pickedLabel !== null && (
-        <div className="rounded-xl border border-gray-200 bg-paper-1 p-3">
-          <p className="text-xs font-black text-ink-700">SKU terpilih</p>
-          <div className="mt-1 flex items-start justify-between gap-2">
-            <span className="text-sm font-bold text-gray-900">{pickedLabel}</span>
-            <button type="button" aria-label="Hapus pilihan SKU" onClick={onClear} className="shrink-0 text-ink-700 hover:text-gray-900">
+    <div ref={root} className="relative">
+      <div className="flex h-10 w-72 items-center gap-1.5 rounded-xl border border-paper-2 bg-white pl-3 pr-1 text-[13px] focus-within:ring-2 focus-within:ring-brand-strong">
+        <span aria-hidden="true" className="flex-shrink-0 text-ink-500">
+          SKU:
+        </span>
+        {pickedLabel !== null ? (
+          <>
+            <span className="min-w-0 flex-1 truncate font-bold text-ink-900" title={pickedLabel}>
+              {pickedLabel}
+            </span>
+            <IconButton label="Hapus pilihan SKU" onClick={() => {
+                onClear()
+                requestAnimationFrame(() => inputRef.current?.focus())
+              }}>
               <X className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-      )}
-      <div className="flex flex-col gap-1">
-        <label htmlFor="kartu-sku" className="text-xs font-bold text-ink-700">SKU / barcode / nama</label>
-        <input id="kartu-sku" value={text} onChange={(e) => setText(e.target.value)} placeholder="Semua SKU: ketik untuk memilih" className={fieldClass} />
+            </IconButton>
+          </>
+        ) : (
+          <input
+            ref={inputRef}
+            id="kartu-sku"
+            type="search"
+            aria-label="SKU / barcode / nama"
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value)
+              setOpen(true)
+            }}
+            onFocus={() => setOpen(true)}
+            placeholder="Semua SKU: ketik untuk memilih"
+            className="h-full min-w-0 flex-1 bg-transparent font-bold text-ink-900 placeholder:font-normal focus:outline-none"
+          />
+        )}
       </div>
-      {results.length > 0 ? (
-        <ul className="max-h-80 overflow-auto rounded-xl border border-gray-200 bg-white">
+      {pickedLabel === null && open && results.length > 0 && (
+        <ul id={listId} aria-label="Hasil SKU" className="absolute left-0 top-full z-20 mt-1 max-h-72 w-full min-w-72 overflow-auto rounded-xl border border-paper-2 bg-white py-1 shadow-lg">
           {results.map((r) => (
             <li key={`${r.productId}|${r.variantSize}`}>
               <button
                 type="button"
-                className="w-full px-3 py-2 text-left text-sm hover:bg-paper-1"
+                className="flex h-10 w-full items-center px-3 text-left text-[13px] text-ink-900 hover:bg-paper-1 focus:bg-paper-1 focus:outline-none"
                 onClick={() => {
                   onPick(r)
                   setText('')
                   setResults([])
+                  setOpen(false)
                 }}
               >
                 {skuLabel(r)}
@@ -480,9 +517,7 @@ function SkuRail({ locationType, locationId, pickedLabel, onPick, onClear }: Sku
             </li>
           ))}
         </ul>
-      ) : (
-        <p className="text-xs text-ink-700">Ketik minimal 2 huruf. Tanpa pilihan, kartu menampilkan semua SKU di lokasi ini.</p>
       )}
-    </aside>
+    </div>
   )
 }

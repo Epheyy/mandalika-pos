@@ -5,7 +5,7 @@ import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { exportToCSV, exportToXLSX, buildExportName } from '../../lib/csvUtils'
-import { ImportExportBar } from '../../components/ImportExportBar'
+import { ImportExportMenu } from '../../ui/ImportExportMenu'
 import { Button } from '../../ui/Button'
 import { Select, fieldClass } from '../../ui/Field'
 import { Card } from '../../ui/Card'
@@ -185,7 +185,7 @@ export default function TransferTab() {
         </div>
         <div className="flex items-end gap-2 ml-auto">
           <span className="text-xs text-gray-500 pb-2.5">{total} transfer</span>
-          <ImportExportBar
+          <ImportExportMenu
             onExport={(fmt) => void exportIngredientTransfers(fmt)}
             exportDisabled={total === 0}
           />
@@ -199,7 +199,7 @@ export default function TransferTab() {
       </div>
 
       {/* List */}
-      <Card className="overflow-hidden">
+      <Card className="overflow-clip">
         {q.loading ? (
           <TableSkeleton />
         ) : rows.length === 0 ? (
@@ -380,7 +380,7 @@ function TransferDetail({ transfer: t, onDismiss, onRefresh }: TransferDetailPro
         <p className="text-sm text-gray-500">{transfer.note}</p>
       )}
       {transfer.discrepancyReason && (
-        <p className="text-sm text-amber-700">Selisih: {transfer.discrepancyReason}</p>
+        <p className="text-sm text-warn-strong">Selisih: {transfer.discrepancyReason}</p>
       )}
 
       {/* Items table */}
@@ -412,9 +412,9 @@ function TransferDetail({ transfer: t, onDismiss, onRefresh }: TransferDetailPro
                     <span
                       className={
                         it.difference < 0
-                          ? 'text-red-600'
+                          ? 'text-danger'
                           : it.difference > 0
-                          ? 'text-green-600'
+                          ? 'text-warn-strong'
                           : 'text-gray-400'
                       }
                     >
@@ -428,7 +428,7 @@ function TransferDetail({ transfer: t, onDismiss, onRefresh }: TransferDetailPro
         </table>
       </div>
 
-      {err && <p className="text-sm text-red-600">{err}</p>}
+      {err && <p className="text-sm text-danger">{err}</p>}
 
       {/* Surat Jalan panel — mounted when SJ number is available */}
       {(transfer.status === 'in_transit' || transfer.status === 'completed') && (

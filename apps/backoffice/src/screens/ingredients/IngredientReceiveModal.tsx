@@ -4,6 +4,7 @@ import { api } from '../../api'
 import { Button } from '../../ui/Button'
 import { Textarea, fieldClass } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
+import { useToast } from '../../ui/Toast'
 
 interface IngredientReceiveModalProps {
   transfer: IngredientTransfer
@@ -19,6 +20,7 @@ export function IngredientReceiveModal({ transfer, onClose, onDone }: Ingredient
   )
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
+  const toast = useToast()
   const [err, setErr] = useState<string | null>(null)
 
   const anyDiff = useMemo(
@@ -51,6 +53,7 @@ export function IngredientReceiveModal({ transfer, onClose, onDone }: Ingredient
         discrepancyReason: reason.trim() || null,
       }
       await api.receiveIngredientTransfer(transfer.id, body)
+      toast({ message: `${transfer.transferNo} diterima`, tone: 'ok' })
       onClose()
       await onDone()
     } catch (e: unknown) {
@@ -88,7 +91,7 @@ export function IngredientReceiveModal({ transfer, onClose, onDone }: Ingredient
           <span className="col-span-2 text-[11px] font-bold text-gray-400">Dikirim</span>
           <span className="col-span-3 text-[11px] font-bold text-gray-400">Diterima</span>
         </div>
-        <div className="space-y-2 max-h-80 overflow-y-auto">
+        <div className="space-y-2">
           {transfer.items.map((it) => {
             const got = Number(actual[it.id] ?? it.sentQty)
             const diff = got - it.sentQty
@@ -108,7 +111,7 @@ export function IngredientReceiveModal({ transfer, onClose, onDone }: Ingredient
                     aria-label="Qty diterima"
                   />
                   {diff !== 0 && (
-                    <span className={`text-[11px] font-bold ${diff < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    <span className={`text-[11px] font-bold ${diff < 0 ? 'text-danger' : 'text-warn-strong'}`}>
                       {diff > 0 ? `+${diff}` : diff}
                     </span>
                   )}
@@ -126,7 +129,7 @@ export function IngredientReceiveModal({ transfer, onClose, onDone }: Ingredient
             placeholder="mis. 2 unit rusak / hilang di perjalanan"
           />
         )}
-        {err && <p className="text-sm text-red-600">{err}</p>}
+        {err && <p className="text-sm text-danger">{err}</p>}
       </div>
     </Modal>
   )

@@ -141,7 +141,7 @@ export function IngredientOverviewMatrix() {
         <FilterBar.Search label="Cari bahan" placeholder="Cari bahan…" value={search} onChange={handleSearch} />
       </div>
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-clip">
         {q.loading && !data ? (
           <TableSkeleton />
         ) : !data || data.rows.length === 0 ? (

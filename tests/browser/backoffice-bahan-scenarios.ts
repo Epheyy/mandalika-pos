@@ -2,6 +2,7 @@
 // ingredient across pages, not just the rows of one page; plus the delete question (usage block, refusal reason). Synthetic API.
 import type { ScenarioPage } from './fixture'
 import { openBackoffice, deepLink, navItem } from './fixture'
+import { BO_SHOT_VIEWPORTS, captureShot } from './shots'
 
 const OUTLET = '00000000-0000-4000-8f6b-0000000000a1'
 const CAT_OIL = '00000000-0000-4000-8f6b-0000000000c1'
@@ -87,6 +88,7 @@ export const bahanDaftarFlow = async (page: ScenarioPage) => {
   check(lastList()?.query.categoryId === CAT_OIL && lastList()?.query.page === '1', `page 1 carries categoryId: ${JSON.stringify(lastList()?.query)}`)
   check((await page.getByText(`${OILS} catatan`).count()) === 1, `the total is the whole category (${OILS}), not one page`)
   check((await rowNames()).length === 25 && (await rowNames()).every((n) => n.startsWith('Minyak')), `25 oil rows, got ${(await rowNames()).join(',')}`)
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'b3-bahan-daftar', BO_SHOT_VIEWPORTS)
   results.push({ step: 'category-is-a-server-filter' })
 
   // (b) the next pages stay inside the category: page 3 holds the last 10 oils, no bottle

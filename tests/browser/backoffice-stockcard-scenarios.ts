@@ -4,6 +4,7 @@
 // (synthetic API, no real backend).
 import type { ScenarioPage } from './fixture'
 import { openBackoffice, openTab } from './fixture'
+import { BO_SHOT_VIEWPORTS, captureShot } from './shots'
 
 const OUTLET = '00000000-0000-4000-8f69-0000000000a1'
 const PRODUCT = '00000000-0000-4000-8f69-0000000000c1'
@@ -121,6 +122,7 @@ export const stockCardFlow = async (page: ScenarioPage) => {
   check(cardHash.startsWith('#/inventori/stok/kartu-stok?') && cardHash.includes(`sku=${PRODUCT}%7CStd`) && cardHash.includes(`lokasi=outlet%3A${OUTLET}`), `card url ${cardHash}`)
   const first = listCalls.find((q) => !q.get('cursor') && !q.get('giveaway'))
   check(!!first && first.get('productId') === PRODUCT && first.get('variantSize') === 'Std' && first.get('locationId') === OUTLET, 'card query')
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'b3-kartu-stok', BO_SHOT_VIEWPORTS)
   results.push({ step: 'card-opens-on-sku', query: first?.toString() })
 
   await page.getByRole('button', { name: 'Muat lebih banyak' }).click()

@@ -2,6 +2,7 @@
 // (synthetic API, no real backend).
 import type { ScenarioPage } from './fixture'
 import { openBackoffice, deepLink } from './fixture'
+import { BO_SHOT_VIEWPORTS, captureShot } from './shots'
 
 const OUTLET = '00000000-0000-4000-8f6b-0000000000a1'
 const RUN_ID = '00000000-0000-4000-8f6b-0000000000e1'
@@ -111,6 +112,7 @@ export const opnameConfirmFlow = async (page: ScenarioPage) => {
   await startDialog.getByRole('button', { name: 'Mulai opname', exact: true }).click()
   await page.getByRole('button', { name: 'Selesai', exact: true }).waitFor()
   check(updates(RUN_ID).length === 1 && statusOf(updates(RUN_ID)[0]) === 'in_progress', `one start update, got ${JSON.stringify(calls)}`)
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'b3-opname', BO_SHOT_VIEWPORTS)
   results.push({ step: 'mulai-asks' })
 
   // (b) an unsaved edit (Parfum A 10 to 4) is saved first, then Selesai names the net the saved count gives

@@ -2,6 +2,7 @@
 // (synthetic API, no real backend).
 import type { ScenarioPage } from './fixture'
 import { openBackoffice } from './fixture'
+import { BO_SHOT_VIEWPORTS, captureShot } from './shots'
 
 const OUTLET = '00000000-0000-4000-8f6b-0000000000a1'
 const TRANSFER_ID = '00000000-0000-4000-8f6b-0000000000d1'
@@ -9,8 +10,8 @@ const NUMBER = 'TRF-CONF-1'
 const user = { id: 'synthetic-admin', displayName: 'MV Admin', role: 'admin', outletId: null, permissions: [] }
 const check = (ok: boolean, msg: string) => { if (!ok) throw new Error(msg) }
 
-type Status = 'draft' | 'in_transit' | 'cancelled'
-interface PostCall { action: 'send' | 'cancel'; key: string | null }
+type Status = 'draft' | 'in_transit' | 'cancelled' | 'completed'
+interface PostCall { action: 'send' | 'cancel' | 'receive'; key: string | null }
 
 const transfer = (status: Status) => ({
   id: TRANSFER_ID, transferNo: NUMBER, status, source: { kind: 'warehouse', id: 'w1', name: 'Gudang Pusat' },
@@ -39,14 +40,16 @@ async function mockApi(page: ScenarioPage, opts: { failSends?: number; cancelDel
     if (path.endsWith('/outlets')) return route.fulfill({ json: { data: [{ id: OUTLET, name: 'MV Outlet', isActive: true, timezone: 'Asia/Jakarta' }] } })
     if (path.endsWith('/settings/app')) return route.fulfill({ json: { data: settings } })
     if (path.endsWith(`/transfers/${TRANSFER_ID}`) && request.method() === 'GET') return route.fulfill({ json: { data: transfer(status) } })
-    const write = /\/transfers\/[^/]+\/(send|cancel)$/.exec(path)
+    const write = /\/transfers\/[^/]+\/(send|cancel|receive)$/.exec(path)
     if (write && request.method() === 'POST') {
-      const action = write[1] as 'send' | 'cancel'
+      const action = write[1] as 'send' | 'cancel' | 'receive'
       calls.push({ action, key: request.headers()['idempotency-key'] ?? null })
       if (action === 'send') {
         sendAttempts += 1
         if (sendAttempts <= (opts.failSends ?? 0)) return route.fulfill({ status: 500, json: { error: 'Gudang tidak merespons (uji)' } })
         status = 'in_transit'
+      } else if (action === 'receive') {
+        status = 'completed'
       } else {
         if (opts.cancelDelayMs) await new Promise((resolve) => setTimeout(resolve, opts.cancelDelayMs))
         status = 'cancelled'
@@ -74,6 +77,7 @@ export const transferConfirmFlow = async (page: ScenarioPage) => {
   await sendDialog.waitFor()
   check((await sendDialog.textContent())?.includes('Stok 7 unit akan keluar dari Gudang Pusat sekarang.') === true, 'the dialog states the unit count and the source')
   check(calls.length === 0, 'asking sends nothing')
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'b3-transfer-detail', BO_SHOT_VIEWPORTS)
   results.push({ step: 'kirim-asks' })
 
   // (b) Batal leaves the draft untouched
@@ -132,6 +136,25 @@ export const transferConfirmFlow = async (page: ScenarioPage) => {
   check(cancels.length === 1, `one cancel call, got ${cancels.length}`)
   check(!!cancels[0].key && !calls.some((c) => c.action === 'send' && c.key === cancels[0].key), 'the cancel has a key of its own')
   results.push({ step: 'confirm-once-own-key' })
+
+  // (f) an outlet destination is a forced receipt: it asks first (names the TRF and the units), Batal writes nothing,
+  // and the confirm writes once
+  setStatus('in_transit')
+  await page.reload()
+  await page.getByRole('heading', { name: NUMBER }).waitFor()
+  await page.getByRole('button', { name: 'Terima paksa', exact: true }).click()
+  await page.getByRole('button', { name: 'Konfirmasi Terima', exact: true }).click()
+  const forceDialog = page.getByRole('alertdialog', { name: `Terima paksa ${NUMBER}?` })
+  await forceDialog.waitFor()
+  check((await forceDialog.textContent())?.includes('Stok 7 unit') === true, 'the forced-receipt dialog states the units')
+  await forceDialog.getByRole('button', { name: 'Batal', exact: true }).click()
+  await forceDialog.waitFor({ state: 'detached' })
+  check(calls.filter((c) => c.action === 'receive').length === 0, 'Batal writes nothing')
+  await page.getByRole('button', { name: 'Konfirmasi Terima', exact: true }).click()
+  await forceDialog.getByRole('button', { name: 'Terima paksa', exact: true }).dblclick()
+  await forceDialog.waitFor({ state: 'detached' })
+  check(calls.filter((c) => c.action === 'receive').length === 1, 'one receive call')
+  results.push({ step: 'forced-receipt-asks-first' })
 
   return results
 }
