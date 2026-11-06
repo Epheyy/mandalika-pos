@@ -19,6 +19,7 @@ import type { BXGYRewardOption } from './pricing'
 import { formatRupiah } from './pricing'
 import { stockFor } from './stock'
 import { IconGift } from '../components/ui/icons'
+import { Button } from '../components/ui/Button'
 
 type Promotion = components['schemas']['Promotion']
 type Product = components['schemas']['Product']
@@ -99,17 +100,17 @@ export function BxgyRewardModal({
   }
 
   const panel = (
-      <div className={inline ? 'flex h-full min-h-0 flex-col' : 'relative bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[80vh] flex flex-col'}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <div className={inline ? 'flex h-full min-h-0 flex-col' : 'surface-solid relative flex max-h-[80vh] w-full max-w-sm flex-col rounded-panel'}>
+        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-paper-2 px-5 py-3">
           <div className="min-w-0">
-            <h3 className="font-bold text-gray-900 truncate"><IconGift size={16} className="inline-block align-[-0.125em]" /> Pilih Hadiah</h3>
-            <p className="text-[11px] text-gray-500 truncate">{promo.name}</p>
+            <h3 className="truncate font-bold text-ink-900"><IconGift size={16} className="inline-block align-[-0.125em]" /> Pilih Hadiah</h3>
+            <p className="truncate text-xs text-ink-500">{promo.name}</p>
           </div>
           {inline ? (
             <button
               type="button"
               onClick={onCancel}
-              className="touch -mr-2 rounded-control px-2 text-sm font-semibold text-ink-700 active:bg-paper-1"
+              className="press -mr-2 inline-flex min-h-11 items-center rounded-control px-3 text-sm font-semibold text-ink-700 active:bg-paper-1"
             >
               ‹ Kembali
             </button>
@@ -117,53 +118,52 @@ export function BxgyRewardModal({
             <button
               type="button"
               onClick={onCancel}
-              className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              aria-label="Tutup"
+              className="press -mr-2 inline-flex h-11 w-11 items-center justify-center rounded-control text-xl leading-none text-ink-500 active:bg-paper-1"
             >
               ×
             </button>
           )}
         </div>
 
-        <div className="px-5 py-2 border-b border-amber-100 bg-amber-50">
-          <p className="text-[11px] font-semibold text-amber-800">
+        <div className="border-b border-paper-2 bg-reward-bg px-5 py-2">
+          <p className="text-xs font-semibold text-reward">
             {remaining > 0
               ? `Pilih ${remaining} hadiah lagi (dari ${due})`
               : `${due} hadiah dipilih`}
           </p>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {options.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-4">
+            <p className="py-4 text-center text-sm text-ink-500">
               Tidak ada produk hadiah tersedia
             </p>
           ) : (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {options.map((o) => {
                 const picked = countFor(o)
                 const st = stockFor(stockProducts, o.productId, o.variantSize)
                 return (
                   <div
                     key={optionKey(o)}
-                    className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 ${
-                      picked > 0
-                        ? 'border-amber-500 bg-amber-50'
-                        : 'border-amber-200 bg-white'
+                    className={`flex items-center gap-1.5 rounded-control px-2 ${
+                      picked > 0 ? 'bg-reward-bg ring-2 ring-reward' : 'surface-card'
                     }`}
                   >
                     <button
                       type="button"
                       onClick={() => addPick(o)}
                       disabled={remaining <= 0 || countFor(o) >= availFor(o)}
-                      className="text-xs font-semibold text-amber-800 disabled:opacity-40 text-left"
+                      className="press min-h-11 text-left text-sm font-semibold text-ink-900 disabled:opacity-40"
                     >
                       {o.productName}
                       {o.variantSize ? ` · ${o.variantSize}` : ''}
-                      <span className="ml-1 text-amber-600">
+                      <span className="tnum ml-1 text-reward">
                         {o.net <= 0 ? 'GRATIS' : formatRupiah(o.net)}
                       </span>
                       {st !== null && (
-                        <span className={st > 0 ? 'ml-1 text-amber-600' : 'ml-1 text-red-500 font-bold'}>
+                        <span className={st > 0 ? 'ml-1 text-ink-700' : 'ml-1 font-bold text-danger'}>
                           · Stok {st}
                         </span>
                       )}
@@ -173,12 +173,12 @@ export function BxgyRewardModal({
                         <button
                           type="button"
                           onClick={() => removeLastPickFor(o)}
-                          className="w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-xs font-bold leading-none"
+                          className="press inline-flex h-11 w-11 items-center justify-center rounded-control bg-paper-1 text-base font-bold leading-none text-ink-900"
                           aria-label="Kurangi"
                         >
                           −
                         </button>
-                        <span className="text-xs font-bold text-amber-800 w-4 text-center">{picked}</span>
+                        <span className="tnum w-4 text-center text-sm font-bold text-ink-900">{picked}</span>
                       </span>
                     )}
                   </div>
@@ -188,22 +188,13 @@ export function BxgyRewardModal({
           )}
         </div>
 
-        <div className="px-5 py-4 border-t border-gray-100 flex gap-2 flex-shrink-0">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-bold text-sm hover:bg-gray-50"
-          >
+        <div className="flex flex-shrink-0 gap-2 border-t border-paper-2 px-5 py-4">
+          <Button variant="secondary" onClick={onCancel} className="flex-1">
             Batal
-          </button>
-          <button
-            type="button"
-            onClick={() => onConfirm(picks)}
-            disabled={!canConfirm}
-            className="flex-1 py-2.5 rounded-xl bg-amber-600 text-white font-bold text-sm disabled:opacity-40 hover:bg-amber-700"
-          >
+          </Button>
+          <Button onClick={() => onConfirm(picks)} disabled={!canConfirm} className="flex-1">
             Terapkan
-          </button>
+          </Button>
         </div>
       </div>
   )
@@ -214,7 +205,7 @@ export function BxgyRewardModal({
         type="button"
         aria-label="Tutup"
         tabIndex={-1}
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-ink-900/40"
         onClick={onCancel}
       />
       {panel}

@@ -36,8 +36,8 @@ export interface CodeFormSlideOverProps {
 
 function SwitchRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (next: boolean) => void }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2.5">
-      <p aria-hidden="true" className="text-sm font-bold text-gray-700">{label}</p>
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-paper-2 px-3 py-2.5">
+      <p aria-hidden="true" className="text-sm font-bold text-ink-700">{label}</p>
       <Switch checked={checked} onChange={onChange} label={label} />
     </div>
   )
@@ -68,12 +68,12 @@ function CustomerPicker({ form, customerName, phoneOnly, onCustomerChange }: Pic
 
   if (form.customerId) {
     return (
-      <div className="flex items-center justify-between rounded-xl border border-gold-200 bg-gold-50 px-3 py-2.5">
-        <span className="truncate text-sm font-bold text-gray-900">{customerName || form.customerId}</span>
+      <div className="flex items-center justify-between rounded-xl border border-paper-2 bg-paper-1 px-3 py-2.5">
+        <span className="truncate text-sm font-bold text-ink-900">{customerName || form.customerId}</span>
         <button
           type="button"
           onClick={() => onCustomerChange(undefined, '')}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-lg font-bold text-gray-400 hover:bg-red-50 hover:text-red-500"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg font-bold text-ink-500 hover:bg-danger-bg hover:text-danger"
           aria-label="Hapus pelanggan terpilih"
         >×</button>
       </div>
@@ -94,24 +94,24 @@ function CustomerPicker({ form, customerName, phoneOnly, onCustomerChange }: Pic
       />
       {phone && (
         <div className="flex items-center gap-2">
-          <p className="flex-1 text-xs text-gray-500">{CUSTOMER_PHONE_HINT} Tekan Enter atau Cari.</p>
+          <p className="flex-1 text-xs text-ink-500">{CUSTOMER_PHONE_HINT} Tekan Enter atau Cari.</p>
           <Button variant="secondary" onClick={() => setSubmitted(query)}>Cari</Button>
         </div>
       )}
       {term && (
-        <div className="max-h-44 overflow-auto rounded-lg border border-gray-200 bg-white">
+        <div className="max-h-44 overflow-auto rounded-lg border border-paper-2 bg-white">
           {results.length === 0 ? (
-            <p className="px-3 py-2.5 text-xs text-gray-400">Tidak ada pelanggan cocok.</p>
+            <p className="px-3 py-2.5 text-xs text-ink-500">Tidak ada pelanggan cocok.</p>
           ) : (
             results.map((c) => (
               <button
                 key={c.id}
                 type="button"
                 onClick={() => { onCustomerChange(c.id, c.name); setQuery(''); setSubmitted(''); setResults([]) }}
-                className="flex w-full items-center justify-between border-b border-gray-50 px-3 py-2 text-left text-sm last:border-0 hover:bg-gold-50"
+                className="flex w-full items-center justify-between border-b border-paper-1 px-3 py-2 text-left text-sm last:border-0 hover:bg-paper-1"
               >
-                <span className="font-medium text-gray-800">{c.name}</span>
-                <span className="text-xs text-gray-400">{c.phone}</span>
+                <span className="font-medium text-ink-900">{c.name}</span>
+                <span className="text-xs text-ink-500">{c.phone}</span>
               </button>
             ))
           )}
@@ -143,7 +143,7 @@ export function CodeFormSlideOver(p: CodeFormSlideOverProps) {
       }
     >
       {p.load === 'loading' && <p className="text-sm text-ink-700">Memuat kode diskon…</p>}
-      {(p.load === 'missing' || p.load === 'failed') && <p role="alert" className="text-sm text-red-600">{p.loadError}</p>}
+      {(p.load === 'missing' || p.load === 'failed') && <p role="alert" className="text-sm text-danger">{p.loadError}</p>}
       {ready && (
         <div className="space-y-4">
           <Field label="Kode *" htmlFor={CODE_FIELD.code} error={byField[CODE_FIELD.code]}>
@@ -175,7 +175,7 @@ export function CodeFormSlideOver(p: CodeFormSlideOverProps) {
             </Select>
             <Input id={CODE_FIELD.value} label="Nilai" type="number" value={form.value} error={byField[CODE_FIELD.value]} disabled={linked} onChange={(e) => setForm((f) => ({ ...f, value: parseFloat(e.target.value) || 0 }))} />
           </div>
-          {linked && <p className="-mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">Tipe &amp; nilai diikuti dari promosi tertaut.</p>}
+          {linked && <p className="-mt-2 rounded-lg bg-warn-bg px-3 py-2 text-xs text-warn-strong">Tipe &amp; nilai diikuti dari promosi tertaut.</p>}
           <div className="grid grid-cols-2 gap-4">
             <Input label="Min. Beli" type="number" value={form.minPurchase || ''} onChange={(e) => setForm((f) => ({ ...f, minPurchase: e.target.value === '' ? null : parseFloat(e.target.value) || 0 }))} />
             <Input label="Batas Pakai" type="number" value={form.usageLimit || ''} onChange={(e) => setForm((f) => ({ ...f, usageLimit: e.target.value === '' ? null : parseInt(e.target.value) || 0 }))} />
@@ -194,7 +194,7 @@ export function CodeFormSlideOver(p: CodeFormSlideOverProps) {
           </div>
           <SwitchRow label="Bisa dikombinasikan dengan promo/kode lain" checked={form.combinable ?? false} onChange={(combinable) => setForm((f) => ({ ...f, combinable }))} />
           <SwitchRow label="Kode Aktif" checked={form.isActive} onChange={(isActive) => setForm((f) => ({ ...f, isActive }))} />
-          {p.err && <p role="alert" className="text-sm text-red-600">{p.err}</p>}
+          {p.err && <p role="alert" className="text-sm text-danger">{p.err}</p>}
         </div>
       )}
     </SlideOver>

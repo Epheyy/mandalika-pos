@@ -17,7 +17,8 @@ import { Chip } from '../components/ui/Chip'
 import { Button } from '../components/ui/Button'
 import { IconUser, IconGift, IconWarning } from '../components/ui/icons'
 import { SplitTenderSection } from './SplitTenderSection'
-import { cashPredicate, MAX_REFERENCE_LEN, splitBlockReason, type TenderLine } from './tenderSplit'
+import { allocateTenders, cashPredicate, isCovered, MAX_REFERENCE_LEN, splitBlockReason, type TenderLine } from './tenderSplit'
+import { useCashField } from './cashInput'
 
 type AppSettings = components['schemas']['AppSettings']
 type Customer = components['schemas']['Customer']
@@ -130,6 +131,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   const [userOpenedPoints, setUserOpenedPoints] = useState(false)
   // D-63: leaving with payment lines already entered asks first.
   const [confirmLeave, setConfirmLeave] = useState(false)
+  const cashField = useCashField(amountPaid, onAmountPaidChange)
   const showPoints = pointsToRedeem > 0 || userOpenedPoints
   // Forget the manual open when the sheet closes so it does not carry into the next sale.
   const [wasOpen, setWasOpen] = useState(isOpen)
@@ -150,6 +152,10 @@ export const CheckoutPanel = memo(function CheckoutPanel({
     ? splitBlockReason(derived.total, tenders, cashPredicate(settings.paymentMethods), (id) => tenderLabel(id, settings.paymentMethods))
     : null
   const confirmBlocked = splitMode ? splitBlock !== null : isCashShort
+  // Kembalian lives in the sticky bar next to Konfirmasi: the single cash tender's change, or the settled split's.
+  const splitSettled =
+    splitMode && isCovered(derived.total, tenders) ? allocateTenders(derived.total, tenders, cashPredicate(settings.paymentMethods), 'batch') : null
+  const barChange = splitMode ? (splitSettled?.ok ? splitSettled.settlement.change : 0) : tender.change
   const handleBack = () => {
     if (splitMode && tenders.length > 0) setConfirmLeave(true)
     else onClose()
@@ -179,31 +185,16 @@ export const CheckoutPanel = memo(function CheckoutPanel({
       maxWidth="max-w-md lg:max-w-[486px]"
       panelClassName="flex flex-col"
       onClose={isProcessing ? noop : handleBack}
-      closeLabel="Tutup latar"
+      header
+      title={
+        <>
+          Bayar{' '}
+          <span aria-hidden="true" className="ml-3 tnum">
+            {formatRupiah(derived.total)}
+          </span>
+        </>
+      }
     >
-      {/* Header */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-paper-2 shrink-0">
-        <button
-          type="button"
-          onClick={handleBack}
-          disabled={isProcessing}
-          className="min-h-12 pr-2 text-base font-semibold text-ink-700 disabled:opacity-50"
-        >
-          ‹ Kembali
-        </button>
-        <h2 className="text-lg font-bold text-ink-900">Bayar</h2>
-        <span className="ml-auto text-lg font-bold tnum text-ink-900">{formatRupiah(derived.total)}</span>
-        <button
-          type="button"
-          onClick={handleBack}
-          disabled={isProcessing}
-          aria-label="Tutup"
-          className="min-h-12 min-w-12 text-2xl leading-none text-ink-500 disabled:opacity-50"
-        >
-          ×
-        </button>
-      </div>
-
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* Totals summary */}
         <div className="bg-paper-1 rounded-control p-4 space-y-2 text-sm">
@@ -369,28 +360,6 @@ export const CheckoutPanel = memo(function CheckoutPanel({
           </div>
         )}
 
-        {/* Salesman */}
-        {salesmen.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-ink-700 mb-2">Sales (opsional)</p>
-            <select
-              value={selectedSalesmanId ?? ''}
-              onChange={(e) => {
-                const s = salesmen.find((x) => x.id === e.target.value)
-                onSelectSalesman(s ? { id: s.id, name: s.name } : null)
-              }}
-              className="w-full min-h-11 border border-paper-2 rounded-control px-3 text-sm focus:outline-none focus:ring-1 focus:ring-brand bg-white"
-            >
-              <option value="">— Tanpa sales —</option>
-              {salesmen.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
         {splitMode ? (
           <SplitTenderSection
             due={derived.total}
@@ -444,11 +413,11 @@ export const CheckoutPanel = memo(function CheckoutPanel({
             </label>
             <input
               id="checkout-amount"
-              type="number"
+              type="text"
               inputMode="numeric"
-              value={amountPaid}
-              onChange={(e) => onAmountPaidChange(e.target.value)}
-              placeholder={String(derived.total)}
+              autoComplete="off"
+              {...cashField}
+              placeholder={formatRupiah(derived.total)}
               aria-label="Jumlah dibayar"
               className="w-full h-16 border-2 border-ink-700 rounded-control px-4 text-[2rem] font-bold tnum text-ink-900 focus:outline-none"
             />
@@ -457,10 +426,9 @@ export const CheckoutPanel = memo(function CheckoutPanel({
                 <Chip
                   key={amt}
                   selected={typedAmount === amt || (i === 0 && typedAmount === null)}
-                  tone="info"
                   onClick={() => onAmountPaidChange(String(amt))}
                 >
-                  {i === 0 ? 'Uang Pas' : formatRupiah(amt)}
+                  {i === 0 ? 'Uang pas' : formatRupiah(amt)}
                 </Chip>
               ))}
             </div>
@@ -477,17 +445,6 @@ export const CheckoutPanel = memo(function CheckoutPanel({
                 </button>
               ))}
             </div>
-            {tender.change > 0 && (
-              <div className="flex items-baseline justify-between mt-3">
-                <span className="text-sm text-ink-700">Kembalian</span>
-                <span className="text-[1.75rem] font-bold tnum text-ok">{formatRupiah(tender.change)}</span>
-              </div>
-            )}
-            {isCashShort && (
-              <p className="text-base font-bold tnum text-danger mt-3">
-                Kurang {formatRupiah(derived.total - tender.amountPaid)}
-              </p>
-            )}
           </div>
         ) : (
           <>
@@ -511,23 +468,56 @@ export const CheckoutPanel = memo(function CheckoutPanel({
         )}
       </div>
 
-      {/* Confirm bar */}
-      <div className="px-5 py-4 border-t border-paper-2 shrink-0">
+      {/* Sticky bar: Sales (opsional) as a small row, Kembalian / Kurang next to Konfirmasi */}
+      <div className="px-5 pt-3 pb-4 border-t border-paper-2 shrink-0 space-y-3">
         {saveError && (
-          <p role="alert" className="text-xs font-semibold text-danger bg-danger-bg rounded-control px-3 py-2 mb-3">
+          <p role="alert" className="text-xs font-semibold text-danger bg-danger-bg rounded-control px-3 py-2">
             {saveError}
           </p>
         )}
-        <Button
-          size="lg"
-          fullWidth
-          onClick={handleConfirmClick}
-          disabled={isProcessing || confirmBlocked}
-          className="uppercase !text-xl font-bold"
-        >
-          {isProcessing ? 'Memproses…' : `Konfirmasi ${formatRupiah(derived.total)}`}
-        </Button>
-        <p className="text-xs text-ink-500 text-center mt-2">Order akan terkirim otomatis</p>
+        {salesmen.length > 0 && (
+          <div className="flex items-center gap-3">
+            <label htmlFor="checkout-salesman" className="text-xs font-semibold text-ink-700 shrink-0">
+              Sales (opsional)
+            </label>
+            <select
+              id="checkout-salesman"
+              value={selectedSalesmanId ?? ''}
+              onChange={(e) => {
+                const s = salesmen.find((x) => x.id === e.target.value)
+                onSelectSalesman(s ? { id: s.id, name: s.name } : null)
+              }}
+              className="flex-1 min-w-0 min-h-11 border border-paper-2 rounded-control px-3 text-sm focus:outline-none focus:ring-1 focus:ring-brand bg-white"
+            >
+              <option value="">— Tanpa sales —</option>
+              {salesmen.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="flex items-center gap-3">
+          <div aria-live="polite" aria-atomic="true" className="shrink-0">
+            {barChange > 0 && (
+              <>
+                <p className="text-xs text-ink-700">Kembalian</p>
+                <p className="text-xl font-bold tnum text-ok">{formatRupiah(barChange)}</p>
+              </>
+            )}
+            {!splitMode && isCashShort && (
+              <>
+                <p className="text-xs text-ink-700">Kurang</p>
+                <p className="text-xl font-bold tnum text-danger">{formatRupiah(derived.total - tender.amountPaid)}</p>
+              </>
+            )}
+          </div>
+          <Button size="lg" className="flex-1 !text-lg font-bold" onClick={handleConfirmClick} disabled={isProcessing || confirmBlocked}>
+            {isProcessing ? 'Memproses…' : `Konfirmasi ${formatRupiah(derived.total)}`}
+          </Button>
+        </div>
+        <p className="text-xs text-ink-500 text-center">Order akan terkirim otomatis</p>
       </div>
 
       {confirmLeave && (

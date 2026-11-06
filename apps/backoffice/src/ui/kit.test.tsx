@@ -363,7 +363,7 @@ describe('review fixes', () => {
     )
     const group = html.match(/<th[^>]*scope="colgroup"[^>]*>/)?.[0] ?? ''
     expect(group).not.toContain('sticky')
-    expect(html).toContain('sticky top-(--bo-topbar-h)')
+    expect(html).toContain('sticky top-0')
   })
 })
 

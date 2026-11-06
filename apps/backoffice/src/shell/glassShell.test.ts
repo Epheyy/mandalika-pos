@@ -59,7 +59,8 @@ describe('Kaca K2b glass shell', () => {
     const app = read('../App.tsx')
     expect(app).toContain('pt-(--bo-topbar-h)')
     expect(app).toContain('scroll-pt-(--bo-topbar-h)')
-    expect(read('../ui/DataTable.tsx')).toContain('sticky top-(--bo-topbar-h)')
+    // Sticky offsets are measured inside main's padding box, so top-0 already lands just below the bar.
+    expect(read('../ui/DataTable.tsx')).toContain('sticky top-0 z-[2]')
     expect(read('../index.css')).toContain('--bo-topbar-h: 4rem')
   })
 

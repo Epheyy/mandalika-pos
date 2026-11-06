@@ -40,12 +40,12 @@ function PromoTypePicker({ value, onChange }: { value: PromoType; onChange: (t: 
               onClick={() => onChange(t.value)}
               className={cn(
                 'flex flex-col items-center gap-1 overflow-hidden rounded-xl border-2 p-3 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong',
-                selected ? 'border-gold-600 bg-gold-50' : 'border-gray-200 hover:border-gold-300 hover:bg-gray-50',
+                selected ? 'border-brand-strong bg-paper-1' : 'border-paper-2 hover:bg-paper-1',
               )}
             >
-              <Icon className={cn('h-6 w-6', selected ? 'text-gold-600' : 'text-gray-400')} aria-hidden="true" />
-              <span className="text-xs font-bold text-gray-900">{t.label}</span>
-              <span className="line-clamp-2 block text-[11px] text-gray-500">{t.desc}</span>
+              <Icon className={cn('h-6 w-6', selected ? 'text-brand-strong' : 'text-ink-500')} aria-hidden="true" />
+              <span className="text-xs font-bold text-ink-900">{t.label}</span>
+              <span className="line-clamp-2 block text-[11px] text-ink-700">{t.desc}</span>
             </button>
           )
         })}
@@ -54,7 +54,7 @@ function PromoTypePicker({ value, onChange }: { value: PromoType; onChange: (t: 
   )
 }
 
-const errorText = (msg?: string) => (msg ? <p role="alert" className="text-xs font-semibold text-red-600">{msg}</p> : null)
+const errorText = (msg?: string) => (msg ? <p role="alert" className="text-xs font-semibold text-danger">{msg}</p> : null)
 
 interface PromoTypeFieldsProps {
   form: PromotionInput
@@ -94,7 +94,7 @@ export function PromoTypeFields({ form, setForm, products, errors }: PromoTypeFi
       )}
 
       {form.type === 'buy_x_get_y' && (
-        <div className="space-y-4 rounded-xl bg-gold-50 p-3">
+        <div className="space-y-4 rounded-xl bg-paper-1 p-3">
           <div className="grid grid-cols-3 gap-3">
             <Input label="Beli (X)" type="number" value={form.bxgyConfig?.buyQuantity ?? 2} onChange={(e) => setBxgy({ buyQuantity: parseInt(e.target.value) || 0 })} />
             <Input label="Dapat (Y)" type="number" value={form.bxgyConfig?.getQuantity ?? 1} onChange={(e) => setBxgy({ getQuantity: parseInt(e.target.value) || 0 })} />
@@ -129,8 +129,8 @@ export function PromoTypeFields({ form, setForm, products, errors }: PromoTypeFi
       )}
 
       {form.type === 'tiered' && (
-        <div id={PROMO_FIELD.tiers} tabIndex={-1} className="space-y-3 rounded-xl bg-gold-50 p-3">
-          <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Tingkatan Diskon</p>
+        <div id={PROMO_FIELD.tiers} tabIndex={-1} className="space-y-3 rounded-xl bg-paper-1 p-3">
+          <p className="text-xs font-bold uppercase tracking-wider text-ink-700">Tingkatan Diskon</p>
           {[...tiers].sort((a, b) => a.minSubtotal - b.minSubtotal).map((tier) => {
             const at = tiers.indexOf(tier)
             const patch = (p: Partial<TierRow>) => setTiers(tiers.map((t, i) => (i === at ? { ...t, ...p } : t)))
@@ -145,7 +145,7 @@ export function PromoTypeFields({ form, setForm, products, errors }: PromoTypeFi
                 <button
                   type="button"
                   onClick={() => setTiers(tiers.filter((_, i) => i !== at))}
-                  className="mb-0.5 flex h-8 w-8 items-center justify-center rounded-lg text-lg font-bold text-gray-400 hover:bg-red-50 hover:text-red-500"
+                  className="mb-0.5 flex h-9 w-9 items-center justify-center rounded-lg text-lg font-bold text-ink-500 hover:bg-danger-bg hover:text-danger"
                   aria-label="Hapus tingkat"
                 >×</button>
               </div>
@@ -157,16 +157,16 @@ export function PromoTypeFields({ form, setForm, products, errors }: PromoTypeFi
       )}
 
       {form.type === 'bundle' && (
-        <div id={PROMO_FIELD.bundle} tabIndex={-1} className="space-y-3 rounded-xl bg-gold-50 p-3">
-          <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Slot Paket</p>
+        <div id={PROMO_FIELD.bundle} tabIndex={-1} className="space-y-3 rounded-xl bg-paper-1 p-3">
+          <p className="text-xs font-bold uppercase tracking-wider text-ink-700">Slot Paket</p>
           {slots.map((slot, idx) => (
-            <div key={idx} className="space-y-2 rounded-lg border border-gray-200 bg-white p-2.5">
+            <div key={idx} className="space-y-2 rounded-lg border border-paper-2 bg-white p-2.5">
               <div className="flex items-center justify-between">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Slot {idx + 1}</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-ink-500">Slot {idx + 1}</p>
                 <button
                   type="button"
                   onClick={() => setSlots(slots.filter((_, i) => i !== idx))}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-lg font-bold text-gray-400 hover:bg-red-50 hover:text-red-500"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-lg font-bold text-ink-500 hover:bg-danger-bg hover:text-danger"
                   aria-label="Hapus slot"
                 >×</button>
               </div>

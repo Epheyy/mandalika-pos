@@ -159,7 +159,7 @@ export function DataTable<Row>({
         className={cn(
           'bg-paper-1 px-4 py-3 text-xs font-bold text-ink-700',
           c.align === 'right' ? 'text-right' : 'text-left',
-          stuck && 'sticky top-(--bo-topbar-h) z-[2] shadow-[inset_0_-1px_0_var(--color-paper-2)]',
+          stuck && 'sticky top-0 z-[2] shadow-[inset_0_-1px_0_var(--color-paper-2)]',
           offsets.has(c.id) && 'z-[3]',
         )}
       >

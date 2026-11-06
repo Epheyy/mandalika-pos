@@ -1,6 +1,6 @@
 // Ordinary imported scenario functions, converted from the accepted manual scripts.
 import type { ScenarioPage } from './fixture'
-import { POS_SHOT_VIEWPORTS, captureShot } from './shots'
+import { BAYAR_SHOT_VIEWPORTS, POS_SHOT_VIEWPORTS, captureShot } from './shots'
 
 // A04: an outlet-less (admin) account on an unbound terminal must pick the outlet once. The
 // real picker is clicked here, exactly as a person would; the choice is then stored in the
@@ -88,7 +88,7 @@ export const qualifyPos = async (page: ScenarioPage) =>{
  const panel=async()=>{await page.getByRole('button',{name:'Promo & Diskon',exact:true}).click();};
  const direct=async(kind)=>{await panel();await page.getByRole('button').filter({hasText:'Synthetic '+kind}).last().click();};
  const code=async(kind)=>{await panel();await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill('Raw-'+kind);await page.getByRole('button',{name:'Pakai',exact:true}).click();};
- const confirm=async(kind)=>{await page.getByRole('button',{name:kind==='Bundle'?/Synthetic Scent · MRp/:/Synthetic Tester · MRp/}).click();await page.getByRole('button',{name:'Terapkan',exact:true}).click();};
+ const confirm=async(kind)=>{if(process.env.A34C_RUN_DIR)await captureShot(page,'p7-picker-'+kind.toLowerCase(),POS_SHOT_VIEWPORTS);await page.getByRole('button',{name:kind==='Bundle'?/Synthetic Scent · MRp/:/Synthetic Tester · MRp/}).click();await page.getByRole('button',{name:'Terapkan',exact:true}).click();};
  for(const kind of ['Bundle','BXGY'])for(const owner of ['direct','linked']){
   await fresh();const before=await body();
   await (owner==='direct'?direct(kind):code(kind));
@@ -190,7 +190,7 @@ export const guestSales = async (page: ScenarioPage) =>{
  const capture=async(name,method='qris',registered=false)=>{
   const before=(await box()).length;await page.getByRole('button',{name:'Bayar',exact:true}).click();
   if(!registered){assert(!(await page.locator('body').innerText()).includes('Tukar Poin Loyalti'),'guest redemption UI');assert(!(await page.locator('body').innerText()).includes('Hadiah Loyalti'),'guest reward UI');assert(!(await page.locator('body').innerText()).includes('Hadiah & Poin'),'guest reward card');assert((await page.getByRole('button',{name:/^Tukar [0-9]+ poin/}).count())===0,'guest points chip');}
-  if(method==='cash')await page.getByRole('spinbutton',{name:'Jumlah dibayar'}).fill('100000');else await page.getByRole('button',{name:'QRIS',exact:true}).click();
+  if(method==='cash'){const amt=page.getByRole('textbox',{name:'Jumlah dibayar'});await amt.fill('100000');assert((await amt.inputValue()).replace(/\s/g,' ')==='Rp 100.000','cash amount is formatted while typing');if(!registered)await captureShot(page,'p6b-bayar-cash',BAYAR_SHOT_VIEWPORTS);}else await page.getByRole('button',{name:'QRIS',exact:true}).click();
   await page.getByRole('button',{name:/^Konfirmasi Rp/}).click();await page.getByRole('heading',{name:'Pembayaran Berhasil',exact:true}).waitFor();
   const queue=await box(), item=queue.at(-1), receipt=await page.locator('body').innerText();
   assert(queue.length===before+1,'capture creates exactly one op');assert(item.idempotencyKey.endsWith(':'+item.payload.orderUuid),'original identity');
@@ -210,7 +210,7 @@ export const guestSales = async (page: ScenarioPage) =>{
  await page.getByRole('button',{name:'Bayar',exact:true}).click();await page.getByRole('button',{name:'QRIS',exact:true}).click();const n=(await box()).length;await page.getByRole('button',{name:/^Konfirmasi Rp/}).click();
  assert((await box()).length===n,'ineligible benefit must not queue');assert((await page.locator('body').innerText()).includes('tidak berlaku lagi'),'revalidation feedback');
  await page.getByRole('button',{name:/^Konfirmasi Rp/}).click();await page.getByRole('heading',{name:'Pembayaran Berhasil',exact:true}).waitFor();const cleared=(await box()).at(-1);assert(cleared.payload.customerId===null&&cleared.payload.discountCodes.length===0,'cleared guest identity/code');assert(cleared.payload.promotionIds.includes('generic-fixed'),'unrelated generic survives');results.push({name:'clear-assigned-reconfirm',item:cleared,receipt:await page.locator('body').innerText()});
- await fresh();await select();await page.getByRole('button',{name:'Bayar',exact:true}).click();await page.getByRole('button').filter({hasText:'Customer gift'}).click();await page.getByRole('button',{name:/Synthetic Tester · M/}).click();await page.getByRole('button',{name:/^Tukar [0-9]+ poin/}).click();await page.getByRole('button',{name:'Semua',exact:true}).last().click();await page.getByRole('heading',{name:'Bayar',exact:true}).locator('..').getByRole('button',{name:'Kembali'}).click();await clear();const loyaltyClear=await capture('clear-reward-points');assert(loyaltyClear.payload.items.length===1,'loyalty line removed');
+ await fresh();await select();await page.getByRole('button',{name:'Bayar',exact:true}).click();await page.getByRole('button').filter({hasText:'Customer gift'}).click();await page.getByRole('button',{name:/Synthetic Tester · M/}).click();await page.getByRole('button',{name:/^Tukar [0-9]+ poin/}).click();await page.getByRole('button',{name:'Semua',exact:true}).last().click();await page.getByRole('heading',{name:'Bayar',exact:true}).locator('..').getByRole('button',{name:'Tutup'}).click();await clear();const loyaltyClear=await capture('clear-reward-points');assert(loyaltyClear.payload.items.length===1,'loyalty line removed');
  await fresh();await select();const registered=await capture('registered-preserved','qris',true);
  assert(registered.payload.customerId===page.__a24.customer.id&&registered.payload.customerName==='Synthetic Customer','registered identity preserved');
  // Browser reconstruction uses the same successful localStorage, no replacement engine or fixture payload.
@@ -472,6 +472,7 @@ export const posPromoSheet = async (page: ScenarioPage) => {
   const section = page.getByRole('button', { name: /^Diskon manual \/ Biaya tambahan/ })
   assert((await section.getAttribute('aria-expanded')) === 'false', 'manual section starts collapsed')
   await section.click()
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'p7-promo-sheet', POS_SHOT_VIEWPORTS)
   await page.getByRole('button', { name: 'Persen (%)', exact: true }).click()
   await page.getByRole('spinbutton', { name: 'Nilai diskon atau biaya tambahan' }).fill('10')
   await page.getByRole('button', { name: 'Diskon −', exact: true }).click()

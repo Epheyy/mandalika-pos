@@ -9,9 +9,9 @@ interface OutletChipsProps {
 }
 
 const CHIP =
-  'rounded-full border px-3 py-1.5 text-xs font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong'
-const ON = 'border-brand-strong bg-brand-strong text-white'
-const OFF = 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+  'rounded-full border h-10 px-4 text-[13px] font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong'
+const ON = 'border-brand-strong bg-brand-strong text-on-brand'
+const OFF = 'border-paper-2 bg-white text-ink-700 hover:bg-paper-1'
 
 /**
  * "Semua outlet" first, then one chip per outlet. Empty selection is "Semua outlet" and is never expanded into every

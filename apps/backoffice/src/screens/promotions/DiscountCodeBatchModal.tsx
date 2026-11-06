@@ -53,7 +53,7 @@ export function DiscountCodeBatchModal({
       }
     >
       <div className="space-y-4">
-        {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {error && <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger">{error}</p>}
         <Input
           label="Prefix"
           type="text"
@@ -113,7 +113,7 @@ export function DiscountCodeBatchModal({
           />
         </div>
         {!!form.promotionId && (
-          <p className="text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg -mt-2">
+          <p className="text-xs text-warn-strong bg-warn-bg px-3 py-2 rounded-lg -mt-2">
             Tipe &amp; nilai diikuti dari promosi tertaut.
           </p>
         )}
@@ -133,9 +133,9 @@ export function DiscountCodeBatchModal({
           <Input label="Mulai" type="date" value={form.startDate || ''} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
           <Input label="Berakhir" type="date" value={form.endDate || ''} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
         </div>
-        <label className="flex items-start gap-3 p-3 bg-gold-50 rounded-xl cursor-pointer">
-          <input type="checkbox" checked={form.combinable ?? false} onChange={(e) => setForm((f) => ({ ...f, combinable: e.target.checked }))} className="w-4 h-4 accent-gold-600 mt-0.5" />
-          <span className="text-sm font-bold text-gray-900">Bisa dikombinasikan dengan promo/kode lain (combinable)</span>
+        <label className="flex items-start gap-3 p-3 bg-paper-1 rounded-xl cursor-pointer">
+          <input type="checkbox" checked={form.combinable ?? false} onChange={(e) => setForm((f) => ({ ...f, combinable: e.target.checked }))} className="w-4 h-4 accent-brand-strong mt-0.5" />
+          <span className="text-sm font-bold text-ink-900">Bisa dikombinasikan dengan promo/kode lain (combinable)</span>
         </label>
       </div>
     </Modal>
