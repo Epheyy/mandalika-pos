@@ -1,5 +1,6 @@
 // C6b split payment: rendered POS flows against the synthetic API. Methods in the fixture are cash (Tunai) and qris (QRIS).
 import type { ScenarioPage } from './fixture'
+import { POS_SHOT_VIEWPORTS, captureShot } from './shots'
 
 const OUTLET = '00000000-0000-4000-8300-000000000090'
 const DRAFT_KEY = `mandalika.pos.splitDraft.${OUTLET}`
@@ -97,9 +98,10 @@ export const posSplitRefund = async (page: ScenarioPage) => {
     await page.getByRole('heading', { name: 'Pembayaran Berhasil' }).waitFor()
     await page.getByRole('button', { name: 'Transaksi Baru', exact: true }).click()
   }
-  const refundNewest = async (pick: string | null) => {
+  const refundNewest = async (pick: string | null, shots = false) => {
     await page.getByRole('button', { name: 'Menu', exact: true }).click()
     await page.getByRole('button', { name: 'Struk di Tablet Ini' }).last().click()
+    if (shots) await captureShot(page, 'p4-struk-di-tablet', POS_SHOT_VIEWPORTS)
     await page.getByTestId('local-receipt-row').first().getByRole('button', { name: 'Refund Transaksi Ini', exact: true }).click()
     const group = page.getByRole('group', { name: 'Dikembalikan lewat' })
     await group.waitFor()
@@ -109,11 +111,14 @@ export const posSplitRefund = async (page: ScenarioPage) => {
     await page.getByRole('checkbox', { name: /^Pilih Synthetic Scent/ }).click()
     await page.getByRole('button', { name: 'Lainnya', exact: true }).click()
     await page.getByLabel('Tulis alasan').fill('salah beli')
+    if (shots) await captureShot(page, 'p4-refund-dialog', POS_SHOT_VIEWPORTS)
     await page.getByRole('button', { name: /Konfirmasi Refund/ }).click()
+    // P4: the success toast names the sale; CashierScreen raises it (inside the ToastProvider) only after the refund is stored.
+    await page.getByText(/^Refund \S+ diproses/).waitFor()
     return { chips, pressed }
   }
   await sellSplit()
-  const first = await refundNewest(null)
+  const first = await refundNewest(null, !!process.env.A34C_RUN_DIR)
   assert(first.chips.length === 2 && first.pressed.join() === 'Tunai', 'two chips, cash preselected: ' + JSON.stringify(first))
   await page.waitForFunction(() => Object.keys(localStorage).some((k) => /outbox/i.test(k) && (localStorage.getItem(k) ?? '').includes('"payoutMethod":"cash"')))
   out.push({ queuedWith: 'payoutMethod cash' })

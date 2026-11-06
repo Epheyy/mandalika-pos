@@ -131,7 +131,7 @@ describe('RefundDialog reason limit', () => {
     expect(src).toContain('[...text].length}/${MAX_REFUND_REASON_CHARS}')
   })
   it('disables submit until a reason is chosen', () => {
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Konfirmasi Refund/)
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Konfirmasi Refund/)
     expect(canSubmitRefundReason('   ')).toBe(false)
     expect(canSubmitRefundReason(' a ')).toBe(true)
     expect(canSubmitRefundReason('x'.repeat(MAX_REFUND_REASON_CHARS + 1))).toBe(false)

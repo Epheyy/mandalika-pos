@@ -76,6 +76,7 @@ import { cashierBackLayer } from './backGuard'
 import { customerAttachImpact, customerAttachMessage } from './customerAttachImpact'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { Button } from '../components/ui/Button'
+import { useToast } from '../components/ui/Toast'
 import { HeldOrdersSheet } from './HeldOrdersSheet'
 import { useHeldOrders } from './useHeldOrders'
 import { planPromotionFulfillment, invalidPhysicalPromotionIds, type PromotionOwner, type PendingFulfillment } from './promotionFulfillment'
@@ -243,6 +244,8 @@ export default function CashierScreen() {
   const lastPayment = useRef<{ paymentMethod: string; amountPaid: number; change: number } | null>(null)
   const [printError, setPrintError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  // K3 toast: the refund confirmation (P4). The cashier tree sits inside App's ToastProvider.
+  const kitToast = useToast()
   const showToast = (msg: string) => {
     setToast(msg)
     setTimeout(() => setToast(null), 3000)
@@ -1044,9 +1047,10 @@ export default function CashierScreen() {
       setRefundError(notSavedMessage('Refund'))
       return
     }
+    const refundedNumber = refundOrder?.orderNumber
     setRefundOrder(null)
     setRefundSale(null)
-    showToast('Refund diproses — stok dipulihkan saat terkirim')
+    kitToast.showToast(`Refund${refundedNumber ? ` ${refundedNumber}` : ''} diproses — stok dipulihkan saat terkirim`, { tone: 'ok' })
   }
 
   // A08: only called after the server minted a grant; the queued receive carries its id, never a PIN.

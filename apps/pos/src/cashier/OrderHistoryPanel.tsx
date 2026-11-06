@@ -14,6 +14,10 @@ import { methodCellLabel, refundSummaries, tenderLineText, visibleTenders, type 
 import type { RefundCache } from './refundSelection'
 import { PAGE_SIZE, businessToday, defaultHistoryDay, historyWindowFor, orderHistoryQuery, withPinnedOrder } from './orderHistoryQuery'
 import { Sheet } from '../components/ui/Sheet'
+import { formatHistoryStamp } from './historyStamp'
+import { Button } from '../components/ui/Button'
+import { StatusBadge } from '../components/ui/StatusBadge'
+import type { Tone } from '../components/ui/tone'
 import { IconPrinter } from '../components/ui/icons'
 
 type Order = components['schemas']['Order']
@@ -64,12 +68,10 @@ interface OrderHistoryPanelProps {
 const STATUS_LABELS: Record<string, string> = {
   completed: 'Selesai', partially_refunded: 'Sebagian refund', refunded: 'Refund', cancelled: 'Batal',
 }
-const STATUS_STYLES: Record<string, string> = {
-  completed: 'bg-green-100 text-green-700',
-  partially_refunded: 'bg-amber-100 text-amber-800',
-  refunded: 'bg-red-100 text-red-700',
-  cancelled: 'bg-gray-100 text-gray-500',
+const STATUS_TONES: Record<string, Tone> = {
+  completed: 'ok', partially_refunded: 'warn', refunded: 'danger', cancelled: 'neutral',
 }
+
 
 export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, paymentMethods, timezone, shiftOpenedAt }: OrderHistoryPanelProps) {
   const [from, setFrom] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).from : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
@@ -154,128 +156,109 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
-    <Sheet open variant="center" maxWidth="max-w-2xl" panelClassName="max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
-          <h3 className="font-bold text-gray-900">Riwayat Transaksi</h3>
-          <button type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
-            aria-label="Tutup"
-          >
-            ✕
-          </button>
-        </div>
+    <Sheet open variant="center" maxWidth="max-w-2xl" panelClassName="max-h-[90vh] flex flex-col" title="Riwayat Transaksi" header onClose={onClose}>
 
         {/* Filters */}
-        <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-end flex-shrink-0">
+        <div className="px-5 py-3 border-b border-paper-2 flex flex-wrap gap-2 items-end flex-shrink-0">
           <div>
-            <label htmlFor="history-from" className="block text-[10px] text-gray-500 font-semibold mb-1">Dari</label>
+            <label htmlFor="history-from" className="block text-xs text-ink-700 font-semibold mb-1">Dari</label>
             <input
               id="history-from"
               type="date" value={from} max={to}
               onChange={(e) => { setPickedDay(true); setFrom(e.target.value) }}
-              className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              className="min-h-11 surface-card rounded-control px-3 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-strong"
             />
           </div>
           <div>
-            <label htmlFor="history-to" className="block text-[10px] text-gray-500 font-semibold mb-1">Sampai</label>
+            <label htmlFor="history-to" className="block text-xs text-ink-700 font-semibold mb-1">Sampai</label>
             <input
               id="history-to"
               type="date" value={to} min={from} max={businessToday(new Date(), timezone)}
               onChange={(e) => { setPickedDay(true); setTo(e.target.value) }}
-              className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              className="min-h-11 surface-card rounded-control px-3 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-strong"
             />
           </div>
           <div className="flex-1 min-w-[140px]">
-            <label htmlFor="history-search" className="block text-[10px] text-gray-500 font-semibold mb-1">Cari</label>
+            <label htmlFor="history-search" className="block text-xs text-ink-700 font-semibold mb-1">Cari</label>
             <input
               id="history-search"
               type="text" value={search} placeholder="No. order / nama / telepon"
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              className="w-full min-h-11 surface-card rounded-control px-3 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-strong"
             />
           </div>
-          <button type="button"
-            onClick={() => void load()}
-            disabled={isLoading}
-            className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold disabled:opacity-40 hover:bg-indigo-700 transition-colors"
-          >
+          <Button onClick={() => void load()} disabled={isLoading}>
             {isLoading ? 'Memuat…' : 'Muat'}
-          </button>
+          </Button>
         </div>
 
         {/* List */}
         <div className="flex-1 overflow-y-auto px-5 py-3">
-          {error && <p className="text-sm text-red-600 py-4 text-center">{error}</p>}
+          {error && <p className="text-sm text-danger py-4 text-center">{error}</p>}
           {isStale && !error && (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-2 text-center">
+            <p className="text-xs font-semibold text-warn-strong bg-warn-bg rounded-control px-3 py-2 mb-2 text-center">
               {OFFLINE_NOTICE}
             </p>
           )}
           {isLoading && filtered.length === 0 && <ListSkeleton rows={5} />}
           {!error && !isLoading && filtered.length === 0 && (
-            <p className="text-sm text-gray-400 py-8 text-center">Tidak ada transaksi</p>
+            <p className="text-sm text-ink-500 py-8 text-center">Tidak ada transaksi</p>
           )}
           <div className="space-y-2">
             {filtered.map((o) => {
               const expanded = expandedId === o.id
               return (
-                <div key={o.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                <div key={o.id} className="surface-card rounded-control overflow-hidden">
                   <button type="button"
                     onClick={() => setExpandedId(expanded ? null : o.id)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-gray-50"
+                    aria-expanded={expanded}
+                    className="w-full min-h-16 flex items-center justify-between px-4 py-3 text-left active:bg-paper-1"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm text-gray-900">{o.orderNumber}</span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${STATUS_STYLES[o.status] ?? ''}`}>
-                          {STATUS_LABELS[o.status] ?? o.status}
-                        </span>
+                        <span className="font-semibold text-sm text-ink-900">{o.orderNumber}</span>
+                        <StatusBadge tone={STATUS_TONES[o.status] ?? 'neutral'} label={STATUS_LABELS[o.status] ?? o.status} />
                       </div>
-                      <p className="text-[11px] text-gray-500 truncate">
-                        {new Date(o.createdAt).toLocaleString('id-ID', {
-                          day: '2-digit', month: '2-digit', year: '2-digit',
-                          hour: '2-digit', minute: '2-digit',
-                        })}
+                      <p className="text-xs text-ink-500 truncate">
+                        {formatHistoryStamp(o.createdAt)}
                         {o.customerName ? ` · ${o.customerName}` : ''}
                         {` · ${methodCellLabel(o, paymentMethods)}`}
                       </p>
                     </div>
-                    <span className="font-bold text-sm text-gray-900 flex-shrink-0 ml-2">
+                    <span className="font-bold text-sm text-ink-900 flex-shrink-0 ml-2">
                       {formatRupiah(o.total)}
                     </span>
                   </button>
 
                   {expanded && (
-                    <div className="px-3 pb-3 pt-1 border-t border-gray-100 bg-gray-50">
+                    <div className="px-3 pb-3 pt-1 border-t border-paper-2 surface-group">
                       {visibleTenders(o).length > 0 && (
                         <div className="pt-2 space-y-0.5" data-testid="order-tenders">
-                          {visibleTenders(o).map((t) => <p key={t.seq} className="text-[11px] text-gray-600">{tenderLineText(t, paymentMethods)}</p>)}
+                          {visibleTenders(o).map((t) => <p key={t.seq} className="text-xs text-ink-700">{tenderLineText(t, paymentMethods)}</p>)}
                         </div>
                       )}
                       <div className="space-y-1 py-2">
                         {o.items.map((it, n) => (
                           <div
                             key={`${it.lineNo ?? n}-${it.productId}-${it.variantSize}`}
-                            className="flex justify-between text-xs text-gray-700"
+                            className="flex justify-between text-xs text-ink-700"
                           >
                             <span>
                               {it.productName}{variantLabel(it.variantSize) ? ` ${variantLabel(it.variantSize)}` : ''} ×{it.quantity}
-                              {(it.refundedQty ?? 0) > 0 ? <span className="text-red-600"> · {it.refundedQty} direfund</span> : null}
+                              {(it.refundedQty ?? 0) > 0 ? <span className="text-danger"> · {it.refundedQty} direfund</span> : null}
                             </span>
                             <span>{formatRupiah(it.subtotal)}</span>
                           </div>
                         ))}
                       </div>
-                      <div className="border-t border-dashed border-gray-200 pt-2 space-y-0.5 text-xs">
-                        <div className="flex justify-between text-gray-500">
+                      <div className="border-t border-dashed border-paper-2 pt-2 space-y-0.5 text-xs">
+                        <div className="flex justify-between text-ink-500">
                           <span>Subtotal</span><span>{formatRupiah(o.subtotal)}</span>
                         </div>
                         {o.discountAmount > 0 && (
                           o.discountBreakdown && o.discountBreakdown.length > 0 ? (
                             o.discountBreakdown.map((d) => (
-                              <div key={`${d.label}-${d.kind}`} className="flex justify-between text-red-600">
+                              <div key={`${d.label}-${d.kind}`} className="flex justify-between text-danger">
                                 <span>
                                   Diskon · {d.label}
                                   {d.kind === 'percentage' && d.value ? ` (${d.value}%)` : ''}
@@ -284,7 +267,7 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
                               </div>
                             ))
                           ) : (
-                            <div className="flex justify-between text-red-600">
+                            <div className="flex justify-between text-danger">
                               <span>
                                 Diskon
                                 {o.discountLabel
@@ -297,7 +280,7 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
                           )
                         )}
                         {(o.surchargeAmount ?? 0) > 0 && (
-                          <div className="flex justify-between text-gray-500">
+                          <div className="flex justify-between text-ink-500">
                             <span>
                               Surcharge
                               {o.surchargeType === 'percentage' && o.surchargeValue ? ` (${o.surchargeValue}%)` : ''}
@@ -306,38 +289,38 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
                           </div>
                         )}
                         {o.taxAmount > 0 && (
-                          <div className="flex justify-between text-gray-500">
+                          <div className="flex justify-between text-ink-500">
                             <span>PPN</span><span>{formatRupiah(o.taxAmount)}</span>
                           </div>
                         )}
-                        <div className="flex justify-between font-bold text-gray-900 pt-0.5">
+                        <div className="flex justify-between font-bold text-ink-900 pt-0.5">
                           <span>Total</span><span>{formatRupiah(o.total)}</span>
                         </div>
                       </div>
                       {(o.refundedAmount ?? 0) > 0 && (
-                        <p className="text-[11px] text-red-600 mt-2" data-testid="history-refunded-amount">
+                        <p className="text-xs text-danger mt-2" data-testid="history-refunded-amount">
                           Direfund {formatRupiah(o.refundedAmount ?? 0)}{o.status === 'partially_refunded' ? ` · sisa ${formatRupiah(Math.max(0, o.total - (o.refundedAmount ?? 0)))}` : ''}
                         </p>
                       )}
                       {refundSummaries(o).map((r) => (
-                        <div key={r.seq} className="text-[11px] text-gray-600 mt-1" data-testid="history-refund">
+                        <div key={r.seq} className="text-xs text-ink-700 mt-1" data-testid="history-refund">
                           <p className="font-semibold">Refund ke-{r.seq} · {formatRupiah(r.amount)} · {r.reason}</p>
                           {r.lines.map((l, i) => <p key={i} className="pl-3">− {l.name} ×{l.quantity} ({formatRupiah(l.amount)})</p>)}
                         </div>
                       ))}
                       {o.refundReason && (
-                        <p className="text-[11px] text-red-600 mt-2">
+                        <p className="text-xs text-danger mt-2">
                           Refund: {o.refundReason}
                         </p>
                       )}
-                      <button type="button"
+                      <Button variant="secondary" fullWidth className="mt-3"
                         onClick={() => onReprint(o)}
                         disabled={!canReprint}
                         title={canReprint ? undefined : 'Pasangkan printer untuk cetak ulang'}
-                        className="mt-3 w-full py-2 border border-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-50 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+                        leading={<IconPrinter size={14} />}
                       >
-                        <IconPrinter size={14} className="inline-block align-[-0.125em]" /> Cetak Ulang
-                      </button>
+                        Cetak Ulang
+                      </Button>
                       <RefundAction
                         order={o}
                         canRefund={canRefund}
@@ -359,25 +342,17 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
         </div>
 
         {/* Pagination */}
-        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 flex-shrink-0">
-          <span className="text-xs text-gray-500">
+        <div className="flex items-center justify-between px-5 py-3 border-t border-paper-2 flex-shrink-0">
+          <span className="text-xs text-ink-500">
             {total} transaksi · hal {page}/{totalPages}
           </span>
           <div className="flex gap-2">
-            <button type="button"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1 || isLoading}
-              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 disabled:opacity-40 hover:bg-gray-50"
-            >
+            <Button variant="secondary" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1 || isLoading}>
               ‹ Sebelumnya
-            </button>
-            <button type="button"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages || isLoading}
-              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 disabled:opacity-40 hover:bg-gray-50"
-            >
+            </Button>
+            <Button variant="secondary" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages || isLoading}>
               Berikutnya ›
-            </button>
+            </Button>
           </div>
         </div>
     </Sheet>
