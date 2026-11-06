@@ -2,13 +2,14 @@ import type { ProductVariant } from '@mandalika/api'
 import { variantLabel } from '@mandalika/types'
 import { Plus, X, Store, FlaskConical } from 'lucide-react'
 import { Button } from '../../ui/Button'
+import { IconButton } from '../../ui/IconButton'
 import { fieldClass } from '../../ui/Field'
 import { cn } from '../../ui/cn'
 import { FIELD_ID } from './validateForm'
 
 // Disabled look for an ERP-owned control (the shared field class has none).
-const ERP_LOCKED = 'disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed'
-const INVALID = 'border-red-300'
+const ERP_LOCKED = 'disabled:bg-paper-1 disabled:text-ink-700 disabled:cursor-not-allowed'
+const INVALID = 'border-danger!'
 
 interface VariantRowsProps {
   variants: ProductVariant[]
@@ -50,16 +51,16 @@ export function VariantRows({
       <div className="grid grid-cols-12 gap-2 px-1 mb-1">
         <span className="col-span-3 text-[11px] font-bold text-ink-700">Ukuran</span>
         <span className="col-span-3 text-[11px] font-bold text-ink-700">Harga Dasar</span>
-        <span className="col-span-3 text-[11px] font-bold text-ink-700">SKU</span>
+        <span className="col-span-2 text-[11px] font-bold text-ink-700">SKU</span>
         <span className="col-span-2 text-[11px] font-bold text-ink-700">Barcode</span>
-        <span className="col-span-1" />
+        <span className="col-span-2" />
       </div>
       <div className="space-y-2">
         {variants.map((v, i) => {
           const fields = [
             { k: 'size', id: FIELD_ID.size(i), span: 'col-span-3', ph: '30ml', num: false, label: 'Ukuran varian', value: shownSize(v) },
             { k: 'price', id: FIELD_ID.price(i), span: 'col-span-3', ph: '150000', num: true, label: 'Harga dasar varian', value: v.price === 0 ? '' : v.price },
-            { k: 'sku', id: FIELD_ID.sku(i), span: 'col-span-3', ph: 'MND-01', num: false, label: 'SKU varian', value: v.sku },
+            { k: 'sku', id: FIELD_ID.sku(i), span: 'col-span-2', ph: 'MND-01', num: false, label: 'SKU varian', value: v.sku },
           ] as const
           const rowErrors = fields.map((f) => errors[f.id]).filter((m): m is string => !!m)
           return (
@@ -79,33 +80,32 @@ export function VariantRows({
                 title="Kosongkan untuk memakai SKU sebagai barcode"
                 className={`${fieldClass} col-span-2`}
               />
-              <div className="col-span-1 flex items-center justify-center gap-1">
+              <div className="col-span-2 flex items-center justify-end gap-0.5">
                 {recipesEnabled && (
-                  <button type="button"
+                  <IconButton
+                    label={`Resep ${variantLabel(v.size) || productName || 'produk'}`}
                     title={!v.id ? 'Simpan produk dulu' : (recipeVariantIds.has(v.id) ? 'Resep tersedia' : 'Belum ada resep')}
-                    aria-label={`Resep ${variantLabel(v.size) || productName || 'produk'}`}
                     disabled={!v.id}
                     onClick={() => v.id && setRecipeFor({ variantId: v.id, label: [productName || 'Produk', variantLabel(v.size)].filter(Boolean).join(' — ') })}
-                    className={`${v.id && recipeVariantIds.has(v.id) ? 'text-gold-600 bg-gold-50 rounded' : 'text-gray-400'} hover:text-gold-600 disabled:opacity-30`}>
-                    <FlaskConical className="w-4 h-4" />
-                  </button>
+                    className={`${v.id && recipeVariantIds.has(v.id) ? 'text-brand-strong! bg-paper-1' : ''} disabled:opacity-40`}>
+                    <FlaskConical className="w-4 h-4" aria-hidden="true" />
+                  </IconButton>
                 )}
                 {v.erpSlug ? (
-                  <span title="Varian dari ERP tidak bisa dihapus" className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-gold-50 text-gold-700">
+                  <span title="Varian dari ERP tidak bisa dihapus" className="px-1.5 py-0.5 text-[11px] font-bold rounded bg-paper-1 text-ink-700">
                     ERP<span className="sr-only"> (varian dari ERP, tidak bisa dihapus)</span>
                   </span>
                 ) : (
-                  <button type="button" onClick={() => onRemoveVariant(i)} aria-label="Hapus varian"
-                    disabled={variants.length === 1} className="text-gray-300 hover:text-red-500 disabled:opacity-0">
-                    <X className="w-4 h-4" />
-                  </button>
+                  <IconButton tone="danger" label="Hapus varian" onClick={() => onRemoveVariant(i)} disabled={variants.length === 1} className="disabled:opacity-0">
+                    <X className="w-4 h-4" aria-hidden="true" />
+                  </IconButton>
                 )}
               </div>
               {rowErrors.length > 0 && (
-                <p className="col-span-12 text-[11px] text-red-600 -mt-1 px-1">{[...new Set(rowErrors)].join('. ')}</p>
+                <p className="col-span-12 text-[11px] text-danger -mt-1 px-1">{[...new Set(rowErrors)].join('. ')}</p>
               )}
               {v.erpSlug && v.isActive === false && (
-                <p className="col-span-12 text-[11px] font-bold text-amber-700 -mt-1 px-1">Nonaktif (ERP)</p>
+                <p className="col-span-12 text-[11px] font-bold text-warn-strong -mt-1 px-1">Nonaktif (ERP)</p>
               )}
             </div>
           )

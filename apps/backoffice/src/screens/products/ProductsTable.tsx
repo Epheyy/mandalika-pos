@@ -26,6 +26,7 @@ interface ProductsTableProps {
 
 const STOCK_TONE = { out: 'danger', low: 'warning', ok: 'neutral' } as const
 const noop = () => {}
+const ERP_LOCK_REASON = 'Produk dari ERP tidak bisa dihapus; nonaktifkan saja'
 
 /** A single-unit product carries the internal "Satuan" size: it shows as "Stok", never as a variant name. */
 const stockBadgeLabel = (size: string): string => (variantLabel(size) ? `${variantLabel(size)}: ` : 'Stok: ')
@@ -37,17 +38,17 @@ export function ProductsTable({ rows, catName, loading, error, onRetry, selected
       header: 'Produk',
       cell: (p) => (
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
-            {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package className="w-5 h-5 text-gray-300" aria-hidden="true" />}
+          <div className="w-10 h-10 rounded-xl bg-paper-1 overflow-hidden flex-shrink-0 flex items-center justify-center">
+            {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package className="w-5 h-5 text-ink-500" aria-hidden="true" />}
           </div>
           <div>
-            <p className="font-bold text-gray-900 text-sm">{p.name}</p>
-            <p className="text-xs text-gray-400">{p.brand}</p>
+            <p className="font-bold text-ink-900 text-sm">{p.name}</p>
+            <p className="text-xs text-ink-700">{p.brand}</p>
           </div>
         </div>
       ),
     },
-    { id: 'category', header: 'Kategori', cell: (p) => <Badge tone="gold">{catName(p.categoryId)}</Badge> },
+    { id: 'category', header: 'Kategori', cell: (p) => <Badge tone="neutral">{catName(p.categoryId)}</Badge> },
     {
       id: 'stock',
       header: 'Varian & Stok',
@@ -69,10 +70,11 @@ export function ProductsTable({ rows, catName, loading, error, onRetry, selected
         <div className="flex flex-wrap items-center gap-1">
           {/* Read-only here: the status is changed inside the editor, where the whole product is saved at once. */}
           <Switch checked={p.isActive} onChange={noop} disabled size="sm" label={`Status ${p.name}`} />
-          <Badge tone={p.isActive ? 'success' : 'neutral'}>{p.isActive ? 'Aktif' : 'Nonaktif'}</Badge>
-          {p.erpLinked && <Badge tone="gold">Dari ERP</Badge>}
-          {p.erpLinked && <span id={`erp-nodelete-${p.id}`} className="sr-only">Produk dari ERP tidak bisa dihapus; nonaktifkan saja</span>}
-          {p.sellable === false && <Badge tone="warning">Internal</Badge>}
+          {/* M-8: the switch plus one state word; the source (ERP / internal) is a small neutral tag, never a second status. */}
+          <span className={p.isActive ? 'text-xs font-bold text-ok' : 'text-xs font-bold text-ink-700'}>{p.isActive ? 'Aktif' : 'Nonaktif'}</span>
+          {p.erpLinked && <Badge tone="neutral" className="px-1.5! py-0.5! text-[11px]!">Dari ERP</Badge>}
+          {p.erpLinked && <span id={`erp-nodelete-${p.id}`} className="sr-only">{ERP_LOCK_REASON}</span>}
+          {p.sellable === false && <Badge tone="neutral" className="px-1.5! py-0.5! text-[11px]!">Internal</Badge>}
         </div>
       ),
     },
@@ -82,13 +84,13 @@ export function ProductsTable({ rows, catName, loading, error, onRetry, selected
       align: 'right',
       cell: (p) => (
         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-          <IconButton aria-label={`Ubah ${p.name}`} onClick={() => onEdit(p)}><Edit2 className="w-4 h-4" /></IconButton>
+          <IconButton label={`Ubah ${p.name}`} onClick={() => onEdit(p)}><Edit2 className="w-4 h-4" /></IconButton>
           <IconButton
             tone="danger"
             disabled={p.erpLinked === true}
-            aria-label={`Hapus ${p.name}`}
+            label={`Hapus ${p.name}`}
             aria-describedby={p.erpLinked ? `erp-nodelete-${p.id}` : undefined}
-            title={p.erpLinked ? 'Produk dari ERP tidak bisa dihapus; nonaktifkan saja' : undefined}
+            title={p.erpLinked ? ERP_LOCK_REASON : undefined}
             className="disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={() => onDelete(p)}
           >

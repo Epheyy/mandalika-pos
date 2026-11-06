@@ -19,7 +19,7 @@ const itemText = (it: Bundle['items'][number]): string =>
 
 export function BundlesPanel({ bundles, loading, error, onRetry }: BundlesPanelProps) {
   const columns: Column<Bundle>[] = [
-    { id: 'name', header: 'Bundle', cell: (b) => <span className="font-bold text-gray-900">{b.name}</span> },
+    { id: 'name', header: 'Bundle', cell: (b) => <span className="font-bold text-ink-900">{b.name}</span> },
     {
       id: 'items',
       header: 'Isi',
@@ -29,12 +29,12 @@ export function BundlesPanel({ bundles, loading, error, onRetry }: BundlesPanelP
         </div>
       ),
     },
-    { id: 'price', header: 'Harga', align: 'right', cell: (b) => <span className="font-bold text-gold-600">{BRAND.currency.format(b.price)}</span> },
+    { id: 'price', header: 'Harga', align: 'right', cell: (b) => <span className="font-bold text-brand-strong">{BRAND.currency.format(b.price)}</span> },
     { id: 'status', header: 'Status', cell: (b) => <Badge tone={b.isActive ? 'success' : 'neutral'}>{b.isActive ? 'Aktif' : 'Nonaktif'}</Badge> },
   ]
   return (
     <div className="space-y-3">
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
+      <div className="bg-paper-1 border border-paper-2 rounded-xl p-3 text-xs text-ink-700">
         Bundle dikelola read-only dari katalog. Editor bundle menyusul.
       </div>
       <DataTable

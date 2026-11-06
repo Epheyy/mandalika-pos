@@ -86,31 +86,31 @@ export function ProductFormSlideOver({
       }
     >
       {load === 'loading' && <p className="text-sm text-ink-700">Memuat produk…</p>}
-      {(load === 'missing' || load === 'failed') && <p role="alert" className="text-sm text-red-600">{loadError}</p>}
+      {(load === 'missing' || load === 'failed') && <p role="alert" className="text-sm text-danger">{loadError}</p>}
       {ready && (
         <div className="space-y-5">
           <Field label={`Foto Produk (maks ${MAX_IMAGES}, foto pertama = utama)`}>
             <div className="flex flex-wrap gap-2">
               {form.images.map((url, i) => (
-                <div key={url} className="relative w-20 h-20 rounded-2xl overflow-hidden border border-gray-200 group">
+                <div key={url} className="relative w-20 h-20 rounded-2xl overflow-hidden border border-paper-2 group">
                   <img src={url} alt="" className="w-full h-full object-cover" />
                   {i === 0 && (
-                    <span className="absolute top-0 left-0 bg-gold-600 text-white text-[9px] font-bold px-1 rounded-br-lg">Utama</span>
+                    <span className="absolute top-0 left-0 bg-brand-strong text-on-brand text-[9px] font-bold px-1 rounded-br-lg">Utama</span>
                   )}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 flex items-center justify-center gap-1 transition">
+                  <div className="absolute inset-0 bg-ink-900/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 flex items-center justify-center gap-1 transition">
                     {i !== 0 && (
-                      <button type="button" onClick={() => makeMainImage(i)} title="Jadikan utama" className="text-white text-[10px] font-bold bg-gold-600 px-1.5 py-0.5 rounded">
+                      <button type="button" onClick={() => makeMainImage(i)} title="Jadikan utama" className="text-on-brand text-[10px] font-bold bg-brand-strong px-1.5 py-0.5 rounded">
                         Utama
                       </button>
                     )}
-                    <button type="button" onClick={() => removeImage(i)} title="Hapus" aria-label="Hapus foto" className="text-white bg-red-600 rounded p-1">
+                    <button type="button" onClick={() => removeImage(i)} title="Hapus" aria-label="Hapus foto" className="text-on-brand bg-danger-solid rounded p-1">
                       <X className="w-3 h-3" />
                     </button>
                   </div>
                 </div>
               ))}
               {form.images.length < MAX_IMAGES && (
-                <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="w-20 h-20 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 hover:border-gold-400 hover:text-gold-600 disabled:opacity-50">
+                <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="w-20 h-20 rounded-2xl border-2 border-dashed border-paper-2 flex flex-col items-center justify-center text-ink-700 hover:border-brand-strong hover:text-brand-strong disabled:opacity-50">
                   {uploading ? (
                     <span className="text-[10px]">...</span>
                   ) : (
@@ -136,12 +136,12 @@ export function ProductFormSlideOver({
           <div className="flex gap-6 flex-wrap items-center">
             <div className="flex items-center gap-2">
               <Switch checked={form.isActive} onChange={(isActive) => setForm((f) => ({ ...f, isActive }))} label="Produk Aktif" />
-              <span aria-hidden="true" className="text-sm font-bold text-gray-700">Produk Aktif</span>
+              <span aria-hidden="true" className="text-sm font-bold text-ink-700">Produk Aktif</span>
             </div>
             {(['isFeatured', 'sellable'] as const).map((k) => (
               <label key={k} className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.checked }))} className="w-4 h-4 accent-gold-600" />
-                <span className="text-sm font-bold text-gray-700">{k === 'isFeatured' ? 'Produk Unggulan' : 'Dijual ke pelanggan'}</span>
+                <input type="checkbox" checked={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.checked }))} className="w-4 h-4 accent-brand-strong" />
+                <span className="text-sm font-bold text-ink-700">{k === 'isFeatured' ? 'Produk Unggulan' : 'Dijual ke pelanggan'}</span>
               </label>
             ))}
           </div>
@@ -173,7 +173,7 @@ export function ProductFormSlideOver({
             />
           )}
 
-          {err && <p role="alert" className="text-sm text-red-600">{err}</p>}
+          {err && <p role="alert" className="text-sm text-danger">{err}</p>}
         </div>
       )}
     </SlideOver>

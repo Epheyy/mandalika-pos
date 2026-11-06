@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import type { Bundle, Category } from '@mandalika/api'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
@@ -30,7 +30,19 @@ export default function Products() {
   // Categories feed the list's filter, the editor's picker and the Kategori tab.
   const cq = usePolledQuery<Category[]>(() => api.listCategories(), [])
   const categories = cq.data ?? []
-  const tabs = <Tabs value={tab} onChange={setTab} tabs={strip} />
+  // Each tab renders its own header, so the strip remounts on every switch and keyboard focus would fall to <body>.
+  // When the switch came from the strip itself, put focus back on the selected tab once the new view has mounted.
+  const refocusTab = useRef(false)
+  const changeTab = (next: ProductsTab) => {
+    refocusTab.current = next !== tab && document.activeElement instanceof HTMLElement && document.activeElement.getAttribute('role') === 'tab'
+    setTab(next)
+  }
+  useEffect(() => {
+    if (!refocusTab.current) return
+    refocusTab.current = false
+    document.querySelector<HTMLElement>(`[role="tab"][data-tab-key="${tab}"]`)?.focus()
+  }, [tab])
+  const tabs = <Tabs value={tab} onChange={changeTab} tabs={strip} label="Bagian Produk" />
 
   return (
     <div className="p-6 space-y-5">

@@ -21,11 +21,11 @@ export function SplitTenderCard({ enabled, changed, onChange }: Props) {
   const [confirming, setConfirming] = useState(false)
   return (
     <SettingsCard changed={changed} className="p-6 space-y-4">
-      <h3 className="font-black text-gray-900">Pembayaran Terpisah</h3>
+      <h3 className="font-black text-ink-900">Pembayaran Terpisah</h3>
       <div className="flex items-center justify-between py-1">
         <div>
-          <p className="font-bold text-gray-900">Bayar terpisah</p>
-          <p className="text-xs text-gray-400">Satu transaksi bisa dibayar dengan beberapa metode (label: Split-Payment)</p>
+          <p className="font-bold text-ink-900">Bayar terpisah</p>
+          <p className="text-xs text-ink-700">Satu transaksi bisa dibayar dengan beberapa metode (label: Split-Payment)</p>
         </div>
         <Switch
           label="Bayar terpisah"
@@ -33,8 +33,8 @@ export function SplitTenderCard({ enabled, changed, onChange }: Props) {
           onChange={() => (enabled ? onChange(false) : setConfirming(true))}
         />
       </div>
-      <p className="text-xs font-bold text-amber-700 bg-amber-50 rounded-xl px-3 py-2">{SPLIT_TENDER_WARNING}</p>
-      <p className="text-xs text-gray-500">{SPLIT_TENDER_OFF_NOTE}</p>
+      <p className="text-xs font-bold text-warn-strong bg-warn-bg rounded-xl px-3 py-2">{SPLIT_TENDER_WARNING}</p>
+      <p className="text-xs text-ink-700">{SPLIT_TENDER_OFF_NOTE}</p>
       <Modal
         open={confirming}
         onClose={() => setConfirming(false)}
@@ -49,7 +49,7 @@ export function SplitTenderCard({ enabled, changed, onChange }: Props) {
       >
         <div className="space-y-2 text-sm">
           <p>{SPLIT_TENDER_WARNING}</p>
-          <p className="text-xs text-gray-500">Berlaku setelah Anda menekan Simpan perubahan. Tablet mengambilnya saat sinkron berikutnya.</p>
+          <p className="text-xs text-ink-700">Berlaku setelah Anda menekan Simpan perubahan. Tablet mengambilnya saat sinkron berikutnya.</p>
         </div>
       </Modal>
     </SettingsCard>

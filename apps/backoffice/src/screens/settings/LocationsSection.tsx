@@ -103,7 +103,7 @@ export function LocationsSection() {
         {/* ── OUTLET SECTION ── */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-black text-gray-400 uppercase tracking-wider">Outlet <Badge className="ml-1 normal-case tracking-normal">Disimpan langsung</Badge></p>
+            <p className="text-xs font-black text-ink-700 uppercase tracking-wider">Outlet <Badge className="ml-1 normal-case tracking-normal">Disimpan langsung</Badge></p>
             <Button
               size="sm"
               variant="secondary"
@@ -114,7 +114,7 @@ export function LocationsSection() {
             </Button>
           </div>
 
-          {toggleErr && <p className="mb-2 text-sm text-red-600">{toggleErr}</p>}
+          {toggleErr && <p className="mb-2 text-sm text-danger">{toggleErr}</p>}
 
           {!ouq.loading && outlets.length === 0 && (
             <EmptyState icon={<Store />} title="Belum ada outlet" />
@@ -124,25 +124,25 @@ export function LocationsSection() {
             {outlets.map((o) => (
               <div
                 key={o.id}
-                className={`flex items-center gap-3 rounded-xl border border-gray-100 px-4 py-3.5 transition-colors ${
+                className={`flex items-center gap-3 rounded-xl border border-paper-2 px-4 py-3.5 transition-colors ${
                   o.isActive ? '' : 'opacity-60'
                 }`}
               >
-                <div className="w-10 h-10 rounded-xl bg-gold-50 grid place-items-center flex-shrink-0">
-                  <Store className="w-5 h-5 text-gold-600" />
+                <div className="w-10 h-10 rounded-xl bg-paper-1 grid place-items-center flex-shrink-0">
+                  <Store className="w-5 h-5 text-brand-strong" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-gray-900 text-[15px]">{o.name}</span>
+                    <span className="font-bold text-ink-900 text-[15px]">{o.name}</span>
                     {!o.isActive && <Badge tone="neutral">Nonaktif</Badge>}
                   </div>
                   {o.code && (
-                    <span className="text-xs text-gray-400 font-mono">{o.code}</span>
+                    <span className="text-xs text-ink-700 font-mono">{o.code}</span>
                   )}
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <IconButton onClick={() => openEditOutlet(o)} aria-label={`Edit outlet ${o.name}`}>
+                  <IconButton onClick={() => openEditOutlet(o)} label={`Edit outlet ${o.name}`}>
                     <Edit2 className="w-3.5 h-3.5" />
                   </IconButton>
                   <Switch
@@ -160,7 +160,7 @@ export function LocationsSection() {
         {/* ── GUDANG SECTION ── */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-black text-gray-400 uppercase tracking-wider">Gudang <Badge className="ml-1 normal-case tracking-normal">Disimpan langsung</Badge></p>
+            <p className="text-xs font-black text-ink-700 uppercase tracking-wider">Gudang <Badge className="ml-1 normal-case tracking-normal">Disimpan langsung</Badge></p>
             <Button
               size="sm"
               variant="secondary"
@@ -179,34 +179,34 @@ export function LocationsSection() {
             {warehouses.map((w) => (
               <div
                 key={w.id}
-                className={`flex items-center gap-3 rounded-xl border border-gray-100 px-4 py-3.5 transition-colors ${
+                className={`flex items-center gap-3 rounded-xl border border-paper-2 px-4 py-3.5 transition-colors ${
                   w.isActive ? '' : 'opacity-60'
                 }`}
               >
-                <div className="w-10 h-10 rounded-xl bg-gold-50 grid place-items-center flex-shrink-0">
-                  <WarehouseIcon className="w-5 h-5 text-gold-600" />
+                <div className="w-10 h-10 rounded-xl bg-paper-1 grid place-items-center flex-shrink-0">
+                  <WarehouseIcon className="w-5 h-5 text-brand-strong" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-gray-900 text-[15px]">{w.name}</span>
+                    <span className="font-bold text-ink-900 text-[15px]">{w.name}</span>
                     {!w.isActive && <Badge tone="neutral">Nonaktif</Badge>}
                   </div>
                   {w.code && (
-                    <span className="text-xs text-gray-400 font-mono">{w.code}</span>
+                    <span className="text-xs text-ink-700 font-mono">{w.code}</span>
                   )}
                 </div>
 
                 <div className="flex items-center gap-1">
                   <IconButton
                     onClick={() => openEditWarehouse(w)}
-                    aria-label={`Edit gudang ${w.name}`}
+                    label={`Edit gudang ${w.name}`}
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                   </IconButton>
                   <IconButton
                     tone="danger"
                     onClick={() => confirmDelete(w)}
-                    aria-label={`Hapus gudang ${w.name}`}
+                    label={`Hapus gudang ${w.name}`}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </IconButton>

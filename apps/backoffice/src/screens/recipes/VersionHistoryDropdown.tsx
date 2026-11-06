@@ -24,14 +24,15 @@ export function VersionHistoryDropdown({ versions, currentVersionId, viewingVers
     <div className="relative">
       <button
         type="button"
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-full px-3 py-1.5 text-xs font-bold"
+        className="inline-flex items-center gap-1.5 h-9 border border-paper-2 bg-paper-1 text-ink-900 rounded-full px-3 text-xs font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong"
       >
         {versions.length === 0 ? 'Belum ada versi' : `Versi ${activeNo}${isCurrent ? ' (kini)' : ''}`}
         <ChevronDown className="w-3 h-3" />
       </button>
       {open && versions.length > 0 && (
-        <div className="absolute z-20 mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+        <div className="surface-solid absolute z-20 mt-1 w-64 rounded-xl overflow-hidden">
           {versions.map((v) => (
             <button
               key={v.id}
@@ -41,13 +42,13 @@ export function VersionHistoryDropdown({ versions, currentVersionId, viewingVers
                 if (v.id === currentVersionId) onBackToCurrent()
                 else onSelect(v.id)
               }}
-              className={`w-full text-left px-3 py-2 text-xs border-b border-gray-50 last:border-0 hover:bg-gray-50 ${v.id === activeId ? 'bg-amber-50' : ''}`}
+              className={`w-full text-left px-3 py-2 text-xs border-b border-paper-2 last:border-0 hover:bg-paper-1 ${v.id === activeId ? 'bg-paper-1' : ''}`}
             >
-              <div className="font-bold text-gray-800">
+              <div className="font-bold text-ink-900">
                 Versi {v.versionNo}{v.id === currentVersionId ? ' (kini)' : ''}
               </div>
-              <div className="text-gray-400">{fmtDate(v.createdAt)} · {v.createdByName ?? '—'}</div>
-              {v.notes && <div className="text-gray-500 truncate">{v.notes}</div>}
+              <div className="text-ink-700">{fmtDate(v.createdAt)} · {v.createdByName ?? '—'}</div>
+              {v.notes && <div className="text-ink-700 truncate" title={v.notes}>{v.notes}</div>}
             </button>
           ))}
         </div>

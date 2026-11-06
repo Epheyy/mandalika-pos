@@ -44,7 +44,7 @@ describe('VariantRows with ERP-linked variants', () => {
     // the unlinked variant stays fully editable and keeps its remove button
     expect(isDisabled(inputTag(html, 'Ukuran varian', 1))).toBe(false)
     expect(isDisabled(inputTag(html, 'SKU varian', 1))).toBe(false)
-    expect((html.match(/hover:text-red-500/g) ?? []).length).toBe(1) // only the unlinked row keeps a remove button
+    expect((html.match(/aria-label="Hapus varian"/g) ?? []).length).toBe(1) // only the unlinked row keeps a remove button
   })
 
   it('labels an inactive linked variant "Nonaktif (ERP)" and nothing else', () => {
