@@ -10,6 +10,11 @@ import { StatusBadge } from './StatusBadge'
 import { Switch } from './Switch'
 import { EmptyState } from './EmptyState'
 import { Input } from './Field'
+import { IconButton } from './IconButton'
+import { ImportExportMenu } from './ImportExportMenu'
+import { Pagination } from './Pagination'
+import { Tabs, nextTabIndex } from './Tabs'
+import { isOverflowing } from './useHorizontalOverflow'
 import { PageHeader } from './PageHeader'
 import type { LabelMap } from '../lib/labels/types'
 
@@ -359,5 +364,118 @@ describe('review fixes', () => {
     const group = html.match(/<th[^>]*scope="colgroup"[^>]*>/)?.[0] ?? ''
     expect(group).not.toContain('sticky')
     expect(html).toContain('sticky top-0')
+  })
+})
+
+describe('K2: tabs', () => {
+  const tabs = [
+    { id: 'a', label: 'Satu' },
+    { id: 'b', label: 'Dua', dirty: true },
+  ]
+  const html = renderToStaticMarkup(<Tabs value="b" onChange={noop} tabs={tabs} scope="s" label="Bagian" />)
+
+  it('is a tablist of tabs with aria-selected, never aria-pressed', () => {
+    expect(html).toContain('role="tablist"')
+    expect(html).toContain('aria-label="Bagian"')
+    expect(html.match(/role="tab"/g)).toHaveLength(2)
+    expect(html).toContain('aria-selected="true"')
+    expect(html).toContain('aria-selected="false"')
+    expect(html).not.toContain('aria-pressed')
+  })
+  it('keeps data-tab-key and data-dirty for the browser gate', () => {
+    expect(html).toContain('data-tab-key="s.a"')
+    expect(html).toContain('data-tab-key="s.b"')
+    expect(html).toContain('data-dirty="true"')
+  })
+  it('has one tab stop: the selected tab, or the first when the value matches nothing', () => {
+    expect(html.match(/tabindex="0"/g)).toHaveLength(1)
+    expect(html.match(/tabindex="-1"/g)).toHaveLength(1)
+    const stale = renderToStaticMarkup(<Tabs value={'zz' as 'a'} onChange={noop} tabs={tabs} />)
+    expect(stale.match(/tabindex="0"/g)).toHaveLength(1)
+  })
+  it('does not change weight on selection', () => {
+    expect(html).not.toContain('font-bold')
+    expect(html).toContain('tabular-nums')
+  })
+  it('moves focus with arrows, wrapping, and Home/End', () => {
+    expect(nextTabIndex('ArrowRight', 0, 3)).toBe(1)
+    expect(nextTabIndex('ArrowRight', 2, 3)).toBe(0)
+    expect(nextTabIndex('ArrowLeft', 0, 3)).toBe(2)
+    expect(nextTabIndex('ArrowLeft', 2, 3)).toBe(1)
+    expect(nextTabIndex('Home', 2, 3)).toBe(0)
+    expect(nextTabIndex('End', 0, 3)).toBe(2)
+    expect(nextTabIndex('Enter', 0, 3)).toBeNull()
+    expect(nextTabIndex('ArrowRight', 0, 0)).toBeNull()
+  })
+})
+
+describe('K2: DataTable single scroll', () => {
+  const html = renderToStaticMarkup(<DataTable caption="c" columns={COLS} rows={ROWS} rowKey={(r) => r.id} />)
+  it('has no inner vertical scroll box', () => {
+    expect(html).not.toContain('max-h-')
+    expect(html).not.toContain('overflow-auto')
+    expect(html).not.toContain('overflow-hidden')
+  })
+  it('clips the card and the wrapper without making either a scroll container while the table fits', () => {
+    expect(html).toContain('overflow-clip')
+    expect(html).toContain('overflow-x-clip')
+  })
+  it('draws the sticky header border as a shadow, not a border', () => {
+    expect(html).toContain('shadow-[inset_0_-1px_0')
+  })
+  it('flags a table as overflowing only past the rounding tolerance', () => {
+    expect(isOverflowing(800, 800)).toBe(false)
+    expect(isOverflowing(801, 800)).toBe(false)
+    expect(isOverflowing(802, 800)).toBe(true)
+    expect(isOverflowing(500, 800)).toBe(false)
+  })
+})
+
+describe('K2: pagination, filters, icon buttons', () => {
+  it('Pagination shows the range, keeps Hal x/y and the Baris label, and has 36 px controls', () => {
+    const html = renderToStaticMarkup(<Pagination page={2} totalPages={3} total={60} pageSize={25} onChange={noop} onPageSizeChange={noop} />)
+    expect(html).toContain('Menampilkan 26–50 dari 60 catatan')
+    expect(html).toContain('Hal 2/3')
+    expect(html).toContain('Baris:')
+    expect(html).toContain('h-9')
+  })
+  it('Pagination shows no range for an empty list', () => {
+    const html = renderToStaticMarkup(<Pagination page={1} totalPages={1} total={0} pageSize={25} onChange={noop} onPageSizeChange={noop} />)
+    expect(html).not.toContain('Menampilkan')
+  })
+  it('FilterBar.Select puts the label inline and keeps it as the accessible name', () => {
+    const html = renderToStaticMarkup(<FilterBar.Select label="Kategori" value="" onChange={noop} options={[{ value: '', label: 'Semua' }]} />)
+    expect(html).toContain('aria-label="Kategori"')
+    expect(html).toContain('Kategori:')
+    expect(html).not.toContain('<label')
+  })
+  it('IconButton gives its label as aria-label and title, and stays optional', () => {
+    const named = renderToStaticMarkup(<IconButton label="Ubah Melati">x</IconButton>)
+    expect(named).toContain('aria-label="Ubah Melati"')
+    expect(named).toContain('title="Ubah Melati"')
+    expect(named).toContain('h-9 w-9')
+    expect(renderToStaticMarkup(<IconButton aria-label="Hapus">x</IconButton>)).toContain('aria-label="Hapus"')
+  })
+})
+
+describe('K2: dialogs and the import/export menu', () => {
+  it('SlideOver and ConfirmDialog are opaque solid panels with a plain scrim', () => {
+    const slide = renderToStaticMarkup(<SlideOver open onClose={noop} title="T">b</SlideOver>)
+    expect(slide).toContain('surface-solid')
+    expect(slide).toContain('bg-ink-900/30')
+    expect(slide).not.toContain('backdrop-blur')
+    const confirm = renderToStaticMarkup(<ConfirmDialog open title="Hapus Melati?" consequence="Tidak bisa dibatalkan." confirmLabel="Hapus" onCancel={noop} onConfirm={noop} />)
+    expect(confirm).toContain('surface-solid')
+    expect(confirm).not.toContain('backdrop-blur')
+    expect(confirm.indexOf('Batal')).toBeLessThan(confirm.indexOf('>Hapus<'))
+  })
+  it('ImportExportMenu renders one closed disclosure button with an import input, and nothing without capabilities', () => {
+    const both = renderToStaticMarkup(<ImportExportMenu onExport={noop} importKind="customers" />)
+    expect(both).toContain('Impor / Ekspor')
+    expect(both).toContain('aria-expanded="false"')
+    expect(both).toContain('aria-label="Impor dari file CSV"')
+    expect(both).not.toContain('Ekspor CSV')
+    expect(renderToStaticMarkup(<ImportExportMenu />)).toBe('')
+    expect(renderToStaticMarkup(<ImportExportMenu onExport={noop} />)).not.toContain('Impor dari file CSV')
   })
 })

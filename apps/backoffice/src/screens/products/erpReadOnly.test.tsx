@@ -77,7 +77,7 @@ describe('ProductsTable ERP badge and delete', () => {
     const plain = table([product({})])
     expect(plain).not.toContain('Dari ERP')
     expect(plain).not.toContain('Produk dari ERP tidak bisa dihapus')
-    const deleteTag = (plain.match(/<button[^>]*>/g) ?? []).filter((t) => t.includes('hover:bg-red-50'))[0] ?? ''
+    const deleteTag = (plain.match(/<button[^>]*>/g) ?? []).filter((t) => t.includes('hover:bg-danger-bg'))[0] ?? ''
     expect(deleteTag).not.toBe('')
     expect(isDisabled(deleteTag)).toBe(false)
   })

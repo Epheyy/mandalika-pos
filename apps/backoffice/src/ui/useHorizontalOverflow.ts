@@ -3,6 +3,11 @@ import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 /** A table this much wider than its card counts as overflowing (sub-pixel rounding must not flip it). */
 const TOLERANCE_PX = 1
 
+/** True when the table is wider than its card by more than rounding noise. */
+export function isOverflowing(tableWidth: number, wrapperWidth: number): boolean {
+  return tableWidth - wrapperWidth > TOLERANCE_PX
+}
+
 /**
  * Does the table need to scroll sideways inside its card?
  *
@@ -24,7 +29,7 @@ export function useHorizontalOverflow(): {
     const wrapper = wrapperRef.current
     const table = tableRef.current
     if (!wrapper || !table) return
-    const measure = () => setOverflowing(table.offsetWidth - wrapper.clientWidth > TOLERANCE_PX)
+    const measure = () => setOverflowing(isOverflowing(table.offsetWidth, wrapper.clientWidth))
     measure()
     // No ResizeObserver (very old WebView, jsdom without a stub): the first measurement stands.
     if (typeof ResizeObserver === 'undefined') return

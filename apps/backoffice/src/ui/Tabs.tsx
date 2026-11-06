@@ -1,6 +1,17 @@
 import { useRef, type KeyboardEvent } from 'react'
 import { cn } from './cn'
 
+/** The tab that Left/Right/Home/End move focus to, or null for any other key. Wraps around. */
+export function nextTabIndex(key: string, index: number, count: number): number | null {
+  const last = count - 1
+  if (last < 0) return null
+  if (key === 'ArrowRight') return index === last ? 0 : index + 1
+  if (key === 'ArrowLeft') return index === 0 ? last : index - 1
+  if (key === 'Home') return 0
+  if (key === 'End') return last
+  return null
+}
+
 interface TabsProps<T extends string> {
   value: T
   onChange: (value: T) => void
@@ -26,13 +37,7 @@ export function Tabs<T extends string>({ value, onChange, tabs, className, scope
   const tabStop = tabs.some((t) => t.id === value) ? value : tabs[0]?.id
 
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    const last = tabs.length - 1
-    const target =
-      e.key === 'ArrowRight' ? (index === last ? 0 : index + 1)
-      : e.key === 'ArrowLeft' ? (index === 0 ? last : index - 1)
-      : e.key === 'Home' ? 0
-      : e.key === 'End' ? last
-      : null
+    const target = nextTabIndex(e.key, index, tabs.length)
     if (target === null) return
     e.preventDefault()
     refs.current[target]?.focus()
