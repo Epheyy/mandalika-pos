@@ -4,7 +4,7 @@ import { cn } from './cn'
 type Tone = 'gold' | 'success' | 'danger' | 'warning' | 'neutral'
 
 const TONE: Record<Tone, string> = {
-  gold: 'bg-paper-1 text-brand-strong',
+  gold: 'bg-paper-1 text-ink-700',
   success: 'bg-ok-bg text-ok',
   danger: 'bg-danger-bg text-danger',
   warning: 'bg-warn-bg text-warn-strong',

@@ -14,7 +14,7 @@ export const fieldClass =
   'focus:border-brand-strong transition'
 
 /** Single-line controls are 40 px (plan 2.2); a textarea keeps its rows. */
-const lineClass = 'h-10 py-0'
+const lineClass = 'h-10 py-0!'
 
 const labelClass = 'block text-xs font-black text-ink-700 uppercase tracking-widest mb-2'
 

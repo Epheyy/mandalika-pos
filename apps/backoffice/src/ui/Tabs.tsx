@@ -62,7 +62,7 @@ export function Tabs<T extends string>({ value, onChange, tabs, className, scope
             onKeyDown={(e) => onKeyDown(e, i)}
             className={cn(
               // Same weight selected or not, tabular figures: the strip never changes width on selection.
-              'h-8 rounded-lg px-3 text-[13px] font-semibold tabular-nums transition-colors',
+              'h-8 whitespace-nowrap rounded-lg px-3 text-[13px] font-semibold tabular-nums transition-colors',
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong',
               selected ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-700 hover:text-ink-900',
             )}

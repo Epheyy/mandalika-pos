@@ -40,10 +40,15 @@ export function ImportExportMenu({ onExport, exportDisabled, filterSummary = [],
   const fileRef = useRef<HTMLInputElement>(null)
   const nextId = useRef(0)
   const listId = useId()
-  useDismiss(open, () => setOpen(false), root)
+  // Escape or an item closes the list; focus goes back to the trigger so a keyboard user does not restart at the skip link.
+  const close = (restoreFocus: boolean) => {
+    setOpen(false)
+    if (restoreFocus) root.current?.querySelector('button')?.focus()
+  }
+  useDismiss(open, () => close(true), root)
 
   const runExport = async (format: ExportFormat) => {
-    setOpen(false)
+    close(true)
     setFailure(null)
     setBusy(true)
     try {
@@ -86,14 +91,20 @@ export function ImportExportMenu({ onExport, exportDisabled, filterSummary = [],
         disabled={!hasImport && exportDisabled}
         title={onExport ? `Filter: ${filterSummary.length > 0 ? filterSummary.join('; ') : 'tidak ada'}` : undefined}
         aria-expanded={open}
-        aria-controls={listId}
+        aria-controls={open ? listId : undefined}
         onClick={() => setOpen((v) => !v)}
       >
         {hasImport && onExport ? 'Impor / Ekspor' : hasImport ? 'Impor' : 'Ekspor'}
         <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
       </Button>
       {open && (
-        <div id={listId} className="surface-solid absolute right-0 top-full z-20 mt-1 min-w-48 overflow-hidden rounded-xl py-1">
+        <div
+          id={listId}
+          onBlur={(e) => {
+            // Tabbing out of the open list closes it.
+            if (!root.current?.contains(e.relatedTarget as Node | null)) setOpen(false)
+          }}
+          className="surface-solid absolute right-0 top-full z-20 mt-1 min-w-48 overflow-hidden rounded-xl py-1">
           {onExport && (
             <>
               <button type="button" className={ITEM} disabled={exportDisabled} onClick={() => void runExport('csv')}>
@@ -110,7 +121,7 @@ export function ImportExportMenu({ onExport, exportDisabled, filterSummary = [],
                 type="button"
                 className={ITEM}
                 onClick={() => {
-                  setOpen(false)
+                  close(true)
                   fileRef.current?.click()
                 }}
               >
@@ -121,7 +132,7 @@ export function ImportExportMenu({ onExport, exportDisabled, filterSummary = [],
                   type="button"
                   className={ITEM}
                   onClick={() => {
-                    setOpen(false)
+                    close(true)
                     onTemplate()
                   }}
                 >

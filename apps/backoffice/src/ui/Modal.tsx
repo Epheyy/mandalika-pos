@@ -1,6 +1,7 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { cn } from './cn'
+import { useFocusTrap } from './focus'
 import { useOverlayLayer } from './overlayStack'
 
 type Size = 'sm' | 'md' | 'lg' | 'xl' | '2xl'
@@ -46,13 +47,17 @@ function ModalBody({
   children,
 }: Omit<ModalProps, 'open'>) {
   const dirty = useRef(false)
+  const titleId = useId()
+  const root = useRef<HTMLDivElement>(null)
   const [confirming, setConfirming] = useState(false)
 
   // Escape only reaches the top overlay, so a SlideOver or ConfirmDialog opened over this modal keeps it open.
-  useOverlayLayer(true, () => {
+  const layer = useOverlayLayer(true, () => {
     if (dirty.current) setConfirming(true)
     else onClose()
   })
+  // Focus goes in on open, Tab wraps inside, and focus returns to the opener on close.
+  useFocusTrap(true, root, undefined, layer)
 
   const requestClose = () => {
     if (dirty.current) setConfirming(true)
@@ -66,7 +71,14 @@ function ModalBody({
 
   // z-50 is OVERLAY_Z.modal; scenarios find the modal by this class, so keep it literal.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      ref={root}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={title ? titleId : undefined}
+      aria-label={title ? undefined : 'Dialog'}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    >
       <button
         type="button"
         aria-label="Tutup"
@@ -86,7 +98,7 @@ function ModalBody({
         {(title || subtitle) && (
           <div className="flex items-center justify-between px-6 py-4 border-b border-paper-2 flex-shrink-0">
             <div className="min-w-0">
-              {title && <h2 className="text-xl font-black text-ink-900 truncate">{title}</h2>}
+              {title && <h2 id={titleId} className="text-xl font-black text-ink-900 truncate">{title}</h2>}
               {subtitle && <p className="text-sm text-ink-700 truncate">{subtitle}</p>}
             </div>
             <button type="button"
@@ -113,8 +125,8 @@ function ModalBody({
             className="absolute inset-0 bg-ink-900/40"
             onClick={() => setConfirming(false)}
           />
-          <div className="surface-solid relative rounded-3xl p-6 w-full max-w-xs text-center">
-            <h3 className="text-lg font-black text-ink-900 mb-1">Buang perubahan?</h3>
+          <div role="alertdialog" aria-modal="true" aria-labelledby={`${titleId}-confirm`} className="surface-solid relative rounded-3xl p-6 w-full max-w-xs text-center">
+            <h3 id={`${titleId}-confirm`} className="text-lg font-black text-ink-900 mb-1">Buang perubahan?</h3>
             <p className="text-sm text-ink-700 mb-5">
               Perubahan yang belum disimpan akan hilang.
             </p>
