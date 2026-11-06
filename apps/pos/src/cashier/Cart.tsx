@@ -65,7 +65,7 @@ interface CartProps {
 /** Small coloured tag in front of a promo or reward line. */
 function Tag({ tone, children }: { tone: 'promo' | 'reward' | 'auto'; children: string }) {
   const palette = tone === 'promo' ? 'bg-promo-bg text-promo' : tone === 'auto' ? 'bg-paper-2 text-ink-700' : 'bg-reward-bg text-reward'
-  return <span className={`flex-shrink-0 rounded-md px-1.5 py-0.5 text-xs font-bold ${palette}`}>{children}</span>
+  return <span className={`flex-shrink-0 rounded-tag px-1.5 py-0.5 text-xs font-bold ${palette}`}>{children}</span>
 }
 
 /** 48 dp remove control for a totals row; negative margin keeps the row compact. */
@@ -158,16 +158,16 @@ export const Cart = memo(function Cart({
   }
 
   return (
-    <div className="flex h-full flex-col border-l border-paper-2 bg-white">
+    <div className="flex h-full flex-col border-l border-paper-2 bg-[var(--surface-solid-bg)] shadow-[-10px_0_26px_-18px_rgba(70,46,10,0.3)]">
       {/* Customer chip (B3) — pinned at the very top of the cart */}
       {customerSlot}
       {/* Header */}
       <div className="flex flex-shrink-0 items-center justify-between border-b border-paper-2 py-1 pl-4 pr-2">
-        <h2 className="text-base font-bold text-ink-900">
-          Keranjang
+        <h2 className="flex items-baseline gap-2 text-[1.0625rem] font-bold text-ink-900">
+          Pesanan
           {derived.totalCartItems > 0 && (
-            <span className="tnum ml-2 rounded-full bg-ink-900 px-2 py-0.5 text-xs text-white">
-              {derived.totalCartItems}
+            <span className="tnum whitespace-nowrap text-[0.8125rem] font-semibold text-ink-500">
+              {derived.totalCartItems} item
             </span>
           )}
         </h2>
@@ -221,16 +221,16 @@ export const Cart = memo(function Cart({
                   aria-label={`Ubah ${item.productName}${variantLabel(item.variantSize) ? ' ' + variantLabel(item.variantSize) : ''}`}
                   className="order-1 min-h-12 min-w-0 flex-1 basis-[calc(100%-4rem)] rounded-control text-left active:bg-paper-1 lg:basis-auto"
                 >
-                  <span className="block truncate text-[0.9375rem] font-semibold text-ink-900">{item.productName}</span>
+                  <span className="line-clamp-2 text-[0.9375rem] font-semibold leading-snug text-ink-900">{item.productName}</span>
                   {variantLabel(item.variantSize) && <span className="block text-[0.8125rem] text-ink-500">{variantLabel(item.variantSize)}</span>}
                 </button>
               )}
               {item.isReward ? (
                 <>
-                  <span className="tnum order-2 flex h-9 min-w-9 items-center justify-center rounded-lg bg-paper-1 px-2 text-base font-semibold text-ink-900">
+                  <span className="tnum order-2 flex h-9 min-w-9 items-center justify-center rounded-control bg-paper-1 px-2 text-base font-semibold text-ink-900">
                     {item.quantity}
                   </span>
-                  <p className={`tnum order-3 ml-auto min-w-20 text-right text-base font-bold ${item.subtotal <= 0 ? 'text-reward' : 'text-ink-900'}`}>
+                  <p className={`tnum order-3 ml-auto w-28 flex-shrink-0 text-right text-base font-bold ${item.subtotal <= 0 ? 'text-reward' : 'text-ink-900'}`}>
                     {item.subtotal <= 0 ? 'GRATIS' : formatRupiah(item.subtotal)}
                   </p>
                 </>
@@ -242,9 +242,9 @@ export const Cart = memo(function Cart({
                     onDecrement={() => onSetQty(item.productId, item.variantSize, item.quantity - 1)}
                     onIncrement={() => onSetQty(item.productId, item.variantSize, item.quantity + 1)}
                   />
-                  <div className="order-4 ml-auto min-w-20 text-right lg:order-3 lg:ml-0">
+                  <div className="order-4 ml-auto w-28 flex-shrink-0 text-right lg:order-3 lg:ml-0">
                     <p className="tnum text-base font-bold text-ink-900">{formatRupiah(item.subtotal)}</p>
-                    <p className="tnum text-xs text-ink-500">{formatRupiah(item.price)}</p>
+                    {item.quantity > 1 && <p className="tnum text-xs text-ink-500">@ {formatRupiah(item.price)}</p>}
                   </div>
                   {/* Visual "›" affordance for the same sheet; the body button carries the accessible name. */}
                   <button
@@ -275,12 +275,12 @@ export const Cart = memo(function Cart({
                 <Tag tone="reward">HADIAH</Tag>
               </p>
               <p className="text-[0.8125rem] text-ink-500">{GIVEAWAY_CAPTION}</p>
-              {giveaway.outOfStock && <p className="text-[0.8125rem] font-semibold text-warn">{GIVEAWAY_OUT_OF_STOCK}</p>}
+              {giveaway.outOfStock && <p className="text-[0.8125rem] font-semibold text-warn-strong">{GIVEAWAY_OUT_OF_STOCK}</p>}
             </div>
-            <span className="tnum order-2 flex h-9 min-w-9 items-center justify-center rounded-lg bg-paper-1 px-2 text-base font-semibold text-ink-900">
+            <span className="tnum order-2 flex h-9 min-w-9 items-center justify-center rounded-control bg-paper-1 px-2 text-base font-semibold text-ink-900">
               {giveaway.quantity}
             </span>
-            <p className="tnum order-3 ml-auto min-w-20 text-right text-base font-bold text-reward">GRATIS</p>
+            <p className="tnum order-3 ml-auto w-28 flex-shrink-0 text-right text-base font-bold text-reward">GRATIS</p>
           </div>
         )}
       </div>
@@ -316,10 +316,10 @@ export const Cart = memo(function Cart({
       {/* Adjustments row */}
       {!isEmpty && (
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-t border-paper-2 px-4 py-2">
-          <Button variant="promo" active={hasPromo || hasManual} onClick={() => onOpenAdjustment('promo')}>
+          <Button variant="promo" active={hasPromo || hasManual} onClick={() => onOpenAdjustment('promo')} className="flex-1">
             Promo &amp; Diskon
           </Button>
-          <Button variant="secondary" active={orderNotes !== ''} onClick={() => onOpenAdjustment('notes')}>
+          <Button variant="secondary" active={orderNotes !== ''} onClick={() => onOpenAdjustment('notes')} className="flex-1">
             Catatan
           </Button>
         </div>
@@ -393,7 +393,7 @@ export const Cart = memo(function Cart({
             <span>{formatRupiah(derived.total)}</span>
           </div>
           {pendingSync && (
-            <p className="mt-1 text-center text-[0.8125rem] text-warn">
+            <p className="mt-1 text-center text-[0.8125rem] text-warn-strong">
               <IconClock size={14} className="inline-block align-[-0.125em]" /> Tersimpan di tablet
             </p>
           )}
@@ -412,13 +412,13 @@ export const Cart = memo(function Cart({
             onClick={onCheckout}
             disabled={wallRaised}
             aria-label={wallRaised ? undefined : 'Bayar'}
-            className="tnum flex min-h-16 w-full items-center justify-between bg-brand px-5 text-on-brand active:bg-brand-pressed disabled:opacity-40"
+            className="bar-primary press-bar tnum flex min-h-16 w-full items-center justify-between px-5 disabled:opacity-40"
           >
             {wallRaised ? (
               <span className="mx-auto text-lg font-bold">Sinkronisasi diperlukan</span>
             ) : (
               <>
-                <span className="text-lg font-bold uppercase">Bayar</span>
+                <span className="text-xl font-bold">Bayar</span>
                 <span className="text-2xl font-bold">{formatRupiah(derived.total)}</span>
               </>
             )}

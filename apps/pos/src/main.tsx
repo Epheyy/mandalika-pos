@@ -15,11 +15,13 @@ import { dropLegacyPinLockout } from './lib/legacyPinLockout'
 
 // Kaca materials (packages/ui-tokens/materials.css). One constant picks the chrome material for the whole app:
 // 'static' = glass tint without blur (default), 'glass' = real blur, 'solid' = opaque. Falling back is a one-line
-// change. Blur budget (plan 5.1): 0 blurred layers by default, never more than 2, never inside a scroller.
-const MATERIAL: 'glass' | 'static' | 'solid' = 'static'
-const BLUR_BUDGET = 0
-// The ambient ground is mounted but hidden until a later slice turns it on ('on').
-const AMBIENT: 'on' | 'off' = 'off'
+// change. P6a: 'glass' (A9 probe passed 2026-11-06, about +2 ms/frame, 0 frames over 50 ms). Blur budget (plan 5.1):
+// exactly ONE blurred layer on the POS, the combined header + category band in ProductGrid (`data-kaca-band`); never
+// in a scroller, sheet, drawer, toast or dialog. To fall back to the tint without blur, set MATERIAL to 'static'.
+const MATERIAL: 'glass' | 'static' | 'solid' = 'glass'
+const BLUR_BUDGET = 1
+// The ambient ground (D-87: gold/peach on Mandalika, neutral paper on the other brands, via data-brand CSS).
+const AMBIENT: 'on' | 'off' = 'on'
 
 function applyMaterial(brandId: string, root: HTMLElement = document.documentElement): void {
   root.dataset.material = MATERIAL

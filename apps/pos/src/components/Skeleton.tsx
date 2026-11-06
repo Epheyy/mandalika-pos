@@ -66,7 +66,7 @@ export function ListSkeleton({ rows = 6 }: { rows?: number }) {
 export function AppLoadingSkeleton() {
   return (
     <div className="h-screen flex flex-col bg-paper-0 overflow-hidden">
-      <div className="surface-glass px-3 py-2 flex items-center justify-between safe-top">
+      <div className="surface-glass-static px-3 py-2 flex items-center justify-between safe-top">
         <div className="flex items-center gap-3">
           <Skeleton className="h-6 w-24" />
           <Skeleton className="h-4 w-20" />

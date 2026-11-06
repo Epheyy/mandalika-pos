@@ -70,7 +70,7 @@ export const ShiftBar = memo(function ShiftBar({
   }, [promptOpen, currentShift, canOpen, onPromptConsumed])
 
   if (isLoading) {
-    return <span className="text-xs text-gray-400">Memuat shift…</span>
+    return <span className="text-xs text-ink-500">Memuat shift…</span>
   }
 
   const handleOpen = async () => {
@@ -91,20 +91,20 @@ export const ShiftBar = memo(function ShiftBar({
           <button type="button"
             ref={detailBtnRef}
             onClick={toggleDetail}
-            className="flex min-h-11 items-center gap-1.5 min-w-0 flex-shrink"
+            className="surface-group press flex min-h-11 min-w-0 flex-shrink items-center gap-2 rounded-chip px-3"
             aria-expanded={showDetail}
             title="Detail shift"
           >
             <span className="w-2 h-2 rounded-full bg-ok flex-shrink-0" />
             <span className="text-sm font-bold text-ink-900 flex-shrink-0">Shift Aktif</span>
-            <svg className={`w-3 h-3 text-gray-400 flex-shrink-0 transition-transform ${showDetail ? 'rotate-180' : ''}`}
+            <svg className={`w-3 h-3 text-ink-500 flex-shrink-0 transition-transform ${showDetail ? 'rotate-180' : ''}`}
               viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="m6 9 6 6 6-6" />
             </svg>
           </button>
           <button type="button"
             onClick={onRequestClose}
-            className="min-h-11 px-3 text-sm font-semibold bg-danger-bg text-danger rounded-control active:opacity-90 flex-shrink-0"
+            className="surface-card press min-h-11 flex-shrink-0 rounded-chip px-4 text-sm font-semibold text-ink-900 active:bg-paper-1"
           >
             Tutup Shift
           </button>
@@ -115,24 +115,24 @@ export const ShiftBar = memo(function ShiftBar({
               <button type="button" aria-label="Tutup" tabIndex={-1} className="fixed inset-0 z-40" onClick={() => setShowDetail(false)} />
               <div
                 style={detailPos ? { position: 'fixed', top: detailPos.top, left: detailPos.left } : undefined}
-                className="z-50 w-56 bg-white rounded-xl shadow-xl border border-gray-100 p-3 space-y-2"
+                className="surface-solid z-50 w-56 space-y-2 rounded-sheet p-3"
               >
-                <p className="text-xs font-black text-gray-900">Shift Aktif</p>
+                <p className="text-xs font-bold text-ink-900">Shift Aktif</p>
                 <div className="flex justify-between text-xs">
-                  <span className="text-gray-500">Mulai</span>
-                  <span className="font-bold text-gray-800">
+                  <span className="text-ink-500">Mulai</span>
+                  <span className="font-bold text-ink-900">
                     {new Date(currentShift.openedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-gray-500">Kas Awal</span>
-                  <span className="font-bold text-gray-800">{formatRupiah(currentShift.startingCash)}</span>
+                  <span className="text-ink-500">Kas Awal</span>
+                  <span className="font-bold text-ink-900">{formatRupiah(currentShift.startingCash)}</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-gray-500">Kasir</span>
-                  <span className="font-bold text-gray-800 truncate ml-2">{currentShift.cashierName}</span>
+                  <span className="text-ink-500">Kasir</span>
+                  <span className="font-bold text-ink-900 truncate ml-2">{currentShift.cashierName}</span>
                 </div>
-                <p className="text-xs text-gray-400 pt-1 border-t border-gray-100">
+                <p className="text-xs text-ink-500 pt-1 border-t border-paper-2">
                   Penjualan & rekonsiliasi ada di menu Rekap Shift.
                 </p>
               </div>
@@ -141,18 +141,18 @@ export const ShiftBar = memo(function ShiftBar({
         </div>
       ) : (
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0" />
+          <span className="w-2 h-2 rounded-full bg-paper-2 flex-shrink-0" />
           <button type="button"
             onClick={() => setShowOpenModal(true)}
             disabled={!canOpen}
             title={canOpen ? undefined : 'Buka Shift butuh koneksi internet dan data shift dari kantor pusat'}
-            className="inline-flex items-center gap-1 min-h-11 px-3 py-1 text-xs font-semibold bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
+            className="press inline-flex min-h-11 items-center gap-1 rounded-chip bg-brand-strong px-4 py-1 text-sm font-semibold text-on-brand active:bg-brand-strong-hover disabled:bg-paper-2 disabled:text-ink-500 disabled:cursor-not-allowed"
           >
             {!canOpen && !isOnline && <IconLock size={14} />}
             Buka Shift
           </button>
           {!canOpen && (
-            <span role="status" className="text-xs font-semibold text-amber-700 whitespace-nowrap">
+            <span role="status" className="text-xs font-semibold text-warn-strong whitespace-nowrap">
               {isOnline ? 'Memeriksa shift…' : 'Butuh internet'}
             </span>
           )}

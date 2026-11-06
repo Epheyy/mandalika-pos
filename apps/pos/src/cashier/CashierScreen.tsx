@@ -243,13 +243,31 @@ export default function CashierScreen() {
   /** What the success view shows of the payment (ORDER_SUCCESS clears the split lines, and the single-mode inputs are re-derived on a new sale). */
   const lastPayment = useRef<{ paymentMethod: string; amountPaid: number; change: number } | null>(null)
   const [printError, setPrintError] = useState<string | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
-  // K3 toast: the refund confirmation (P4). The cashier tree sits inside App's ToastProvider.
+  // K3 toast (one viewport, timer reset per toast, a warning is never replaced by an info toast). The cashier tree
+  // sits inside App's ToastProvider. The oversell notice is the one message that is a warning, so a later
+  // "Ditambahkan"-style info toast cannot hide it.
   const kitToast = useToast()
-  const showToast = (msg: string) => {
-    setToast(msg)
-    setTimeout(() => setToast(null), 3000)
+  // Refusals and failures ("why a tap did nothing") default to 'warn' so an earlier oversell/ok toast never hides them;
+  // pass 'info' only for plain confirmations.
+  const showToast = (msg: string, tone: 'info' | 'warn' = 'warn') => {
+    kitToast.showToast(msg, { tone })
   }
+
+  // P6a (D-85): the header + banners are one stack the catalogue scrolls under. Its height is published as
+  // --cashier-top-h on the screen root (layout only; no state), and the product panel is pulled up by it.
+  const screenRef = useRef<HTMLDivElement>(null)
+  const topStackRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const root = screenRef.current
+    const stack = topStackRef.current
+    if (!root || !stack) return
+    const publish = () => root.style.setProperty('--cashier-top-h', `${Math.ceil(stack.getBoundingClientRect().height)}px`)
+    publish()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(publish)
+    ro.observe(stack)
+    return () => ro.disconnect()
+  }, [])
 
   // Register the receive-reject notice callback via the ref exposed by
   // SyncProvider so dead-lettered transfer_receive items surface a toast.
@@ -257,7 +275,7 @@ export default function CashierScreen() {
     if (!receiveRejectedRef) return
     receiveRejectedRef.current = (msg: string) => showToast(msg)
     return () => { receiveRejectedRef.current = undefined }
-  // showToast is stable (defined in render body but stable via setToast/setTimeout)
+  // showToast only calls the provider's stable showToast
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [receiveRejectedRef])
 
@@ -622,7 +640,7 @@ export default function CashierScreen() {
     }
     if (plan.skipped.length > 0) showToast(`Tidak bisa diulang: ${plan.skipped.join(', ')} (sudah tidak dijual)`)
     else if (oversold) showToast(OVERSELL_WARNING)
-    else if (added > 0) showToast(`${added} item ditambahkan ke keranjang`)
+    else if (added > 0) showToast(`${added} item ditambahkan ke keranjang`, 'info')
   }
 
   // Closing the Promo & Diskon sheet (x, backdrop, Back) also drops a picker that was open in it.
@@ -754,7 +772,7 @@ export default function CashierScreen() {
       }
       setPromoCodeError(null)
       if (isRedundantPromoCode(state.appliedPromotions, state.appliedPromoCodes, decision.code)) {
-        showToast('Promo sudah aktif')
+        showToast('Promo sudah aktif', 'info')
         dispatch({ type: 'APPLY_PROMO_CODE', code: decision.code, combinable: !!decision.code.combinable })
         return
       }
@@ -784,7 +802,7 @@ export default function CashierScreen() {
     // With payment lines already entered the total is locked: only the guards below (which can only remove discounts) run.
     if (!(state.splitMode && state.tenders.length > 0) && autoSetWouldChange(state, autoEnv)) {
       dispatch({ type: 'RECONCILE_AUTO_PROMOS', ...autoEnv })
-      showToast('Promo otomatis diperbarui, cek total.')
+      showToast('Promo otomatis diperbarui, cek total.', 'info')
       return
     }
     const invalidPhysical = invalidPhysicalPromotionIds(state)
@@ -1067,7 +1085,7 @@ export default function CashierScreen() {
     // The approval modal stays open and shows the error so the receive can be retried.
     if (outcome.status === 'failed') throw outcome.error
     setPendingReceive(null)
-    showToast('Diterima — akan disinkronkan')
+    showToast('Diterima — akan disinkronkan', 'info')
   }
 
   const handleFontSize = (s: FontSize) => { setFontSize(s); localStorage.setItem('pos_fontSize', s) }
@@ -1178,11 +1196,14 @@ export default function CashierScreen() {
   )
 
   return (
-    <div className="h-screen flex flex-col bg-paper-0 overflow-hidden">
+    <div ref={screenRef} className="relative h-screen flex flex-col overflow-hidden">
+      {/* Top stack: header + banners. It sits above the glass band (z-20) and has no background of its own, so the
+          band's glass (inside the product panel) shows through the header. */}
+      <div ref={topStackRef} className="relative z-20 flex-shrink-0">
       {/* Header — brand logo, then the active-shift chip and the live
           online/offline indicator in the same row (moved up out of the old
           shift bar / the drawer footer). */}
-      <header className="bg-white border-b border-paper-2 min-h-14 px-3 py-1 flex items-center justify-between gap-2 flex-shrink-0 safe-top">
+      <header className="min-h-14 px-3 py-1 flex items-center justify-between gap-2 safe-top">
         <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
           <img src={brand.logo} alt={`${brand.displayName} POS`} className="h-7 w-auto object-contain flex-shrink-0" />
           {/* Read-only: the terminal's outlet is fixed (A04); change it only via Lepas terminal. */}
@@ -1258,9 +1279,10 @@ export default function CashierScreen() {
           <button type="button" onClick={shift.clearShiftError} className="text-xs underline flex-shrink-0">Tutup</button>
         </div>
       )}
+      </div>
 
-      {/* Main layout */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Main layout. No overflow clip here: the product panel is pulled up under the top stack (D-85). */}
+      <div className="flex-1 flex min-h-0">
         {/* Mobile tab bar — cart tab only appears when the cart has items. */}
         <div className={`sm:hidden absolute bottom-0 left-0 right-0 bg-white border-t border-paper-2 z-10 safe-bottom-tab ${derived.totalCartItems > 0 ? 'flex' : 'hidden'}`}>
           {(['products', 'cart'] as const).map((tab) => (
@@ -1277,16 +1299,20 @@ export default function CashierScreen() {
         </div>
 
         {/* Product panel */}
-        <div className={`flex-1 min-w-0 overflow-hidden sm:block ${state.activeTab === 'cart' ? 'hidden' : 'block'}`}>
-          {derived.totalCartItems === 0 && customerChip}
-          {derived.totalCartItems === 0 && heldOrders.held.length > 0 && (
-            <div className="px-3 pt-2">
-              <Button variant="secondary" onClick={() => heldOrders.setOpen(true)} className="min-h-11">
-                Pesanan tersimpan ({heldOrders.held.length})
-              </Button>
-            </div>
-          )}
+        <div className={`-mt-[var(--cashier-top-h,3.5rem)] flex-1 min-w-0 overflow-hidden sm:block ${state.activeTab === 'cart' ? 'hidden' : 'block'}`}>
           <ProductGrid
+            topSlot={(
+              <>
+                {derived.totalCartItems === 0 && customerChip}
+                {derived.totalCartItems === 0 && heldOrders.held.length > 0 && (
+                  <div className="px-3 pt-2">
+                    <Button variant="secondary" onClick={() => heldOrders.setOpen(true)} className="min-h-11">
+                      Pesanan tersimpan ({heldOrders.held.length})
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
             products={displayProducts} categories={categories}
             selectedCategoryId={selectedCategoryId} searchQuery={searchQuery}
             showFavouritesOnly={showFavouritesOnly} gridCols={gridCols}
@@ -1592,12 +1618,6 @@ export default function CashierScreen() {
         onCancel={dismissConfirm}
         onConfirm={() => { const run = confirm?.run; setConfirm(null); run?.() }}
       />
-
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] whitespace-pre-line text-center bg-gray-900 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lg safe-bottom">
-          {toast}
-        </div>
-      )}
 
       {showSettings && (
         <SettingsScreen

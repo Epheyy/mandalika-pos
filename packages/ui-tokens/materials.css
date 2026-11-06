@@ -4,7 +4,7 @@
 
    Owner rule 1: nothing the user reads over content is see-through. Dialogs, slide-overs, sheets, drawers,
    toasts and the cart column use `surface-solid`. Blur exists only on the one chrome layer content scrolls under (the BO top bar,
-   D-86) and only when <html data-material="glass"> (the BO sets it; the POS stays on static). The root attribute is set in each app's main.tsx:
+   D-86) and only when <html data-material="glass"> (both apps set it to glass; the POS blurs only the catalogue band in ProductGrid). The root attribute is set in each app's main.tsx:
      static (default): glass tint, no blur       glass: tint + blur(20px) saturate(180%)       solid: opaque
    Blur budget: at most 2 layers (plan 5.1), never inside a scroller. */
 
@@ -112,7 +112,7 @@
 }
 
 /* Ambient ground: one fixed, non-scrolling layer behind the page (never background-attachment: fixed, which
-   repaints on Android). Each app's main.tsx sets <html data-ambient>: BO on since K2b, POS off until P6a. Mandalika gets the gold/peach wash, other skins a neutral
+   repaints on Android). Each app's main.tsx sets <html data-ambient>: both on (BO since K2b, POS since P6a). Mandalika gets the gold/peach wash, other skins a neutral
    paper wash (D-87: a purple or red wash would read as promo/danger). */
 .ambient-layer {
   position: fixed;

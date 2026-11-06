@@ -20,6 +20,12 @@
   --font-sans: Roboto, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
+/* Paper ground on the canvas: the ambient layer (z-index -1, packages/ui-tokens/materials.css) paints above it and
+   below the screens, so screens must not paint their own full-bleed background (the cashier screen does not). */
+body {
+  background-color: var(--color-paper-0);
+}
+
 /* 48px minimum touch target and tabular figures for money columns. */
 @utility touch {
   min-width: 48px;
