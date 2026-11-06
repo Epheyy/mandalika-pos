@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { cashTender } from './tender'
-import { formatCashInput, MAX_CASH_DIGITS, nextCashInput, parseCashInput, parseTypedCash, pastedCashInput } from './cashInput'
+import { formatCashInput, MAX_CASH_DIGITS, nextCashInput, parseCashInput, parseTypedCash, pastedCashInput, caretAfterDigits } from './cashInput'
 
 describe('parseCashInput', () => {
   it('reads a typed id-ID amount as plain digits', () => {
@@ -99,6 +99,7 @@ describe('pastedCashInput', () => {
     expect(pastedCashInput('', 'Rp 350.000')).toBe('350000')
     expect(pastedCashInput('5', '350.50')).toBe('350')
     expect(pastedCashInput('5', '9'.repeat(MAX_CASH_DIGITS + 1))).toBe('5')
+    expect(pastedCashInput('100000', 'abc')).toBe('100000')
   })
 })
 
@@ -113,5 +114,19 @@ describe('same entered amount, same tender as before', () => {
     const viaField = nextCashInput('', formatCashInput(raw))
     expect(viaField).toBe(raw)
     expect(cashTender(true, viaField, total)).toEqual(cashTender(true, raw, total))
+  })
+})
+
+describe('caretAfterDigits', () => {
+  it('keeps the caret after the same digit once the text is re-formatted', () => {
+    // "Rp 1.500.000" with backspace after the 1 -> "Rp 500.000", caret belongs before the 5
+    expect(caretAfterDigits('Rp 500.000', 0)).toBe(3)
+    expect(caretAfterDigits('Rp 500.000', 1)).toBe(4)
+    expect(caretAfterDigits('Rp 500.000', 4)).toBe(8)
+    expect(caretAfterDigits('Rp 500.000', 6)).toBe(10)
+  })
+  it('falls back to the end and handles an empty field', () => {
+    expect(caretAfterDigits('Rp 5', 9)).toBe(4)
+    expect(caretAfterDigits('', 0)).toBe(0)
   })
 })

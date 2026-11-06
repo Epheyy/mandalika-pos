@@ -8,7 +8,7 @@ import { Chip } from '../components/ui/Chip'
 import { Button } from '../components/ui/Button'
 import { Sheet } from '../components/ui/Sheet'
 import { formatRupiah } from './pricing'
-import { formatCashInput, nextCashInput, pastedCashInput } from './cashInput'
+import { useCashField } from './cashInput'
 import { cashPredicate, isCovered, MAX_REFERENCE_LEN, MAX_TENDER_LINES, remainingDue, splitBlockReason, type TenderLine } from './tenderSplit'
 
 type PaymentMethodConfig = components['schemas']['AppSettings']['paymentMethods'][number]
@@ -45,6 +45,7 @@ const parseTyped = (raw: string): number | null => {
 /** "Bagi pembayaran" (C6, W2 split mode): pick a method, enter its amount, add it; repeat until Sisa is Lunas. */
 export function SplitTenderSection(p: SplitTenderSectionProps) {
   const [removeAt, setRemoveAt] = useState<number | null>(null)
+  const cashField = useCashField(p.amountInput, p.onAmountChange)
   const isCash = cashPredicate(p.allMethods)
   const labelOf = (id: string) => tenderLabel(id, p.allMethods)
   const composeCash = isCashMethod(p.allMethods, p.method)
@@ -104,12 +105,7 @@ export function SplitTenderSection(p: SplitTenderSectionProps) {
               type="text"
               inputMode="numeric"
               autoComplete="off"
-              value={formatCashInput(p.amountInput)}
-              onChange={(e) => p.onAmountChange(nextCashInput(p.amountInput, e.target.value))}
-              onPaste={(e) => {
-                e.preventDefault()
-                p.onAmountChange(pastedCashInput(p.amountInput, e.clipboardData.getData('text')))
-              }}
+              {...cashField}
               placeholder={formatRupiah(sisa)}
               aria-label="Jumlah pembayaran ini"
               className="flex-1 min-w-0 h-16 border-2 border-ink-700 rounded-control px-4 text-[2rem] font-bold tnum text-ink-900 focus:outline-none"

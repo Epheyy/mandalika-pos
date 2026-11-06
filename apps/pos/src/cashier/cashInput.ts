@@ -1,3 +1,5 @@
+import { useLayoutEffect, useRef, type ChangeEvent, type ClipboardEvent, type RefObject } from 'react'
+
 /**
  * The cash amount field of Bayar (D-113): shown as "Rp 350.000" while typing, kept in cashier state as the raw
  * digit string the keypad already produces ("350000"). Only the field's text is formatted; the state, the tender
@@ -49,5 +51,58 @@ export function nextCashInput(current: string, text: string): string {
 
 /** What the field's onPaste stores: the pasted amount, or the current value when it is over the maximum. */
 export function pastedCashInput(current: string, text: string): string {
-  return parseCashInput(text) ?? current
+  const parsed = parseCashInput(text)
+  // Pasting text with no amount in it must not wipe an amount already entered (empty would mean exact cash).
+  return parsed === null || parsed === '' ? current : parsed
+}
+
+const countDigits = (text: string): number => text.replace(/\D/g, '').length
+
+/** Caret position in the formatted text that sits right after the n-th digit (n = 0: before the first digit). */
+export function caretAfterDigits(formatted: string, n: number): number {
+  if (n <= 0) return Math.min(RUPIAH_PREFIX.length, formatted.length)
+  let seen = 0
+  for (let i = 0; i < formatted.length; i++) {
+    if (/\d/.test(formatted[i]!)) seen += 1
+    if (seen === n) return i + 1
+  }
+  return formatted.length
+}
+
+export interface CashFieldProps {
+  ref: RefObject<HTMLInputElement | null>
+  value: string
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void
+  onPaste: (e: ClipboardEvent<HTMLInputElement>) => void
+}
+
+/**
+ * Props for the formatted cash <input>. Re-formatting changes the text length ("Rp 1.500.000" -> "Rp 500.000"),
+ * which would throw the caret to the end and make the next keystroke land in the wrong place, so the caret is put
+ * back after the same digit it was after before the edit.
+ */
+export function useCashField(raw: string, onRawChange: (raw: string) => void): CashFieldProps {
+  const ref = useRef<HTMLInputElement>(null)
+  const pendingDigits = useRef<number | null>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (pendingDigits.current === null || !el) return
+    const pos = caretAfterDigits(formatCashInput(raw), pendingDigits.current)
+    pendingDigits.current = null
+    if (document.activeElement === el) el.setSelectionRange(pos, pos)
+  })
+  return {
+    ref,
+    value: formatCashInput(raw),
+    onChange: (e) => {
+      const el = e.target
+      pendingDigits.current = countDigits(el.value.slice(0, el.selectionStart ?? el.value.length))
+      onRawChange(nextCashInput(raw, el.value))
+    },
+    onPaste: (e) => {
+      e.preventDefault()
+      pendingDigits.current = null
+      onRawChange(pastedCashInput(raw, e.clipboardData.getData('text')))
+    },
+  }
 }

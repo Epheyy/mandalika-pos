@@ -18,7 +18,7 @@ import { Button } from '../components/ui/Button'
 import { IconUser, IconGift, IconWarning } from '../components/ui/icons'
 import { SplitTenderSection } from './SplitTenderSection'
 import { allocateTenders, cashPredicate, isCovered, MAX_REFERENCE_LEN, splitBlockReason, type TenderLine } from './tenderSplit'
-import { formatCashInput, nextCashInput, pastedCashInput } from './cashInput'
+import { useCashField } from './cashInput'
 
 type AppSettings = components['schemas']['AppSettings']
 type Customer = components['schemas']['Customer']
@@ -131,6 +131,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
   const [userOpenedPoints, setUserOpenedPoints] = useState(false)
   // D-63: leaving with payment lines already entered asks first.
   const [confirmLeave, setConfirmLeave] = useState(false)
+  const cashField = useCashField(amountPaid, onAmountPaidChange)
   const showPoints = pointsToRedeem > 0 || userOpenedPoints
   // Forget the manual open when the sheet closes so it does not carry into the next sale.
   const [wasOpen, setWasOpen] = useState(isOpen)
@@ -415,12 +416,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
               type="text"
               inputMode="numeric"
               autoComplete="off"
-              value={formatCashInput(amountPaid)}
-              onChange={(e) => onAmountPaidChange(nextCashInput(amountPaid, e.target.value))}
-              onPaste={(e) => {
-                e.preventDefault()
-                onAmountPaidChange(pastedCashInput(amountPaid, e.clipboardData.getData('text')))
-              }}
+              {...cashField}
               placeholder={formatRupiah(derived.total)}
               aria-label="Jumlah dibayar"
               className="w-full h-16 border-2 border-ink-700 rounded-control px-4 text-[2rem] font-bold tnum text-ink-900 focus:outline-none"
@@ -503,7 +499,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
           </div>
         )}
         <div className="flex items-center gap-3">
-          <div aria-live="polite" className="shrink-0 min-w-[7.5rem]">
+          <div aria-live="polite" aria-atomic="true" className="shrink-0">
             {barChange > 0 && (
               <>
                 <p className="text-xs text-ink-700">Kembalian</p>
