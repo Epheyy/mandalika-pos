@@ -19,7 +19,6 @@ import {
   CHART_GRID,
   CHART_AXIS,
   CHART_TOOLTIP,
-  chartAnimates,
 } from '../../ui/chartColors'
 import type { TrendPoint, PayRow, CashierRow } from './metrics'
 
@@ -55,7 +54,7 @@ export function TrendChart({ trend }: TrendChartProps) {
           cursor={{ fill: 'rgba(176,125,24,0.08)' }}
         />
         <ReferenceLine y={0} stroke={CHART_AXIS} strokeWidth={1} />
-        <Bar dataKey="revenue" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} isAnimationActive={chartAnimates()} />
+        <Bar dataKey="revenue" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   )
@@ -78,7 +77,6 @@ export function PaymentChart({ pay }: PaymentChartProps) {
           outerRadius={66}
           paddingAngle={2}
           stroke="none"
-          isAnimationActive={chartAnimates()}
         >
           {pay.map((p, i) => (
             <Cell key={p.method} fill={CHART_SERIES[i % CHART_SERIES.length]} />
@@ -131,7 +129,7 @@ export function CashierChart({ cashiers }: CashierChartProps) {
           cursor={{ fill: 'rgba(176,125,24,0.08)' }}
         />
         {/* One measure, one colour: a cashier is named on the axis, so a hue per bar would say nothing. */}
-        <Bar dataKey="transactions" fill={CHART_PRIMARY} radius={[0, 4, 4, 0]} isAnimationActive={chartAnimates()} />
+        <Bar dataKey="transactions" fill={CHART_PRIMARY} radius={[0, 4, 4, 0]} />
       </BarChart>
     </ResponsiveContainer>
   )

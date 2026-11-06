@@ -69,15 +69,15 @@ export function DiscountCodeReportTab({ dateFrom, dateTo, outletId }: DiscountCo
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="p-4">
           <p className="text-xl font-black text-gray-900">{String(summary?.totalRedemptions ?? 0)}</p>
-          <p className="text-xs text-gray-400">Total Penukaran</p>
+          <p className="text-xs text-ink-500">Total Penukaran</p>
         </Card>
         <Card className="p-4">
           <p className="text-xl font-black text-gray-900">{BRAND.currency.format(summary?.totalValue ?? 0)}</p>
-          <p className="text-xs text-gray-400">Total Nilai Diskon</p>
+          <p className="text-xs text-ink-500">Total Nilai Diskon</p>
         </Card>
         <Card className="p-4">
           <p className="text-xl font-black text-gray-900">{String(summary?.distinctCodes ?? 0)}</p>
-          <p className="text-xs text-gray-400">Jumlah Kode</p>
+          <p className="text-xs text-ink-500">Jumlah Kode</p>
         </Card>
       </div>
 

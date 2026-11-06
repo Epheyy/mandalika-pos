@@ -21,12 +21,6 @@ export const CHART_AXIS = '#7a6f62' // ink-500 (4.9:1 on white)
 export const CHART_TOOLTIP = {
   borderRadius: 12,
   border: '1px solid #e9e3d8',
-  background: '#fffdf9',
+  backgroundColor: '#fffdf9',
   boxShadow: '0 14px 36px -14px rgba(70,46,10,0.28)',
 } as const
-
-/** Recharts animates in JS, so the CSS reduced-motion rule does not reach it; charts draw at once under it. */
-export function chartAnimates(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true
-  return !window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}

@@ -266,9 +266,8 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge, onRang
     setBusy(true)
     setActionError(null)
     try {
-      const count = selected.size
-      await api.acknowledgeOversell([...selected], note.trim() || undefined)
-      toast({ message: `${count} baris ditandai sudah dicek`, tone: 'ok' })
+      const count = await api.acknowledgeOversell([...selected], note.trim() || undefined)
+      toast({ message: count > 0 ? `${count} baris ditandai sudah dicek` : 'Baris sudah dicek sebelumnya', tone: 'ok' })
       setSelected(new Set())
       setNote('')
       window.dispatchEvent(new Event(OVERSELL_CHANGED))
@@ -421,8 +420,8 @@ function Stat({ value, label, hint, tone }: { value: number; label: string; hint
   return (
     <Card className="p-4">
       <p className={`text-xl font-black ${tone === 'warning' && value > 0 ? 'text-warn-strong' : 'text-gray-900'}`}>{value.toLocaleString('id-ID')}</p>
-      <p className="text-xs text-gray-400">{label}</p>
-      {hint && <p className="text-[11px] text-gray-400">{hint}</p>}
+      <p className="text-xs text-ink-500">{label}</p>
+      {hint && <p className="text-[11px] text-ink-500">{hint}</p>}
     </Card>
   )
 }
@@ -430,12 +429,12 @@ function Stat({ value, label, hint, tone }: { value: number; label: string; hint
 function Breakdown({ title, rows, showSize }: { title: string; rows: ReadonlyArray<OversellBreakdown>; showSize?: boolean }) {
   return (
     <Card className="p-4">
-      <p className="text-xs font-black text-gray-400 uppercase tracking-wider mb-2">{title}</p>
+      <p className="text-xs font-black text-ink-500 uppercase tracking-wider mb-2">{title}</p>
       <ul className="divide-y divide-gray-50">
         {rows.slice(0, 8).map((r) => (
           <li key={`${r.key}-${r.variantSize ?? ''}`} className="flex items-center justify-between py-1.5 text-sm">
             <span className="text-gray-900 truncate">{r.name}{showSize && r.variantSize ? ` · ${r.variantSize}` : ''}</span>
-            <span className="text-gray-500 whitespace-nowrap ml-3">{r.lines} baris · <b className="text-danger">{r.shortfall}</b> unit</span>
+            <span className="text-ink-700 whitespace-nowrap ml-3">{r.lines} baris · <b className="text-danger">{r.shortfall}</b> unit</span>
           </li>
         ))}
       </ul>

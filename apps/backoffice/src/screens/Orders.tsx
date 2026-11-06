@@ -25,7 +25,7 @@ import { useOrderReport } from './reports/useOrderReport'
 import { useUrlSearchText } from './reports/useUrlSearchText'
 import { PAGING_SCHEMA, PAGE_SIZES, dayOf, dayToQuery, enumOf, pageOf, isAnswerFor, pageSizeOf, pageToClamp, paymentOf, withCurrent } from './reports/reportFilters'
 import { refundedByLine } from './refundDisplay'
-import { orderStatusLabel, orderStatusTone } from '../lib/orderStatus'
+import { orderIconClasses, orderStatusLabel, orderStatusTone } from '../lib/orderStatus'
 import { OrderRefundSection } from './orders/OrderRefundSection'
 import { AdminRefundForm } from './orders/AdminRefundForm'
 import { quoteWarningTitle, receiptTotalLine } from './quoteDisplay'
@@ -37,12 +37,12 @@ function PaymentLines({ order, methods }: { order: Order; methods: AppSettings['
   if (rows.length === 0 || (rows.length === 1 && !isSplitOrder(order))) return null
   return (
     <div className="pt-1" data-testid="payment-lines">
-      <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Pembayaran</p>
+      <p className="text-xs font-black text-ink-500 uppercase tracking-widest mb-1">Pembayaran</p>
       {rows.map((r) => (
         <div key={r.key} className="flex justify-between text-sm text-gray-600">
           <span>
             {r.label}
-            {r.reference && <span className="text-gray-400"> · ref {r.reference}</span>}
+            {r.reference && <span className="text-ink-500"> · ref {r.reference}</span>}
             {r.change > 0 && <span className="text-ok"> · kembalian {BRAND.currency.format(r.change)}</span>}
           </span>
           <span className="font-bold text-gray-900">{BRAND.currency.format(r.amount)}</span>
@@ -54,12 +54,6 @@ function PaymentLines({ order, methods }: { order: Order; methods: AppSettings['
 
 const badgeTone = orderStatusTone
 
-/** Tint of the row's icon tile and glyph on the semantic tokens: danger for refunded, warn for partially refunded. */
-function orderIconTone(status: string): { tile: string; glyph: string } {
-  if (status === 'refunded') return { tile: 'bg-danger-bg', glyph: 'text-danger' }
-  if (status === 'partially_refunded') return { tile: 'bg-warn-bg', glyph: 'text-warn' }
-  return { tile: 'bg-paper-1', glyph: 'text-brand-strong' }
-}
 const label = orderStatusLabel
 
 const TRANSAKSI_STATUSES = ['completed', 'partially_refunded', 'refunded', 'cancelled'] as const
@@ -175,14 +169,14 @@ export function OrdersPanel() {
     <div className="space-y-5">
       {(q.error || sq.error) && <p role="alert" className="text-sm text-danger">Gagal memuat data. Data sebelumnya mungkin ditampilkan. {q.error || sq.error}</p>}
       {exportError && <p role="alert" className="text-sm text-danger">{exportError}</p>}
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-ink-700">
         {transaksiHeader(q.data ? total : undefined, showSummary ? sq.data?.totalSales : undefined, (n) => BRAND.currency.format(n))}
         {debouncedQuery.trim() !== '' && !allDates && ' · pencarian mencakup semua tanggal'}
       </p>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-500 z-10" />
           <input
             type="text"
             aria-label="Cari order / kasir / pelanggan"
@@ -236,7 +230,7 @@ export function OrdersPanel() {
         </Select>
       </div>
       {fPay.trim() !== '' && (
-        <p className="text-xs text-gray-400">{paymentFilterHint(fPay, methodLabel(fPay, payMethods))}</p>
+        <p className="text-xs text-ink-500">{paymentFilterHint(fPay, methodLabel(fPay, payMethods))}</p>
       )}
 
       <Card className="overflow-clip">
@@ -249,8 +243,9 @@ export function OrdersPanel() {
             {orders.map((o) => (
               <div key={o.id}>
                 <div
-                  className="px-5 py-4 flex items-center gap-4 hover:bg-paper-0 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-strong"
+                  className="px-5 py-4 flex items-center gap-4 hover:bg-paper-0 cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-strong"
                   role="button"
+                  aria-expanded={expanded === o.id}
                   tabIndex={0}
                   onClick={() => {
                     setExpanded(expanded === o.id ? null : o.id)
@@ -262,12 +257,12 @@ export function OrdersPanel() {
                     }
                   }}
                 >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${orderIconTone(o.status).tile}`}>
-                    <ShoppingBag className={`w-4 h-4 ${orderIconTone(o.status).glyph}`} />
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${orderIconClasses(o.status).tile}`}>
+                    <ShoppingBag className={`w-4 h-4 ${orderIconClasses(o.status).glyph}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900 text-sm">{o.orderNumber}</p>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-ink-500">
                       {o.items.length} item · <span className="capitalize">{orderMethodText(o)}</span>
                       {o.customerName && <> · {o.customerName}</>} · {o.cashierName} ·{' '}
                       {format(parseISO(o.createdAt), 'dd MMM yyyy HH:mm', { locale: id })}
@@ -308,14 +303,14 @@ export function OrdersPanel() {
                     )}
                     <Badge tone={badgeTone(o.status)}>{label(o.status)}</Badge>
                     <p className="font-black text-gray-900 text-sm">{BRAND.currency.format(o.total)}</p>
-                    {expanded === o.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                    {expanded === o.id ? <ChevronUp className="w-4 h-4 text-ink-500" /> : <ChevronDown className="w-4 h-4 text-ink-500" />}
                   </div>
                 </div>
                 {expanded === o.id && (
                   <div className="px-5 pb-5 bg-gray-50 border-t border-gray-100">
                     <div className="pt-4 space-y-4">
                       <div>
-                        <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Item</p>
+                        <p className="text-xs font-black text-ink-500 uppercase tracking-widest mb-2">Item</p>
                         <div className="space-y-1.5">
                           {o.items.map((it) => (
                             <div key={`${it.productId}|${it.variantSize}`} className="flex justify-between text-sm">
@@ -326,7 +321,7 @@ export function OrdersPanel() {
                         </div>
                       </div>
                       <div className="border-t border-gray-200 pt-3 space-y-1">
-                        <div className="flex justify-between text-sm text-gray-500"><span>Subtotal</span><span>{BRAND.currency.format(o.subtotal)}</span></div>
+                        <div className="flex justify-between text-sm text-ink-700"><span>Subtotal</span><span>{BRAND.currency.format(o.subtotal)}</span></div>
                         {o.discountAmount > 0 && (
                           o.discountBreakdown && o.discountBreakdown.length > 0 ? (
                             o.discountBreakdown.map((d) => (
@@ -342,7 +337,7 @@ export function OrdersPanel() {
                             </div>
                           )
                         )}
-                        <div className="flex justify-between text-sm text-gray-500"><span>Pajak</span><span>{BRAND.currency.format(o.taxAmount)}</span></div>
+                        <div className="flex justify-between text-sm text-ink-700"><span>Pajak</span><span>{BRAND.currency.format(o.taxAmount)}</span></div>
                         <div className="flex justify-between font-black text-gray-900"><span>Total</span><span>{BRAND.currency.format(o.total)}</span></div>
                         {receiptTotalLine(o, BRAND.currency.format) && (
                           <div className="flex justify-between text-sm text-warn-strong"><span>Total di struk</span><span>{receiptTotalLine(o, BRAND.currency.format)}</span></div>

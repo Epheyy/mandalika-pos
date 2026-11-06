@@ -51,6 +51,8 @@ function ChartFallback({ height }: { height: number }) {
 /** The low-stock card reads the shared product list, at most this stale (it used to be re-read every 12 s). */
 const DASHBOARD_CATALOGUE_MAX_AGE_MS = 60_000
 const DASHBOARD_PROMO_POLL_MS = 60_000
+/** Barang Habis shows this many rows; the header counts the rest (the card grows with the page, no inner scroll). */
+const LOW_STOCK_ROWS = 12
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -109,7 +111,7 @@ export default function Dashboard() {
 
       {(oq.error || pq.error) && <p role="alert" className="text-sm text-danger">Gagal memperbarui data lengkap; menampilkan data sebelumnya. {oq.error || pq.error}</p>}
       {!net && (
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-ink-500">
           Data refund belum tersedia; penjualan menampilkan transaksi selesai saja (belum dikurangi refund).
         </p>
       )}
@@ -152,7 +154,7 @@ export default function Dashboard() {
         <Card className="lg:col-span-2 p-5">
           <h3 className="font-black text-gray-900 mb-4">{net ? 'Tren Penjualan (Bersih)' : 'Tren Penjualan'}</h3>
           {trendEmpty ? (
-            <div className="h-52 flex items-center justify-center text-gray-300 text-sm">
+            <div className="h-52 flex items-center justify-center text-ink-500 text-sm">
               Belum ada data penjualan
             </div>
           ) : (
@@ -165,7 +167,7 @@ export default function Dashboard() {
         <Card className="p-5">
           <h3 className="font-black text-gray-900 mb-4">Metode Pembayaran</h3>
           {pay.length === 0 ? (
-            <div className="h-52 flex items-center justify-center text-gray-300 text-sm">
+            <div className="h-52 flex items-center justify-center text-ink-500 text-sm">
               Belum ada data
             </div>
           ) : (
@@ -223,7 +225,7 @@ export default function Dashboard() {
               <h3 className="font-black text-gray-900">Barang Habis</h3>
             </div>
             {stock.length > 0 && (
-              <span className="text-xs font-bold text-gray-400">
+              <span className="text-xs font-bold text-ink-500">
                 {outCount} habis · {lowCount} menipis
               </span>
             )}
@@ -232,7 +234,7 @@ export default function Dashboard() {
             <EmptyState icon={<PackageX />} title="Semua stok aman" />
           ) : (
             <div className="divide-y divide-gray-50">
-              {stock.map((s) => (
+              {stock.slice(0, LOW_STOCK_ROWS).map((s) => (
                 <div key={s.name} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                   <span className="text-ink-700 truncate min-w-0">{s.name}</span>
                   {s.stock <= 0 ? (
@@ -242,6 +244,9 @@ export default function Dashboard() {
                   )}
                 </div>
               ))}
+              {stock.length > LOW_STOCK_ROWS && (
+                <p className="py-2.5 text-xs font-bold text-ink-700">dan {stock.length - LOW_STOCK_ROWS} lainnya, lihat di Inventori</p>
+              )}
             </div>
           )}
         </Card>
@@ -255,11 +260,11 @@ export default function Dashboard() {
           </div>
           <div className="flex items-start justify-between mb-3">
             <div>
-              <p className="text-xs text-gray-400 font-bold">Total Penggunaan</p>
+              <p className="text-xs text-ink-500 font-bold">Total Penggunaan</p>
               <p className="text-xl font-black text-gray-900">{promo.totalCount}</p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-gray-400 font-bold">Total Jumlah Promo</p>
+              <p className="text-xs text-ink-500 font-bold">Total Jumlah Promo</p>
               <p className="text-xl font-black text-gray-900">
                 {BRAND.currency.format(promo.totalAmount)}
               </p>
@@ -268,7 +273,7 @@ export default function Dashboard() {
           <RankedList
             rows={promo.rows.map((r) => ({
               name: r.name,
-              right: <span className={r.count === 0 ? 'text-gray-300' : ''}>{r.count}</span>,
+              right: <span className={r.count === 0 ? 'text-ink-500' : ''}>{r.count}</span>,
             }))}
             empty="Belum ada promosi"
           />
@@ -277,7 +282,7 @@ export default function Dashboard() {
         <Card className="lg:col-span-2 p-5">
           <h3 className="font-black text-gray-900 mb-4">Performa Kasir</h3>
           {cashiers.length === 0 ? (
-            <div className="h-52 flex items-center justify-center text-gray-300 text-sm">
+            <div className="h-52 flex items-center justify-center text-ink-500 text-sm">
               Belum ada data
             </div>
           ) : (

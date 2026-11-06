@@ -142,15 +142,15 @@ export function RefundReportTab({ dateFrom, dateTo, outletId }: RefundReportTabP
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="p-4">
           <p className="text-xl font-black text-gray-900">{String(summary?.count ?? 0)}</p>
-          <p className="text-xs text-gray-400">Jumlah Refund</p>
+          <p className="text-xs text-ink-500">Jumlah Refund</p>
         </Card>
         <Card className="p-4">
           <p className="text-xl font-black text-gray-900">{BRAND.currency.format(summary?.totalAmount ?? 0)}</p>
-          <p className="text-xs text-gray-400">Total Refund</p>
+          <p className="text-xs text-ink-500">Total Refund</p>
         </Card>
         <Card className="p-4">
           <p className="text-xl font-black text-gray-900">{String(summary?.flaggedCount ?? 0)}</p>
-          <p className="text-xs text-gray-400">Ada Peringatan</p>
+          <p className="text-xs text-ink-500">Ada Peringatan</p>
         </Card>
       </div>
 

@@ -24,11 +24,11 @@ function RefundCard({ order, r, methods }: { order: Order; r: OrderRefund; metho
     <div className="bg-white border border-danger-bg rounded-xl p-3 space-y-1">
       <div className="flex justify-between gap-2">
         <p className="text-sm font-bold text-gray-900">
-          Refund ke-{r.seq} <span className="font-normal text-gray-500">· {refundScopeLabel(r.scope)}</span>
+          Refund ke-{r.seq} <span className="font-normal text-ink-700">· {refundScopeLabel(r.scope)}</span>
         </p>
         <p className="text-sm font-black text-danger">{money(r.amount)}</p>
       </div>
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-ink-500">
         {format(parseISO(r.refundedAt), 'dd MMM yyyy HH:mm', { locale: id })}
         {r.refundedByName ? ` · ${refundedByLine({ refundedByName: r.refundedByName })}` : ''}
         {r.paymentMethod ? ` · ${refundPayoutText(r, methods)}` : ''}
