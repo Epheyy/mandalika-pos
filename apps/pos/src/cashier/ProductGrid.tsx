@@ -114,7 +114,7 @@ function StockLine({ tone, text, soldOutSizes = 0 }: { tone: StockTone; text: st
   )
 }
 
-const SortableCard = memo(function SortableCard({ product, gridCols, categoryName, showPrice, showStock, showVariants, onTap }: SortableCardProps) {
+export const SortableCard = memo(function SortableCard({ product, gridCols, categoryName, showPrice, showStock, showVariants, onTap }: SortableCardProps) {
   const totalStock = product.variants.reduce((s, v) => s + v.stock, 0)
   const inStock = totalStock > 0
   const prices = product.variants.map((v) => v.price)

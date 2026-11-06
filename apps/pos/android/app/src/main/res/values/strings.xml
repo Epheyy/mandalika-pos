@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Mandalika POS</string>
-    <string name="title_activity_main">Mandalika POS</string>
-    <string name="package_name">com.mandalika.pos</string>
-    <string name="custom_url_scheme">com.mandalika.pos</string>
+    <string name="app_name">POS Probe A9</string>
+    <string name="title_activity_main">POS Probe A9</string>
+    <string name="package_name">com.mandalika.pos.probe</string>
+    <string name="custom_url_scheme">com.mandalika.pos.probe</string>
 </resources>

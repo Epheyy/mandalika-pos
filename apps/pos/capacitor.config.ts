@@ -5,8 +5,8 @@ import type { CapacitorConfig } from '@capacitor/cli'
 // pull-to-refresh, secure token storage (Capacitor Preferences, plan §7),
 // native BLE ESC/POS printing (plan §6). Backoffice stays a web SPA.
 const config: CapacitorConfig = {
-  appId: 'com.mandalika.pos',
-  appName: 'Mandalika POS',
+  appId: 'com.mandalika.pos.probe',
+  appName: 'POS Probe A9',
   webDir: 'dist',
   // No `server.url` → the bundled `dist/` is served from the app, so the
   // shell never points at a dev server and cannot accidentally refresh to a
@@ -45,7 +45,7 @@ const config: CapacitorConfig = {
       // The config runs in Node at `cap sync`, so it reads the same build-time
       // VITE_API_URL the APK workflow injects (falls back to the prod URL).
       updateUrl: `${process.env.VITE_API_URL ?? 'https://mandalika-pos-538849926142.asia-southeast2.run.app'}/api/v1/ota/check`,
-      autoUpdate: true,
+      autoUpdate: false,
     },
   },
 }

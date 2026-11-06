@@ -1,0 +1,25 @@
+/* Probe-only CSS. Material classes come from packages/ui-tokens/materials.css (surface-glass / surface-solid). */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overscroll-behavior: none;
+}
+body {
+  background: var(--color-paper-0, #fbf7ef);
+}
+/* Cart line enters with the motion tokens (Pegas / Halus): transform + opacity only. */
+@keyframes probe-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.probe-line-in {
+  animation: probe-line-in var(--d-enter) var(--ease-pop) both;
+}
