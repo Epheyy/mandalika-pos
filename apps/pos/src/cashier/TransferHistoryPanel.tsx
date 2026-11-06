@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react'
 import type { Transfer } from '@mandalika/api'
 import { api } from '../api'
 import { Sheet } from '../components/ui/Sheet'
+import { Button } from '../components/ui/Button'
 
 type Tab = 'completed' | 'cancelled'
 
@@ -47,53 +48,48 @@ export function TransferHistoryPanel({ onClose, onReprint }: Props) {
   }, [tab])
 
   return (
-    <Sheet open variant="side" maxWidth="max-w-md" onClose={onClose} panelClassName="flex flex-col">
-        <div className="px-4 py-3 border-b flex items-center justify-between">
-          <h2 className="font-bold text-gray-900">Riwayat Transfer</h2>
-          <button type="button" onClick={onClose} className="text-gray-400 text-xl leading-none">×</button>
-        </div>
-        <div className="flex border-b">
+    <Sheet open variant="side" maxWidth="max-w-md" onClose={onClose} header title="Riwayat Transfer" panelClassName="flex flex-col">
+        <div className="flex border-b border-paper-2">
           {(['completed', 'cancelled'] as Tab[]).map((t) => (
             <button type="button" key={t} onClick={() => setTab(t)}
-              className={`flex-1 py-2.5 text-sm font-bold ${tab === t ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-400'}`}>
+              className={`press min-h-11 flex-1 py-2.5 text-sm font-bold ${tab === t ? 'border-b-2 border-brand-strong text-brand-strong' : 'text-ink-700'}`}>
               {t === 'completed' ? 'Selesai' : 'Dibatalkan'}
             </button>
           ))}
         </div>
-        <div className="flex-1 overflow-auto">
-          {loading ? <p className="p-4 text-sm text-gray-400">Memuat…</p>
-            : err ? <p className="p-4 text-sm text-red-600">{err}</p>
-            : rows.length === 0 ? <p className="p-4 text-sm text-gray-400">Tidak ada transfer.</p>
+        <div className="min-h-0 flex-1 overflow-auto">
+          {loading ? <p className="p-4 text-sm text-ink-500">Memuat…</p>
+            : err ? <p className="p-4 text-sm text-danger">{err}</p>
+            : rows.length === 0 ? <p className="p-4 text-sm text-ink-500">Tidak ada transfer.</p>
             : rows.map((t) => (
               <button type="button" key={t.id} onClick={() => setOpen(t)}
-                className="w-full text-left px-4 py-3 border-b hover:bg-gray-50">
+                className="w-full min-h-11 border-b border-paper-2 px-4 py-3 text-left active:bg-paper-1">
                 <div className="flex justify-between">
-                  <span className="font-bold text-gray-800 text-sm">{t.transferNo}</span>
-                  <span className="text-xs text-gray-400">{fmtDate(t.receivedAt ?? t.createdAt)}</span>
+                  <span className="text-sm font-bold text-ink-900">{t.transferNo}</span>
+                  <span className="tnum text-xs text-ink-500">{fmtDate(t.receivedAt ?? t.createdAt)}</span>
                 </div>
-                <div className="text-xs text-gray-500">{t.source?.name} → {t.dest?.name} · {t.items?.length ?? 0} item</div>
-                {t.discrepancyReason && <div className="text-xs text-amber-600">Selisih: {t.discrepancyReason}</div>}
+                <div className="text-xs text-ink-700">{t.source?.name} → {t.dest?.name} · {t.items?.length ?? 0} item</div>
+                {t.discrepancyReason && <div className="text-xs text-warn-strong">Selisih: {t.discrepancyReason}</div>}
               </button>
             ))}
         </div>
         {open && (
-          <div className="border-t bg-gray-50 max-h-[45%] overflow-auto p-4">
-            <div className="flex justify-between items-center mb-2">
-              <span className="font-bold text-sm">{open.transferNo}</span>
-              <button type="button" className="text-gray-400 text-sm" onClick={() => setOpen(null)}>Tutup detail</button>
+          <div className="surface-group rounded-bl-panel max-h-[45%] overflow-auto border-t border-paper-2 p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm font-bold text-ink-900">{open.transferNo}</span>
+              <button type="button" className="press min-h-11 px-2 text-sm font-semibold text-ink-700" onClick={() => setOpen(null)}>Tutup detail</button>
             </div>
-            <div className="text-xs text-gray-600 mb-2">{open.source?.name} → {open.dest?.name}</div>
+            <div className="mb-2 text-xs text-ink-700">{open.source?.name} → {open.dest?.name}</div>
             {(open.items ?? []).map((it) => (
-              <div key={`${it.productId}-${it.variantSize}`} className="flex justify-between text-xs py-0.5">
+              <div key={`${it.productId}-${it.variantSize}`} className="tnum flex justify-between py-0.5 text-xs text-ink-900">
                 <span>{it.productName} {it.variantSize}</span>
                 <span>{it.sentQty}{it.receivedQty != null && it.receivedQty !== it.sentQty ? ` → ${it.receivedQty}` : ''}</span>
               </div>
             ))}
             {open.status === 'completed' && (
-              <button type="button" onClick={() => onReprint(open)}
-                className="mt-3 w-full bg-indigo-600 text-white rounded-lg py-2 text-sm font-bold">
+              <Button variant="secondary" fullWidth onClick={() => onReprint(open)} className="mt-3">
                 Cetak Ulang Tanda Terima
-              </button>
+              </Button>
             )}
           </div>
         )}

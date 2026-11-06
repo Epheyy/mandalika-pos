@@ -13,6 +13,9 @@
 import { useMemo, useState } from 'react'
 import type { Transfer } from './receiveTypes'
 import { variantLabel } from '@mandalika/types'
+import { Sheet } from '../../components/ui/Sheet'
+import { Button } from '../../components/ui/Button'
+import { StatusBadge } from '../../components/ui/StatusBadge'
 
 interface ConfirmItem {
   productId: string
@@ -90,26 +93,13 @@ function InboundList({ transfers, completedTransfers, onClose, onSelect, onRepri
   )
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
-          <h3 className="font-bold text-gray-900">Terima Transfer</h3>
-          <button type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
-            aria-label="Tutup"
-          >
-            ✕
-          </button>
-        </div>
-
+    <Sheet open variant="center" maxWidth="max-w-lg" onClose={onClose} header title="Terima Transfer" panelClassName="max-h-[90vh] flex flex-col">
         {/* List */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {/* In-transit transfers */}
           <div className="space-y-2">
             {transfers.length === 0 ? (
-              <p className="text-sm text-gray-400 py-4 text-center">
+              <p className="text-sm text-ink-500 py-4 text-center">
                 Tidak ada transfer masuk.
               </p>
             ) : (
@@ -117,18 +107,18 @@ function InboundList({ transfers, completedTransfers, onClose, onSelect, onRepri
                 <button type="button"
                   key={t.id}
                   onClick={() => onSelect(t)}
-                  className="w-full text-left px-4 py-3 border border-gray-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50 transition-all group"
+                  className="press surface-card w-full min-h-11 text-left px-4 py-3 rounded-control"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="font-semibold text-sm text-gray-900 group-hover:text-indigo-700 transition-colors">
+                      <p className="font-semibold text-sm text-ink-900">
                         {t.transferNo}
                       </p>
-                      <p className="text-[11px] text-gray-500 mt-0.5 truncate">
+                      <p className="text-[11px] text-ink-700 mt-0.5 truncate">
                         Dari {t.source.name ?? t.source.id} · {t.items.length} item
                       </p>
                     </div>
-                    <span className="text-gray-400 group-hover:text-indigo-400 flex-shrink-0 text-lg leading-none">›</span>
+                    <span className="text-ink-500 flex-shrink-0 text-lg leading-none">›</span>
                   </div>
                 </button>
               ))
@@ -137,38 +127,34 @@ function InboundList({ transfers, completedTransfers, onClose, onSelect, onRepri
 
           {/* Recently-completed transfers — reprint section */}
           {reprints.length > 0 && onReprintTandaTerima && (
-            <div className="pt-2 border-t border-gray-100">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">
+            <div className="pt-2 border-t border-paper-2">
+              <p className="text-[10px] font-bold text-ink-500 uppercase tracking-wide mb-2">
                 Baru diterima
               </p>
               <div className="space-y-2">
                 {reprints.map((t) => (
                   <div
                     key={t.id}
-                    className="flex items-center justify-between gap-2 px-4 py-3 border border-gray-200 rounded-xl"
+                    className="surface-card flex items-center justify-between gap-2 px-4 py-3 rounded-control"
                   >
                     <div className="min-w-0">
-                      <p className="font-semibold text-sm text-gray-900 truncate">
+                      <p className="font-semibold text-sm text-ink-900 truncate">
                         {t.transferNo}
                       </p>
-                      <p className="text-[11px] text-gray-500 mt-0.5 truncate">
+                      <p className="text-[11px] text-ink-700 mt-0.5 truncate">
                         {t.tandaTerimaNo} · Dari {t.source.name ?? t.source.id}
                       </p>
                     </div>
-                    <button type="button"
-                      onClick={() => onReprintTandaTerima(t)}
-                      className="flex-shrink-0 text-xs font-bold text-indigo-600 hover:text-indigo-800 px-2.5 py-1.5 border border-indigo-200 hover:border-indigo-400 rounded-lg transition-all"
-                    >
+                    <Button variant="secondary" onClick={() => onReprintTandaTerima(t)} className="flex-shrink-0 !min-h-11 !px-3 text-xs">
                       Cetak Ulang Tanda Terima
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Sheet>
   )
 }
 
@@ -222,22 +208,21 @@ function ReceiveForm({ transfer, onBack, onConfirm }: ReceiveFormProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col">
+    <Sheet open variant="center" maxWidth="max-w-lg" panelClassName="max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100 flex-shrink-0">
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-paper-2 flex-shrink-0">
           <button type="button"
             onClick={onBack}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 flex-shrink-0"
+            className="press inline-flex h-11 w-11 items-center justify-center rounded-control active:bg-paper-1 text-ink-700 flex-shrink-0"
             aria-label="Kembali"
           >
             ‹
           </button>
           <div className="min-w-0">
-            <h3 className="font-bold text-gray-900 truncate">
+            <h3 className="font-bold text-ink-900 truncate">
               Terima {transfer.transferNo}
             </h3>
-            <p className="text-[11px] text-gray-400 truncate">
+            <p className="text-[11px] text-ink-500 truncate">
               Dari {transfer.source.name ?? transfer.source.id}
             </p>
           </div>
@@ -256,38 +241,34 @@ function ReceiveForm({ transfer, onBack, onConfirm }: ReceiveFormProps) {
             return (
               <div
                 key={key}
-                className={`border rounded-xl px-4 py-3 transition-colors ${hasDiff ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'}`}
+                className={`rounded-control px-4 py-3 ${hasDiff ? 'bg-warn-bg border border-warn' : 'surface-card'}`}
               >
                 {/* Product name + variant */}
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="min-w-0">
-                    <p className="font-semibold text-sm text-gray-900 truncate">
+                    <p className="font-semibold text-sm text-ink-900 truncate">
                       {it.productName}
                     </p>
-                    <p className="text-[11px] text-gray-500">
+                    <p className="text-[11px] text-ink-700">
                       {variantLabel(it.variantSize) || null}
                       {it.sku ? `${variantLabel(it.variantSize) ? ' · ' : ''}${it.sku}` : ''}
-                      {' · '}dikirim <span className="font-bold">{it.sentQty}</span>
+                      {' · '}dikirim <span className="font-bold tnum">{it.sentQty}</span>
                     </p>
                   </div>
 
-                  {/* Difference badge */}
+                  {/* Difference badge: short (negative) is danger, over (positive) is warn */}
                   {hasDiff && diff !== null && (
-                    <span
-                      className={`flex-shrink-0 text-xs font-black px-2 py-0.5 rounded-full ${
-                        diff < 0
-                          ? 'bg-red-100 text-red-700'
-                          : 'bg-amber-100 text-amber-700'
-                      }`}
-                    >
-                      {diff > 0 ? '+' : ''}{diff}
-                    </span>
+                    <StatusBadge
+                      tone={diff < 0 ? 'danger' : 'warn'}
+                      label={`${diff > 0 ? '+' : ''}${diff}`}
+                      className="flex-shrink-0 font-black tnum"
+                    />
                   )}
                 </div>
 
                 {/* Qty input */}
                 <div className="flex items-center gap-2">
-                  <label htmlFor={`receive-qty-${key}`} className="text-[10px] font-bold text-gray-400 uppercase tracking-wide flex-shrink-0">
+                  <label htmlFor={`receive-qty-${key}`} className="text-[10px] font-bold text-ink-500 uppercase tracking-wide flex-shrink-0">
                     Diterima
                   </label>
                   <input
@@ -297,10 +278,8 @@ function ReceiveForm({ transfer, onBack, onConfirm }: ReceiveFormProps) {
                     inputMode="numeric"
                     value={currentVal}
                     onChange={(e) => handleQtyChange(key, e.target.value)}
-                    className={`flex-1 min-w-0 px-3 py-1.5 border rounded-lg text-sm font-bold text-right focus:outline-none transition-colors ${
-                      hasDiff
-                        ? 'border-amber-300 bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-300'
-                        : 'border-gray-200 bg-gray-50 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-300'
+                    className={`tnum flex-1 min-w-0 min-h-11 px-3 py-1.5 border rounded-control text-sm font-bold text-right text-ink-900 bg-white focus:outline-none focus:border-ink-700 ${
+                      hasDiff ? 'border-warn' : 'border-paper-2'
                     }`}
                   />
                 </div>
@@ -310,8 +289,8 @@ function ReceiveForm({ transfer, onBack, onConfirm }: ReceiveFormProps) {
 
           {/* Discrepancy reason — required when any line differs */}
           {anyDiff && (
-            <div className="border border-red-200 bg-red-50 rounded-xl px-4 py-3">
-              <label htmlFor="receive-alasan-selisih" className="block text-xs font-bold text-red-700 mb-1.5">
+            <div className="bg-warn-bg border border-warn rounded-control px-4 py-3">
+              <label htmlFor="receive-alasan-selisih" className="block text-xs font-bold text-warn-strong mb-1.5">
                 Alasan selisih <span className="font-black">(wajib)</span>
               </label>
               <textarea
@@ -320,34 +299,26 @@ function ReceiveForm({ transfer, onBack, onConfirm }: ReceiveFormProps) {
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Jelaskan penyebab selisih antara jumlah dikirim dan diterima…"
-                className="w-full px-3 py-2 border border-red-200 bg-white rounded-lg text-sm resize-none focus:outline-none focus:ring-1 focus:ring-red-400 placeholder-gray-400"
+                className="w-full px-3 py-2 border border-paper-2 bg-white rounded-control text-sm text-ink-900 resize-none focus:outline-none focus:border-ink-700 placeholder:text-ink-500"
               />
             </div>
           )}
         </div>
 
         {/* Footer actions */}
-        <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0 space-y-2">
+        <div className="px-5 py-4 border-t border-paper-2 flex-shrink-0 space-y-2">
           {anyDiff && !reason.trim() && (
-            <p className="text-xs text-red-600 text-center font-semibold">
+            <p className="text-xs text-warn-strong text-center font-semibold">
               Isi alasan selisih sebelum melanjutkan
             </p>
           )}
-          <button type="button"
-            onClick={handleConfirm}
-            disabled={!canSubmit}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all"
-          >
+          <Button fullWidth onClick={handleConfirm} disabled={!canSubmit}>
             Terima
-          </button>
-          <button type="button"
-            onClick={onBack}
-            className="w-full py-2.5 border border-gray-200 text-gray-600 font-semibold text-sm rounded-xl hover:bg-gray-50 transition-all"
-          >
+          </Button>
+          <Button variant="secondary" fullWidth onClick={onBack}>
             Kembali
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+    </Sheet>
   )
 }
