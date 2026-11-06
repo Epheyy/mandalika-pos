@@ -8,6 +8,7 @@ import { refundReportFlow, adminPartialRefundFlow } from './backoffice-refund-sc
 import { splitOrderFlow, splitToggleFlow } from './backoffice-split-scenarios'
 import { settingsGuardFlow } from './backoffice-settings-scenarios'
 import { routeDeepLinkFlow, routeGuardFlow } from './backoffice-route-scenarios'
+import { kitShellFlow } from './backoffice-kit-scenarios'
 import { routeBackFlow } from './backoffice-back-scenarios'
 import { customersListFlow } from './backoffice-customers-scenarios'
 import { bahanDaftarFlow } from './backoffice-bahan-scenarios'
@@ -599,4 +600,10 @@ for (const [id, title, run, opts] of [
   const p = page as ScenarioPage
   await setupPos(p, opts)
   await evidence(info, await run(p))
+})
+
+test('BO-KIT-SHELL the skip link lands on main, Produk has one scroll area with a sticky header, tabs follow the tab pattern with manual activation, and a narrow screen scrolls the table inside its card', async ({ page }, info) => {
+  const result = await kitShellFlow(page as ScenarioPage)
+  expect(result).toHaveLength(5)
+  await evidence(info, result)
 })

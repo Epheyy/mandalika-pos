@@ -284,6 +284,12 @@
       "source": "tests/browser/backoffice-route-scenarios.ts"
     },
     {
+      "id": "BO-KIT-SHELL",
+      "finding": "K2",
+      "description": "Kaca K2 kit and shell: the skip link is the first Tab stop and focuses main without changing the hash; Produk has exactly one scroll area and its sticky header stays at the top of main while main scrolls; Produk tabs are role=tab with aria-selected and a roving tabindex, arrows move focus without selecting, Enter selects, Home goes to the first; at 375 px the table scrolls sideways in its card with no sticky header and main never scrolls sideways; screenshots at 1440, 768 and 375",
+      "source": "tests/browser/backoffice-kit-scenarios.ts"
+    },
+    {
       "id": "BO-ROUTE-BACK",
       "finding": "D4",
       "description": "Pelanggan list filters (q, urut, hal) are URL state and request params; opening a customer is a path push; Back and Kembali return to the list with the same URL, controls and request; Forward returns to the customer; a pasted customer link has nothing to step back to so Kembali opens the list; junk urut/hal/tag/per fall back to the defaults",
