@@ -4,7 +4,6 @@
   "apps/backoffice/src/ui/Button.tsx": 1,
   "apps/pos/src/cashier/MenuDrawer.tsx": 2,
   "apps/pos/src/cashier/PromoPanel.tsx": 1,
-  "apps/pos/src/cashier/ShiftRecapPanel.tsx": 11,
   "apps/pos/src/cashier/receive/ReceiveTransferPanel.tsx": 4,
   "apps/pos/src/cashier/transfers/TandaTerimaPrompt.tsx": 2
 }

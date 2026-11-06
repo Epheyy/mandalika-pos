@@ -2,6 +2,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
 import { Sheet } from '../components/ui/Sheet'
+import { Button } from '../components/ui/Button'
 import { IconLock } from '../components/ui/icons'
 
 type Shift = components['schemas']['Shift']
@@ -161,8 +162,8 @@ export const ShiftBar = memo(function ShiftBar({
       {/* Open shift modal */}
       {showOpenModal && (
         <Sheet open variant="center" maxWidth="max-w-xs" panelClassName="p-5">
-            <h3 className="font-bold text-gray-900 mb-4">Buka Shift Baru</h3>
-            <label htmlFor="shift-starting-cash" className="block text-xs text-gray-600 mb-1">
+            <h3 className="mb-4 text-lg font-bold text-ink-900">Buka Shift Baru</h3>
+            <label htmlFor="shift-starting-cash" className="mb-1 block text-sm font-semibold text-ink-700">
               Kas Awal
             </label>
             <input
@@ -172,27 +173,20 @@ export const ShiftBar = memo(function ShiftBar({
               value={depositStr}
               onChange={(e) => setDepositStr(e.target.value)}
               placeholder="0"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-1 focus:ring-green-400"
+              className="tnum mb-4 min-h-12 w-full rounded-control border border-paper-2 bg-paper-0 px-3 text-base font-bold focus:border-ink-700 focus:outline-none"
             />
             {error && (
-              <p role="alert" className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+              <p role="alert" className="mb-3 rounded-control border border-danger/30 bg-danger-bg px-3 py-2 text-xs font-semibold text-danger">
                 {error}
               </p>
             )}
             <div className="flex gap-2">
-              <button type="button"
-                onClick={() => void handleOpen()}
-                disabled={isOpening}
-                className="flex-1 py-2 bg-green-600 text-white rounded-xl font-semibold text-sm disabled:opacity-50 hover:bg-green-700 transition-colors"
-              >
-                {isOpening ? 'Membuka…' : 'Buka'}
-              </button>
-              <button type="button"
-                onClick={() => setShowOpenModal(false)}
-                className="flex-1 py-2 border border-gray-200 rounded-xl font-semibold text-sm text-gray-600"
-              >
+              <Button variant="secondary" onClick={() => setShowOpenModal(false)} className="flex-1">
                 Batal
-              </button>
+              </Button>
+              <Button onClick={() => void handleOpen()} disabled={isOpening} className="flex-1">
+                {isOpening ? 'Membuka…' : 'Buka'}
+              </Button>
             </div>
         </Sheet>
       )}

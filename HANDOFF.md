@@ -4,9 +4,11 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-06 by Claude (Opus 5.5) - Kaca wave 2 merged (K2 0f1417b0, K3 34a1d089; backoffice via Cloudflare, K3 rides the wave-3 OTA); wave 3 starting; see Progress board.
+Last updated: 2026-11-06 by Claude (Sonnet 5.5) - Kaca P3 shift recap built, PR open (not merged); see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
+
+> 2026-11-06: **Kaca P3 (shift recap) BUILT, PR open to `prod-hardening`, NOT merged; rides the wave-3 POS OTA (POS-only, no backend/OpenAPI/migration/sync).** Branch `claude/kaca-p3-shift-1ded6c`. `ShiftRecapPanel`/`DenominationSheet`/open-shift modal of `ShiftBar` moved onto K1 tokens + K3 kit (all indigo/orange/gray/amber lines gone, `transition-all` allow-list entry removed, 44 px targets, `tnum`). Money logic untouched (blind gating, counted state, handleClose/runClose, selisih confirm). Display additions: Lebih/Kurang/Sesuai words on selisih (total says Sesuai only when no row differs), D-115 reason sentence in the confirm for a negative recorded amount, D-116 hint "Metode nonaktif · ada transaksi", D-97 denomination Reset + per-row subtotal, DenominationSheet on the `Sheet` `header` prop (one close, name stays "Batal"). Header pill/Tutup Shift button left for P6a. Opus + standard review done (MEDIUM fixed). Env-guarded screenshots added to POS-RECAP (blind, denomination, counted, selisih confirm).
 
 > 2026-11-06: **Kaca wave 3 STARTED** (owner: "start Kaca wave 3"): 9 slice sessions P1-P5 + B1/B2/B3/B4b off `34a1d089`, each its own PR; merge order = plan §6 table order (P1, P2, P3, P4, P5, B1, B2, B3, B4b), later slices rebase. B* ship via Cloudflare; P1-P5 + K1/K3 ship together in one batched POS OTA. B4a (Pelanggan + Promosi) may join wave 3 since promo S2 is merged (offered as a card).
 
