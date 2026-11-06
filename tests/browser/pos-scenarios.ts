@@ -1,5 +1,6 @@
 // Ordinary imported scenario functions, converted from the accepted manual scripts.
 import type { ScenarioPage } from './fixture'
+import { POS_SHOT_VIEWPORTS, captureShot } from './shots'
 
 // A04: an outlet-less (admin) account on an unbound terminal must pick the outlet once. The
 // real picker is clicked here, exactly as a person would; the choice is then stored in the
@@ -490,9 +491,11 @@ export const posCustomerProfile = async (page: ScenarioPage) => {
   await page.getByRole('heading', { name: 'Pelanggan', exact: true }).waitFor()
   await page.getByRole('textbox', { name: 'Cari pelanggan dengan nomor telepon' }).fill(page.__a24.customer.phone)
   await page.getByRole('textbox', { name: 'Cari pelanggan dengan nomor telepon' }).press('Enter')
+  if (process.env.A34C_RUN_DIR) await captureShot(page as any, 'p2-pelanggan', POS_SHOT_VIEWPORTS)
   await page.getByRole('button', { name: 'Profil Synthetic Customer', exact: true }).click()
   await page.getByRole('heading', { name: 'Profil Pelanggan' }).waitFor()
   await page.getByText('Bahan obrolan', { exact: true }).waitFor()
+  if (process.env.A34C_RUN_DIR) await captureShot(page as any, 'p2-profil-pelanggan', POS_SHOT_VIEWPORTS)
   const text = await body()
   assert(text.includes('Terakhir beli Synthetic Scent') && text.includes('3 minggu lalu'), 'the pitch sentence is built from the profile')
   assert(text.includes('Woody belum pernah dicoba'), 'never-tried line')

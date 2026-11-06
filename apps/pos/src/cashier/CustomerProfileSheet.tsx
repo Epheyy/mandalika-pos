@@ -37,7 +37,7 @@ interface CustomerProfileSheetProps {
 const TIER_CLASS: Record<Tier, string> = {
   Member: 'bg-paper-2 text-ink-700',
   Silver: 'bg-info-bg text-info',
-  Gold: 'bg-warn-bg text-warn',
+  Gold: 'bg-warn-bg text-warn-strong',
   Platinum: 'bg-promo-bg text-promo',
 }
 
@@ -73,11 +73,11 @@ export function CustomerProfileSheet({
   return (
     <Sheet
       open={customer !== null} onClose={onClose} variant="side" z={60} maxWidth="max-w-[560px]" panelClassName="flex flex-col overflow-hidden"
-      title={<span className="block px-4 pt-4 pb-2 text-lg text-ink-900">Profil Pelanggan</span>}
+      header title="Profil Pelanggan"
     >
       {customer && (
         <>
-          <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-4">
+          <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
             <div className="flex items-center gap-3">
               <span aria-hidden="true" className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-paper-2 text-lg font-bold text-ink-700">
                 {(customer.name || '?').charAt(0).toUpperCase()}
@@ -158,12 +158,16 @@ export function CustomerProfileSheet({
             {!server && status !== 'loading' && <p className="text-[0.8125rem] text-ink-500">Riwayat lengkap butuh internet.</p>}
           </div>
           <div className="flex-shrink-0 border-t border-paper-2 p-3">
-            <button
-              type="button" onClick={() => (attached ? onClose() : onSelect(customer))}
-              className="min-h-14 w-full rounded-control bg-brand px-4 text-[0.9375rem] font-bold uppercase tracking-wide text-on-brand active:bg-brand-pressed"
-            >
-              {attached ? 'Sudah dipilih · Tutup' : 'Pilih untuk transaksi ini'}
-            </button>
+            {attached ? (
+              <p className="py-3 text-center text-[0.9375rem] font-semibold text-ink-700">Sudah dipilih untuk transaksi ini</p>
+            ) : (
+              <button
+                type="button" onClick={() => onSelect(customer)}
+                className="min-h-14 w-full rounded-control bg-brand-strong px-4 text-[0.9375rem] font-bold text-on-brand active:bg-brand-strong-hover"
+              >
+                Pilih untuk transaksi ini
+              </button>
+            )}
           </div>
         </>
       )}

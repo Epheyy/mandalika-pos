@@ -54,17 +54,17 @@ export function TerminalSection() {
 
   return (
     <div className="space-y-3">
-      <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 space-y-1">
+      <div className="bg-paper-1 rounded-control p-3 text-sm text-ink-700 space-y-1">
         <div className="flex justify-between">
           <span>Outlet terminal</span>
-          <span className="font-semibold text-gray-800">{engine?.getSnapshot().outletName || binding?.outletName || '—'}</span>
+          <span className="font-semibold text-ink-900">{engine?.getSnapshot().outletName || binding?.outletName || '—'}</span>
         </div>
         <div className="flex justify-between">
           <span>Akun</span>
-          <span className="font-semibold text-gray-800">{user?.displayName ?? '—'}</span>
+          <span className="font-semibold text-ink-900">{user?.displayName ?? '—'}</span>
         </div>
       </div>
-      <p className="text-xs text-gray-500">
+      <p className="text-sm text-ink-500">
         Outlet tablet ini tetap dan tidak bisa diganti dari layar kasir. Melepas terminal mengeluarkan akun dan
         mengosongkan pilihan outlet; hanya bisa saat online dan tidak ada transaksi yang belum terkirim.
       </p>
@@ -79,12 +79,12 @@ export function TerminalSection() {
         />
       )}
       {blocked && (
-        <p role="status" className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        <p role="status" className="text-sm font-semibold text-warn-strong bg-warn-bg rounded-control px-3 py-2">
           {blocked}
         </p>
       )}
       {error && (
-        <p role="alert" className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+        <p role="alert" className="text-sm font-semibold text-danger bg-danger-bg rounded-control px-3 py-2">
           {error}
         </p>
       )}
@@ -93,19 +93,19 @@ export function TerminalSection() {
           type="button"
           disabled={blocked !== null || busy}
           onClick={() => setConfirming(true)}
-          className="w-full py-2 bg-danger-solid text-white rounded-xl text-sm font-semibold disabled:opacity-40 active:opacity-90 transition-colors"
+          className="press w-full min-h-12 bg-danger-solid text-white rounded-control text-sm font-semibold disabled:opacity-40 active:opacity-90"
         >
           Lepas terminal
         </button>
       ) : (
         <div className="space-y-2">
-          <p className="text-xs font-bold text-gray-800">Yakin melepas terminal ini dan keluar?</p>
+          <p className="text-sm font-bold text-ink-900">Yakin melepas terminal ini dan keluar?</p>
           <div className="flex gap-2">
             <button
               type="button"
               disabled={blocked !== null || busy}
               onClick={() => void release()}
-              className="flex-1 py-2 bg-danger-solid text-white rounded-xl text-sm font-semibold disabled:opacity-40"
+              className="press flex-1 min-h-12 bg-danger-solid text-white rounded-control text-sm font-semibold disabled:opacity-40"
             >
               {busy ? 'Melepas…' : 'Ya, lepas'}
             </button>
@@ -113,7 +113,7 @@ export function TerminalSection() {
               type="button"
               disabled={busy}
               onClick={() => setConfirming(false)}
-              className="flex-1 py-2 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600"
+              className="press flex-1 min-h-12 surface-card rounded-control text-sm font-semibold text-ink-700"
             >
               Batal
             </button>

@@ -43,10 +43,6 @@ function LoginScreen() {
           </p>
           <div className="flex gap-8 pt-5">
             <div>
-              <p className="text-2xl font-black text-white">30+</p>
-              <p className="text-[11px] text-white/50">Outlet aktif</p>
-            </div>
-            <div>
               <p className="text-2xl font-black text-white">Offline</p>
               <p className="text-[11px] text-white/50">Siap pakai</p>
             </div>
@@ -63,13 +59,13 @@ function LoginScreen() {
           </div>
 
           <div className="mb-7">
-            <h2 className="text-2xl font-black text-gray-900">Selamat datang</h2>
-            <p className="text-sm text-gray-500 mt-1">Masuk untuk memulai shift Anda.</p>
+            <h2 className="text-2xl font-bold text-ink-900">Selamat datang</h2>
+            <p className="text-sm text-ink-500 mt-1">Masuk untuk memulai shift Anda.</p>
           </div>
 
-          <label htmlFor="login-email" className="block text-xs font-bold text-gray-500 mb-1.5">Email</label>
+          <label htmlFor="login-email" className="block text-xs font-bold text-ink-500 mb-1.5">Email</label>
           <div className="relative mb-4">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 pointer-events-none">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 5L2 7" /></svg>
             </span>
             <input
@@ -79,13 +75,13 @@ function LoginScreen() {
               placeholder="nama@mandalika.com"
               autoComplete="username"
               type="email"
-              className="w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition"
+              className="w-full pl-10 pr-3 py-3 bg-paper-1 border border-paper-2 rounded-control min-h-12 text-sm focus:bg-white focus:border-ink-900 focus:ring-2 focus:ring-ink-900 outline-none transition"
             />
           </div>
 
-          <label htmlFor="login-password" className="block text-xs font-bold text-gray-500 mb-1.5">Kata Sandi</label>
+          <label htmlFor="login-password" className="block text-xs font-bold text-ink-500 mb-1.5">Kata Sandi</label>
           <div className="relative mb-2">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 pointer-events-none">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
             </span>
             <input
@@ -93,15 +89,15 @@ function LoginScreen() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               type={showPassword ? 'text' : 'password'}
-              placeholder="••••••••"
+              placeholder="Kata sandi"
               autoComplete="current-password"
-              className="w-full pl-10 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition"
+              className="w-full pl-10 pr-14 py-3 bg-paper-1 border border-paper-2 rounded-control min-h-12 text-sm focus:bg-white focus:border-ink-900 focus:ring-2 focus:ring-ink-900 outline-none transition"
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
-              className="absolute top-1/2 right-2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-lg"
+              className="absolute top-1/2 right-1 -translate-y-1/2 w-11 h-11 flex items-center justify-center text-ink-500 hover:text-ink-700 rounded-lg"
             >
               {showPassword ? (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
@@ -112,19 +108,19 @@ function LoginScreen() {
           </div>
 
           {err && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-3">{err}</p>
+            <p className="text-sm text-danger bg-danger-bg rounded-control px-3 py-2 mt-3">{err}</p>
           )}
 
           <button
             disabled={busy}
             type="submit"
-            className="w-full mt-5 py-3 bg-brand active:bg-brand-pressed text-white font-bold rounded-xl shadow-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
+            className="press w-full mt-5 min-h-12 bg-brand-strong active:bg-brand-strong-hover text-on-brand font-bold rounded-control disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {busy ? 'Masuk…' : 'Masuk'}
           </button>
 
-          <p className="text-center text-[11px] text-gray-400 mt-6">
-            Powered by <span className="font-bold text-gray-500">Mandalika</span>
+          <p className="text-center text-[11px] text-ink-500 mt-6">
+            Powered by <span className="font-bold text-ink-500">Mandalika</span>
           </p>
         </form>
       </div>

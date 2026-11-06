@@ -51,30 +51,30 @@ export default function OutletMismatchScreen() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6 safe-top safe-bottom">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <h1 className="text-xl font-black text-gray-900">Outlet akun berbeda dengan terminal</h1>
-        <p className="text-sm text-gray-500 mt-2">
+    <div className="min-h-screen flex items-center justify-center bg-paper-0 p-6 safe-top safe-bottom">
+      <div className="surface-solid w-full max-w-md rounded-panel p-6">
+        <h1 className="text-xl font-bold text-ink-900">Outlet akun berbeda dengan terminal</h1>
+        <p className="text-sm text-ink-500 mt-2">
           Terminal ini terikat ke outlet {outletName}, sedangkan akun {user?.displayName ?? ''} terdaftar di outlet
           berbeda. Transaksi dinonaktifkan agar tidak tercatat di outlet yang salah.
         </p>
-        <div className="mt-4 bg-gray-50 rounded-xl p-3 text-xs text-gray-600 space-y-1">
-          <div className="flex justify-between"><span>Tersimpan di tablet</span><span className="font-semibold text-gray-800">{summary?.pending ?? 0}</span></div>
-          <div className="flex justify-between"><span>Perlu ditinjau</span><span className="font-semibold text-gray-800">{review}</span></div>
+        <div className="mt-4 bg-paper-1 rounded-control p-3 text-sm text-ink-700 space-y-1">
+          <div className="flex justify-between"><span>Tersimpan di tablet</span><span className="font-semibold text-ink-900">{summary?.pending ?? 0}</span></div>
+          <div className="flex justify-between"><span>Perlu ditinjau</span><span className="font-semibold text-ink-900">{review}</span></div>
         </div>
         {(summary?.pending ?? 0) > 0 && (
-          <p className="mt-3 text-xs text-gray-600">
+          <p className="mt-3 text-sm text-ink-700">
             Minta admin mengembalikan outlet akun ke {outletName} sampai antrean terkirim, atau tunggu sampai antrean
             selesai ditinjau. Transaksi tidak dihapus.
           </p>
         )}
         {blocked && (
-          <p role="status" className="mt-3 text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <p role="status" className="mt-3 text-sm font-semibold text-warn-strong bg-warn-bg rounded-control px-3 py-2">
             {blocked}
           </p>
         )}
         {error && (
-          <p role="alert" className="mt-3 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <p role="alert" className="mt-3 text-sm font-semibold text-danger bg-danger-bg rounded-control px-3 py-2">
             {error}
           </p>
         )}
@@ -82,11 +82,11 @@ export default function OutletMismatchScreen() {
           type="button"
           disabled={blocked !== null || busy}
           onClick={() => void release()}
-          className="mt-5 w-full py-2.5 bg-danger-solid text-white rounded-xl text-sm font-semibold disabled:opacity-40 active:opacity-90 transition-colors"
+          className="press mt-5 w-full min-h-12 bg-danger-solid text-white rounded-control text-sm font-semibold disabled:opacity-40 active:opacity-90"
         >
           {busy ? 'Melepas…' : 'Lepas terminal'}
         </button>
-        <button type="button" onClick={logout} className="mt-3 w-full text-xs font-semibold text-gray-500 hover:text-gray-700 underline">
+        <button type="button" onClick={logout} className="mt-3 w-full min-h-11 text-sm font-semibold text-ink-700 underline">
           Keluar
         </button>
       </div>

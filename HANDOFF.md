@@ -4,9 +4,11 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-06 by Claude (Opus 5.5) - Kaca wave 2 merged (K2 0f1417b0, K3 34a1d089; backoffice via Cloudflare, K3 rides the wave-3 OTA); wave 3 starting; see Progress board.
+Last updated: 2026-11-06 by Claude (Sonnet 5.5) - Kaca P2 built, PR open (not merged); see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
+
+> 2026-11-06: **Kaca P2 (Koneksi + customer + login) BUILT, PR open, NOT merged; rides the wave-3 POS OTA (no backend/migration/APK, no OTA published).** Branch `claude/kaca-p2-koneksi-e7a5f7` off `ef504ea3`. Look only: `SyncStatus` sheet body, `CustomerPicker`, `CustomerProfileSheet` now use K3's `Sheet header` (ONE top-right x; own Kembali / picker footer Tutup removed; profile footer shows plain 'Sudah dipilih' text when attached), `overflow-hidden` on the Koneksi panel, 48 px picker rows, offline notice as a warn box, danger-outline 'Coba lagi', plain-text 'Tidak ada yang perlu dilakukan'; login: brand-strong button, placeholder 'Kata sandi', '30+ Outlet aktif' stat removed, 44 px eye toggle; OutletPick / OutletMismatch / TerminalSection on tokens. No useToast there, no behaviour change. Local: POS vitest 1610, typecheck:ci, POS build green; POS-PICKERS flaked once in the full gate then passed on re-run with POS-CUSTOMER-PROFILE and C2-PARKED-PER-ITEM (full gate stopped at that first failure, hosted CI is the full proof). Shots 1280x800 for picker + profile via `shots.ts` (new calls in `pos-scenarios.ts`). Reviews: Opus reviewer (sync/auth/outlet) no CRITICAL/HIGH/MEDIUM; code-reviewer 3 MEDIUM fixed. Left: `OutletUnassignedScreen` in App.tsx still old gray (outside the login block).
 
 > 2026-11-06: **Kaca wave 3 STARTED** (owner: "start Kaca wave 3"): 9 slice sessions P1-P5 + B1/B2/B3/B4b off `34a1d089`, each its own PR; merge order = plan §6 table order (P1, P2, P3, P4, P5, B1, B2, B3, B4b), later slices rebase. B* ship via Cloudflare; P1-P5 + K1/K3 ship together in one batched POS OTA. B4a (Pelanggan + Promosi) may join wave 3 since promo S2 is merged (offered as a card).
 

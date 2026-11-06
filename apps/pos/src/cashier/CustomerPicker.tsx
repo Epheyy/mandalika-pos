@@ -49,7 +49,7 @@ function Row({ c, loyaltyEnabled, onSelect, onOpenProfile }: { c: Customer; loya
   const tier = knownTier(c)
   return (
     <div className="flex items-stretch gap-2 border-b border-paper-2 last:border-0">
-      <button type="button" onClick={() => onSelect(c)} className="flex min-h-14 min-w-0 flex-1 items-center justify-between gap-3 px-1 py-2 text-left active:bg-paper-1">
+      <button type="button" onClick={() => onSelect(c)} className="flex min-h-12 min-w-0 flex-1 items-center justify-between gap-3 px-1 py-2 text-left active:bg-paper-1">
         <span className="min-w-0">
           <span className="block truncate text-[0.9375rem] font-semibold text-ink-900">{c.name}</span>
           <span className="flex flex-wrap items-center gap-x-1.5 text-[0.8125rem] text-ink-500">
@@ -88,9 +88,9 @@ export const CustomerPicker = memo(function CustomerPicker({
   return (
     <Sheet
       open={open} onClose={onClose} variant="side" z={50} maxWidth="max-w-[486px]" panelClassName="flex flex-col overflow-hidden"
-      title={<span className="block px-4 pt-4 pb-2 text-lg text-ink-900">Pelanggan</span>}
+      header title="Pelanggan"
     >
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4">
         {isAddingCustomer ? (
           <div className="space-y-2">
             <p className="text-[0.9375rem] font-bold text-ink-900">Pelanggan Baru</p>
@@ -122,14 +122,14 @@ export const CustomerPicker = memo(function CustomerPicker({
               <Button variant="secondary" onClick={onToggleAdding}>+ Baru</Button>
             </div>
             {hint && <p className="mt-2 text-[0.8125rem] text-ink-500">{hint}</p>}
-            {hasPhone && !awaitingSearch && lookupError && <p className="mt-2 text-[0.8125rem] font-semibold text-warn">{lookupError}</p>}
+            {hasPhone && !awaitingSearch && lookupError && <p className="mt-2 text-[0.8125rem] font-semibold text-warn-strong">{lookupError}</p>}
             {hasPhone && awaitingSearch && hits.length === 0 && !isSearching && !lookupError && (
               <p className="mt-2 text-[0.8125rem] text-ink-500">Tekan Cari atau Enter untuk mencari pelanggan.</p>
             )}
             {hasPhone && !awaitingSearch && hits.length === 0 && !isSearching && !lookupError && (
               <button
                 type="button" onClick={() => onAddNewFromSearch(customerSearch.trim())}
-                className="mt-2 min-h-11 w-full rounded-control bg-paper-1 px-3 py-2 text-left text-[0.9375rem] font-semibold text-ink-900 active:bg-paper-2"
+                className="mt-2 min-h-12 w-full rounded-control bg-paper-1 px-3 py-2 text-left text-[0.9375rem] font-semibold text-ink-900 active:bg-paper-2"
               >
                 + Tambah “{customerSearch.trim()}” sebagai pelanggan baru
               </button>
@@ -147,13 +147,10 @@ export const CustomerPicker = memo(function CustomerPicker({
               </section>
             )}
             {!isOnline && (
-              <p className="mt-4 text-[0.8125rem] text-ink-500">Offline: hanya pelanggan yang pernah dilayani di tablet ini yang bisa dicari.</p>
+              <p className="mt-4 rounded-control bg-warn-bg px-3 py-2 text-[0.8125rem] font-semibold text-warn-strong">Offline: hanya pelanggan yang pernah dilayani di tablet ini yang bisa dicari.</p>
             )}
           </>
         )}
-      </div>
-      <div className="flex-shrink-0 border-t border-paper-2 p-3">
-        <Button variant="secondary" onClick={onClose} className="w-full">Tutup</Button>
       </div>
     </Sheet>
   )
