@@ -1,6 +1,6 @@
 // C6b split payment: rendered POS flows against the synthetic API. Methods in the fixture are cash (Tunai) and qris (QRIS).
 import type { ScenarioPage } from './fixture'
-import { POS_SHOT_VIEWPORTS, captureShot } from './shots'
+import { BAYAR_SHOT_VIEWPORTS, POS_SHOT_VIEWPORTS, captureShot } from './shots'
 
 const OUTLET = '00000000-0000-4000-8300-000000000090'
 const DRAFT_KEY = `mandalika.pos.splitDraft.${OUTLET}`
@@ -31,6 +31,7 @@ const paySplit = async (page: ScenarioPage) => {
   await page.getByRole('button', { name: '+ Tambah pembayaran', exact: true }).click()
   await page.getByText('Lunas', { exact: true }).waitFor()
   assert((await page.locator('body').innerText()).includes('Kembalian'), 'Kembalian shows once the cash line covers the bill')
+  await captureShot(page, 'p6b-bayar-split', BAYAR_SHOT_VIEWPORTS)
 }
 
 // POS-SPLIT-TENDER
@@ -142,7 +143,7 @@ export const posSplitOff = async (page: ScenarioPage) => {
     assert((await page.getByRole('button', { name: 'Bagi pembayaran', exact: true }).count()) === 0, `${label}: no Bagi pembayaran`)
     assert((await page.getByLabel('No. referensi (opsional)').count()) === 1, `${label}: the reference field stays`)
     out.push({ [label]: 'no split entry' })
-    await page.getByRole('button', { name: '‹ Kembali' }).click()
+    await page.getByRole('heading', { name: 'Bayar', exact: true }).locator('..').getByRole('button', { name: 'Tutup', exact: true }).click()
   }
   await check('key absent')
   page.__a24.snapshot.appSettings.splitTenderEnabled = false
