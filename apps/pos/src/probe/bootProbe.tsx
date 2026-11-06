@@ -18,3 +18,11 @@ createRoot(document.getElementById('root')!).render(
     <ProbeScreen />
   </StrictMode>,
 )
+
+// The app config keeps the native splash up (launchAutoHide: false) until the app hides it, as the real
+// boot does once it is ready. The probe has no other boot step, so hide it right after the first render.
+requestAnimationFrame(() => {
+  import('@capacitor/splash-screen')
+    .then(({ SplashScreen }) => SplashScreen.hide())
+    .catch(() => undefined) // web/dev: no native splash
+})
