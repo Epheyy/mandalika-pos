@@ -8,7 +8,7 @@ type Props = {
   className?: string
 }
 
-const BUTTON = 'touch inline-flex items-center justify-center rounded-control bg-paper-1 text-lg font-semibold text-ink-900 active:bg-paper-2 disabled:opacity-40'
+const BUTTON = 'touch press inline-flex items-center justify-center rounded-control bg-paper-1 text-lg font-semibold text-ink-900 active:bg-paper-2 disabled:opacity-40'
 
 export function Stepper({ value, onDecrement, onIncrement, min, max, className = '' }: Props) {
   return (

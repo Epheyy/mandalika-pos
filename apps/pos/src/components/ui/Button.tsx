@@ -15,8 +15,8 @@ type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
 }
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: 'bg-brand text-on-brand active:bg-brand-pressed',
-  secondary: 'bg-white border border-paper-2 text-ink-900 active:bg-paper-1',
+  primary: 'bg-brand-strong text-on-brand active:bg-brand-strong-hover',
+  secondary: 'surface-card text-ink-900 active:bg-paper-1',
   ghost: 'bg-transparent text-ink-700 active:bg-paper-1',
   danger: 'bg-danger-solid text-white active:opacity-90',
   promo: 'bg-promo-bg text-promo active:opacity-90',
@@ -47,7 +47,7 @@ export function Button({
   ...rest
 }: Props) {
   const classes = [
-    'inline-flex items-center justify-center gap-2 rounded-control font-semibold tnum',
+    'inline-flex items-center justify-center gap-2 rounded-control font-semibold tnum press',
     'disabled:opacity-50 disabled:pointer-events-none',
     (active && ACTIVE_CLASSES[variant]) || VARIANT_CLASSES[variant],
     SIZE_CLASSES[size],

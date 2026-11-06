@@ -19,7 +19,12 @@ describe('Chip', () => {
 
   it('uses the tone palette when selected and white otherwise', () => {
     expect(renderToStaticMarkup(createElement(Chip, { selected: true, tone: 'ok' }, 'x'))).toContain('bg-ok-bg text-ok')
-    expect(renderToStaticMarkup(createElement(Chip, { tone: 'ok' }, 'x'))).toContain('bg-white')
+    expect(renderToStaticMarkup(createElement(Chip, { tone: 'ok' }, 'x'))).toContain('surface-card')
+  })
+
+  it('fills a selected neutral chip with brand-strong (AA with white text)', () => {
+    expect(renderToStaticMarkup(createElement(Chip, { selected: true }, 'x'))).toContain('bg-brand-strong text-on-brand')
+    expect(renderToStaticMarkup(createElement(Chip, null, 'x'))).toContain('surface-card')
   })
 
   it('shows a decorative dot when asked', () => {
