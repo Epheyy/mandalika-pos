@@ -4,9 +4,11 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-06 by Claude (Opus 5.5) - Kaca wave 2 merged (K2 0f1417b0, K3 34a1d089; backoffice via Cloudflare, K3 rides the wave-3 OTA); wave 3 starting; see Progress board.
+Last updated: 2026-11-06 by Claude (Sonnet 5.5) - Kaca P1 catalogue built, PR open (not merged), rides the wave-3 OTA; see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
+
+> 2026-11-06: **Kaca P1 (catalogue) BUILT, PR open, NOT merged; rides the wave-3 POS OTA (POS-only, no backend/backoffice/migration).** Branch `kaca-p1-catalogue` off `ef504ea3`. `ProductGrid.tsx`: tiles on `surface-card`/`press-tile`, category selector = `role=tablist` with a measured white thumb sliding by `transform` only (arrow/Home/End keys, fade edge, no scrollbar); `VariantSheet.tsx`: adopts K3 `Sheet` `header` (one close control); `Skeleton.tsx`: tile-shaped skeleton now used for `isLoading`. Tile stock logic untouched (Opus review confirmed identical). Opus + code-reviewer findings fixed (drag-lag, scrollIntoView only on selection change, shadow clip, sr-only loading text). Not built: gift 'Gratis' tile (no such tile in the catalogue grid) and 'Habis' stays tappable (A44).
 
 > 2026-11-06: **Kaca wave 3 STARTED** (owner: "start Kaca wave 3"): 9 slice sessions P1-P5 + B1/B2/B3/B4b off `34a1d089`, each its own PR; merge order = plan §6 table order (P1, P2, P3, P4, P5, B1, B2, B3, B4b), later slices rebase. B* ship via Cloudflare; P1-P5 + K1/K3 ship together in one batched POS OTA. B4a (Pelanggan + Promosi) may join wave 3 since promo S2 is merged (offered as a card).
 
