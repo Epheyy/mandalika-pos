@@ -30,22 +30,28 @@ export function DenominationSheet({ onApply, onClose, backRef }: Props) {
     return () => { backRef.current = null }
   }, [backRef, onClose])
 
+  const hasInput = coins > 0 || Object.values(counts).some((n) => n > 0)
+
   return (
-    <Sheet open onClose={onClose} variant="side" z={70} title={null} panelClassName="flex flex-col" testId="denomination-sheet">
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-paper-2 py-2 pl-4 pr-2">
-        <h2 className="text-base font-bold text-ink-900">Hitung lembar</h2>
-        <Button variant="ghost" onClick={onClose} className="min-h-11 px-3">Batal</Button>
+    <Sheet
+      open onClose={onClose} variant="side" z={70} title="Hitung lembar" header closeLabel="Batal"
+      panelClassName="flex flex-col" testId="denomination-sheet"
+    >
+      <div className="flex flex-shrink-0 items-center justify-between gap-3 px-5 py-2">
+        <p className="text-sm text-ink-500">Alat bantu hitung uang fisik di laci. Ketuk "Pakai" untuk mengisi kolom Terhitung.</p>
+        <Button variant="ghost" disabled={!hasInput} onClick={() => { setCounts({}); setCoins(0) }} className="min-h-11 flex-shrink-0 px-3">Reset</Button>
       </div>
-      <div className="flex-1 overflow-y-auto px-4">
+      <div className="flex-1 overflow-y-auto px-5">
         {DENOMINATIONS.map((d) => (
-          <div key={d} className="flex min-h-16 items-center justify-between gap-2 border-b border-paper-2 py-2">
-            <span className="tnum w-24 text-[0.9375rem] font-semibold text-ink-900">{formatRupiah(d)}</span>
+          <div key={d} className="flex min-h-16 items-center gap-2 border-b border-paper-2 py-2">
+            <span className="tnum w-24 flex-shrink-0 text-[0.9375rem] font-semibold text-ink-900">{formatRupiah(d)}</span>
             <Stepper value={counts[d] ?? 0} min={0} onDecrement={() => setCount(d, (counts[d] ?? 0) - 1)} onIncrement={() => setCount(d, (counts[d] ?? 0) + 1)} />
             <input
               type="number" inputMode="numeric" min={0} aria-label={`Jumlah lembar ${formatRupiah(d)}`}
               value={counts[d] ? String(counts[d]) : ''} placeholder="0" onChange={(e) => setCount(d, clampCount(e.target.value))}
-              className="tnum min-h-12 w-20 rounded-control border border-paper-2 bg-paper-1 px-2 text-right text-sm font-bold focus:border-ink-700 focus:outline-none"
+              className="tnum min-h-12 w-16 rounded-control border border-paper-2 bg-paper-0 px-2 text-right text-sm font-bold focus:border-ink-700 focus:outline-none"
             />
+            <span className={`tnum min-w-0 flex-1 truncate text-right text-sm ${counts[d] ? 'font-bold text-ink-900' : 'text-ink-500'}`}>{formatRupiah(d * (counts[d] ?? 0))}</span>
           </div>
         ))}
         <div className="flex min-h-16 items-center justify-between gap-2 py-2">
@@ -53,16 +59,16 @@ export function DenominationSheet({ onApply, onClose, backRef }: Props) {
           <input
             id="denom-coins" type="number" inputMode="numeric" min={0} value={coins ? String(coins) : ''} placeholder="0"
             onChange={(e) => setCoins(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
-            className="tnum min-h-12 w-32 rounded-control border border-paper-2 bg-paper-1 px-2 text-right text-sm font-bold focus:border-ink-700 focus:outline-none"
+            className="tnum min-h-12 w-32 rounded-control border border-paper-2 bg-paper-0 px-2 text-right text-sm font-bold focus:border-ink-700 focus:outline-none"
           />
         </div>
       </div>
       <div className="flex flex-shrink-0 items-center justify-between gap-3 border-t border-paper-2 p-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Total</p>
-          <p className="tnum text-lg font-black text-ink-900">{formatRupiah(total)}</p>
+          <p className="text-xs font-semibold text-ink-500">Total</p>
+          <p className="tnum text-xl font-black text-ink-900">{formatRupiah(total)}</p>
         </div>
-        <Button onClick={() => onApply(total)} className="min-w-32">Pakai</Button>
+        <Button onClick={() => onApply(total)} size="lg" className="min-w-40">Pakai</Button>
       </div>
     </Sheet>
   )

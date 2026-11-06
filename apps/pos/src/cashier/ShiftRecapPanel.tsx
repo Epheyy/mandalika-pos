@@ -5,8 +5,7 @@
  *           (Rekapan), or a searchable history table (Riwayat).
  *   Right : detailed sales / cash-flow breakdown for the active shift, or
  *           the selected past shift.
- * All data is server-sourced. Brand gold comes free — index.css remaps the
- * indigo palette to gold, so the indigo-* classes here render gold.
+ * All data is server-sourced. Kaca restyle: K1 tokens + K3 kit only (no legacy palette classes).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
 import { isCashMethod } from '@mandalika/types'
@@ -82,7 +81,7 @@ type Tab = 'rekapan' | 'riwayat'
 function RefundRecapNotes({ rec }: { rec: RefundRecap }) {
   if (rec.crossTotal === 0 && rec.ownPendingTotal === 0 && rec.parkedCount === 0 && rec.unknownDetailCount === 0) return null
   return (
-    <div className="space-y-0.5 text-[11px] text-gray-400">
+    <div className="space-y-0.5 text-xs text-ink-500">
       {rec.crossTotal !== 0 && (
         <div className="flex justify-between"><span>Refund transaksi shift lain</span><span>−{formatRupiah(rec.crossTotal)}</span></div>
       )}
@@ -100,8 +99,8 @@ function RefundRecapNotes({ rec }: { rec: RefundRecap }) {
 }
 
 const sumRow = (label: string, value: string, bold = false) => (
-    <div className={`flex justify-between text-sm py-1 ${bold ? 'font-black text-gray-900' : ''}`}>
-      <span className={bold ? 'text-gray-900' : 'text-gray-500'}>{label}</span>
+    <div className={`tnum flex justify-between text-sm py-1 ${bold ? 'font-black text-ink-900' : ''}`}>
+      <span className={bold ? 'text-ink-900' : 'text-ink-500'}>{label}</span>
       <span>{value}</span>
     </div>
   )
@@ -158,6 +157,8 @@ function ShiftRecapPanelBody({
   const curRecap = cur?.rec ?? refundRecap(currentShift, queuedRefunds, liveOrders)
   // P-16: every enabled method plus any method (disabled or unconfigured) holding money, so rows add up to the total.
   const rows = useMemo(() => recapRows(paymentMethods, cur?.byMethod ?? {}), [paymentMethods, cur?.byMethod])
+  // D-116: disabled methods that still hold money are listed with a neutral hint (display only).
+  const inactiveIds = useMemo(() => new Set(paymentMethods.filter((m) => !m.isEnabled).map((m) => m.id)), [paymentMethods])
   // P-15: the selisih text awaiting the cashier's Tutup Shift confirmation (null = no dialog).
   const [closeConfirm, setCloseConfirm] = useState<string | null>(null)
   // Android Back with the selisih dialog open closes only the dialog; the typed counts stay.
@@ -357,7 +358,10 @@ function ShiftRecapPanelBody({
     const diffs = differenceLines(rows, counted)
     if (diffs.length > 0) {
       const list = diffs.map((d) => `${d.label} ${d.diff > 0 ? '+' : '−'}${formatRupiah(Math.abs(d.diff))}`).join('; ')
-      setCloseConfirm(`Ada selisih: ${list}. Tutup shift dengan selisih ini?`)
+      // D-115: a negative recorded amount always lands here (counts cannot be negative); say why.
+      const negatives = rows.filter((r) => r.recorded < 0 && counted[r.id] !== undefined).map((r) => r.label)
+      const reason = negatives.length > 0 ? ` Tercatat negatif untuk ${negatives.join(', ')}, jadi perlu konfirmasi.` : ''
+      setCloseConfirm(`Ada selisih: ${list}. Tutup shift dengan selisih ini?${reason}`)
       return
     }
     await runClose()
@@ -415,14 +419,14 @@ function ShiftRecapPanelBody({
   })
 
   return (
-    <div className="fixed inset-0 z-50 bg-gray-50 flex flex-col sm:flex-row overflow-hidden safe-top safe-bottom">
+    <div className="fixed inset-0 z-50 bg-paper-0 flex flex-col sm:flex-row overflow-hidden safe-top safe-bottom">
       {/* ── Mobile top bar (replaces the left rail in portrait) ── */}
-      <div className="sm:hidden flex items-center gap-2 px-3 py-2 border-b border-gray-200 bg-white flex-shrink-0">
-        <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 flex-shrink-0" aria-label="Kembali ke Kasir">✕</button>
-        <div className="flex-1 flex gap-1 bg-gray-100 rounded-xl p-1">
+      <div className="sm:hidden flex items-center gap-2 px-3 py-2 border-b border-paper-2 bg-white flex-shrink-0">
+        <button type="button" onClick={onClose} className="min-h-11 min-w-11 rounded-control hover:bg-paper-1 text-ink-500 flex-shrink-0" aria-label="Kembali ke Kasir">✕</button>
+        <div className="flex-1 flex gap-1 bg-paper-1 rounded-control p-1">
           {([{ id: 'rekapan', label: 'Rekapan' }, { id: 'riwayat', label: 'Riwayat' }] as const).map((t) => (
             <button type="button" key={t.id} onClick={() => changeTab(t.id)}
-              className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600'}`}>
+              className={`flex-1 min-h-11 rounded-control text-sm font-bold press ${tab === t.id ? 'bg-brand-strong text-on-brand' : 'text-ink-700'}`}>
               {t.label}
             </button>
           ))}
@@ -430,14 +434,14 @@ function ShiftRecapPanelBody({
       </div>
 
       {/* ── LEFT: nav (desktop only) ── */}
-      <aside className="hidden sm:flex w-44 bg-white border-r border-gray-200 flex-col flex-shrink-0">
-        <div className="px-4 py-4 border-b border-gray-100 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-            <span className="text-xs font-black text-indigo-700">{(userName || '?').charAt(0).toUpperCase()}</span>
+      <aside className="hidden sm:flex w-44 bg-white border-r border-paper-2 flex-col flex-shrink-0">
+        <div className="px-4 py-4 border-b border-paper-2 flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full bg-paper-1 flex items-center justify-center flex-shrink-0">
+            <span className="text-xs font-black text-ink-900">{(userName || '?').charAt(0).toUpperCase()}</span>
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-black text-gray-900 truncate">{outletName}</p>
-            <p className="text-[10px] text-gray-400 capitalize truncate">{userRole}</p>
+            <p className="text-xs font-black text-ink-900 truncate">{outletName}</p>
+            <p className="text-xs text-ink-500 capitalize truncate">{userRole}</p>
           </div>
         </div>
         <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
@@ -446,69 +450,69 @@ function ShiftRecapPanelBody({
             { id: 'riwayat', label: 'Riwayat' },
           ] as const).map((t) => (
             <button type="button" key={t.id} onClick={() => changeTab(t.id)}
-              className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                tab === t.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'
+              className={`w-full text-left px-3 min-h-11 rounded-control text-sm font-bold press ${
+                tab === t.id ? 'bg-brand-strong text-on-brand' : 'text-ink-700 hover:bg-paper-1'
               }`}>
               {t.label}
             </button>
           ))}
         </nav>
-        <div className="p-3 border-t border-gray-100 flex-shrink-0 space-y-2">
+        <div className="p-3 border-t border-paper-2 flex-shrink-0 space-y-2">
           <div className="flex items-center gap-2 px-2">
-            <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-              <span className="text-[10px] font-black text-indigo-600">{(userName || '?').charAt(0).toUpperCase()}</span>
+            <div className="w-7 h-7 rounded-full bg-paper-1 flex items-center justify-center flex-shrink-0">
+              <span className="text-xs font-black text-ink-900">{(userName || '?').charAt(0).toUpperCase()}</span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-gray-900 truncate">{userName}</p>
-              <p className="text-[10px] text-gray-400 capitalize truncate">{userRole}</p>
+              <p className="text-xs font-bold text-ink-900 truncate">{userName}</p>
+              <p className="text-xs text-ink-500 capitalize truncate">{userRole}</p>
             </div>
           </div>
           <button type="button" onClick={onClose}
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-all">
+            className="w-full min-h-11 flex items-center justify-center gap-1.5 px-3 text-xs font-bold text-ink-500 hover:bg-paper-1 rounded-control press">
             ✕ Kembali ke Kasir
           </button>
         </div>
       </aside>
 
       {/* ── CENTER ── */}
-      <div className="flex-1 flex flex-col overflow-hidden sm:border-r border-gray-200 min-w-0 bg-gray-50">
+      <div className="flex-1 flex flex-col overflow-hidden sm:border-r border-paper-2 min-w-0 bg-paper-0">
         {isStale && !error && (
-          <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-700 text-center flex-shrink-0">
+          <div className="px-4 py-2 bg-warn-bg border-b border-warn/30 text-xs text-warn-strong text-center flex-shrink-0">
             {RECAP_STALE_NOTICE}
           </div>
         )}
         {isLoading ? (
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            <Skeleton className="h-14 w-full rounded-xl" />
-            <Skeleton className="h-12 w-full rounded-xl" />
-            <Skeleton className="h-12 w-full rounded-xl" />
-            <Skeleton className="h-24 w-full rounded-xl" />
-            <Skeleton className="h-20 w-full rounded-xl" />
+            <Skeleton className="h-14 w-full rounded-control" />
+            <Skeleton className="h-12 w-full rounded-control" />
+            <Skeleton className="h-12 w-full rounded-control" />
+            <Skeleton className="h-24 w-full rounded-control" />
+            <Skeleton className="h-20 w-full rounded-control" />
           </div>
         ) : error ? (
           <div className="flex-1 flex items-center justify-center px-6 text-center">
-            <p className="text-sm text-red-600">{error}</p>
+            <p className="text-sm text-danger">{error}</p>
           </div>
         ) : tab === 'rekapan' ? (
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {heldCount > 0 && (
-              <p className="text-xs text-gray-600 bg-white border border-gray-200 rounded-xl px-3 py-2">
+              <p className="text-xs text-ink-700 surface-card rounded-control px-3 py-2">
                 {heldCount} pesanan tersimpan di tablet ini. Tetap ada setelah shift ditutup.
               </p>
             )}
-            <div className="flex gap-2.5 bg-indigo-50 border border-indigo-100 rounded-xl p-3">
-              <div className="w-4 h-4 mt-0.5 rounded-full bg-indigo-400 flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-[10px] font-black">i</span>
+            <div className="flex gap-2.5 surface-group border border-paper-2 rounded-control p-3">
+              <div className="w-4 h-4 mt-0.5 rounded-full bg-info flex items-center justify-center flex-shrink-0">
+                <span className="text-on-brand text-xs font-black">i</span>
               </div>
-              <p className="text-xs text-indigo-700">
+              <p className="text-xs text-ink-900">
                 Rekap memastikan pembayaran yang dicatat untuk setiap transaksi seimbang dengan setiap jenis pembayaran yang diterima.
               </p>
             </div>
 
             {closeIntent && currentShift && (
-              <div className="flex gap-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3">
-                <span className="text-amber-500 text-sm font-black flex-shrink-0">!</span>
-                <p className="text-xs text-amber-700">
+              <div className="flex gap-2.5 bg-warn-bg border border-warn/30 rounded-control p-3">
+                <span className="text-warn-strong text-sm font-black flex-shrink-0">!</span>
+                <p className="text-xs text-warn-strong">
                   Isi <b>Terhitung</b> (pendapatan dihitung) untuk setiap metode pembayaran, lalu tekan <b>Tutup Shift</b>.
                 </p>
               </div>
@@ -520,19 +524,22 @@ function ShiftRecapPanelBody({
                 const hasC = counted[pm.id] !== undefined
                 const diff = (counted[pm.id] ?? 0) - recorded
                 return (
-                  <div key={pm.id} className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+                  <div key={pm.id} className="surface-card rounded-control px-4 py-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-gray-700">{pm.label}</span>
+                      <span className="min-w-0 text-sm font-semibold text-ink-700">
+                        {pm.label}
+                        {inactiveIds.has(pm.id) && <span className="block text-xs font-normal text-ink-500">Metode nonaktif · ada transaksi</span>}
+                      </span>
                       {revealed && (
-                        <span className="text-xs text-gray-400">
-                          Tercatat <span className="font-bold text-gray-600">{formatRupiah(recorded)}</span>
+                        <span className="text-xs text-ink-500">
+                          Tercatat <span className="font-bold text-ink-700">{formatRupiah(recorded)}</span>
                         </span>
                       )}
                     </div>
                     {currentShift && (
                       <>
                         <div className="mt-2 flex items-center gap-2">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide flex-shrink-0">Terhitung</span>
+                          <span className="flex-shrink-0 text-xs font-semibold text-ink-500">Terhitung</span>
                           <input
                             type="number" inputMode="numeric"
                             aria-label="Terhitung"
@@ -547,17 +554,18 @@ function ShiftRecapPanelBody({
                               })
                             }}
                             placeholder={revealed ? String(recorded) : '0'}
-                            className="flex-1 min-w-0 px-3 py-1.5 bg-gray-50 border border-gray-200 focus:border-indigo-500 rounded-lg text-sm font-bold text-right focus:outline-none"
+                            className="tnum min-h-12 flex-1 min-w-0 px-3 bg-paper-0 border border-paper-2 focus:border-ink-700 rounded-control text-base font-bold text-right focus:outline-none"
                           />
                         </div>
                         {isCashMethod(paymentMethods, pm.id) && (
                           <Button variant="secondary" onClick={() => setDenomFor(pm.id)} className="mt-2 min-h-11 w-full">Hitung lembar</Button>
                         )}
                         {revealed && hasC && diff !== 0 && (
-                          <p className={`mt-1 text-[11px] font-bold text-right ${diff > 0 ? 'text-amber-600' : 'text-red-600'}`}>
-                            Selisih {diff > 0 ? '+' : ''}{formatRupiah(diff)}
+                          <p className={`tnum mt-1 text-xs font-bold text-right ${diff > 0 ? 'text-warn-strong' : 'text-danger'}`}>
+                            Selisih · {diff > 0 ? 'Lebih' : 'Kurang'} {diff > 0 ? '+' : ''}{formatRupiah(diff)}
                           </p>
                         )}
+                        {revealed && hasC && diff === 0 && <p className="mt-1 text-xs font-bold text-right text-ok">Sesuai</p>}
                       </>
                     )}
                   </div>
@@ -571,82 +579,79 @@ function ShiftRecapPanelBody({
               const countedTotal = Object.values(counted).reduce((a, b) => a + b, 0)
               const diffTotal = countedTotal - recordedTotal
               const diffCls = !hasCounted || diffTotal === 0
-                ? 'text-indigo-700' : diffTotal > 0 ? 'text-amber-600' : 'text-red-600'
+                ? 'text-ink-900' : diffTotal > 0 ? 'text-warn-strong' : 'text-danger'
               return (
-                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-2">
+                <div className="surface-group border border-paper-2 rounded-control p-4 space-y-2">
                   {revealed && (
                     <>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-indigo-800">Total Tercatat</span>
-                        <span className="text-sm font-black text-indigo-700">{formatRupiah(recordedTotal)}</span>
+                        <span className="text-sm font-semibold text-ink-700">Total Tercatat</span>
+                        <span className="text-sm font-black text-ink-900">{formatRupiah(recordedTotal)}</span>
                       </div>
                       <RefundRecapNotes rec={curRecap} />
                     </>
                   )}
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-indigo-800">Total Terhitung</span>
-                    <span className="text-sm font-black text-indigo-700">{hasCounted ? formatRupiah(countedTotal) : '—'}</span>
+                    <span className="text-sm font-semibold text-ink-700">Total Terhitung</span>
+                    <span className="text-sm font-black text-ink-900">{hasCounted ? formatRupiah(countedTotal) : '—'}</span>
                   </div>
                   {revealed ? (
-                    <div className="flex items-center justify-between border-t border-indigo-200 pt-2">
-                      <span className="text-sm font-semibold text-indigo-800">Selisih</span>
-                      <span className={`text-sm font-black ${diffCls}`}>
-                        {hasCounted ? `${diffTotal > 0 ? '+' : ''}${formatRupiah(diffTotal)}` : '—'}
+                    <div className="flex items-center justify-between border-t border-paper-2 pt-2">
+                      <span className="text-sm font-semibold text-ink-700">Selisih</span>
+                      <span className={`tnum text-sm font-black ${diffCls}`}>
+                        {hasCounted ? `${diffTotal === 0 && differenceLines(rows, counted).length === 0 ? 'Sesuai · ' : diffTotal === 0 ? '' : diffTotal > 0 ? 'Lebih ' : 'Kurang '}${diffTotal > 0 ? '+' : ''}${formatRupiah(diffTotal)}` : '—'}
                       </span>
                     </div>
                   ) : (
-                    <p className="border-t border-indigo-200 pt-2 text-xs text-indigo-700">Angka sistem dan Selisih tampil setelah semua Terhitung diisi.</p>
+                    <p className="border-t border-paper-2 pt-2 text-xs text-ink-900">Angka sistem dan Selisih tampil setelah semua Terhitung diisi.</p>
                   )}
                 </div>
               )
             })()}
 
             {!currentShift ? (
-              <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-                <p className="text-sm font-bold text-gray-700">Buka Shift Baru</p>
+              <div className="surface-card rounded-control p-4 space-y-3">
+                <p className="text-sm font-bold text-ink-700">Buka Shift Baru</p>
                 <div>
-                  <label htmlFor="shift-kas-awal" className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Kas Awal (Rp)</label>
+                  <label htmlFor="shift-kas-awal" className="block text-xs font-bold text-ink-500 mb-1.5">Kas Awal (Rp)</label>
                   <input id="shift-kas-awal" type="number" inputMode="numeric" value={depositAmount}
                     onChange={(e) => setDepositAmount(e.target.value)} placeholder="0"
-                    className="w-full px-3 py-2.5 bg-gray-50 border-2 border-gray-200 focus:border-indigo-500 rounded-xl font-bold text-lg focus:outline-none" />
+                    className="w-full px-3 py-2.5 bg-paper-0 border-2 border-paper-2 focus:border-ink-700 rounded-control font-bold text-lg focus:outline-none" />
                 </div>
                 {shiftError && (
-                  <p role="alert" className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{shiftError}</p>
+                  <p role="alert" className="text-xs font-semibold text-danger bg-danger-bg border border-danger/30 rounded-control px-3 py-2">{shiftError}</p>
                 )}
-                <button type="button" onClick={() => void handleOpen()} disabled={isOpeningShift}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black rounded-xl transition-all">
+                <Button onClick={() => void handleOpen()} disabled={isOpeningShift} fullWidth>
                   {isOpeningShift ? 'Membuka…' : 'Buka Shift'}
-                </button>
+                </Button>
               </div>
             ) : (
-              <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
-                <label htmlFor="shift-kas-akhir" className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Kas Akhir (Rp)</label>
+              <div className="surface-card rounded-control p-4 space-y-2">
+                <label htmlFor="shift-kas-akhir" className="block text-xs font-bold text-ink-500 mb-1">Kas Akhir (Rp)</label>
                 <input id="shift-kas-akhir" type="number" inputMode="numeric" value={closingCash}
                   onChange={(e) => setClosingCash(e.target.value)} placeholder="0"
-                  className="w-full px-3 py-2.5 bg-gray-50 border-2 border-gray-200 focus:border-indigo-500 rounded-xl font-bold text-lg focus:outline-none" />
+                  className="w-full px-3 py-2.5 bg-paper-0 border-2 border-paper-2 focus:border-ink-700 rounded-control font-bold text-lg focus:outline-none" />
               </div>
             )}
 
             {currentShift && (
               <div className="space-y-2">
                 {closeError && (
-                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{closeError}</p>
+                  <p className="text-xs text-danger bg-danger-bg border border-danger/30 rounded-control px-3 py-2">{closeError}</p>
                 )}
                 {shiftError && (
-                  <p role="alert" className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{shiftError}</p>
+                  <p role="alert" className="text-xs font-semibold text-danger bg-danger-bg border border-danger/30 rounded-control px-3 py-2">{shiftError}</p>
                 )}
                 {queue && <QueueGuardLine pending={queue.pending} parked={queue.parked} />}
-                <button type="button" onClick={() => void handleClose()} disabled={isClosingShift}
-                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm rounded-xl transition-all">
+                <Button onClick={() => void handleClose()} disabled={isClosingShift} size="lg" fullWidth>
                   {isClosingShift ? 'Menutup…' : 'Tutup Shift'}
-                </button>
-                <button type="button" onClick={() => void handlePrintRecap(buildCurrentRecap())} disabled={!revealed}
-                  className="w-full disabled:opacity-40 py-2.5 border border-indigo-200 text-indigo-700 font-bold text-sm rounded-xl hover:bg-indigo-50 transition-all flex items-center justify-center gap-2">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>
+                </Button>
+                <Button variant="secondary" onClick={() => void handlePrintRecap(buildCurrentRecap())} disabled={!revealed} fullWidth
+                  leading={<svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>}>
                   Cetak Rekap
-                </button>
+                </Button>
                 {printMsg && (
-                  <p className={`text-xs text-center ${printMsg.includes('Gagal') || printMsg.includes('belum') ? 'text-red-600' : 'text-green-600'}`}>{printMsg}</p>
+                  <p className={`text-xs text-center ${printMsg.includes('Gagal') || printMsg.includes('belum') ? 'text-danger' : 'text-ok'}`}>{printMsg}</p>
                 )}
               </div>
             )}
@@ -658,10 +663,9 @@ function ShiftRecapPanelBody({
               onConfirm={() => { setCloseConfirm(null); void runClose() }}
             />
             {/* Portrait: open the cash-flow / sales summary as an overlay. */}
-            <button type="button" onClick={() => setShowMobileDetail(true)}
-              className="sm:hidden w-full py-2.5 border border-gray-200 text-gray-600 font-bold text-sm rounded-xl hover:bg-gray-100 transition-all mb-4">
+            <Button variant="secondary" onClick={() => setShowMobileDetail(true)} fullWidth className="sm:hidden mb-4">
               Lihat Ringkasan
-            </button>
+            </Button>
           </div>
         ) : (
           /* ── Riwayat ── */
@@ -678,33 +682,33 @@ function ShiftRecapPanelBody({
             const page = Math.min(histPage, totalPages)
             const paged = filtered.slice((page - 1) * HISTORY_PAGE_SIZE, page * HISTORY_PAGE_SIZE)
             const hasFilter = !!(historySearch || dateFrom || dateTo)
-            const inputCls = 'flex-1 min-w-0 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500'
+            const inputCls = 'flex-1 min-w-0 min-h-11 px-2.5 bg-paper-0 border border-paper-2 rounded-control text-xs focus:outline-none focus:border-ink-700'
             return (
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-200 bg-white flex-shrink-0 space-y-2">
+                <div className="px-4 py-3 border-b border-paper-2 bg-white flex-shrink-0 space-y-2">
                   <input type="text" aria-label="Cari nama kasir" value={historySearch}
                     onChange={(e) => { setHistorySearch(e.target.value); setHistPage(1) }}
                     placeholder="Cari nama kasir…"
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full min-h-11 px-4 bg-paper-0 border border-paper-2 rounded-control text-sm focus:outline-none focus:border-ink-700" />
                   <div className="flex items-center gap-2">
                     <input type="date" value={dateFrom} aria-label="Dari tanggal"
                       onChange={(e) => { setDateFrom(e.target.value); setHistPage(1) }} className={inputCls} />
-                    <span className="text-xs text-gray-400 flex-shrink-0">s/d</span>
+                    <span className="text-xs text-ink-500 flex-shrink-0">s/d</span>
                     <input type="date" value={dateTo} aria-label="Sampai tanggal"
                       onChange={(e) => { setDateTo(e.target.value); setHistPage(1) }} className={inputCls} />
                     {hasFilter && (
                       <button type="button" onClick={() => { setHistorySearch(''); setDateFrom(''); setDateTo(''); setHistPage(1) }}
-                        className="text-xs font-bold text-gray-400 hover:text-gray-600 flex-shrink-0 px-1">Reset</button>
+                        className="text-xs font-bold text-ink-500 hover:text-ink-700 flex-shrink-0 min-h-11 px-2">Reset</button>
                     )}
                   </div>
                 </div>
                 <div className="flex-1 overflow-y-auto">
                   <div className="px-4 pt-3">
-                    <div className="grid grid-cols-[5.5rem_3.5rem_minmax(0,1fr)_7rem] gap-2 text-xs font-black text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-200">
+                    <div className="grid grid-cols-[5.5rem_3.5rem_minmax(0,1fr)_7rem] gap-2 text-xs font-black text-ink-500 pb-2 border-b border-paper-2">
                       <span>Tanggal</span><span>Shift</span><span>Pengguna</span><span className="text-right">Penjualan</span>
                     </div>
                     {paged.length === 0 ? (
-                      <div className="py-12 text-center text-gray-400">
+                      <div className="py-12 text-center text-ink-500">
                         <p className="text-sm font-bold">Tidak ada riwayat</p>
                       </div>
                     ) : (
@@ -716,11 +720,11 @@ function ShiftRecapPanelBody({
                         const isSel = selected?.id === s.id
                         return (
                           <button type="button" key={s.id} onClick={() => void selectHistoryShift(s)}
-                            className={`w-full grid grid-cols-[5.5rem_3.5rem_minmax(0,1fr)_7rem] gap-2 py-3 border-b border-gray-100 text-left text-sm transition-all hover:bg-indigo-50 ${isSel ? 'bg-indigo-50' : ''}`}>
-                            <span className="text-gray-700 font-semibold">{fmtDate(s.openedAt)}</span>
-                            <span className="text-gray-500">Shift {shiftNum}</span>
-                            <span className="text-gray-700 truncate pr-2">{s.cashierName}</span>
-                            <span className={`text-right font-black ${isSel ? 'text-indigo-600' : 'text-gray-900'}`}>{formatRupiah(s.totalSales)}</span>
+                            className={`w-full grid grid-cols-[5.5rem_3.5rem_minmax(0,1fr)_7rem] gap-2 py-3 border-b border-paper-2 text-left text-sm press hover:bg-paper-1 ${isSel ? 'bg-paper-1' : ''}`}>
+                            <span className="text-ink-700 font-semibold">{fmtDate(s.openedAt)}</span>
+                            <span className="text-ink-700">Shift {shiftNum}</span>
+                            <span className="text-ink-700 truncate pr-2">{s.cashierName}</span>
+                            <span className="tnum text-right font-black text-ink-900">{formatRupiah(s.totalSales)}</span>
                           </button>
                         )
                       })
@@ -728,13 +732,13 @@ function ShiftRecapPanelBody({
                   </div>
                 </div>
                 {filtered.length > 0 && (
-                  <div className="px-4 py-2 border-t border-gray-200 bg-white flex items-center justify-between flex-shrink-0">
-                    <span className="text-xs text-gray-500">{filtered.length} shift · Hal {page}/{totalPages}</span>
+                  <div className="px-4 py-2 border-t border-paper-2 bg-white flex items-center justify-between flex-shrink-0">
+                    <span className="text-xs text-ink-500">{filtered.length} shift · Hal {page}/{totalPages}</span>
                     <div className="flex gap-1">
                       <button type="button" disabled={page <= 1} onClick={() => setHistPage(page - 1)}
-                        className="px-2.5 py-1 text-sm font-bold rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40 hover:bg-gray-100 transition-all">‹</button>
+                        className="min-h-11 min-w-11 px-2.5 text-sm font-bold rounded-control border border-paper-2 text-ink-700 disabled:opacity-40 hover:bg-paper-1 press">‹</button>
                       <button type="button" disabled={page >= totalPages} onClick={() => setHistPage(page + 1)}
-                        className="px-2.5 py-1 text-sm font-bold rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40 hover:bg-gray-100 transition-all">›</button>
+                        className="min-h-11 min-w-11 px-2.5 text-sm font-bold rounded-control border border-paper-2 text-ink-700 disabled:opacity-40 hover:bg-paper-1 press">›</button>
                     </div>
                   </div>
                 )}
@@ -745,50 +749,50 @@ function ShiftRecapPanelBody({
       </div>
 
       {/* ── RIGHT: detail (desktop side panel; full-screen overlay in portrait) ── */}
-      <div className={`${showMobileDetail ? 'fixed inset-0 z-[60]' : 'hidden'} sm:static sm:z-auto sm:block w-full sm:w-80 bg-white overflow-y-auto flex-shrink-0 border-l border-gray-200 safe-top safe-bottom`}>
-        <div className="sm:hidden sticky top-0 z-10 flex items-center gap-2 px-4 py-3 border-b border-gray-200 bg-white">
-          <button type="button" onClick={() => setShowMobileDetail(false)} className="text-sm font-bold text-gray-600 hover:text-gray-900">‹ Kembali</button>
-          <span className="font-bold text-gray-900">{tab === 'rekapan' ? 'Ringkasan' : 'Detail Rekapan'}</span>
+      <div className={`${showMobileDetail ? 'fixed inset-0 z-[60]' : 'hidden'} sm:static sm:z-auto sm:block w-full sm:w-80 bg-white overflow-y-auto flex-shrink-0 border-l border-paper-2 safe-top safe-bottom`}>
+        <div className="sm:hidden sticky top-0 z-10 flex items-center gap-2 px-4 py-3 border-b border-paper-2 bg-white">
+          <button type="button" onClick={() => setShowMobileDetail(false)} className="min-h-11 text-sm font-bold text-ink-700 hover:text-ink-900">‹ Kembali</button>
+          <span className="font-bold text-ink-900">{tab === 'rekapan' ? 'Ringkasan' : 'Detail Rekapan'}</span>
         </div>
-        {tab === 'rekapan' && (isLoading || error) ? <p className="p-4 text-sm text-gray-500">{isLoading ? 'Memuat data lengkap…' : 'Rekap lengkap belum tersedia.'}</p> : tab === 'rekapan' ? (
+        {tab === 'rekapan' && (isLoading || error) ? <p className="p-4 text-sm text-ink-500">{isLoading ? 'Memuat data lengkap…' : 'Rekap lengkap belum tersedia.'}</p> : tab === 'rekapan' ? (
           <div className="p-4 space-y-4">
             <div>
-              <p className="text-xs font-black text-gray-900 mb-2">Ringkasan Uang Masuk/Keluar</p>
+              <p className="text-xs font-black text-ink-900 mb-2">Ringkasan Uang Masuk/Keluar</p>
               {sumRow(`${inFlows.length} Uang Masuk`, formatRupiah(cashIn))}
               {sumRow(`${outFlows.length} Uang Keluar`, formatRupiah(cashOut))}
-              <div className="border-t border-gray-100">{sumRow('Total', formatRupiah(cashIn - cashOut), true)}</div>
+              <div className="border-t border-paper-2">{sumRow('Total', formatRupiah(cashIn - cashOut), true)}</div>
             </div>
 
             <div>
-              <div className="flex justify-between text-xs font-black text-gray-400 uppercase tracking-wider border-b border-gray-200 pb-1 mb-1">
+              <div className="flex justify-between text-xs font-black text-ink-500 border-b border-paper-2 pb-1 mb-1">
                 <span>Ringkasan Uang Masuk</span><span>Nominal</span>
               </div>
               {inFlows.slice(0, 5).map((f) => (
                 <div key={f.id} className="flex justify-between text-xs py-1">
-                  <span className="text-gray-500 truncate mr-2">{f.description || f.type}</span>
+                  <span className="text-ink-500 truncate mr-2">{f.description || f.type}</span>
                   <span className="font-bold flex-shrink-0">{formatRupiah(f.amount)}</span>
                 </div>
               ))}
-              <div className="border-t border-gray-100">{sumRow('Total', formatRupiah(cashIn), true)}</div>
+              <div className="border-t border-paper-2">{sumRow('Total', formatRupiah(cashIn), true)}</div>
             </div>
 
             <div>
-              <div className="flex justify-between text-xs font-black text-gray-400 uppercase tracking-wider border-b border-gray-200 pb-1 mb-1">
+              <div className="flex justify-between text-xs font-black text-ink-500 border-b border-paper-2 pb-1 mb-1">
                 <span>Ringkasan Uang Keluar</span><span>Nominal</span>
               </div>
               {outFlows.slice(0, 5).map((f) => (
                 <div key={f.id} className="flex justify-between text-xs py-1">
-                  <span className="text-gray-500 truncate mr-2">{f.description || f.type}</span>
+                  <span className="text-ink-500 truncate mr-2">{f.description || f.type}</span>
                   <span className="font-bold flex-shrink-0">{formatRupiah(f.amount)}</span>
                 </div>
               ))}
-              <div className="border-t border-gray-100">{sumRow('Total', formatRupiah(cashOut), true)}</div>
+              <div className="border-t border-paper-2">{sumRow('Total', formatRupiah(cashOut), true)}</div>
             </div>
 
             {revealed && <>
             <div>
-              <p className="text-xs font-black text-gray-900 mb-2">Ringkasan Penjualan</p>
-              <div className="flex justify-between text-xs font-black text-gray-400 uppercase tracking-wider border-b border-gray-200 pb-1 mb-1">
+              <p className="text-xs font-black text-ink-900 mb-2">Ringkasan Penjualan</p>
+              <div className="flex justify-between text-xs font-black text-ink-500 border-b border-paper-2 pb-1 mb-1">
                 <span>Ringkasan Pesanan</span><span>Qty</span>
               </div>
               {sumRow('Total Transaksi', String(live?.totalOrders ?? 0))}
@@ -797,12 +801,12 @@ function ShiftRecapPanelBody({
             </div>
 
             <div>
-              <div className="flex justify-between text-xs font-black text-gray-400 uppercase tracking-wider border-b border-gray-200 pb-1 mb-1">
+              <div className="flex justify-between text-xs font-black text-ink-500 border-b border-paper-2 pb-1 mb-1">
                 <span>Tipe</span><span>Nominal</span>
               </div>
               {sumRow('Penjualan Kotor', formatRupiah(live?.gross ?? 0))}
               {sumRow('Pengembalian Kotor', formatRupiah((live?.refundTotal ?? 0) - (live?.refundFullTotal ?? 0)))}
-              {(live?.refundFullTotal ?? 0) > 0 && <p className="text-[11px] text-gray-400 pb-1">Refund penuh: {formatRupiah(live?.refundFullTotal ?? 0)} (tidak termasuk di Kotor)</p>}
+              {(live?.refundFullTotal ?? 0) > 0 && <p className="text-xs text-ink-500 pb-1">Refund penuh: {formatRupiah(live?.refundFullTotal ?? 0)} (tidak termasuk di Kotor)</p>}
               {sumRow('Diskon', formatRupiah(live?.discount ?? 0))}
               {sumRow('Surcharge', formatRupiah(live?.surcharge ?? 0))}
               {sumRow('Penjualan Bersih', formatRupiah(live?.net ?? 0), true)}
@@ -813,7 +817,7 @@ function ShiftRecapPanelBody({
           </div>
         ) : selected ? (
           blindCount && !revealed && selected.id === currentShift?.id ? (
-            <p className="p-4 text-sm text-gray-500">Angka sistem shift ini tampil setelah semua Terhitung diisi.</p>
+            <p className="p-4 text-sm text-ink-500">Angka sistem shift ini tampil setelah semua Terhitung diisi.</p>
           ) : (() => {
             const b = aggregate(selectedOrders, paymentMethods)
             // A closed shift's snapshot is final: only what the server recorded, never the live queue.
@@ -873,32 +877,32 @@ function ShiftRecapPanelBody({
               <div className="p-4 space-y-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs text-gray-400">{fmtDate(selected.openedAt)}</p>
-                    <p className="font-black text-gray-900">Rekapan - {outletName}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{selected.cashierName}</p>
+                    <p className="text-xs text-ink-500">{fmtDate(selected.openedAt)}</p>
+                    <p className="font-black text-ink-900">Rekapan - {outletName}</p>
+                    <p className="text-xs text-ink-500 mt-0.5">{selected.cashierName}</p>
                   </div>
                   {!loadingSelected && !selectedError && (
                     <button type="button" onClick={() => void handlePrintRecap(recapData)} title="Cetak Rekap"
-                      className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 text-xs font-bold hover:bg-indigo-50 transition-all">
+                      className="flex-shrink-0 flex min-h-11 items-center gap-1.5 px-3 rounded-control border border-paper-2 text-ink-900 text-xs font-bold hover:bg-paper-1 press">
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>
                       Cetak
                     </button>
                   )}
                 </div>
                 {printMsg && (
-                  <p className={`text-xs ${printMsg.includes('Gagal') || printMsg.includes('belum') ? 'text-red-600' : 'text-green-600'}`}>{printMsg}</p>
+                  <p className={`text-xs ${printMsg.includes('Gagal') || printMsg.includes('belum') ? 'text-danger' : 'text-ok'}`}>{printMsg}</p>
                 )}
 
-                {selectedStale && <p role="status" className="text-xs text-amber-700">{RECAP_STALE_NOTICE}</p>}
-                {selectedError ? <p role="alert" className="text-sm text-red-600">{selectedError}</p> : loadingSelected ? (
+                {selectedStale && <p role="status" className="text-xs text-warn-strong">{RECAP_STALE_NOTICE}</p>}
+                {selectedError ? <p role="alert" className="text-sm text-danger">{selectedError}</p> : loadingSelected ? (
                   <div className="py-4 text-center">
-                    <div className="w-5 h-5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin mx-auto" />
+                    <div className="w-5 h-5 border-2 border-paper-2 border-t-brand-strong rounded-full animate-spin mx-auto" />
                   </div>
                 ) : (
                   <>
                     {/* Reconciliation — stacked per method so large amounts never overlap. */}
                     <div>
-                      <p className="text-xs font-black text-gray-900 mb-2">Ringkasan Pembayaran</p>
+                      <p className="text-xs font-black text-ink-900 mb-2">Ringkasan Pembayaran</p>
                       <div className="space-y-2">
                         {paymentMethods.map((pm) => {
                           const recorded = hist.byMethod[pm.id] ?? 0
@@ -907,40 +911,40 @@ function ShiftRecapPanelBody({
                           const diff = c - recorded
                           if (recorded === 0 && !hasC) return null
                           return (
-                            <div key={pm.id} className="border border-gray-100 rounded-lg px-3 py-2">
+                            <div key={pm.id} className="border border-paper-2 rounded-control px-3 py-2">
                               <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-gray-700">{pm.label}</span>
+                                <span className="text-xs font-bold text-ink-700">{pm.label}</span>
                                 {hasC && (
-                                  <span className={`text-[11px] font-bold ${diff === 0 ? 'text-gray-400' : diff > 0 ? 'text-amber-600' : 'text-red-600'}`}>
+                                  <span className={`text-xs font-bold ${diff === 0 ? 'text-ink-500' : diff > 0 ? 'text-warn-strong' : 'text-danger'}`}>
                                     {diff > 0 ? '+' : ''}{formatRupiah(diff)}
                                   </span>
                                 )}
                               </div>
-                              <div className="flex items-center justify-between text-[11px] mt-1">
-                                <span className="text-gray-400">Tercatat</span>
-                                <span className="font-semibold text-gray-600">{formatRupiah(recorded)}</span>
+                              <div className="flex items-center justify-between text-xs mt-1">
+                                <span className="text-ink-500">Tercatat</span>
+                                <span className="font-semibold text-ink-700">{formatRupiah(recorded)}</span>
                               </div>
-                              <div className="flex items-center justify-between text-[11px]">
-                                <span className="text-gray-400">Terhitung</span>
-                                <span className="font-semibold text-gray-600">{hasC ? formatRupiah(c) : '—'}</span>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-ink-500">Terhitung</span>
+                                <span className="font-semibold text-ink-700">{hasC ? formatRupiah(c) : '—'}</span>
                               </div>
                             </div>
                           )
                         })}
                       </div>
-                      <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
-                        <div className="flex justify-between text-xs font-black text-gray-900">
+                      <div className="mt-2 pt-2 border-t border-paper-2 space-y-1">
+                        <div className="flex justify-between text-xs font-black text-ink-900">
                           <span>Total Tercatat</span><span>{formatRupiah(hist.total)}</span>
                         </div>
                         <RefundRecapNotes rec={histRecap} />
                         {hasCounted && (
                           <>
-                            <div className="flex justify-between text-xs font-bold text-gray-600">
+                            <div className="flex justify-between text-xs font-bold text-ink-700">
                               <span>Total Terhitung</span><span>{formatRupiah(countedTotal)}</span>
                             </div>
                             <div className="flex justify-between text-xs font-bold">
-                              <span className="text-gray-600">Selisih</span>
-                              <span className={totalDiff === 0 ? 'text-gray-400' : totalDiff > 0 ? 'text-amber-600' : 'text-red-600'}>
+                              <span className="text-ink-700">Selisih</span>
+                              <span className={totalDiff === 0 ? 'text-ink-500' : totalDiff > 0 ? 'text-warn-strong' : 'text-danger'}>
                                 {totalDiff > 0 ? '+' : ''}{formatRupiah(totalDiff)}
                               </span>
                             </div>
@@ -955,23 +959,23 @@ function ShiftRecapPanelBody({
                     </div>
                     {/* Products + variants sold this shift. */}
                     <div>
-                      <p className="text-xs font-black text-gray-900 mb-2">Produk Terjual</p>
+                      <p className="text-xs font-black text-ink-900 mb-2">Produk Terjual</p>
                       {sold.length === 0 ? (
-                        <p className="text-xs text-gray-400">Tidak ada penjualan.</p>
+                        <p className="text-xs text-ink-500">Tidak ada penjualan.</p>
                       ) : (
                         <>
-                          <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-wider border-b border-gray-200 pb-1 mb-1">
+                          <div className="flex justify-between text-xs font-black text-ink-500 border-b border-paper-2 pb-1 mb-1">
                             <span>Produk</span><span>Qty · Subtotal</span>
                           </div>
                           {sold.map((p) => (
-                            <div key={`${p.name}|${p.variant}`} className="flex justify-between gap-2 py-1.5 border-b border-gray-50">
+                            <div key={`${p.name}|${p.variant}`} className="flex justify-between gap-2 py-1.5 border-b border-paper-2">
                               <div className="min-w-0">
-                                <p className="text-xs font-semibold text-gray-700 truncate">{p.name}</p>
-                                {p.variant && <p className="text-[10px] text-gray-400">{p.variant}</p>}
+                                <p className="text-xs font-semibold text-ink-700 truncate">{p.name}</p>
+                                {p.variant && <p className="text-xs text-ink-500">{p.variant}</p>}
                               </div>
                               <div className="text-right flex-shrink-0">
-                                <p className="text-xs font-bold text-gray-800">×{p.qty}</p>
-                                <p className="text-[10px] text-gray-400">{formatRupiah(p.amount)}</p>
+                                <p className="text-xs font-bold text-ink-900">×{p.qty}</p>
+                                <p className="text-xs text-ink-500">{formatRupiah(p.amount)}</p>
                               </div>
                             </div>
                           ))}
@@ -985,8 +989,8 @@ function ShiftRecapPanelBody({
           })()
         ) : (
           <div className="p-6 space-y-2">
-            <p className="font-black text-gray-900">Rekapan - {outletName}</p>
-            <p className="text-sm text-gray-400">Ketuk salah satu riwayat rekapan untuk menunjukkan detail di sini.</p>
+            <p className="font-black text-ink-900">Rekapan - {outletName}</p>
+            <p className="text-sm text-ink-500">Ketuk salah satu riwayat rekapan untuk menunjukkan detail di sini.</p>
           </div>
         )}
       </div>

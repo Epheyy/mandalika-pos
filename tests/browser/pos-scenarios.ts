@@ -278,6 +278,28 @@ export const posRecap = async (page: ScenarioPage) =>{
   const finalCache=await page.evaluate(()=>Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith('mandalika.cache.rekap:')).map(k=>[k,localStorage.getItem(k)])));
   const sortedKeys=(o:Record<string,unknown>)=>JSON.stringify(Object.entries(o).sort(([a],[b])=>a<b?-1:a>b?1:0)); // localStorage enumeration order is not stable; compare keys and bytes, not order
   if(sortedKeys(cache)!==sortedKeys(finalCache)){const diff=Object.keys({...cache,...finalCache}).filter(k=>cache[k]!==finalCache[k]).map(k=>{const a=cache[k]??'',b=finalCache[k]??'';let i=0;while(i<a.length&&a[i]===b[i])i++;return `${k} len ${a.length}->${b.length} first diff @${i}: ${a.slice(Math.max(0,i-60),i+60)} => ${b.slice(Math.max(0,i-60),i+60)}`});throw new Error('failed/offline reads modified cache: '+diff.join(' | '))}
+  if(process.env.A34C_RUN_DIR){
+    // Kaca P3 evidence (display only), last so it cannot disturb the checks above: blind count ON after a reload,
+    // then the denomination sheet and the selisih confirm (cancelled again, nothing is closed).
+    page.__a26pos.offline=false;
+    await page.addInitScript(()=>{localStorage.setItem('pos_blindCount','1')}); // runs after the spec's '0' init script
+    await page.reload();
+    await page.getByRole('button',{name:'Menu',exact:true}).click();
+    await page.getByRole('button',{name:'Rekap Shift',exact:true}).click();
+    await page.getByText('201 Uang Masuk',{exact:true}).waitFor();
+    await captureShot(page,'p3-recap-blind',POS_SHOT_VIEWPORTS);
+    await page.getByRole('button',{name:'Hitung lembar',exact:true}).first().click();
+    await page.getByTestId('denomination-sheet').waitFor();
+    await page.getByLabel('Jumlah lembar Rp 100.000').fill('3');
+    await captureShot(page,'p3-denomination',POS_SHOT_VIEWPORTS);
+    await page.getByTestId('denomination-sheet').getByRole('button',{name:'Batal',exact:true}).click();
+    await page.getByLabel('Terhitung').nth(0).fill('1000000');await page.getByLabel('Terhitung').nth(1).fill('5000');
+    await captureShot(page,'p3-recap-counted',POS_SHOT_VIEWPORTS);
+    await page.getByRole('button',{name:'Tutup Shift',exact:true}).last().click();
+    await page.getByRole('alert').filter({hasText:'Ada selisih'}).waitFor();
+    await captureShot(page,'p3-recap-selisih-confirm',POS_SHOT_VIEWPORTS);
+    await page.getByRole('button',{name:'Batal',exact:true}).last().click();
+  }
   return {active,historical,cacheCounts:{activeOrders:401,activeFlows:401,history:251,historicalOrders:401,historicalFlows:401},failure:'visible stale notice; unchanged complete bytes',reconstruction:'same storage; actual panel remount offline',calls:page.__a26pos.calls};
 }
 
