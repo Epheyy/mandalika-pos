@@ -24,7 +24,7 @@ Not counted as differences: font rendering (the mocks load a web font; the POS u
 
 **Not reached in the capture** (judged from source where noted): the Tambah/Ubah Pelanggan and Tambah Pengguna slide-overs; a receive-transfer with an inbound transfer (the fixture has none); the Inventori overview matrix (the gate's B3 shots were used instead).
 
-**Review page with every mock beside its live screen:** (link added after publishing)
+**Review page with every mock beside its live screen:** https://claude.ai/artifact/NB89QuGDDjitjAyNZnXTgU
 
 ## 1. At a glance
 
