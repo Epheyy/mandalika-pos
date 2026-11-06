@@ -25,11 +25,12 @@ export function VariantSheet({ product, onPick, onClose }: VariantSheetProps) {
       variant="center"
       z={50}
       panelClassName="overflow-hidden"
-      title={<span className="block px-5 pt-5 pb-1 text-lg text-ink-900">{product?.name}</span>}
+      header
+      title={product?.name}
     >
       {product && (
-        <div className="px-3 pb-3">
-          <p className="px-2 pb-2 text-[0.8125rem] text-ink-500">Ketuk ukuran untuk menambah 1</p>
+        <div className="px-3 pb-3 pt-3">
+          <p className="px-2 pb-2 text-[0.8125rem] text-ink-700">Ketuk ukuran untuk menambah 1</p>
           <div className="divide-y divide-paper-2">
             {product.variants.map((v) => {
               const label = variantLabel(v.size) || v.size
@@ -40,7 +41,7 @@ export function VariantSheet({ product, onPick, onClose }: VariantSheetProps) {
                   type="button"
                   onClick={() => onPick(product, v.size)}
                   aria-label={`Tambah ${label} · ${formatRupiah(v.price)} · ${stockLabel(v.stock)}`}
-                  className="flex min-h-14 w-full items-center justify-between gap-3 rounded-control px-2 py-2 text-left active:bg-paper-1"
+                  className="flex min-h-14 w-full items-center justify-between gap-3 press rounded-control px-2 py-2 text-left active:bg-paper-1"
                 >
                   <span className="min-w-0">
                     <span className="block text-base font-semibold text-ink-900">{label}</span>

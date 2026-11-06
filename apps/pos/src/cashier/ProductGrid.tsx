@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState, type CSSProperties, type MutableRefObject } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MutableRefObject } from 'react'
 import type { components } from '@mandalika/api'
 import {
   DndContext,
@@ -21,6 +21,7 @@ import { variantLabel } from '@mandalika/types'
 import { IconHeart, IconScan } from '../components/ui/icons'
 import { Chip } from '../components/ui/Chip'
 import { VariantSheet } from './VariantSheet'
+import { PRODUCT_GRID_COLS, ProductGridSkeleton } from '../components/Skeleton'
 import { STOCK_DOT_CLASS, STOCK_TEXT_CLASS, stockLabel, stockTone, type StockTone } from './stockTone'
 
 type Product = components['schemas']['Product']
@@ -157,9 +158,9 @@ const SortableCard = memo(function SortableCard({ product, gridCols, categoryNam
           onTap(product)
         }
       }}
-      className={`flex min-h-[150px] cursor-pointer select-none touch-manipulation flex-col gap-2 rounded-control border bg-white p-3 text-left active:scale-[0.98] ${
-        inStock ? 'border-paper-2' : 'border-danger'
-      } ${isDragging ? 'shadow-lg ring-2 ring-paper-2' : 'transition-transform duration-150'}`}
+      className={`surface-card flex min-h-[150px] cursor-pointer select-none touch-manipulation flex-col gap-2 rounded-control p-3 text-left ${
+        inStock ? '' : 'border-danger!'
+      } ${isDragging ? 'shadow-lg! ring-2 ring-paper-2' : 'press-tile'}`}
     >
       <div className={`flex items-start gap-2 ${layout.head}`}>
         {product.imageUrl && !imgFailed ? (
@@ -216,12 +217,106 @@ const SortableCard = memo(function SortableCard({ product, gridCols, categoryNam
   )
 })
 
-// 4 columns is the 1280 dp design (180 dp tiles beside the 486 dp cart); narrower widths step down so a tile never gets thinner than its photo and name need.
-const colClass: Record<number, string> = {
-  2: 'grid-cols-2',
-  3: 'grid-cols-3',
-  4: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4',
-  6: 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-6',
+interface CategoryTabsProps {
+  categories: Category[]
+  selectedCategoryId: string | null
+  onChange: (id: string | null) => void
+}
+
+/** Segmented category selector. The white thumb slides with `transform` only (its size is set, never animated);
+ *  tabs are measured so any number of categories of any width work. Arrow keys / Home / End move the selection. */
+function CategoryTabs({ categories, selectedCategoryId, onChange }: CategoryTabsProps) {
+  const items = useMemo(
+    () => [{ id: null as string | null, name: 'Semua' }, ...categories.map((c) => ({ id: c.id as string | null, name: c.name }))],
+    [categories],
+  )
+  const tabRefs = useRef(new Map<string | null, HTMLButtonElement>())
+  const [thumb, setThumb] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  const selectedIndex = items.findIndex((it) => it.id === selectedCategoryId)
+
+  const measure = useCallback(() => {
+    const el = tabRefs.current.get(selectedCategoryId)
+    if (!el) {
+      setThumb(null)
+      return
+    }
+    setThumb((prev) => {
+      const next = { x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight }
+      return prev && prev.x === next.x && prev.y === next.y && prev.w === next.w && prev.h === next.h ? prev : next
+    })
+  }, [selectedCategoryId])
+
+  useLayoutEffect(() => {
+    measure()
+  }, [measure, items])
+
+  // Scroll only when the selection changes, so a snapshot refresh never snaps a strip the cashier has swiped.
+  useLayoutEffect(() => {
+    const el = tabRefs.current.get(selectedCategoryId)
+    if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [selectedCategoryId])
+
+  useEffect(() => {
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [measure])
+
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const last = items.length - 1
+    let next = -1
+    if (e.key === 'ArrowRight') next = selectedIndex < 0 ? 0 : Math.min(last, selectedIndex + 1)
+    else if (e.key === 'ArrowLeft') next = selectedIndex < 0 ? 0 : Math.max(0, selectedIndex - 1)
+    else if (e.key === 'Home') next = 0
+    else if (e.key === 'End') next = last
+    if (next < 0) return
+    e.preventDefault()
+    onChange(items[next].id)
+    tabRefs.current.get(items[next].id)?.focus()
+  }
+
+  return (
+    <div className="surface-glass min-w-0 flex-1 rounded-panel px-1">
+      <div className="overflow-x-auto [mask-image:linear-gradient(to_right,transparent,#000_12px,#000_calc(100%-12px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div role="tablist" aria-label="Kategori" onKeyDown={onKeyDown} className="relative flex w-max min-w-full gap-1 px-3 py-1">
+          {thumb && (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute left-0 top-0 rounded-chip bg-white shadow-[0_0_0_0.5px_rgba(26,16,8,0.08),0_3px_10px_-2px_rgba(70,46,10,0.18)]"
+              style={{
+                width: thumb.w,
+                height: thumb.h,
+                transform: `translate(${thumb.x}px, ${thumb.y}px)`,
+                transition: 'transform var(--d-select) var(--ease-std)',
+                willChange: 'transform',
+              }}
+            />
+          )}
+          {items.map((it, i) => {
+            const selected = i === selectedIndex
+            return (
+              <button
+                key={it.id ?? 'all'}
+                ref={(el) => {
+                  if (el) tabRefs.current.set(it.id, el)
+                  else tabRefs.current.delete(it.id)
+                }}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                tabIndex={selected || (selectedIndex < 0 && i === 0) ? 0 : -1}
+                onClick={() => onChange(it.id)}
+                className={`press relative z-10 inline-flex min-h-11 flex-shrink-0 items-center whitespace-nowrap rounded-chip px-4 text-sm font-semibold ${
+                  selected ? 'text-ink-900' : 'text-ink-700'
+                }`}
+              >
+                {it.name}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export const ProductGrid = memo(function ProductGrid({
@@ -333,16 +428,9 @@ export const ProductGrid = memo(function ProductGrid({
         )}
       </div>
 
-      {/* Category chips */}
-      <div className="flex flex-shrink-0 gap-2 overflow-x-auto px-3 py-3">
-        <Chip selected={selectedCategoryId === null} onClick={() => onCategoryChange(null)} className="flex-shrink-0">
-          Semua
-        </Chip>
-        {categories.map((cat) => (
-          <Chip key={cat.id} selected={selectedCategoryId === cat.id} onClick={() => onCategoryChange(cat.id)} className="flex-shrink-0">
-            {cat.name}
-          </Chip>
-        ))}
+      {/* Category selector: a segmented tablist with a sliding white thumb, plus the Favorit toggle. */}
+      <div className="flex flex-shrink-0 items-center gap-2 px-3 py-3">
+        <CategoryTabs categories={categories} selectedCategoryId={selectedCategoryId} onChange={onCategoryChange} />
         <Chip selected={showFavouritesOnly} onClick={onToggleFavourites} className="flex-shrink-0">
           <IconHeart size={16} /> Favorit
         </Chip>
@@ -351,8 +439,9 @@ export const ProductGrid = memo(function ProductGrid({
       {/* Product grid */}
       <div className="flex-1 overflow-y-auto px-3 pb-3">
         {isLoading ? (
-          <div className="flex h-32 items-center justify-center text-sm text-ink-500">
-            Memuat produk…
+          <div role="status">
+            <span className="sr-only">Memuat produk…</span>
+            <ProductGridSkeleton className={PRODUCT_GRID_COLS[gridCols] ?? 'grid-cols-4'} />
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex h-32 items-center justify-center text-sm text-ink-500">
@@ -361,7 +450,7 @@ export const ProductGrid = memo(function ProductGrid({
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={filtered.map((p) => p.id)} strategy={rectSortingStrategy}>
-              <div className={`grid ${colClass[gridCols] ?? 'grid-cols-4'} gap-2`}>
+              <div className={`grid ${PRODUCT_GRID_COLS[gridCols] ?? 'grid-cols-4'} gap-2`}>
                 {filtered.map((product) => (
                   <SortableCard key={product.id} product={product} gridCols={gridCols}
                     categoryName={product.categoryId ? categoryNames.get(product.categoryId) : undefined}

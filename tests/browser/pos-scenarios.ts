@@ -1,5 +1,6 @@
 // Ordinary imported scenario functions, converted from the accepted manual scripts.
 import type { ScenarioPage } from './fixture'
+import { POS_SHOT_VIEWPORTS, captureShot } from './shots'
 
 // A04: an outlet-less (admin) account on an unbound terminal must pick the outlet once. The
 // real picker is clicked here, exactly as a person would; the choice is then stored in the
@@ -392,14 +393,17 @@ export const posLineSheet = async (page: ScenarioPage) => {
   const dialog = page.getByRole('dialog')
   // formatRupiah separates "Rp" with a non-breaking space; \s matches both.
   const money = (n: number) => new RegExp(String.raw`Rp\s` + n.toLocaleString('id-ID').replace(/\./g, String.raw`\.`))
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'p1-catalogue', POS_SHOT_VIEWPORTS)
   // Tap 1: the tile. Tap 2: a size row (no quantity to build, no confirm button).
   await page.getByRole('button', { name: /^Synthetic Scent/ }).first().click()
   await dialog.getByRole('button', { name: /^Tambah L · / }).waitFor()
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'p1-variant-sheet', POS_SHOT_VIEWPORTS)
   assert((await dialog.getByRole('button', { name: 'Tambah ke Keranjang', exact: true }).count()) === 0, 'no confirm step in the variant sheet')
   assert((await dialog.getByRole('button', { name: 'Kurangi', exact: true }).count()) === 0, 'no stepper in the variant sheet')
   await dialog.getByRole('button', { name: /^Tambah L · / }).click()
   await page.getByRole('button', { name: 'Ubah Synthetic Scent L', exact: true }).waitFor()
   assert((await dialog.count()) === 0, 'the variant sheet closes after one tap')
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'p1-catalogue-with-cart', POS_SHOT_VIEWPORTS)
   // Tap 3: Bayar (cash is the default). Tap 4: Konfirmasi (blank cash = exact total).
   await page.getByRole('button', { name: 'Bayar', exact: true }).click()
   await page.getByRole('button', { name: /^Konfirmasi Rp/ }).click()
