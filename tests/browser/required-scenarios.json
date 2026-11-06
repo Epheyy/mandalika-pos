@@ -398,6 +398,18 @@
       "source": "tests/browser/pos-opencart-scenarios.ts"
     },
     {
+      "id": "POS-GLASS-BAND",
+      "finding": "Kaca-P6a",
+      "description": "The POS catalogue scrolls under one glass band (header zone + search + categories): computed backdrop-filter on the band, exactly one blurred layer, first row uncovered at scroll 0 at 1006x601 and 1280x800, tiles pass under the band when scrolled, data-material=static removes the blur, the cart mounts with the band still the only blur",
+      "source": "tests/browser/pos-glass-scenarios.ts"
+    },
+    {
+      "id": "POS-GLASS-PROMO-LINES",
+      "finding": "Kaca-P6a",
+      "description": "The Otomatis promo lines (tag, remove x) show in the restyled cart column",
+      "source": "tests/browser/pos-glass-scenarios.ts"
+    },
+    {
       "id": "POS-AUTO-PROMO",
       "finding": "P-21",
       "description": "A promotion marked Otomatis enters the POS cart by itself with an Otomatis tag; the cashier's x removes it for the sale and it stays removed through a cart edit, hold + resume and a reload; + Tambah re-adds it as a normal manual promo",

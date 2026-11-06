@@ -11,6 +11,8 @@ import type { Page } from '@playwright/test'
 export const SHOT_VIEWPORTS = {
   /** POS landscape tablet (Galaxy Tab A9 class). */
   pos: { width: 1280, height: 800 },
+  /** The real fleet tablet (Galaxy Tab A9, landscape CSS viewport): `lg:` breakpoints do not apply, cart is w-80. */
+  'pos-a9': { width: 1006, height: 601 },
   /** POS short height: the Bayar sheet (P-5 was found here). */
   'pos-short': { width: 1280, height: 667 },
   'bo-desktop': { width: 1440, height: 900 },
@@ -20,6 +22,8 @@ export const SHOT_VIEWPORTS = {
 export type ShotViewport = keyof typeof SHOT_VIEWPORTS
 
 export const POS_SHOT_VIEWPORTS: readonly ShotViewport[] = ['pos']
+/** Both POS sizes for P6a: the A9's 1006x601 first, then 1280x800. */
+export const POS_BOTH_SHOT_VIEWPORTS: readonly ShotViewport[] = ['pos-a9', 'pos']
 export const BAYAR_SHOT_VIEWPORTS: readonly ShotViewport[] = ['pos', 'pos-short']
 export const BO_SHOT_VIEWPORTS: readonly ShotViewport[] = ['bo-desktop', 'bo-tablet', 'bo-phone']
 

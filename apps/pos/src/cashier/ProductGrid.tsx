@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MutableRefObject } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MutableRefObject, type ReactNode } from 'react'
 import type { components } from '@mandalika/api'
 import {
   DndContext,
@@ -72,6 +72,8 @@ interface ProductGridProps {
   isLoading: boolean
   /** Filled while the variant sheet is open so the screen's Android Back handler can close it (returns true when it did). */
   variantBackRef?: MutableRefObject<(() => boolean) | null>
+  /** Rendered at the top of the glass band, above the search row (the empty-cart customer chip and held-orders button). */
+  topSlot?: ReactNode
 }
 
 interface SortableCardProps {
@@ -138,7 +140,7 @@ const SortableCard = memo(function SortableCard({ product, gridCols, categoryNam
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : undefined,
-    zIndex: isDragging ? 20 : undefined,
+    zIndex: isDragging ? 10 : undefined,
   }
 
   return (
@@ -275,7 +277,7 @@ function CategoryTabs({ categories, selectedCategoryId, onChange }: CategoryTabs
   }
 
   return (
-    <div className="surface-glass min-w-0 flex-1 rounded-panel px-1">
+    <div className="surface-group min-w-0 flex-1 rounded-panel px-1">
       <div className="overflow-x-auto [mask-image:linear-gradient(to_right,transparent,#000_12px,#000_calc(100%-12px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div role="tablist" aria-label="Kategori" onKeyDown={onKeyDown} className="relative flex w-max min-w-full gap-1 px-3 py-1">
           {thumb && (
@@ -337,9 +339,23 @@ export const ProductGrid = memo(function ProductGrid({
   onToggleFavourites,
   isLoading,
   variantBackRef,
+  topSlot,
 }: ProductGridProps) {
   const [variantPopup, setVariantPopup] = useState<Product | null>(null)
   const [order, setOrder] = useState<string[]>(loadOrder)
+  // Glass band height (header zone + search + categories) = the scroller's top padding.
+  const bandRef = useRef<HTMLDivElement>(null)
+  const [bandH, setBandH] = useState(0)
+  useLayoutEffect(() => {
+    const el = bandRef.current
+    if (!el) return
+    const measure = () => setBandH(Math.ceil(el.getBoundingClientRect().height))
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   // Android Back closes the variant sheet before anything underneath.
   useEffect(() => {
@@ -398,46 +414,61 @@ export const ProductGrid = memo(function ProductGrid({
   }, [onProductTap])
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-paper-0">
-      {/* Search bar — Enter submits (keyboard-wedge scanners append CR) */}
-      <div className="flex flex-shrink-0 gap-2 px-3 pt-3">
-        <input
-          type="search"
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && onSearchSubmit) {
-              e.preventDefault()
-              onSearchSubmit(searchQuery)
-            }
-          }}
-          placeholder="Cari nama, SKU, atau pindai barcode"
-          aria-label="Cari atau scan produk"
-          className="h-12 min-w-0 flex-1 rounded-control border border-paper-2 bg-white px-4 text-base text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-paper-2"
-        />
-        {onScanClick && (
-          <button
-            type="button"
-            onClick={onScanClick}
-            className="touch flex flex-shrink-0 items-center justify-center rounded-control border border-paper-2 bg-white text-ink-700 active:bg-paper-1"
-            title="Scan barcode / QR"
-            aria-label="Scan barcode atau QR"
-          >
-            <IconScan size={22} />
-          </button>
-        )}
-      </div>
+    <div className="relative h-full overflow-hidden">
+      {/* P6a (D-85): the catalogue scrolls UNDER one glass band (header zone + search + categories). The band is a
+          sibling of the scroller (never inside it), so it is the only blurred layer on the POS; the scroller's top
+          padding is the band's measured height, so the first row is not covered at scroll 0. */}
+      <div
+        ref={bandRef}
+        data-kaca-band
+        className="surface-glass absolute inset-x-0 top-0 z-[15]"
+        style={{ paddingTop: 'var(--cashier-top-h, 3.5rem)' }}
+      >
+        {topSlot}
+        {/* Search bar — Enter submits (keyboard-wedge scanners append CR) */}
+        <div className="flex flex-shrink-0 gap-2 px-3 pt-3">
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && onSearchSubmit) {
+                e.preventDefault()
+                onSearchSubmit(searchQuery)
+              }
+            }}
+            placeholder="Cari nama, SKU, atau pindai barcode"
+            aria-label="Cari atau scan produk"
+            className="h-12 min-w-0 flex-1 rounded-control border border-paper-2 bg-white px-4 text-base text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-paper-2"
+          />
+          {onScanClick && (
+            <button
+              type="button"
+              onClick={onScanClick}
+              className="touch flex flex-shrink-0 items-center justify-center rounded-control border border-paper-2 bg-white text-ink-700 active:bg-paper-1"
+              title="Scan barcode / QR"
+              aria-label="Scan barcode atau QR"
+            >
+              <IconScan size={22} />
+            </button>
+          )}
+        </div>
 
-      {/* Category selector: a segmented tablist with a sliding white thumb, plus the Favorit toggle. */}
-      <div className="flex flex-shrink-0 items-center gap-2 px-3 py-3">
-        <CategoryTabs categories={categories} selectedCategoryId={selectedCategoryId} onChange={onCategoryChange} />
-        <Chip selected={showFavouritesOnly} onClick={onToggleFavourites} className="flex-shrink-0">
-          <IconHeart size={16} /> Favorit
-        </Chip>
+        {/* Category selector: a segmented tablist with a sliding white thumb, plus the Favorit toggle. */}
+        <div className="flex flex-shrink-0 items-center gap-2 px-3 py-3">
+          <CategoryTabs categories={categories} selectedCategoryId={selectedCategoryId} onChange={onCategoryChange} />
+          <Chip selected={showFavouritesOnly} onClick={onToggleFavourites} className="flex-shrink-0">
+            <IconHeart size={16} /> Favorit
+          </Chip>
+        </div>
       </div>
 
       {/* Product grid */}
-      <div className="flex-1 overflow-y-auto px-3 pb-3">
+      <div
+        data-kaca-scroller
+        className="absolute inset-0 overflow-y-auto px-3 pb-3"
+        style={{ paddingTop: bandH > 0 ? bandH : 'calc(var(--cashier-top-h, 3.5rem) + 7.5rem)', scrollPaddingTop: bandH > 0 ? bandH : undefined }}
+      >
         {isLoading ? (
           <div role="status">
             <span className="sr-only">Memuat produk…</span>

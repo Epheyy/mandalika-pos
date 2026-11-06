@@ -25,12 +25,15 @@ export interface PosSetupOpts {
   splitTender?: boolean;
   /** Promo auto-apply: seed one Otomatis 10% promotion (non-combinable, no minimum). */
   autoPromo?: boolean;
+  /** Kaca P6a: N extra single-size products (Filler 01..) so the catalogue scrolls. */
+  fillerProducts?: number;
 }
 
 export const setupPos = async (page: ScenarioPage, opts: PosSetupOpts = {}) => {
   const P = '00000000-0000-4000-8300-000000000001';
   const R = '00000000-0000-4000-8300-000000000002';
   const products: any[] = [{id:P,name:'Synthetic Scent',isActive:true,variants:[{size:'M',sku:'SYN-M',price:100000,stock:100},{size:'L',sku:'SYN-L',price:120000,stock:100}]},{id:R,name:'Synthetic Tester',isActive:true,variants:[{size:'M',sku:'TEST-M',price:20000,stock:100},{size:'L',sku:'TEST-L',price:25000,stock:100}]}];
+  for(let i=1;i<=(opts.fillerProducts??0);i++)products.push({id:'00000000-0000-4000-8400-'+String(i).padStart(12,'0'),name:'Filler '+String(i).padStart(2,'0'),isActive:true,variants:[{size:'STD',sku:'FILL-'+i,price:50000,stock:100}]});
   products.forEach(p=>p.variants.forEach(v=>v.barcode=v.sku));
   const base={value:0,isActive:true,combinable:true,codeOnly:false,minPurchase:0};
   const promotions: any[] =[{...base,id:'bundle',name:'Synthetic Bundle',type:'bundle',bundleConfig:{slots:[{productKeys:[P],quantity:1},{productKeys:[R],quantity:1}],bundlePrice:105000,maxApplications:1}},{...base,id:'bxgy',name:'Synthetic BXGY',type:'buy_x_get_y',bxgyConfig:{buyProductIds:[P],getProductIds:[R],buyQuantity:1,getQuantity:1,getDiscountKind:'percentage',getDiscountValue:50,maxApplications:1}},{...base,id:'generic',name:'Generic Ten',type:'percentage',value:10},{...base,id:'invalid',name:'Invalid Legacy',type:'bundle',bundleConfig:{slots:[{productKeys:[P],quantity:1},{productKeys:[P+'|M'],quantity:1}],bundlePrice:50000,maxApplications:1}}];

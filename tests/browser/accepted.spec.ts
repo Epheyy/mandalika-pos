@@ -23,6 +23,7 @@ import { reportPagerFlow, roleDeleteFlow } from './backoffice-d5a-scenarios'
 import { posRequisition } from './pos-requisition-scenarios'
 import { posOpenCart } from './pos-opencart-scenarios'
 import { posAutoPromo } from './pos-autopromo-scenarios'
+import { posGlassBand, posGlassPromoLines } from './pos-glass-scenarios'
 import { posSplitTender, posSplitOffline, posSplitRefund, posSplitOff, posSplitDraft } from './pos-split-scenarios'
 
 test('BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate toggle', async ({ page }, info) => {
@@ -595,6 +596,8 @@ for (const [id, title, run, opts] of [
   ['POS-SPLIT-OFF', 'no Bagi pembayaran while the setting is off or absent', posSplitOff, {}],
   ['POS-OPEN-CART', 'the open cart is restored after a reload; a draft whose sale is already queued is dropped and the paid cart never reappears', posOpenCart, {}],
   ['POS-AUTO-PROMO', 'an Otomatis promo enters the cart by itself; the x removes it for the sale (cart edit, hold + resume, reload) and + Tambah re-adds it as manual', posAutoPromo, { autoPromo: true }],
+  ['POS-GLASS-BAND', 'the catalogue scrolls under one glass band (the only blurred layer), the first row is uncovered at rest at 1006x601 and 1280x800, the cart mounts solid, data-material=static drops the blur', posGlassBand, { fillerProducts: 40 }],
+  ['POS-GLASS-PROMO-LINES', 'the Otomatis promo lines show in the cart column next to the glass band', posGlassPromoLines, { autoPromo: true, fillerProducts: 4 }],
   ['POS-SPLIT-DRAFT', 'an unfinished split payment is offered back after a reload; a draft whose sale is already queued is dropped silently', posSplitDraft, { splitTender: true }],
 ] as const) test(`${id} ${title}`, async ({ page }, info) => {
   const p = page as ScenarioPage
