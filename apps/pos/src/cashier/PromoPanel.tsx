@@ -4,6 +4,7 @@ import { calcPromoDiscount, formatRupiah, linkedPromoShape } from './pricing'
 import { tieredOneLiner } from './promoCopy'
 import type { BundleFreedUnit } from './bundle'
 import { validatePromo, violationMessage, type AppliedPromoCode } from './promoValidate'
+import { Button } from '../components/ui/Button'
 import { unmetCartPrecondition, unmetPreconditionLabel } from './promoEligibility'
 
 type Promotion = components['schemas']['Promotion']
@@ -38,14 +39,14 @@ interface PromoPanelProps {
 }
 
 // CombinableTag surfaces whether a discount stacks with others — the headline
-// behavior of the stacking feature. Combinable = indigo pill; exclusive = muted.
+// behavior of the stacking feature. Combinable = info pill; exclusive = muted.
 function CombinableTag({ combinable }: { combinable: boolean }) {
   return combinable ? (
-    <span className="inline-block text-[9px] font-semibold text-indigo-600 bg-indigo-50 rounded px-1.5 py-0.5 leading-none">
+    <span className="inline-block whitespace-nowrap rounded-chip bg-info-bg px-2 py-1 text-xs font-semibold leading-none text-info">
       Bisa digabung
     </span>
   ) : (
-    <span className="inline-block text-[9px] font-semibold text-gray-400 bg-gray-100 rounded px-1.5 py-0.5 leading-none">
+    <span className="inline-block whitespace-nowrap rounded-chip bg-paper-1 px-2 py-1 text-xs font-semibold leading-none text-ink-700">
       Tidak bisa digabung
     </span>
   )
@@ -151,15 +152,15 @@ export const PromoPanel = memo(function PromoPanel({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
           {/* Promo code input */}
           <div>
-            <p className="text-[11px] font-bold text-gray-500 tracking-wide uppercase mb-2">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-500">
               Kode Promo
             </p>
             <div className="flex gap-2">
               <input
-                className="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-indigo-400 uppercase placeholder:normal-case"
+                className="min-h-12 flex-1 rounded-control border border-paper-2 px-3 text-sm uppercase placeholder:normal-case focus:outline-none focus:ring-1 focus:ring-brand-strong"
                 placeholder="Masukkan kode…"
                 aria-label="Kode promo"
                 value={promoCodeInput}
@@ -171,16 +172,15 @@ export const PromoPanel = memo(function PromoPanel({
                   if (e.key === 'Enter') onApplyPromoCode()
                 }}
               />
-              <button type="button"
+              <Button
                 onClick={onApplyPromoCode}
                 disabled={isValidating || !promoCodeInput.trim()}
-                className="px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold disabled:opacity-40 hover:bg-indigo-700 transition-colors"
               >
                 {isValidating ? '…' : 'Pakai'}
-              </button>
+              </Button>
             </div>
             {promoCodeError && (
-              <p className="text-[10px] text-red-500 mt-1.5 font-semibold">
+              <p className="mt-1.5 text-xs font-semibold text-danger">
                 {promoCodeError}
               </p>
             )}
@@ -198,11 +198,11 @@ export const PromoPanel = memo(function PromoPanel({
                     <button type="button"
                       key={dc.id}
                       onClick={() => onPromoCodeChange(dc.code)}
-                      className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs bg-gray-50 hover:bg-indigo-50 rounded text-gray-700"
+                      className="press flex min-h-11 w-full items-center justify-between gap-2 rounded-control bg-paper-1 px-3 text-sm text-ink-700 active:bg-paper-2"
                     >
                       <span className="font-semibold">{dc.code}</span>
                       <span className="flex items-center gap-1.5">
-                        <span className="text-gray-500">
+                        <span className="text-ink-700">
                           {dc.type === 'percentage'
                             ? `${dc.value}%`
                             : formatRupiah(dc.value)}
@@ -217,42 +217,42 @@ export const PromoPanel = memo(function PromoPanel({
 
           {/* Applied state — each item with its computed savings */}
           {hasApplied && (
-            <div className="rounded-xl border border-green-200 bg-green-50 overflow-hidden">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-green-200/70">
-                <p className="text-[11px] font-bold text-green-800 tracking-wide uppercase">
+            <div className="overflow-hidden rounded-panel bg-ok-bg">
+              <div className="flex items-center justify-between border-b border-paper-2 px-3 py-1">
+                <p className="text-xs font-bold uppercase tracking-wide text-ok">
                   Diterapkan ({appliedCount})
                 </p>
                 <button type="button"
                   onClick={onClearPromotion}
-                  className="text-[11px] text-red-500 hover:text-red-700 font-semibold"
+                  className="press min-h-11 px-2 text-sm font-semibold text-danger"
                 >
                   Hapus semua
                 </button>
               </div>
-              <div className="divide-y divide-green-200/60">
+              <div className="divide-y divide-paper-2">
                 {appliedPromotions.map((p) => (
-                  <div key={p.id} className="flex items-center gap-2 px-3 py-2">
-                    <span className="text-green-600 text-sm leading-none">✓</span>
+                  <div key={p.id} className="flex items-center gap-2 px-3 py-2.5">
+                    <span aria-hidden="true" className="text-sm leading-none text-ok">✓</span>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-xs font-semibold text-green-900 truncate">
-                          {p.name}
-                        </p>
+                      <p className="truncate text-sm font-semibold text-ink-900">
+                        {p.name}
+                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
                         <CombinableTag combinable={!!p.combinable} />
                         {autoPromotionIds.includes(p.id) && (
-                          <span className="inline-block text-[9px] font-semibold text-gray-600 bg-white/70 rounded px-1.5 py-0.5 leading-none">
+                          <span className="inline-block whitespace-nowrap rounded-chip bg-promo-bg px-2 py-1 text-xs font-semibold leading-none text-promo">
                             Otomatis
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] text-green-700/80">{promoRuleLabel(p)}</p>
+                      <p className="text-xs text-ink-700">{promoRuleLabel(p)}</p>
                     </div>
-                    <p className="text-xs font-bold text-green-800 whitespace-nowrap">
+                    <p className="tnum whitespace-nowrap text-sm font-bold text-ok">
                       −{formatRupiah(appliedSavings(p))}
                     </p>
                     <button type="button"
                       onClick={() => onRemovePromotion(p.id)}
-                      className="text-red-400 hover:text-red-600 text-base leading-none ml-0.5"
+                      className="press -mr-2 inline-flex h-11 w-11 items-center justify-center rounded-control text-lg leading-none text-ink-700 active:bg-paper-1"
                       aria-label={`Hapus ${p.name}`}
                     >
                       ×
@@ -260,25 +260,25 @@ export const PromoPanel = memo(function PromoPanel({
                   </div>
                 ))}
                 {appliedPromoCodes.map((c) => (
-                  <div key={c.code} className="flex items-center gap-2 px-3 py-2">
-                    <span className="text-green-600 text-sm leading-none">✓</span>
+                  <div key={c.code} className="flex items-center gap-2 px-3 py-2.5">
+                    <span aria-hidden="true" className="text-sm leading-none text-ok">✓</span>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-xs font-semibold text-green-900 truncate">
-                          {c.code}
-                        </p>
+                      <p className="truncate text-sm font-semibold text-ink-900">
+                        {c.code}
+                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
                         <CombinableTag combinable={c.combinable ?? false} />
                       </div>
-                      <p className="text-[10px] text-green-700/80">
+                      <p className="text-xs text-ink-700">
                         {codeRuleLabel(c)}
                       </p>
                     </div>
-                    <p className="text-xs font-bold text-green-800 whitespace-nowrap">
+                    <p className="tnum whitespace-nowrap text-sm font-bold text-ok">
                       −{formatRupiah(codeSavings(c))}
                     </p>
                     <button type="button"
                       onClick={() => onRemovePromoCode(c.code)}
-                      className="text-red-400 hover:text-red-600 text-base leading-none ml-0.5"
+                      className="press -mr-2 inline-flex h-11 w-11 items-center justify-center rounded-control text-lg leading-none text-ink-700 active:bg-paper-1"
                       aria-label={`Hapus ${c.code}`}
                     >
                       ×
@@ -292,7 +292,7 @@ export const PromoPanel = memo(function PromoPanel({
           {/* Available promotions — multi-toggle */}
           {activePromos.length > 0 && (
             <div>
-              <p className="text-[11px] font-bold text-gray-500 tracking-wide uppercase mb-2">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-500">
                 Promo tersedia
               </p>
               <div className="space-y-2">
@@ -320,43 +320,43 @@ export const PromoPanel = memo(function PromoPanel({
                       key={promo.id}
                       onClick={() => !invalid && onSelectPromotion(promo)}
                       disabled={invalid}
-                      className={`w-full text-left p-3 rounded-xl border transition-all ${
+                      className={`press-tile w-full rounded-panel p-3 text-left ${
                         invalid
-                          ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
+                          ? 'cursor-not-allowed bg-paper-1 opacity-60'
                           : isApplied
-                            ? 'border-green-400 bg-green-50 ring-1 ring-green-300'
-                            : 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 active:bg-indigo-100'
+                            ? 'bg-ok-bg ring-2 ring-ok'
+                            : 'surface-card active:bg-paper-1'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-xs font-bold text-gray-800">{promo.name}</p>
+                        <p className="text-sm font-bold text-ink-900">{promo.name}</p>
                         {invalid ? null : isApplied ? (
-                          <span className="text-[10px] font-bold text-green-700 whitespace-nowrap">
+                          <span className="whitespace-nowrap text-xs font-bold text-ok">
                             ✓ Diterapkan
                           </span>
                         ) : (
-                          <span className="text-[10px] font-bold text-indigo-600 whitespace-nowrap">
+                          <span className="whitespace-nowrap text-xs font-bold text-brand-strong">
                             + Tambah
                           </span>
                         )}
                       </div>
                       {promo.description && (
-                        <p className="text-[10px] text-gray-500 mt-0.5">
+                        <p className="mt-0.5 text-xs text-ink-700">
                           {promo.description}
                         </p>
                       )}
-                      <p className="text-[10px] text-indigo-600 mt-1">
+                      <p className="mt-1 text-xs text-promo">
                         {promoRuleLabel(promo)}
                         {!invalid && savings > 0 && !tierLine && (
-                          <span className="text-gray-500">
+                          <span className="text-ink-700">
                             {' · '}hemat {formatRupiah(savings)}
                           </span>
                         )}
                       </p>
-                      {tierLine && <p className="text-[10px] text-gray-500 mt-0.5">{tierLine}</p>}
+                      {tierLine && <p className="mt-0.5 text-xs text-ink-700">{tierLine}</p>}
                       <div className="mt-1.5">
                         {invalid ? (
-                          <span className="text-[10px] text-red-500 font-semibold">
+                          <span className="text-xs font-semibold text-danger">
                             {reason}
                           </span>
                         ) : (
@@ -371,7 +371,7 @@ export const PromoPanel = memo(function PromoPanel({
           )}
 
           {activePromos.length === 0 && (
-            <p className="text-xs text-gray-400 text-center py-4">
+            <p className="py-4 text-center text-sm text-ink-500">
               Tidak ada promo aktif
             </p>
           )}

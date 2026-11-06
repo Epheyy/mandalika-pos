@@ -19,6 +19,7 @@ import type { BundleAssignment, BundleUnitRef } from './bundle'
 import { bundleApplications, keyMatchesLine } from './pricing'
 import { formatRupiah } from './pricing'
 import { IconPackage } from '../components/ui/icons'
+import { Button } from '../components/ui/Button'
 
 type CartItem = components['schemas']['CartItem']
 type BundleConfig = NonNullable<components['schemas']['Promotion']['bundleConfig']>
@@ -135,17 +136,17 @@ export function BundleSlotPicker({
   }
 
   const panel = (
-      <div className={inline ? 'flex h-full min-h-0 flex-col' : 'relative bg-white rounded-2xl w-full max-w-sm shadow-xl max-h-[80vh] flex flex-col'}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <div className={inline ? 'flex h-full min-h-0 flex-col' : 'surface-solid relative flex max-h-[80vh] w-full max-w-sm flex-col rounded-panel'}>
+        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-paper-2 px-5 py-3">
           <div className="min-w-0">
-            <h3 className="font-bold text-gray-900 truncate"><IconPackage size={16} className="inline-block align-[-0.125em]" /> Pilih Item Paket</h3>
-            <p className="text-[11px] text-gray-500 truncate">{promoName}</p>
+            <h3 className="truncate font-bold text-ink-900"><IconPackage size={16} className="inline-block align-[-0.125em]" /> Pilih Item Paket</h3>
+            <p className="truncate text-xs text-ink-500">{promoName}</p>
           </div>
           {inline ? (
             <button
               type="button"
               onClick={onCancel}
-              className="touch -mr-2 rounded-control px-2 text-sm font-semibold text-ink-700 active:bg-paper-1"
+              className="press -mr-2 inline-flex min-h-11 items-center rounded-control px-3 text-sm font-semibold text-ink-700 active:bg-paper-1"
             >
               ‹ Kembali
             </button>
@@ -153,37 +154,38 @@ export function BundleSlotPicker({
             <button
               type="button"
               onClick={onCancel}
-              className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              aria-label="Tutup"
+              className="press -mr-2 inline-flex h-11 w-11 items-center justify-center rounded-control text-xl leading-none text-ink-500 active:bg-paper-1"
             >
               ×
             </button>
           )}
         </div>
 
-        <div className="px-5 py-2 border-b border-indigo-100 bg-indigo-50">
-          <p className="text-[11px] font-semibold text-indigo-800">
+        <div className="border-b border-paper-2 bg-promo-bg px-5 py-2">
+          <p className="text-xs font-semibold text-promo">
             Beberapa item memenuhi syarat — pilih mana yang masuk paket.
           </p>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
           {slots.map((slot) => {
             const remaining = slot.need - selectedCount(slot.index)
             return (
               <div key={slot.index}>
                 <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-[11px] font-bold text-gray-500 tracking-wide uppercase">
+                  <p className="text-xs font-bold uppercase tracking-wide text-ink-500">
                     Slot {slot.index + 1} · butuh {slot.need}
                   </p>
                   {slot.ambiguous ? (
-                    <span className="text-[10px] font-semibold text-indigo-600">
+                    <span className="text-xs font-semibold text-promo">
                       {remaining > 0 ? `pilih ${remaining} lagi` : 'lengkap'}
                     </span>
                   ) : (
-                    <span className="text-[10px] font-semibold text-gray-400">otomatis</span>
+                    <span className="text-xs font-semibold text-ink-500">otomatis</span>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {slot.eligible.map((l) => {
                     const st = stockFor(l.productId, l.variantSize)
                     const picked = countFor(slot.index, l)
@@ -192,12 +194,12 @@ export function BundleSlotPicker({
                       return (
                         <div
                           key={lineKey(l)}
-                          className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5"
+                          className="flex min-h-11 items-center gap-1.5 rounded-control bg-paper-1 px-3"
                         >
-                          <span className="text-xs font-semibold text-gray-700">
+                          <span className="text-sm font-semibold text-ink-700">
                             {l.available}× {l.productName}
                             {l.variantSize ? ` · ${l.variantSize}` : ''}
-                            <span className="ml-1 text-gray-500">{formatRupiah(l.price)}</span>
+                            <span className="tnum ml-1 text-ink-700">{formatRupiah(l.price)}</span>
                           </span>
                         </div>
                       )
@@ -205,21 +207,21 @@ export function BundleSlotPicker({
                     return (
                       <div
                         key={lineKey(l)}
-                        className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 ${
-                          picked > 0 ? 'border-indigo-500 bg-indigo-50' : 'border-indigo-200 bg-white'
+                        className={`flex items-center gap-1.5 rounded-control px-2 ${
+                          picked > 0 ? 'bg-promo-bg ring-2 ring-promo' : 'surface-card'
                         }`}
                       >
                         <button
                           type="button"
                           onClick={() => addUnit(slot, l)}
                           disabled={remaining <= 0 || picked >= l.available}
-                          className="text-xs font-semibold text-indigo-800 disabled:opacity-40 text-left"
+                          className="press min-h-11 text-left text-sm font-semibold text-ink-900 disabled:opacity-40"
                         >
                           {l.productName}
                           {l.variantSize ? ` · ${l.variantSize}` : ''}
-                          <span className="ml-1 text-indigo-600">{formatRupiah(l.price)}</span>
+                          <span className="tnum ml-1 text-promo">{formatRupiah(l.price)}</span>
                           {st !== null && (
-                            <span className={st > 0 ? 'ml-1 text-indigo-500' : 'ml-1 text-red-500 font-bold'}>
+                            <span className={st > 0 ? 'ml-1 text-ink-700' : 'ml-1 font-bold text-danger'}>
                               · Stok {st}
                             </span>
                           )}
@@ -229,12 +231,12 @@ export function BundleSlotPicker({
                             <button
                               type="button"
                               onClick={() => removeUnit(slot, l)}
-                              className="w-5 h-5 rounded-full bg-indigo-200 text-indigo-800 text-xs font-bold leading-none"
+                              className="press inline-flex h-11 w-11 items-center justify-center rounded-control bg-paper-1 text-base font-bold leading-none text-ink-900"
                               aria-label="Kurangi"
                             >
                               −
                             </button>
-                            <span className="text-xs font-bold text-indigo-800 w-4 text-center">{picked}</span>
+                            <span className="tnum w-4 text-center text-sm font-bold text-ink-900">{picked}</span>
                           </span>
                         )}
                       </div>
@@ -246,22 +248,13 @@ export function BundleSlotPicker({
           })}
         </div>
 
-        <div className="px-5 py-4 border-t border-gray-100 flex gap-2 flex-shrink-0">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-bold text-sm hover:bg-gray-50"
-          >
+        <div className="flex flex-shrink-0 gap-2 border-t border-paper-2 px-5 py-4">
+          <Button variant="secondary" onClick={onCancel} className="flex-1">
             Batal
-          </button>
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={!canConfirm}
-            className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm disabled:opacity-40 hover:bg-indigo-700"
-          >
+          </Button>
+          <Button onClick={handleConfirm} disabled={!canConfirm} className="flex-1">
             Terapkan
-          </button>
+          </Button>
         </div>
       </div>
   )
@@ -272,7 +265,7 @@ export function BundleSlotPicker({
         type="button"
         aria-label="Tutup"
         tabIndex={-1}
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-ink-900/40"
         onClick={onCancel}
       />
       {panel}

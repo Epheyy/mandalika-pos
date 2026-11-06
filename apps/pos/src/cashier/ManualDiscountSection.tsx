@@ -65,10 +65,10 @@ export function ManualDiscountSection({ state, dispatch, onApplyDiscount, onAppl
             onChange={(e) => dispatch({ type: 'SET_ADJUST_INPUT', value: e.target.value })}
             placeholder={state.discountType === 'percentage' ? 'Contoh: 10' : 'Contoh: 5000'}
             aria-label="Nilai diskon atau biaya tambahan"
-            className="mb-3 min-h-12 w-full rounded-control border border-paper-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            className="mb-3 min-h-12 w-full rounded-control border border-paper-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-brand-strong"
           />
           <div className="flex gap-2">
-            <Button variant="promo" onClick={onApplyDiscount} className="flex-1">
+            <Button onClick={onApplyDiscount} className="flex-1">
               Diskon −
             </Button>
             <Button variant="secondary" onClick={onApplySurcharge} className="flex-1">

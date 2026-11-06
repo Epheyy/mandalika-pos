@@ -88,7 +88,7 @@ export const qualifyPos = async (page: ScenarioPage) =>{
  const panel=async()=>{await page.getByRole('button',{name:'Promo & Diskon',exact:true}).click();};
  const direct=async(kind)=>{await panel();await page.getByRole('button').filter({hasText:'Synthetic '+kind}).last().click();};
  const code=async(kind)=>{await panel();await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill('Raw-'+kind);await page.getByRole('button',{name:'Pakai',exact:true}).click();};
- const confirm=async(kind)=>{await page.getByRole('button',{name:kind==='Bundle'?/Synthetic Scent · MRp/:/Synthetic Tester · MRp/}).click();await page.getByRole('button',{name:'Terapkan',exact:true}).click();};
+ const confirm=async(kind)=>{if(process.env.A34C_RUN_DIR)await captureShot(page,'p7-picker-'+kind.toLowerCase(),POS_SHOT_VIEWPORTS);await page.getByRole('button',{name:kind==='Bundle'?/Synthetic Scent · MRp/:/Synthetic Tester · MRp/}).click();await page.getByRole('button',{name:'Terapkan',exact:true}).click();};
  for(const kind of ['Bundle','BXGY'])for(const owner of ['direct','linked']){
   await fresh();const before=await body();
   await (owner==='direct'?direct(kind):code(kind));
@@ -472,6 +472,7 @@ export const posPromoSheet = async (page: ScenarioPage) => {
   const section = page.getByRole('button', { name: /^Diskon manual \/ Biaya tambahan/ })
   assert((await section.getAttribute('aria-expanded')) === 'false', 'manual section starts collapsed')
   await section.click()
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'p7-promo-sheet', POS_SHOT_VIEWPORTS)
   await page.getByRole('button', { name: 'Persen (%)', exact: true }).click()
   await page.getByRole('spinbutton', { name: 'Nilai diskon atau biaya tambahan' }).fill('10')
   await page.getByRole('button', { name: 'Diskon −', exact: true }).click()
