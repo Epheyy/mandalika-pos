@@ -42,10 +42,10 @@ export function RecipeIngredientPicker({ excludeIds, onPick, onClose }: Props) {
   }, [all, q, cat, excludeIds])
 
   return (
-    <div className="rounded-xl border border-gold-200 bg-amber-50/40 p-2.5 space-y-2">
+    <div className="rounded-xl border border-paper-2 bg-paper-1 p-2.5 space-y-2">
       {/* full-width search bar */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-700 pointer-events-none" />
         <input
           ref={searchInputRef}
           className={`${fieldClass} pl-9 bg-white`}
@@ -69,19 +69,19 @@ export function RecipeIngredientPicker({ excludeIds, onPick, onClose }: Props) {
       </select>
 
       {/* in-flow results list (no overlay; pushes content down) */}
-      <div className="rounded-lg border border-gray-200 bg-white max-h-52 overflow-auto">
+      <div className="rounded-lg border border-paper-2 bg-white max-h-52 overflow-auto">
         {results.length === 0 ? (
-          <p className="px-3 py-3 text-xs text-gray-400">Tidak ada bahan cocok.</p>
+          <p className="px-3 py-3 text-xs text-ink-700">Tidak ada bahan cocok.</p>
         ) : (
           results.map((i) => (
             <button
               key={i.id}
               type="button"
               onClick={() => { onPick(i); setQ('') }}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-gold-50 flex justify-between items-center border-b border-gray-50 last:border-0"
+              className="w-full text-left px-3 py-2 text-sm hover:bg-paper-1 flex justify-between items-center border-b border-paper-2 last:border-0"
             >
-              <span className="font-medium text-gray-800">{i.name}</span>
-              <span className="text-gray-400 text-xs">{[i.sku, i.unit].filter(Boolean).join(' · ')}</span>
+              <span className="font-medium text-ink-900">{i.name}</span>
+              <span className="text-ink-700 text-xs">{[i.sku, i.unit].filter(Boolean).join(' · ')}</span>
             </button>
           ))
         )}

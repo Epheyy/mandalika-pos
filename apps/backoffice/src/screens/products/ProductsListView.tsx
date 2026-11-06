@@ -2,12 +2,12 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import type { Category, Product } from '@mandalika/api'
 import { Plus } from 'lucide-react'
 import { api } from '../../api'
-import { ImportExportBar } from '../../components/ImportExportBar'
 import { exportToCSV } from '../../lib/csvUtils'
 import { PRODUCT_TEMPLATE_ROWS } from '../../lib/importTemplates'
 import { isUuidSegment } from '../../lib/router/tabs'
 import { Button } from '../../ui/Button'
 import { PageHeader } from '../../ui/PageHeader'
+import { ImportExportMenu } from '../../ui/ImportExportMenu'
 import { Pagination } from '../../ui/Pagination'
 import { useToast } from '../../ui/Toast'
 import { DeleteConfirmDialog } from './DeleteConfirmDialog'
@@ -98,7 +98,7 @@ export function ProductsListView({ categories, refetchCategories, tabs }: Produc
         actions={
           <>
             {tabs}
-            <ImportExportBar
+            <ImportExportMenu
               onExport={list.exportAll}
               exportDisabled={list.loaded && list.total === 0}
               filterSummary={list.filterSummary}

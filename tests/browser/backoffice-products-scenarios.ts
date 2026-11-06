@@ -2,6 +2,7 @@
 // layer, delete with the server's refusal, and the export of every matching row. Synthetic API, no real backend.
 import type { ScenarioPage } from './fixture'
 import { openBackoffice, navTo } from './fixture'
+import { BO_SHOT_VIEWPORTS, captureShot } from './shots'
 
 const BASE_ID = '00000000-0000-4000-8f6c-'
 const idOf = (n: number, kind = 'a') => `${BASE_ID}${kind}${String(n).padStart(11, '0')}`
@@ -107,6 +108,7 @@ async function listFiltersFlow(page: ScenarioPage, state: { calls: Call[] }, res
   // (a) the default state: one server page of 25, the total in the header, no filter parameters
   await page.locator('tbody tr').first().waitFor()
   await countHeader(page).waitFor()
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'b1-produk', BO_SHOT_VIEWPORTS)
   check((await countHeader(page).textContent()) === `${TOTAL} produk`, 'header count is the server total')
   check((await rowCount(page)) === 25, `25 rows on the first page, got ${await rowCount(page)}`)
   const first = lastList(state.calls)!
@@ -156,13 +158,13 @@ async function listFiltersFlow(page: ScenarioPage, state: { calls: Call[] }, res
 }
 
 async function exportFlow(page: ScenarioPage, state: { calls: Call[] }, results: object[]) {
-  const unduh = async (format: RegExp) => {
-    await page.getByRole('button', { name: 'Unduh', exact: true }).click()
-    await page.getByRole('button', { name: format }).click()
+  const unduh = async (format: string) => {
+    await page.getByRole('button', { name: 'Impor / Ekspor', exact: true }).click()
+    await page.getByRole('button', { name: format, exact: true }).click()
   }
   // every product, across two server pages of 200
   state.calls.length = 0
-  const all = await captureCsv(page, () => unduh(/CSV/))
+  const all = await captureCsv(page, () => unduh('Ekspor CSV'))
   check(all.length === TOTAL + 1, `unfiltered export has every product, got ${all.length - 1}`)
   const pages = state.calls.filter((c) => c.path === '/products' && c.query.limit === '200').map((c) => c.query.page)
   check(pages.join() === '1,2', `export walks two pages, got ${pages.join()}`)
@@ -170,7 +172,7 @@ async function exportFlow(page: ScenarioPage, state: { calls: Call[] }, results:
   await page.getByRole('button', { name: 'Aktif', exact: true }).click()
   await page.getByText('184 produk', { exact: true }).waitFor()
   state.calls.length = 0
-  const active = await captureCsv(page, () => unduh(/CSV/))
+  const active = await captureCsv(page, () => unduh('Ekspor CSV'))
   check(active.length === 185, `filtered export has 184 rows, got ${active.length - 1}`)
   check(state.calls.filter((c) => c.path === '/products' && c.query.limit === '200').every((c) => c.query.active === 'true'), 'export carries the same filter')
   await page.getByRole('button', { name: /^Atur ulang filter/ }).click()
@@ -187,6 +189,7 @@ async function editorFlow(page: ScenarioPage, state: { calls: Call[]; products: 
   // (a) the overlay is URL state: it opens from the row, survives a reload and loads the BASE product by id
   await page.getByRole('button', { name: `Ubah ${target.name}`, exact: true }).click()
   await dialog.waitFor()
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'b1-ubah-produk', BO_SHOT_VIEWPORTS)
   check((await hashQuery(page)).ubah === target.id, '?ubah= holds the product id')
   await page.reload()
   await dialog.waitFor()

@@ -17,17 +17,17 @@ interface CategoriesTableProps {
 
 export function CategoriesTable({ categories, counts, loading, error, onRetry, onEdit, onDelete }: CategoriesTableProps) {
   const columns: Column<Category>[] = [
-    { id: 'name', header: 'Nama', cell: (c) => <span className="font-bold text-gray-900">{c.name}</span> },
-    { id: 'description', header: 'Deskripsi', cell: (c) => <span className="text-sm text-gray-500">{c.description || '—'}</span> },
-    { id: 'count', header: 'Jumlah Produk', align: 'right', cell: (c) => <span className="text-sm font-bold text-gold-600">{counts[c.id] ?? '—'}</span> },
+    { id: 'name', header: 'Nama', cell: (c) => <span className="font-bold text-ink-900">{c.name}</span> },
+    { id: 'description', header: 'Deskripsi', cell: (c) => <span className="text-sm text-ink-700">{c.description || '—'}</span> },
+    { id: 'count', header: 'Jumlah Produk', align: 'right', cell: (c) => <span className="text-sm font-bold text-brand-strong">{counts[c.id] ?? '—'}</span> },
     {
       id: 'actions',
       header: 'Aksi',
       align: 'right',
       cell: (c) => (
         <div className="flex items-center justify-end gap-1">
-          <IconButton aria-label={`Ubah ${c.name}`} onClick={() => onEdit(c)}><Edit2 className="w-4 h-4" /></IconButton>
-          <IconButton tone="danger" aria-label={`Hapus ${c.name}`} onClick={() => onDelete(c)}><Trash2 className="w-4 h-4" /></IconButton>
+          <IconButton label={`Ubah ${c.name}`} onClick={() => onEdit(c)}><Edit2 className="w-4 h-4" /></IconButton>
+          <IconButton tone="danger" label={`Hapus ${c.name}`} onClick={() => onDelete(c)}><Trash2 className="w-4 h-4" /></IconButton>
         </div>
       ),
     },

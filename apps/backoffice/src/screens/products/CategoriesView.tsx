@@ -22,6 +22,9 @@ export function CategoriesView({ categories, loading, error, refetch, tabs }: Ca
   const manager = useCategoryManager(refetch)
   const counts = useCategoryCounts(categories)
 
+  // #28: the confirm names how many products use the category (unknown or zero says nothing).
+  const deletingCount = manager.deleting ? (counts[manager.deleting.id] ?? 0) : 0
+
   const exportCategories = () =>
     exportToCSV(
       categories.map((c) => ({ Nama: c.name, Deskripsi: c.description || '', Urutan: c.sortOrder || 0 })),
@@ -66,6 +69,7 @@ export function CategoriesView({ categories, loading, error, refetch, tabs }: Ca
       <DeleteConfirmDialog
         open={manager.deleting !== null}
         subject={manager.deleting ? `kategori "${manager.deleting.name}"` : 'kategori'}
+        detail={deletingCount ? `${deletingCount} produk akan tanpa kategori.` : undefined}
         error={manager.delErr}
         busy={manager.delBusy}
         onConfirm={() => void manager.confirmDelete()}

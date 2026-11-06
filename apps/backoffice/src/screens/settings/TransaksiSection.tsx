@@ -19,6 +19,9 @@ interface TransaksiSectionProps {
   changed: ReadonlySet<CardId>
 }
 
+// Method name | cash-drawer switch | enabled switch | delete: the header row and every method row share it.
+const PAY_GRID = 'grid grid-cols-[minmax(0,1fr)_6.5rem_3.5rem_2.25rem] items-center gap-2'
+
 /** Transaksi tab: Pajak & Pembulatan · Metode Pembayaran · Struk. */
 export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: TransaksiSectionProps) {
   const [payError, setPayError] = useState<string | null>(null)
@@ -29,11 +32,11 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
     <div className="max-w-2xl space-y-5">
       {/* Sub-section: Pajak & Pembulatan */}
       <SettingsCard changed={changed.has('tax')} className="p-6 space-y-5">
-        <h3 className="font-black text-gray-900">Pajak &amp; Pembulatan</h3>
-        <div className="flex items-center justify-between py-3 border-b border-gray-100">
+        <h3 className="font-black text-ink-900">Pajak &amp; Pembulatan</h3>
+        <div className="flex items-center justify-between py-3 border-b border-paper-2">
           <div>
-            <p className="font-bold text-gray-900">Aktifkan PPN</p>
-            <p className="text-xs text-gray-400">Pajak dihitung di kasir</p>
+            <p className="font-bold text-ink-900">Aktifkan PPN</p>
+            <p className="text-xs text-ink-700">Pajak dihitung di kasir</p>
           </div>
           <Switch label="Aktifkan pajak" checked={s.taxEnabled} onChange={() => setS((p) => ({ ...p, taxEnabled: !p.taxEnabled }))} />
         </div>
@@ -46,10 +49,10 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
             className="w-32"
           />
         )}
-        <div className="flex items-center justify-between py-3 border-b border-gray-100">
+        <div className="flex items-center justify-between py-3 border-b border-paper-2">
           <div>
-            <p className="font-bold text-gray-900">Pembulatan Harga</p>
-            <p className="text-xs text-gray-400">Membulatkan total transaksi</p>
+            <p className="font-bold text-ink-900">Pembulatan Harga</p>
+            <p className="text-xs text-ink-700">Membulatkan total transaksi</p>
           </div>
           <Switch label="Aktifkan pembulatan" checked={s.roundingEnabled} onChange={() => setS((p) => ({ ...p, roundingEnabled: !p.roundingEnabled }))} />
         </div>
@@ -79,42 +82,50 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
 
       {/* Sub-section: Metode Pembayaran */}
       <SettingsCard changed={changed.has('payments')} className="p-6 space-y-5">
-        <h3 className="font-black text-gray-900">Metode Pembayaran</h3>
+        <h3 className="font-black text-ink-900">Metode Pembayaran</h3>
         <div className="space-y-2">
+          {/* #18: the two switch columns are named once, here, instead of repeating the wording in every row. */}
+          <div className={`${PAY_GRID} px-3 text-[11px] font-bold text-ink-700`}>
+            <span>Metode</span>
+            <span className="text-center">Masuk laci kas</span>
+            <span className="text-center">Aktif</span>
+            <span />
+          </div>
           {s.paymentMethods.map((pm) => {
             // Always the RESOLVED value (id default when no explicit flag), never `?? false`.
             const isCash = isCashMethod(s.paymentMethods, pm.id)
             return (
-              <div key={pm.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                <span className="font-bold text-gray-900 text-sm">{pm.label}</span>
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                    Tunai (masuk laci kas)
-                    <Switch
-                      label={`Metode ${pm.label} masuk laci kas`}
-                      checked={isCash}
-                      size="sm"
-                      onChange={() => setS((p) => ({ ...p, paymentMethods: p.paymentMethods.map((x) => x.id === pm.id ? { ...x, isCash: !isCash } : x) }))}
-                    />
-                  </span>
+              <div key={pm.id} className={`${PAY_GRID} p-3 bg-paper-1 rounded-xl`}>
+                <span className="font-bold text-ink-900 text-sm">{pm.label}</span>
+                <span className="flex justify-center">
+                  <Switch
+                    label={`Metode ${pm.label} masuk laci kas`}
+                    checked={isCash}
+                    size="sm"
+                    onChange={() => setS((p) => ({ ...p, paymentMethods: p.paymentMethods.map((x) => x.id === pm.id ? { ...x, isCash: !isCash } : x) }))}
+                  />
+                </span>
+                <span className="flex justify-center">
                   <Switch
                     label={`Aktifkan metode ${pm.label}`}
                     checked={pm.isEnabled}
                     size="sm"
                     onChange={() => setS((p) => ({ ...p, paymentMethods: p.paymentMethods.map((x) => x.id === pm.id ? { ...x, isEnabled: !x.isEnabled } : x) }))}
                   />
-                  {!['cash', 'card', 'qris', 'transfer'].includes(pm.id) && !isCash && (
-                    <IconButton tone="danger" onClick={() => setS((p) => ({ ...p, paymentMethods: p.paymentMethods.filter((x) => x.id !== pm.id) }))}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </IconButton>
-                  )}
-                </div>
+                </span>
+                {!['cash', 'card', 'qris', 'transfer'].includes(pm.id) && !isCash ? (
+                  <IconButton tone="danger" label={`Hapus metode ${pm.label}`} onClick={() => setS((p) => ({ ...p, paymentMethods: p.paymentMethods.filter((x) => x.id !== pm.id) }))}>
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
+                  </IconButton>
+                ) : (
+                  <span aria-hidden="true" />
+                )}
               </div>
             )
           })}
         </div>
         {!s.paymentMethods.some((m) => m.isEnabled && isCashMethod(s.paymentMethods, m.id)) && (
-          <p className="text-xs font-bold text-amber-700 bg-amber-50 rounded-xl px-3 py-2">
+          <p className="text-xs font-bold text-warn-strong bg-warn-bg rounded-xl px-3 py-2">
             Belum ada metode pembayaran tunai yang aktif: kasir tidak bisa menerima uang tunai dan kembalian.
           </p>
         )}
@@ -125,10 +136,11 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
             onChange={(e) => setNewPay(e.target.value)}
             placeholder="Nama metode baru..."
             aria-label="Nama metode pembayaran baru"
-            className="flex-1 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-400 transition"
+            className="flex-1 px-3 py-2.5 bg-paper-1 border border-paper-2 rounded-xl text-sm text-ink-900 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-brand-strong/40 focus:border-brand-strong transition"
           />
           <Button
             icon={<Plus className="w-4 h-4" />}
+            aria-label="Tambah metode pembayaran"
             onClick={() => {
               if (!newPay.trim()) return
               const pid = newPay.toLowerCase().replace(/\s+/g, '_')
@@ -143,14 +155,14 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
             }}
           />
         </div>
-        {payError && <p role="alert" className="text-xs font-bold text-red-600">{payError}</p>}
+        {payError && <p role="alert" className="text-xs font-bold text-danger">{payError}</p>}
       </SettingsCard>
 
       <SplitTenderCard changed={changed.has('split')} enabled={!!s.splitTenderEnabled} onChange={(v) => setS((p) => ({ ...p, splitTenderEnabled: v }))} />
 
       {/* Sub-section: Struk */}
       <SettingsCard changed={changed.has('receipt')} className="p-6 space-y-5">
-        <h3 className="font-black text-gray-900">Pengaturan Struk</h3>
+        <h3 className="font-black text-ink-900">Pengaturan Struk</h3>
         <Input
           label="Jumlah Salinan"
           type="number"
@@ -160,8 +172,8 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
           onChange={(e) => setReceipt('copies', parseInt(e.target.value) || 1)}
           className="w-32"
         />
-        <div className="flex items-center justify-between py-2 border-b border-gray-100">
-          <p className="font-bold text-gray-900 text-sm">Cetak struk otomatis</p>
+        <div className="flex items-center justify-between py-2 border-b border-paper-2">
+          <p className="font-bold text-ink-900 text-sm">Cetak struk otomatis</p>
           <Switch label="Cetak struk otomatis" checked={!!s.receipt.autoPrint} size="sm" onChange={() => setReceipt('autoPrint', !s.receipt.autoPrint)} />
         </div>
         {([['headerText', 'Teks Header'], ['footerText', 'Teks Footer']] as const).map(([k, label]) => (
@@ -174,7 +186,7 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
           />
         ))}
         <Field label="Tampilan Struk">
-          <div className="border border-gray-100 rounded-xl overflow-hidden">
+          <div className="border border-paper-2 rounded-xl overflow-hidden">
             {([
               ['showOrderNumber', 'Nomor pesanan'],
               ['showCashier', 'Dicetak oleh'],
@@ -185,8 +197,8 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
               ['showSubtotal', 'Tampilkan Subtotal'],
               ['showChange', 'Tampilkan Kembalian'],
             ] as const).map(([k, label]) => (
-              <div key={k} className="flex items-center justify-between px-4 py-3 border-b border-gray-50 last:border-0">
-                <p className="font-bold text-gray-900 text-sm">{label}</p>
+              <div key={k} className="flex items-center justify-between px-4 py-3 border-b border-paper-2 last:border-0">
+                <p className="font-bold text-ink-900 text-sm">{label}</p>
                 <Switch label={label} checked={!!s.receipt[k]} size="sm" onChange={() => setReceipt(k, !s.receipt[k])} />
               </div>
             ))}

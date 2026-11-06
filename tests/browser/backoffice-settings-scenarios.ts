@@ -1,6 +1,7 @@
 // Pengaturan save bar, leave guard and merge-on-save (D1-P). Synthetic API, no real backend.
 import type { ScenarioPage } from './fixture'
 import { openBackoffice, navTo, openTab, navItem } from './fixture'
+import { BO_SHOT_VIEWPORTS, captureShot } from './shots'
 
 const OUTLET = '00000000-0000-4000-8f6a-0000000000a1'
 const user = { id: 'synthetic-admin', displayName: 'MV Admin', role: 'admin', outletId: null, permissions: [] }
@@ -58,8 +59,10 @@ export const settingsGuardFlow = async (page: ScenarioPage) => {
   await page.getByText('1 perubahan belum disimpan').waitFor()
   check((await page.locator('[data-dirty="true"]').count()) >= 1, 'tab dot shown')
   check((await page.locator('[data-changed="true"]').count()) >= 1, 'card cue shown')
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'b1-pengaturan', BO_SHOT_VIEWPORTS)
   await navTo(page, 'dashboard')
   await page.getByRole('heading', { name: 'Simpan perubahan Pengaturan?' }).waitFor()
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'b1-keluar-pengaturan', BO_SHOT_VIEWPORTS)
   await page.getByRole('button', { name: 'Tetap di sini', exact: true }).click()
   check((await page.getByRole('switch', { name: 'Cetak struk otomatis', exact: true }).getAttribute('aria-checked')) === 'true', 'stay keeps the edit')
   await page.getByText('1 perubahan belum disimpan').waitFor()

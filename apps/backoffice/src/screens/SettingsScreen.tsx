@@ -3,6 +3,7 @@ import { Upload, X } from 'lucide-react'
 import { uploadImage, getThumbnailUrl } from '../lib/uploadImage'
 import { useUnsavedChanges } from '../lib/useUnsavedChanges'
 import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 import { Input, Field, Textarea } from '../ui/Field'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { PageHeader } from '../ui/PageHeader'
@@ -15,7 +16,7 @@ import { SettingsCard } from './settings/SettingsCard'
 import { TransaksiSection } from './settings/TransaksiSection'
 import { Switch } from '../ui/Switch'
 import { SAVED_MESSAGE, useSettingsDraft } from './settings/useSettingsDraft'
-import type { TabId } from './settings/settingsDiff'
+import { CARD_TAB, type TabId } from './settings/settingsDiff'
 
 // Moves inside Pengaturan (its own tabs) are not a leave: the draft survives them, so the guard only asks for moves out.
 const SETTINGS_SCOPE = [routeById('settings')?.path ?? 'pengaturan'] as const
@@ -31,6 +32,10 @@ export default function SettingsScreen() {
   const [leaveAsk, setLeaveAsk] = useState<((leave: boolean) => void) | null>(null)
   const changed = markers.cards
   const approverRoles = s.receiveApproverRoles ?? []
+
+  // #15: the leave question names the sections that hold changes (from the same `changes` the save bar counts).
+  const changedSections = sections.filter((t) => changes.some((c) => CARD_TAB[c.card] === t.id)).map((t) => t.label)
+  const leaveDetail = changedSections.length > 0 ? ` Di: ${changedSections.join(', ')}.` : ''
 
   const askLeave = useCallback(() => new Promise<boolean>((resolveLeave) => setLeaveAsk(() => resolveLeave)), [])
   useUnsavedChanges(changes.length > 0, askLeave, SETTINGS_SCOPE)
@@ -69,9 +74,9 @@ export default function SettingsScreen() {
       <div className="p-6 space-y-5">
         <PageHeader title="Pengaturan" subtitle="Konfigurasi sistem POS" />
         {loadError ? (
-          <p role="alert" className="text-sm font-bold text-red-600">Gagal memuat pengaturan: {loadError}. Mencoba lagi otomatis.</p>
+          <p role="alert" className="text-sm font-bold text-danger">Gagal memuat pengaturan: {loadError}. Mencoba lagi otomatis.</p>
         ) : (
-          <p className="text-sm text-gray-400">Memuat pengaturan…</p>
+          <p className="text-sm text-ink-700">Memuat pengaturan…</p>
         )}
       </div>
     )
@@ -81,18 +86,18 @@ export default function SettingsScreen() {
     <div className="p-6 space-y-5">
       <PageHeader title="Pengaturan" subtitle="Konfigurasi sistem POS" />
 
-      <Tabs value={section} onChange={setSection} tabs={sections.map((t) => ({ ...t, dirty: markers.tabs.has(t.id) }))} />
+      <Tabs value={section} onChange={setSection} label="Bagian Pengaturan" tabs={sections.map((t) => ({ ...t, dirty: markers.tabs.has(t.id) }))} />
 
       {/* ── Outlet & Gudang ── */}
       {section === 'locations' && (
         <>
           <LocationsSection />
           <SettingsCard changed={changed.has('stock')} className="p-6 max-w-2xl space-y-5">
-            <h3 className="font-black text-gray-900">Pengaturan Stok</h3>
+            <h3 className="font-black text-ink-900">Pengaturan Stok</h3>
             <div className="flex items-center justify-between py-3">
               <div>
-                <p className="font-bold text-gray-900">Izinkan Stok Minus</p>
-                <p className="text-xs text-gray-400">Jika nonaktif, kasir diberi peringatan saat menjual melebihi stok (masih bisa dilanjutkan).</p>
+                <p className="font-bold text-ink-900">Izinkan Stok Minus</p>
+                <p className="text-xs text-ink-700">Jika nonaktif, kasir diberi peringatan saat menjual melebihi stok (masih bisa dilanjutkan).</p>
               </div>
               <Switch label="Izinkan stok minus" checked={s.allowNegativeStock} onChange={() => setS((p) => ({ ...p, allowNegativeStock: !p.allowNegativeStock }))} />
             </div>
@@ -110,11 +115,11 @@ export default function SettingsScreen() {
         <div className="max-w-2xl space-y-5">
           {/* Sub-section: Shift */}
           <SettingsCard changed={changed.has('shift')} className="p-6 space-y-5">
-            <h3 className="font-black text-gray-900">Pengaturan Shift</h3>
+            <h3 className="font-black text-ink-900">Pengaturan Shift</h3>
             <div className="flex items-center justify-between py-3">
               <div>
-                <p className="font-bold text-gray-900">Buka Shift Otomatis</p>
-                <p className="text-xs text-gray-400">Shift dibuka otomatis saat kasir login</p>
+                <p className="font-bold text-ink-900">Buka Shift Otomatis</p>
+                <p className="text-xs text-ink-700">Shift dibuka otomatis saat kasir login</p>
               </div>
               <Switch label="Buka shift otomatis" checked={s.autoOpenShift} onChange={() => setS((p) => ({ ...p, autoOpenShift: !p.autoOpenShift }))} />
             </div>
@@ -122,11 +127,11 @@ export default function SettingsScreen() {
 
           {/* Sub-section: Persetujuan Stok */}
           <SettingsCard changed={changed.has('approval')} className="p-6 space-y-5">
-            <h3 className="font-black text-gray-900">Persetujuan Stok</h3>
+            <h3 className="font-black text-ink-900">Persetujuan Stok</h3>
             <div className="flex items-center justify-between py-3">
               <div>
-                <p className="font-bold text-gray-900">Wajib persetujuan stok</p>
-                <p className="text-xs text-gray-400">Koreksi stok dan opname harus disetujui peran penyetuju (di bawah) dengan PIN, penyetuju bukan pengaju (four-eyes).</p>
+                <p className="font-bold text-ink-900">Wajib persetujuan stok</p>
+                <p className="text-xs text-ink-700">Koreksi stok dan opname harus disetujui peran penyetuju (di bawah) dengan PIN, penyetuju bukan pengaju (four-eyes).</p>
               </div>
               <Switch label="Wajib persetujuan stok" checked={s.inventoryApprovalRequired ?? false} onChange={() => setS((p) => ({ ...p, inventoryApprovalRequired: !p.inventoryApprovalRequired }))} />
             </div>
@@ -134,21 +139,21 @@ export default function SettingsScreen() {
 
           {/* Sub-section: Persetujuan Transfer */}
           <SettingsCard changed={changed.has('transfer')} className="p-6 space-y-5">
-            <h3 className="font-black text-gray-900">Persetujuan Penerimaan Transfer</h3>
-            <p className="text-xs text-gray-400">Admin selalu boleh; pilih peran lain yang boleh menyetujui penerimaan di POS.</p>
-            <div className="border border-gray-100 rounded-xl overflow-hidden mt-2">
+            <h3 className="font-black text-ink-900">Persetujuan Penerimaan Transfer</h3>
+            <p className="text-xs text-ink-700">Admin selalu boleh; pilih peran lain yang boleh menyetujui penerimaan di POS.</p>
+            <div className="border border-paper-2 rounded-xl overflow-hidden mt-2">
               {/* Admin row — always-on, non-interactive */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-50 opacity-60">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-paper-2 opacity-60">
                 <div>
-                  <p className="font-bold text-gray-900 text-sm capitalize">Admin</p>
-                  <p className="text-xs text-gray-400">Admin selalu dapat menyetujui.</p>
+                  <p className="font-bold text-ink-900 text-sm capitalize">Admin</p>
+                  <p className="text-xs text-ink-700">Admin selalu dapat menyetujui.</p>
                 </div>
                 <Switch label="Admin selalu dapat menyetujui" checked disabled size="sm" onChange={() => {}} />
               </div>
               {/* Manager & cashier — real interactive toggles */}
               {(['manager', 'cashier'] as const).map((role) => (
-                <div key={role} className="flex items-center justify-between px-4 py-3 border-b border-gray-50 last:border-0">
-                  <p className="font-bold text-gray-900 text-sm capitalize">{role}</p>
+                <div key={role} className="flex items-center justify-between px-4 py-3 border-b border-paper-2 last:border-0">
+                  <p className="font-bold text-ink-900 text-sm capitalize">{role}</p>
                   <Switch
                     label={`Jadikan ${role} sebagai approver`}
                     checked={approverRoles.includes(role)}
@@ -165,8 +170,8 @@ export default function SettingsScreen() {
 
           {/* Sub-section: Dokumen */}
           <SettingsCard changed={changed.has('docs')} className="p-6 space-y-5">
-            <h3 className="font-black text-gray-900">Dokumen Pengiriman</h3>
-            <p className="text-xs text-gray-400">
+            <h3 className="font-black text-ink-900">Dokumen Pengiriman</h3>
+            <p className="text-xs text-ink-700">
               Identitas merek yang muncul di surat jalan dan tanda terima. Bisa ditimpa per gudang/outlet (di halaman masing-masing).
             </p>
 
@@ -178,30 +183,29 @@ export default function SettingsScreen() {
               onChange={(e) => setDoc('brandName', e.target.value || undefined)}
               placeholder="mis. Mandalika Perfume"
             />
-            <p className="text-xs text-gray-400 -mt-3">Muncul di kepala surat jalan &amp; tanda terima.</p>
+            <p className="text-xs text-ink-700 -mt-3">Muncul di kepala surat jalan &amp; tanda terima.</p>
 
             {/* Logo upload */}
             <Field label="Logo">
               <div className="flex items-center gap-3">
                 {s.documents?.logoUrl ? (
-                  <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+                  <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-paper-2 bg-paper-1 flex-shrink-0">
                     <img
                       src={getThumbnailUrl(s.documents.logoUrl, 160, 160)}
                       alt="Logo"
                       className="w-full h-full object-contain"
                     />
-                    <button
-                      type="button"
+                    <IconButton
+                      label="Hapus logo"
                       onClick={() => setDoc('logoUrl', undefined)}
-                      aria-label="Hapus logo"
-                      className="absolute top-1 right-1 bg-white rounded-full p-0.5 shadow hover:bg-red-50 transition"
+                      className="absolute right-0.5 top-0.5 bg-white/90 shadow-sm"
                     >
-                      <X className="w-3 h-3 text-gray-500" />
-                    </button>
+                      <X className="w-4 h-4" aria-hidden="true" />
+                    </IconButton>
                   </div>
                 ) : (
-                  <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center flex-shrink-0">
-                    <Upload className="w-6 h-6 text-gray-300" />
+                  <div className="w-20 h-20 rounded-xl border-2 border-dashed border-paper-2 bg-paper-1 flex items-center justify-center flex-shrink-0">
+                    <Upload className="w-6 h-6 text-ink-500" />
                   </div>
                 )}
                 <div className="space-y-1">
@@ -211,7 +215,7 @@ export default function SettingsScreen() {
                   >
                     {logoUploading ? 'Mengupload...' : 'Pilih Gambar'}
                   </Button>
-                  <p className="text-xs text-gray-400">PNG/JPG, maks 5 MB. Disarankan ukuran persegi.</p>
+                  <p className="text-xs text-ink-700">PNG/JPG, maks 5 MB. Disarankan ukuran persegi.</p>
                 </div>
               </div>
               <input
@@ -232,7 +236,7 @@ export default function SettingsScreen() {
               onChange={(e) => setDoc('addressLines', e.target.value || undefined)}
               placeholder="Jl. Contoh No. 1&#10;Kota, Provinsi&#10;Kode Pos"
             />
-            <p className="text-xs text-gray-400 -mt-3">Pisahkan setiap baris dengan Enter.</p>
+            <p className="text-xs text-ink-700 -mt-3">Pisahkan setiap baris dengan Enter.</p>
 
             {/* Phone */}
             <Input
@@ -258,14 +262,14 @@ export default function SettingsScreen() {
       {/* ── Resep & Bahan ── */}
       {section === 'recipe' && (
         <SettingsCard changed={changed.has('recipe')} className="p-6 max-w-2xl space-y-5">
-          <h3 className="font-black text-gray-900">Resep &amp; Bahan</h3>
-          <p className="text-xs text-gray-400">
+          <h3 className="font-black text-ink-900">Resep &amp; Bahan</h3>
+          <p className="text-xs text-ink-700">
             Aktifkan modul Resep &amp; Bahan untuk melacak bahan baku per gudang dan formula per
             produk. Saat dinonaktifkan, tab Bahan tidak akan muncul di layar Gudang.
           </p>
-          <div className="flex items-center justify-between py-3 border-b border-gray-100">
+          <div className="flex items-center justify-between py-3 border-b border-paper-2">
             <div>
-              <p className="font-bold text-gray-900">Aktifkan modul Resep &amp; Bahan</p>
+              <p className="font-bold text-ink-900">Aktifkan modul Resep &amp; Bahan</p>
             </div>
             <Switch
               label="Aktifkan modul Resep & Bahan"
@@ -287,8 +291,8 @@ export default function SettingsScreen() {
           conflicts.length > 0 && (
             <div className="mb-3 space-y-2">
               {conflicts.map((c) => (
-                <div key={c.path} role="alert" className="flex items-center gap-3 text-sm bg-amber-50 rounded-xl px-3 py-2">
-                  <p className="flex-1 font-bold text-amber-800">{c.label} baru diubah orang lain (sekarang {c.theirs}). Punya Anda: {c.mine}.</p>
+                <div key={c.path} role="alert" className="flex items-center gap-3 text-sm bg-warn-bg rounded-xl px-3 py-2">
+                  <p className="flex-1 font-bold text-warn-strong">{c.label} baru diubah orang lain (sekarang {c.theirs}). Punya Anda: {c.mine}.</p>
                   <Button size="sm" variant="secondary" onClick={() => resolve(c.path, 'mine')}>Pakai punya saya</Button>
                   <Button size="sm" variant="secondary" onClick={() => resolve(c.path, 'theirs')}>Pakai yang baru</Button>
                 </div>
@@ -301,7 +305,7 @@ export default function SettingsScreen() {
       <ConfirmDialog
         open={leaveAsk !== null}
         title="Simpan perubahan Pengaturan?"
-        consequence={`Ada ${changes.length} perubahan yang belum disimpan.`}
+        consequence={`Ada ${changes.length} perubahan yang belum disimpan.${leaveDetail}`}
         confirmLabel="Simpan & lanjut"
         cancelLabel="Tetap di sini"
         extra={{ label: 'Buang perubahan', tone: 'danger', onClick: discardAndLeave }}

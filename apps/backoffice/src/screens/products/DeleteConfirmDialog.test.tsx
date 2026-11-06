@@ -15,6 +15,11 @@ describe('DeleteConfirmDialog', () => {
     expect(html).toContain('Data tidak dapat dikembalikan.')
   })
 
+  it('puts the optional detail before the standing warning', () => {
+    const html = renderToStaticMarkup(<DeleteConfirmDialog open subject='kategori "Parfum"' detail="3 produk akan tanpa kategori." onConfirm={noop} onCancel={noop} />)
+    expect(html).toContain('3 produk akan tanpa kategori. Data tidak dapat dikembalikan.')
+  })
+
   it('shows the refusal reason as an alert', () => {
     const reason = 'produk punya riwayat stok (penerimaan, penyesuaian atau transfer) sehingga tidak bisa dihapus; nonaktifkan produk saja (matikan Produk Aktif)'
     const html = renderToStaticMarkup(<DeleteConfirmDialog open subject="produk" onConfirm={noop} onCancel={noop} error={reason} />)
