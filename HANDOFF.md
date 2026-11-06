@@ -4,9 +4,11 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-06 by Claude (Opus 5.5) - Kaca wave 4: P6b + P7 + B4a + K2b merged (K2b df95555f, BO glass shell live via Cloudflare); P6a waits for the A9 probe APK; see Progress board.
+Last updated: 2026-11-06 by Claude (Opus 5.5) - POS OTA 2.9.0 LIVE (Kaca P6b Bayar + P7 discount sheets, from 3224e0ac); A9 probe APK building; see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
+
+> 2026-11-06: **POS OTA 2.9.0 LIVE** (owner: "publish the next POS update with P6b and P7"). Published from the gated merge `3224e0ac` (P6b + P7 + B4a; B4a is BO-only; K2b's shared `materials.css` change deliberately NOT included, it rides the P6a OTA): id `65fa31b2`, versionCode 12, 291476 B, sha256 `b7d30b8c...` matches the download; journal guard: no guarded file changed since 2.8.0 (`7e713e6f`). `/api/v1/ota/check`: 2.7.0 and 2.8.0 -> 2.9.0, 2.9.0 -> up-to-date, code 11 -> no release. New on tablets: Bayar sheet (one close, Kembalian in the sticky bar, cash typed as Rp 350.000, empty = exact cash) and the restyled promo/discount sheets. A9 probe APK: first build blocked by the APK workflow's CI gates (probe had replaced main.tsx); fixed on `probe/a9-glass` `14812a44` with a build-only index.html entry swap, re-building.
 
 > 2026-11-06: **Kaca K2b (backoffice glass shell + ambient) MERGED** as #92 `df95555f` (owner: "merge wave 4 when green"). Fix for the held BO-KIT-SHELL failure: a sticky `th` measures inside `<main>`'s padding box, which already has the 64 px top padding, so `top-(--bo-topbar-h)` put it at 128 px; the session fixed the offset (PR head `32a9d4a6`). Gate `gate/w4-k2b` 5/5 green + PR 7/7 green. Backoffice now: `<main>` scrolls under a blurred glass top bar, ambient ON per brand (D-86/D-87 owner note), solid fallback on `prefers-reduced-transparency`. Cloudflare builds the `[skip actions]` docs commit. Wave 4 now: P6b, P7, B4a, K2b merged; **P6a** waits for the A9 probe (probe APK building from `probe/a9-glass` `244d9bd6`, never merged).
 
