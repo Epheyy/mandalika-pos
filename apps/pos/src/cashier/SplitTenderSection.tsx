@@ -8,7 +8,8 @@ import { Chip } from '../components/ui/Chip'
 import { Button } from '../components/ui/Button'
 import { Sheet } from '../components/ui/Sheet'
 import { formatRupiah } from './pricing'
-import { allocateTenders, cashPredicate, isCovered, MAX_REFERENCE_LEN, MAX_TENDER_LINES, remainingDue, splitBlockReason, type TenderLine } from './tenderSplit'
+import { formatCashInput, nextCashInput, pastedCashInput } from './cashInput'
+import { cashPredicate, isCovered, MAX_REFERENCE_LEN, MAX_TENDER_LINES, remainingDue, splitBlockReason, type TenderLine } from './tenderSplit'
 
 type PaymentMethodConfig = components['schemas']['AppSettings']['paymentMethods'][number]
 
@@ -56,8 +57,6 @@ export function SplitTenderSection(p: SplitTenderSectionProps) {
   const canAdd = !covered && !full && !p.disabled && entered >= 1
   const block = p.lines.length > 0 ? splitBlockReason(p.due, p.lines, isCash, labelOf) : null
   const overCharged = block !== null && block.startsWith('Total berubah')
-  const settled = covered ? allocateTenders(p.due, p.lines, isCash, 'batch') : null
-  const change = settled?.ok ? settled.settlement.change : 0
 
   const add = () => {
     if (!canAdd) return
@@ -102,11 +101,16 @@ export function SplitTenderSection(p: SplitTenderSectionProps) {
           <div className="flex gap-2">
             <input
               id="split-amount"
-              type="number"
+              type="text"
               inputMode="numeric"
-              value={p.amountInput}
-              onChange={(e) => p.onAmountChange(e.target.value)}
-              placeholder={String(sisa)}
+              autoComplete="off"
+              value={formatCashInput(p.amountInput)}
+              onChange={(e) => p.onAmountChange(nextCashInput(p.amountInput, e.target.value))}
+              onPaste={(e) => {
+                e.preventDefault()
+                p.onAmountChange(pastedCashInput(p.amountInput, e.clipboardData.getData('text')))
+              }}
+              placeholder={formatRupiah(sisa)}
               aria-label="Jumlah pembayaran ini"
               className="flex-1 min-w-0 h-16 border-2 border-ink-700 rounded-control px-4 text-[2rem] font-bold tnum text-ink-900 focus:outline-none"
             />
@@ -120,8 +124,8 @@ export function SplitTenderSection(p: SplitTenderSectionProps) {
             <>
               <div className="flex gap-2 flex-wrap mt-2">
                 {quickCashAmounts(sisa).map((amt, i) => (
-                  <Chip key={amt} selected={typed === amt || (i === 0 && typed === null)} tone="info" onClick={() => p.onAmountChange(String(amt))}>
-                    {i === 0 ? 'Uang Pas' : formatRupiah(amt)}
+                  <Chip key={amt} selected={typed === amt || (i === 0 && typed === null)} onClick={() => p.onAmountChange(String(amt))}>
+                    {i === 0 ? 'Uang pas' : formatRupiah(amt)}
                   </Chip>
                 ))}
               </div>
@@ -195,12 +199,6 @@ export function SplitTenderSection(p: SplitTenderSectionProps) {
           <span className="text-[1.75rem] font-bold tnum text-warn">{formatRupiah(sisa)}</span>
         )}
       </div>
-      {change > 0 && (
-        <div className="flex items-baseline justify-between">
-          <span className="text-sm text-ink-700">Kembalian</span>
-          <span className="text-[1.75rem] font-bold tnum text-ok">{formatRupiah(change)}</span>
-        </div>
-      )}
       {overCharged && block && (
         <p role="alert" className="text-xs font-semibold text-danger bg-danger-bg rounded-control px-3 py-2">{block}</p>
       )}

@@ -1,6 +1,6 @@
 // C6b split payment: rendered POS flows against the synthetic API. Methods in the fixture are cash (Tunai) and qris (QRIS).
 import type { ScenarioPage } from './fixture'
-import { POS_SHOT_VIEWPORTS, captureShot } from './shots'
+import { BAYAR_SHOT_VIEWPORTS, POS_SHOT_VIEWPORTS, captureShot } from './shots'
 
 const OUTLET = '00000000-0000-4000-8300-000000000090'
 const DRAFT_KEY = `mandalika.pos.splitDraft.${OUTLET}`
@@ -31,6 +31,7 @@ const paySplit = async (page: ScenarioPage) => {
   await page.getByRole('button', { name: '+ Tambah pembayaran', exact: true }).click()
   await page.getByText('Lunas', { exact: true }).waitFor()
   assert((await page.locator('body').innerText()).includes('Kembalian'), 'Kembalian shows once the cash line covers the bill')
+  await captureShot(page, 'p6b-bayar-split', BAYAR_SHOT_VIEWPORTS)
 }
 
 // POS-SPLIT-TENDER
