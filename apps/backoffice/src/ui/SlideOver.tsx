@@ -59,7 +59,7 @@ function SlideOverBody({
 
   return (
     <div className="fixed inset-0 flex justify-end" style={{ zIndex: OVERLAY_Z.slideOver }}>
-      <div aria-hidden="true" className="absolute inset-0 bg-black/30" onClick={requestClose} />
+      <div aria-hidden="true" className="absolute inset-0 bg-ink-900/30" onClick={requestClose} />
       <div
         ref={panel}
         role="dialog"
@@ -67,14 +67,14 @@ function SlideOverBody({
         aria-labelledby={titleId}
         tabIndex={-1}
         style={{ maxWidth: WIDTH_PX[width] }}
-        className="relative flex h-full w-full flex-col bg-white shadow-2xl"
+        className="surface-solid relative flex h-full w-full flex-col rounded-l-3xl"
         onChangeCapture={() => {
           touched.current = true
         }}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-6 py-4">
+        <div className="flex items-start justify-between gap-3 border-b border-paper-2 px-6 py-4">
           <div className="min-w-0">
-            <h2 id={titleId} className="text-xl font-black text-gray-900">
+            <h2 id={titleId} className="text-xl font-black text-ink-900">
               {title}
             </h2>
             {subtitle && <div className="text-sm text-ink-700">{subtitle}</div>}
@@ -105,7 +105,7 @@ function SlideOverBody({
         )}
 
         <div className="flex-1 overflow-y-auto p-6">{children}</div>
-        {footer && <div className="sticky bottom-0 border-t border-gray-100 bg-white px-6 py-4">{footer}</div>}
+        {footer && <div className="sticky bottom-0 border-t border-paper-2 bg-(--surface-solid-bg) px-6 py-4">{footer}</div>}
       </div>
 
       <ConfirmDialog

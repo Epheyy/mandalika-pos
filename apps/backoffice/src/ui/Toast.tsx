@@ -12,7 +12,8 @@ export interface ToastInput {
 type Push = (t: ToastInput) => void
 
 const DEFAULT_DURATION_MS = 5000
-const TONE = { ok: 'border-ok text-ok', info: 'border-info text-info', warn: 'border-warn text-warn-strong' } as const
+// Solid ink-900 with white text for every tone; the tone is the left stripe (plan 2.8).
+const TONE = { ok: 'border-ok', info: 'border-info', warn: 'border-warn' } as const
 
 const ignore: Push = () => {}
 const ToastCtx = createContext<Push>(ignore)
@@ -46,7 +47,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <div
         role="status"
         aria-live="polite"
-        className="fixed bottom-4 right-4 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2"
+        className="fixed bottom-4 left-1/2 flex w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2"
         style={{ zIndex: OVERLAY_Z.toast }}
       >
         {items.map((t) => (
@@ -78,7 +79,7 @@ function ToastItem({ toast, onDismiss }: { toast: Live; onDismiss: () => void })
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
-      className={cn('flex items-center gap-3 rounded-xl border-l-4 bg-white px-4 py-3 text-sm font-bold shadow-lg', TONE[toast.tone ?? 'info'])}
+      className={cn('flex items-center gap-3 rounded-xl border-l-4 bg-ink-900 px-4 py-3 text-sm font-bold text-on-brand shadow-lg', TONE[toast.tone ?? 'info'])}
     >
       <span className="flex-1">{toast.message}</span>
       {toast.action && (

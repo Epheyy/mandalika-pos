@@ -98,7 +98,7 @@ function ConfirmBody({
 
   return (
     <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: OVERLAY_Z.confirm }}>
-      <div aria-hidden="true" className="absolute inset-0 bg-black/40" onClick={cancel} />
+      <div aria-hidden="true" className="absolute inset-0 bg-ink-900/40" onClick={cancel} />
       <div
         ref={panel}
         role="alertdialog"
@@ -106,9 +106,9 @@ function ConfirmBody({
         aria-labelledby={titleId}
         aria-describedby={descId}
         tabIndex={-1}
-        className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl"
+        className="surface-solid relative w-full max-w-sm rounded-3xl p-6"
       >
-        <h2 id={titleId} className="text-lg font-black text-gray-900">
+        <h2 id={titleId} className="text-lg font-black text-ink-900">
           {title}
         </h2>
         <div id={descId} className="mt-1 text-sm text-ink-700">
@@ -166,7 +166,7 @@ function ConfirmBody({
             type="button"
             disabled={busy}
             onClick={cancel}
-            className={cn(BUTTON, 'border border-gray-200 bg-white text-ink-700 hover:bg-paper-1')}
+            className={cn(BUTTON, 'border border-paper-2 bg-white text-ink-700 hover:bg-paper-1')}
           >
             {cancelLabel}
           </button>

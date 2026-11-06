@@ -14,16 +14,16 @@ interface FilterBarProps {
 }
 
 const CONTROL =
-  'rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none ' +
+  'h-10 rounded-xl border border-paper-2 bg-white px-3 text-[13px] text-ink-900 focus:outline-none ' +
   'focus:ring-2 focus:ring-brand-strong'
 const CHIP =
-  'rounded-full border px-3 py-1.5 text-xs font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong'
+  'h-10 rounded-full border px-4 text-[13px] font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong'
 
 /** Layout shell for a list's filters. Values live in the screen (useListState); parts are static members. */
 export function FilterBar({ children, actions, onReset, activeCount }: FilterBarProps) {
   const showReset = !!onReset && (activeCount === undefined || activeCount > 0)
   return (
-    <div role="search" aria-label="Filter daftar" className="flex flex-wrap items-end gap-3">
+    <div role="search" aria-label="Filter daftar" className="flex flex-wrap items-center gap-3">
       {children}
       {(actions || showReset) && (
         <div className="ml-auto flex items-center gap-2">
@@ -142,21 +142,21 @@ interface DateRangeProps {
 function DateRange({ from, to, onChange, presets }: DateRangeProps) {
   const uid = useId()
   return (
-    <div className="flex flex-wrap items-end gap-2">
-      <div>
-        <label htmlFor={`${uid}-from`} className="mb-1 block text-xs font-bold text-ink-700">
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-1.5">
+        <label htmlFor={`${uid}-from`} className="text-[13px] font-bold text-ink-700">
           Dari
         </label>
         <input id={`${uid}-from`} type="date" value={from} max={to || undefined} onChange={(e) => onChange({ from: e.target.value, to })} className={CONTROL} />
       </div>
-      <div>
-        <label htmlFor={`${uid}-to`} className="mb-1 block text-xs font-bold text-ink-700">
+      <div className="flex items-center gap-1.5">
+        <label htmlFor={`${uid}-to`} className="text-[13px] font-bold text-ink-700">
           Sampai
         </label>
         <input id={`${uid}-to`} type="date" value={to} min={from || undefined} onChange={(e) => onChange({ from, to: e.target.value })} className={CONTROL} />
       </div>
       {presets?.map((p) => (
-        <button key={p} type="button" onClick={() => onChange(presetRange(p))} className={cn(CHIP, 'border-gray-200 bg-white text-ink-700 hover:bg-paper-1')}>
+        <button key={p} type="button" onClick={() => onChange(presetRange(p))} className={cn(CHIP, 'border-paper-2 bg-white text-ink-700 hover:bg-paper-1')}>
           {PRESET_LABEL[p]}
         </button>
       ))}
@@ -193,7 +193,7 @@ function Chips(props: ChipsProps) {
           onClick={() => pick(it.id)}
           className={cn(
             CHIP,
-            selected(it.id) ? 'border-brand-strong bg-brand-strong text-on-brand' : 'border-gray-200 bg-white text-ink-700 hover:bg-paper-1',
+            selected(it.id) ? 'border-brand-strong bg-brand-strong text-on-brand' : 'border-paper-2 bg-white text-ink-700 hover:bg-paper-1',
           )}
         >
           {it.label}
@@ -217,15 +217,26 @@ interface SelectProps {
   disabled?: boolean
 }
 
-/** A native <select> with a visible label (scenarios pick by option[value]). */
+/** A native <select> with an inline prefix ("Kategori: Semua"). The accessible name is the label via aria-label,
+ *  so no label sits stacked above the control (plan 2.3). */
 function SelectField({ label, value, onChange, options, disabled }: SelectProps) {
-  const uid = useId()
   return (
-    <div>
-      <label htmlFor={uid} className="mb-1 block text-xs font-bold text-ink-700">
-        {label}
-      </label>
-      <select id={uid} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} className={CONTROL}>
+    <div
+      className={cn(
+        'flex h-10 items-center gap-1.5 rounded-xl border border-paper-2 bg-white pl-3 pr-1 text-[13px] focus-within:ring-2 focus-within:ring-brand-strong',
+        disabled && 'opacity-60',
+      )}
+    >
+      <span aria-hidden="true" className="flex-shrink-0 text-ink-500">
+        {label}:
+      </span>
+      <select
+        aria-label={label}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-full min-w-0 flex-1 bg-transparent pr-1 font-bold text-ink-900 focus:outline-none"
+      >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}

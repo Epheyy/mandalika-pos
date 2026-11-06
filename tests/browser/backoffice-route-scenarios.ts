@@ -64,7 +64,7 @@ async function mockApi(page: ScenarioPage, opts: MockOptions = {}) {
 const hashOf = (page: ScenarioPage) => page.evaluate(() => location.hash)
 const historyOf = (page: ScenarioPage) =>
   page.evaluate(() => ({ len: history.length, idx: (history.state as { idx?: number } | null)?.idx ?? null }))
-const pressed = async (page: ScenarioPage, tabKey: string) => (await tabItem(page, tabKey).getAttribute('aria-pressed')) === 'true'
+const pressed = async (page: ScenarioPage, tabKey: string) => (await tabItem(page, tabKey).getAttribute('aria-selected')) === 'true'
 /** The breadcrumb's last item: the screen, or its tab when the screen has tabs. */
 const crumb = (page: ScenarioPage) => page.locator('nav[aria-label="Posisi halaman"] [aria-current="page"]')
 
@@ -117,7 +117,7 @@ export const routeDeepLinkFlow = async (page: ScenarioPage) => {
   check(await pressed(page, 'stok'), 'before the setting loads the first tab shows')
   check((await hashOf(page)) === '#/inventori/bahan', 'the URL is not rewritten meanwhile')
   await tabItem(page, 'bahan').waitFor()
-  await page.waitForFunction(() => document.querySelector('[data-tab-key="bahan"]')?.getAttribute('aria-pressed') === 'true')
+  await page.waitForFunction(() => document.querySelector('[data-tab-key="bahan"]')?.getAttribute('aria-selected') === 'true')
   check((await tabItem(page, 'bahan.stok-masuk').count()) === 1, 'the Bahan inner tabs are on show')
   check((await hashOf(page)) === '#/inventori/bahan', 'the URL still names Bahan')
   results.push({ step: 'gated-tab-re-resolves' })
