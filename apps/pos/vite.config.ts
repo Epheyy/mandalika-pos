@@ -18,7 +18,23 @@ function stripCrossorigin(): Plugin {
   }
 }
 
+// THROWAWAY PROBE BRANCH (probe/a9-glass, never merged): the production build boots the A9 glass probe
+// instead of the app. Dev (the browser gate) and the tests still use the unchanged main.tsx.
+function probeEntry(): Plugin {
+  return {
+    name: 'probe-entry',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'pre',
+      handler: (html) => {
+        if (!html.includes('/src/main.tsx')) throw new Error('probe-entry: /src/main.tsx not found in index.html')
+        return html.replace('/src/main.tsx', '/src/probe/bootProbe.tsx')
+      },
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), stripCrossorigin()],
+  plugins: [react(), tailwindcss(), stripCrossorigin(), probeEntry()],
   server: { port: 5173 },
 })
