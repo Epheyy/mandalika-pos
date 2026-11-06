@@ -4,9 +4,11 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-06 by Claude (Opus 5.5) - Kaca wave 2 merged (K2 0f1417b0, K3 34a1d089; backoffice via Cloudflare, K3 rides the wave-3 OTA); wave 3 starting; see Progress board.
+Last updated: 2026-11-06 by Claude (Sonnet 5.5) - Kaca B2 (Ringkasan + Laporan) built, PR open, not merged; see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
+
+> 2026-11-06: **Kaca B2 (Ringkasan + Laporan) BUILT, PR open to `prod-hardening`, NOT merged; ships via Cloudflare on merge (backoffice only, no backend/OpenAPI/migration/POS).** Look-only on the K2 kit: semantic danger/warn/ok tokens across Orders, refund report, Stok Minus; categorical payment palette in `ui/chartColors.ts`; single-colour cashier bars; Transaksi search + Unduh Excel on one row; Transaksi default range is today (D-108); toast on Tandai sudah dicek (#22); Barang Habis capped at 12 rows with no inner scroll. Also touched outside the owned list (tiny): `lib/orderStatus.ts` + its test (icon tokens) and `apps/pos/src/motionGuard.allowlist.json` (KpiCard `transition-all` removed). Opus + code review done, findings fixed.
 
 > 2026-11-06: **Kaca wave 3 STARTED** (owner: "start Kaca wave 3"): 9 slice sessions P1-P5 + B1/B2/B3/B4b off `34a1d089`, each its own PR; merge order = plan §6 table order (P1, P2, P3, P4, P5, B1, B2, B3, B4b), later slices rebase. B* ship via Cloudflare; P1-P5 + K1/K3 ship together in one batched POS OTA. B4a (Pelanggan + Promosi) may join wave 3 since promo S2 is merged (offered as a card).
 
