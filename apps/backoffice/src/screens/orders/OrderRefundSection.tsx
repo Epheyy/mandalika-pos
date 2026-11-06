@@ -21,12 +21,12 @@ function RefundCard({ order, r, methods }: { order: Order; r: OrderRefund; metho
   const flag = refundFlagLabel(r.amountWarning)
   const claimDiffers = r.claimedAmount != null && r.claimedAmount !== r.amount
   return (
-    <div className="bg-white border border-red-100 rounded-xl p-3 space-y-1">
+    <div className="bg-white border border-danger-bg rounded-xl p-3 space-y-1">
       <div className="flex justify-between gap-2">
         <p className="text-sm font-bold text-gray-900">
           Refund ke-{r.seq} <span className="font-normal text-gray-500">· {refundScopeLabel(r.scope)}</span>
         </p>
-        <p className="text-sm font-black text-red-600">{money(r.amount)}</p>
+        <p className="text-sm font-black text-danger">{money(r.amount)}</p>
       </div>
       <p className="text-xs text-gray-400">
         {format(parseISO(r.refundedAt), 'dd MMM yyyy HH:mm', { locale: id })}
@@ -44,9 +44,9 @@ function RefundCard({ order, r, methods }: { order: Order; r: OrderRefund; metho
         </ul>
       )}
       {(claimDiffers || flag) && (
-        <p className="text-xs text-amber-700">
+        <p className="text-xs text-warn-strong">
           {claimDiffers && <>Diklaim tablet {money(r.claimedAmount as number)} </>}
-          {flag && <span className="px-1.5 py-0.5 rounded bg-amber-50 font-bold">{flag}</span>}
+          {flag && <span className="px-1.5 py-0.5 rounded bg-warn-bg font-bold">{flag}</span>}
         </p>
       )}
       <p className="text-xs text-gray-700">Alasan: {r.reason}</p>
@@ -65,17 +65,17 @@ export function OrderRefundSection({ order, methods }: { order: Order; methods?:
     <div className="space-y-2">
       {refunds.map((r) => <RefundCard key={r.id} order={order} r={r} methods={methods} />)}
       {lines.length > 0 && (
-        <div className="bg-amber-50 rounded-xl p-3 space-y-0.5">
-          <p className="text-xs font-black text-amber-700">Status per item</p>
+        <div className="bg-warn-bg rounded-xl p-3 space-y-0.5">
+          <p className="text-xs font-black text-warn-strong">Status per item</p>
           {lines.map((it) => (
-            <p key={it.id ?? `${it.productId}|${it.variantSize}`} className="text-xs text-amber-800">
+            <p key={it.id ?? `${it.productId}|${it.variantSize}`} className="text-xs text-warn-strong">
               {it.productName}{variantLabel(it.variantSize) ? ` ${variantLabel(it.variantSize)}` : ''}: direfund {it.refundedQty}, sisa {remainingQty(it)}
             </p>
           ))}
         </div>
       )}
       {order.refundedAmount !== undefined && (
-        <p className="text-xs font-bold text-amber-800">Total direfund {money(order.refundedAmount)}</p>
+        <p className="text-xs font-bold text-warn-strong">Total direfund {money(order.refundedAmount)}</p>
       )}
       {rest !== null && <p className="text-sm font-bold text-gray-900">Sisa bisa direfund {money(rest)}</p>}
     </div>

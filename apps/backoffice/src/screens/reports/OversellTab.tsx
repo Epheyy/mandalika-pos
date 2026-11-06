@@ -7,6 +7,7 @@ import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { exportToCSV } from '../../lib/csvUtils'
 import { Button } from '../../ui/Button'
+import { useToast } from '../../ui/Toast'
 import { Badge } from '../../ui/Badge'
 import { Card } from '../../ui/Card'
 import { EmptyState } from '../../ui/EmptyState'
@@ -217,6 +218,7 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge, onRang
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const toast = useToast()
   const [exportNote, setExportNote] = useState<string | null>(null)
 
   // A selection belongs to the list it was made in. (hal goes back to 1 in the patch that changes a filter.)
@@ -264,7 +266,9 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge, onRang
     setBusy(true)
     setActionError(null)
     try {
+      const count = selected.size
       await api.acknowledgeOversell([...selected], note.trim() || undefined)
+      toast({ message: `${count} baris ditandai sudah dicek`, tone: 'ok' })
       setSelected(new Set())
       setNote('')
       window.dispatchEvent(new Event(OVERSELL_CHANGED))
@@ -342,7 +346,7 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge, onRang
             </p>
           </div>
         </div>
-        {exportNote && <p role="status" className="text-xs text-amber-700">{exportNote}</p>}
+        {exportNote && <p role="status" className="text-xs text-warn-strong">{exportNote}</p>}
         <p className="text-[11px] text-ink-700">
           Stok sebelum/sesudah adalah saldo server saat penjualan diterapkan, bukan angka di layar tablet.
           Penjualan offline yang terlambat sinkron bisa tercatat kurang karena penjualan lain di antaranya;
@@ -358,7 +362,7 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge, onRang
         </div>
       )}
 
-      {actionError && <p role="alert" className="text-sm text-red-600">{actionError}</p>}
+      {actionError && <p role="alert" className="text-sm text-danger">{actionError}</p>}
 
       {canAcknowledge && selected.size > 0 && (
         <Card className="sticky bottom-3 z-20 p-4 flex flex-wrap items-end gap-3 border-brand-strong shadow-lg">
@@ -416,7 +420,7 @@ export function OversellTab({ dateFrom, dateTo, outletId, canAcknowledge, onRang
 function Stat({ value, label, hint, tone }: { value: number; label: string; hint?: string; tone?: 'warning' }) {
   return (
     <Card className="p-4">
-      <p className={`text-xl font-black ${tone === 'warning' && value > 0 ? 'text-amber-700' : 'text-gray-900'}`}>{value.toLocaleString('id-ID')}</p>
+      <p className={`text-xl font-black ${tone === 'warning' && value > 0 ? 'text-warn-strong' : 'text-gray-900'}`}>{value.toLocaleString('id-ID')}</p>
       <p className="text-xs text-gray-400">{label}</p>
       {hint && <p className="text-[11px] text-gray-400">{hint}</p>}
     </Card>
@@ -431,7 +435,7 @@ function Breakdown({ title, rows, showSize }: { title: string; rows: ReadonlyArr
         {rows.slice(0, 8).map((r) => (
           <li key={`${r.key}-${r.variantSize ?? ''}`} className="flex items-center justify-between py-1.5 text-sm">
             <span className="text-gray-900 truncate">{r.name}{showSize && r.variantSize ? ` · ${r.variantSize}` : ''}</span>
-            <span className="text-gray-500 whitespace-nowrap ml-3">{r.lines} baris · <b className="text-red-600">{r.shortfall}</b> unit</span>
+            <span className="text-gray-500 whitespace-nowrap ml-3">{r.lines} baris · <b className="text-danger">{r.shortfall}</b> unit</span>
           </li>
         ))}
       </ul>

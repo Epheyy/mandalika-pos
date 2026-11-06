@@ -79,12 +79,12 @@ export default function Dashboard() {
     return (
       <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="bg-white rounded-2xl p-5 animate-pulse h-28" />
+          <div key={i} className="surface-card rounded-2xl p-5 animate-pulse h-28" />
         ))}
       </div>
     )
 
-  if (!oq.data || !pq.data) return <p role="alert" className="p-6 text-red-600">Gagal memuat data lengkap. {oq.error || pq.error}</p>
+  if (!oq.data || !pq.data) return <p role="alert" className="p-6 text-danger">Gagal memuat data lengkap. {oq.error || pq.error}</p>
 
   const products = pq.data ?? []
   const promotions = prq.data ?? []
@@ -107,7 +107,7 @@ export default function Dashboard() {
         actions={<Tabs value={period} onChange={setPeriod} tabs={PERIOD_TABS} />}
       />
 
-      {(oq.error || pq.error) && <p role="alert" className="text-sm text-red-600">Gagal memperbarui data lengkap; menampilkan data sebelumnya. {oq.error || pq.error}</p>}
+      {(oq.error || pq.error) && <p role="alert" className="text-sm text-danger">Gagal memperbarui data lengkap; menampilkan data sebelumnya. {oq.error || pq.error}</p>}
       {!net && (
         <p className="text-xs text-gray-400">
           Data refund belum tersedia; penjualan menampilkan transaksi selesai saja (belum dikurangi refund).
@@ -180,9 +180,9 @@ export default function Dashboard() {
                       className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
                       style={{ background: CHART_SERIES[i % CHART_SERIES.length] }}
                     />
-                    <span className="text-gray-600 flex-1">{p.label}</span>
+                    <span className="text-ink-700 flex-1">{p.label}</span>
                     <span className="font-bold text-gray-900">{BRAND.currency.format(p.amount)}</span>
-                    <span className="text-gray-400 tabular-nums w-9 text-right">
+                    <span className="text-ink-500 tabular-nums w-9 text-right">
                       {payTotal > 0 && p.amount > 0 ? Math.round((p.amount / payTotal) * 100) : 0}%
                     </span>
                   </div>
@@ -193,10 +193,10 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         <Card className="p-5">
           <div className="flex items-center gap-2 mb-3">
-            <Crown className="w-4 h-4 text-gold-600" />
+            <Crown className="w-4 h-4 text-brand-strong" />
             <h3 className="font-black text-gray-900">Produk Penjualan Teratas</h3>
           </div>
           <RankedList
@@ -207,7 +207,7 @@ export default function Dashboard() {
 
         <Card className="p-5">
           <div className="flex items-center gap-2 mb-3">
-            <ArrowDownNarrowWide className="w-4 h-4 text-gold-600" />
+            <ArrowDownNarrowWide className="w-4 h-4 text-brand-strong" />
             <h3 className="font-black text-gray-900">Produk Penjualan Terbawah</h3>
           </div>
           <RankedList
@@ -219,7 +219,7 @@ export default function Dashboard() {
         <Card className="p-5">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <PackageX className="w-4 h-4 text-gold-600" />
+              <PackageX className="w-4 h-4 text-brand-strong" />
               <h3 className="font-black text-gray-900">Barang Habis</h3>
             </div>
             {stock.length > 0 && (
@@ -231,10 +231,10 @@ export default function Dashboard() {
           {stock.length === 0 ? (
             <EmptyState icon={<PackageX />} title="Semua stok aman" />
           ) : (
-            <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
+            <div className="divide-y divide-gray-50">
               {stock.map((s) => (
                 <div key={s.name} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                  <span className="text-gray-600 truncate min-w-0">{s.name}</span>
+                  <span className="text-ink-700 truncate min-w-0">{s.name}</span>
                   {s.stock <= 0 ? (
                     <Badge tone="danger">Habis</Badge>
                   ) : (
@@ -250,7 +250,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Tag className="w-4 h-4 text-gold-600" />
+            <Tag className="w-4 h-4 text-brand-strong" />
             <h3 className="font-black text-gray-900">Promosi</h3>
           </div>
           <div className="flex items-start justify-between mb-3">

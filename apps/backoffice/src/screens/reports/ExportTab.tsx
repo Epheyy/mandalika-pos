@@ -120,11 +120,11 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
   return (
     <>
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           Gagal memuat data. Data sebelumnya mungkin ditampilkan. {error}
         </p>
       )}
-      {exportError && <p role="alert" className="text-sm text-red-600">{exportError}</p>}
+      {exportError && <p role="alert" className="text-sm text-danger">{exportError}</p>}
       {(sq.loading || lq.loading) && <p role="status">Memuat data…</p>}
       <div className="flex justify-end items-center gap-2">
         <span className="text-xs text-gray-400">CSV refund memakai rentang tanggal dan outlet saja.</span>
@@ -159,7 +159,7 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-2 bg-gold-50 text-gold-600">
                   {c.icon}
                 </div>
-                <p className={`text-xl font-black ${c.negative ? 'text-red-600' : 'text-gray-900'}`}>{c.value}</p>
+                <p className={`text-xl font-black ${c.negative ? 'text-danger' : 'text-gray-900'}`}>{c.value}</p>
                 <p className="text-xs text-gray-400">{c.label}</p>
                 {c.sub && <p className="text-xs text-gray-400">{c.sub}</p>}
               </Card>
@@ -177,8 +177,8 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
                   <div key={r.method} className="bg-gray-50 rounded-xl p-3">
                     <p className="text-xs font-bold text-gray-500 capitalize mb-1">{methodLabel(r.method, paymentMethods)}</p>
                     <p className="text-xs text-gray-500">Kotor <span className="font-black text-gray-900 text-sm">{BRAND.currency.format(r.gross)}</span></p>
-                    <p className="text-xs text-gray-500">Refund <span className="font-black text-red-600 text-sm">{BRAND.currency.format(r.refunds)}</span></p>
-                    <p className="text-xs text-gray-500">Bersih <span className={`font-black text-sm ${r.net < 0 ? 'text-red-600' : 'text-gray-900'}`}>{BRAND.currency.format(r.net)}</span></p>
+                    <p className="text-xs text-gray-500">Refund <span className="font-black text-danger text-sm">{BRAND.currency.format(r.refunds)}</span></p>
+                    <p className="text-xs text-gray-500">Bersih <span className={`font-black text-sm ${r.net < 0 ? 'text-danger' : 'text-gray-900'}`}>{BRAND.currency.format(r.net)}</span></p>
                     <p className="text-xs text-gray-400">{sharePercent(r.gross, summary.grossSales ?? 0)}%</p>
                   </div>
                 ))}

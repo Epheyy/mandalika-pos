@@ -90,7 +90,7 @@ export function ShiftsTab({ dateFrom, dateTo, outletId, outlets }: ShiftsTabProp
   return (
     <>
       {sq.error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           Gagal memuat data lengkap. Data sebelumnya mungkin ditampilkan; ekspor dinonaktifkan. {sq.error}
         </p>
       )}

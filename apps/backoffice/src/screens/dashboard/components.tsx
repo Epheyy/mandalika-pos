@@ -15,14 +15,14 @@ interface KpiCardProps {
 export function KpiCard({ label, value, sub, icon, deltaPct }: KpiCardProps) {
   const up = deltaPct != null && deltaPct >= 0
   return (
-    <Card className="p-5 hover:shadow-md transition-all">
+    <Card className="p-5">
       <div className="flex items-start justify-between mb-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gold-50 text-gold-600">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-paper-1 text-brand-strong">
           {icon}
         </div>
         {deltaPct != null && (
           <span
-            className={`inline-flex items-center gap-0.5 text-xs font-bold ${up ? 'text-green-600' : 'text-red-600'}`}
+            className={`inline-flex items-center gap-0.5 text-xs font-bold ${up ? 'text-ok' : 'text-danger'}`}
             title="vs periode sebelumnya"
           >
             {up ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
@@ -30,9 +30,9 @@ export function KpiCard({ label, value, sub, icon, deltaPct }: KpiCardProps) {
           </span>
         )}
       </div>
-      <p className="text-2xl font-black text-gray-900 leading-none mb-1">{value}</p>
-      <p className="text-xs font-bold text-gray-400">{label}</p>
-      {sub && <p className="text-xs text-gray-300 mt-0.5">{sub}</p>}
+      <p className="text-2xl font-black text-ink-900 leading-none mb-1 tabular-nums">{value}</p>
+      <p className="text-xs font-bold text-ink-700">{label}</p>
+      {sub && <p className="text-xs text-ink-500 mt-0.5">{sub}</p>}
     </Card>
   )
 }
@@ -45,13 +45,13 @@ interface RankedRow {
 /** Numbered "1. Name … value" list used for top/bottom products and promos. */
 export function RankedList({ rows, empty }: { rows: RankedRow[]; empty: string }) {
   if (rows.length === 0)
-    return <p className="text-sm text-gray-400 py-10 text-center">{empty}</p>
+    return <p className="text-sm text-ink-500 py-10 text-center">{empty}</p>
   return (
     <div className="divide-y divide-gray-50">
       {rows.map((r, i) => (
         <div key={r.name} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-          <span className="text-gray-600 truncate min-w-0">
-            <span className="text-gray-400 tabular-nums mr-1">{i + 1}.</span>
+          <span className="text-ink-700 truncate min-w-0">
+            <span className="text-ink-500 tabular-nums mr-1">{i + 1}.</span>
             {r.name}
           </span>
           <span className="font-bold text-gray-900 whitespace-nowrap flex-shrink-0">{r.right}</span>
