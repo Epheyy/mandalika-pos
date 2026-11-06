@@ -32,6 +32,18 @@ export default function App() {
     if (user && resolution.kind === 'redirect') void navigate(resolution.to, { replace: true })
   }, [user, resolution])
 
+  // The bar spans the column but stops at <main>'s scrollbar, so the track (arrows, thumb) stays clickable.
+  useEffect(() => {
+    const main = mainRef.current
+    const column = main?.parentElement
+    if (!main || !column) return
+    const sync = () => column.style.setProperty('--bo-sb', `${main.offsetWidth - main.clientWidth}px`)
+    sync()
+    const ro = new ResizeObserver(sync)
+    ro.observe(main)
+    return () => ro.disconnect()
+  }, [user])
+
   // main is the scroll box: a new place starts at the top, Back/Forward restores where the entry was.
   useScrollRestore(mainRef)
 
@@ -48,8 +60,8 @@ export default function App() {
   else body = <AccessDenied />
 
   return (
-    // The root keeps bg-paper-0: it will hide the ambient layer once a later slice turns the ambient on.
-    <div className="flex h-screen overflow-clip bg-paper-0">
+    // No background here: the page ground is the body paper plus the fixed ambient layer (index.css, main.tsx).
+    <div className="flex h-screen overflow-clip">
       {/* First focusable element. A button, not a #link: the hash is the router's. */}
       <button
         type="button"
@@ -65,9 +77,17 @@ export default function App() {
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      {/* The top bar floats over this column and <main> fills it: content scrolls UNDER the blurred bar (D-86). The
+          padding keeps the first row clear of the bar at rest; scroll-padding keeps a focused element from landing
+          under the bar when the browser scrolls it into view. */}
+      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header route={shown} user={user} onOpenMenu={() => setSidebarOpen(true)} onLogout={logoutIfAllowed} />
-        <main id="konten" ref={mainRef} tabIndex={-1} className="relative flex-1 overflow-y-auto focus:outline-none [scrollbar-gutter:stable]">
+        <main
+          id="konten"
+          ref={mainRef}
+          tabIndex={-1}
+          className="relative h-full flex-1 scroll-pt-(--bo-topbar-h) overflow-y-auto pt-(--bo-topbar-h) focus:outline-none [scrollbar-gutter:stable]"
+        >
           {body}
         </main>
       </div>

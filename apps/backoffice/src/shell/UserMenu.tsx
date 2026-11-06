@@ -36,9 +36,9 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
         </span>
         <span className="hidden min-w-0 sm:block">
           <span className="block max-w-40 truncate text-sm font-bold text-ink-900">{user.displayName}</span>
-          <span className="block text-xs text-ink-500">{labelOf(ROLE, user.role).label}</span>
+          <span className="block text-xs text-ink-700">{labelOf(ROLE, user.role).label}</span>
         </span>
-        <ChevronDown className="h-4 w-4 text-ink-500" aria-hidden="true" />
+        <ChevronDown className="h-4 w-4 text-ink-700" aria-hidden="true" />
       </button>
       {open && (
         <div

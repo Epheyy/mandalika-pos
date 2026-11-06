@@ -18,7 +18,9 @@ export function Header({ route, user, onOpenMenu, onLogout }: HeaderProps) {
   // Screens with tabs add the tab on show: a bare path means the first tab this user may open.
   const tab = route ? tabForPath(route, path, user) : undefined
   return (
-    <header className="surface-glass flex h-16 flex-shrink-0 items-center gap-4 px-4 sm:px-8">
+    // Real glass: <main> scrolls under this bar (the only blurred layer in the backoffice, plan 5.1). z-[25] sits above
+    // every popover inside <main> (z-10/z-20) and below the drawer scrim (z-[26]), the drawer (z-30) and dialogs (z-50).
+    <header className="surface-glass absolute left-0 right-(--bo-sb) top-0 z-[25] flex h-(--bo-topbar-h) items-center gap-4 px-4 sm:px-8">
       <button
         type="button"
         aria-label="Buka menu"
@@ -29,7 +31,7 @@ export function Header({ route, user, onOpenMenu, onLogout }: HeaderProps) {
       </button>
       <nav aria-label="Posisi halaman">
         {route && (
-          <ol className="flex items-center gap-1.5 text-[13px] text-ink-500">
+          <ol className="flex items-center gap-1.5 text-[13px] text-ink-700">
             <li>{sectionLabel(route.section)}</li>
             <li aria-hidden="true" className="flex">
               <ChevronRight className="h-3.5 w-3.5" />

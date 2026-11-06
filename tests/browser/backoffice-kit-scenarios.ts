@@ -78,13 +78,46 @@ export const kitShellFlow = async (page: ScenarioPage) => {
   check(boxes.length === 1 && boxes[0] === 'main#konten', `exactly one scroll area, <main>; found ${JSON.stringify(boxes)}`)
   results.push({ scrollAreas: boxes })
 
-  // 3. The sticky header stays in view while <main> scrolls.
+  // 3. K2b glass shell: the top bar floats over <main> (main starts at the column top, under the bar), is the one
+  // blurred layer, and a sticky table header sticks just BELOW it, visible and on top of the rows.
+  const bar = (await page.locator('header').first().boundingBox())!
   const mainBox = (await page.locator('main#konten').boundingBox())!
+  check(Math.abs(mainBox.y - bar.y) <= 1, `<main> starts under the bar, not below it (bar ${bar.y}, main ${mainBox.y})`)
+  const glass = await page.evaluate(() => {
+    const css = (el: Element | null) => (el ? getComputedStyle(el) : null)
+    const h = css(document.querySelector('header'))
+    return {
+      bar: h?.backdropFilter ?? '', barWebkit: h?.getPropertyValue('-webkit-backdrop-filter') ?? '',
+      sidebar: css(document.querySelector('aside'))?.backdropFilter ?? '', material: document.documentElement.dataset.material,
+      ambient: document.documentElement.dataset.ambient, ambientDisplay: css(document.querySelector('.ambient-layer'))?.display ?? '',
+      blurred: Array.from(document.querySelectorAll('body *')).filter((e) => { const b = getComputedStyle(e).backdropFilter; return b && b !== 'none' }).map((e) => e.tagName.toLowerCase()),
+    }
+  })
+  check(/blur\(20px\)/.test(glass.bar) && /saturate\(1\.8\)|saturate\(180%\)/.test(glass.bar), `the top bar blurs 20px and saturates 180%, got "${glass.bar}"`)
+  check(/blur\(20px\)/.test(glass.barWebkit || glass.bar), 'the -webkit- backdrop-filter is on the bar as well')
+  check(glass.sidebar === 'none' || glass.sidebar === '', `the docked sidebar never blurs, got "${glass.sidebar}"`)
+  check(glass.blurred.length === 1 && glass.blurred[0] === 'header', `the top bar is the only blurred layer, found ${JSON.stringify(glass.blurred)}`)
+  check(glass.material === 'glass' && glass.ambient === 'on' && glass.ambientDisplay === 'block', `material glass and ambient on, got ${JSON.stringify(glass)}`)
   await page.locator('main#konten').evaluate((el) => { el.scrollTop = 700 })
   const th = (await page.locator('thead th').first().boundingBox())!
-  check(Math.abs(th.y - mainBox.y) <= 2, `th sticks to the top of <main> (th ${th.y}, main ${mainBox.y})`)
+  const barBottom = bar.y + bar.height
+  check(th.y >= barBottom - 1 && th.y <= barBottom + 2, `th sticks just below the bar (th ${th.y}, bar bottom ${barBottom})`)
+  const topmost = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('thead th') !== null, [th.x + 8, th.y + th.height / 2])
+  check(topmost, 'the sticky header is the topmost element at its own position, so it is not under the bar')
+  // A row that crosses the bar's own band: it is genuinely under the glass (a row scrolled fully away would not count).
+  const underBar = await page.evaluate(([bottom, top]) => Array.from(document.querySelectorAll('tbody tr')).some((r) => { const b = r.getBoundingClientRect(); return b.top < bottom && b.bottom > top }), [barBottom, bar.y] as [number, number])
+  check(underBar, 'rows scroll up under the bar (content is under the glass)')
+  results.push({ stickyBelowBar: th.y - barBottom, glass })
+  // Evidence: the scrolled state with rows under the bar, Mandalika ambient then a neutral brand (ambient only: the
+  // skin colours are fixed at build time).
+  if (process.env.A34C_RUN_DIR) {
+    await captureShot(page, 'k2b-scrolled-mandalika', BO_SHOT_VIEWPORTS)
+    const brandBefore = await page.evaluate(() => document.documentElement.dataset.brand ?? 'mandalika')
+    await page.evaluate(() => { document.documentElement.dataset.brand = 'flamboyan' })
+    await captureShot(page, 'k2b-scrolled-flamboyan', BO_SHOT_VIEWPORTS)
+    await page.evaluate((b) => { document.documentElement.dataset.brand = b }, brandBefore)
+  }
   await page.locator('main#konten').evaluate((el) => { el.scrollTop = 0 })
-  results.push({ stickyTop: th.y - mainBox.y })
 
   // 4. Tabs: role=tab + aria-selected; arrows only move focus (manual activation); Enter selects.
   const tab = (key: string) => page.locator(`[data-tab-key="${key}"]`)

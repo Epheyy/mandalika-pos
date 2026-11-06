@@ -3,10 +3,10 @@
    changes no pixel (D-76).
 
    Owner rule 1: nothing the user reads over content is see-through. Dialogs, slide-overs, sheets, drawers,
-   toasts and the cart column use `surface-solid`. Blur exists only on non-scrolling chrome and only when
-   <html data-material="glass"> (never the default). The root attribute is set in each app's main.tsx:
+   toasts and the cart column use `surface-solid`. Blur exists only on the one chrome layer content scrolls under (the BO top bar,
+   D-86) and only when <html data-material="glass"> (the BO sets it; the POS stays on static). The root attribute is set in each app's main.tsx:
      static (default): glass tint, no blur       glass: tint + blur(20px) saturate(180%)       solid: opaque
-   Blur budget: 0 layers by default, at most 2 (plan 5.1), never inside a scroller. */
+   Blur budget: at most 2 layers (plan 5.1), never inside a scroller. */
 
 :root {
   --surface-border: rgba(255, 255, 255, 0.7);
@@ -20,7 +20,7 @@
   --surface-card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-/* Chrome that does not scroll (POS header, category bar, BO top bar, docked sidebar). */
+/* Chrome bar (POS header, category bar, BO top bar). Blurs only under data-material=glass. */
 @utility surface-glass {
   background: var(--surface-glass-bg);
   border: 1px solid var(--surface-border);
@@ -29,6 +29,26 @@
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     backdrop-filter: blur(20px) saturate(180%);
   }
+  :root[data-material='solid'] & {
+    background: var(--surface-solid-bg);
+  }
+  /* The OS asks for less transparency: the blurred bar becomes the solid one. Scoped to the blurred material, so an
+     app on `static` (the POS today) renders exactly as before whatever the preference. */
+  @media (prefers-reduced-transparency: reduce) {
+    :root[data-material='glass'] & {
+      background: var(--surface-solid-bg);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+}
+
+/* Chrome that never has content scrolling under it (the docked BO sidebar): the glass tint, never a blur, even
+   when the root material is `glass`. Blur budget (plan 5.1): only the layer content scrolls under may blur. */
+@utility surface-glass-static {
+  background: var(--surface-glass-bg);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--surface-shadow);
   :root[data-material='solid'] & {
     background: var(--surface-solid-bg);
   }
@@ -92,8 +112,7 @@
 }
 
 /* Ambient ground: one fixed, non-scrolling layer behind the page (never background-attachment: fixed, which
-   repaints on Android). K1 mounts the element hidden (<html data-ambient="off">); a later slice turns it on
-   once the screens it sits behind are transparent. Mandalika gets the gold/peach wash, other skins a neutral
+   repaints on Android). Each app's main.tsx sets <html data-ambient>: BO on since K2b, POS off until P6a. Mandalika gets the gold/peach wash, other skins a neutral
    paper wash (D-87: a purple or red wash would read as promo/danger). */
 .ambient-layer {
   position: fixed;

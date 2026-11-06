@@ -10,12 +10,13 @@ import { ConfirmProvider } from './ui/ConfirmDialog'
 import { ToastProvider } from './ui/Toast'
 
 // Kaca materials (packages/ui-tokens/materials.css). One constant picks the chrome material for the whole app:
-// 'static' = glass tint without blur (default), 'glass' = real blur, 'solid' = opaque. Falling back is a one-line
-// change. Blur budget (plan 5.1): 0 blurred layers by default, never more than 2, never inside a scroller.
-const MATERIAL: 'glass' | 'static' | 'solid' = 'static'
-const BLUR_BUDGET = 0
-// The ambient ground is mounted but hidden until a later slice turns it on ('on').
-const AMBIENT: 'on' | 'off' = 'off'
+// 'glass' = real blur on the top bar (owner D-86: <main> scrolls under it), 'static' = the same tint without blur,
+// 'solid' = opaque. Falling back is a one-line change (set 'static'). Blur budget (plan 5.1): the top bar is the
+// one blurred layer, never inside a scroller, sheet, drawer, toast or dialog.
+const MATERIAL: 'glass' | 'static' | 'solid' = 'glass'
+const BLUR_BUDGET = 1
+// The ambient ground (D-87): Mandalika gold/peach, other brands a neutral paper wash. 'off' hides it.
+const AMBIENT: 'on' | 'off' = 'on'
 
 function applyMaterial(brandId: string, root: HTMLElement = document.documentElement): void {
   root.dataset.material = MATERIAL
