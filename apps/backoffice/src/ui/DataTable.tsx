@@ -2,6 +2,7 @@ import { useState, type CSSProperties, type ReactNode } from 'react'
 import { ArrowDown, ArrowUp, Columns3 } from 'lucide-react'
 import { Button } from './Button'
 import { cn } from './cn'
+import { useHorizontalOverflow } from './useHorizontalOverflow'
 
 export interface Column<Row> {
   /** Stable; also the column-chooser key. */
@@ -48,7 +49,7 @@ export interface DataTableProps<Row> {
   onSortChange?: (s: SortState) => void
   /** localStorage key; stores hidden columns only, per viewer. */
   columnPrefsKey?: string
-  /** Default true; sticks inside the card's own scroll box. */
+  /** Default true; sticks to the page scroller (<main>). Turns itself off while the table scrolls sideways. */
   stickyHeader?: boolean
   /** <Pagination/> or "Muat lebih banyak". */
   footer?: ReactNode
@@ -121,6 +122,9 @@ export function DataTable<Row>({
     () => readHidden(columnPrefsKey) ?? columns.filter((c) => c.defaultHidden).map((c) => c.id),
   )
   const [chooser, setChooser] = useState(false)
+  const { wrapperRef, tableRef, overflowing } = useHorizontalOverflow()
+  // A sticky th sticks to the nearest scroll container; once the wrapper scrolls sideways that is the wrapper, not <main>.
+  const stuck = stickyHeader && !overflowing
 
   const isHideable = (c: Column<Row>) => c.hideable ?? !c.sticky
   const visible = columns.filter((c) => !hidden.includes(c.id) || !isHideable(c))
@@ -155,7 +159,7 @@ export function DataTable<Row>({
         className={cn(
           'bg-paper-1 px-4 py-3 text-xs font-bold text-ink-700',
           c.align === 'right' ? 'text-right' : 'text-left',
-          stickyHeader && 'sticky top-0 z-[2]',
+          stuck && 'sticky top-0 z-[2] shadow-[inset_0_-1px_0_var(--color-paper-2)]',
           offsets.has(c.id) && 'z-[3]',
         )}
       >
@@ -179,7 +183,7 @@ export function DataTable<Row>({
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
+    <div className="surface-card overflow-clip rounded-2xl">
       {chooseable.length > 0 && columnPrefsKey && (
         <div className="relative flex justify-end border-b border-gray-100 px-3 py-2">
           <Button
@@ -216,8 +220,8 @@ export function DataTable<Row>({
         </div>
       )}
 
-      <div className={cn('overflow-auto', stickyHeader && 'max-h-[70vh]')}>
-        <table className="w-full border-collapse text-sm">
+      <div ref={wrapperRef} className={overflowing ? 'overflow-x-auto' : 'overflow-x-clip'}>
+        <table ref={tableRef} className="w-full border-collapse text-sm">
           <caption className="sr-only">{caption}</caption>
           <thead>
             {grouped && (

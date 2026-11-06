@@ -126,19 +126,19 @@ export function ImportDialog({ kind, file, onClose, onApplied, onRepick }: Impor
     <Modal open onClose={phase === 'applying' ? () => undefined : onClose} title={KIND_TITLE[kind]} subtitle={file.name} size="2xl" footer={footer}>
       <div className="space-y-4" aria-live="polite">
         {phase === 'previewing' && (
-          <p className="flex items-center gap-2 text-sm text-gray-500">
+          <p className="flex items-center gap-2 text-sm text-ink-700">
             <Loader2 className="w-4 h-4 animate-spin" /> Memeriksa file…
           </p>
         )}
 
         {state.message && (
-          <p role="alert" className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+          <p role="alert" className="flex items-start gap-2 rounded-xl bg-warn-bg px-3 py-2 text-sm text-warn-strong">
             <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" /> {state.message}
           </p>
         )}
 
         {phase === 'applied' && report && (
-          <p role="status" className="flex items-start gap-2 rounded-xl bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-800">
+          <p role="status" className="flex items-start gap-2 rounded-xl bg-ok-bg px-3 py-2 text-sm text-ok">
             <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" /> Impor berhasil: {appliedMessage(report)}.
           </p>
         )}
@@ -151,16 +151,16 @@ export function ImportDialog({ kind, file, onClose, onApplied, onRepick }: Impor
                   key={c.key}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold ${
                     c.key === 'error' && c.value > 0
-                      ? 'bg-red-100 text-red-700'
+                      ? 'bg-danger-bg text-danger'
                       : c.key === 'warning' && c.value > 0
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-gray-100 text-gray-700'
+                        ? 'bg-warn-bg text-warn-strong'
+                        : 'bg-paper-1 text-ink-700'
                   }`}
                 >
                   {c.label}: {c.value}
                 </span>
               ))}
-              <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-gray-50 text-gray-500">
+              <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-paper-1 text-ink-700">
                 {report.totalRows} baris · pemisah {report.delimiter === '\t' ? 'tab' : `"${report.delimiter}"`}
               </span>
             </div>
@@ -168,7 +168,7 @@ export function ImportDialog({ kind, file, onClose, onApplied, onRepick }: Impor
             {report.fileIssues.length > 0 && (
               <ul className="space-y-1 text-sm">
                 {report.fileIssues.map((f, i) => (
-                  <li key={i} className={f.severity === 'error' ? 'text-red-700' : 'text-amber-700'}>
+                  <li key={i} className={f.severity === 'error' ? 'text-danger' : 'text-warn-strong'}>
                     {f.severity === 'error' ? <XCircle className="inline w-4 h-4 mr-1" /> : <AlertTriangle className="inline w-4 h-4 mr-1" />}
                     {f.message}
                   </li>
@@ -179,14 +179,14 @@ export function ImportDialog({ kind, file, onClose, onApplied, onRepick }: Impor
             {report.issues.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-black text-gray-900">Masalah ({report.issues.length})</h3>
+                  <h3 className="text-sm font-black text-ink-900">Masalah ({report.issues.length})</h3>
                   <Button variant="secondary" size="sm" icon={<Download className="w-3.5 h-3.5" />} onClick={downloadReport}>
                     Unduh laporan error
                   </Button>
                 </div>
-                <div className="max-h-64 overflow-auto border border-gray-100 rounded-xl">
+                <div className="max-h-64 overflow-auto border border-paper-2 rounded-xl">
                   <table className="w-full text-xs">
-                    <thead className="bg-gray-50 text-gray-500 sticky top-0">
+                    <thead className="bg-paper-1 text-ink-700 sticky top-0">
                       <tr>
                         <th className="text-left px-3 py-2">Baris</th>
                         <th className="text-left px-3 py-2">Kolom</th>
@@ -196,20 +196,20 @@ export function ImportDialog({ kind, file, onClose, onApplied, onRepick }: Impor
                     </thead>
                     <tbody>
                       {report.issues.slice(0, ISSUES_SHOWN).map((i, n) => (
-                        <tr key={n} className="border-t border-gray-50">
+                        <tr key={n} className="border-t border-paper-2">
                           <td className="px-3 py-1.5 whitespace-nowrap">
-                            {i.row} <span className="text-gray-400">(baris file {i.line})</span>
+                            {i.row} <span className="text-ink-700">(baris file {i.line})</span>
                           </td>
                           <td className="px-3 py-1.5">{i.column ?? ''}</td>
-                          <td className={`px-3 py-1.5 ${i.severity === 'error' ? 'text-red-700' : 'text-amber-700'}`}>{i.message}</td>
-                          <td className="px-3 py-1.5 text-gray-500 break-all">{i.value ?? ''}</td>
+                          <td className={`px-3 py-1.5 ${i.severity === 'error' ? 'text-danger' : 'text-warn-strong'}`}>{i.message}</td>
+                          <td className="px-3 py-1.5 text-ink-700 break-all">{i.value ?? ''}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
                 {report.issues.length > ISSUES_SHOWN && (
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-ink-700 mt-1">
                     {report.issues.length - ISSUES_SHOWN} masalah lainnya ada di laporan error yang bisa diunduh.
                   </p>
                 )}
@@ -218,12 +218,12 @@ export function ImportDialog({ kind, file, onClose, onApplied, onRepick }: Impor
 
             {report.rows.length > 0 && (
               <div>
-                <h3 className="text-sm font-black text-gray-900 mb-2">
+                <h3 className="text-sm font-black text-ink-900 mb-2">
                   Pratinjau baris{report.totalRows > report.rows.length ? ` (${report.rows.length} pertama)` : ''}
                 </h3>
-                <div className="max-h-56 overflow-auto border border-gray-100 rounded-xl">
+                <div className="max-h-56 overflow-auto border border-paper-2 rounded-xl">
                   <table className="w-full text-xs">
-                    <thead className="bg-gray-50 text-gray-500 sticky top-0">
+                    <thead className="bg-paper-1 text-ink-700 sticky top-0">
                       <tr>
                         <th className="text-left px-3 py-2">Baris</th>
                         <th className="text-left px-3 py-2">Kunci</th>
@@ -233,11 +233,11 @@ export function ImportDialog({ kind, file, onClose, onApplied, onRepick }: Impor
                     </thead>
                     <tbody>
                       {report.rows.map((r) => (
-                        <tr key={r.row} className="border-t border-gray-50">
+                        <tr key={r.row} className="border-t border-paper-2">
                           <td className="px-3 py-1.5">{r.row}</td>
                           <td className="px-3 py-1.5 break-all">{r.key}</td>
                           <td className="px-3 py-1.5 font-bold">{ACTION_LABEL[r.action] ?? r.action}</td>
-                          <td className="px-3 py-1.5 text-gray-500">{r.reason ?? ''}</td>
+                          <td className="px-3 py-1.5 text-ink-700">{r.reason ?? ''}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -247,12 +247,12 @@ export function ImportDialog({ kind, file, onClose, onApplied, onRepick }: Impor
             )}
 
             {blocked && phase !== 'applied' && (
-              <p className="text-sm text-red-700">Perbaiki baris yang salah di file lalu pilih file lagi. Terapkan baru aktif jika tidak ada error.</p>
+              <p className="text-sm text-danger">Perbaiki baris yang salah di file lalu pilih file lagi. Terapkan baru aktif jika tidak ada error.</p>
             )}
           </>
         )}
 
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-ink-700">
           Impor tidak pernah menghapus data atau mengubah stok. Pada baris yang sudah ada, sel kosong berarti nilai lama dipertahankan.
           Simpan file dari Excel sebagai &quot;CSV UTF-8&quot;.
         </p>

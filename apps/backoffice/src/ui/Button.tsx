@@ -6,16 +6,17 @@ type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
 type Size = 'sm' | 'md'
 
 const VARIANT: Record<Variant, string> = {
-  primary: 'bg-gold-600 text-white hover:bg-gold-700 disabled:bg-gold-300',
+  primary: 'bg-brand-strong text-on-brand hover:bg-brand-strong-hover disabled:opacity-50',
   secondary:
-    'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-50',
-  ghost: 'text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50',
-  danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300',
+    'bg-white text-ink-700 border border-paper-2 hover:bg-paper-1 disabled:opacity-50',
+  ghost: 'text-ink-700 hover:bg-paper-1 hover:text-ink-900 disabled:opacity-50',
+  danger: 'bg-danger-solid text-on-brand hover:opacity-90 disabled:opacity-50',
 }
 
 const SIZE: Record<Size, string> = {
-  sm: 'px-3 py-2 text-xs gap-1.5',
-  md: 'px-4 py-2.5 text-sm gap-2',
+  // One height scale (plan 2.2): header actions 40, pagination and row actions 36.
+  sm: 'h-9 px-3 text-xs gap-1.5',
+  md: 'h-10 px-4 text-sm gap-2',
 }
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -41,7 +42,7 @@ export function Button({
       disabled={disabled || loading}
       className={cn(
         'inline-flex items-center justify-center font-bold rounded-xl transition-all',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500/40',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong/50',
         'disabled:cursor-not-allowed',
         VARIANT[variant],
         SIZE[size],

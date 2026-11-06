@@ -9,9 +9,12 @@ import { cn } from './cn'
 
 /** Shared control styling so every input/select/textarea matches. */
 export const fieldClass =
-  'w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 ' +
-  'placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500/40 ' +
-  'focus:border-gold-400 transition'
+  'w-full px-3 py-2.5 bg-white border border-paper-2 rounded-xl text-sm text-ink-900 ' +
+  'placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-brand-strong/40 ' +
+  'focus:border-brand-strong transition'
+
+/** Single-line controls are 40 px (plan 2.2); a textarea keeps its rows. */
+const lineClass = 'h-10 py-0!'
 
 const labelClass = 'block text-xs font-black text-ink-700 uppercase tracking-widest mb-2'
 
@@ -31,7 +34,7 @@ export function Field({ htmlFor, label, hint, error, children }: FieldShellProps
       {label && <label htmlFor={htmlFor} className={labelClass}>{label}</label>}
       {children}
       {error ? (
-        <p id={htmlFor ? `${htmlFor}-error` : undefined} className="text-[11px] text-red-600 mt-1">{error}</p>
+        <p id={htmlFor ? `${htmlFor}-error` : undefined} className="text-[11px] text-danger mt-1">{error}</p>
       ) : hint ? (
         <p id={htmlFor ? `${htmlFor}-hint` : undefined} className="text-[11px] text-ink-700 mt-1">{hint}</p>
       ) : null}
@@ -74,7 +77,7 @@ export function Input({
   const { controlId, attrs } = useControlA11y(rest.id, error, hint, rest['aria-describedby'], rest['aria-invalid'])
   return (
     <Field htmlFor={controlId} label={label} hint={hint} error={error}>
-      <input className={cn(fieldClass, !!error && 'border-red-300', className)} {...rest} {...attrs} />
+      <input className={cn(fieldClass, lineClass, !!error && 'border-danger', className)} {...rest} {...attrs} />
     </Field>
   )
 }
@@ -92,7 +95,7 @@ export function Textarea({
     <Field htmlFor={controlId} label={label} hint={hint} error={error}>
       <textarea
         rows={rows}
-        className={cn(fieldClass, 'resize-none', !!error && 'border-red-300', className)}
+        className={cn(fieldClass, 'resize-none', !!error && 'border-danger', className)}
         {...rest}
         {...attrs}
       />
@@ -111,7 +114,7 @@ export function Select({
   const { controlId, attrs } = useControlA11y(rest.id, error, hint, rest['aria-describedby'], rest['aria-invalid'])
   return (
     <Field htmlFor={controlId} label={label} hint={hint} error={error}>
-      <select className={cn(fieldClass, !!error && 'border-red-300', className)} {...rest} {...attrs}>
+      <select className={cn(fieldClass, lineClass, !!error && 'border-danger', className)} {...rest} {...attrs}>
         {children}
       </select>
     </Field>

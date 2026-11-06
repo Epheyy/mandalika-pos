@@ -43,7 +43,7 @@ export const reviewResolveFlow = async (page: ScenarioPage) => {
   results.push({ step: 'badge', openCount: 1 })
 
   await navButton.click()
-  await page.getByRole('button', { name: 'Terbuka (1)' }).waitFor()
+  await page.getByRole('tab', { name: 'Terbuka (1)' }).waitFor()
   // The reason text also appears in the filter <select>; assert on the row button instead.
   const row = page.getByRole('button', { name: /Refund · Ditolak: tidak berwenang \/ PIN salah/ })
   await row.waitFor()

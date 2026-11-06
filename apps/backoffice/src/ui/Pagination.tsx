@@ -35,24 +35,29 @@ export function Pagination({
   onPageSizeChange,
   pageSizes = DEFAULT_PAGE_SIZES,
 }: PaginationProps) {
+  const shown = Math.min(Math.max(page, 1), Math.max(totalPages, 1))
+  const from = total === 0 ? 0 : Math.min((shown - 1) * pageSize + 1, total)
+  const to = Math.min(total, shown * pageSize)
   return (
-    <div className={`flex items-center justify-between${className ? ` ${className}` : ''}`}>
-      <div className="flex items-center gap-2">
-        <label className="flex items-center gap-1.5 text-xs text-gray-500">
+    <div className={`flex flex-wrap items-center justify-between gap-3${className ? ` ${className}` : ''}`}>
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-1.5 text-[13px] text-ink-700">
           Baris:
           <select
             value={pageSize}
             onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            className="text-xs font-bold rounded-lg border border-gray-200 px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-400 transition"
+            className="h-9 rounded-lg border border-paper-2 bg-white px-2 text-[13px] font-bold text-ink-700 focus:outline-none focus:ring-2 focus:ring-brand-strong/40"
           >
             {pageSizes.map((s) => (
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
         </label>
-        <span className="text-xs text-gray-500">Hal {page}/{totalPages}</span>
+        <span className="text-[13px] tabular-nums text-ink-700">Hal {page}/{totalPages}</span>
         {total > 0 && (
-          <span className="text-xs text-gray-400">{total} catatan</span>
+          <span className="text-[13px] tabular-nums text-ink-500">
+            Menampilkan {from}–{to} dari {total} catatan
+          </span>
         )}
       </div>
       <div className="flex gap-2">
