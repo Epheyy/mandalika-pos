@@ -4,9 +4,11 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-06 by Claude (Opus 5.5) - Kaca wave 4: P6b + P7 + B4a merged (3224e0ac), K2b held on a BO-KIT-SHELL browser failure; A9 probe APK in progress; see Progress board.
+Last updated: 2026-11-06 by Claude (Opus 5.5) - Kaca wave 4: P6b + P7 + B4a + K2b merged (K2b df95555f, BO glass shell live via Cloudflare); P6a waits for the A9 probe APK; see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
+
+> 2026-11-06: **Kaca K2b (backoffice glass shell + ambient) MERGED** as #92 `df95555f` (owner: "merge wave 4 when green"). Fix for the held BO-KIT-SHELL failure: a sticky `th` measures inside `<main>`'s padding box, which already has the 64 px top padding, so `top-(--bo-topbar-h)` put it at 128 px; the session fixed the offset (PR head `32a9d4a6`). Gate `gate/w4-k2b` 5/5 green + PR 7/7 green. Backoffice now: `<main>` scrolls under a blurred glass top bar, ambient ON per brand (D-86/D-87 owner note), solid fallback on `prefers-reduced-transparency`. Cloudflare builds the `[skip actions]` docs commit. Wave 4 now: P6b, P7, B4a, K2b merged; **P6a** waits for the A9 probe (probe APK building from `probe/a9-glass` `244d9bd6`, never merged).
 
 > 2026-11-06: **Kaca wave 4 part 1 MERGED: P6b + P7 + B4a; K2b HELD** (owner: "merge wave 4 when green"). Stacked no-ff merges on `1c8d80f7`: P6b #93 `3db375c8`, P7 #91 `e5a5d1e3`, B4a #90 `3224e0ac` (motion allow-list conflict P7 vs B4a: both only removed entries, kept base minus PromoPanel + MergeReview, motionGuard.test green). Each merge sha 5/5 green (gate/w4-*); every slice's own files identical to its branch. Backoffice (B4a) via Cloudflare on the `[skip actions]` docs commit; POS part (P6b Bayar + formatted cash, P7 discount sheets) rides the next POS OTA (owner's word). **K2b #92 held:** its merge `e038f24b` failed the browser gate in its own updated BO-KIT-SHELL scenario: `th sticks just below the bar (th 128, bar bottom 64)`; its PR browser check was still pending. Sent back to the K2b session to fix; merge after green. A9 probe APK: owner asked to build it ("build the A9 test APK"), in progress.
 
