@@ -23,6 +23,7 @@ import {
 } from './requisitionSave'
 import type { RequisitionStatus } from './requisitionLabels'
 import { Sheet } from '../../components/ui/Sheet'
+import { Button } from '../../components/ui/Button'
 
 interface Props {
   onClose: () => void
@@ -258,12 +259,12 @@ export function RequisitionPanel({ onClose, onOpenReceive, isOnline, products, u
 
   return (
     <Sheet open variant="side" onClose={() => requestLeave(onClose)} panelClassName="flex flex-col">
-        <div className="px-4 py-3 border-b flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {view.name !== 'list' && <button type="button" onClick={back} aria-label="Kembali" className="text-indigo-600 font-bold">←</button>}
-            <h2 className="font-bold text-gray-900">{title}</h2>
+        <div className="py-1 pl-4 pr-2 border-b border-paper-2 flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            {view.name !== 'list' && <button type="button" onClick={back} aria-label="Kembali" className="press inline-flex h-11 w-11 items-center justify-center rounded-control font-bold text-brand-strong active:bg-paper-1">←</button>}
+            <h2 className="text-lg font-bold text-ink-900">{title}</h2>
           </div>
-          <button type="button" onClick={() => requestLeave(onClose)} aria-label="Tutup panel" className="text-gray-400 text-xl leading-none">×</button>
+          <button type="button" onClick={() => requestLeave(onClose)} aria-label="Tutup panel" className="press inline-flex h-11 w-11 items-center justify-center rounded-control text-xl leading-none text-ink-700 active:bg-paper-1">×</button>
         </div>
         <div className="flex-1 overflow-auto min-h-0">
           {view.name === 'list' && (
@@ -278,8 +279,8 @@ export function RequisitionPanel({ onClose, onOpenReceive, isOnline, products, u
               onOpenReceive={onOpenReceive} />
           ) : (
             <div className="p-4">
-              <p className="text-sm text-gray-400">{message ?? 'Memuat…'}</p>
-              {message && retry && <button type="button" onClick={retry} className="mt-2 text-sm font-bold text-indigo-600">Coba Lagi</button>}
+              <p className="text-sm text-ink-500">{message ?? 'Memuat…'}</p>
+              {message && retry && <Button variant="secondary" onClick={retry} className="mt-2">Coba Lagi</Button>}
             </div>
           ))}
           {view.name === 'form' && (
@@ -288,13 +289,13 @@ export function RequisitionPanel({ onClose, onOpenReceive, isOnline, products, u
           )}
         </div>
         {confirm && (
-          <div className="absolute inset-0 z-10 bg-black/40 flex items-center justify-center p-4">
-            <div role="alertdialog" aria-label={confirm.title} className="bg-white rounded-xl p-4 w-full max-w-xs space-y-3">
-              <p className="font-bold text-gray-900">{confirm.title}</p>
-              <p className="text-sm text-gray-500">{confirm.body}</p>
+          <div className="absolute inset-0 z-10 bg-ink-900/40 rounded-l-panel flex items-center justify-center p-4">
+            <div role="alertdialog" aria-label={confirm.title} className="surface-solid rounded-panel p-4 w-full max-w-xs space-y-3">
+              <p className="font-bold text-ink-900">{confirm.title}</p>
+              <p className="text-sm text-ink-700">{confirm.body}</p>
               <div className="flex gap-2">
-                <button type="button" onClick={() => { const go = confirm.action; setConfirm(null); go() }} className="flex-1 bg-danger-solid text-white rounded-lg py-2 text-sm font-bold">{confirm.label}</button>
-                <button type="button" onClick={() => setConfirm(null)} className="flex-1 border rounded-lg py-2 text-sm font-bold text-gray-600">Tetap di sini</button>
+                <Button variant="danger" onClick={() => { const go = confirm.action; setConfirm(null); go() }} className="flex-1">{confirm.label}</Button>
+                <Button variant="secondary" onClick={() => setConfirm(null)} className="flex-1">Tetap di sini</Button>
               </div>
             </div>
           </div>

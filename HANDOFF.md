@@ -7,6 +7,8 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 Last updated: 2026-11-06 by Claude (Opus 5.5) - Kaca wave 2 merged (K2 0f1417b0, K3 34a1d089; backoffice via Cloudflare, K3 rides the wave-3 OTA); wave 3 starting; see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
+> 2026-11-06: **Kaca P5 (menu + secondary sheets) BUILT, PR open, NOT merged** (look only; MenuDrawer, HeldOrders, Catatan Order, Transfer history, receive/requisitions, TandaTerima, POS Settings; A08 PIN path untouched). Opus + standard review done (no CRITICAL/HIGH; MEDIUMs fixed). Rides the wave-3 POS OTA.
+
 
 > 2026-11-06: **Kaca wave 3 STARTED** (owner: "start Kaca wave 3"): 9 slice sessions P1-P5 + B1/B2/B3/B4b off `34a1d089`, each its own PR; merge order = plan §6 table order (P1, P2, P3, P4, P5, B1, B2, B3, B4b), later slices rebase. B* ship via Cloudflare; P1-P5 + K1/K3 ship together in one batched POS OTA. B4a (Pelanggan + Promosi) may join wave 3 since promo S2 is merged (offered as a card).
 

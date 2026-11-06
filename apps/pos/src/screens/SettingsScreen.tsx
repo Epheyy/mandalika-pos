@@ -19,6 +19,7 @@ import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
 import { offlineLockMessage } from '../lib/offlineCap'
 import { TerminalSection } from './TerminalSection'
 import { Sheet } from '../components/ui/Sheet'
+import { Button } from '../components/ui/Button'
 
 type AppSettings = components['schemas']['AppSettings']
 type Shift = components['schemas']['Shift']
@@ -63,11 +64,11 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="w-full flex items-center justify-between py-1.5"
+      className="press w-full min-h-11 flex items-center justify-between py-1.5"
     >
-      <span className="text-sm text-gray-700">{label}</span>
-      <span className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${checked ? 'bg-indigo-600' : 'bg-gray-300'}`}>
-        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${checked ? 'translate-x-4' : ''}`} />
+      <span className="text-sm text-ink-900">{label}</span>
+      <span className={`relative w-10 h-6 rounded-full flex-shrink-0 ${checked ? 'bg-brand-strong' : 'bg-paper-2'}`}>
+        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${checked ? 'translate-x-4' : ''}`} />
       </span>
     </button>
   )
@@ -187,11 +188,11 @@ export const SettingsScreen = memo(function SettingsScreen({
   return (
     <Sheet open variant="center" maxWidth="max-w-sm" panelClassName="max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
-          <h2 className="font-bold text-gray-900">{TITLES[section]}</h2>
+        <div className="flex items-center justify-between py-1 pl-5 pr-2 border-b border-paper-2 flex-shrink-0">
+          <h2 className="text-lg font-bold text-ink-900">{TITLES[section]}</h2>
           <button type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+            className="press inline-flex h-11 w-11 items-center justify-center rounded-control text-xl leading-none text-ink-700 active:bg-paper-1"
             aria-label="Tutup"
           >
             ×
@@ -203,16 +204,16 @@ export const SettingsScreen = memo(function SettingsScreen({
           {section === 'display' && (
             <div className="space-y-4">
               <div>
-                <p className="text-xs text-gray-600 font-semibold mb-1.5">Ukuran Font</p>
+                <p className="text-xs text-ink-700 font-semibold mb-1.5">Ukuran Font</p>
                 <div className="flex gap-2">
                   {(['sm', 'md', 'lg'] as FontSize[]).map((s) => (
                     <button type="button"
                       key={s}
                       onClick={() => onFontSizeChange(s)}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                      className={`press flex-1 min-h-11 py-1.5 rounded-control text-xs font-semibold border ${
                         fontSize === s
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                          ? 'bg-brand-strong text-on-brand border-brand-strong'
+                          : 'surface-card text-ink-700'
                       }`}
                     >
                       {s.toUpperCase()}
@@ -222,16 +223,16 @@ export const SettingsScreen = memo(function SettingsScreen({
               </div>
 
               <div>
-                <p className="text-xs text-gray-600 font-semibold mb-1.5">Kolom Grid Produk</p>
+                <p className="text-xs text-ink-700 font-semibold mb-1.5">Kolom Grid Produk</p>
                 <div className="flex gap-2">
                   {([2, 3, 4, 6] as GridCols[]).map((c) => (
                     <button type="button"
                       key={c}
                       onClick={() => onGridColsChange(c)}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                      className={`press flex-1 min-h-11 py-1.5 rounded-control text-xs font-semibold border ${
                         gridCols === c
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                          ? 'bg-brand-strong text-on-brand border-brand-strong'
+                          : 'surface-card text-ink-700'
                       }`}
                     >
                       {c}
@@ -241,8 +242,8 @@ export const SettingsScreen = memo(function SettingsScreen({
               </div>
 
               <div>
-                <p className="text-xs text-gray-600 font-semibold mb-1">Detail di Kartu Produk</p>
-                <div className="divide-y divide-gray-100">
+                <p className="text-xs text-ink-700 font-semibold mb-1">Detail di Kartu Produk</p>
+                <div className="divide-y divide-paper-2">
                   <Toggle label="Tampilkan Harga" checked={showPrice} onChange={onShowPriceChange} />
                   <Toggle label="Tampilkan Stok" checked={showStock} onChange={onShowStockChange} />
                   <Toggle label="Tampilkan Varian" checked={showVariants} onChange={onShowVariantsChange} />
@@ -250,11 +251,11 @@ export const SettingsScreen = memo(function SettingsScreen({
               </div>
 
               <div>
-                <p className="text-xs text-gray-600 font-semibold mb-1">Tutup Shift</p>
-                <div className="divide-y divide-gray-100">
+                <p className="text-xs text-ink-700 font-semibold mb-1">Tutup Shift</p>
+                <div className="divide-y divide-paper-2">
                   <Toggle label="Tutup Shift: sembunyikan angka sistem" checked={blindCount} onChange={onBlindCountChange} />
                 </div>
-                <p className="mt-1 text-[11px] text-gray-500">Angka Tercatat dan Selisih baru tampil setelah semua Terhitung diisi.</p>
+                <p className="mt-1 text-[11px] text-ink-700">Angka Tercatat dan Selisih baru tampil setelah semua Terhitung diisi.</p>
               </div>
             </div>
           )}
@@ -263,34 +264,35 @@ export const SettingsScreen = memo(function SettingsScreen({
           {section === 'printer' && (
             <div className="space-y-4">
               {!printer.supported ? (
-                <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500">
+                <div className="surface-group rounded-control p-3 text-xs text-ink-700">
                   Cetak Bluetooth hanya di aplikasi native. Mode browser memakai
                   pratinjau struk di layar.
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 flex justify-between items-center">
+                  <div className="surface-group rounded-control p-3 text-xs text-ink-700 flex justify-between items-center">
                     <span>Printer</span>
-                    <span className="font-semibold text-gray-800">
+                    <span className="font-semibold text-ink-900">
                       {printer.isPaired ? (printer.pairedName ?? 'Tersambung') : 'Belum diatur'}
                     </span>
                   </div>
                   <div className="flex gap-2">
-                    <button type="button"
+                    <Button
                       onClick={() => void handleShowBonded()}
                       disabled={printerBusy}
-                      className="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-indigo-700 transition-colors"
+                      className="flex-1 text-xs"
                     >
                       {printer.isPaired ? 'Ganti Printer' : 'Pilih Printer Terpasang'}
-                    </button>
+                    </Button>
                     {printer.isPaired && (
-                      <button type="button"
+                      <Button
+                        variant="secondary"
                         onClick={() => void handleTestPrint()}
                         disabled={printerBusy}
-                        className="flex-1 py-2 border border-gray-200 text-gray-700 rounded-xl text-xs font-semibold disabled:opacity-50 hover:bg-gray-50 transition-colors"
+                        className="flex-1 text-xs"
                       >
                         Tes Cetak
-                      </button>
+                      </Button>
                     )}
                   </div>
 
@@ -304,16 +306,16 @@ export const SettingsScreen = memo(function SettingsScreen({
                             setBonded(null)
                             setPrinterMsg(`Printer dipilih: ${d.name}`)
                           }}
-                          className="w-full text-left px-3 py-2 bg-gray-50 hover:bg-indigo-50 rounded-lg text-xs"
+                          className="press surface-card w-full min-h-11 text-left px-3 py-2 rounded-control text-xs active:bg-paper-1"
                         >
-                          <span className="font-semibold text-gray-800">{d.name}</span>
-                          <span className="block text-[10px] text-gray-400">{d.deviceId}</span>
+                          <span className="font-semibold text-ink-900">{d.name}</span>
+                          <span className="block text-[10px] text-ink-500">{d.deviceId}</span>
                         </button>
                       ))}
                       <button type="button"
                         onClick={() => { setBonded(null); void handlePair() }}
                         disabled={printerBusy}
-                        className="w-full py-1.5 text-[11px] text-indigo-600 font-semibold disabled:opacity-50"
+                        className="press w-full min-h-11 py-1.5 text-[11px] text-brand-strong font-semibold disabled:opacity-50"
                       >
                         Tidak ada di daftar? Pindai (scan)
                       </button>
@@ -322,7 +324,7 @@ export const SettingsScreen = memo(function SettingsScreen({
                   {printer.isPaired && (
                     <button type="button"
                       onClick={printer.unpair}
-                      className="w-full py-1.5 text-xs text-red-500 hover:text-red-600 font-semibold"
+                      className="press w-full min-h-11 py-1.5 text-xs text-danger font-semibold"
                     >
                       Hapus Printer
                     </button>
@@ -331,8 +333,8 @@ export const SettingsScreen = memo(function SettingsScreen({
                     <p
                       className={`text-xs ${
                         printerMsg.includes('Gagal') || printerMsg.includes('Tidak')
-                          ? 'text-red-500'
-                          : 'text-green-600'
+                          ? 'text-danger'
+                          : 'text-ok'
                       }`}
                     >
                       {printerMsg}
@@ -343,8 +345,8 @@ export const SettingsScreen = memo(function SettingsScreen({
 
               {/* Receipt settings (read-only, Backoffice-owned) */}
               <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Struk (Backoffice)</p>
-                <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 space-y-1">
+                <p className="text-[11px] font-bold text-ink-500 uppercase tracking-widest mb-2">Struk (Backoffice)</p>
+                <div className="surface-group rounded-control p-3 text-xs text-ink-700 space-y-1">
                   <div className="flex justify-between">
                     <span>Tampilkan Pajak</span>
                     <span>{settings.receipt.showTax ? '✓' : '—'}</span>
@@ -354,22 +356,22 @@ export const SettingsScreen = memo(function SettingsScreen({
                     <span>{settings.receipt.showCashier ? '✓' : '—'}</span>
                   </div>
                   {settings.receipt.headerText && (
-                    <div><span className="text-gray-400">Header: </span>{settings.receipt.headerText}</div>
+                    <div><span className="text-ink-500">Header: </span>{settings.receipt.headerText}</div>
                   )}
                   {settings.receipt.footerText && (
-                    <div><span className="text-gray-400">Footer: </span>{settings.receipt.footerText}</div>
+                    <div><span className="text-ink-500">Footer: </span>{settings.receipt.footerText}</div>
                   )}
-                  <p className="text-[10px] text-gray-400 mt-1">Diatur di Backoffice</p>
+                  <p className="text-[10px] text-ink-500 mt-1">Diatur di Backoffice</p>
                 </div>
               </div>
 
               {/* Tax (read-only) */}
               <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Pajak</p>
-                <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600">
+                <p className="text-[11px] font-bold text-ink-500 uppercase tracking-widest mb-2">Pajak</p>
+                <div className="surface-group rounded-control p-3 text-xs text-ink-700">
                   {settings.taxEnabled ? `PPN ${settings.taxRate}% aktif` : 'Pajak tidak aktif'}
                   {settings.roundingEnabled && (
-                    <span className="ml-2 text-gray-400">· Pembulatan {settings.roundingType}</span>
+                    <span className="ml-2 text-ink-500">· Pembulatan {settings.roundingType}</span>
                   )}
                 </div>
               </div>
@@ -385,20 +387,20 @@ export const SettingsScreen = memo(function SettingsScreen({
               <div className="flex gap-2">
                 <button type="button"
                   onClick={() => setCashFlowType('in')}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                  className={`press flex-1 min-h-11 py-1.5 rounded-control text-xs font-semibold border ${
                     cashFlowType === 'in'
-                      ? 'bg-green-600 text-white border-green-600'
-                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      ? 'bg-ok text-white border-ok'
+                      : 'surface-card text-ink-700'
                   }`}
                 >
                   Kas Masuk
                 </button>
                 <button type="button"
                   onClick={() => setCashFlowType('out')}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                  className={`press flex-1 min-h-11 py-1.5 rounded-control text-xs font-semibold border ${
                     cashFlowType === 'out'
                       ? 'bg-danger-solid text-white border-danger-solid'
-                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      : 'surface-card text-ink-700'
                   }`}
                 >
                   Kas Keluar
@@ -410,29 +412,25 @@ export const SettingsScreen = memo(function SettingsScreen({
                 value={cashFlowAmount}
                 onChange={(e) => { setCashFlowAmount(e.target.value); setCashFlowMsg(null) }}
                 placeholder="Jumlah (Rp)"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                className="w-full min-h-11 border border-paper-2 bg-white rounded-control px-3 py-2 text-sm text-ink-900 focus:outline-none focus:border-ink-700"
               />
               {cashFlowAmount && !isNaN(parseFloat(cashFlowAmount)) && (
-                <p className="text-[10px] text-gray-500">= {formatRupiah(parseFloat(cashFlowAmount))}</p>
+                <p className="tnum text-[10px] text-ink-700">= {formatRupiah(parseFloat(cashFlowAmount))}</p>
               )}
               <input
                 value={cashFlowDesc}
                 onChange={(e) => { setCashFlowDesc(e.target.value); setCashFlowMsg(null) }}
                 placeholder="Keterangan *"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                className="w-full min-h-11 border border-paper-2 bg-white rounded-control px-3 py-2 text-sm text-ink-900 focus:outline-none focus:border-ink-700"
               />
               {cashFlowMsg && (
-                <p className={`text-xs ${cashFlowMsg.startsWith('Berhasil') ? 'text-green-600' : 'text-red-500'}`}>
+                <p className={`text-xs ${cashFlowMsg.startsWith('Berhasil') ? 'text-ok' : 'text-danger'}`}>
                   {cashFlowMsg}
                 </p>
               )}
-              <button type="button"
-                onClick={() => void handleSaveCashFlow()}
-                disabled={isSavingCashFlow || !engine}
-                className="w-full py-2 bg-gray-800 text-white rounded-xl text-sm font-semibold disabled:opacity-50 hover:bg-gray-900 transition-colors"
-              >
+              <Button fullWidth onClick={() => void handleSaveCashFlow()} disabled={isSavingCashFlow || !engine}>
                 Simpan
-              </button>
+              </Button>
             </div>
           )}
         </div>

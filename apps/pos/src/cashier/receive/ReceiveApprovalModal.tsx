@@ -8,6 +8,7 @@ import {
   type ReceiveGrantInput,
 } from './receiveApprovalFlow'
 import { Sheet } from '../../components/ui/Sheet'
+import { Button } from '../../components/ui/Button'
 
 interface Props {
   /** The receipt key created up front; reused on every retry so a lost response never double-receives. */
@@ -123,12 +124,9 @@ export function ReceiveApprovalModal({
   const closeOnly = (text: string) =>
     shell(
       <>
-        <h3 className="font-bold text-gray-900 mb-3">Persetujuan penerimaan</h3>
-        <p className="text-sm text-gray-600 mb-5" role="alert">{text}</p>
-        <button type="button" onClick={onCancel}
-          className="w-full py-2.5 border border-gray-200 rounded-xl font-semibold text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-          Tutup
-        </button>
+        <h3 className="font-bold text-ink-900 mb-3">Persetujuan penerimaan</h3>
+        <p className="text-sm text-ink-700 mb-5" role="alert">{text}</p>
+        <Button variant="secondary" fullWidth onClick={onCancel}>Tutup</Button>
       </>,
     )
 
@@ -140,42 +138,40 @@ export function ReceiveApprovalModal({
   return shell(
     <>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-bold text-gray-900">Persetujuan penerimaan</h3>
+        <h3 className="font-bold text-ink-900">Persetujuan penerimaan</h3>
         <button type="button" onClick={onCancel} disabled={busy}
-          className="text-gray-400 hover:text-gray-600 text-lg leading-none" aria-label="Tutup">×</button>
+          className="press -mr-2 -mt-2 inline-flex h-11 w-11 items-center justify-center rounded-control text-lg leading-none text-ink-700 active:bg-paper-1 disabled:opacity-50" aria-label="Tutup">×</button>
       </div>
 
-      <label htmlFor="receive-approval-approver" className="block text-xs text-gray-700 font-semibold mb-1">Penyetuju</label>
+      <label htmlFor="receive-approval-approver" className="block text-xs text-ink-700 font-semibold mb-1">Penyetuju</label>
       <select id="receive-approval-approver" value={approverId}
         onChange={(e) => { setApproverId(e.target.value); setErr(null) }}
-        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 mb-4 bg-white">
+        className="w-full min-h-11 border border-paper-2 rounded-control px-3 py-2 text-sm text-ink-900 focus:outline-none focus:border-ink-700 mb-4 bg-white">
         {approvers.map((a) => <option key={a.userId} value={a.userId}>{a.displayName}</option>)}
       </select>
 
-      <label htmlFor="receive-approval-pin" className="block text-xs text-gray-700 font-semibold mb-1">PIN</label>
+      <label htmlFor="receive-approval-pin" className="block text-xs text-ink-700 font-semibold mb-1">PIN</label>
       <input id="receive-approval-pin" type="password" inputMode="numeric" maxLength={8} value={pin}
         onChange={(e) => { setPin(e.target.value.replace(/\D/g, '')); setErr(null) }}
         onKeyDown={(e) => { if (e.key === 'Enter' && pin.length >= 4 && !busy && !locked) void submit() }}
         placeholder="••••" disabled={locked}
-        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm tracking-widest focus:outline-none focus:ring-1 focus:ring-indigo-400 mb-1"
+        className="w-full min-h-11 border border-paper-2 rounded-control px-3 py-2 text-sm tracking-widest text-ink-900 focus:outline-none focus:border-ink-700 mb-1"
         autoComplete="one-time-code" />
 
       {remaining > 0 && (
-        <p className="text-xs text-red-500 mb-3" role="alert">Terkunci. Coba lagi dalam {formatCountdown(remaining)}</p>
+        <p className="text-xs text-danger mb-3" role="alert">Terkunci. Coba lagi dalam {formatCountdown(remaining)}</p>
       )}
-      {err && <p className="text-xs text-red-500 mb-3" role="alert">{err}</p>}
+      {err && <p className="text-xs text-danger mb-3" role="alert">{err}</p>}
       {!err && remaining === 0 && <div className="mb-3" />}
 
       <div className="flex gap-2">
-        <button type="button" onClick={() => void submit()}
-          disabled={busy || locked || (!grantRef.current && pin.length < 4)}
-          className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl font-semibold text-sm disabled:opacity-40 hover:bg-indigo-700 transition-colors">
+        <Button className="flex-1" onClick={() => void submit()}
+          disabled={busy || locked || (!grantRef.current && pin.length < 4)}>
           {busy ? 'Memverifikasi…' : 'Setujui'}
-        </button>
-        <button type="button" onClick={onCancel} disabled={busy}
-          className="flex-1 py-2.5 border border-gray-200 rounded-xl font-semibold text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+        </Button>
+        <Button variant="secondary" className="flex-1" onClick={onCancel} disabled={busy}>
           Batal
-        </button>
+        </Button>
       </div>
     </>,
   )

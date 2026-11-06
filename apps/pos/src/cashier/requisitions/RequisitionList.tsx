@@ -1,17 +1,21 @@
 import type { StockRequisition } from '@mandalika/api'
+import { Button } from '../../components/ui/Button'
+import { Chip } from '../../components/ui/Chip'
+import { StatusBadge as KitStatusBadge } from '../../components/ui/StatusBadge'
+import type { Tone } from '../../components/ui/tone'
 import { REQUISITION_STATUS, STATUS_FILTERS, fmtDate, type RequisitionStatus } from './requisitionLabels'
 
-const TONE: Record<string, string> = {
-  neutral: 'bg-gray-100 text-gray-600',
-  warning: 'bg-amber-100 text-amber-700',
-  success: 'bg-green-100 text-green-700',
-  danger: 'bg-red-100 text-red-700',
-  gold: 'bg-yellow-100 text-yellow-800',
+const TONE: Record<string, Tone> = {
+  neutral: 'neutral',
+  warning: 'warn',
+  success: 'ok',
+  danger: 'danger',
+  gold: 'brand',
 }
 
 export function StatusBadge({ status }: { status: RequisitionStatus }) {
   const meta = REQUISITION_STATUS[status]
-  return <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${TONE[meta.tone]}`}>{meta.label}</span>
+  return <KitStatusBadge tone={TONE[meta.tone]} label={meta.label} />
 }
 
 interface Props {
@@ -33,40 +37,37 @@ interface Props {
 export function RequisitionList({ rows, loading, error, notice, busy = false, filter, onFilter, onOpen, onNew, onReload }: Props) {
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="px-4 py-2 border-b flex gap-2 overflow-x-auto">
+      <div className="px-4 py-2 border-b border-paper-2 flex gap-2 overflow-x-auto">
         {STATUS_FILTERS.map((f) => (
-          <button
-            type="button" key={f.value || 'all'} onClick={() => onFilter(f.value)}
-            className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${filter === f.value ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}
-          >
+          <Chip key={f.value || 'all'} selected={filter === f.value} onClick={() => onFilter(f.value)} className="whitespace-nowrap">
             {f.label}
-          </button>
+          </Chip>
         ))}
       </div>
-      {notice && <p role="status" className="px-4 py-2 text-sm text-amber-800 bg-amber-50 border-b border-amber-100">{notice}</p>}
-      <div className="px-4 py-2 flex gap-2 border-b">
-        <button type="button" onClick={onNew} disabled={busy} className="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-bold disabled:opacity-50">Buat Permintaan</button>
-        <button type="button" onClick={onReload} disabled={loading || busy} className="px-3 text-sm text-indigo-600 font-bold disabled:text-gray-300">Muat ulang</button>
+      {notice && <p role="status" className="px-4 py-2 text-sm text-warn-strong bg-warn-bg border-b border-paper-2">{notice}</p>}
+      <div className="px-4 py-2 flex gap-2 border-b border-paper-2">
+        <Button onClick={onNew} disabled={busy} className="flex-1">Buat Permintaan</Button>
+        <Button variant="ghost" onClick={onReload} disabled={loading || busy} className="px-3 !text-brand-strong">Muat ulang</Button>
       </div>
       <div className="flex-1 overflow-auto">
         {error ? (
           <div className="p-4">
-            <p className="text-sm text-red-600">{error}</p>
-            <button type="button" onClick={onReload} className="mt-2 text-sm font-bold text-indigo-600">Coba Lagi</button>
+            <p className="text-sm text-danger">{error}</p>
+            <Button variant="secondary" onClick={onReload} className="mt-2">Coba Lagi</Button>
           </div>
-        ) : loading && rows.length === 0 ? <p className="p-4 text-sm text-gray-400">Memuat…</p>
-          : rows.length === 0 ? <p className="p-4 text-sm text-gray-400">Belum ada permintaan barang dari outlet ini.</p>
+        ) : loading && rows.length === 0 ? <p className="p-4 text-sm text-ink-500">Memuat…</p>
+          : rows.length === 0 ? <p className="p-4 text-sm text-ink-500">Belum ada permintaan barang dari outlet ini.</p>
           : rows.map((r) => (
-            <button type="button" key={r.id} onClick={() => onOpen(r.id)} disabled={busy} className="w-full text-left px-4 py-3 border-b hover:bg-gray-50 disabled:opacity-60">
+            <button type="button" key={r.id} onClick={() => onOpen(r.id)} disabled={busy} className="press w-full min-h-11 text-left px-4 py-3 border-b border-paper-2 active:bg-paper-1 disabled:opacity-60">
               <div className="flex justify-between items-center">
-                <span className="font-bold text-gray-800 text-sm">{r.number}</span>
+                <span className="font-bold text-ink-900 text-sm">{r.number}</span>
                 <StatusBadge status={r.status} />
               </div>
-              <div className="text-xs text-gray-500 mt-0.5">
+              <div className="text-xs text-ink-700 mt-0.5">
                 Dibutuhkan: {fmtDate(r.neededBy)} · Dibuat oleh {r.requestedByName ?? '—'}
               </div>
               {r.transfer && (
-                <div className="text-xs text-gray-500">Transfer {r.transfer.transferNo} · {r.transfer.status}</div>
+                <div className="text-xs text-ink-700">Transfer {r.transfer.transferNo} · {r.transfer.status}</div>
               )}
             </button>
           ))}

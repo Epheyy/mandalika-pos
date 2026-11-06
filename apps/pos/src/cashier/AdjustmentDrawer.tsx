@@ -15,6 +15,7 @@ import { BundleSlotPicker } from './BundleSlotPicker'
 import type { BundleAssignment } from './bundle'
 import { promotionPreviewCart, type PendingFulfillment } from './promotionFulfillment'
 import { Sheet } from '../components/ui/Sheet'
+import { Button } from '../components/ui/Button'
 
 type Promotion = components['schemas']['Promotion']
 type DiscountCode = components['schemas']['DiscountCode']
@@ -76,25 +77,18 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
 
   if (state.activeAdjustment === 'notes') {
     return (
-      <Sheet open variant="center" z={40} maxWidth="max-w-sm" panelClassName="p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-gray-900">Catatan Order</h3>
-            <button type="button" onClick={close} className="text-gray-400 hover:text-gray-600">×</button>
+      <Sheet open variant="center" z={40} maxWidth="max-w-sm" onClose={close} header title="Catatan Order" panelClassName="pb-5">
+          <div className="px-5 pt-4">
+            <textarea
+              value={state.orderNotes}
+              onChange={(e) => dispatch({ type: 'SET_ORDER_NOTES', notes: e.target.value })}
+              rows={3}
+              placeholder="Catatan untuk order ini…"
+              aria-label="Catatan order"
+              className="mb-3 w-full resize-none rounded-control border border-paper-2 bg-white px-3 py-2 text-sm text-ink-900 focus:border-ink-700 focus:outline-none"
+            />
+            <Button fullWidth onClick={close}>Simpan</Button>
           </div>
-          <textarea
-            value={state.orderNotes}
-            onChange={(e) => dispatch({ type: 'SET_ORDER_NOTES', notes: e.target.value })}
-            rows={3}
-            placeholder="Catatan untuk order ini…"
-            aria-label="Catatan order"
-            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none mb-3"
-          />
-          <button type="button"
-            onClick={close}
-            className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-semibold text-sm"
-          >
-            Simpan
-          </button>
       </Sheet>
     )
   }
