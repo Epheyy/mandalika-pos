@@ -11,6 +11,10 @@ import { PAYMENT_LABELS, partialGateFor, tenderLineText, visibleTenders, type Pa
 import type { RefundCache } from './refundSelection'
 import { REFUND_VIA_HISTORY_OFFLINE, filterLocalReceipts, localBadge, localReceiptOrder, localSaleRef, refundViaHistory, reprintReceiptData } from './localReceipts'
 import { Sheet } from '../components/ui/Sheet'
+import { Button } from '../components/ui/Button'
+import { StatusBadge } from '../components/ui/StatusBadge'
+import type { Tone } from '../components/ui/tone'
+import { formatHistoryStamp } from './historyStamp'
 
 type Gate = Pick<RefundAvailabilityInput, 'canRefund' | 'hasOpenShift' | 'shiftUnsynced' | 'syncedRefundOrderIds' | 'queuedSaleUuids' | 'serverIdToSaleUuid'>
 
@@ -34,57 +38,47 @@ interface LocalReceiptsPanelProps extends Gate {
   isOnline?: boolean
 }
 
-const TONES = {
-  ok: 'bg-green-100 text-green-700',
-  warn: 'bg-amber-100 text-amber-800',
-  bad: 'bg-red-100 text-red-700',
-  muted: 'bg-gray-100 text-gray-500',
-} as const
+const TONES: Record<'ok' | 'warn' | 'bad' | 'muted', Tone> = { ok: 'ok', warn: 'warn', bad: 'danger', muted: 'neutral' }
 
 export function LocalReceiptsPanel({ isOpen, onClose, receipts, canReprint, onReprint, onRefund, onOpenInHistory, isOnline = true, paymentMethods, queuedRefundOrderIds, refundCache, ...gate }: LocalReceiptsPanelProps) {
   const [search, setSearch] = useState('')
   if (!isOpen) return null
   const rows = filterLocalReceipts(receipts, search)
   return (
-    <Sheet open variant="center" maxWidth="max-w-2xl" panelClassName="max-h-[90vh] flex flex-col" testId="local-receipts">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
-          <h3 className="font-bold text-gray-900">Struk di tablet ini</h3>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500" aria-label="Tutup">✕</button>
-        </div>
-        <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0">
-          <label htmlFor="local-receipt-search" className="block text-[10px] text-gray-500 font-semibold mb-1">Cari nomor struk</label>
+    <Sheet open variant="center" maxWidth="max-w-2xl" panelClassName="max-h-[90vh] flex flex-col" testId="local-receipts" title="Struk di tablet ini" header onClose={onClose}>
+        <div className="px-5 py-3 border-b border-paper-2 flex-shrink-0">
+          <label htmlFor="local-receipt-search" className="block text-xs text-ink-700 font-semibold mb-1">Cari nomor struk</label>
           <input id="local-receipt-search" type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="mis. BSD-G0007"
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-400" />
+            className="w-full min-h-11 surface-card rounded-control px-3 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-strong" />
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2">
-          {rows.length === 0 && <p className="text-center text-sm text-gray-400 py-8">Belum ada struk di tablet ini</p>}
+          {rows.length === 0 && <p className="text-center text-sm text-ink-500 py-8">Belum ada struk di tablet ini</p>}
           {rows.map((r) => {
             const order = localReceiptOrder(r, paymentMethods)
             const cache = refundCache?.([r.orderUuid, ...(r.serverOrderId ? [r.serverOrderId] : [])])
             const badge = localBadge(r, partialGateFor(order, cache))
             return (
-              <div key={r.orderUuid} className="border border-gray-100 rounded-xl p-3" data-testid="local-receipt-row">
+              <div key={r.orderUuid} className="surface-card rounded-control p-3" data-testid="local-receipt-row">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-semibold text-sm text-gray-900">{r.orderNumber}</p>
-                    <p className="text-[11px] text-gray-500">
-                      {new Date(r.capturedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    <p className="font-semibold text-sm text-ink-900">{r.orderNumber}</p>
+                    <p className="text-xs text-ink-500">
+                      {formatHistoryStamp(r.capturedAt)}
                       {' · '}{PAYMENT_LABELS[r.paymentMethod] ?? r.paymentMethod}
                     </p>
                     {visibleTenders(order).map((t) => (
-                      <p key={t.seq} className="text-[11px] text-gray-500" data-testid="local-receipt-tender">{tenderLineText(t, paymentMethods)}</p>
+                      <p key={t.seq} className="text-xs text-ink-500" data-testid="local-receipt-tender">{tenderLineText(t, paymentMethods)}</p>
                     ))}
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-sm">{formatRupiah(r.quotedTotal ?? 0)}</p>
-                    <span className={`inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${TONES[badge.tone]}`}>{badge.label}</span>
+                    <p className="font-semibold text-sm text-ink-900">{formatRupiah(r.quotedTotal ?? 0)}</p>
+                    <StatusBadge tone={TONES[badge.tone]} label={badge.label} className="mt-1" />
                   </div>
                 </div>
                 <div className="flex gap-2 mt-2">
-                  <button type="button" onClick={() => onReprint(r)} disabled={!canReprint || reprintReceiptData(r) === null}
-                    className="flex-1 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+                  <Button variant="secondary" fullWidth onClick={() => onReprint(r)} disabled={!canReprint || reprintReceiptData(r) === null}>
                     Cetak Ulang
-                  </button>
+                  </Button>
                 </div>
                 <RefundAction order={order} sale={localSaleRef(r)} queuedOrderIds={queuedRefundOrderIds} refundCache={refundCache} {...gate} onRefund={() => onRefund(r)}
                   viaHistory={onOpenInHistory && refundViaHistory(r, order, cache) ? { online: isOnline, onOpen: () => onOpenInHistory(r), offlineMessage: REFUND_VIA_HISTORY_OFFLINE } : undefined} />

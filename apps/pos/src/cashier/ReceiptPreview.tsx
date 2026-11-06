@@ -121,60 +121,60 @@ export const ReceiptPreview = memo(function ReceiptPreview({
             className="h-9 w-auto object-contain mx-auto mb-3"
           />
           {settings.receipt.headerText && (
-            <p className="text-xs text-center text-gray-500 mb-3">
+            <p className="text-xs text-center text-ink-500 mb-3">
               {settings.receipt.headerText}
             </p>
           )}
 
-          <p className="text-[10px] text-gray-400 text-center mb-4">
+          <p className="text-xs text-ink-500 text-center mb-4">
             {timeStr}
           </p>
 
           {/* Items */}
-          <div className="space-y-1 mb-4 border-t border-dashed border-gray-200 pt-3">
+          <div className="space-y-1 mb-4 border-t border-dashed border-paper-2 pt-3">
             {items.map((item) => (
               <div
                 key={`${item.productId}-${item.variantSize}-${item.isReward ? item.rewardPromotionId ?? item.rewardConditionId ?? 'r' : ''}`}
                 className="flex justify-between text-xs"
               >
-                <span className="text-gray-700 flex-1 mr-2">
+                <span className="text-ink-700 flex-1 mr-2">
                   {item.productName}
-                  <span className="text-gray-400 ml-1">
+                  <span className="text-ink-500 ml-1">
                     {variantLabel(item.variantSize) ? `${variantLabel(item.variantSize)} ×${item.quantity}` : `×${item.quantity}`}
                   </span>
                 </span>
-                <span className={`flex-shrink-0 font-medium ${item.isReward ? 'text-green-600' : 'text-gray-800'}`}>
+                <span className={`flex-shrink-0 font-medium ${item.isReward ? 'text-reward' : 'text-ink-900'}`}>
                   {item.isReward && item.subtotal <= 0 ? 'GRATIS' : formatRupiah(item.subtotal)}
                 </span>
               </div>
             ))}
             {giveaway && (
               <div className="flex justify-between text-xs" data-testid="receipt-giveaway">
-                <span className="text-gray-700 flex-1 mr-2">
+                <span className="text-ink-700 flex-1 mr-2">
                   {giveaway.productName}
-                  <span className="text-gray-400 ml-1">
+                  <span className="text-ink-500 ml-1">
                     {variantLabel(giveaway.variantSize) ? `${variantLabel(giveaway.variantSize)} ×1` : '×1'}
                   </span>
                 </span>
-                <span className="flex-shrink-0 font-medium text-green-600">GRATIS</span>
+                <span className="flex-shrink-0 font-medium text-reward">GRATIS</span>
               </div>
             )}
           </div>
 
           {/* Totals */}
-          <div className="border-t border-dashed border-gray-200 pt-3 space-y-1 text-xs">
+          <div className="border-t border-dashed border-paper-2 pt-3 space-y-1 text-xs">
             <ReceiptTotals rows={totalRows} />
             {receiptTenderRows({ tenders, paymentLabel: PAYMENT_LABELS[paymentMethod] ?? paymentMethod, amountPaid }).map((t) => (
-              <div key={t.key} className="text-gray-600" data-testid="receipt-tender">
+              <div key={t.key} className="text-ink-700" data-testid="receipt-tender">
                 <div className="flex justify-between">
                   <span>{t.label}</span>
                   <span>{formatRupiah(t.amount)}</span>
                 </div>
-                {t.reference && <p className="text-[10px] text-gray-400">Ref {t.reference}</p>}
+                {t.reference && <p className="text-xs text-ink-500">Ref {t.reference}</p>}
               </div>
             ))}
             {change > 0 && (
-              <div className="flex justify-between text-gray-600">
+              <div className="flex justify-between text-ink-700">
                 <span>Kembalian</span>
                 <span>{formatRupiah(change)}</span>
               </div>
@@ -182,13 +182,13 @@ export const ReceiptPreview = memo(function ReceiptPreview({
           </div>
 
           {/* Customer / cashier */}
-          <div className="mt-3 border-t border-dashed border-gray-200 pt-3 text-[10px] text-gray-400 space-y-0.5">
+          <div className="mt-3 border-t border-dashed border-paper-2 pt-3 text-xs text-ink-500 space-y-0.5">
             {customerName && <p>Pelanggan: {customerName}</p>}
             {settings.receipt.showCashier && <p>Kasir: {cashierName}</p>}
           </div>
 
           {settings.receipt.footerText && (
-            <p className="text-[10px] text-center text-gray-400 mt-3">
+            <p className="text-xs text-center text-ink-500 mt-3">
               {settings.receipt.footerText}
             </p>
           )}

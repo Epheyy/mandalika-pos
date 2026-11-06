@@ -27,7 +27,7 @@ export function RefundAction({ order, onRefund, refundCache, viaHistory, ...gate
     if (!viaHistory.online) return <StatusBadge tone="warn" size="md" label={viaHistory.offlineMessage} className="mt-2 w-full justify-center" />
     return (
       <button type="button" onClick={viaHistory.onOpen}
-        className="mt-2 w-full py-2 border border-red-200 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50 transition-colors">
+        className="mt-2 w-full min-h-12 border border-danger text-danger rounded-control text-sm font-semibold press active:bg-danger-bg">
         Refund lewat Riwayat
       </button>
     )
@@ -40,7 +40,7 @@ export function RefundAction({ order, onRefund, refundCache, viaHistory, ...gate
       {a.note && <StatusBadge tone="warn" size="md" label={a.note} className="mt-2 w-full justify-center" />}
       <button type="button"
         onClick={() => onRefund(order)}
-        className="mt-2 w-full py-2 border border-red-200 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50 transition-colors"
+        className="mt-2 w-full min-h-12 border border-danger text-danger rounded-control text-sm font-semibold press active:bg-danger-bg"
       >
         Refund Transaksi Ini
       </button>
