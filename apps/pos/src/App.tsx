@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import { useAuth } from './auth'
 import { hideSplash, otaNotifyReady } from './native'
+import { ToastProvider } from './components/ui/Toast'
 import { SyncProvider } from './cashier/SyncProvider'
 import CashierScreen from './cashier/CashierScreen'
 import OutletPickScreen from './screens/OutletPickScreen'
@@ -186,9 +187,13 @@ export default function App() {
   if (terminalState === 'mismatch') return <SyncProvider flushOnly><OutletMismatchScreen /></SyncProvider>
   if (terminalState === 'pick') return <OutletPickScreen />
   // Phase C: offline-first CashierScreen wrapped in SyncProvider
+  // ToastProvider sits here, not above App: App() is called as a plain function by App.otaReady.test, and only the
+  // cashier tree shows toasts (screens adopt useToast() in later slices).
   return (
-    <SyncProvider>
-      <CashierScreen />
-    </SyncProvider>
+    <ToastProvider>
+      <SyncProvider>
+        <CashierScreen />
+      </SyncProvider>
+    </ToastProvider>
   )
 }

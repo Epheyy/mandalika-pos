@@ -12,4 +12,9 @@ describe('toneClasses', () => {
     expect(toneClasses('ok')).toBe('bg-ok-bg text-ok')
     expect(toneClasses('danger')).toBe('bg-danger-bg text-danger')
   })
+
+  it('uses the AA-safe strong tokens where white or small text sits on the tint', () => {
+    expect(toneClasses('brand')).toBe('bg-brand-strong text-on-brand')
+    expect(toneClasses('warn')).toBe('bg-warn-bg text-warn-strong')
+  })
 })

@@ -12,11 +12,11 @@ type Props = {
   children?: ReactNode
 }
 
-const UNSELECTED = 'bg-white border border-paper-2 text-ink-700'
+const UNSELECTED = 'surface-card text-ink-700'
 
 export function Chip({ selected = false, tone = 'neutral', dot = false, toggle = true, onClick, className = '', children }: Props) {
   const palette = selected ? toneClasses(tone === 'neutral' ? 'brand' : tone) : UNSELECTED
-  const classes = `inline-flex min-h-11 items-center gap-2 rounded-chip px-4 text-sm font-semibold ${palette} ${className}`.trim()
+  const classes = `inline-flex min-h-11 items-center gap-2 rounded-chip px-4 text-sm font-semibold press ${palette} ${className}`.trim()
   const content = (
     <>
       {dot && <span aria-hidden="true" className="h-2 w-2 rounded-full bg-current" />}

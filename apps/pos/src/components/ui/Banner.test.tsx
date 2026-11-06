@@ -11,6 +11,12 @@ describe('Banner', () => {
     expect(html).toContain('bg-danger-bg')
     expect(html).not.toContain('<button')
   })
+  it('leads the message with a decorative tone dot (tint + dot + word)', () => {
+    const html = renderToStaticMarkup(createElement(Banner, { tone: 'warn', message: 'Offline' }))
+    expect(html).toContain('aria-hidden="true"')
+    expect(html).toContain('rounded-full bg-current')
+    expect(html).toContain('bg-warn-bg')
+  })
   it('renders one action button when given', () => {
     const html = renderToStaticMarkup(createElement(Banner, { tone: 'danger', message: 'x', action: { label: 'Cek koneksi', onClick: vi.fn() } }))
     expect(html).toContain('Cek koneksi')
