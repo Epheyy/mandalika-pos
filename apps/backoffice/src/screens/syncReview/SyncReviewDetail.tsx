@@ -32,7 +32,7 @@ function TechnicalDetails({ item }: { item: SyncReviewItem }) {
   return (
     <div>
       <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)}
-        className="text-xs font-bold text-gray-500 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong">
+        className="text-xs font-bold text-ink-700 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong">
         Detail teknis
       </button>
       {open && (
@@ -42,7 +42,7 @@ function TechnicalDetails({ item }: { item: SyncReviewItem }) {
             <TechRow label="Kunci sinkron" value={item.idempotencyKey} />
             {item.lastError && item.lastError !== item.reviewReason && <TechRow label="Error terakhir" value={item.lastError} />}
           </dl>
-          <pre className="text-[11px] bg-gray-900 text-gray-100 rounded-xl p-3 overflow-x-auto max-h-64">
+          <pre className="text-[11px] bg-ink-900 text-paper-0 rounded-xl p-3 overflow-x-auto max-h-64">
             {JSON.stringify(item.payload, null, 2)}
           </pre>
         </div>
@@ -54,8 +54,8 @@ function TechnicalDetails({ item }: { item: SyncReviewItem }) {
 function TechRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[10px] font-black text-gray-400 uppercase tracking-wider">{label}</dt>
-      <dd className="text-gray-800 font-mono break-all">{value}</dd>
+      <dt className="text-[10px] font-black text-ink-500 uppercase tracking-wider">{label}</dt>
+      <dd className="text-ink-900 font-mono break-all">{value}</dd>
     </div>
   )
 }
@@ -88,29 +88,29 @@ function DetailBody({ item, onResolved }: { item: SyncReviewItem; onResolved: ()
       <dl className="grid grid-cols-2 gap-3 text-xs">
         {payloadSummary(item.type, payload).map(([k, v]) => (
           <div key={k}>
-            <dt className="text-[10px] font-black text-gray-400 uppercase tracking-wider">{k}</dt>
-            <dd className="text-gray-800 font-semibold break-words">{v}</dd>
+            <dt className="text-[10px] font-black text-ink-500 uppercase tracking-wider">{k}</dt>
+            <dd className="text-ink-900 font-semibold break-words">{v}</dd>
           </div>
         ))}
         <div>
-          <dt className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Dibuat (menurut tablet)</dt>
-          <dd className="text-gray-800 font-semibold">{fmtWib(item.clientCreatedAt)}</dd>
+          <dt className="text-[10px] font-black text-ink-500 uppercase tracking-wider">Dibuat (menurut tablet)</dt>
+          <dd className="text-ink-900 font-semibold">{fmtWib(item.clientCreatedAt)}</dd>
         </div>
         <div>
-          <dt className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Kasir</dt>
-          <dd className="text-gray-800 font-semibold">{item.ownerName ?? '—'}</dd>
+          <dt className="text-[10px] font-black text-ink-500 uppercase tracking-wider">Kasir</dt>
+          <dd className="text-ink-900 font-semibold">{item.ownerName ?? '—'}</dd>
         </div>
       </dl>
-      <p className="text-xs text-gray-600">
+      <p className="text-xs text-ink-700">
         <span className="font-bold">Alasan server:</span> {refundReviewLabel(item.reviewReason) ?? item.reviewReason ?? '—'}
       </p>
       <TechnicalDetails item={item} />
       {item.resolvedAt ? (
-        <p className="text-sm text-gray-700">
+        <p className="text-sm text-ink-700">
           Diselesaikan oleh <b>{item.resolvedByName ?? '—'}</b> · {fmtWib(item.resolvedAt)}<br />{item.resolutionNote}
         </p>
       ) : (
-        <div className="space-y-2 border-t border-gray-100 pt-4">
+        <div className="space-y-2 border-t border-paper-2 pt-4">
           <Textarea label="Catatan penyelesaian" aria-label="Catatan penyelesaian" value={note} maxLength={NOTE_MAX}
             onChange={(e) => setNote(e.target.value)}
             hint="Item akan dihapus dari tablet saat tablet terhubung berikutnya. Perbaikan (mis. refund manual) dilakukan terpisah."

@@ -58,7 +58,7 @@ export function ResetPasswordModal({ user, onClose, onDone }: ResetPasswordModal
           void submit()
         }}
       >
-        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+        <p className="text-sm text-warn-strong bg-warn-bg border border-paper-2 rounded-xl px-3 py-2.5">
           Sesi {user.displayName} akan berakhir dan harus login ulang dengan kata sandi baru. Tablet POS yang memakai akun ini
           akan keluar otomatis dalam ±15 menit bila online (tablet offline keluar saat tersambung lagi). Penjualan yang belum
           tersinkron tetap tersimpan di tablet dan dikirim setelah ada yang login kembali. Sampaikan kata sandi baru langsung

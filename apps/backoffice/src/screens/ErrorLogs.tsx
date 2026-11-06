@@ -6,7 +6,7 @@ import { AlertTriangle } from 'lucide-react'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { exportToCSV, exportToXLSX, buildExportName } from '../lib/csvUtils'
-import { ERROR_SOURCE } from '../lib/labels/errorSource'
+import { ERROR_KIND, ERROR_SOURCE } from '../lib/labels/errorSource'
 import { labelOf } from '../lib/labels/types'
 import { Button } from '../ui/Button'
 import { DataTable, type Column } from '../ui/DataTable'
@@ -24,6 +24,7 @@ const SOURCE_FILTERS: ReadonlyArray<{ id: string; label: string }> = [
 ]
 
 const DASH = '—'
+const DEFAULT_PAGE_SIZE = 25
 
 function fmtTime(s?: string | null): string {
   if (!s) return DASH
@@ -37,7 +38,7 @@ function fmtTime(s?: string | null): string {
 export default function ErrorLogs() {
   const [source, setSource] = useState('')
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(50)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   // The clicked row itself, not an id into the polled page: a new error pushing it off page 1 must not close the panel.
   const [opened, setOpened] = useState<ErrorLog | null>(null)
 
@@ -74,9 +75,9 @@ export default function ErrorLogs() {
   }
 
   const columns: Column<ErrorLog>[] = [
-    { id: 'time', header: 'Waktu', cell: (e) => fmtTime(e.createdAt) },
+    { id: 'time', header: 'Waktu', cell: (e) => <span className="whitespace-nowrap">{fmtTime(e.createdAt)}</span> },
     { id: 'source', header: 'Sumber', cell: (e) => <StatusBadge map={ERROR_SOURCE} value={e.source} /> },
-    { id: 'kind', header: 'Jenis', cell: (e) => e.kind ?? DASH },
+    { id: 'kind', header: 'Jenis', cell: (e) => (e.kind ? <StatusBadge map={ERROR_KIND} value={e.kind} /> : DASH) },
     { id: 'message', header: 'Pesan', cell: (e) => <span className="line-clamp-2 font-bold">{e.message}</span> },
     { id: 'outlet', header: 'Outlet', cell: (e) => e.outletName ?? DASH },
     { id: 'user', header: 'Pengguna', cell: (e) => e.userName ?? DASH, defaultHidden: true },
@@ -142,7 +143,7 @@ export default function ErrorLogs() {
         open={opened !== null}
         onClose={() => setOpened(null)}
         title="Detail Kesalahan"
-        subtitle={opened ? `${labelOf(ERROR_SOURCE, opened.source).label}${opened.kind ? ` · ${opened.kind}` : ''}` : undefined}
+        subtitle={opened ? `${labelOf(ERROR_SOURCE, opened.source).label}${opened.kind ? ` · ${labelOf(ERROR_KIND, opened.kind).label}` : ''}` : undefined}
         width="lg"
         dirty={false}
       >
@@ -155,7 +156,7 @@ export default function ErrorLogs() {
 function ErrorDetail({ e }: { e: ErrorLog }) {
   return (
     <div className="space-y-4">
-      <p className="font-bold text-gray-900 break-words">{e.message}</p>
+      <p className="font-bold text-ink-900 break-words">{e.message}</p>
       {e.action && <DetailField label="Aksi" value={e.action} />}
       <div className="grid grid-cols-2 gap-3 text-xs">
         <DetailField label="Outlet" value={e.outletName ?? e.outletId ?? DASH} />
@@ -173,7 +174,7 @@ function ErrorDetail({ e }: { e: ErrorLog }) {
             {e.breadcrumbs.map((b, i) => (
               <li key={`${b.at}-${b.label}-${i}`} className="flex gap-2 text-xs">
                 <span className="text-ink-700 font-mono flex-shrink-0">{fmtTime(b.at).slice(-8)}</span>
-                <span className="text-gray-700">{b.label}</span>
+                <span className="text-ink-700">{b.label}</span>
               </li>
             ))}
           </ol>
@@ -183,7 +184,7 @@ function ErrorDetail({ e }: { e: ErrorLog }) {
       {e.payload != null && (
         <div>
           <p className="text-xs font-black text-ink-700 uppercase tracking-widest mb-2">Detail teknis</p>
-          <pre className="text-[11px] bg-gray-900 text-gray-100 rounded-xl p-3 overflow-x-auto max-h-64">
+          <pre className="text-[11px] bg-ink-900 text-paper-0 rounded-xl p-3 overflow-x-auto max-h-64">
             {JSON.stringify(e.payload, null, 2)}
           </pre>
         </div>
@@ -196,7 +197,7 @@ function DetailField({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="text-[10px] font-black text-ink-700 uppercase tracking-wider">{label}</p>
-      <p className="text-gray-800 font-semibold break-words">{value}</p>
+      <p className="text-ink-900 font-semibold break-words">{value}</p>
     </div>
   )
 }

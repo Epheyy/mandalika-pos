@@ -92,14 +92,14 @@ export default function SyncReview() {
         <FilterBar.Select label="Alasan" value={reviewCode} onChange={(v) => setState({ alasan: v, hal: 1 })}
           options={REASON_FILTERS.map((r) => ({ value: r.id, label: r.label }))} />
       </FilterBar>
-      {q.error && <p role="alert" className="text-sm text-red-600">{q.error}</p>}
-      <Card className="overflow-hidden">
+      {q.error && <p role="alert" className="text-sm text-danger">{q.error}</p>}
+      <Card className="overflow-clip">
         {q.loading && rows.length === 0 ? (
           <TableSkeleton />
         ) : rows.length === 0 ? (
           q.error ? null : <EmptyState icon={<ClipboardCheck />} title={status === 'open' ? 'Tidak ada item terbuka' : 'Belum ada item selesai'} />
         ) : (
-          <ul className="divide-y divide-gray-50">
+          <ul className="divide-y divide-paper-2">
             {rows.map((it) => <ReviewListRow key={it.idempotencyKey} item={it} onOpen={() => setSelected(it)} />)}
           </ul>
         )}
@@ -116,19 +116,19 @@ function ReviewListRow({ item, onOpen }: { item: SyncReviewItem; onOpen: () => v
   const movedFrom = item.capturedOutletName && item.capturedOutletId !== item.outletId ? item.capturedOutletName : null
   return (
     <li>
-      <button type="button" onClick={onOpen} className="w-full text-left px-5 py-4 hover:bg-gray-50 focus-visible:bg-gray-50">
-        <p className="font-bold text-gray-900 text-sm">
-          {typeLabel(item.type)} · <span className="text-red-700">{reasonLabel(item.reviewCode)}</span>
+      <button type="button" onClick={onOpen} className="w-full text-left px-5 py-4 hover:bg-paper-1 focus-visible:bg-paper-1">
+        <p className="font-bold text-ink-900 text-sm">
+          {typeLabel(item.type)} · <span className="text-danger">{reasonLabel(item.reviewCode)}</span>
         </p>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-ink-700">
           {item.outletName}{movedFrom ? ` (dibuat di ${movedFrom})` : ''}
           {item.ownerName ? ` · ${item.ownerName}` : ''}
           {' · '}{fmtWib(item.clientCreatedAt)} (menurut tablet)
         </p>
         {item.resolvedAt ? (
-          <p className="text-xs text-green-700">Selesai oleh {item.resolvedByName ?? '—'} · {fmtWib(item.resolvedAt)} · {item.resolutionNote}</p>
+          <p className="text-xs text-ok">Selesai oleh {item.resolvedByName ?? '—'} · {fmtWib(item.resolvedAt)} · {item.resolutionNote}</p>
         ) : isStale(item.lastReportedAt) ? (
-          <p className="text-xs text-amber-700">tablet belum terhubung sejak {fmtWib(item.lastReportedAt)}</p>
+          <p className="text-xs text-warn-strong">tablet belum terhubung sejak {fmtWib(item.lastReportedAt)}</p>
         ) : null}
       </button>
     </li>

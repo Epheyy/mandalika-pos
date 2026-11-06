@@ -94,7 +94,7 @@ export default function ApprovalQueue() {
       header: 'Selisih Bersih',
       align: 'right',
       cell: (it) => (
-        <span className={`font-black ${it.netDelta > 0 ? 'text-green-600' : it.netDelta < 0 ? 'text-red-600' : 'text-gray-400'}`}>{signed(it.netDelta)}</span>
+        <span className={`font-black ${it.netDelta > 0 ? 'text-ok' : it.netDelta < 0 ? 'text-danger' : 'text-ink-500'}`}>{signed(it.netDelta)}</span>
       ),
     },
   ]

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ALL_STATUSES, canRetry, emptyTitle, kindFilterOf, kindLabel, locationText, refText, relaySummary, retryConsequence,
   showsNextAttempt, statusFilterOf, STATUS_LABEL, STATUS_ORDER,
+  humanReason,
 } from './erpOutboxFormat'
 
 const report = { disabled: false, claimed: 6, delivered: 3, replayed: 1, held: 2, retried: 1, dead: 4, released: 0 }
@@ -89,5 +90,26 @@ describe('erpOutboxFormat', () => {
   })
   it('orders the status tabs dead first and covers every status', () => {
     expect(STATUS_ORDER).toEqual(['dead', 'held', 'pending', 'sending', 'delivered', 'replayed'])
+  })
+})
+
+describe('humanReason', () => {
+  const base = { holdReason: null, lastError: null, lastHttpStatus: null }
+  it('says nothing when there is no reason', () => {
+    expect(humanReason(base)).toBeNull()
+  })
+  it('puts a held document in plain words, never the raw reason', () => {
+    expect(humanReason({ ...base, holdReason: 'unmapped sku X-1' })).toBe('Ditahan, menunggu ditinjau')
+  })
+  it('names who is at fault by HTTP class', () => {
+    expect(humanReason({ ...base, lastHttpStatus: 503, lastError: 'ERP down' })).toBe('ERP sedang bermasalah (HTTP 503)')
+    expect(humanReason({ ...base, lastHttpStatus: 422, lastError: '{"detail":"x"}' })).toBe('ERP menolak dokumen (HTTP 422)')
+  })
+  it('access and busy statuses are not blamed on the document', () => {
+    expect(humanReason({ ...base, lastHttpStatus: 403, lastError: 'x' })).toBe('ERP menolak akses (HTTP 403), periksa kredensial')
+    expect(humanReason({ ...base, lastHttpStatus: 429, lastError: 'x' })).toBe('ERP sibuk, akan dicoba lagi (HTTP 429)')
+  })
+  it('a failure with no HTTP status is a generic send failure', () => {
+    expect(humanReason({ ...base, lastError: 'ECONNRESET' })).toBe('Gagal mengirim ke ERP')
   })
 })

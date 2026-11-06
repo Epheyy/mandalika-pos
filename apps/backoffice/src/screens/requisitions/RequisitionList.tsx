@@ -87,7 +87,7 @@ function RequisitionEdit({ id, onBack, onSaved }: RequisitionEditProps) {
     return (
       <div className="space-y-5">
         <PageHeader title="Permintaan Barang" actions={<Button variant="secondary" icon={<ArrowLeft className="w-4 h-4" />} onClick={onBack}>Kembali</Button>} />
-        <Card className="p-8">{q.error ? <p className="text-sm text-red-600">{q.error}</p> : <TableSkeleton />}</Card>
+        <Card className="p-8">{q.error ? <p className="text-sm text-danger">{q.error}</p> : <TableSkeleton />}</Card>
       </div>
     )
   }
@@ -100,9 +100,9 @@ interface RequisitionListProps {
 }
 
 const LIST_COLUMNS: Column<StockRequisition>[] = [
-  { id: 'number', header: 'No', cell: (r) => <span className="font-mono text-sm text-gray-900">{r.number}</span> },
-  { id: 'outlet', header: 'Outlet', cell: (r) => <span className="text-sm text-gray-500">{r.outletName}</span> },
-  { id: 'warehouse', header: 'Gudang', cell: (r) => <span className="text-sm text-gray-500">{r.warehouseName ?? '—'}</span> },
+  { id: 'number', header: 'No', cell: (r) => <span className="font-mono text-sm text-ink-900">{r.number}</span> },
+  { id: 'outlet', header: 'Outlet', cell: (r) => <span className="text-sm text-ink-700">{r.outletName}</span> },
+  { id: 'warehouse', header: 'Gudang', cell: (r) => <span className="text-sm text-ink-700">{r.warehouseName ?? '—'}</span> },
   {
     id: 'status',
     header: 'Status',
@@ -111,8 +111,8 @@ const LIST_COLUMNS: Column<StockRequisition>[] = [
       return <Badge tone={s.tone}>{s.label}</Badge>
     },
   },
-  { id: 'needed', header: 'Dibutuhkan', cell: (r) => <span className="text-sm text-gray-500">{fmtDate(r.neededBy)}</span> },
-  { id: 'transfer', header: 'Transfer', cell: (r) => <span className="font-mono text-sm text-gray-500">{r.transfer?.transferNo ?? '—'}</span> },
+  { id: 'needed', header: 'Dibutuhkan', cell: (r) => <span className="text-sm text-ink-700">{fmtDate(r.neededBy)}</span> },
+  { id: 'transfer', header: 'Transfer', cell: (r) => <span className="font-mono text-sm text-ink-700">{r.transfer?.transferNo ?? '—'}</span> },
 ]
 
 function RequisitionList({ onCreate, onOpen }: RequisitionListProps) {
@@ -146,7 +146,7 @@ function RequisitionList({ onCreate, onOpen }: RequisitionListProps) {
           </Button>
         ) : undefined}
       />
-      {canRequest && needsOutlet && <p className="text-sm text-gray-500">Pilih outlet dulu (menu di kanan atas) untuk membuat permintaan baru.</p>}
+      {canRequest && needsOutlet && <p className="text-sm text-ink-700">Pilih outlet dulu (menu di kanan atas) untuk membuat permintaan baru.</p>}
       <FilterBar onReset={() => setState({ status: '', hal: 1 })} activeCount={status ? 1 : 0}>
         <FilterBar.Scope />
         <FilterBar.Select

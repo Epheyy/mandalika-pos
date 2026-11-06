@@ -121,3 +121,18 @@ const EMPTY_WORD: Record<ErpStatus, string> = {
 
 export const emptyTitle = (status: ErpStatus | ''): string =>
   status === '' ? 'Tidak ada dokumen' : `Tidak ada dokumen ${EMPTY_WORD[status]}`
+
+/**
+ * The reason column in plain words. The raw server text (`holdReason`, `lastError`) stays in the detail's
+ * "Detail teknis"; a table row never shows an HTTP error body. Null when there is nothing to say.
+ */
+export function humanReason(i: Pick<ErpOutboxItem, 'holdReason' | 'lastError' | 'lastHttpStatus'>): string | null {
+  if (i.holdReason) return 'Ditahan, menunggu ditinjau'
+  const http = i.lastHttpStatus
+  if (http === 401 || http === 403) return `ERP menolak akses (HTTP ${http}), periksa kredensial`
+  if (http === 408 || http === 429) return `ERP sibuk, akan dicoba lagi (HTTP ${http})`
+  if (http != null && http >= 500) return `ERP sedang bermasalah (HTTP ${http})`
+  if (http != null && http >= 400) return `ERP menolak dokumen (HTTP ${http})`
+  if (i.lastError) return 'Gagal mengirim ke ERP'
+  return null
+}

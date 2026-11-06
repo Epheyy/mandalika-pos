@@ -2,6 +2,7 @@
 // through the ConfirmDialog and keeps the server's refusal inside it (synthetic API, no real backend).
 import type { ScenarioPage } from './fixture'
 import { openBackoffice, deepLink, navTo, clickTab } from './fixture'
+import { BO_SHOT_VIEWPORTS, captureShot } from './shots'
 
 const OUTLET = '00000000-0000-4000-8d5a-0000000000a1'
 const ROLE_ID = '00000000-0000-4000-8d5a-0000000000b1'
@@ -85,6 +86,7 @@ export const roleDeleteFlow = async (page: ScenarioPage) => {
   await navTo(page, 'users')
   await page.locator('[data-tab-key="roles"]').click()
   await page.getByText('Supervisor D5', { exact: true }).waitFor()
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'b4b-pengguna-role', BO_SHOT_VIEWPORTS)
 
   await page.getByRole('button', { name: 'Hapus role Supervisor D5' }).click()
   const dialog = page.getByRole('alertdialog')

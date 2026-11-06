@@ -18,7 +18,7 @@ export function RolePicker({ value, onChange }: RolePickerProps) {
           onClick={() => onChange(r)}
           className={cn(
             'rounded-xl border-2 py-2.5 text-sm font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong',
-            value === r ? 'border-brand-strong bg-paper-1 text-brand-strong' : 'border-gray-200 text-ink-700 hover:bg-paper-0',
+            value === r ? 'border-brand-strong bg-paper-1 text-brand-strong' : 'border-paper-2 text-ink-700 hover:bg-paper-0',
           )}
         >
           {ROLE_LABEL[r]}

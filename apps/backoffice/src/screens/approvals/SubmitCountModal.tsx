@@ -74,7 +74,7 @@ export function SubmitCountModal({ countName, lines, onSubmit, onClose }: Submit
       }
     >
       <div className="space-y-4">
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-ink-700">
           {lines.length === 0
             ? 'Tidak ada selisih, stock count akan langsung diselesaikan.'
             : `${lines.length} baris berselisih akan diterapkan setelah disetujui.`}
@@ -90,19 +90,19 @@ export function SubmitCountModal({ countName, lines, onSubmit, onClose }: Submit
           onChange={(e) => { touch(); setText(e.target.value) }}
         />
         {lines.length > 0 && (
-          <div className="max-h-72 overflow-y-auto divide-y divide-gray-50 border border-gray-100 rounded-xl">
+          <div className="max-h-72 overflow-y-auto divide-y divide-paper-2 border border-paper-2 rounded-xl">
             {lines.map(({ item, diff }) => {
               const k = lineKey(item)
               const r = reasons[k]
               return (
                 <div key={k} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                  <span className="flex-1 min-w-40 text-sm font-bold text-gray-900">
-                    {item.productName} <span className="text-xs text-gray-400">{item.variantSize}</span>
+                  <span className="flex-1 min-w-40 text-sm font-bold text-ink-900">
+                    {item.productName} <span className="text-xs text-ink-500">{item.variantSize}</span>
                   </span>
-                  <span className={`text-sm font-black ${diff > 0 ? 'text-green-600' : 'text-red-600'}`}>{signed(diff)}</span>
+                  <span className={`text-sm font-black ${diff > 0 ? 'text-ok' : 'text-danger'}`}>{signed(diff)}</span>
                   <select
                     aria-label={`Alasan ${item.productName} ${item.variantSize}`}
-                    className="px-2 py-1 border border-gray-200 rounded-lg text-xs"
+                    className="px-2 py-1 border border-paper-2 rounded-lg text-xs"
                     value={r?.code ?? ''}
                     onChange={(e) => setLine(k, { code: e.target.value as InventoryReasonCode | '' })}
                   >
@@ -112,7 +112,7 @@ export function SubmitCountModal({ countName, lines, onSubmit, onClose }: Submit
                   {r?.code === 'other' && (
                     <input
                       aria-label={`Keterangan ${item.productName} ${item.variantSize}`}
-                      className="px-2 py-1 border border-gray-200 rounded-lg text-xs"
+                      className="px-2 py-1 border border-paper-2 rounded-lg text-xs"
                       placeholder="Keterangan *"
                       value={r.text}
                       onChange={(e) => setLine(k, { text: e.target.value })}
@@ -123,7 +123,7 @@ export function SubmitCountModal({ countName, lines, onSubmit, onClose }: Submit
             })}
           </div>
         )}
-        {err && <p role="alert" className="text-sm text-red-600">{err}</p>}
+        {err && <p role="alert" className="text-sm text-danger">{err}</p>}
       </div>
     </Modal>
   )

@@ -2,6 +2,7 @@
 // Integrasi ERP writes (Kirim sekarang, Kirim ulang) ask first and call the server once (synthetic API, no real backend).
 import type { ScenarioPage } from './fixture'
 import { openBackoffice, navItem } from './fixture'
+import { BO_SHOT_VIEWPORTS, captureShot } from './shots'
 
 const OUTLET_A = '00000000-0000-4000-8d3c-0000000000a1'
 const OUTLET_B = '00000000-0000-4000-8d3c-0000000000b2'
@@ -100,6 +101,7 @@ async function approvalsPart(page: ScenarioPage, calls: Calls, results: object[]
   check(calls.approvalLists.some((p) => p.get('kind') === 'count'), 'the list asked the server for kind=count')
   await badge.waitFor()
   results.push({ step: 'type-filter-url-and-request' })
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'b4b-persetujuan', BO_SHOT_VIEWPORTS)
 
   await page.getByLabel('Outlet', { exact: true }).selectOption(OUTLET_B)
   await page.waitForFunction(() => location.hash.includes('outlet='))
@@ -127,7 +129,8 @@ async function erpPart(page: ScenarioPage, calls: Calls, results: object[], setR
   await navItem(page, 'erpOutbox').click()
   await page.getByRole('heading', { name: 'Integrasi ERP' }).waitFor()
   await page.getByRole('button', { name: 'ADJ-9' }).waitFor()
-  check(calls.erpLists.some((p) => p.get('status') === 'dead'), 'the default list asks for dead documents')
+  check(calls.erpLists.some((p) => p.get('status') === 'dead' && p.get('limit') !== '1'), 'the default list asks for dead documents')
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'b4b-erp', BO_SHOT_VIEWPORTS)
   check((await page.locator('main').innerText()).includes('D3 Outlet A'), 'the location shows its name')
   check(!(await page.locator('main').innerText()).includes('ERP_'), 'no setting names in the visible page')
   await page.getByRole('button', { name: 'Semua', exact: true }).click()

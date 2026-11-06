@@ -9,7 +9,8 @@ import { Button } from '../ui/Button'
 import { Select, Field } from '../ui/Field'
 import { DataTable } from '../ui/DataTable'
 import { ExportButton } from '../ui/ExportButton'
-import { Modal } from '../ui/Modal'
+import { SlideOver } from '../ui/SlideOver'
+import { useToast } from '../ui/Toast'
 import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { IconButton } from '../ui/IconButton'
@@ -92,6 +93,7 @@ const editUserReducer = (state: EditUserState, action: EditUserAction): EditUser
 
 export default function Users() {
   const { user: me } = useAuth()
+  const toast = useToast()
   const uq = usePolledQuery<User[]>(() => fetchAllPages((page, limit) => api.listUsers(page, limit)), [])
   const rq = usePolledQuery<CustomRole[]>(() => api.listCustomRoles(), [])
   const oq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
@@ -135,6 +137,7 @@ export default function Users() {
         await api.setUserReceivePin(editingUser.id, { pin })
       }
       dispatch({ type: 'CLOSE' })
+      toast({ message: `Akses ${editingUser.displayName} disimpan`, tone: 'ok' })
       await uq.refetch()
     } catch (e: unknown) {
       setSaveError(errorText(e, 'Gagal menyimpan akses. Coba lagi.'))
@@ -168,6 +171,7 @@ export default function Users() {
         permissions: nf.permissions,
       })
       setAddOpen(false)
+      toast({ message: `Pengguna ${nf.displayName.trim()} ditambahkan`, tone: 'ok' })
       setNf({ displayName: '', email: '', password: '', role: 'cashier', outletId: '', permissions: [] })
       await uq.refetch()
     } catch (e: unknown) {
@@ -189,6 +193,7 @@ export default function Users() {
       if (editingRole) await api.updateCustomRole(editingRole.id, roleForm)
       else await api.createCustomRole(roleForm)
       setRoleOpen(false)
+      toast({ message: `Role ${roleForm.name.trim()} disimpan`, tone: 'ok' })
       await rq.refetch()
     } catch (e: unknown) {
       setRoleError(errorText(e, 'Gagal menyimpan role. Coba lagi.'))
@@ -263,9 +268,9 @@ export default function Users() {
       />
 
       {resetNotice && (
-        <div role="status" className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-bold text-green-700">
+        <div role="status" className="flex items-center gap-3 rounded-xl border border-paper-2 bg-ok-bg px-4 py-3 text-sm font-bold text-ok">
           <span className="flex-1">{resetNotice}</span>
-          <button type="button" aria-label="Tutup pemberitahuan" onClick={() => setResetNotice(null)} className="text-green-600 hover:text-green-800"><X className="w-4 h-4" /></button>
+          <IconButton label="Tutup pemberitahuan" onClick={() => setResetNotice(null)}><X className="w-4 h-4" /></IconButton>
         </div>
       )}
 
@@ -290,22 +295,22 @@ export default function Users() {
               <EmptyState icon={<Shield />} title="Belum ada role kustom" />
             </Card>
           ) : (
-            <Card className="divide-y divide-gray-50">
+            <Card className="divide-y divide-paper-2">
               {roles.map((r) => (
                 <div key={r.id} className="px-5 py-4 flex items-center gap-3">
                   <div className="flex-1">
-                    <p className="font-bold text-gray-900">{r.name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{r.permissions.length} permission aktif</p>
+                    <p className="font-bold text-ink-900">{r.name}</p>
+                    <p className="text-xs text-ink-500 mt-0.5">{r.permissions.length} permission aktif</p>
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {r.permissions.slice(0, 4).map((p) => (
-                        <Badge key={p} tone="gold">{PERMS[p]?.label || p}</Badge>
+                        <Badge key={p} tone="neutral">{PERMS[p]?.label || p}</Badge>
                       ))}
-                      {r.permissions.length > 4 && <span className="text-xs text-gray-400 font-bold">+{r.permissions.length - 4} lagi</span>}
+                      {r.permissions.length > 4 && <span className="text-xs text-ink-500 font-bold">+{r.permissions.length - 4} lagi</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <IconButton aria-label={`Edit role ${r.name}`} onClick={() => { setRoleError(null); setEditingRole(r); setRoleForm({ name: r.name, permissions: [...r.permissions] }); setRoleOpen(true) }}><Edit2 className="w-4 h-4" /></IconButton>
-                    <IconButton tone="danger" aria-label={`Hapus role ${r.name}`} onClick={() => askDeleteRole(r)}><Trash2 className="w-4 h-4" /></IconButton>
+                    <IconButton label={`Edit role ${r.name}`} onClick={() => { setRoleError(null); setEditingRole(r); setRoleForm({ name: r.name, permissions: [...r.permissions] }); setRoleOpen(true) }}><Edit2 className="w-4 h-4" /></IconButton>
+                    <IconButton tone="danger" label={`Hapus role ${r.name}`} onClick={() => askDeleteRole(r)}><Trash2 className="w-4 h-4" /></IconButton>
                   </div>
                 </div>
               ))}
@@ -314,16 +319,16 @@ export default function Users() {
         </div>
       )}
 
-      <Modal
+      <SlideOver
         open={!!editingUser}
         onClose={() => dispatch({ type: 'CLOSE' })}
         title="Edit Akses"
         subtitle={editingUser?.displayName}
         footer={
-          <>
-            <Button variant="secondary" className="flex-1" onClick={() => dispatch({ type: 'CLOSE' })}>Batal</Button>
-            <Button className="flex-1" loading={busy} onClick={saveUser}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
-          </>
+          <SlideOver.Footer>
+            <Button variant="secondary" onClick={() => dispatch({ type: 'CLOSE' })}>Batal</Button>
+            <Button loading={busy} onClick={saveUser}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
+          </SlideOver.Footer>
         }
       >
         <div className="space-y-5">
@@ -342,7 +347,7 @@ export default function Users() {
             ))}
           </Select>
           {editRole === 'cashier' && !editOutletId && (
-            <p className="text-[11px] text-amber-600 -mt-3">Kasir sebaiknya ditempatkan di satu outlet agar POS dibatasi pada outlet tersebut.</p>
+            <p className="text-[11px] text-warn-strong -mt-3">Kasir sebaiknya ditempatkan di satu outlet agar POS dibatasi pada outlet tersebut.</p>
           )}
           <Field label="PIN penerimaan transfer (opsional)">
             <input
@@ -353,9 +358,9 @@ export default function Users() {
               value={pin}
               onChange={(e) => dispatch({ type: 'SET_PIN', value: e.target.value.replace(/\D/g, '') })}
               disabled={clearPin}
-              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-400 transition disabled:opacity-50"
+              className="w-full px-3 py-2.5 bg-paper-1 border border-paper-2 rounded-xl text-sm text-ink-900 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-brand-strong/40 focus:border-brand-strong transition disabled:opacity-50"
             />
-            <label className="mt-1 flex items-center gap-2 text-sm text-gray-500">
+            <label className="mt-1 flex items-center gap-2 text-sm text-ink-700">
               <input type="checkbox" checked={clearPin} onChange={(e) => dispatch({ type: 'SET_CLEAR_PIN', value: e.target.checked })} />
               Hapus PIN
             </label>
@@ -364,10 +369,10 @@ export default function Users() {
                 {unlocking ? 'Membuka…' : 'Buka kunci PIN'}
               </Button>
               {unlockNote && (
-                <span role="status" className={`text-xs ${unlockNote.ok ? 'text-green-700' : 'text-red-600'}`}>{unlockNote.message}</span>
+                <span role="status" className={`text-xs ${unlockNote.ok ? 'text-ok' : 'text-danger'}`}>{unlockNote.message}</span>
               )}
             </div>
-            <p className="mt-1 text-[11px] text-gray-500">{UNLOCK_PIN_NOTE}</p>
+            <p className="mt-1 text-[11px] text-ink-700">{UNLOCK_PIN_NOTE}</p>
           </Field>
           {editRole !== 'admin' && roles.length > 0 && (
             <Field label="Terapkan Template">
@@ -384,7 +389,7 @@ export default function Users() {
             </Field>
           )}
         </div>
-      </Modal>
+      </SlideOver>
 
       {resetTarget && (
         <ResetPasswordModal
