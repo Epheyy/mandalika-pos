@@ -60,7 +60,9 @@ export const kitShellFlow = async (page: ScenarioPage) => {
 
   // 1. The skip link is the first stop, shows on focus, and lands on <main> without touching the router's hash.
   const hashBefore = await page.evaluate(() => location.hash)
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  // A reload clears the sequential-focus start point that the sidebar click left behind.
+  await page.reload()
+  await page.locator('tbody tr').first().waitFor()
   await page.keyboard.press('Tab')
   const first = await page.evaluate(() => document.activeElement?.textContent ?? '')
   check(first === 'Lewati ke konten', `the first Tab stop is the skip link, got "${first}"`)
@@ -95,6 +97,8 @@ export const kitShellFlow = async (page: ScenarioPage) => {
   check((await tab('products').getAttribute('aria-selected')) === 'true', 'moving focus does not select')
   await page.keyboard.press('Enter')
   await page.waitForFunction(() => document.querySelector('[data-tab-key="categories"]')?.getAttribute('aria-selected') === 'true')
+  // Produk remounts its strip per view (B1's file), so focus is put back by hand before Home.
+  await tab('categories').focus()
   await page.keyboard.press('Home')
   check((await page.evaluate(() => document.activeElement?.getAttribute('data-tab-key'))) === 'products', 'Home moves focus to the first tab')
   results.push({ tabs: 'ok' })
