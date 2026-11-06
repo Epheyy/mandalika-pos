@@ -29,8 +29,8 @@ const fmt = (iso?: string) => (iso ? format(parseISO(iso), 'dd MMM yyyy HH:mm') 
 function Row({ k, v }: { k: string; v: string | number }) {
   return (
     <div className="flex justify-between gap-4 text-sm">
-      <span className="text-gray-400">{k}</span>
-      <span className="font-bold text-gray-900 text-right">{v}</span>
+      <span className="text-ink-500">{k}</span>
+      <span className="font-bold text-ink-900 text-right">{v}</span>
     </div>
   )
 }
@@ -39,9 +39,9 @@ function Strip({ strip }: { strip: AdjustmentStrip }) {
   return (
     <dl className="grid grid-cols-3 gap-3" aria-label="Perbandingan stok">
       {strip.cells.map((c) => (
-        <div key={c.title} className="rounded-xl border border-gray-100 bg-paper-0 p-3">
+        <div key={c.title} className="rounded-xl border border-paper-2 bg-paper-0 p-3">
           <dt className="text-xs font-bold text-ink-700">{c.title}</dt>
-          <dd className="mt-1 text-2xl font-black tabular-nums text-gray-900">{c.value}</dd>
+          <dd className="mt-1 text-2xl font-black tabular-nums text-ink-900">{c.value}</dd>
           <dd className="mt-0.5 text-xs text-ink-700">{c.note}</dd>
         </div>
       ))}
@@ -58,18 +58,18 @@ function AdjustmentBody({ r }: { r: AdjustmentRequest }) {
       <Row k="Alasan" v={reasonLabel(r.reasonCode)} />
       {r.reasonText && <Row k="Keterangan" v={r.reasonText} />}
       {strip.goesNegative && (
-        <p role="alert" className="text-xs font-bold text-red-700 bg-red-50 rounded-xl p-3">Stok akan menjadi minus: {strip.resultingQty}</p>
+        <p role="alert" className="text-xs font-bold text-danger bg-danger-bg rounded-xl p-3">Stok akan menjadi minus: {strip.resultingQty}</p>
       )}
       {strip.drifted && (
-        <p className="text-xs text-amber-700 bg-amber-50 rounded-xl p-3">
+        <p className="text-xs text-warn-strong bg-warn-bg rounded-xl p-3">
           Stok berubah sejak pengajuan. Yang diterapkan adalah selisih ({signed(strip.delta)}), bukan jumlah baru.
         </p>
       )}
       {(r.events ?? []).length > 0 && (
-        <div className="pt-2 border-t border-gray-100">
-          <p className="text-xs font-black text-gray-400 uppercase mb-1">Riwayat</p>
+        <div className="pt-2 border-t border-paper-2">
+          <p className="text-xs font-black text-ink-500 uppercase mb-1">Riwayat</p>
           {(r.events ?? []).map((e) => (
-            <p key={e.id} className="text-xs text-gray-600">{fmt(e.at)} · {e.action} · {e.actorName ?? '-'}{e.note ? ` · ${e.note}` : ''}</p>
+            <p key={e.id} className="text-xs text-ink-700">{fmt(e.at)} · {e.action} · {e.actorName ?? '-'}{e.note ? ` · ${e.note}` : ''}</p>
           ))}
         </div>
       )}
@@ -83,23 +83,23 @@ function CountBody({ c }: { c: StockCount }) {
     <div className="space-y-2">
       <Row k="Alasan opname" v={reasonLabel(c.reasonCode)} />
       {c.reasonText && <Row k="Keterangan" v={c.reasonText} />}
-      {c.rejectedNote && <p className="text-xs text-red-700 bg-red-50 rounded-xl p-3">Ditolak sebelumnya: {c.rejectedNote}</p>}
+      {c.rejectedNote && <p className="text-xs text-danger bg-danger-bg rounded-xl p-3">Ditolak sebelumnya: {c.rejectedNote}</p>}
       <div className="overflow-x-auto max-h-72 overflow-y-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 sticky top-0">
+          <thead className="bg-paper-1 sticky top-0">
             <tr>{['Produk', 'Varian', 'Acuan', 'Aktual', 'Selisih', 'Alasan'].map((h) => (
-              <th key={h} className="text-left px-3 py-1.5 text-xs font-black text-gray-400 uppercase">{h}</th>
+              <th key={h} className="text-left px-3 py-1.5 text-xs font-black text-ink-700 uppercase">{h}</th>
             ))}</tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-paper-2">
             {lines.map(({ item: i, diff, reference }) => (
               <tr key={`${i.productId}|${i.variantSize}`}>
-                <td className="px-3 py-1.5 text-sm font-bold text-gray-900">{i.productName}</td>
-                <td className="px-3 py-1.5 text-xs text-gray-600">{i.variantSize}</td>
+                <td className="px-3 py-1.5 text-sm font-bold text-ink-900">{i.productName}</td>
+                <td className="px-3 py-1.5 text-xs text-ink-700">{i.variantSize}</td>
                 <td className="px-3 py-1.5 text-sm">{reference}</td>
                 <td className="px-3 py-1.5 text-sm">{i.actualQty ?? '-'}</td>
                 <td className="px-3 py-1.5 text-sm font-black">{signed(diff)}</td>
-                <td className="px-3 py-1.5 text-xs text-gray-600">
+                <td className="px-3 py-1.5 text-xs text-ink-700">
                   {i.reasonCode ? reasonLabel(i.reasonCode) : '-'}{i.reasonText ? `: ${i.reasonText}` : ''}
                 </td>
               </tr>
@@ -175,13 +175,13 @@ export function ApprovalDetail({ item, onClose, onDone }: ApprovalDetailProps) {
       >
         <div className="space-y-4">
           {isOwn && <Badge tone="warning">Pengajuan Anda sendiri. Tidak bisa disetujui oleh pengaju.</Badge>}
-          {dq.error && <p role="alert" className="text-sm text-red-600">{dq.error}</p>}
-          {!d && !dq.error && <p className="text-sm text-gray-400">Memuat...</p>}
+          {dq.error && <p role="alert" className="text-sm text-danger">{dq.error}</p>}
+          {!d && !dq.error && <p className="text-sm text-ink-500">Memuat...</p>}
           {d && (isAdj ? <AdjustmentBody r={d as AdjustmentRequest} /> : <CountBody c={d as StockCount} />)}
           {rejecting && (
             <Textarea label="Alasan penolakan *" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
           )}
-          {err && <p role="alert" className="text-sm text-red-600">{err}</p>}
+          {err && <p role="alert" className="text-sm text-danger">{err}</p>}
         </div>
       </Modal>
       {pinOpen && <PinModal title="Setujui" onApprove={approve} onClose={() => setPinOpen(false)} />}

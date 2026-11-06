@@ -7,7 +7,7 @@ import { ConfirmDialog } from '../../ui/ConfirmDialog'
 import { Modal } from '../../ui/Modal'
 import { Button } from '../../ui/Button'
 import { StatusBadge } from '../../ui/StatusBadge'
-import { canRetry, kindLabel, locationText, refText, retryConsequence, showsNextAttempt } from './erpOutboxFormat'
+import { canRetry, humanReason, kindLabel, locationText, refText, retryConsequence, showsNextAttempt } from './erpOutboxFormat'
 import { fmtTime } from './fmtTime'
 
 interface Props {
@@ -24,8 +24,8 @@ export function ErpOutboxDetail({ item, onClose, onChanged }: Props) {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">{label}</p>
-      <p className="text-gray-800 font-semibold break-words text-xs">{value}</p>
+      <p className="text-[10px] font-black text-ink-500 uppercase tracking-wider">{label}</p>
+      <p className="text-ink-900 font-semibold break-words text-xs">{value}</p>
     </div>
   )
 }
@@ -34,8 +34,8 @@ function Json({ title, value }: { title: string; value: unknown }) {
   if (value == null) return null
   return (
     <div>
-      <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">{title}</p>
-      <pre className="text-[11px] bg-gray-900 text-gray-100 rounded-xl p-3 overflow-auto max-h-64">
+      <p className="text-xs font-black text-ink-500 uppercase tracking-widest mb-2">{title}</p>
+      <pre className="text-[11px] bg-ink-900 text-paper-0 rounded-xl p-3 overflow-auto max-h-64">
         {JSON.stringify(value, null, 2)}
       </pre>
     </div>
@@ -95,10 +95,16 @@ function DetailView({ item, onClose, onChanged }: { item: ErpOutboxItem; onClose
             <Field label="Terkirim" value={fmtTime(d.deliveredAt)} />
             <Field label="Percobaan" value={String(d.attempts)} />
             <Field label="HTTP terakhir" value={d.lastHttpStatus != null ? String(d.lastHttpStatus) : '—'} />
-            <Field label="Alasan ditahan" value={d.holdReason || '—'} />
-            <Field label="Error terakhir" value={d.lastError || '—'} />
           </div>
-          {q.error && <p role="alert" className="text-xs text-red-600">{q.error}</p>}
+          {humanReason(d) && <p className="text-sm font-bold text-ink-900">{humanReason(d)}</p>}
+          <details className="text-xs">
+            <summary className="cursor-pointer font-bold text-ink-700">Detail teknis</summary>
+            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Alasan ditahan" value={d.holdReason || '—'} />
+              <Field label="Error terakhir" value={d.lastError || '—'} />
+            </div>
+          </details>
+          {q.error && <p role="alert" className="text-xs text-danger">{q.error}</p>}
           <Json title="Payload" value={q.data?.payload} />
           <Json title="Respons ERP" value={q.data?.erpResponse} />
           {canRetry(d.status) && (
@@ -106,7 +112,7 @@ function DetailView({ item, onClose, onChanged }: { item: ErpOutboxItem; onClose
               <Button onClick={() => { setError(null); setAsking(true) }}>Kirim ulang</Button>
             </div>
           )}
-          {msg && <p role="status" className="text-xs font-semibold text-gray-700">{msg}</p>}
+          {msg && <p role="status" className="text-xs font-semibold text-ink-700">{msg}</p>}
         </div>
       </Modal>
       <ConfirmDialog

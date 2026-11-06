@@ -57,7 +57,7 @@ export function PinModal({ title, onApprove, onClose }: PinModalProps) {
           placeholder="4-8 digit"
         />
         <Input label="Catatan" type="text" value={note} onChange={(e) => setNote(e.target.value)} />
-        {err && <p role="alert" className="text-sm text-red-600">{err}</p>}
+        {err && <p role="alert" className="text-sm text-danger">{err}</p>}
       </div>
     </Modal>
   )

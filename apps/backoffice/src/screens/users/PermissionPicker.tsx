@@ -28,11 +28,11 @@ function PermissionPicker({ selected, onToggle, compact = false }: PermissionPic
     return (
       <div className="space-y-1.5 max-h-48 overflow-y-auto">
         {Object.entries(PERMS).map(([p, { label }]) => (
-          <button type="button" key={p} aria-pressed={selected.includes(p)} onClick={() => onToggle(p)} className={`w-full flex items-center gap-2 p-2.5 rounded-xl border-2 text-left ${selected.includes(p) ? 'border-brand-strong bg-paper-1' : 'border-gray-100'}`}>
-            <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${selected.includes(p) ? 'bg-brand-strong' : 'border-2 border-gray-300'}`}>
+          <button type="button" key={p} aria-pressed={selected.includes(p)} onClick={() => onToggle(p)} className={`w-full flex items-center gap-2 p-2.5 rounded-xl border-2 text-left ${selected.includes(p) ? 'border-brand-strong bg-paper-1' : 'border-paper-2'}`}>
+            <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${selected.includes(p) ? 'bg-brand-strong' : 'border-2 border-ink-500'}`}>
               {selected.includes(p) && <Check className="w-2.5 h-2.5 text-on-brand" />}
             </div>
-            <span className={`text-sm font-bold ${selected.includes(p) ? 'text-brand-strong' : 'text-gray-700'}`}>{label}</span>
+            <span className={`text-sm font-bold ${selected.includes(p) ? 'text-brand-strong' : 'text-ink-700'}`}>{label}</span>
           </button>
         ))}
       </div>
@@ -42,13 +42,13 @@ function PermissionPicker({ selected, onToggle, compact = false }: PermissionPic
   return (
     <div className="space-y-2">
       {Object.entries(PERMS).map(([p, { label, desc }]) => (
-        <button type="button" key={p} aria-pressed={selected.includes(p)} onClick={() => onToggle(p)} className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left ${selected.includes(p) ? 'border-brand-strong bg-paper-1' : 'border-gray-100 hover:border-gray-200'}`}>
-          <div className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 ${selected.includes(p) ? 'bg-brand-strong' : 'border-2 border-gray-300'}`}>
+        <button type="button" key={p} aria-pressed={selected.includes(p)} onClick={() => onToggle(p)} className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left ${selected.includes(p) ? 'border-brand-strong bg-paper-1' : 'border-paper-2 hover:bg-paper-0'}`}>
+          <div className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 ${selected.includes(p) ? 'bg-brand-strong' : 'border-2 border-ink-500'}`}>
             {selected.includes(p) && <Check className="w-3 h-3 text-on-brand" />}
           </div>
           <div>
-            <p className={`text-sm font-bold ${selected.includes(p) ? 'text-brand-strong' : 'text-gray-700'}`}>{label}</p>
-            <p className="text-xs text-gray-400">{desc}</p>
+            <p className={`text-sm font-bold ${selected.includes(p) ? 'text-brand-strong' : 'text-ink-700'}`}>{label}</p>
+            <p className="text-xs text-ink-500">{desc}</p>
           </div>
         </button>
       ))}

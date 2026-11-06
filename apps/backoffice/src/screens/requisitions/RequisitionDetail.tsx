@@ -43,10 +43,10 @@ function StatusChain({ status }: { status: StockRequisition['status'] }) {
         const reached = !dead && i <= at
         return (
           <li key={s} className="flex items-center gap-2">
-            <span className={`px-3 py-1 rounded-full text-xs font-bold ${reached ? 'bg-gold-600 text-white' : 'bg-gray-100 text-gray-400'}`}>
+            <span className={`px-3 py-1 rounded-full text-xs font-bold ${reached ? 'bg-brand-strong text-on-brand' : 'bg-paper-1 text-ink-700'}`}>
               {REQUISITION_STATUS[s].label}
             </span>
-            {i < REQUISITION_CHAIN.length - 1 && <span className="text-gray-300">›</span>}
+            {i < REQUISITION_CHAIN.length - 1 && <span className="text-ink-500">›</span>}
           </li>
         )
       })}
@@ -81,7 +81,7 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
     return (
       <div className="space-y-5">
         <PageHeader title="Permintaan Barang" actions={<Button variant="secondary" icon={<ArrowLeft className="w-4 h-4" />} onClick={onBack}>Kembali</Button>} />
-        <Card className="p-8">{q.error ? <p className="text-sm text-red-600">{q.error}</p> : <TableSkeleton />}</Card>
+        <Card className="p-8">{q.error ? <p className="text-sm text-danger">{q.error}</p> : <TableSkeleton />}</Card>
       </div>
     )
   }
@@ -172,19 +172,19 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
 
       <Card className="p-5 space-y-4">
         <StatusChain status={pb.status} />
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-gray-500">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-ink-700">
           <Badge tone={s.tone}>{s.label}</Badge>
           <span>Pemohon: {pb.requestedByName ?? '—'}</span>
           <span>Diajukan: {fmtDateTime(pb.submittedAt)}</span>
           {pb.warehouseName && <span>Gudang: {pb.warehouseName}</span>}
           {pb.decidedAt && <span>Keputusan: {pb.decidedByName ?? '—'} · {fmtDateTime(pb.decidedAt)}</span>}
         </div>
-        {pb.note && <p className="text-sm text-gray-600">Catatan: {pb.note}</p>}
-        {pb.decisionNote && <p className="text-sm text-amber-700">Catatan gudang: {pb.decisionNote}</p>}
+        {pb.note && <p className="text-sm text-ink-700">Catatan: {pb.note}</p>}
+        {pb.decisionNote && <p className="text-sm text-warn-strong">Catatan gudang: {pb.decisionNote}</p>}
         {pb.transfer && (
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="text-gray-500">Transfer:</span>
-            <span className="font-mono font-bold text-gray-900">{pb.transfer.transferNo}</span>
+            <span className="text-ink-700">Transfer:</span>
+            <span className="font-mono font-bold text-ink-900">{pb.transfer.transferNo}</span>
             <StatusBadge map={TRANSFER_STATUS} value={pb.transfer.status} />
             {canWarehouse && (
               <Button size="sm" variant="secondary" icon={<ExternalLink className="w-3.5 h-3.5" />} onClick={() => linkedTransferId && openTransfer(linkedTransferId)}>
@@ -204,19 +204,19 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
         )}
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50">
+            <tr className="border-b border-paper-2 bg-paper-1">
               {['Produk', 'Ukuran', 'Diminta', 'Disetujui', ...(pb.transfer ? ['Di transfer'] : [])].map((h) => (
-                <th key={h} className="text-left px-4 py-2 text-xs font-black text-gray-400 uppercase tracking-wider">{h}</th>
+                <th key={h} className="text-left px-4 py-2 text-xs font-black text-ink-700 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-paper-2">
             {items.map((it) => (
               <tr key={it.id}>
-                <td className="px-4 py-2 text-sm font-bold text-gray-900">{it.productName}</td>
-                <td className="px-4 py-2 text-sm text-gray-500">{variantLabel(it.variantSize)}</td>
-                <td className="px-4 py-2 text-sm text-gray-500">{it.requestedQty}</td>
-                <td className="px-4 py-2 text-sm text-gray-500 w-40">
+                <td className="px-4 py-2 text-sm font-bold text-ink-900">{it.productName}</td>
+                <td className="px-4 py-2 text-sm text-ink-700">{variantLabel(it.variantSize)}</td>
+                <td className="px-4 py-2 text-sm text-ink-700">{it.requestedQty}</td>
+                <td className="px-4 py-2 text-sm text-ink-700 w-40">
                   {deciding ? (
                     <input
                       type="number" min={0} max={it.requestedQty} className={`${fieldClass} py-1.5`}
@@ -230,10 +230,10 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
                   <td className="px-4 py-2 text-sm">
                     {it.transferQty == null ? (
                       (it.approvedQty ?? 0) > 0
-                        ? <span className="font-bold text-amber-700">tidak ada di transfer</span>
-                        : <span className="text-gray-400">—</span>
+                        ? <span className="font-bold text-warn-strong">tidak ada di transfer</span>
+                        : <span className="text-ink-500">—</span>
                     ) : (
-                      <span className={it.transferQty !== it.approvedQty ? 'font-bold text-amber-700' : 'text-gray-500'}
+                      <span className={it.transferQty !== it.approvedQty ? 'font-bold text-warn-strong' : 'text-ink-700'}
                         title={it.transferQty !== it.approvedQty ? 'Berbeda dari qty disetujui: draf transfer diubah' : undefined}>
                         {it.transferQty}
                       </span>
@@ -253,18 +253,18 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
             </div>
           </>
         )}
-        {err && <p className="text-sm text-red-600">{err}</p>}
+        {err && <p className="text-sm text-danger">{err}</p>}
       </Card>
 
       <Card className="p-5">
-        <h3 className="text-sm font-black text-gray-900 mb-3">Riwayat</h3>
+        <h3 className="text-sm font-black text-ink-900 mb-3">Riwayat</h3>
         <ul className="space-y-2">
           {(pb.events ?? []).map((e) => (
-            <li key={e.id} className="text-sm text-gray-600 flex flex-wrap gap-x-3">
-              <span className="text-gray-400 w-40">{fmtDateTime(e.at)}</span>
-              <span className="font-bold text-gray-900">{EVENT_LABEL[e.action] ?? e.action}</span>
+            <li key={e.id} className="text-sm text-ink-700 flex flex-wrap gap-x-3">
+              <span className="text-ink-500 w-40">{fmtDateTime(e.at)}</span>
+              <span className="font-bold text-ink-900">{EVENT_LABEL[e.action] ?? e.action}</span>
               <span>{e.actorName ?? ''}</span>
-              {e.note && <span className="text-gray-500">— {e.note}</span>}
+              {e.note && <span className="text-ink-700">— {e.note}</span>}
             </li>
           ))}
         </ul>

@@ -8,6 +8,7 @@ import { useOutlet } from '../../outlet'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { Button } from '../../ui/Button'
 import { Card } from '../../ui/Card'
+import { IconButton } from '../../ui/IconButton'
 import { Input, Select, Textarea, fieldClass } from '../../ui/Field'
 import { PageHeader } from '../../ui/PageHeader'
 
@@ -140,21 +141,21 @@ export function RequisitionForm({ draft, onCancel, onSaved }: RequisitionFormPro
         </div>
 
         {lines.length === 0 ? (
-          <p className="text-sm text-gray-400">Belum ada barang.</p>
+          <p className="text-sm text-ink-500">Belum ada barang.</p>
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
+              <tr className="border-b border-paper-2 bg-paper-1">
                 {['Produk', 'Ukuran', 'Qty diminta', ''].map((h) => (
-                  <th key={h} className="text-left px-4 py-2 text-xs font-black text-gray-400 uppercase tracking-wider">{h}</th>
+                  <th key={h} className="text-left px-4 py-2 text-xs font-black text-ink-700 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-paper-2">
               {lines.map((l) => (
                 <tr key={lineKey(l)}>
-                  <td className="px-4 py-2 text-sm font-bold text-gray-900">{l.productName}</td>
-                  <td className="px-4 py-2 text-sm text-gray-500">{variantLabel(l.variantSize)}</td>
+                  <td className="px-4 py-2 text-sm font-bold text-ink-900">{l.productName}</td>
+                  <td className="px-4 py-2 text-sm text-ink-700">{variantLabel(l.variantSize)}</td>
                   <td className="px-4 py-2 w-40">
                     <input
                       type="number" min={1} value={l.qty} className={`${fieldClass} py-1.5`}
@@ -163,18 +164,17 @@ export function RequisitionForm({ draft, onCancel, onSaved }: RequisitionFormPro
                     />
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <button type="button" aria-label={`Hapus ${l.productName} ${l.variantSize}`}
-                      className="p-1.5 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600"
+                    <IconButton tone="danger" label={`Hapus ${l.productName} ${l.variantSize}`}
                       onClick={() => setLines((ls) => ls.filter((x) => lineKey(x) !== lineKey(l)))}>
                       <Trash2 className="w-4 h-4" />
-                    </button>
+                    </IconButton>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
-        {err && <p className="text-sm text-red-600">{err}</p>}
+        {err && <p className="text-sm text-danger">{err}</p>}
       </Card>
     </div>
   )

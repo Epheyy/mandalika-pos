@@ -1,6 +1,7 @@
 // Head office resolves a parked tablet item (synthetic API, no real backend).
 import type { ScenarioPage } from './fixture'
 import { openBackoffice, navItem } from './fixture'
+import { BO_SHOT_VIEWPORTS, captureShot } from './shots'
 
 const KEY = 'devA:00000000-0000-4000-8c00-0000000000a1'
 
@@ -48,6 +49,7 @@ export const reviewResolveFlow = async (page: ScenarioPage) => {
   const row = page.getByRole('button', { name: /Refund · Ditolak: tidak berwenang \/ PIN salah/ })
   await row.waitFor()
   results.push({ step: 'list', row: 'Refund · forbidden' })
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'b4b-sinkron', BO_SHOT_VIEWPORTS)
 
   await row.click()
   // exact: the raw JSON <pre> also contains the receipt number.

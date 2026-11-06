@@ -15,11 +15,14 @@ import { PageHeader } from '../../ui/PageHeader'
 import { Pagination } from '../../ui/Pagination'
 import { StatusBadge } from '../../ui/StatusBadge'
 import {
-  ALL_STATUSES, KIND_LABEL, KIND_ORDER, STATUS_LABEL, STATUS_ORDER, emptyTitle, kindFilterOf, kindLabel, locationText,
+  ALL_STATUSES, KIND_LABEL, KIND_ORDER, STATUS_LABEL, STATUS_ORDER, emptyTitle, humanReason, kindFilterOf, kindLabel, locationText,
   refText, relaySummary, statusFilterOf, type RelaySummary,
 } from './erpOutboxFormat'
 import { ErpOutboxDetail } from './ErpOutboxDetail'
 import { fmtTime } from './fmtTime'
+import { ERP_OUTBOX_CHANGED } from './useErpDeadCount'
+
+const notifyBadge = () => window.dispatchEvent(new Event(ERP_OUTBOX_CHANGED))
 
 interface ErpListState {
   status: string
@@ -33,7 +36,7 @@ const LIST_SCHEMA: ListSchema<ErpListState> = {
   status: { key: 'status', default: 'dead' },
   jenis: { key: 'jenis', default: '' },
   hal: { key: 'hal', default: 1 },
-  per: { key: 'per', default: 50 },
+  per: { key: 'per', default: 25 },
 }
 
 const PAGE_SIZES = [25, 50, 100]
@@ -63,6 +66,7 @@ function useRelayRun(onDone: () => void) {
       setResult(relaySummary(r))
       setAsking(false)
       onDone()
+      notifyBadge()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Gagal menjalankan relay')
     } finally {
@@ -158,7 +162,7 @@ export default function ErpOutboxScreen() {
   const activeCount = (state.status !== LIST_SCHEMA.status.default ? 1 : 0) + (kind ? 1 : 0)
 
   const columns: Column<ErpOutboxItem>[] = [
-    { id: 'ref', header: 'Dokumen', cell: (r) => <span className="font-bold">{refText(r)}</span> },
+    { id: 'ref', header: 'Dokumen', cell: (r) => <span className="whitespace-nowrap font-bold">{refText(r)}</span> },
     { id: 'time', header: 'Waktu', cell: (r) => fmtTime(r.createdAt) },
     { id: 'kind', header: 'Jenis', cell: (r) => kindLabel(r.kind) },
     { id: 'location', header: 'Lokasi', cell: (r) => locationText(r) },
@@ -169,8 +173,8 @@ export default function ErpOutboxScreen() {
       id: 'reason',
       header: 'Alasan',
       cell: (r) => {
-        const reason = r.holdReason || r.lastError || ''
-        return <span className="line-clamp-2 text-ink-700" title={reason}>{reason || DASH}</span>
+        const reason = humanReason(r)
+        return <span className="line-clamp-2 text-ink-700">{reason ?? DASH}</span>
       },
     },
   ]
@@ -184,7 +188,7 @@ export default function ErpOutboxScreen() {
         actions={<Button onClick={relay.open}>Kirim sekarang</Button>}
       />
       {relay.result && <RelayResult summary={relay.result} />}
-      {q.error && <p role="alert" className="text-sm text-red-600">{q.error}</p>}
+      {q.error && <p role="alert" className="text-sm text-danger">{q.error}</p>}
 
       <FilterBar
         onReset={() => setState({ status: LIST_SCHEMA.status.default, jenis: '', hal: 1 })}
@@ -236,7 +240,7 @@ export default function ErpOutboxScreen() {
       <ErpOutboxDetail
         item={selected}
         onClose={() => setSelected(null)}
-        onChanged={() => { if (page !== 1) setState({ hal: 1 }); else void q.refetch() }}
+        onChanged={() => { notifyBadge(); if (page !== 1) setState({ hal: 1 }); else void q.refetch() }}
       />
     </div>
   )

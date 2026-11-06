@@ -2,8 +2,9 @@ import type { Outlet, User } from '@mandalika/api'
 import { Edit2, KeyRound, Store } from 'lucide-react'
 import type { Column } from '../../ui/DataTable'
 import { IconButton } from '../../ui/IconButton'
-import { StatusBadge } from '../../ui/StatusBadge'
+import { Badge } from '../../ui/Badge'
 import { ROLE } from '../../lib/labels/role'
+import { labelOf } from '../../lib/labels/types'
 
 interface UserColumnOptions {
   me: User | null | undefined
@@ -30,7 +31,7 @@ export function userColumns({ me, outlets, onResetPassword, onEdit }: UserColumn
             )}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-bold text-gray-900">
+            <p className="text-sm font-bold text-ink-900">
               {u.displayName}
               {u.id === me?.id && <span className="ml-2 text-xs font-bold text-ink-700">(Anda)</span>}
             </p>
@@ -57,7 +58,7 @@ export function userColumns({ me, outlets, onResetPassword, onEdit }: UserColumn
         return u.role !== 'admin' && n > 0 ? <span className="text-xs text-ink-700">{n} permission aktif</span> : <span className="text-xs text-ink-500">—</span>
       },
     },
-    { id: 'role', header: 'Role', cell: (u) => <StatusBadge map={ROLE} value={u.role} /> },
+    { id: 'role', header: 'Role', cell: (u) => <Badge tone="neutral">{labelOf(ROLE, u.role).label}</Badge> },
     {
       id: 'aksi',
       header: 'Aksi',
@@ -66,8 +67,8 @@ export function userColumns({ me, outlets, onResetPassword, onEdit }: UserColumn
       cell: (u) =>
         canAct(u) ? (
           <div className="flex items-center justify-end gap-1">
-            <IconButton aria-label={`Reset kata sandi ${u.displayName}`} title="Reset kata sandi" onClick={() => onResetPassword(u)}><KeyRound className="h-4 w-4" /></IconButton>
-            <IconButton aria-label={`Edit ${u.displayName}`} title="Edit" onClick={() => onEdit(u)}><Edit2 className="h-4 w-4" /></IconButton>
+            <IconButton label={`Reset kata sandi ${u.displayName}`} onClick={() => onResetPassword(u)}><KeyRound className="h-4 w-4" /></IconButton>
+            <IconButton label={`Edit ${u.displayName}`} onClick={() => onEdit(u)}><Edit2 className="h-4 w-4" /></IconButton>
           </div>
         ) : null,
     },

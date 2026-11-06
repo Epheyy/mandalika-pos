@@ -2,7 +2,7 @@ import type { CustomRole } from '@mandalika/api'
 import { Button } from '../../ui/Button'
 import { ConfirmDialog } from '../../ui/ConfirmDialog'
 import { Input, Field } from '../../ui/Field'
-import { Modal } from '../../ui/Modal'
+import { SlideOver } from '../../ui/SlideOver'
 import { PermissionPicker } from './PermissionPicker'
 
 type RoleForm = { name: string; permissions: string[] }
@@ -31,15 +31,15 @@ function RoleModal({
 }: RoleModalProps) {
   return (
     <>
-      <Modal
+      <SlideOver
         open={open}
         onClose={onClose}
         title={editingRole ? 'Edit Role' : 'Buat Role Kustom'}
         footer={
-          <>
-            <Button variant="secondary" className="flex-1" onClick={onClose}>Batal</Button>
-            <Button className="flex-1" loading={busy} onClick={onSave}>Simpan</Button>
-          </>
+          <SlideOver.Footer>
+            <Button variant="secondary" onClick={onClose}>Batal</Button>
+            <Button loading={busy} onClick={onSave}>Simpan</Button>
+          </SlideOver.Footer>
         }
       >
         <div className="space-y-4">
@@ -52,7 +52,7 @@ function RoleModal({
             />
           </Field>
         </div>
-      </Modal>
+      </SlideOver>
 
       <ConfirmDialog
         open={!!delRole}
