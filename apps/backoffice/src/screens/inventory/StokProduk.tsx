@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useRouteTab } from '../../lib/router/useRouteTab'
 import { PageHeader } from '../../ui/PageHeader'
 import { Tabs } from '../../ui/Tabs'
@@ -24,11 +25,14 @@ const PATH_TABS: ReadonlyArray<{ key: SubTab; slug: string }> = [
 export default function StokProduk() {
   const [routed, setSubTab] = useRouteTab<SubTab>(BASE, PATH_TABS)
   const subTab = routed ?? 'overview'
+  // Kartu Stok portals its Unduh CSV into the page header (the filter row stays for filters).
+  const [exportSlot, setExportSlot] = useState<HTMLDivElement | null>(null)
   return (
     <div className="p-6 space-y-5">
       <PageHeader
         title="Stok Produk"
         subtitle="Ikhtisar dan pergerakan stok di semua lokasi"
+        actions={subTab === 'kartu' ? <div ref={setExportSlot} /> : undefined}
       />
 
       <Tabs value={subTab} onChange={setSubTab} tabs={SUB_TABS} />
@@ -37,7 +41,7 @@ export default function StokProduk() {
 
       {subTab === 'pergerakan' && <MovementSummary />}
 
-      {subTab === 'kartu' && <StockCard />}
+      {subTab === 'kartu' && <StockCard exportSlot={exportSlot} />}
     </div>
   )
 }

@@ -170,7 +170,7 @@ export function OverviewMatrix() {
       )}
 
       {data && (data.rows.length === 0 || filteredLocations.length === 0) ? (
-        <Card className="overflow-hidden">
+        <Card className="overflow-clip">
           <EmptyState icon={<Package />} title={data.rows.length === 0 ? 'Belum ada data stok' : 'Tidak ada lokasi untuk tipe ini'} />
         </Card>
       ) : (

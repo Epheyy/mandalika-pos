@@ -117,14 +117,23 @@ export function TransferDetail({ id, onBack }: TransferDetailProps) {
               </Button>
             )}
             {t.status === 'in_transit' && (
-              <Button icon={<PackageCheck className="w-4 h-4" />} onClick={() => setReceiving(true)}>
-                Terima
+              <Button
+                variant={t.dest.kind === 'outlet' ? 'secondary' : 'primary'}
+                icon={<PackageCheck className="w-4 h-4" />}
+                onClick={() => setReceiving(true)}
+              >
+                {t.dest.kind === 'outlet' ? 'Terima paksa' : 'Terima'}
               </Button>
             )}
             {(t.status === 'draft' || t.status === 'in_transit') && (
-              <Button variant="danger" icon={<Ban className="w-4 h-4" />} onClick={() => ask('cancel', t)}>
+              <button
+                type="button"
+                onClick={() => ask('cancel', t)}
+                className="inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-bold text-danger hover:bg-danger-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong/50"
+              >
+                <Ban className="h-4 w-4" aria-hidden="true" />
                 Batalkan
-              </Button>
+              </button>
             )}
           </>
         }
@@ -138,7 +147,7 @@ export function TransferDetail({ id, onBack }: TransferDetailProps) {
           {t.note && <span className="text-sm text-gray-500">{t.note}</span>}
         </div>
         {t.discrepancyReason && (
-          <p className="text-sm text-amber-700 mb-3">Selisih: {t.discrepancyReason}</p>
+          <p className="text-sm text-warn-strong mb-3">Selisih: {t.discrepancyReason}</p>
         )}
         <table className="w-full">
           <thead>
@@ -161,7 +170,7 @@ export function TransferDetail({ id, onBack }: TransferDetailProps) {
                   {it.difference == null ? (
                     '—'
                   ) : (
-                    <span className={it.difference < 0 ? 'text-red-600' : it.difference > 0 ? 'text-green-600' : 'text-gray-400'}>
+                    <span className={it.difference < 0 ? 'text-danger' : it.difference > 0 ? 'text-warn-strong' : 'text-ink-500'}>
                       {it.difference > 0 ? `+${it.difference}` : it.difference}
                     </span>
                   )}

@@ -99,7 +99,7 @@ export function SuratJalanPanel({ transfer }: SuratJalanPanelProps) {
           <div>
             <div className="font-bold text-gray-900">Surat jalan siap.</div>
             <div className="text-sm text-gray-700 font-mono">{transfer.suratJalanNo}</div>
-            {info && <div className="text-xs text-amber-700 mt-1">{info}</div>}
+            {info && <div className="text-xs text-warn-strong mt-1">{info}</div>}
           </div>
           <div className="flex flex-wrap gap-2">
             <Button

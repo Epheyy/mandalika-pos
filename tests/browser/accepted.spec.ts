@@ -232,7 +232,7 @@ test('BO-PROMO-LIST Promosi and Kode Diskon filters and paging are server reques
 
 test('BO-TRANSFER-CONFIRM Kirim and Batalkan ask first, Batal leaves the draft, a refused send keeps the dialog and retries with the same key, a transfer changed under the dialog is refused, and a confirm calls the write once', async ({ page }, info) => {
   const result = await transferConfirmFlow(page as ScenarioPage)
-  expect(result).toHaveLength(5)
+  expect(result).toHaveLength(6)
   await evidence(info, result)
 })
 

@@ -3,7 +3,7 @@ import { fetchAllPages, type Ingredient, type IngredientCategory, type ListResul
 import { Edit2, FlaskConical, Trash2 } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
-import { ImportExportBar } from '../../components/ImportExportBar'
+import { ImportExportMenu } from '../../ui/ImportExportMenu'
 import { exportToCSV, exportToXLSX } from '../../lib/csvUtils'
 import { Button } from '../../ui/Button'
 import { DataTable, type Column } from '../../ui/DataTable'
@@ -127,8 +127,8 @@ export default function DaftarTab() {
       align: 'right',
       cell: (ing) => (
         <div className="flex items-center justify-end gap-1">
-          <IconButton aria-label={`Ubah ${ing.name}`} title="Edit" onClick={() => openEdit(ing)}><Edit2 className="w-4 h-4" /></IconButton>
-          <IconButton tone="danger" aria-label={`Hapus ${ing.name}`} title="Hapus" onClick={() => setDeleting(ing)}><Trash2 className="w-4 h-4" /></IconButton>
+          <IconButton label={`Ubah ${ing.name}`} onClick={() => openEdit(ing)}><Edit2 className="w-4 h-4" /></IconButton>
+          <IconButton tone="danger" label={`Hapus ${ing.name}`} onClick={() => setDeleting(ing)}><Trash2 className="w-4 h-4" /></IconButton>
         </div>
       ),
     },
@@ -142,7 +142,7 @@ export default function DaftarTab() {
         activeCount={[search !== '', categoryFilter !== ''].filter(Boolean).length}
         actions={
           <>
-            <ImportExportBar
+            <ImportExportMenu
               onExport={(fmt) => exportIngredients(fmt, { q: search.trim(), categoryId: categoryFilter })}
               filterSummary={[...(search.trim() ? [`Cari: ${search.trim()}`] : []), ...(categoryFilter ? [`Kategori: ${categories.find((c) => c.id === categoryFilter)?.name ?? 'tidak dikenal'}`] : [])]}
               importKind="ingredients"

@@ -12,7 +12,7 @@ import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { completeAfterFlush, createLineSaver, type PendingEdits } from '../lib/pendingEdits'
 import { exportToCSV, exportToXLSX, buildExportName } from '../lib/csvUtils'
-import { ImportExportBar } from '../components/ImportExportBar'
+import { ImportExportMenu } from '../ui/ImportExportMenu'
 import { Button } from '../ui/Button'
 import { Input, Select, Textarea, fieldClass } from '../ui/Field'
 import { Modal } from '../ui/Modal'
@@ -313,7 +313,7 @@ export default function StockCount() {
         subtitle="Selisih hitungan diterapkan ke stok saat ini. Transaksi tetap berjalan."
         actions={
           <>
-            <ImportExportBar
+            <ImportExportMenu
               onExport={(fmt) => void exportStockCounts(fmt)}
               exportDisabled={scTotal === 0}
             />
@@ -342,7 +342,7 @@ export default function StockCount() {
           stockCounts.map((sc) => {
             const items = itemsFor(sc)
             return (
-              <Card key={sc.id} className="overflow-hidden">
+              <Card key={sc.id} className="overflow-clip">
                 <div className="px-5 py-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-gold-50 rounded-xl flex items-center justify-center">
@@ -385,7 +385,11 @@ export default function StockCount() {
                         <XCircle className="w-4 h-4" />
                       </IconButton>
                     )}
-                    <IconButton onClick={() => setExpanded(expanded === sc.id ? null : sc.id)}>
+                    <IconButton
+                      label={expanded === sc.id ? `Tutup rincian ${sc.name}` : `Buka rincian ${sc.name}`}
+                      aria-expanded={expanded === sc.id}
+                      onClick={() => setExpanded(expanded === sc.id ? null : sc.id)}
+                    >
                       {expanded === sc.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </IconButton>
                   </div>
@@ -406,7 +410,7 @@ export default function StockCount() {
                   </p>
                 )}
                 {expanded === sc.id && (
-                  <div className="border-t border-gray-100 overflow-x-auto max-h-96 overflow-y-auto">
+                  <div className="border-t border-gray-100 overflow-x-auto">
                     <table className="w-full">
                       <thead className="sticky top-0 bg-gray-50">
                         <tr>

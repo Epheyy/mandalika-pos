@@ -207,7 +207,7 @@ export function TransferForm({ outlets, warehouses, onCancel, onCreated }: Trans
             </p>
           </div>
         )}
-        {err && <p className="text-sm text-red-600 mt-3">{err}</p>}
+        {err && <p className="text-sm text-danger mt-3">{err}</p>}
       </Card>
     </div>
   )

@@ -118,7 +118,7 @@ export function LocationStockView({ location, onBack }: LocationStockViewProps) 
 
       {parErr && <p role="alert" className="text-sm text-red-600">{parErr}</p>}
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-clip">
         {sq.loading ? (
           <TableSkeleton />
         ) : filtered.length === 0 ? (

@@ -4,7 +4,9 @@ import { variantLabel } from '@mandalika/types'
 import { api } from '../../api'
 import { Button } from '../../ui/Button'
 import { Textarea, fieldClass } from '../../ui/Field'
-import { Modal } from '../../ui/Modal'
+import { ConfirmDialog } from '../../ui/ConfirmDialog'
+import { SlideOver } from '../../ui/SlideOver'
+import { useToast } from '../../ui/Toast'
 
 const lineKey = (productId: string, variantSize: string) => `${productId}|${variantSize}`
 
@@ -25,6 +27,10 @@ export function ReceiveModal({ transfer, onClose, onDone }: ReceiveModalProps) {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState(false)
+  const toast = useToast()
+  // An outlet destination is received here without counting on the POS: a forced receipt (D-107).
+  const forced = transfer.dest.kind === 'outlet'
 
   const anyDiff = useMemo(
     () =>
@@ -35,11 +41,17 @@ export function ReceiveModal({ transfer, onClose, onDone }: ReceiveModalProps) {
     [actual, transfer.items],
   )
 
-  const submit = async () => {
+  const submit = () => {
     if (anyDiff && !reason.trim()) {
       setErr('Alasan selisih wajib diisi.')
       return
     }
+    setErr(null)
+    if (forced) setConfirming(true)
+    else void write()
+  }
+
+  const write = async () => {
     const items = transfer.items.map((it) => {
       const v = actual[lineKey(it.productId, it.variantSize)]
       const n = Number(v ?? it.sentQty)
@@ -57,6 +69,8 @@ export function ReceiveModal({ transfer, onClose, onDone }: ReceiveModalProps) {
         discrepancyReason: reason.trim() || null,
       }
       await api.receiveTransfer(transfer.id, body)
+      setConfirming(false)
+      toast({ message: `${transfer.transferNo} diterima`, tone: 'ok' })
       onClose()
       await onDone()
     } catch (e: unknown) {
@@ -66,27 +80,33 @@ export function ReceiveModal({ transfer, onClose, onDone }: ReceiveModalProps) {
     }
   }
 
+  const totalReceived = transfer.items.reduce((n, it) => {
+    const v = Number(actual[lineKey(it.productId, it.variantSize)] ?? it.sentQty)
+    return n + (Number.isFinite(v) && v >= 0 ? v : 0)
+  }, 0)
+  const totalSent = transfer.items.reduce((n, it) => n + it.sentQty, 0)
+
   return (
-    <Modal
+    <SlideOver
       open
-      onClose={onClose}
-      size="xl"
-      title="Terima Transfer"
+      onClose={busy ? () => {} : onClose}
+      width="lg"
+      title={forced ? 'Terima Paksa' : 'Terima Transfer'}
       subtitle={`${transfer.transferNo} · ${transfer.source.name} → ${transfer.dest.name}`}
       footer={
-        <>
-          <Button variant="secondary" className="flex-1" onClick={onClose}>
+        <SlideOver.Footer>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>
             Batal
           </Button>
-          <Button className="flex-1" onClick={submit} loading={busy}>
+          <Button variant={forced ? 'secondary' : 'primary'} onClick={submit} loading={busy}>
             {busy ? 'Menyimpan...' : 'Konfirmasi Terima'}
           </Button>
-        </>
+        </SlideOver.Footer>
       }
     >
       <div className="space-y-4">
         {transfer.dest.kind === 'outlet' && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
+          <div className="rounded-xl border border-warn/30 bg-warn-bg p-3 text-xs text-warn-strong">
             Penerimaan paksa (override) — tanpa hitung di POS. Gunakan hanya jika perangkat POS tujuan bermasalah.
           </div>
         )}
@@ -96,7 +116,7 @@ export function ReceiveModal({ transfer, onClose, onDone }: ReceiveModalProps) {
           <span className="col-span-2 text-[11px] font-bold text-gray-400">Dikirim</span>
           <span className="col-span-3 text-[11px] font-bold text-gray-400">Diterima</span>
         </div>
-        <div className="space-y-2 max-h-80 overflow-y-auto">
+        <div className="space-y-2">
           {transfer.items.map((it) => {
             const key = lineKey(it.productId, it.variantSize)
             const got = Number(actual[key] ?? it.sentQty)
@@ -116,7 +136,7 @@ export function ReceiveModal({ transfer, onClose, onDone }: ReceiveModalProps) {
                     className={`${fieldClass} py-1.5`}
                   />
                   {diff !== 0 && (
-                    <span className={`text-[11px] font-bold ${diff < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    <span className={`text-[11px] font-bold ${diff < 0 ? 'text-danger' : 'text-warn-strong'}`}>
                       {diff > 0 ? `+${diff}` : diff}
                     </span>
                   )}
@@ -134,8 +154,18 @@ export function ReceiveModal({ transfer, onClose, onDone }: ReceiveModalProps) {
             placeholder="mis. 2 unit rusak / hilang di perjalanan"
           />
         )}
-        {err && <p className="text-sm text-red-600">{err}</p>}
+        {err && !confirming && <p role="alert" className="text-sm text-danger">{err}</p>}
       </div>
-    </Modal>
+      <ConfirmDialog
+        open={confirming}
+        title={`Terima paksa ${transfer.transferNo}?`}
+        consequence={`Stok ${totalReceived} unit (dikirim ${totalSent}) masuk ke ${transfer.dest.name} sekarang, tanpa hitung di POS.`}
+        confirmLabel="Terima paksa"
+        busy={busy}
+        error={err}
+        onConfirm={() => void write()}
+        onCancel={() => setConfirming(false)}
+      />
+    </SlideOver>
   )
 }
