@@ -43,46 +43,46 @@ export default function OutletPickScreen() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6 safe-top safe-bottom">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <h1 className="text-xl font-black text-gray-900">Pilih outlet terminal ini</h1>
-        <p className="text-sm text-gray-500 mt-1">
+    <div className="min-h-screen flex items-center justify-center bg-paper-0 p-6 safe-top safe-bottom">
+      <div className="surface-solid w-full max-w-md rounded-panel p-6">
+        <h1 className="text-xl font-bold text-ink-900">Pilih outlet terminal ini</h1>
+        <p className="text-sm text-ink-500 mt-1">
           Akun {user?.displayName ?? ''} tidak terikat ke satu outlet. Outlet yang dipilih dipakai tablet ini untuk
           semua transaksi dan hanya bisa diubah lewat Pengaturan → Lepas terminal.
         </p>
 
         {loadError && (
-          <div role="alert" className="mt-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <div role="alert" className="mt-4 text-sm text-danger bg-danger-bg rounded-control px-3 py-2">
             {loadError}
-            <button type="button" onClick={() => setAttempt((n) => n + 1)} className="ml-2 font-bold underline">
+            <button type="button" onClick={() => setAttempt((n) => n + 1)} className="ml-2 min-h-11 font-bold underline">
               Coba lagi
             </button>
           </div>
         )}
         {saveError && (
-          <p role="alert" className="mt-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <p role="alert" className="mt-4 text-sm text-danger bg-danger-bg rounded-control px-3 py-2">
             {saveError}
           </p>
         )}
 
         <div className="mt-4 space-y-1.5 max-h-[50vh] overflow-y-auto">
-          {outlets === null && !loadError && <p className="text-sm text-gray-400">Memuat outlet…</p>}
-          {outlets?.length === 0 && <p className="text-sm text-gray-500">Belum ada outlet aktif.</p>}
+          {outlets === null && !loadError && <p className="text-sm text-ink-500">Memuat outlet…</p>}
+          {outlets?.length === 0 && <p className="text-sm text-ink-500">Belum ada outlet aktif.</p>}
           {outlets?.map((o) => (
             <button
               type="button"
               key={o.id}
               disabled={busyId !== null}
               onClick={() => void choose(o)}
-              className="w-full text-left px-4 py-3 rounded-xl border border-gray-200 hover:border-brand hover:bg-paper-1 transition disabled:opacity-60"
+              className="press w-full min-h-14 text-left px-4 py-3 rounded-control surface-card active:bg-paper-1 disabled:opacity-60"
             >
-              <p className="text-sm font-bold text-gray-900">{busyId === o.id ? 'Menyimpan…' : o.name}</p>
-              {o.address && <p className="text-xs text-gray-400">{o.address}</p>}
+              <p className="text-sm font-bold text-ink-900">{busyId === o.id ? 'Menyimpan…' : o.name}</p>
+              {o.address && <p className="text-xs text-ink-500">{o.address}</p>}
             </button>
           ))}
         </div>
 
-        <button type="button" onClick={logout} className="mt-5 text-xs font-semibold text-gray-500 hover:text-gray-700 underline">
+        <button type="button" onClick={logout} className="mt-5 min-h-11 text-sm font-semibold text-ink-700 underline">
           Keluar
         </button>
       </div>

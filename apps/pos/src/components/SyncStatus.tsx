@@ -16,7 +16,7 @@ import { chipModel } from '../lib/connectionChip'
 import { queueCountsLine } from '../lib/queueGuard'
 import { OFFLINE_LOCKED_MESSAGE, offlineHours, offlineWarnMessage } from '../lib/offlineCap'
 import { OTA_BLOCK_COPY, type OtaBlockReason } from '../lib/otaApplyGate'
-import { Button, Chip, Sheet, StatusBadge, toneClasses } from './ui'
+import { Button, Chip, Sheet, toneClasses } from './ui'
 
 const TYPE_LABELS: Record<string, string> = {
   order: 'Penjualan',
@@ -55,7 +55,7 @@ function TechnicalDetail({ children }: { children: ReactNode }) {
 export function ReviewRow({ f, onRetry, onAcknowledge }: { f: FailedItem; onRetry?: (key: string) => void; onAcknowledge?: (key: string) => void }) {
   const label = typeLabel(f.type)
   return (
-    <div className="bg-danger-bg rounded-lg px-3 py-2" data-testid="review-row" data-key={f.idempotencyKey}>
+    <div className="bg-danger-bg rounded-control px-3 py-2" data-testid="review-row" data-key={f.idempotencyKey}>
       <p className="font-semibold text-danger">
         {typeLabel(f.type)}
         {f.clientCreatedAt && <span className="font-normal"> · {formatTime(f.clientCreatedAt)}</span>}
@@ -208,26 +208,19 @@ export const SyncStatus = memo(function SyncStatus({
         variant="side"
         maxWidth="max-w-md"
         z={50}
-        panelClassName="flex flex-col"
-        title={<span className="block px-4 pt-4 pb-2 pr-28 text-lg">Koneksi &amp; antrean</span>}
+        panelClassName="flex flex-col overflow-hidden"
+        header
+        title="Koneksi &amp; antrean"
       >
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="absolute right-2 top-2 min-h-11 px-4 text-sm font-semibold text-ink-700"
-        >
-          Kembali
-        </button>
-
-        <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-3 text-sm">
-          <div className={`rounded-xl px-4 py-3 space-y-1 ${toneClasses(chip.tone)}`}>
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 text-sm">
+          <div className={`rounded-control px-4 py-3 space-y-1 ${toneClasses(chip.tone)}`}>
             <p className="font-semibold">{chip.text}</p>
             {note && <p className="text-xs">{note}</p>}
             {(pendingCount > 0 || review.length > 0) && <p className="text-xs font-semibold" data-testid="queue-counts">{queueCountsLine({ pending: pendingCount, parked: review.length }).text}</p>}
           </div>
 
           {otaUpdate && (
-            <section className="rounded-xl bg-info-bg px-4 py-3 space-y-2 text-info" data-testid="ota-update">
+            <section className="rounded-control bg-info-bg px-4 py-3 space-y-2 text-info" data-testid="ota-update">
               <h3 className="font-semibold">Versi baru siap ({otaUpdate.version})</h3>
               <p className="text-xs">Versi baru siap, mulai ulang saat kasir kosong.</p>
               {otaUpdate.blockedBy && <p className="text-xs font-semibold" data-testid="ota-block-reason">{OTA_BLOCK_COPY[otaUpdate.blockedBy]}</p>}
@@ -251,19 +244,23 @@ export const SyncStatus = memo(function SyncStatus({
               <div className="space-y-2">{rows.map((f) => <ReviewRow key={f.idempotencyKey} f={f} onRetry={onRetryOne} onAcknowledge={onAcknowledge} />)}</div>
               {hiddenCount > 0 && <p className="text-xs text-ink-500">{hiddenCount} transaksi sudah ditandai ditangani; tetap tersimpan di tablet. Coba lagi mengirimnya lagi.</p>}
               <p className="text-xs text-ink-500">Data tetap tersimpan di perangkat dan tidak dikirim ulang otomatis.</p>
-              <Button variant="danger" fullWidth onClick={() => { onRetryFailed(); setOpen(false) }}>
+              <button
+                type="button"
+                onClick={() => { onRetryFailed(); setOpen(false) }}
+                className="press min-h-12 w-full rounded-control border border-danger bg-white px-4 text-sm font-semibold text-danger active:bg-danger-bg"
+              >
                 Coba lagi
-              </Button>
+              </button>
             </section>
           )}
 
           {showStuck && (
             <section className="space-y-2">
-              <h3 className="font-semibold text-warn">Tertunda berulang ({stuck.length})</h3>
+              <h3 className="font-semibold text-warn-strong">Tertunda berulang ({stuck.length})</h3>
               {stuck.map((f) => (
-                <div key={f.idempotencyKey} className="bg-warn-bg rounded-lg px-3 py-2">
-                  <p className="font-semibold text-warn">{typeLabel(f.type)}</p>
-                  <p className="text-xs text-warn break-words">{f.lastError}</p>
+                <div key={f.idempotencyKey} className="bg-warn-bg rounded-control px-3 py-2">
+                  <p className="font-semibold text-warn-strong">{typeLabel(f.type)}</p>
+                  <p className="text-xs text-warn-strong break-words">{f.lastError}</p>
                 </div>
               ))}
             </section>
@@ -298,7 +295,7 @@ export const SyncStatus = memo(function SyncStatus({
             </Button>
           )}
           {!canFlush && !updateAvailable && !hasFailed && offlineCap?.level !== 'locked' && (
-            <StatusBadge tone="ok" size="md" label="Tidak ada yang perlu dilakukan" />
+            <p className="py-2 text-center text-sm text-ink-500">Tidak ada yang perlu dilakukan</p>
           )}
         </div>
       </Sheet>
