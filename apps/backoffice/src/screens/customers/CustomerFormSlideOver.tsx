@@ -37,11 +37,11 @@ export function CustomerFormSlideOver({ editing, form, setForm, dirty, busy, err
       }
     >
       <div className="space-y-4">
-        {err && <p role="alert" className="text-sm text-red-600">{err}</p>}
+        {err && <p role="alert" className="text-sm text-danger">{err}</p>}
         <Input id={CUSTOMER_FIELD_ID.name} label="Nama *" type="text" value={form.name} error={byField[CUSTOMER_FIELD_ID.name]} onChange={(e) => setForm({ name: e.target.value })} />
         <Input id={CUSTOMER_FIELD_ID.phone} label="No. Telepon *" type="tel" value={form.phone} error={byField[CUSTOMER_FIELD_ID.phone]} hint="Nomor Indonesia (0812… / +62…) atau internasional (+65…)" onChange={(e) => setForm({ phone: e.target.value })} />
         {phoneDupeName && !byField[CUSTOMER_FIELD_ID.phone] && (
-          <p className="text-xs text-amber-600">⚠ Nomor ini sudah dipakai oleh {phoneDupeName}. Tetap bisa disimpan; akan masuk antrean Duplikat.</p>
+          <p className="text-xs text-warn-strong">⚠ Nomor ini sudah dipakai oleh {phoneDupeName}. Tetap bisa disimpan; akan masuk antrean Duplikat.</p>
         )}
         <Input id={CUSTOMER_FIELD_ID.email} label="Email" type="email" value={form.email} error={byField[CUSTOMER_FIELD_ID.email]} onChange={(e) => setForm({ email: e.target.value })} />
         <div className="grid grid-cols-2 gap-4">
@@ -51,7 +51,7 @@ export function CustomerFormSlideOver({ editing, form, setForm, dirty, busy, err
         <Field label="Catatan">
           <textarea
             aria-label="Catatan"
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-400"
+            className="w-full rounded-xl border border-paper-2 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-strong/40 focus:border-brand-strong"
             rows={3}
             value={form.notes}
             onChange={(e) => setForm({ notes: e.target.value })}

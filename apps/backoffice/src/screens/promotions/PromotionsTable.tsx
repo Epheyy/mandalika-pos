@@ -36,19 +36,19 @@ export function PromotionsTable({ rows, today, loading, error, onRetry, selected
       header: 'Promosi',
       cell: (p) => (
         <div>
-          <p className="text-sm font-bold text-gray-900">{p.name}</p>
-          {p.description && <p className="text-xs text-gray-400">{p.description}</p>}
+          <p className="text-sm font-bold text-ink-900">{p.name}</p>
+          {p.description && <p className="text-xs text-ink-500">{p.description}</p>}
           <div className="mt-0.5 flex flex-wrap gap-1">
-            {p.combinable && <Badge tone="gold">Bisa Kombinasi</Badge>}
+            {p.combinable && <Badge tone="neutral">Bisa Kombinasi</Badge>}
             {p.autoApply && <Badge tone="neutral">Otomatis</Badge>}
-            {p.codeOnly && <Badge tone="gold">Hanya kode</Badge>}
+            {p.codeOnly && <Badge tone="neutral">Hanya kode</Badge>}
           </div>
         </div>
       ),
     },
     { id: 'type', header: 'Jenis', cell: (p) => <StatusBadge map={PROMOTION_TYPE} value={p.type} /> },
-    { id: 'value', header: 'Nilai', cell: (p) => <span className="text-sm font-bold text-gray-900">{promoValueLabel(p)}</span> },
-    { id: 'period', header: 'Periode', cell: (p) => <span className="text-xs text-gray-500">{periodText(p.startDate, p.endDate)}</span> },
+    { id: 'value', header: 'Nilai', cell: (p) => <span className="text-sm font-bold text-ink-900">{promoValueLabel(p)}</span> },
+    { id: 'period', header: 'Periode', cell: (p) => <span className="text-xs text-ink-500">{periodText(p.startDate, p.endDate)}</span> },
     {
       id: 'status',
       header: 'Status',
@@ -65,9 +65,9 @@ export function PromotionsTable({ rows, today, loading, error, onRetry, selected
       align: 'right',
       cell: (p) => (
         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-          <IconButton aria-label={`Ubah ${p.name}`} onClick={() => onEdit(p)}><Edit2 className="h-4 w-4" /></IconButton>
-          <IconButton aria-label={`Duplikat ${p.name}`} title="Duplikat" onClick={() => onDuplicate(p)}><Copy className="h-4 w-4" /></IconButton>
-          <IconButton tone="danger" aria-label={`Hapus ${p.name}`} onClick={() => onDelete(p)}><Trash2 className="h-4 w-4" /></IconButton>
+          <IconButton label={`Ubah ${p.name}`} onClick={() => onEdit(p)}><Edit2 className="h-4 w-4" /></IconButton>
+          <IconButton label={`Duplikat ${p.name}`} title="Duplikat" onClick={() => onDuplicate(p)}><Copy className="h-4 w-4" /></IconButton>
+          <IconButton tone="danger" label={`Hapus ${p.name}`} onClick={() => onDelete(p)}><Trash2 className="h-4 w-4" /></IconButton>
         </div>
       ),
     },

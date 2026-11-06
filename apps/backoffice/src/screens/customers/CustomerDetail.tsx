@@ -166,7 +166,7 @@ export default function CustomerDetail({
   if (cq.loading && !c) {
     return (
       <div className="p-6">
-        <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900 mb-4">
+        <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-ink-500 hover:text-ink-900 mb-4">
           <ArrowLeft className="w-4 h-4" /> Kembali ke Pelanggan
         </button>
         <TableSkeleton />
@@ -176,7 +176,7 @@ export default function CustomerDetail({
   if (!c) {
     return (
       <div className="p-6">
-        <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900 mb-4">
+        <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-ink-500 hover:text-ink-900 mb-4">
           <ArrowLeft className="w-4 h-4" /> Kembali ke Pelanggan
         </button>
         {cq.error ? (
@@ -196,7 +196,7 @@ export default function CustomerDetail({
 
   return (
     <div className="p-6 space-y-5">
-      <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900">
+      <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-ink-500 hover:text-ink-900">
         <ArrowLeft className="w-4 h-4" /> Kembali ke Pelanggan
       </button>
 
@@ -227,26 +227,26 @@ export default function CustomerDetail({
           <PurchaseHistoryCard orders={orders} loading={oq.loading} expanded={expanded} setExpanded={setExpanded} />
 
           {/* Timeline Interaksi (SP-CRM-6) */}
-          <Card className="overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
-              <History className="w-4 h-4 text-gray-400" />
-              <h3 className="font-black text-gray-900 text-sm">Timeline Interaksi</h3>
+          <Card className="overflow-clip">
+            <div className="px-5 py-3 border-b border-paper-2 flex items-center gap-2">
+              <History className="w-4 h-4 text-ink-500" />
+              <h3 className="font-black text-ink-900 text-sm">Timeline Interaksi</h3>
             </div>
-            <div className="p-4 space-y-3 border-b border-gray-100 bg-gray-50">
+            <div className="p-4 space-y-3 border-b border-paper-2 bg-paper-1">
               <div className="flex flex-wrap gap-2">
                 <select value={iType} onChange={(e) => setIType(e.target.value as InteractionType)}
                   aria-label="Jenis interaksi"
-                  className="px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white">
+                  className="h-10 px-3 text-sm rounded-xl border border-paper-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-strong/40 focus:border-brand-strong">
                   {INTERACTION_TYPES.map((t) => <option key={t} value={t}>{interactionLabel(t)}</option>)}
                 </select>
                 <input type="date" value={iDate} onChange={(e) => setIDate(e.target.value)}
                   aria-label="Tanggal interaksi"
-                  className="px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white" />
+                  className="h-10 px-3 text-sm rounded-xl border border-paper-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-strong/40 focus:border-brand-strong" />
               </div>
               <textarea value={iNote} onChange={(e) => setINote(e.target.value)} rows={2}
                 placeholder="Catatan interaksi…"
                 aria-label="Catatan interaksi"
-                className="w-full px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white" />
+                className="w-full px-3 py-2 text-sm rounded-xl border border-paper-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-strong/40 focus:border-brand-strong" />
               <Button icon={<Plus className="w-4 h-4" />} loading={iBusy} disabled={iBusy} onClick={() => void addInteraction()}>
                 Tambah Interaksi
               </Button>
@@ -256,23 +256,23 @@ export default function CustomerDetail({
             ) : interactions.length === 0 ? (
               <EmptyState icon={<History />} title="Belum ada interaksi" />
             ) : (
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-paper-1">
                 {interactions.map((it: Interaction) => (
                   <div key={it.id} className="px-5 py-3 flex items-start gap-3">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-bold border flex-shrink-0 ${interactionChipClasses(it.type)}`}>
                       {interactionLabel(it.type)}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-400">{fmtDate(it.interactionDate)} · {it.createdByName || '—'}</p>
-                      {it.note && <p className="text-sm text-gray-700 whitespace-pre-wrap">{it.note}</p>}
+                      <p className="text-xs text-ink-500">{fmtDate(it.interactionDate)} · {it.createdByName || '—'}</p>
+                      {it.note && <p className="text-sm text-ink-700 whitespace-pre-wrap">{it.note}</p>}
                     </div>
-                    <IconButton tone="danger" disabled={iBusy} onClick={() => void removeInteraction(it.id)}><Trash2 className="w-4 h-4" /></IconButton>
+                    <IconButton tone="danger" label="Hapus interaksi" disabled={iBusy} onClick={() => void removeInteraction(it.id)}><Trash2 className="w-4 h-4" /></IconButton>
                   </div>
                 ))}
               </div>
             )}
             {iTotal > iLimit && (
-              <div className="px-4 py-2 border-t border-gray-100">
+              <div className="px-4 py-2 border-t border-paper-2">
                 <Pagination
                   page={iPage} totalPages={iTotalPages} total={iTotal}
                   onChange={setIPage} pageSize={iLimit}
@@ -283,26 +283,26 @@ export default function CustomerDetail({
           </Card>
 
           {/* Poin ledger (SP-CRM-7) */}
-          <Card className="overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
+          <Card className="overflow-clip">
+            <div className="px-5 py-3 border-b border-paper-2 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Star className="w-4 h-4 text-gold-500" />
-                <h3 className="font-black text-gray-900 text-sm">Poin</h3>
-                <span className="text-sm font-bold text-gold-600">{c.points.toLocaleString('id-ID')}</span>
+                <Star className="w-4 h-4 text-brand-strong" />
+                <h3 className="font-black text-ink-900 text-sm">Poin</h3>
+                <span className="text-sm font-bold text-brand-strong">{c.points.toLocaleString('id-ID')}</span>
               </div>
               {canAdjust && (
                 <Button variant="secondary" onClick={() => { setAdjOpen(true); setAdjAmount(''); setAdjReason(''); setAdjErr(null) }}>Sesuaikan Poin</Button>
               )}
             </div>
             {adjOpen && (
-              <div className="p-4 space-y-2 border-b border-gray-100 bg-gray-50">
+              <div className="p-4 space-y-2 border-b border-paper-2 bg-paper-1">
                 <div className="flex flex-wrap gap-2">
                   <input type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)}
-                    placeholder="+50 atau -20" aria-label="Jumlah penyesuaian poin" className="w-32 px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white" />
+                    placeholder="+50 atau -20" aria-label="Jumlah penyesuaian poin" className="w-32 h-10 px-3 text-sm rounded-xl border border-paper-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-strong/40 focus:border-brand-strong" />
                   <input value={adjReason} onChange={(e) => setAdjReason(e.target.value)}
-                    placeholder="Alasan (mis. hadiah, koreksi)" aria-label="Alasan penyesuaian poin" className="flex-1 min-w-[12rem] px-2 py-1.5 text-sm rounded-lg border border-gray-200 bg-white" />
+                    placeholder="Alasan (mis. hadiah, koreksi)" aria-label="Alasan penyesuaian poin" className="flex-1 min-w-[12rem] h-10 px-3 text-sm rounded-xl border border-paper-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-strong/40 focus:border-brand-strong" />
                 </div>
-                {adjErr && <p className="text-xs text-red-600">{adjErr}</p>}
+                {adjErr && <p className="text-xs text-danger">{adjErr}</p>}
                 <div className="flex gap-2">
                   <Button loading={adjBusy} disabled={adjBusy} onClick={() => void submitAdjust()}>Simpan</Button>
                   <Button variant="secondary" onClick={() => { setAdjOpen(false); setAdjAmount(''); setAdjReason(''); setAdjErr(null) }}>Batal</Button>
@@ -314,26 +314,26 @@ export default function CustomerDetail({
             ) : ptx.length === 0 ? (
               <EmptyState icon={<Star />} title="Belum ada transaksi poin" />
             ) : (
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-paper-1">
                 {ptx.map((t) => (
                   <div key={t.id} className="px-5 py-3 flex items-center gap-3">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-bold border flex-shrink-0 ${pointTypeChipClasses(t.type)}`}>
                       {pointTypeLabel(t.type)}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-400">{fmtDate(t.createdAt)}{t.orderNumber ? ` · ${t.orderNumber}` : ''}{t.createdByName ? ` · ${t.createdByName}` : ''}</p>
-                      {t.reason && <p className="text-sm text-gray-700">{t.reason}</p>}
+                      <p className="text-xs text-ink-500">{fmtDate(t.createdAt)}{t.orderNumber ? ` · ${t.orderNumber}` : ''}{t.createdByName ? ` · ${t.createdByName}` : ''}</p>
+                      {t.reason && <p className="text-sm text-ink-700">{t.reason}</p>}
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className={`text-sm font-black ${t.points >= 0 ? 'text-green-600' : 'text-red-600'}`}>{t.points >= 0 ? '+' : ''}{t.points.toLocaleString('id-ID')}</p>
-                      <p className="text-xs text-gray-400">{t.balanceAfter.toLocaleString('id-ID')}</p>
+                      <p className={`text-sm font-black ${t.points >= 0 ? 'text-ok' : 'text-danger'}`}>{t.points >= 0 ? '+' : ''}{t.points.toLocaleString('id-ID')}</p>
+                      <p className="text-xs text-ink-500">{t.balanceAfter.toLocaleString('id-ID')}</p>
                     </div>
                   </div>
                 ))}
               </div>
             )}
             {Math.ceil(ptTotal / ptLimit) > 1 && (
-              <div className="px-4 py-2 border-t border-gray-100">
+              <div className="px-4 py-2 border-t border-paper-2">
                 <Pagination
                   page={ptPage} totalPages={Math.ceil(ptTotal / ptLimit)} total={ptTotal}
                   onChange={setPtPage} pageSize={ptLimit}

@@ -17,7 +17,7 @@ import { usePolledQuery } from '../hooks/usePolledQuery'
 import { TableSkeleton } from '../components/Skeleton'
 import { buildExportName, exportToCSV, exportToXLSX } from '../lib/csvUtils'
 import { CUSTOMER_TEMPLATE_ROWS } from '../lib/importTemplates'
-import { ImportExportBar } from '../components/ImportExportBar'
+import { ImportExportMenu } from '../ui/ImportExportMenu'
 import { Button } from '../ui/Button'
 import { Switch } from '../ui/Switch'
 import { Input, Select, Field } from '../ui/Field'
@@ -29,6 +29,7 @@ import { IconButton } from '../ui/IconButton'
 import { EmptyState } from '../ui/EmptyState'
 import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
+import { useToast } from '../ui/Toast'
 import { useScreenTabs } from '../lib/router/useScreenTabs'
 import { useListState } from '../lib/router/useListState'
 import { useRoute } from '../lib/router/useRoute'
@@ -94,6 +95,7 @@ const EMPTY_COND: CondForm = {
 }
 
 export default function Customers() {
+  const toast = useToast()
   // Everything the list shows is in the URL: search, sort, tag, segment, page and page size (defaults stay out of it).
   const [urlList, setList] = useListState(CUSTOMER_LIST_SCHEMA)
   const route = useRoute()
@@ -267,6 +269,7 @@ export default function Customers() {
     try {
       await api.updateLoyaltySettings(loyaltyForm)
       await lq.refetch()
+      toast({ message: 'Pengaturan loyalitas disimpan.', tone: 'ok' })
     } catch (e: unknown) {
       setPageErr(`Pengaturan loyalitas gagal disimpan: ${e instanceof Error ? e.message : 'coba lagi.'}`)
     } finally {
@@ -365,7 +368,7 @@ export default function Customers() {
             />
             {view === 'daftar' && (
               <>
-                <ImportExportBar
+                <ImportExportMenu
                   onExport={exportCustomers}
                   exportDisabled={customers.length === 0}
                   filterSummary={filterSummary}
@@ -408,11 +411,11 @@ export default function Customers() {
 
           {subTab === 'general' && (
             <Card className="p-6 space-y-5 max-w-lg">
-              <h3 className="font-black text-gray-900">Pengaturan Loyalitas</h3>
-              <div className="flex items-center justify-between py-3 border-b border-gray-100">
+              <h3 className="font-black text-ink-900">Pengaturan Loyalitas</h3>
+              <div className="flex items-center justify-between py-3 border-b border-paper-2">
                 <div>
-                  <p className="font-bold text-gray-900 text-sm">Sistem Poin</p>
-                  <p className="text-xs text-gray-400">Pelanggan mendapat poin setiap transaksi</p>
+                  <p className="font-bold text-ink-900 text-sm">Sistem Poin</p>
+                  <p className="text-xs text-ink-500">Pelanggan mendapat poin setiap transaksi</p>
                 </div>
                 <Switch label="Sistem Poin" checked={loyaltyForm.enabled} onChange={(enabled) => setLoyaltyForm((f) => ({ ...f, enabled }))} />
               </div>
@@ -432,7 +435,7 @@ export default function Customers() {
                   />
                 </>
               )}
-              <p className="text-xs text-gray-400">Nilai aktif: {loyalty.enabled ? 'poin ON' : 'poin OFF'}</p>
+              <p className="text-xs text-ink-500">Nilai aktif: {loyalty.enabled ? 'poin ON' : 'poin OFF'}</p>
               <Button className="w-full" loading={savingLoyalty} disabled={!lq.data} onClick={saveLoyalty}>
                 {savingLoyalty ? 'Menyimpan...' : 'Simpan Pengaturan'}
               </Button>
@@ -446,30 +449,30 @@ export default function Customers() {
                   <EmptyState icon={<Gift />} title="Belum ada kondisi loyalitas" />
                 </Card>
               ) : (
-                <Card className="divide-y divide-gray-50">
+                <Card className="divide-y divide-paper-1">
                   {conditions.map((c) => (
-                    <div key={c.id} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50">
+                    <div key={c.id} className="px-5 py-4 flex items-center justify-between hover:bg-paper-1">
                       <div className="flex items-start gap-3">
                         <Badge tone={c.type === 'always_on' ? 'gold' : 'neutral'} className="mt-0.5 rounded-full">
                           {c.type === 'always_on' ? 'Always-On' : 'Campaign'}
                         </Badge>
                         <div>
-                          <p className="font-bold text-gray-900 text-sm">{c.name}</p>
-                          <p className="text-xs text-gray-400">
+                          <p className="font-bold text-ink-900 text-sm">{c.name}</p>
+                          <p className="text-xs text-ink-500">
                             {TRIGGER_OPTIONS.find((t) => t.value === c.trigger)?.label} →{' '}
                             {c.rewardType === 'set_points' ? `+${c.rewardValue} Poin` : c.rewardType === 'multiply_points' ? `×${c.rewardValue} Poin` : 'Produk Gratis'}
                           </p>
                           {typeof c.appliedCount === 'number' && c.appliedCount > 0 && (
-                            <p className="text-xs text-gray-400">Terpakai: {c.appliedCount}×</p>
+                            <p className="text-xs text-ink-500">Terpakai: {c.appliedCount}×</p>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <button type="button" onClick={() => toggleCond(c)}>
+                        <button type="button" onClick={() => toggleCond(c)} className="rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong">
                           <Badge tone={c.isActive ? 'success' : 'neutral'}>{c.isActive ? 'Aktif' : 'Nonaktif'}</Badge>
                         </button>
-                        <IconButton aria-label={`Ubah kondisi ${c.name}`} onClick={() => openEditCond(c)}><Edit2 className="w-4 h-4" /></IconButton>
-                        <IconButton tone="danger" aria-label={`Hapus kondisi ${c.name}`} onClick={() => { setCondDelErr(null); setCondDel(c) }}><Trash2 className="w-4 h-4" /></IconButton>
+                        <IconButton label={`Ubah kondisi ${c.name}`} onClick={() => openEditCond(c)}><Edit2 className="w-4 h-4" /></IconButton>
+                        <IconButton tone="danger" label={`Hapus kondisi ${c.name}`} onClick={() => { setCondDelErr(null); setCondDel(c) }}><Trash2 className="w-4 h-4" /></IconButton>
                       </div>
                     </div>
                   ))}
@@ -485,20 +488,20 @@ export default function Customers() {
           <DupCandidates refreshKey={dupRefresh} onReview={(id) => void navigate(dupReviewHash(id))} />
         )
       ) : view === 'pengingat' ? (
-        <Card className="overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2">
+        <Card className="overflow-clip">
+          <div className="px-5 py-3 border-b border-paper-2 flex flex-wrap items-center gap-2">
             <div className="flex gap-1">
               {([7, 30] as const).map((wdw) => (
-                <button key={wdw} type="button" onClick={() => setRemState({ hari: wdw, hal: 1 })}
-                  className={`px-3 py-1.5 text-sm font-bold rounded-lg border ${remWindow === wdw ? 'bg-gold-50 border-gold-200 text-gold-700' : 'bg-white border-gray-200 text-gray-500'}`}>
+                <button key={wdw} type="button" aria-pressed={remWindow === wdw} onClick={() => setRemState({ hari: wdw, hal: 1 })}
+                  className={`h-10 px-4 text-[13px] font-bold rounded-full border focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong ${remWindow === wdw ? 'border-brand-strong bg-brand-strong text-on-brand' : 'border-paper-2 bg-white text-ink-700 hover:bg-paper-1'}`}>
                   {wdw} hari
                 </button>
               ))}
             </div>
             <div className="flex gap-1">
               {(['all', 'birthday', 'anniversary'] as const).map((tp) => (
-                <button key={tp} type="button" onClick={() => setRemState({ jenis: tp, hal: 1 })}
-                  className={`px-3 py-1.5 text-sm font-bold rounded-lg border ${remType === tp ? 'bg-gold-50 border-gold-200 text-gold-700' : 'bg-white border-gray-200 text-gray-500'}`}>
+                <button key={tp} type="button" aria-pressed={remType === tp} onClick={() => setRemState({ jenis: tp, hal: 1 })}
+                  className={`h-10 px-4 text-[13px] font-bold rounded-full border focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong ${remType === tp ? 'border-brand-strong bg-brand-strong text-on-brand' : 'border-paper-2 bg-white text-ink-700 hover:bg-paper-1'}`}>
                   {tp === 'all' ? 'Semua' : tp === 'birthday' ? 'Ulang Tahun' : 'Hari Jadi'}
                 </button>
               ))}
@@ -509,18 +512,18 @@ export default function Customers() {
           ) : reminders.length === 0 ? (
             <EmptyState icon={<Cake />} title="Tidak ada pengingat dalam rentang ini" />
           ) : (
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-paper-1">
               {reminders.map((rm: Reminder, i: number) => (
-                <div key={`${rm.id}-${rm.kind}-${i}`} className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-pointer"
+                <div key={`${rm.id}-${rm.kind}-${i}`} className="px-5 py-3 flex items-center gap-3 hover:bg-paper-1 cursor-pointer"
                   role="button" tabIndex={0}
                   onClick={() => openCustomer(rm.id)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCustomer(rm.id) } }}>
                   <span className="text-lg flex-shrink-0">{rm.kind === 'birthday' ? '🎂' : '💍'}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-gray-900 text-sm">{rm.name}</p>
-                    <p className="text-xs text-gray-400">{rm.phone} · {rm.kind === 'birthday' ? 'Ulang Tahun' : 'Hari Jadi'}</p>
+                    <p className="font-bold text-ink-900 text-sm">{rm.name}</p>
+                    <p className="text-xs text-ink-500">{rm.phone} · {rm.kind === 'birthday' ? 'Ulang Tahun' : 'Hari Jadi'}</p>
                   </div>
-                  <span className="text-xs font-bold text-gold-700 flex-shrink-0">
+                  <span className="text-xs font-bold text-brand-strong flex-shrink-0">
                     {rm.daysUntil === 0 ? 'Hari ini' : `Dalam ${rm.daysUntil} hari`}
                   </span>
                 </div>
@@ -528,7 +531,7 @@ export default function Customers() {
             </div>
           )}
           {remTotal > remLimit && (
-            <div className="px-4 py-2 border-t border-gray-100">
+            <div className="px-4 py-2 border-t border-paper-2">
               <Pagination page={remPage} totalPages={remTotalPages} total={remTotal}
                 onChange={(hal) => setRemState({ hal })} pageSize={remLimit}
                 onPageSizeChange={() => { /* fixed 25 */ }} pageSizes={[remLimit]} />
@@ -574,6 +577,7 @@ export default function Customers() {
             onRetry={() => void cq.refetch()}
             showPoints={loyalty.enabled}
             filtered={activeFilters > 0}
+            query={search}
             selectedId={editor?.customer?.id ?? null}
             onOpen={(c) => openCustomer(c.id)}
             onEdit={(c) => setEditor({ customer: c })}
@@ -626,8 +630,8 @@ export default function Customers() {
           <Field label="Tipe">
             <div className="grid grid-cols-2 gap-2">
               {(['always_on', 'campaign'] as const).map((tv) => (
-                <button key={tv} type="button" onClick={() => setCondForm((f) => ({ ...f, type: tv }))} className={`p-3 rounded-xl border-2 text-left ${condForm.type === tv ? 'border-gold-500 bg-gold-50' : 'border-gray-200'}`}>
-                  <p className="font-black text-sm text-gray-700">{tv === 'always_on' ? 'Always-On' : 'Campaign-Based'}</p>
+                <button key={tv} type="button" onClick={() => setCondForm((f) => ({ ...f, type: tv }))} aria-pressed={condForm.type === tv} className={`p-3 rounded-xl border-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong ${condForm.type === tv ? 'border-brand-strong bg-paper-1' : 'border-paper-2'}`}>
+                  <p className="font-black text-sm text-ink-700">{tv === 'always_on' ? 'Always-On' : 'Campaign-Based'}</p>
                 </button>
               ))}
             </div>
@@ -639,7 +643,7 @@ export default function Customers() {
             <Field label="Pilih Hari">
               <div className="flex gap-1.5 flex-wrap">
                 {DAYS_ID.map((d, i) => (
-                  <button key={d} type="button" onClick={() => setCondForm((f) => ({ ...f, activeDays: (f.activeDays || []).includes(i) ? (f.activeDays || []).filter((x) => x !== i) : [...(f.activeDays || []), i] }))} className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${(condForm.activeDays || []).includes(i) ? 'bg-gold-600 text-white border-gold-600' : 'border-gray-200 text-gray-600'}`}>{d}</button>
+                  <button key={d} type="button" onClick={() => setCondForm((f) => ({ ...f, activeDays: (f.activeDays || []).includes(i) ? (f.activeDays || []).filter((x) => x !== i) : [...(f.activeDays || []), i] }))} aria-pressed={(condForm.activeDays || []).includes(i)} className={`h-10 px-4 rounded-full text-[13px] font-bold border focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong ${(condForm.activeDays || []).includes(i) ? 'bg-brand-strong text-on-brand border-brand-strong' : 'border-paper-2 bg-white text-ink-700 hover:bg-paper-1'}`}>{d}</button>
                 ))}
               </div>
             </Field>
@@ -678,10 +682,10 @@ export default function Customers() {
             </div>
           )}
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={condForm.isActive} onChange={(e) => setCondForm((f) => ({ ...f, isActive: e.target.checked }))} className="w-4 h-4 accent-gold-600" />
-            <span className="text-sm font-bold text-gray-700">Kondisi Aktif</span>
+            <input type="checkbox" checked={condForm.isActive} onChange={(e) => setCondForm((f) => ({ ...f, isActive: e.target.checked }))} className="w-4 h-4 accent-brand-strong" />
+            <span className="text-sm font-bold text-ink-700">Kondisi Aktif</span>
           </label>
-          {condErr && <p role="alert" className="text-sm text-red-600">{condErr}</p>}
+          {condErr && <p role="alert" className="text-sm text-danger">{condErr}</p>}
         </div>
       </Modal>
 

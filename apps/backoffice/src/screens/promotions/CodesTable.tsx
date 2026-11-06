@@ -38,18 +38,18 @@ export function CodesTable({ rows, promotions, today, loading, error, onRetry, s
       cell: (c) => (
         <div>
           <div className="flex items-center gap-2">
-            <span className="rounded-lg bg-gold-50 px-3 py-1 text-sm font-black tracking-wider text-gold-700">{c.code}</span>
-            <IconButton aria-label={`Salin ${c.code}`} onClick={() => onCopy(c)} className="p-1"><Copy className="h-3.5 w-3.5" /></IconButton>
+            <span className="rounded-lg bg-paper-1 px-3 py-1 text-sm font-black tracking-wider text-brand-strong">{c.code}</span>
+            <IconButton label={`Salin ${c.code}`} onClick={() => onCopy(c)} ><Copy className="h-4 w-4" /></IconButton>
           </div>
-          {c.combinable && <Badge tone="gold" className="mt-0.5 inline-block">Bisa Kombinasi</Badge>}
-          {c.promotionId && <p className="mt-0.5 text-xs text-gray-500">Tertaut: {promotions.find((p) => p.id === c.promotionId)?.name ?? c.promotionId}</p>}
-          {c.customerId && <p className="mt-0.5 text-xs text-gray-500">Khusus: {c.customerName ?? '—'}</p>}
+          {c.combinable && <Badge tone="neutral" className="mt-0.5 inline-block">Bisa Kombinasi</Badge>}
+          {c.promotionId && <p className="mt-0.5 text-xs text-ink-500">Tertaut: {promotions.find((p) => p.id === c.promotionId)?.name ?? c.promotionId}</p>}
+          {c.customerId && <p className="mt-0.5 text-xs text-ink-500">Khusus: {c.customerName ?? '—'}</p>}
         </div>
       ),
     },
-    { id: 'value', header: 'Diskon', cell: (c) => <span className="text-sm font-bold text-gray-900">{codeValueLabel(c)}</span> },
-    { id: 'min', header: 'Min. Beli', cell: (c) => <span className="text-sm text-gray-600">{c.minPurchase ? BRAND.currency.format(c.minPurchase) : '—'}</span> },
-    { id: 'usage', header: 'Penggunaan', cell: (c) => <span className="text-sm font-bold text-gray-900">{c.usageCount} / {c.usageLimit || '∞'}</span> },
+    { id: 'value', header: 'Diskon', cell: (c) => <span className="text-sm font-bold text-ink-900">{codeValueLabel(c)}</span> },
+    { id: 'min', header: 'Min. Beli', cell: (c) => <span className="text-sm text-ink-700">{c.minPurchase ? BRAND.currency.format(c.minPurchase) : '—'}</span> },
+    { id: 'usage', header: 'Penggunaan', cell: (c) => <span className="text-sm font-bold text-ink-900">{c.usageCount} / {c.usageLimit || '∞'}</span> },
     {
       id: 'status',
       header: 'Status',
@@ -66,8 +66,8 @@ export function CodesTable({ rows, promotions, today, loading, error, onRetry, s
       align: 'right',
       cell: (c) => (
         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-          <IconButton aria-label={`Ubah ${c.code}`} onClick={() => onEdit(c)}><Edit2 className="h-4 w-4" /></IconButton>
-          <IconButton tone="danger" aria-label={`Hapus ${c.code}`} onClick={() => onDelete(c)}><Trash2 className="h-4 w-4" /></IconButton>
+          <IconButton label={`Ubah ${c.code}`} onClick={() => onEdit(c)}><Edit2 className="h-4 w-4" /></IconButton>
+          <IconButton tone="danger" label={`Hapus ${c.code}`} onClick={() => onDelete(c)}><Trash2 className="h-4 w-4" /></IconButton>
         </div>
       ),
     },

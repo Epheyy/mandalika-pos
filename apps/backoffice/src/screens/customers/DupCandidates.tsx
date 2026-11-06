@@ -21,22 +21,22 @@ export default function DupCandidates({ onReview, refreshKey }: DupCandidatesPro
   const candidates = q.data?.data ?? []
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-clip">
       {q.loading && candidates.length === 0 ? (
         <TableSkeleton />
       ) : candidates.length === 0 ? (
         <EmptyState icon={<Users />} title="Tidak ada duplikat untuk ditinjau." />
       ) : (
-        <div className="divide-y divide-gray-50">
+        <div className="divide-y divide-paper-1">
           {candidates.map((c: DupCandidate) => (
-            <div key={c.id} className="px-5 py-4 flex items-center justify-between gap-4 hover:bg-gray-50">
+            <div key={c.id} className="px-5 py-4 flex items-center justify-between gap-4 hover:bg-paper-1">
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-gray-900 text-sm">
+                <p className="font-bold text-ink-900 text-sm">
                   {c.existingCustomer.name}
-                  <span className="mx-2 text-gray-400">↔</span>
+                  <span className="mx-2 text-ink-500">↔</span>
                   {c.newCustomer.name}
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-ink-500">
                   {c.phone} · {new Date(c.createdAt).toLocaleDateString('id-ID')}
                 </p>
               </div>
