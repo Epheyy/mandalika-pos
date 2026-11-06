@@ -4,11 +4,11 @@ import { cn } from './cn'
 type Tone = 'gold' | 'success' | 'danger' | 'warning' | 'neutral'
 
 const TONE: Record<Tone, string> = {
-  gold: 'bg-gold-50 text-gold-700',
-  success: 'bg-green-50 text-green-700',
-  danger: 'bg-red-50 text-red-700',
-  warning: 'bg-amber-50 text-amber-700',
-  neutral: 'bg-gray-100 text-gray-600',
+  gold: 'bg-paper-1 text-brand-strong',
+  success: 'bg-ok-bg text-ok',
+  danger: 'bg-danger-bg text-danger',
+  warning: 'bg-warn-bg text-warn-strong',
+  neutral: 'bg-paper-1 text-ink-700',
 }
 
 interface BadgeProps {
