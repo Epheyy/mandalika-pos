@@ -132,15 +132,15 @@ export function PromoGrantsTab({ dateFrom, dateTo, outletId }: PromoGrantsTabPro
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="p-4">
           <p className="text-xl font-black text-gray-900">{BRAND.currency.format(summary?.totalValue ?? 0)}</p>
-          <p className="text-xs text-gray-400">Total Nilai Hadiah</p>
+          <p className="text-xs text-ink-500">Total Nilai Hadiah</p>
         </Card>
         <Card className="p-4">
           <p className="text-xl font-black text-gray-900">{String(summary?.totalItems ?? 0)}</p>
-          <p className="text-xs text-gray-400">Jumlah Item</p>
+          <p className="text-xs text-ink-500">Jumlah Item</p>
         </Card>
         <Card className="p-4">
           <p className="text-xl font-black text-gray-900">{String(summary?.totalOrders ?? 0)}</p>
-          <p className="text-xs text-gray-400">Jumlah Transaksi</p>
+          <p className="text-xs text-ink-500">Jumlah Transaksi</p>
         </Card>
       </div>
 
@@ -169,14 +169,14 @@ function BreakdownTable({ title, rows }: { title: string; rows: BreakdownRow[] }
     <Card className="p-4">
       <h3 className="font-black text-gray-900 mb-3">{title}</h3>
       {rows.length === 0 ? (
-        <p className="text-xs text-gray-400">Belum ada data</p>
+        <p className="text-xs text-ink-500">Belum ada data</p>
       ) : (
         <div className="space-y-2">
           {rows.map((r) => (
             <div key={r.key} className="flex items-center justify-between text-sm gap-3">
               <span className="text-gray-600 truncate">{r.label}</span>
               <span className="flex items-center gap-3 flex-shrink-0">
-                <span className="text-gray-400 text-xs">{r.items}x</span>
+                <span className="text-ink-500 text-xs">{r.items}x</span>
                 <span className="font-bold text-gray-900">{BRAND.currency.format(r.value)}</span>
               </span>
             </div>

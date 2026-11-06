@@ -90,7 +90,7 @@ export function ShiftsTab({ dateFrom, dateTo, outletId, outlets }: ShiftsTabProp
   return (
     <>
       {sq.error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           Gagal memuat data lengkap. Data sebelumnya mungkin ditampilkan; ekspor dinonaktifkan. {sq.error}
         </p>
       )}
@@ -118,7 +118,7 @@ export function ShiftsTab({ dateFrom, dateTo, outletId, outlets }: ShiftsTabProp
             ].map((c) => (
               <Card key={c.label} className="p-4">
                 <p className="text-xl font-black text-gray-900">{c.value}</p>
-                <p className="text-xs text-gray-400" title={'hint' in c ? c.hint : undefined}>{c.label}</p>
+                <p className="text-xs text-ink-500" title={'hint' in c ? c.hint : undefined}>{c.label}</p>
               </Card>
             ))}
           </div>

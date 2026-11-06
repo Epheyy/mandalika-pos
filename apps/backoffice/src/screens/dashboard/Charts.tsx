@@ -51,7 +51,7 @@ export function TrendChart({ trend }: TrendChartProps) {
         <Tooltip
           formatter={(v) => [BRAND.currency.format(Number(v)), 'Penjualan']}
           contentStyle={CHART_TOOLTIP}
-          cursor={{ fill: 'rgba(176,125,24,0.06)' }}
+          cursor={{ fill: 'rgba(176,125,24,0.08)' }}
         />
         <ReferenceLine y={0} stroke={CHART_AXIS} strokeWidth={1} />
         <Bar dataKey="revenue" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} />
@@ -126,13 +126,10 @@ export function CashierChart({ cashiers }: CashierChartProps) {
             n === 'revenue' ? 'Penjualan' : 'Transaksi',
           ]}
           contentStyle={CHART_TOOLTIP}
-          cursor={{ fill: 'rgba(176,125,24,0.06)' }}
+          cursor={{ fill: 'rgba(176,125,24,0.08)' }}
         />
-        <Bar dataKey="transactions" radius={[0, 4, 4, 0]}>
-          {cashiers.map((c, i) => (
-            <Cell key={c.id} fill={CHART_SERIES[i % CHART_SERIES.length]} />
-          ))}
-        </Bar>
+        {/* One measure, one colour: a cashier is named on the axis, so a hue per bar would say nothing. */}
+        <Bar dataKey="transactions" fill={CHART_PRIMARY} radius={[0, 4, 4, 0]} />
       </BarChart>
     </ResponsiveContainer>
   )

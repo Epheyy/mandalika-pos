@@ -21,9 +21,9 @@ describe('orderStatus helpers (C4a)', () => {
 })
 
 describe('orderIconClasses (C4a)', () => {
-  it('tints refunded red, partially refunded amber, others gold', () => {
-    expect(orderIconClasses('refunded').tile).toBe('bg-red-50')
-    expect(orderIconClasses('partially_refunded').tile).toBe('bg-amber-50')
-    expect(orderIconClasses('completed').tile).toBe('bg-gold-50')
+  it('tints refunded danger, partially refunded warn, others neutral', () => {
+    expect(orderIconClasses('refunded').tile).toBe('bg-danger-bg')
+    expect(orderIconClasses('partially_refunded').tile).toBe('bg-warn-bg')
+    expect(orderIconClasses('completed').tile).toBe('bg-paper-1')
   })
 })

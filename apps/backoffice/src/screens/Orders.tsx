@@ -37,13 +37,13 @@ function PaymentLines({ order, methods }: { order: Order; methods: AppSettings['
   if (rows.length === 0 || (rows.length === 1 && !isSplitOrder(order))) return null
   return (
     <div className="pt-1" data-testid="payment-lines">
-      <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Pembayaran</p>
+      <p className="text-xs font-black text-ink-500 uppercase tracking-widest mb-1">Pembayaran</p>
       {rows.map((r) => (
         <div key={r.key} className="flex justify-between text-sm text-gray-600">
           <span>
             {r.label}
-            {r.reference && <span className="text-gray-400"> · ref {r.reference}</span>}
-            {r.change > 0 && <span className="text-green-600"> · kembalian {BRAND.currency.format(r.change)}</span>}
+            {r.reference && <span className="text-ink-500"> · ref {r.reference}</span>}
+            {r.change > 0 && <span className="text-ok"> · kembalian {BRAND.currency.format(r.change)}</span>}
           </span>
           <span className="font-bold text-gray-900">{BRAND.currency.format(r.amount)}</span>
         </div>
@@ -53,6 +53,7 @@ function PaymentLines({ order, methods }: { order: Order; methods: AppSettings['
 }
 
 const badgeTone = orderStatusTone
+
 const label = orderStatusLabel
 
 const TRANSAKSI_STATUSES = ['completed', 'partially_refunded', 'refunded', 'cancelled'] as const
@@ -69,7 +70,7 @@ interface OrdersListState {
   [key: string]: string | number | boolean
 }
 
-// dari/sampai default to '' = the last 30 days, resolved when read (a module constant would go stale past midnight).
+// dari/sampai default to '' = today (D-108, the same default as every other Laporan tab), resolved when read (a module constant would go stale past midnight).
 const ORDERS_SCHEMA: ListSchema<OrdersListState> = {
   q: { key: 'q', default: '' },
   status: { key: 'status', default: '' },
@@ -89,10 +90,10 @@ export function OrdersPanel() {
   const [state, setState] = useListState(ORDERS_SCHEMA)
   const fStatus = enumOf<string>(state.status, TRANSAKSI_STATUSES, '')
   const fPay = paymentOf(state.bayar)
-  // Default window: last 30 days; "Semua tanggal" lifts the date bounds (search then spans all dates).
+  // Default window: today (D-108); "Semua tanggal" lifts the date bounds (search then spans all dates).
   // A cleared date input stays cleared (unbounded) rather than snapping back to the default.
   // Once per mount: rolling over at midnight would change the query under an open refund form.
-  const [defaultRange] = useState(() => lastDaysRange(30))
+  const [defaultRange] = useState(() => lastDaysRange(1))
   const range = { dateFrom: dayOf(state.dari, defaultRange.dateFrom), dateTo: dayOf(state.sampai, defaultRange.dateTo) }
   const allDates = state.semua
   const page = pageOf(state.hal)
@@ -166,16 +167,16 @@ export function OrdersPanel() {
 
   return (
     <div className="space-y-5">
-      {(q.error || sq.error) && <p role="alert" className="text-sm text-red-600">Gagal memuat data. Data sebelumnya mungkin ditampilkan. {q.error || sq.error}</p>}
-      {exportError && <p role="alert" className="text-sm text-red-600">{exportError}</p>}
-      <p className="text-sm text-gray-500">
+      {(q.error || sq.error) && <p role="alert" className="text-sm text-danger">Gagal memuat data. Data sebelumnya mungkin ditampilkan. {q.error || sq.error}</p>}
+      {exportError && <p role="alert" className="text-sm text-danger">{exportError}</p>}
+      <p className="text-sm text-ink-700">
         {transaksiHeader(q.data ? total : undefined, showSummary ? sq.data?.totalSales : undefined, (n) => BRAND.currency.format(n))}
         {debouncedQuery.trim() !== '' && !allDates && ' · pencarian mencakup semua tanggal'}
       </p>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-500 z-10" />
           <input
             type="text"
             aria-label="Cari order / kasir / pelanggan"
@@ -185,6 +186,17 @@ export function OrdersPanel() {
             className={`${fieldClass} pl-9`}
           />
         </div>
+        <Button
+          variant="secondary"
+          className="shrink-0 whitespace-nowrap"
+          onClick={() => void handleExport()}
+          disabled={exportBusy || q.loading || !!q.error || total === 0}
+          icon={<Download className="w-4 h-4" />}
+        >
+          Unduh Excel
+        </Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
         <Input
           type="date"
           aria-label="Dari tanggal"
@@ -216,20 +228,12 @@ export function OrdersPanel() {
           <option value="">Semua Pembayaran</option>
           {payOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
         </Select>
-        <Button
-          variant="secondary"
-          onClick={() => void handleExport()}
-          disabled={exportBusy || q.loading || !!q.error || total === 0}
-          icon={<Download className="w-4 h-4" />}
-        >
-          Unduh Excel
-        </Button>
       </div>
       {fPay.trim() !== '' && (
-        <p className="text-xs text-gray-400">{paymentFilterHint(fPay, methodLabel(fPay, payMethods))}</p>
+        <p className="text-xs text-ink-500">{paymentFilterHint(fPay, methodLabel(fPay, payMethods))}</p>
       )}
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-clip">
         {q.loading ? (
           <TableSkeleton />
         ) : orders.length === 0 ? (
@@ -239,8 +243,9 @@ export function OrdersPanel() {
             {orders.map((o) => (
               <div key={o.id}>
                 <div
-                  className="px-5 py-4 flex items-center gap-4 hover:bg-gray-50 cursor-pointer"
+                  className="px-5 py-4 flex items-center gap-4 hover:bg-paper-0 cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-strong"
                   role="button"
+                  aria-expanded={expanded === o.id}
                   tabIndex={0}
                   onClick={() => {
                     setExpanded(expanded === o.id ? null : o.id)
@@ -257,7 +262,7 @@ export function OrdersPanel() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900 text-sm">{o.orderNumber}</p>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-ink-500">
                       {o.items.length} item · <span className="capitalize">{orderMethodText(o)}</span>
                       {o.customerName && <> · {o.customerName}</>} · {o.cashierName} ·{' '}
                       {format(parseISO(o.createdAt), 'dd MMM yyyy HH:mm', { locale: id })}
@@ -267,7 +272,7 @@ export function OrdersPanel() {
                     {o.discountWarning && (
                       <span
                         title={o.discountWarningReason ?? undefined}
-                        className="px-2 py-0.5 text-xs font-bold rounded-lg bg-amber-50 text-amber-700"
+                        className="px-2 py-0.5 text-xs font-bold rounded-lg bg-warn-bg text-warn-strong"
                       >
                         ⚠ Diskon
                       </span>
@@ -275,7 +280,7 @@ export function OrdersPanel() {
                     {o.stockWarning && (
                       <span
                         title="Ada baris yang melebihi stok atau varian tidak ditemukan saat dijual (lihat Laporan → Stok Minus)"
-                        className="px-2 py-0.5 text-xs font-bold rounded-lg bg-amber-50 text-amber-700"
+                        className="px-2 py-0.5 text-xs font-bold rounded-lg bg-warn-bg text-warn-strong"
                       >
                         ⚠ Stok
                       </span>
@@ -283,7 +288,7 @@ export function OrdersPanel() {
                     {o.tenderWarning && (
                       <span
                         title={tenderWarningTitle(o.tenderWarningReason)}
-                        className="px-2 py-0.5 text-xs font-bold rounded-lg bg-amber-50 text-amber-700"
+                        className="px-2 py-0.5 text-xs font-bold rounded-lg bg-warn-bg text-warn-strong"
                       >
                         ⚠ Bayar
                       </span>
@@ -291,21 +296,21 @@ export function OrdersPanel() {
                     {o.quoteWarning && (
                       <span
                         title={quoteWarningTitle(o, BRAND.currency.format)}
-                        className="px-2 py-0.5 text-xs font-bold rounded-lg bg-amber-50 text-amber-700"
+                        className="px-2 py-0.5 text-xs font-bold rounded-lg bg-warn-bg text-warn-strong"
                       >
                         ⚠ Struk
                       </span>
                     )}
                     <Badge tone={badgeTone(o.status)}>{label(o.status)}</Badge>
                     <p className="font-black text-gray-900 text-sm">{BRAND.currency.format(o.total)}</p>
-                    {expanded === o.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                    {expanded === o.id ? <ChevronUp className="w-4 h-4 text-ink-500" /> : <ChevronDown className="w-4 h-4 text-ink-500" />}
                   </div>
                 </div>
                 {expanded === o.id && (
                   <div className="px-5 pb-5 bg-gray-50 border-t border-gray-100">
                     <div className="pt-4 space-y-4">
                       <div>
-                        <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Item</p>
+                        <p className="text-xs font-black text-ink-500 uppercase tracking-widest mb-2">Item</p>
                         <div className="space-y-1.5">
                           {o.items.map((it) => (
                             <div key={`${it.productId}|${it.variantSize}`} className="flex justify-between text-sm">
@@ -316,50 +321,50 @@ export function OrdersPanel() {
                         </div>
                       </div>
                       <div className="border-t border-gray-200 pt-3 space-y-1">
-                        <div className="flex justify-between text-sm text-gray-500"><span>Subtotal</span><span>{BRAND.currency.format(o.subtotal)}</span></div>
+                        <div className="flex justify-between text-sm text-ink-700"><span>Subtotal</span><span>{BRAND.currency.format(o.subtotal)}</span></div>
                         {o.discountAmount > 0 && (
                           o.discountBreakdown && o.discountBreakdown.length > 0 ? (
                             o.discountBreakdown.map((d) => (
-                              <div key={`${d.label}|${d.kind ?? ''}`} className="flex justify-between text-sm text-green-600">
+                              <div key={`${d.label}|${d.kind ?? ''}`} className="flex justify-between text-sm text-ok">
                                 <span>Diskon · {d.label}{d.kind === 'percentage' && d.value ? ` (${d.value}%)` : ''}</span>
                                 <span>-{BRAND.currency.format(d.amount)}</span>
                               </div>
                             ))
                           ) : (
-                            <div className="flex justify-between text-sm text-green-600">
+                            <div className="flex justify-between text-sm text-ok">
                               <span>Diskon{o.discountLabel ? ` · ${o.discountLabel}` : o.discountCode ? ` · ${o.discountCode}` : ''}</span>
                               <span>-{BRAND.currency.format(o.discountAmount)}</span>
                             </div>
                           )
                         )}
-                        <div className="flex justify-between text-sm text-gray-500"><span>Pajak</span><span>{BRAND.currency.format(o.taxAmount)}</span></div>
+                        <div className="flex justify-between text-sm text-ink-700"><span>Pajak</span><span>{BRAND.currency.format(o.taxAmount)}</span></div>
                         <div className="flex justify-between font-black text-gray-900"><span>Total</span><span>{BRAND.currency.format(o.total)}</span></div>
                         {receiptTotalLine(o, BRAND.currency.format) && (
-                          <div className="flex justify-between text-sm text-amber-700"><span>Total di struk</span><span>{receiptTotalLine(o, BRAND.currency.format)}</span></div>
+                          <div className="flex justify-between text-sm text-warn-strong"><span>Total di struk</span><span>{receiptTotalLine(o, BRAND.currency.format)}</span></div>
                         )}
                         <PaymentLines order={o} methods={payMethods} />
                         {o.change > 0 && (
-                          <div className="flex justify-between text-sm text-green-600 font-bold"><span>Kembalian</span><span>{BRAND.currency.format(o.change)}</span></div>
+                          <div className="flex justify-between text-sm text-ok font-bold"><span>Kembalian</span><span>{BRAND.currency.format(o.change)}</span></div>
                         )}
                       </div>
                       {o.notes && (
-                        <div className="bg-amber-50 rounded-xl p-3">
-                          <p className="text-xs font-black text-amber-700 mb-1">Catatan</p>
-                          <p className="text-sm text-amber-800">{o.notes}</p>
+                        <div className="bg-warn-bg rounded-xl p-3">
+                          <p className="text-xs font-black text-warn-strong mb-1">Catatan</p>
+                          <p className="text-sm text-warn-strong">{o.notes}</p>
                         </div>
                       )}
                       {(o.refunds ?? []).length === 0 && o.status === 'refunded' && o.refundReason && (
-                        <div className="bg-red-50 rounded-xl p-3">
-                          <p className="text-xs font-black text-red-600 mb-1">Alasan Refund</p>
-                          <p className="text-sm text-red-700">{o.refundReason}</p>
+                        <div className="bg-danger-bg rounded-xl p-3">
+                          <p className="text-xs font-black text-danger mb-1">Alasan Refund</p>
+                          <p className="text-sm text-danger">{o.refundReason}</p>
                           {o.refundedAt && (
-                            <p className="text-xs text-red-400 mt-1">
+                            <p className="text-xs text-danger mt-1">
                               {format(parseISO(o.refundedAt), 'dd MMM yyyy HH:mm', { locale: id })}
                               {refundedByLine(o) ? ` · ${refundedByLine(o)}` : ''}
                             </p>
                           )}
                           {!o.refundedAt && refundedByLine(o) && (
-                            <p className="text-xs text-red-400 mt-1">{refundedByLine(o)}</p>
+                            <p className="text-xs text-danger mt-1">{refundedByLine(o)}</p>
                           )}
                         </div>
                       )}

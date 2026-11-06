@@ -49,7 +49,7 @@ export function canViewSummary(isAdmin: boolean, permissions: readonly string[])
 }
 
 /**
- * Filters for the Transaksi tab. The date window (default last 30 days) is dropped
+ * Filters for the Transaksi tab. The date window (default today, D-108) is dropped
  * when "Semua tanggal" is ticked or when a search is typed, so search covers all dates.
  */
 export function transaksiFilters(

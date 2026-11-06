@@ -120,14 +120,14 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
   return (
     <>
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           Gagal memuat data. Data sebelumnya mungkin ditampilkan. {error}
         </p>
       )}
-      {exportError && <p role="alert" className="text-sm text-red-600">{exportError}</p>}
+      {exportError && <p role="alert" className="text-sm text-danger">{exportError}</p>}
       {(sq.loading || lq.loading) && <p role="status">Memuat data…</p>}
       <div className="flex justify-end items-center gap-2">
-        <span className="text-xs text-gray-400">CSV refund memakai rentang tanggal dan outlet saja.</span>
+        <span className="text-xs text-ink-500">CSV refund memakai rentang tanggal dan outlet saja.</span>
         <Button
           variant="secondary"
           onClick={() => void runExport('refund')}
@@ -156,16 +156,16 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
               { label: 'Jumlah Transaksi', value: String(summary.totalOrders), icon: <ShoppingBag className="w-5 h-5" /> },
             ].map((c) => (
               <Card key={c.label} className="p-4">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-2 bg-gold-50 text-gold-600">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-2 bg-paper-1 text-brand-strong">
                   {c.icon}
                 </div>
-                <p className={`text-xl font-black ${c.negative ? 'text-red-600' : 'text-gray-900'}`}>{c.value}</p>
-                <p className="text-xs text-gray-400">{c.label}</p>
-                {c.sub && <p className="text-xs text-gray-400">{c.sub}</p>}
+                <p className={`text-xl font-black ${c.negative ? 'text-danger' : 'text-gray-900'}`}>{c.value}</p>
+                <p className="text-xs text-ink-500">{c.label}</p>
+                {c.sub && <p className="text-xs text-ink-500">{c.sub}</p>}
               </Card>
             ))}
           </div>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-ink-500">
             Refund dihitung pada hari refund, bukan hari penjualan. Daftar di bawah memakai hari penjualan.
           </p>
 
@@ -175,11 +175,11 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {rows.map((r) => (
                   <div key={r.method} className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs font-bold text-gray-500 capitalize mb-1">{methodLabel(r.method, paymentMethods)}</p>
-                    <p className="text-xs text-gray-500">Kotor <span className="font-black text-gray-900 text-sm">{BRAND.currency.format(r.gross)}</span></p>
-                    <p className="text-xs text-gray-500">Refund <span className="font-black text-red-600 text-sm">{BRAND.currency.format(r.refunds)}</span></p>
-                    <p className="text-xs text-gray-500">Bersih <span className={`font-black text-sm ${r.net < 0 ? 'text-red-600' : 'text-gray-900'}`}>{BRAND.currency.format(r.net)}</span></p>
-                    <p className="text-xs text-gray-400">{sharePercent(r.gross, summary.grossSales ?? 0)}%</p>
+                    <p className="text-xs font-bold text-ink-700 capitalize mb-1">{methodLabel(r.method, paymentMethods)}</p>
+                    <p className="text-xs text-ink-700">Kotor <span className="font-black text-gray-900 text-sm">{BRAND.currency.format(r.gross)}</span></p>
+                    <p className="text-xs text-ink-700">Refund <span className="font-black text-danger text-sm">{BRAND.currency.format(r.refunds)}</span></p>
+                    <p className="text-xs text-ink-700">Bersih <span className={`font-black text-sm ${r.net < 0 ? 'text-danger' : 'text-gray-900'}`}>{BRAND.currency.format(r.net)}</span></p>
+                    <p className="text-xs text-ink-500">{sharePercent(r.gross, summary.grossSales ?? 0)}%</p>
                   </div>
                 ))}
               </div>
@@ -190,7 +190,7 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
 
       <Card className="overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100">
-          <p className="text-sm font-bold text-gray-500">{total} transaksi</p>
+          <p className="text-sm font-bold text-ink-700">{total} transaksi</p>
         </div>
         {orders.length === 0 ? (
           <EmptyState icon={<ShoppingBag />} title="Tidak ada transaksi" />
@@ -204,7 +204,7 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900 text-sm">{o.orderNumber}</p>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-ink-500">
                       {format(parseISO(o.createdAt), 'dd MMM yyyy HH:mm', { locale: idLocale })} · {o.cashierName}
                       {o.customerName && ` · ${o.customerName}`}
                     </p>
@@ -212,7 +212,7 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {statusBadge(o.status)}
                     <p className="font-black text-gray-900 text-sm">{BRAND.currency.format(o.total)}</p>
-                    {expanded === o.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                    {expanded === o.id ? <ChevronUp className="w-4 h-4 text-ink-500" /> : <ChevronDown className="w-4 h-4 text-ink-500" />}
                   </div>
                 </div>
                 {expanded === o.id && (

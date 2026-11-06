@@ -109,10 +109,10 @@ export function AdminRefundForm({ order, methods, onDone }: Props) {
   return (
     <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
       {legacy ? (
-        <p className="text-xs text-amber-700">Transaksi lama tanpa nomor baris: hanya bisa refund seluruh transaksi ({money(order.total)}).</p>
+        <p className="text-xs text-warn-strong">Transaksi lama tanpa nomor baris: hanya bisa refund seluruh transaksi ({money(order.total)}).</p>
       ) : (
         <div className="space-y-1.5">
-          <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Pilih item yang di-refund</p>
+          <p className="text-xs font-black text-ink-500 uppercase tracking-widest">Pilih item yang di-refund</p>
           {order.items.map((it) => {
             if (it.lineNo == null) return null
             const lineNo = it.lineNo
@@ -123,9 +123,9 @@ export function AdminRefundForm({ order, methods, onDone }: Props) {
             return (
               <div key={lineNo} className="flex items-center justify-between gap-2 text-sm">
                 <div className="min-w-0">
-                  <p className="text-gray-700 truncate">{label} <span className="text-gray-400">sisa {max}/{it.quantity}</span></p>
-                  {it.refundGroup && !lock && <p className="text-xs text-gray-400">Satu paket: dipilih bersama</p>}
-                  {lock && <p className="text-xs text-amber-700">{lock}</p>}
+                  <p className="text-gray-700 truncate">{label} <span className="text-ink-500">sisa {max}/{it.quantity}</span></p>
+                  {it.refundGroup && !lock && <p className="text-xs text-ink-500">Satu paket: dipilih bersama</p>}
+                  {lock && <p className="text-xs text-warn-strong">{lock}</p>}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <Button variant="secondary" size="sm" aria-label={`Kurangi ${label}`} disabled={!!lock || qty <= 0}
@@ -137,7 +137,7 @@ export function AdminRefundForm({ order, methods, onDone }: Props) {
               </div>
             )
           })}
-          <p className="text-xs text-gray-400">Tas hadiah tidak ikut direfund</p>
+          <p className="text-xs text-ink-500">Tas hadiah tidak ikut direfund</p>
         </div>
       )}
       <Select label="Alasan Refund *" value={code} onChange={(e) => setCode(e.target.value)}>
@@ -146,7 +146,7 @@ export function AdminRefundForm({ order, methods, onDone }: Props) {
       </Select>
       {choices && choices.options.length > 0 && (
         <div className="space-y-1.5" role="radiogroup" aria-label="Dikembalikan lewat">
-          <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Dikembalikan lewat</p>
+          <p className="text-xs font-black text-ink-500 uppercase tracking-widest">Dikembalikan lewat</p>
           <div className="flex flex-wrap gap-2">
             {choices.options.map((c) => (
               <Button key={c.id} variant={c.id === shown ? 'primary' : 'secondary'} size="sm" role="radio" aria-checked={c.id === shown}
@@ -155,13 +155,13 @@ export function AdminRefundForm({ order, methods, onDone }: Props) {
               </Button>
             ))}
           </div>
-          <p className="text-xs text-gray-400">Transaksi ini dibayar dengan beberapa metode. Pilih metode untuk mengembalikan uang; satu refund satu metode.</p>
+          <p className="text-xs text-ink-500">Transaksi ini dibayar dengan beberapa metode. Pilih metode untuk mengembalikan uang; satu refund satu metode.</p>
         </div>
       )}
       {code === 'lainnya' && (
         <Textarea label="Tuliskan alasan *" value={text} onChange={(e) => setText(e.target.value)} rows={2} />
       )}
-      {err && <p role="alert" className="text-sm text-red-600">{err}</p>}
+      {err && <p role="alert" className="text-sm text-danger">{err}</p>}
       <div className="flex gap-2">
         <Button variant="secondary" className="flex-1" onClick={reset}>Batal</Button>
         <Button variant="danger" className="flex-1" onClick={askConfirm}>Lanjut</Button>
@@ -191,7 +191,7 @@ export function AdminRefundForm({ order, methods, onDone }: Props) {
           )}
           <p className="font-bold">Perkiraan jumlah refund {money(estimate)}</p>
           {shown && <p>Dikembalikan lewat {payoutLabel}</p>}
-          <p className="text-xs text-gray-500">Server menghitung jumlah pastinya dan membatasinya pada sisa yang bisa direfund.</p>
+          <p className="text-xs text-ink-700">Server menghitung jumlah pastinya dan membatasinya pada sisa yang bisa direfund.</p>
         </div>
       </Modal>
     </div>
