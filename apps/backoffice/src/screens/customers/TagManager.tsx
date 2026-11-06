@@ -3,6 +3,7 @@ import type { Tag } from '@mandalika/api'
 import { Trash2, Plus, Check, X } from 'lucide-react'
 import { api } from '../../api'
 import { Button } from '../../ui/Button'
+import { IconButton } from '../../ui/IconButton'
 import { Input } from '../../ui/Field'
 import { TAG_COLORS, tagChipClasses } from './tagColors'
 
@@ -49,7 +50,8 @@ function ColorPicker({ value, onPick }: { value: string; onPick: (c: string) => 
           type="button"
           onClick={() => onPick(c)}
           aria-label={`Warna ${c}`}
-          className={`w-6 h-6 rounded-full border-2 ${tagChipClasses(c)} ${value === c ? 'ring-2 ring-offset-1 ring-gray-500' : ''}`}
+          aria-pressed={value === c}
+          className={`w-6 h-6 rounded-full border-2 ${tagChipClasses(c)} ${value === c ? 'ring-2 ring-offset-1 ring-ink-500' : ''} focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong`}
         />
       ))}
     </div>
@@ -100,10 +102,10 @@ export function TagManager({ tags, onChange }: TagManagerProps) {
         <ColorPicker value={color} onPick={setColor} />
         <Button size="sm" icon={<Plus className="w-4 h-4" />} loading={busy} onClick={() => void create()}>Tambah Tag</Button>
       </div>
-      {err && <p className="text-xs text-red-600">{err}</p>}
+      {err && <p className="text-xs text-danger">{err}</p>}
       <ul className="space-y-1">
         {tags.map((t) => (
-          <li key={t.id} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-gray-50">
+          <li key={t.id} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-paper-1">
             {edit.editId === t.id ? (
               <div className="flex-1 space-y-1.5">
                 <Input value={edit.editName} onChange={(e) => dispatch({ type: 'SET_NAME', value: e.target.value })} />
@@ -117,8 +119,8 @@ export function TagManager({ tags, onChange }: TagManagerProps) {
               <>
                 <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${tagChipClasses(t.color)}`}>{t.name}</span>
                 <div className="flex items-center gap-1">
-                  <button type="button" className="text-xs text-gray-500 hover:text-gray-900" onClick={() => dispatch({ type: 'START_EDIT', tag: t })}>Edit</button>
-                  <button type="button" aria-label={`Hapus tag ${t.name}`} className="p-1 text-gray-400 hover:text-red-500" onClick={() => setConfirmDelete(t)}><Trash2 className="w-3.5 h-3.5" /></button>
+                  <Button variant="ghost" size="sm" onClick={() => dispatch({ type: 'START_EDIT', tag: t })}>Edit</Button>
+                  <IconButton tone="danger" label={`Hapus tag ${t.name}`} onClick={() => setConfirmDelete(t)}><Trash2 className="w-4 h-4" /></IconButton>
                 </div>
               </>
             )}
@@ -126,8 +128,8 @@ export function TagManager({ tags, onChange }: TagManagerProps) {
         ))}
       </ul>
       {confirmDelete && (
-        <div className="p-3 rounded-xl border border-red-200 bg-red-50 space-y-2">
-          <p className="text-xs text-gray-700">Hapus tag <strong>&ldquo;{confirmDelete.name}&rdquo;</strong>? Tag akan dilepas dari semua pelanggan.</p>
+        <div className="p-3 rounded-xl border border-danger/30 bg-danger-bg space-y-2">
+          <p className="text-xs text-ink-700">Hapus tag <strong>&ldquo;{confirmDelete.name}&rdquo;</strong>? Tag akan dilepas dari semua pelanggan.</p>
           <div className="flex gap-2">
             <Button variant="secondary" className="flex-1 text-xs py-1.5" onClick={() => setConfirmDelete(null)} disabled={busy}>Batal</Button>
             <Button variant="danger" className="flex-1 text-xs py-1.5" loading={busy} onClick={() => void del(confirmDelete.id)}>Hapus</Button>

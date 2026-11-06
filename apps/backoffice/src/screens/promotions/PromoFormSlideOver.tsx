@@ -40,7 +40,7 @@ export interface PromoFormSlideOverProps {
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section aria-label={title} className="space-y-4 border-t border-gray-100 pt-5 first:border-t-0 first:pt-0">
+    <section aria-label={title} className="space-y-4 border-t border-paper-2 pt-5 first:border-t-0 first:pt-0">
       <h3 className="text-sm font-black uppercase tracking-widest text-ink-700">{title}</h3>
       {children}
     </section>
@@ -49,9 +49,9 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 function SwitchRow({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (next: boolean) => void }) {
   return (
-    <div className="flex items-start justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2.5">
+    <div className="flex items-start justify-between gap-3 rounded-xl border border-paper-2 px-3 py-2.5">
       <div>
-        <p aria-hidden="true" className="text-sm font-bold text-gray-700">{label}</p>
+        <p aria-hidden="true" className="text-sm font-bold text-ink-700">{label}</p>
         {hint && <p className="text-xs text-ink-700">{hint}</p>}
       </div>
       <Switch checked={checked} onChange={onChange} label={label} />
@@ -88,7 +88,7 @@ export function PromoFormSlideOver(p: PromoFormSlideOverProps) {
       }
     >
       {p.load === 'loading' && <p className="text-sm text-ink-700">Memuat promosi…</p>}
-      {(p.load === 'missing' || p.load === 'failed') && <p role="alert" className="text-sm text-red-600">{p.loadError}</p>}
+      {(p.load === 'missing' || p.load === 'failed') && <p role="alert" className="text-sm text-danger">{p.loadError}</p>}
       {ready && (
         <div className="space-y-6">
           <Section title="Umum">
@@ -100,7 +100,7 @@ export function PromoFormSlideOver(p: PromoFormSlideOverProps) {
           <Section title="Jenis dan nilai">
             <PromoTypeFields form={form} setForm={setForm} products={p.products} errors={byField} />
             {p.productsState === 'loading' && <p className="text-xs text-ink-700">Memuat daftar produk…</p>}
-            {p.productsState === 'failed' && <p role="alert" className="text-xs font-semibold text-red-600">Daftar produk gagal dimuat; pilihan produk kosong. Tutup dan buka lagi untuk mencoba ulang.</p>}
+            {p.productsState === 'failed' && <p role="alert" className="text-xs font-semibold text-danger">Daftar produk gagal dimuat; pilihan produk kosong. Tutup dan buka lagi untuk mencoba ulang.</p>}
           </Section>
 
           <Section title="Periode dan jadwal">
@@ -116,14 +116,14 @@ export function PromoFormSlideOver(p: PromoFormSlideOverProps) {
                     type="button"
                     aria-pressed={days.includes(i)}
                     onClick={() => toggleDay(i)}
-                    className={cn('rounded-lg border-2 px-3 py-1.5 text-xs font-bold', days.includes(i) ? 'border-gold-600 bg-gold-600 text-white' : 'border-gray-200 text-gray-600')}
+                    className={cn('h-10 rounded-full border px-4 text-[13px] font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong', days.includes(i) ? 'border-brand-strong bg-brand-strong text-on-brand' : 'border-paper-2 bg-white text-ink-700 hover:bg-paper-1')}
                   >{d}</button>
                 ))}
               </div>
             </Field>
             <Field label="Jam aktif" error={byField[PROMO_FIELD.hours]}>
               <div className="mb-2 flex items-center gap-2">
-                <span className="text-sm font-bold text-gray-900">{hasHours ? `${form.activeFromHour || '—'} sampai ${form.activeToHour || '—'}` : 'Sepanjang hari'}</span>
+                <span className="text-sm font-bold text-ink-900">{hasHours ? `${form.activeFromHour || '—'} sampai ${form.activeToHour || '—'}` : 'Sepanjang hari'}</span>
                 {hasHours && (
                   <Button variant="secondary" size="sm" onClick={() => setForm((f) => ({ ...f, activeFromHour: '', activeToHour: '' }))}>Sepanjang hari</Button>
                 )}
@@ -139,14 +139,14 @@ export function PromoFormSlideOver(p: PromoFormSlideOverProps) {
             <Field label="Outlet" hint="Semua outlet bila tidak ada yang dipilih.">
               {p.outletsState === 'ready' && <OutletChips outlets={p.outlets} value={form.outletIds ?? []} onChange={(outletIds) => setForm((f) => ({ ...f, outletIds }))} />}
               {p.outletsState === 'loading' && <p className="text-xs text-ink-700">Memuat daftar outlet…</p>}
-              {p.outletsState === 'failed' && <p role="alert" className="text-xs font-semibold text-red-600">Daftar outlet gagal dimuat. Outlet promosi ini tidak diubah; tutup dan buka lagi untuk memilih outlet.</p>}
+              {p.outletsState === 'failed' && <p role="alert" className="text-xs font-semibold text-danger">Daftar outlet gagal dimuat. Outlet promosi ini tidak diubah; tutup dan buka lagi untuk memilih outlet.</p>}
             </Field>
             <Input label="Minimum Pembelian (Rp)" type="number" value={form.minPurchase || ''} onChange={(e) => setForm((f) => ({ ...f, minPurchase: e.target.value === '' ? null : parseFloat(e.target.value) || 0 }))} />
             <SwitchRow label="Bisa dikombinasikan dengan promosi lain" checked={form.combinable ?? false} onChange={(combinable) => setForm((f) => ({ ...f, combinable }))} />
             <SwitchRow label="Hanya via kode" hint="Disembunyikan dari panel kasir." checked={form.codeOnly ?? false} onChange={(codeOnly) => setForm((f) => ({ ...f, codeOnly, autoApply: codeOnly ? false : f.autoApply }))} />
             <div id={PROMO_FIELD.autoApply} tabIndex={-1}>
               <SwitchRow label="Terapkan otomatis" hint="Masuk ke keranjang kasir sendiri saat syaratnya terpenuhi; kasir tetap bisa menghapusnya. Tidak bisa digabung dengan Hanya via kode." checked={form.autoApply ?? false} onChange={(autoApply) => setForm((f) => ({ ...f, autoApply, codeOnly: autoApply ? false : f.codeOnly }))} />
-              {byField[PROMO_FIELD.autoApply] && <p role="alert" className="mt-1 text-xs font-semibold text-red-600">{byField[PROMO_FIELD.autoApply]}</p>}
+              {byField[PROMO_FIELD.autoApply] && <p role="alert" className="mt-1 text-xs font-semibold text-danger">{byField[PROMO_FIELD.autoApply]}</p>}
             </div>
             {showVariants && (
               <div id={PROMO_FIELD.products} tabIndex={-1}>
@@ -157,7 +157,7 @@ export function PromoFormSlideOver(p: PromoFormSlideOverProps) {
             )}
           </Section>
 
-          {p.err && <p role="alert" className="text-sm text-red-600">{p.err}</p>}
+          {p.err && <p role="alert" className="text-sm text-danger">{p.err}</p>}
         </div>
       )}
     </SlideOver>

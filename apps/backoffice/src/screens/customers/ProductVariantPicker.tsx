@@ -34,7 +34,7 @@ export function ProductVariantPicker({ products, value, onChange }: ProductVaria
   }
 
   return (
-    <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-xl p-2 space-y-1">
+    <div className="max-h-48 overflow-y-auto border border-paper-2 rounded-xl p-2 space-y-1">
       {products.map((p) => {
         const pid = p.id ?? ''
         if (!pid) return null
@@ -43,37 +43,37 @@ export function ProductVariantPicker({ products, value, onChange }: ProductVaria
         const isOpen = open[pid] ?? false
         return (
           <div key={pid}>
-            <div className="flex items-center gap-2 hover:bg-gray-50 rounded-lg px-2 py-1">
+            <div className="flex items-center gap-2 hover:bg-paper-1 rounded-lg px-2 py-1">
               <input
                 type="checkbox"
                 checked={has(pid)}
                 onChange={() => toggleWhole(pid)}
                 aria-label={`Pilih semua varian ${p.name}`}
-                className="accent-gold-600"
+                className="accent-brand-strong"
               />
               <button
                 type="button"
                 onClick={() => setOpen((o) => ({ ...o, [pid]: !isOpen }))}
                 className="flex items-center gap-1 flex-1 text-left cursor-pointer"
               >
-                {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
-                <span className="text-sm text-gray-700">{p.name}</span>
-                {has(pid) && <span className="text-[10px] font-bold text-gold-600">semua varian</span>}
-                {!has(pid) && pickedCount > 0 && <span className="text-[10px] font-bold text-gold-600">{pickedCount} varian</span>}
+                {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-ink-500" /> : <ChevronRight className="w-3.5 h-3.5 text-ink-500" />}
+                <span className="text-sm text-ink-700">{p.name}</span>
+                {has(pid) && <span className="text-[10px] font-bold text-brand-strong">semua varian</span>}
+                {!has(pid) && pickedCount > 0 && <span className="text-[10px] font-bold text-brand-strong">{pickedCount} varian</span>}
               </button>
             </div>
             {isOpen && (
               <div className="ml-7 space-y-0.5">
                 {variants.map((v) => (
-                  <label key={v.size} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-0.5">
+                  <label key={v.size} className="flex items-center gap-2 cursor-pointer hover:bg-paper-1 rounded-lg px-2 py-0.5">
                     <input
                       type="checkbox"
                       checked={has(pid) || has(`${pid}|${v.size}`)}
                       disabled={has(pid)}
                       onChange={() => toggleVariant(pid, v.size)}
-                      className="accent-gold-600"
+                      className="accent-brand-strong"
                     />
-                    <span className="text-xs text-gray-600">{v.size}</span>
+                    <span className="text-xs text-ink-700">{v.size}</span>
                   </label>
                 ))}
               </div>
