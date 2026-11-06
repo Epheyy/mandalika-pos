@@ -37,14 +37,14 @@ export function Sidebar({ groups, activeId, badgeOf, open, onClose }: SidebarPro
           type="button"
           aria-label="Tutup menu"
           tabIndex={-1}
-          className="fixed inset-0 z-20 bg-ink-900/40 lg:hidden"
+          className="fixed inset-0 z-[26] bg-ink-900/40 lg:hidden"
           onClick={onClose}
         />
       )}
       <aside
         className={cn(
-          // Below lg it is a drawer over content, so opaque (owner rule 1); docked it is non-scrolling chrome, so glass-static.
-          'max-lg:surface-solid lg:surface-glass fixed inset-y-0 left-0 z-30 flex w-64 flex-col transition-transform duration-300 lg:static',
+          // Below lg it is a drawer over content, so opaque (owner rule 1); docked it is non-scrolling chrome, so glass-static (tint, never a blur).
+          'max-lg:surface-solid lg:surface-glass-static fixed inset-y-0 left-0 z-30 flex w-64 flex-col transition-transform duration-300 lg:static',
           open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         )}
       >
