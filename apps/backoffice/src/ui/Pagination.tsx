@@ -35,7 +35,7 @@ export function Pagination({
   onPageSizeChange,
   pageSizes = DEFAULT_PAGE_SIZES,
 }: PaginationProps) {
-  const from = total === 0 ? 0 : (page - 1) * pageSize + 1
+  const from = total === 0 ? 0 : Math.min((page - 1) * pageSize + 1, total)
   const to = Math.min(total, page * pageSize)
   return (
     <div className={`flex flex-wrap items-center justify-between gap-3${className ? ` ${className}` : ''}`}>

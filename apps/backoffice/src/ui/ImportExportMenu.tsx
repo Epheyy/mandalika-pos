@@ -11,6 +11,8 @@ export interface ImportExportMenuProps {
   /** Build and trigger the export. Omit for an import-only menu. */
   onExport?: (format: ExportFormat) => Promise<void> | void
   exportDisabled?: boolean
+  /** Plain-words filters the export honours ("Status: Aktif"); shown as the button's tooltip. */
+  filterSummary?: readonly string[]
   /** Which server-side CSV import this menu drives. Omit for export-only. */
   importKind?: ImportKind
   /** Called after a successful import so the screen can refetch. */
@@ -29,7 +31,7 @@ const ITEM =
  * handlers. The file input keeps the name "Impor dari file CSV" and the dialog is the existing ImportDialog.
  * Deliberately not role="menu" (that would need full arrow-key handling); Tab walks the items.
  */
-export function ImportExportMenu({ onExport, exportDisabled, importKind, onImported, onTemplate }: ImportExportMenuProps) {
+export function ImportExportMenu({ onExport, exportDisabled, filterSummary = [], importKind, onImported, onTemplate }: ImportExportMenuProps) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
@@ -81,6 +83,8 @@ export function ImportExportMenu({ onExport, exportDisabled, importKind, onImpor
         variant="secondary"
         icon={<Download className="h-4 w-4" aria-hidden="true" />}
         loading={busy}
+        disabled={!hasImport && exportDisabled}
+        title={onExport ? `Filter: ${filterSummary.length > 0 ? filterSummary.join('; ') : 'tidak ada'}` : undefined}
         aria-expanded={open}
         aria-controls={listId}
         onClick={() => setOpen((v) => !v)}
