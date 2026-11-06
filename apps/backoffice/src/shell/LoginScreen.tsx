@@ -26,33 +26,40 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <Card className="shadow-xl p-8 w-full max-w-sm">
+    <div className="flex min-h-screen items-center justify-center bg-paper-0 p-4">
+      <Card className="surface-solid w-full max-w-sm rounded-3xl p-8">
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="text-center">
-            <img src={BRAND.logoUrl} alt="" className="h-10 mx-auto mb-3 object-contain" />
-            <h1 className="text-xl font-black text-gray-900">Mandalika Back Office</h1>
-            <p className="text-xs text-gray-400">Masuk dengan akun admin / manajer</p>
+            <img src={BRAND.logoUrl} alt="" className="mx-auto mb-3 h-10 object-contain" />
+            <h1 className="text-xl font-black text-ink-900">Mandalika Back Office</h1>
+            <p className="text-xs text-ink-700">Masuk dengan akun admin / manajer</p>
           </div>
+          {/* Visible labels (not placeholder-only). Deliberately no value/defaultValue: nothing is prefilled. */}
           <Input
+            label="Email"
+            type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            aria-label="Email"
             autoComplete="username"
+            required
           />
           <Input
+            label="Kata sandi"
+            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            type="password"
-            placeholder="Kata sandi"
-            aria-label="Kata sandi"
             autoComplete="current-password"
+            required
           />
-          <Button type="submit" loading={busy} className="w-full py-3 rounded-2xl">
+          {/* Primary uses brand-strong (white on brand fails AA for small text). */}
+          <Button type="submit" loading={busy} className="w-full rounded-2xl">
             {busy ? 'Memproses…' : 'Masuk'}
           </Button>
-          {err && <p className="text-sm text-center text-red-600">{err}</p>}
+          {err && (
+            <p role="alert" className="text-center text-sm text-danger">
+              {err}
+            </p>
+          )}
         </form>
       </Card>
     </div>

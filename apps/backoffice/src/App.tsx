@@ -35,7 +35,7 @@ export default function App() {
   // main is the scroll box: a new place starts at the top, Back/Forward restores where the entry was.
   useScrollRestore(mainRef)
 
-  if (!ready) return <div className="flex min-h-screen items-center justify-center text-ink-500">Memuat…</div>
+  if (!ready) return <div className="flex min-h-screen items-center justify-center bg-paper-0 text-ink-500">Memuat…</div>
   if (!user) return <LoginScreen />
 
   const logoutIfAllowed = async () => {
@@ -48,7 +48,16 @@ export default function App() {
   else body = <AccessDenied />
 
   return (
+    // The root keeps bg-paper-0: it will hide the ambient layer once a later slice turns the ambient on.
     <div className="flex h-screen overflow-clip bg-paper-0">
+      {/* First focusable element. A button, not a #link: the hash is the router's. */}
+      <button
+        type="button"
+        onClick={() => mainRef.current?.focus()}
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-xl focus:bg-brand-strong focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-on-brand focus:outline-none focus:ring-2 focus:ring-ink-900"
+      >
+        Lewati ke konten
+      </button>
       <Sidebar
         groups={groups}
         activeId={activeId}
@@ -58,7 +67,7 @@ export default function App() {
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header route={shown} user={user} onOpenMenu={() => setSidebarOpen(true)} onLogout={logoutIfAllowed} />
-        <main ref={mainRef} className="relative flex-1 overflow-y-auto">
+        <main id="konten" ref={mainRef} tabIndex={-1} className="relative flex-1 overflow-y-auto focus:outline-none [scrollbar-gutter:stable]">
           {body}
         </main>
       </div>

@@ -18,12 +18,12 @@ export function Header({ route, user, onOpenMenu, onLogout }: HeaderProps) {
   // Screens with tabs add the tab on show: a bare path means the first tab this user may open.
   const tab = route ? tabForPath(route, path, user) : undefined
   return (
-    <header className="flex h-16 flex-shrink-0 items-center gap-4 border-b border-paper-2 bg-white px-4 sm:px-8">
+    <header className="surface-glass flex h-16 flex-shrink-0 items-center gap-4 px-4 sm:px-8">
       <button
         type="button"
         aria-label="Buka menu"
         onClick={onOpenMenu}
-        className="rounded-xl p-2 hover:bg-paper-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong lg:hidden"
+        className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-paper-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong lg:hidden"
       >
         <Menu className="h-5 w-5 text-ink-700" aria-hidden="true" />
       </button>
@@ -50,7 +50,8 @@ export function Header({ route, user, onOpenMenu, onLogout }: HeaderProps) {
           </ol>
         )}
       </nav>
-      <div className="ml-auto flex items-center gap-3">
+      {/* The outlet select lives in outlet.tsx (not part of this slice): size it from here. 40 px, plan 2.2. */}
+      <div className="ml-auto flex items-center gap-3 [&_select]:h-10 [&_select]:text-[13px]">
         <OutletSwitcher />
         <UserMenu user={user} onLogout={onLogout} />
       </div>

@@ -43,7 +43,7 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
       {open && (
         <div
           id={panelId}
-          className="absolute right-0 top-full z-40 mt-1 w-56 rounded-xl border border-paper-2 bg-white p-1.5 shadow-xl"
+          className="surface-solid absolute right-0 top-full z-40 mt-1 w-56 rounded-xl p-1.5"
         >
           <p className="px-3 py-2 text-xs text-ink-500">
             Masuk sebagai <b className="text-ink-900">{user.displayName}</b> · {labelOf(ROLE, user.role).label}

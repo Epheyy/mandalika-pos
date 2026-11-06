@@ -37,19 +37,20 @@ export function Sidebar({ groups, activeId, badgeOf, open, onClose }: SidebarPro
           type="button"
           aria-label="Tutup menu"
           tabIndex={-1}
-          className="fixed inset-0 z-20 bg-black/40 lg:hidden"
+          className="fixed inset-0 z-20 bg-ink-900/40 lg:hidden"
           onClick={onClose}
         />
       )}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-paper-2 bg-white transition-transform duration-300 lg:static',
+          // Below lg it is a drawer over content, so opaque (owner rule 1); docked it is non-scrolling chrome, so glass-static.
+          'max-lg:surface-solid lg:surface-glass fixed inset-y-0 left-0 z-30 flex w-64 flex-col transition-transform duration-300 lg:static',
           open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         )}
       >
         <div className="flex h-16 flex-shrink-0 items-center justify-between border-b border-paper-2 px-5">
           <div className="flex items-center gap-3">
-            <img src={BRAND.logoUrl} alt="" className="h-7 w-9 object-contain" />
+            <img src={BRAND.logoUrl} alt="" className="h-10 w-12 object-contain" />
             <div>
               <p className="text-sm font-black text-ink-900">{BRAND.name}</p>
               <p className="text-xs text-ink-500">Back Office</p>
@@ -59,7 +60,7 @@ export function Sidebar({ groups, activeId, badgeOf, open, onClose }: SidebarPro
             type="button"
             aria-label="Sembunyikan menu"
             onClick={onClose}
-            className="rounded-lg p-1 hover:bg-paper-1 lg:hidden"
+            className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-paper-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong lg:hidden"
           >
             <X className="h-4 w-4 text-ink-500" aria-hidden="true" />
           </button>

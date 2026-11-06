@@ -26,7 +26,7 @@ export function LegendPopover() {
           id={panelId}
           role="region"
           aria-label="Arti angka di menu"
-          className="absolute bottom-full left-3 right-3 z-10 mb-1 rounded-xl border border-paper-2 bg-white p-4 shadow-xl"
+          className="absolute bottom-full left-3 right-3 z-10 mb-1 surface-solid rounded-xl p-4"
         >
           <h2 className="mb-3 text-sm font-bold text-ink-900">Arti angka di menu</h2>
           <div className="space-y-3 text-xs text-ink-700">
