@@ -1,5 +1,4 @@
 import { useId, type ReactNode } from 'react'
-import { IconClose } from './icons'
 
 export type SheetVariant = 'center' | 'side' | 'full'
 export type SheetZ = 40 | 50 | 60 | 70
@@ -13,12 +12,15 @@ type Props = {
   /** Tailwind max-width class; defaults to max-w-md (center) / max-w-lg (side). */
   maxWidth?: string
   panelClassName?: string
-  /** Accessible name of the close control and the backdrop; frozen at "Tutup" so scenarios keep finding it. */
+  /** Accessible name of the backdrop (pointer-only when `header` is on). The header control is named by its visible text instead. */
   closeLabel?: string
+  /** Visible label of the header's back control (W2-02); its accessible name is this same text. */
+  backLabel?: string
   /**
-   * Render the standard sheet header: the title and ONE close control, top-right (M-12). Opt-in so existing consumers,
-   * which still draw their own header, never show two controls; a screen slice turns it on and deletes its own.
-   * Needs `onClose` (without it there is nothing to close) and is ignored on the `full` variant.
+   * Render the standard sheet header: ONE "‹ Kembali" control top-left and the title centred, as on every Kaca mock
+   * (W2-02, M-12). Opt-in so existing consumers, which still draw their own header, never show two controls; a screen
+   * slice turns it on and deletes its own. Needs `onClose` (without it there is nothing to close) and is ignored on
+   * the `full` variant.
    */
   header?: boolean
   /** Optional data-testid on the overlay element. */
@@ -61,6 +63,7 @@ export function Sheet({
   maxWidth,
   panelClassName = '',
   closeLabel = 'Tutup',
+  backLabel = 'Kembali',
   header = false,
   testId,
   children,
@@ -77,7 +80,7 @@ export function Sheet({
   return (
     <div className={`${OVERLAY_CLASSES[variant]} ${Z_CLASSES[z]}`} data-testid={testId}>
       {hasBackdrop && (
-        // With the header's close control present the backdrop is a pointer-only extra: hiding it keeps one "Tutup" in the tree.
+        // With the header's close control present the backdrop is a pointer-only extra: hiding it keeps one close control in the tree.
         <button
           type="button"
           aria-label={closeLabel}
@@ -89,22 +92,28 @@ export function Sheet({
       )}
       <div role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined} className={panelClasses}>
         {hasHeader ? (
-          <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-paper-2 py-1 pl-5 pr-2">
+          <div className="grid flex-shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 py-1">
+            {/* No aria-label: the visible text is the accessible name (label in name, WCAG 2.5.3). */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="press inline-flex min-h-11 items-center gap-1 justify-self-start rounded-control pl-2 pr-3 text-sm font-semibold text-brand-strong active:bg-paper-1"
+            >
+              <span aria-hidden="true" className="text-xl leading-none">‹</span>
+              {backLabel}
+            </button>
             {title ? (
-              <h2 id={titleId} className="text-lg font-bold text-ink-900">
+              <h2 id={titleId} className="break-words text-center text-lg font-bold text-ink-900">
                 {title}
               </h2>
             ) : (
               <span />
             )}
-            <button
-              type="button"
-              aria-label={closeLabel}
-              onClick={onClose}
-              className="press inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-control text-ink-700 active:bg-paper-1"
-            >
-              <IconClose size={18} />
-            </button>
+            {/* Invisible twin of the back control: keeps the title centred whatever the label length. */}
+            <span aria-hidden="true" className="invisible inline-flex min-h-11 items-center gap-1 pl-2 pr-3 text-sm font-semibold">
+              <span className="text-xl leading-none">‹</span>
+              {backLabel}
+            </span>
           </div>
         ) : title ? (
           <h2 id={titleId} className="font-bold text-gray-900">

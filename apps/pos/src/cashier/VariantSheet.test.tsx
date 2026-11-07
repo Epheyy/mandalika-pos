@@ -44,9 +44,10 @@ describe('VariantSheet (B1, D-10)', () => {
     expect(html).not.toContain('aria-label="Kurangi"')
   })
 
-  it('uses the sheet header close control; the backdrop Tutup is hidden from assistive tech', () => {
+  it('uses the sheet header Kembali control; the backdrop Tutup is hidden from assistive tech', () => {
     const html = renderToStaticMarkup(createElement(VariantSheet, { product, onPick: () => {}, onClose: () => {} }))
-    expect(html.match(/aria-label="Tutup"/g)).toHaveLength(2)
+    expect(html.match(/aria-label="Tutup"/g)).toHaveLength(1)
+    expect(html).toContain('Kembali')
     expect(html).toContain('aria-hidden="true" tabindex="-1" class="absolute inset-0')
     expect(html).toContain('<h2')
     expect(html).toContain('Oud')

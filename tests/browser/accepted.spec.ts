@@ -455,7 +455,7 @@ test('POS-OFFLINE-RETURN a sale made offline is found after a reload, reprinted 
   await expect(panel.getByTestId('local-receipt-row')).toContainText('Refund tersimpan di tablet')
   await expect(panel.getByRole('button', { name: 'Refund Transaksi Ini', exact: true })).toHaveCount(0)
   await expect(panel).toContainText('Refund tersimpan di tablet')
-  await panel.getByRole('button', { name: 'Tutup', exact: true }).click()
+  await panel.getByRole('button', { name: 'Kembali', exact: true }).click()
 
   // Online: the sale goes first, then the refund; the server refunds the sale once.
   await page.getByRole('button', { name: 'Sambungkan jaringan', exact: true }).click()
@@ -508,7 +508,7 @@ test('POS-REFUND-LOCAL-PARTIAL a per-line sale made offline is part-refunded by 
   await open()
   await expect(panel.getByTestId('local-receipt-row')).toContainText('Refund tersimpan di tablet')
   await expect(panel.getByRole('button', { name: 'Refund Transaksi Ini', exact: true })).toHaveCount(0)
-  await panel.getByRole('button', { name: 'Tutup', exact: true }).click()
+  await panel.getByRole('button', { name: 'Kembali', exact: true }).click()
 
   // Online: sale first, then the part refund.
   await page.getByRole('button', { name: 'Sambungkan jaringan', exact: true }).click()

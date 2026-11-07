@@ -59,20 +59,32 @@ describe('Sheet', () => {
     expect(html.match(/aria-label="Tutup"/g)).toHaveLength(1) // the backdrop only
   })
 
-  describe('header (one close control, M-12)', () => {
-    it('renders the title and a single top-right close control named "Tutup"', () => {
+  describe('header (one "‹ Kembali" control, W2-02 / M-12)', () => {
+    it('renders a top-left "Kembali" control before the centred title', () => {
       const html = render({ title: 'Judul', onClose: () => {}, header: true, variant: 'side' })
       expect(html).toContain('<h2 id="sheet-title"')
+      expect(html).toContain('text-center')
       expect(html).toContain('Judul')
-      expect(html).toContain('h-11 w-11')
-      // the backdrop is hidden from the accessibility tree, so the header button is the only "Tutup" there
-      expect(html.match(/aria-label="Tutup"/g)).toHaveLength(2)
-      expect(html.match(/aria-hidden="true" tabindex="-1"/g)).toHaveLength(1)
+      expect(html.indexOf('Kembali')).toBeGreaterThan(-1)
+      expect(html.indexOf('Kembali')).toBeLessThan(html.indexOf('Judul'))
+      expect(html).toContain('min-h-11')
     })
 
-    it('honours a custom closeLabel on the control', () => {
-      const html = render({ title: 'Judul', onClose: () => {}, header: true, closeLabel: 'Tutup panel' })
-      expect(html.match(/aria-label="Tutup panel"/g)).toHaveLength(2)
+    it('names the control by its visible text: no aria-label on it, the chevron is decorative', () => {
+      const html = render({ title: 'Judul', onClose: () => {}, header: true, variant: 'side' })
+      const button = html.match(/<button type="button" class="press[^>]*>.*?<\/button>/)?.[0] ?? ''
+      expect(button).toContain('Kembali')
+      expect(button).not.toContain('aria-label')
+      expect(button).toContain('<span aria-hidden="true" class="text-xl leading-none">‹</span>')
+      // the pointer-only backdrop is hidden from the accessibility tree, so the header button is the only close control there
+      expect(html.match(/aria-hidden="true" tabindex="-1"/g)).toHaveLength(1)
+      expect(html.match(/aria-label="Tutup"/g)).toHaveLength(1)
+    })
+
+    it('honours backLabel on the control and closeLabel only on the backdrop', () => {
+      const html = render({ title: 'Judul', onClose: () => {}, header: true, backLabel: 'Pelanggan', closeLabel: 'Tutup panel' })
+      expect(html).toContain('</span>Pelanggan</button>')
+      expect(html.match(/aria-label="Tutup panel"/g)).toHaveLength(1)
     })
 
     it('renders no header without onClose or on the full variant', () => {
@@ -85,7 +97,7 @@ describe('Sheet', () => {
       const tree = Sheet({ open: true, variant: 'center', onClose, header: true, title: 'Judul' }) as ReactElement<{ children: ReactElement[] }>
       const panel = tree.props.children[1] as ReactElement<{ children: ReactElement<{ children: ReactElement<{ onClick?: () => void }>[] }>[] }>
       const row = panel.props.children[0] as ReactElement<{ children: ReactElement<{ onClick?: () => void }>[] }>
-      row.props.children[1].props.onClick?.()
+      row.props.children[0].props.onClick?.()
       expect(onClose).toHaveBeenCalledTimes(1)
     })
   })
