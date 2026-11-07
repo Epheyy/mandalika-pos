@@ -5,6 +5,9 @@ describe('formatMovementTime', () => {
   it('reads "04 Nov 2026 · 14:22" in the location zone', () => {
     expect(formatMovementTime('2026-11-04T07:22:00Z', 'Asia/Jakarta')).toBe('04 Nov 2026 · 14:22')
   })
+  it('spells August Agt like the rest of the app', () => {
+    expect(formatMovementTime('2026-08-15T03:00:00Z', 'Asia/Jakarta')).toBe('15 Agt 2026 · 10:00')
+  })
   it('uses 24-hour midnight, not 24:00', () => {
     expect(formatMovementTime('2026-11-04T17:05:00Z', 'Asia/Jakarta')).toBe('05 Nov 2026 · 00:05')
   })

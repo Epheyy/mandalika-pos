@@ -328,7 +328,7 @@ function movementColumns({ zone, showProduct, canReadOrders, onOpenDoc }: Moveme
       id: 'kejadian',
       header: 'Waktu Kejadian',
       sticky: true,
-      width: 150,
+      width: 190,
       cell: (m) => <span className={nowrap}>{formatMovementTime(m.occurredAt, zone)}</span>,
     },
     {

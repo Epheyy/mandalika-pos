@@ -514,7 +514,7 @@ export default function StockCount() {
           <Input label="Tanggal Rencana" type="date" value={form.plannedDate} onChange={(e) => setForm((f) => ({ ...f, plannedDate: e.target.value }))} />
           <Textarea label="Catatan" rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
           <div className="rounded-xl border border-gray-200 bg-paper-0 p-3 text-xs text-ink-700">
-            Cakupan yang dibekukan: <span className="font-bold text-ink-900">{freezeSummary(products)}</span>
+            Cakupan yang dibekukan: <span className="font-bold text-ink-900">{form.locationKey.startsWith('w:') ? 'semua varian produk di gudang ini' : freezeSummary(products)}</span>
           </div>
           {err && <p className="text-sm text-danger">{err}</p>}
         </div>

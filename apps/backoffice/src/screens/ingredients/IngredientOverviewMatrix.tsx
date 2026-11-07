@@ -174,7 +174,7 @@ export function IngredientOverviewMatrix() {
                   ))}
                   {/* Two sticky totals: what the shown columns add up to, and every location. */}
                   <th className={`sticky ${TOTAL_SHOWN_RIGHT} ${TOTAL_W} bg-gray-50 z-10 px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-wider text-right border-l border-gray-200`}>
-                    Total Outlet Tampil
+                    Total Lokasi Tampil
                   </th>
                   <th className={`sticky right-0 ${TOTAL_W} bg-gray-50 z-10 px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-wider text-right border-l border-gray-200`}>
                     Total Semua Lokasi
