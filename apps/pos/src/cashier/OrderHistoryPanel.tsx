@@ -15,6 +15,7 @@ import type { RefundCache } from './refundSelection'
 import { PAGE_SIZE, businessToday, defaultHistoryDay, historyWindowFor, orderHistoryQuery, withPinnedOrder } from './orderHistoryQuery'
 import { Sheet } from '../components/ui/Sheet'
 import { formatHistoryStamp } from './historyStamp'
+import { zoneParts } from './promoValidate'
 import { Button } from '../components/ui/Button'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import type { Tone } from '../components/ui/tone'
@@ -65,6 +66,34 @@ interface OrderHistoryPanelProps {
   /** ISO open time of the shown shift; its business day is the default day (A28). */
   shiftOpenedAt?: string | null
 }
+const ONE_DAY_MS = 86_400_000
+
+/** The day before `day` (YYYY-MM-DD). */
+function dayBefore(day: string): string {
+  return new Date(Date.parse(`${day}T00:00:00Z`) - ONE_DAY_MS).toISOString().slice(0, 10)
+}
+
+type DateMode = 'today' | 'yesterday' | 'custom'
+
+/** Which quick segment the range is: one single day equal to today or yesterday; anything else is "Pilih tanggal". */
+export function dateModeOf(from: string, to: string, today: string): DateMode {
+  if (from !== to) return 'custom'
+  if (from === today) return 'today'
+  if (from === dayBefore(today)) return 'yesterday'
+  return 'custom'
+}
+
+/** "Kemarin 16:42" / "Hari ini 09:05" on the outlet clock; older sales keep the full date. Display only. */
+export function historyRowStamp(iso: string, today: string, timezone?: string | null): string {
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return formatHistoryStamp(iso)
+  const day = businessToday(at, timezone)
+  const word = day === today ? 'Hari ini' : day === dayBefore(today) ? 'Kemarin' : null
+  if (!word) return formatHistoryStamp(iso)
+  const { hhmm } = zoneParts(at, timezone)
+  return `${word} ${hhmm}`
+}
+
 const STATUS_LABELS: Record<string, string> = {
   completed: 'Selesai', partially_refunded: 'Sebagian refund', refunded: 'Refund', cancelled: 'Batal',
 }
@@ -84,6 +113,8 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
     setFrom(day)
     setTo(day)
   }, [pickedDay, timezone, shiftOpenedAt])
+  // "Pilih tanggal" shows the two date boxes even while the range still equals today or yesterday.
+  const [customOpen, setCustomOpen] = useState(false)
   const [search, setSearch] = useState(focus?.orderNumber ?? '')
   const [page, setPage] = useState(1)
   const [orders, setOrders] = useState<Order[]>([])
@@ -152,44 +183,62 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
 
   if (!isOpen) return null
 
+  const today = businessToday(new Date(), timezone)
+  const mode: DateMode = customOpen ? 'custom' : dateModeOf(from, to, today)
+  const pickDay = (day: string) => { setPickedDay(true); setCustomOpen(false); setFrom(day); setTo(day) }
   const filtered = withPinnedOrder(orders, focus ? pinned : null)
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
     <Sheet open variant="center" maxWidth="max-w-2xl" panelClassName="max-h-[90vh] flex flex-col" title="Riwayat Transaksi" header onClose={onClose}>
 
-        {/* Filters */}
-        <div className="px-5 py-3 border-b border-paper-2 flex flex-wrap gap-2 items-end flex-shrink-0">
-          <div>
-            <label htmlFor="history-from" className="block text-xs text-ink-700 font-semibold mb-1">Dari</label>
-            <input
-              id="history-from"
-              type="date" value={from} max={to}
-              onChange={(e) => { setPickedDay(true); setFrom(e.target.value) }}
-              className="min-h-11 surface-card rounded-control px-3 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-strong"
-            />
+        {/* Filters: quick day segments like the mock; "Pilih tanggal" reveals the range boxes. */}
+        <div className="px-5 py-3 border-b border-paper-2 space-y-2 flex-shrink-0">
+          <div role="group" aria-label="Tanggal" className="grid grid-cols-3 gap-1 p-1 rounded-control bg-paper-1">
+            {([['today', 'Hari ini'], ['yesterday', 'Kemarin'], ['custom', 'Pilih tanggal']] as const).map(([key, label]) => (
+              <button key={key} type="button" aria-pressed={mode === key}
+                onClick={() => (key === 'today' ? pickDay(today) : key === 'yesterday' ? pickDay(dayBefore(today)) : setCustomOpen(true))}
+                className={`min-h-11 rounded-control text-sm font-semibold press ${mode === key ? 'bg-white text-brand-strong shadow-sm' : 'text-ink-700'}`}>
+                {label}
+              </button>
+            ))}
           </div>
-          <div>
-            <label htmlFor="history-to" className="block text-xs text-ink-700 font-semibold mb-1">Sampai</label>
-            <input
-              id="history-to"
-              type="date" value={to} min={from} max={businessToday(new Date(), timezone)}
-              onChange={(e) => { setPickedDay(true); setTo(e.target.value) }}
-              className="min-h-11 surface-card rounded-control px-3 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-strong"
-            />
+          <div className="flex flex-wrap gap-2 items-end">
+            {mode === 'custom' && (
+              <>
+                <div>
+                  <label htmlFor="history-from" className="block text-xs text-ink-700 font-semibold mb-1">Dari</label>
+                  <input
+                    id="history-from"
+                    type="date" value={from} max={to}
+                    onChange={(e) => { setPickedDay(true); setCustomOpen(true); setFrom(e.target.value) }}
+                    className="min-h-11 surface-card rounded-control px-3 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-strong"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="history-to" className="block text-xs text-ink-700 font-semibold mb-1">Sampai</label>
+                  <input
+                    id="history-to"
+                    type="date" value={to} min={from} max={today}
+                    onChange={(e) => { setPickedDay(true); setCustomOpen(true); setTo(e.target.value) }}
+                    className="min-h-11 surface-card rounded-control px-3 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-strong"
+                  />
+                </div>
+              </>
+            )}
+            <div className="flex-1 min-w-[140px]">
+              <label htmlFor="history-search" className="block text-xs text-ink-700 font-semibold mb-1">Cari</label>
+              <input
+                id="history-search"
+                type="text" value={search} placeholder="No. order / nama / telepon"
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full min-h-11 surface-card rounded-control px-3 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-strong"
+              />
+            </div>
+            <Button onClick={() => void load()} disabled={isLoading}>
+              {isLoading ? 'Memuat…' : 'Muat'}
+            </Button>
           </div>
-          <div className="flex-1 min-w-[140px]">
-            <label htmlFor="history-search" className="block text-xs text-ink-700 font-semibold mb-1">Cari</label>
-            <input
-              id="history-search"
-              type="text" value={search} placeholder="No. order / nama / telepon"
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full min-h-11 surface-card rounded-control px-3 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-strong"
-            />
-          </div>
-          <Button onClick={() => void load()} disabled={isLoading}>
-            {isLoading ? 'Memuat…' : 'Muat'}
-          </Button>
         </div>
 
         {/* List */}
@@ -208,26 +257,26 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
             {filtered.map((o) => {
               const expanded = expandedId === o.id
               return (
-                <div key={o.id} className="surface-card rounded-control overflow-hidden">
+                <div key={o.id} className={`surface-card rounded-control overflow-hidden ${expanded ? 'ring-2 ring-brand-strong' : ''}`}>
                   <button type="button"
                     onClick={() => setExpandedId(expanded ? null : o.id)}
                     aria-expanded={expanded}
-                    className="w-full min-h-16 flex items-center justify-between px-4 py-3 text-left active:bg-paper-1"
+                    className="w-full min-h-16 flex items-center gap-3 px-4 py-3 text-left active:bg-paper-1"
                   >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm text-ink-900">{o.orderNumber}</span>
-                        <StatusBadge tone={STATUS_TONES[o.status] ?? 'neutral'} label={STATUS_LABELS[o.status] ?? o.status} />
-                      </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-sm text-ink-900 truncate">
+                        #{o.orderNumber} · {o.customerName || 'Tanpa pelanggan'}
+                      </p>
                       <p className="text-xs text-ink-500 truncate">
-                        {formatHistoryStamp(o.createdAt)}
-                        {o.customerName ? ` · ${o.customerName}` : ''}
-                        {` · ${methodCellLabel(o, paymentMethods)}`}
+                        {historyRowStamp(o.createdAt, today, timezone)} · {methodCellLabel(o, paymentMethods)}
                       </p>
                     </div>
-                    <span className="font-bold text-sm text-ink-900 flex-shrink-0 ml-2">
+                    <StatusBadge tone={STATUS_TONES[o.status] ?? 'neutral'} label={STATUS_LABELS[o.status] ?? o.status} />
+                    <span className="font-bold text-sm text-ink-900 flex-shrink-0 tnum">
                       {formatRupiah(o.total)}
                     </span>
+                    <svg width="8" height="14" viewBox="0 0 8 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                      className={`flex-shrink-0 text-ink-500 transition-transform ${expanded ? 'rotate-90' : ''}`}><path d="M1 1l6 6-6 6" /></svg>
                   </button>
 
                   {expanded && (
