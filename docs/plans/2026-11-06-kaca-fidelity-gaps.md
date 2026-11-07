@@ -88,6 +88,25 @@ The most consequential (c) rows. The full list is in section 5 (class c).
 - **TK-06.** Restate the design target as 1006×601 (the real tablet) instead of 1280×800 for later work.
 - **Slice Z timing.** Z deletes `docs/design-kaca/`. Recommendation: keep `screens/` (with `support.js`) until this fix wave is merged, so each fix slice can render its mock and compare side by side; delete it in Z afterwards. Also widen Z's grep to raw Tailwind greys/ambers (`gray-`, `amber-`), which K1-K3 did not catch (KIT-09, BO6-13).
 
+### Owner answers (2026-11-07: "go with your recommendations and start the fix wave")
+
+- **W1-28 cart on the A9:** fix in place (compact quantity pill W1-23, shorter totals block W1-21, one-line customer card), keep the column. **F1.**
+- **W2-01 / W4-01 / W5-01 sub-flows:** keep them as sheets/pop-ups over the screen, but match each mock's layout *inside* the sheet. **F2, F3, F5.**
+- **W2-02 close control:** follow the mocks: "‹ Kembali" top-left on every sheet (kit `Sheet` header). Browser selectors that use the old × / "Tutup" name are updated in the same change. **F0.**
+- **W1-02 search:** inside the header bar like the mock; Tutup Shift moves into the shift-pill menu so it fits at 1006 px (D-98's red confirm stays). **F7.**
+- **W1-27 toast look:** dark ink-900 surface, white text (plan §1.2), still opaque; precedence rules unchanged. **F0.**
+- **W1-09 / W1-14 catalogue:** add a "Promo" tab (products in active promotions, data already on the tablet); defer "Terlaris" (needs sales ranking) and gift/bundle tiles; keep the Favorit chip. **F7.**
+- **KIT-07 pagination:** numbered pages + "per halaman", as in the mock. **G1.**
+- **BO1-15 Produk row switch:** keep it read-only, restyle it so it does not look disabled. **G3.**
+- **W6-12 / BO2-07 money entry:** "Rp 1.000.000" formatting beyond Bayar: shift recap + denominations reuse `POS/cashier/cashInput.ts` (**F4**); backoffice prices get the same algorithm in a BO helper with the same tests (**G3**). Opus review for both.
+- **W5-03 Koneksi:** list each queued sale (display only, read-only access, no change to `packages/sync`). **F3.**
+- **BO6-14 table headers:** uppercase grey (4 of 5 boards). **G1.**
+- **TK-06:** the design target is 1006×601 (fleet Galaxy Tab A9); 1280×800 is checked second.
+- **W7-03 menu fit (orchestrator default, no merges):** keep the menu's current structure but make it fit 601 px so nothing is cut off ("Perbarui data" reachable); M-11 merges stay deferred. **F6.**
+- **Slice Z timing:** keep `docs/design-kaca/screens` (with `support.js`) until this fix wave is merged; widen Z's grep to raw `gray-` / `amber-`.
+
+Other class (c) rows not listed here stay unscheduled until the owner decides them.
+
 ## 4. Proposed fix wave
 
 Same rules as the restyle plan §6: Sonnet `implementer` (medium); Opus `reviewer` (high) when a slice touches cart, pricing, payment, stock, refund, money totals, sync UI, auth or outlet scope, otherwise the standard `code-reviewer`. Owned files are the only files a slice edits. Only (b) rows are scheduled; (c) rows wait for the owner. **New for this wave:** every slice renders its mock (`docs/design-kaca/screens`, served as in the README) and compares it side by side with its own screenshots at 1006×601 and 1280×800 (POS) or 1440/768/375 (backoffice) before review.
@@ -106,6 +125,14 @@ Same rules as the restyle plan §6: Sonnet `implementer` (medium); Opus `reviewe
 | **G4** Backoffice Laporan + Ringkasan | `BO/screens/Orders.tsx`, `BO/lib/splitPayment.ts`, `BO/screens/dashboard/*` | BO5-01, BO5-02 | Sonnet · Opus (report money) | Cloudflare | BO5-02 label fix also covers the CSV path check. After G1. |
 | **G5** Backoffice Inventori | `BO/screens/inventory/*`, `BO/screens/ingredients/*`, `BO/screens/StockCount.tsx`, `BO/screens/stockcount/*`, `BO/screens/transfers/transferAction.ts` | KIT-10, BO6-05, BO6-07 (part), BO6-08, BO6-09, BO6-11, BO6-13 | Sonnet · Opus (stock display only) | Cloudflare | After G1 (G1 adds the DataTable row-height prop BO6-07 needs). |
 | **G6** Backoffice Pelanggan, Promosi, Pengguna, ops | `BO/screens/promotions/*`, `BO/screens/customers/*`, `BO/screens/Users.tsx`, `BO/screens/users/*`, `BO/screens/syncReview/*`, `BO/screens/ErrorLogs.tsx`, `BO/lib/labels/*` | BO5-02 (part), BO7-01, BO7-02, BO7-06, BO7-07 (part), BO7-10, BO8-03, BO8-04, BO8-06 | Sonnet · Opus (promotions = pricing; users = auth) | Cloudflare | After G1. |
+
+**Changes after the owner's answers (2026-11-07):**
+- **New F0 · POS kit** (`POS/components/ui/Sheet.tsx` header, `POS/components/ui/Toast.tsx`, their tests, and the browser selectors that use the old close name): "‹ Kembali" top-left (W2-02) and dark toasts (W1-27). Sonnet · standard review. Wave A.
+- **F1** keeps the cart column only (W1-17..W1-26, W1-28 fix-in-place). The header parts move to F7.
+- **New F7 · POS header + catalogue tabs** (`POS/cashier/CashierScreen.tsx` header region only, `POS/cashier/ShiftBar.tsx`, `POS/lib/connectionChip.ts`, `POS/cashier/ProductGrid.tsx` tabs/search): search inside the header (W1-02), Tutup Shift in the shift-pill menu, shift pill W1-04, Koneksi pill copy W1-05, tab sizing W1-10, "Promo" tab (W1-09). Sonnet · Opus (shift close entry point, promo eligibility read). Wave A; merges after F1 (CashierScreen is split by region).
+- **F3** adds W5-03; **F4** adds W6-12 (cashInput parser); **F6** adds W7-03 fit; **G1** adds KIT-07 + BO6-14; **G3** adds BO1-15 + BO2-07 (money entry).
+- **Wave A:** F0, F1, F2, F3, F4, F5, F6, F7, G1, G2. **Wave B:** G3-G6 after G1 merges. Merge order inside wave A: F0, F1, F7, F2, F3, F4, F5, F6, G1, G2.
+- **Local browser lock:** fixture ports 5183/5184 are shared by every session on the machine. Any local browser run (gate, scenario or capture) takes the lock first: `LOCK="$LOCALAPPDATA/mandalika-browser.lock"; until mkdir "$LOCK" 2>/dev/null; do sleep 20; done; date > "$LOCK/owner"` and releases it with `rm -rf "$LOCK"` when done (also on failure). A lock older than 40 minutes may be removed. Keep runs short (single scenarios or a capture script, not repeated full gates).
 
 **Order.**
 1. Owner answers the section 3 calls that change scope first: W1-28, W2-01/W4-01/W5-01, W2-02, W1-02. F1-F3 depend on them.
