@@ -52,20 +52,20 @@ export const reportPagerFlow = async (page: ScenarioPage) => {
   const calls = await mockApi(page)
   await openBackoffice(page)
   await deepLink(page, '#/laporan/kode-diskon')
-  await page.getByText('Hal 1/3', { exact: true }).waitFor()
+  await page.locator('nav[aria-label="Halaman"] [aria-current="page"]', { hasText: '1' }).waitFor()
   check(calls.codeReport.some((q) => q.get('page') === '1' && q.get('limit') === '50'), 'first page asks for limit 50')
   check((await page.getByRole('combobox', { name: /Baris/ }).locator('option').count()) === 1, 'the fixed page size offers one size')
   results.push({ step: 'first-page' })
 
   await page.getByRole('button', { name: /Berikutnya/ }).click()
-  await page.getByText('Hal 2/3', { exact: true }).waitFor()
+  await page.locator('nav[aria-label="Halaman"] [aria-current="page"]', { hasText: '2' }).waitFor()
   await page.getByRole('cell', { name: 'KODE-2-1', exact: true }).waitFor()
   check(/hal=2/.test(await hashOf(page)), `page 2 is in the URL, got ${await hashOf(page)}`)
   check(calls.codeReport.some((q) => q.get('page') === '2' && q.get('limit') === '50'), 'page 2 asks for page=2 limit=50')
   results.push({ step: 'next-page' })
 
   await page.reload()
-  await page.getByText('Hal 2/3', { exact: true }).waitFor()
+  await page.locator('nav[aria-label="Halaman"] [aria-current="page"]', { hasText: '2' }).waitFor()
   await page.getByRole('cell', { name: 'KODE-2-1', exact: true }).waitFor()
   results.push({ step: 'reload-keeps-page' })
 
@@ -73,7 +73,7 @@ export const reportPagerFlow = async (page: ScenarioPage) => {
   await clickTab(page, 'export')
   await page.waitForFunction(() => location.hash.startsWith('#/laporan/ekspor'))
   await page.goBack()
-  await page.getByText('Hal 2/3', { exact: true }).waitFor()
+  await page.locator('nav[aria-label="Halaman"] [aria-current="page"]', { hasText: '2' }).waitFor()
   check(/hal=2/.test(await hashOf(page)), `Back keeps page 2, got ${await hashOf(page)}`)
   results.push({ step: 'back-keeps-page' })
   return results

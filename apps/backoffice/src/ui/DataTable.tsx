@@ -53,6 +53,9 @@ export interface DataTableProps<Row> {
   stickyHeader?: boolean
   /** <Pagination/> or "Muat lebih banyak". */
   footer?: ReactNode
+  /** Fixed body-row height in px (mock: 52). Rows no longer grow with their content, so keep cells on one line
+   *  (`whitespace-nowrap`, a truncating tag cell). Unset keeps the content-sized rows. */
+  rowHeight?: number
 }
 
 const SKELETON_ROWS = 5
@@ -117,6 +120,7 @@ export function DataTable<Row>({
   columnPrefsKey,
   stickyHeader = true,
   footer,
+  rowHeight,
 }: DataTableProps<Row>) {
   const [hidden, setHidden] = useState<string[]>(
     () => readHidden(columnPrefsKey) ?? columns.filter((c) => c.defaultHidden).map((c) => c.id),
@@ -157,9 +161,10 @@ export function DataTable<Row>({
         aria-sort={sortable ? (sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none') : undefined}
         style={cellStyle(c)}
         className={cn(
-          'bg-paper-1 px-4 py-3 text-xs font-bold text-ink-700',
+          'bg-white px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-500',
           c.align === 'right' ? 'text-right' : 'text-left',
-          stuck && 'sticky top-0 z-[2] shadow-[inset_0_-1px_0_var(--color-paper-2)]',
+          stuck && 'sticky top-0 z-[2]',
+          'shadow-[inset_0_-1px_0_var(--color-paper-2)]',
           offsets.has(c.id) && 'z-[3]',
         )}
       >
@@ -185,7 +190,7 @@ export function DataTable<Row>({
   return (
     <div className="surface-card overflow-clip rounded-2xl">
       {chooseable.length > 0 && columnPrefsKey && (
-        <div className="relative flex justify-end border-b border-gray-100 px-3 py-2">
+        <div className="relative flex justify-end border-b border-paper-2 px-3 py-2">
           <Button
             variant="ghost"
             size="sm"
@@ -196,7 +201,7 @@ export function DataTable<Row>({
             Kolom
           </Button>
           {chooser && (
-            <fieldset className="absolute right-3 top-full z-10 min-w-44 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
+            <fieldset className="absolute right-3 top-full z-10 min-w-44 rounded-xl border border-paper-2 bg-white p-2 shadow-lg">
               <legend className="sr-only">Kolom yang ditampilkan</legend>
               {chooseable.map((c) => (
                 <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 text-xs font-bold text-ink-700">
@@ -231,7 +236,7 @@ export function DataTable<Row>({
                     key={`${run.label ?? 'x'}-${i}`}
                     scope="colgroup"
                     colSpan={run.span}
-                    className="border-b border-gray-200 bg-paper-1 px-4 pt-2 text-left text-[11px] font-black uppercase tracking-wider text-ink-700"
+                    className="border-b border-paper-2 bg-white px-4 pt-2 text-left text-[11px] font-black uppercase tracking-wider text-ink-700"
                   >
                     {run.label}
                   </th>
@@ -240,13 +245,13 @@ export function DataTable<Row>({
             )}
             <tr>{visible.map(th)}</tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-paper-2">
             {loading &&
               Array.from({ length: SKELETON_ROWS }, (_, i) => (
                 <tr key={`sk-${i}`} aria-hidden="true">
                   {visible.map((c) => (
                     <td key={c.id} className="px-4 py-3">
-                      <div className="h-4 animate-pulse rounded bg-gray-200" />
+                      <div className="h-4 animate-pulse rounded bg-paper-2" />
                     </td>
                   ))}
                 </tr>
@@ -264,6 +269,7 @@ export function DataTable<Row>({
                   <tr
                     key={key}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    style={rowHeight ? { height: rowHeight } : undefined}
                     className={cn(onRowClick && 'cursor-pointer hover:bg-paper-0', selected && 'bg-paper-1')}
                   >
                     {visible.map((c, i) => {
@@ -272,7 +278,7 @@ export function DataTable<Row>({
                         <td
                           key={c.id}
                           style={cellStyle(c, i === 0 && selected ? { boxShadow: MARKER } : undefined)}
-                          className={cn('bg-white px-4 py-3 align-middle text-gray-900', cellClass(c))}
+                          className={cn('bg-white px-4 align-middle text-ink-900', rowHeight ? 'py-0' : 'py-3', cellClass(c))}
                         >
                           {i === 0 && onRowClick ? (
                             <button
@@ -299,7 +305,7 @@ export function DataTable<Row>({
         </table>
       </div>
 
-      {footer && <div className="border-t border-gray-100 px-4 py-3">{footer}</div>}
+      {footer && <div className="border-t border-paper-2 px-4 py-3">{footer}</div>}
     </div>
   )
 }

@@ -104,7 +104,7 @@ export function ExportButton({
       {!single && menu && (
         <div
           id={menuId}
-          className="absolute right-0 top-full z-10 mt-1 min-w-36 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
+          className="absolute right-0 top-full z-10 mt-1 min-w-36 overflow-hidden rounded-xl border border-paper-2 bg-white shadow-lg"
         >
           {formats.map((f) => (
             <button

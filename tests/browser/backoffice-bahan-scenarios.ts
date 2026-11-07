@@ -96,7 +96,7 @@ export const bahanDaftarFlow = async (page: ScenarioPage) => {
   await table.getByText('Minyak 038', { exact: false }).waitFor()
   check(lastList()?.query.categoryId === CAT_OIL && lastList()?.query.page === '2', `page 2 carries categoryId: ${JSON.stringify(lastList()?.query)}`)
   await page.getByRole('button', { name: /Berikutnya/ }).click()
-  await page.getByText('Hal 3/3').waitFor()
+  await page.locator('nav[aria-label="Halaman"] [aria-current="page"]', { hasText: '3' }).waitFor()
   const lastPage = await rowNames()
   check(lastPage.length === 10 && lastPage.every((n) => n.startsWith('Minyak')), `page 3 holds the last 10 oils, got ${lastPage.join(',')}`)
   results.push({ step: 'later-pages-keep-the-category' })

@@ -1,3 +1,4 @@
+import { Inbox } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { ConfirmDialog, initialFocusTarget, useConfirm } from './ConfirmDialog'
@@ -6,19 +7,42 @@ import { ExportButton, exportButtonName } from './ExportButton'
 import { presetRange, FilterBar } from './FilterBar'
 import { OVERLAY_Z, isTopOverlay, overlayDepth, resetOverlayStack } from './overlayStack'
 import { SlideOver } from './SlideOver'
-import { StatusBadge } from './StatusBadge'
+import { StatusBadge, TONE_CLASS } from './StatusBadge'
 import { Switch } from './Switch'
 import { EmptyState } from './EmptyState'
 import { Input } from './Field'
 import { IconButton } from './IconButton'
 import { ImportExportMenu } from './ImportExportMenu'
-import { Pagination } from './Pagination'
+import { Pagination, pageList } from './Pagination'
 import { Tabs, nextTabIndex } from './Tabs'
 import { isOverflowing } from './useHorizontalOverflow'
 import { PageHeader } from './PageHeader'
+import { Badge } from './Badge'
+import { Button } from './Button'
+import { SaveBar } from './SaveBar'
+import { readFileSync } from 'node:fs'
 import type { LabelMap } from '../lib/labels/types'
 
 const noop = () => {}
+
+const tokensCss = readFileSync(new URL('../../../../packages/ui-tokens/tokens.css', import.meta.url), 'utf8')
+function tokenHex(name: string): string {
+  const m = tokensCss.match(new RegExp(`--color-${name}:\\s*(#[0-9a-fA-F]{6})`))
+  if (!m) throw new Error(`token ${name} missing`)
+  return m[1]
+}
+function lum(hex: string): number {
+  const n = parseInt(hex.slice(1), 16)
+  const [r, g, b] = [16, 8, 0].map((sh) => {
+    const c = ((n >> sh) & 0xff) / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+const ratio = (a: string, b: string) => {
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
 
 interface Row {
   id: string
@@ -432,12 +456,30 @@ describe('K2: DataTable single scroll', () => {
 })
 
 describe('K2: pagination, filters, icon buttons', () => {
-  it('Pagination shows the range, keeps Hal x/y and the Baris label, and has 36 px controls', () => {
+  it('Pagination shows the range, numbered pages with aria-current, and "per halaman"', () => {
     const html = renderToStaticMarkup(<Pagination page={2} totalPages={3} total={60} pageSize={25} onChange={noop} onPageSizeChange={noop} />)
-    expect(html).toContain('Menampilkan 26–50 dari 60 catatan')
-    expect(html).toContain('Hal 2/3')
-    expect(html).toContain('Baris:')
+    expect(html).toContain('Menampilkan 26–50 dari 60')
+    expect(html).toContain('aria-label="Halaman 1"')
+    expect(html.match(/aria-current="page"/g)).toHaveLength(1)
+    expect(html).toMatch(/aria-label="Halaman 2"[^>]*aria-current="page"|aria-current="page"[^>]*aria-label="Halaman 2"/)
+    expect(html).toContain('25 per halaman')
+    expect(html).toContain('aria-label="Baris per halaman"')
     expect(html).toContain('h-9')
+  })
+  it('Pagination controls are real buttons (keyboard works natively); prev/next disable at the ends', () => {
+    const first = renderToStaticMarkup(<Pagination page={1} totalPages={3} total={60} pageSize={25} onChange={noop} onPageSizeChange={noop} />)
+    expect(first).toMatch(/<button type="button" aria-label="Sebelumnya"[^>]*disabled=""/)
+    expect(first).not.toMatch(/aria-label="Berikutnya"[^>]*disabled=""/)
+    const last = renderToStaticMarkup(<Pagination page={3} totalPages={3} total={60} pageSize={25} onChange={noop} onPageSizeChange={noop} />)
+    expect(last).toMatch(/aria-label="Berikutnya"[^>]*disabled=""/)
+  })
+  it('pageList collapses long ranges to first, last and the current neighbours', () => {
+    expect(pageList(1, 1)).toEqual([1])
+    expect(pageList(1, 3)).toEqual([1, 2, 3])
+    expect(pageList(1, 13)).toEqual([1, 2, 'gap', 13])
+    expect(pageList(7, 13)).toEqual([1, 'gap', 6, 7, 8, 'gap', 13])
+    expect(pageList(13, 13)).toEqual([1, 'gap', 12, 13])
+    expect(pageList(4, 6)).toEqual([1, 2, 3, 4, 5, 6])
   })
   it('Pagination shows no range for an empty list', () => {
     const html = renderToStaticMarkup(<Pagination page={1} totalPages={1} total={0} pageSize={25} onChange={noop} onPageSizeChange={noop} />)
@@ -477,5 +519,111 @@ describe('K2: dialogs and the import/export menu', () => {
     expect(both).not.toContain('Ekspor CSV')
     expect(renderToStaticMarkup(<ImportExportMenu />)).toBe('')
     expect(renderToStaticMarkup(<ImportExportMenu onExport={noop} />)).not.toContain('Impor dari file CSV')
+  })
+})
+
+describe('G1: Kaca fidelity kit changes', () => {
+  it('StatusBadge shows a decorative coloured dot before the word, and the dot is never the only cue', () => {
+    const html = renderToStaticMarkup(<StatusBadge tone="ok" label="Selesai" />)
+    expect(html).toMatch(/<span aria-hidden="true" class="[^"]*bg-current[^"]*"><\/span>Selesai/)
+  })
+
+  it.each([
+    ['ok', 'ok', 'ok-bg'],
+    ['warn', 'warn-strong', 'warn-bg'],
+    ['danger', 'danger', 'danger-bg'],
+    ['info', 'info', 'info-bg'],
+    ['promo', 'promo', 'promo-bg'],
+    ['reward', 'reward', 'reward-bg'],
+    ['neutral', 'ink-700', 'paper-1'],
+  ] as const)('the %s pill dot (currentColor = its word colour) clears 3:1 on its tint and its class is mapped', (tone, fg, bg) => {
+    expect(TONE_CLASS[tone]).toContain(fg === 'warn-strong' ? 'text-warn-strong' : `text-${fg}`)
+    expect(ratio(tokenHex(fg), tokenHex(bg))).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('Badge only draws the dot when asked', () => {
+    expect(renderToStaticMarkup(<Badge tone="success">Admin</Badge>)).not.toContain('bg-current')
+    expect(renderToStaticMarkup(<Badge tone="success" dot>Aktif</Badge>)).toContain('bg-current')
+  })
+
+  it('the secondary button is a filled paper tile with no border', () => {
+    const html = renderToStaticMarkup(<Button variant="secondary">Batal</Button>)
+    expect(html).toContain('bg-paper-1')
+    expect(html).not.toContain('border')
+  })
+
+  it('Switch off track is light grey, not the dark ink', () => {
+    const html = renderToStaticMarkup(<Switch checked={false} label="Aktif" onChange={noop} />)
+    expect(html).toContain('bg-ink-900/25')
+    expect(html).not.toContain('bg-ink-500')
+  })
+
+  it('field labels are sentence-case bold, not uppercase', () => {
+    const html = renderToStaticMarkup(<Input label="Nama produk" />)
+    expect(html).toContain('Nama produk')
+    expect(html).not.toContain('uppercase')
+  })
+
+  it('PageHeader and EmptyState use readable ink tokens, not pale greys', () => {
+    const html = renderToStaticMarkup(<PageHeader title="Produk" subtitle="Katalog" />)
+    expect(html).not.toContain('gray-')
+    expect(html).toContain('text-ink-700')
+    expect(renderToStaticMarkup(<EmptyState icon={<Inbox />} title="Kosong" />)).not.toContain('gray-')
+  })
+
+  it('FilterBar sits on a group panel, chips are rounded tiles, and the active preset is pressed', () => {
+    const from = presetRange('hari-ini')
+    const html = renderToStaticMarkup(
+      <FilterBar>
+        <FilterBar.DateRange from={from.from} to={from.to} onChange={noop} presets={['hari-ini', '7-hari']} />
+        <FilterBar.Chips items={[{ id: 'a', label: 'Semua', count: 312 }, { id: 'b', label: 'Aktif' }]} value="a" onChange={noop} />
+      </FilterBar>,
+    )
+    expect(html).toContain('surface-group')
+    expect(html).toContain('rounded-xl')
+    expect(html).not.toContain('rounded-full')
+    expect(html).toMatch(/aria-pressed="true"[^>]*>Hari ini</)
+    expect(html).toMatch(/aria-pressed="false"[^>]*>7 hari</)
+    expect(html).toContain('>Dari<')
+  })
+
+  it('ConfirmDialog is 520 px wide with one button row when it has a third action', () => {
+    const html = renderToStaticMarkup(
+      <ConfirmDialog open title="Keluar?" consequence="x" confirmLabel="Simpan & lanjut" cancelLabel="Tetap di sini" extra={{ label: 'Buang perubahan', tone: 'danger', onClick: noop }} onCancel={noop} onConfirm={noop} />,
+    )
+    expect(html).toContain('max-w-[520px]')
+    expect(html).toContain('sm:flex-nowrap')
+    expect(renderToStaticMarkup(<ConfirmDialog open title="T" consequence="x" confirmLabel="Ya" onCancel={noop} onConfirm={noop} />)).toContain('max-w-sm')
+  })
+
+  it('SlideOver is a floating rounded panel with a filled close square and a counted error summary', () => {
+    const html = renderToStaticMarkup(
+      <SlideOver open onClose={noop} title="Ubah" errorSummary={[{ fieldId: 'a', label: 'SKU' }, { fieldId: 'b', label: 'Harga' }]}>b</SlideOver>,
+    )
+    expect(html).toContain('p-3')
+    expect(html).toContain('rounded-3xl')
+    expect(html).not.toContain('rounded-l-3xl')
+    expect(html).toContain('bg-paper-1 p-2')
+    expect(html).toContain('2 kolom perlu diperbaiki:')
+  })
+
+  it('SaveBar is a floating card with a warn dot, and Batalkan is a filled secondary button', () => {
+    const html = renderToStaticMarkup(<SaveBar count={2} items={['a', 'b']} status="idle" onSave={noop} onDiscard={noop} />)
+    expect(html).toContain('rounded-2xl')
+    expect(html).toContain('text-warn-strong')
+    expect(html).toContain('2 perubahan belum disimpan')
+    expect(html).not.toContain('-mx-6')
+  })
+
+  it('DataTable headers are uppercase grey, and rowHeight fixes the row height', () => {
+    const html = renderToStaticMarkup(<DataTable caption="Daftar" columns={COLS} rows={ROWS} rowKey={(r) => r.id} rowHeight={52} />)
+    expect(html).toContain('uppercase')
+    expect(html).toContain('text-ink-500')
+    expect(html).toContain('height:52px')
+    expect(renderToStaticMarkup(<DataTable caption="Daftar" columns={COLS} rows={ROWS} rowKey={(r) => r.id} />)).not.toContain('height:52px')
+  })
+
+  it('ink-500 header text clears AA on the white header cell', () => {
+    expect(ratio(tokenHex('ink-500'), '#ffffff')).toBeGreaterThanOrEqual(4.5)
   })
 })

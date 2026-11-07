@@ -16,15 +16,16 @@ type StatusBadgeProps<K extends string> =
   | { map: LabelMap<K>; value: string | null | undefined; className?: string }
   | { tone: Tone; label: string; hint?: string; className?: string }
 
-/** Status pill. Either looks a code up in a label map (unknown codes read "Lainnya", never raw) or takes a tone + label. */
+/** Status pill: tinted, a coloured dot and the word (colour is never the only cue). Either looks a code up in a label map (unknown codes read "Lainnya", never raw) or takes a tone + label. */
 export function StatusBadge<K extends string>(props: StatusBadgeProps<K>) {
   const entry: EnumLabel =
     'map' in props ? labelOf(props.map, props.value) : { tone: props.tone, label: props.label, hint: props.hint }
   return (
     <span
       title={entry.hint}
-      className={cn('inline-block px-2.5 py-1 text-xs font-bold rounded-lg', TONE_CLASS[entry.tone], props.className)}
+      className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-lg', TONE_CLASS[entry.tone], props.className)}
     >
+      <span aria-hidden="true" className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-current" />
       {entry.label}
     </span>
   )

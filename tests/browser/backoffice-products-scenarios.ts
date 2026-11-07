@@ -244,7 +244,7 @@ async function formErrorsFlow(page: ScenarioPage, results: object[]) {
   await dialog.waitFor()
   check(['1', 'true'].includes((await hashQuery(page)).baru), '?baru= opens the new-product form')
   await dialog.getByRole('button', { name: 'Tambah', exact: true }).last().click()
-  await dialog.getByText('Periksa isian berikut:').waitFor()
+  await dialog.getByText(/kolom perlu diperbaiki:/).waitFor()
   await dialog.getByText('Nama produk wajib diisi').waitFor()
   await dialog.getByRole('button', { name: 'Kategori', exact: true }).click()
   check(await page.evaluate(() => document.activeElement?.id === 'product-category'), 'a summary item focuses its field')
