@@ -25,6 +25,10 @@ import {
 
 type KindFilter = 'outlet' | 'warehouse' | 'semua'
 
+/** Both total columns share one width so the left one can stick at the right edge of the other. */
+const TOTAL_W = 'w-40 min-w-40 max-w-40'
+const TOTAL_SHOWN_RIGHT = 'right-40'
+
 const KIND_OPTIONS: { id: KindFilter; label: string }[] = [
   { id: 'outlet', label: 'Outlet' },
   { id: 'warehouse', label: 'Gudang' },
@@ -108,8 +112,6 @@ export function IngredientOverviewMatrix() {
   }
 
   const locationIds = filteredLocations.map((l) => l.id)
-  // A kind filter hides columns; Total then sums what is shown, the server total (all locations) goes to a sub-label.
-  const filtered = !!data && filteredLocations.length < data.locations.length
 
   const handleKindChange = (k: KindFilter) => setState({ jenis: kindFilterCode(k), hal: 1 })
 
@@ -170,9 +172,12 @@ export function IngredientOverviewMatrix() {
                       />
                     </th>
                   ))}
-                  {/* Sticky Total column */}
-                  <th className="sticky right-0 bg-gray-50 z-10 px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-wider text-right whitespace-nowrap border-l border-gray-200">
-                    Total
+                  {/* Two sticky totals: what the shown columns add up to, and every location. */}
+                  <th className={`sticky ${TOTAL_SHOWN_RIGHT} ${TOTAL_W} bg-gray-50 z-10 px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-wider text-right border-l border-gray-200`}>
+                    Total Outlet Tampil
+                  </th>
+                  <th className={`sticky right-0 ${TOTAL_W} bg-gray-50 z-10 px-4 py-3 text-xs font-black text-gray-400 uppercase tracking-wider text-right border-l border-gray-200`}>
+                    Total Semua Lokasi
                   </th>
                 </tr>
               </thead>
@@ -180,7 +185,7 @@ export function IngredientOverviewMatrix() {
                 {visibleRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={filteredLocations.length + 2}
+                      colSpan={filteredLocations.length + 3}
                       className="px-5 py-8 text-center text-sm text-gray-400"
                     >
                       Tidak ada bahan yang cocok
@@ -209,12 +214,11 @@ export function IngredientOverviewMatrix() {
                           </td>
                         )
                       })}
-                      {/* Sticky Total */}
-                      <td className="sticky right-0 bg-white z-10 px-4 py-3 text-right font-bold text-gray-900 text-sm border-l border-gray-200">
-                        {filtered ? formatQty(visibleTotal(row.cells, locationIds, (c) => c.qty), row.unit) : formatQty(row.total, row.unit)}
-                        {filtered && (
-                          <span className="block text-[11px] font-normal text-gray-400">Semua lokasi: {formatQty(row.total, row.unit)}</span>
-                        )}
+                      <td className={`sticky ${TOTAL_SHOWN_RIGHT} ${TOTAL_W} bg-white z-10 px-4 py-3 text-right font-bold text-gray-900 text-sm border-l border-gray-200`}>
+                        {formatQty(visibleTotal(row.cells, locationIds, (c) => c.qty), row.unit)}
+                      </td>
+                      <td className={`sticky right-0 ${TOTAL_W} bg-white z-10 px-4 py-3 text-right font-bold text-gray-900 text-sm border-l border-gray-200`}>
+                        {formatQty(row.total, row.unit)}
                       </td>
                     </tr>
                   ))

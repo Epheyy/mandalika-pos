@@ -75,7 +75,7 @@ export const transferConfirmFlow = async (page: ScenarioPage) => {
   // (a) Kirim asks first and names what happens to the stock; nothing is sent yet
   await page.getByRole('button', { name: 'Kirim', exact: true }).click()
   await sendDialog.waitFor()
-  check((await sendDialog.textContent())?.includes('Stok 7 unit akan keluar dari Gudang Pusat sekarang.') === true, 'the dialog states the unit count and the source')
+  check((await sendDialog.textContent())?.includes('Stok 7 unit akan keluar dari Gudang Pusat sekarang dan tercatat “Dikirim” sampai MV Outlet menerima.') === true, 'the dialog states the unit count and the source')
   check(calls.length === 0, 'asking sends nothing')
   if (process.env.A34C_RUN_DIR) await captureShot(page, 'b3-transfer-detail', BO_SHOT_VIEWPORTS)
   results.push({ step: 'kirim-asks' })

@@ -73,6 +73,6 @@ describe('newestFirst', () => {
 
 describe('freezeSummary', () => {
   it('counts products and their variants', () => {
-    expect(freezeSummary([{ variants: [{}, {}] }, { variants: [{}] }] as never)).toBe('2 produk · 3 varian aktif')
+    expect(freezeSummary([{ variants: [{}, {}] }, { variants: [{}] }] as never)).toBe('2 produk aktif (3 baris varian ukuran)')
   })
 })

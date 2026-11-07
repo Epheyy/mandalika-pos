@@ -300,6 +300,10 @@ export default function StockCount() {
     else exportToXLSX(exportRows, name)
   }
 
+  const createLocName = isAdmin
+    ? [...outlets.map((o) => ({ key: `o:${o.id}`, name: o.name })), ...warehouses.map((w) => ({ key: `w:${w.id}`, name: w.name }))].find((l) => l.key === form.locationKey)?.name
+    : undefined
+  const createTitle = createLocName ? `Buat Opname Baru · ${createLocName}` : 'Buat Opname Baru'
   const outletName = (oid: string) => outlets.find((o) => o.id === oid)?.name || oid
   const locName = (sc: StockCount) =>
     sc.warehouseId
@@ -325,7 +329,7 @@ export default function StockCount() {
       />
 
       {pageErr && (
-        <div role="alert" className="bg-red-50 text-red-700 rounded-xl px-4 py-3 text-sm flex justify-between gap-3">
+        <div role="alert" className="bg-danger-bg text-danger rounded-xl px-4 py-3 text-sm flex justify-between gap-3">
           <span>{pageErr}</span>
           <button type="button" className="font-bold" onClick={() => setPageErr(null)}>Tutup</button>
         </div>
@@ -395,12 +399,12 @@ export default function StockCount() {
                   </div>
                 </div>
                 {sc.rejectedNote && sc.status === 'in_progress' && (
-                  <p role="alert" className="mx-5 mb-3 rounded-xl bg-red-50 px-4 py-2 text-sm font-bold text-red-700">
+                  <p role="alert" className="mx-5 mb-3 rounded-xl bg-danger-bg px-4 py-2 text-sm font-bold text-danger">
                     Ditolak: {sc.rejectedNote}
                   </p>
                 )}
                 {sc.status === 'pending_approval' && (
-                  <p className="mx-5 mb-3 text-xs text-amber-700">
+                  <p className="mx-5 mb-3 text-xs text-warn-strong">
                     Diajukan {sc.submittedAt ? format(parseISO(sc.submittedAt), 'dd MMM yyyy HH:mm') : ''} oleh {sc.submittedByName ?? sc.submittedBy?.slice(0, 8) ?? '-'}. Menunggu persetujuan, tidak bisa diubah.
                   </p>
                 )}
@@ -442,7 +446,7 @@ export default function StockCount() {
                               {(() => {
                                 const diff = lineDifference(it)
                                 return diff != null ? (
-                                  <span className={`text-sm font-black ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                                  <span className={`text-sm font-black ${diff > 0 ? 'text-ok' : diff < 0 ? 'text-danger' : 'text-gray-400'}`}>
                                     {diff > 0 ? '+' : ''}{diff}
                                   </span>
                                 ) : '—'
@@ -486,7 +490,7 @@ export default function StockCount() {
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Tambah opname"
+        title={createTitle}
         footer={
           <>
             <Button variant="secondary" className="flex-1" onClick={() => setOpen(false)}>Batal</Button>
@@ -509,10 +513,10 @@ export default function StockCount() {
           )}
           <Input label="Tanggal Rencana" type="date" value={form.plannedDate} onChange={(e) => setForm((f) => ({ ...f, plannedDate: e.target.value }))} />
           <Textarea label="Catatan" rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
-          <div className="bg-amber-50 rounded-xl p-3 text-xs text-amber-700">
-            Stok {freezeSummary(products)} akan dibekukan sebagai referensi.
+          <div className="rounded-xl border border-gray-200 bg-paper-0 p-3 text-xs text-ink-700">
+            Cakupan yang dibekukan: <span className="font-bold text-ink-900">{freezeSummary(products)}</span>
           </div>
-          {err && <p className="text-sm text-red-600">{err}</p>}
+          {err && <p className="text-sm text-danger">{err}</p>}
         </div>
       </Modal>
     </div>

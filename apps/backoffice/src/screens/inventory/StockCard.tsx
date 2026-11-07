@@ -18,7 +18,7 @@ import { EmptyState } from '../../ui/EmptyState'
 import { ExportButton } from '../../ui/ExportButton'
 import { FilterBar } from '../../ui/FilterBar'
 import { StatusBadge } from '../../ui/StatusBadge'
-import { KIND_GROUPS, daysAgoDay, formatMovementTime, isRecordedLate, refTypeLabel } from './stockCardFormat'
+import { KIND_GROUPS, daysAgoDay, formatMovementTime, isRecordedLate, movementKindTone, refTypeLabel, signedQty } from './stockCardFormat'
 import {
   KARTU_SCHEMA,
   decodeSku,
@@ -270,6 +270,7 @@ export function StockCard({ exportSlot }: { exportSlot?: HTMLElement | null }) {
           columns={movementColumns({ zone: loc.zone, showProduct: !sku, canReadOrders, onOpenDoc: setDoc })}
           rows={rows}
           rowKey={(m) => m.id}
+          rowHeight={ROW_HEIGHT}
           loading={loading && rows.length === 0}
           error={error}
           onRetry={() => void load()}
@@ -316,6 +317,8 @@ interface MovementColumnsInput {
 }
 
 const nowrap = 'whitespace-nowrap'
+/** Even ledger rows like the mock (about 50 px); a row with a document sub-line may grow past it. */
+const ROW_HEIGHT = 52
 
 /** The 13 ledger columns. Waktu Kejadian and Jenis lead and stay in view while the table scrolls sideways;
  *  Waktu Tercatat sits with the notes (a sticky column has to be one of the leading ones). */
@@ -333,7 +336,7 @@ function movementColumns({ zone, showProduct, canReadOrders, onOpenDoc }: Moveme
       header: 'Jenis',
       sticky: true,
       width: 150,
-      cell: (m) => <span className={nowrap}>{labelOf(LEDGER_KIND, m.kind).label}</span>,
+      cell: (m) => <StatusBadge tone={movementKindTone(m.kind)} label={labelOf(LEDGER_KIND, m.kind).label} className={nowrap} />,
     },
     ...(showProduct
       ? [
@@ -370,8 +373,8 @@ function movementColumns({ zone, showProduct, canReadOrders, onOpenDoc }: Moveme
         )
       },
     },
-    { id: 'masuk', header: 'Masuk', align: 'right', cell: (m) => <span className="font-bold text-ok">{m.qty > 0 ? m.qty : ''}</span> },
-    { id: 'keluar', header: 'Keluar', align: 'right', cell: (m) => <span className="font-bold text-danger">{m.qty < 0 ? -m.qty : ''}</span> },
+    { id: 'masuk', header: 'Masuk', align: 'right', cell: (m) => <span className="font-bold text-ok">{m.qty > 0 ? signedQty(m.qty) : ''}</span> },
+    { id: 'keluar', header: 'Keluar', align: 'right', cell: (m) => <span className="font-bold text-danger">{m.qty < 0 ? signedQty(m.qty) : ''}</span> },
     { id: 'saldo', header: 'Saldo', align: 'right', cell: (m) => <span className="font-black">{m.qtyAfter}</span> },
     { id: 'oleh', header: 'Oleh', cell: (m) => <span className={nowrap}>{m.actorName ?? ''}</span> },
     { id: 'penyetuju', header: 'Penyetuju', cell: (m) => <span className={nowrap}>{m.approvedByName ?? ''}</span> },
@@ -380,7 +383,7 @@ function movementColumns({ zone, showProduct, canReadOrders, onOpenDoc }: Moveme
       id: 'tanda',
       header: 'Tanda',
       cell: (m) => (
-        <span className="flex flex-wrap gap-1">
+        <span className="flex gap-1 whitespace-nowrap">
           {m.isGiveaway && <StatusBadge tone="reward" label="Hadiah" />}
           {m.isWarranty && <StatusBadge tone="info" label="Garansi" />}
           {m.flags.includes('shortage') && <StatusBadge tone="danger" label="Minus" />}

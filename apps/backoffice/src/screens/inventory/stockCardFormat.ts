@@ -50,17 +50,30 @@ export function refTypeLabel(refType: string): string {
   return Object.prototype.hasOwnProperty.call(REF_TYPE_LABEL, refType) ? REF_TYPE_LABEL[refType] : 'Dokumen'
 }
 
-/** An instant as `dd/mm/yyyy HH.mm` in the location's timezone. */
+/** An instant as `04 Nov 2026 · 14:22` in the location's timezone (same short month names as ERP and Laporan). */
 export function formatMovementTime(iso: string, zone: string): string {
-  return new Date(iso).toLocaleString('id-ID', {
+  const parts = new Intl.DateTimeFormat('id-ID', {
     timeZone: zone,
     day: '2-digit',
-    month: '2-digit',
+    month: 'short',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  })
+    hourCycle: 'h23',
+  }).formatToParts(new Date(iso))
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ''
+  return `${get('day')} ${get('month')} ${get('year')} · ${get('hour')}:${get('minute')}`
 }
+
+/** A quantity with its direction: `+9`, `−1` (true minus sign); empty for zero. */
+export function signedQty(qty: number): string {
+  if (qty === 0) return ''
+  return `${qty > 0 ? '+' : '−'}${Math.abs(qty).toLocaleString('id-ID')}`
+}
+
+/** Kinds that add stock read green in the Jenis pill; the rest stay neutral. */
+const INBOUND_KINDS: ReadonlySet<string> = new Set(['transfer_in', 'receipt'])
+export const movementKindTone = (kind: string): 'ok' | 'neutral' => (INBOUND_KINDS.has(kind) ? 'ok' : 'neutral')
 
 /** A day as YYYY-MM-DD in the location timezone. */
 function dayInZone(iso: string, zone: string): string {
