@@ -52,10 +52,10 @@ export function userColumns({ me, outlets, onResetPassword, onEdit }: UserColumn
     },
     {
       id: 'permission',
-      header: 'Permission',
+      header: 'Izin akses',
       cell: (u) => {
         const n = (u.permissions || []).length
-        return u.role !== 'admin' && n > 0 ? <span className="text-xs text-ink-700">{n} permission aktif</span> : <span className="text-xs text-ink-500">—</span>
+        return u.role !== 'admin' && n > 0 ? <span className="text-xs text-ink-700">{n} izin akses aktif</span> : <span className="text-xs text-ink-500">—</span>
       },
     },
     { id: 'role', header: 'Role', cell: (u) => <Badge tone="neutral">{labelOf(ROLE, u.role).label}</Badge> },

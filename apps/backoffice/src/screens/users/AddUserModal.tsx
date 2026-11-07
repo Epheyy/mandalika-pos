@@ -66,7 +66,7 @@ function AddUserModal({ open, onClose, nf, setNf, busy, outlets, error, onSave }
           <p className="text-[11px] text-warn-strong -mt-3">Kasir sebaiknya ditempatkan di satu outlet.</p>
         )}
         {nf.role !== 'admin' && (
-          <Field label="Permission">
+          <Field label="Izin akses">
             <PermissionPicker
               selected={nf.permissions}
               onToggle={(p) => setNf((f) => ({ ...f, permissions: f.permissions.includes(p) ? f.permissions.filter((x) => x !== p) : [...f.permissions, p] }))}

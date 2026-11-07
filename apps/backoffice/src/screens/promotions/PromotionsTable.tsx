@@ -1,14 +1,13 @@
 import type { ReactNode } from 'react'
 import type { Promotion } from '@mandalika/api'
 import { Copy, Edit2, Tag, Trash2 } from 'lucide-react'
-import { PROMOTION_STATUS, PROMOTION_TYPE } from '../../lib/labels'
+import { PROMOTION_STATUS, labelOf } from '../../lib/labels'
 import { Badge } from '../../ui/Badge'
 import { DataTable, type Column } from '../../ui/DataTable'
 import { EmptyState } from '../../ui/EmptyState'
 import { IconButton } from '../../ui/IconButton'
-import { StatusBadge } from '../../ui/StatusBadge'
 import { Switch } from '../../ui/Switch'
-import { periodText, promoValueLabel } from './promoDisplay'
+import { promoMetaLine, promoValueLabel } from './promoDisplay'
 import { promoStatus } from './promoStatus'
 
 interface PromotionsTableProps {
@@ -37,25 +36,22 @@ export function PromotionsTable({ rows, today, loading, error, onRetry, selected
       cell: (p) => (
         <div>
           <p className="text-sm font-bold text-ink-900">{p.name}</p>
+          <p className="text-xs text-ink-500">{promoMetaLine(p)}</p>
           {p.description && <p className="text-xs text-ink-500">{p.description}</p>}
           <div className="mt-0.5 flex flex-wrap gap-1">
             {p.combinable && <Badge tone="neutral">Bisa Kombinasi</Badge>}
-            {p.autoApply && <Badge tone="neutral">Otomatis</Badge>}
-            {p.codeOnly && <Badge tone="neutral">Hanya kode</Badge>}
           </div>
         </div>
       ),
     },
-    { id: 'type', header: 'Jenis', cell: (p) => <StatusBadge map={PROMOTION_TYPE} value={p.type} /> },
     { id: 'value', header: 'Nilai', cell: (p) => <span className="text-sm font-bold text-ink-900">{promoValueLabel(p)}</span> },
-    { id: 'period', header: 'Periode', cell: (p) => <span className="text-xs text-ink-500">{periodText(p.startDate, p.endDate)}</span> },
     {
       id: 'status',
       header: 'Status',
       cell: (p) => (
         <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <Switch size="sm" checked={p.isActive} disabled={busyIds?.has(p.id)} label={`Status ${p.name}`} onChange={(next) => onToggle(p, next)} />
-          <StatusBadge map={PROMOTION_STATUS} value={promoStatus(p, today)} />
+          <span className="text-xs font-semibold text-ink-700">{labelOf(PROMOTION_STATUS, promoStatus(p, today)).label}</span>
         </div>
       ),
     },

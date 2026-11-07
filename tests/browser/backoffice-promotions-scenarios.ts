@@ -336,7 +336,7 @@ async function activationFromEditor(page: ScenarioPage, state: State, results: o
   // a new promotion, active by default: Simpan asks; Batal leaves the editor open with the form, sends nothing
   await page.getByRole('button', { name: 'Tambah Promosi', exact: true }).click()
   await dialog.getByLabel('Nama Promosi *').fill('Promo Baru Aktif')
-  await dialog.getByLabel('Nilai', { exact: true }).fill('10') // a plain percentage promotion needs a value > 0
+  await dialog.getByLabel('Nilai Diskon (1% – 100%) *', { exact: true }).fill('10') // a plain percentage promotion needs a value > 0
   check((await dialog.getByRole('switch', { name: 'Promosi Aktif', exact: true }).getAttribute('aria-checked')) === 'true', 'a new promotion is active by default')
   state.calls.length = 0
   await dialog.getByRole('button', { name: 'Simpan', exact: true }).click()
