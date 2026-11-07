@@ -3,6 +3,8 @@ import { Button } from '../../ui/Button'
 import { SettingsCard } from './SettingsCard'
 import { Modal } from '../../ui/Modal'
 import { Switch } from '../../ui/Switch'
+import { SettingRow } from './SettingRow'
+import type { Change } from './settingsDiff'
 
 /** D-50 warning shown on the card and again in the confirm before switching on. */
 export const SPLIT_TENDER_WARNING =
@@ -13,26 +15,22 @@ export const SPLIT_TENDER_OFF_NOTE =
 interface Props {
   enabled: boolean
   changed?: boolean
+  change?: Change
   onChange: (next: boolean) => void
 }
 
 /** Transaksi tab: "Bayar terpisah" (split payment) switch. Switching on asks first; it still needs "Simpan perubahan". */
-export function SplitTenderCard({ enabled, changed, onChange }: Props) {
+export function SplitTenderCard({ enabled, changed, change, onChange }: Props) {
   const [confirming, setConfirming] = useState(false)
   return (
-    <SettingsCard changed={changed} className="p-6 space-y-4">
-      <h3 className="font-black text-ink-900">Pembayaran Terpisah</h3>
-      <div className="flex items-center justify-between py-1">
-        <div>
-          <p className="font-bold text-ink-900">Bayar terpisah</p>
-          <p className="text-xs text-ink-700">Satu transaksi bisa dibayar dengan beberapa metode (label: Split-Payment)</p>
-        </div>
+    <SettingsCard changed={changed} title="Bayar terpisah" className="p-6 space-y-4">
+      <SettingRow title="Izinkan bayar terpisah" hint="Satu transaksi bisa dibayar dengan beberapa metode (label: Split-Payment)" change={change} rule={false}>
         <Switch
           label="Bayar terpisah"
           checked={enabled}
           onChange={() => (enabled ? onChange(false) : setConfirming(true))}
         />
-      </div>
+      </SettingRow>
       <p className="text-xs font-bold text-warn-strong bg-warn-bg rounded-xl px-3 py-2">{SPLIT_TENDER_WARNING}</p>
       <p className="text-xs text-ink-700">{SPLIT_TENDER_OFF_NOTE}</p>
       <Modal

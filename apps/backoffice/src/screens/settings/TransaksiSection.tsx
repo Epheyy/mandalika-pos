@@ -5,7 +5,8 @@ import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '../../ui/Button'
 import { Input, Select, Field } from '../../ui/Field'
 import { SettingsCard } from './SettingsCard'
-import type { CardId } from './settingsDiff'
+import { SettingRow, changeAt } from './SettingRow'
+import type { CardId, Change } from './settingsDiff'
 import { IconButton } from '../../ui/IconButton'
 import { Switch } from '../../ui/Switch'
 import { SplitTenderCard } from './SplitTenderCard'
@@ -17,29 +18,26 @@ interface TransaksiSectionProps {
   newPay: string
   setNewPay: Dispatch<SetStateAction<string>>
   changed: ReadonlySet<CardId>
+  /** Pending changes: they tint the changed rows and give each its "Sebelumnya" hint. */
+  changes: readonly Change[]
 }
 
 // Method name | cash-drawer switch | enabled switch | delete: the header row and every method row share it.
 const PAY_GRID = 'grid grid-cols-[minmax(0,1fr)_6.5rem_3.5rem_2.25rem] items-center gap-2'
 
 /** Transaksi tab: Pajak & Pembulatan · Metode Pembayaran · Struk. */
-export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: TransaksiSectionProps) {
+export function TransaksiSection({ s, setS, newPay, setNewPay, changed, changes }: TransaksiSectionProps) {
   const [payError, setPayError] = useState<string | null>(null)
   const setReceipt = (k: string, v: unknown) =>
     setS((p) => ({ ...p, receipt: { ...p.receipt, [k]: v } }))
 
   return (
-    <div className="max-w-2xl space-y-5">
+    <div className="max-w-4xl space-y-5">
       {/* Sub-section: Pajak & Pembulatan */}
-      <SettingsCard changed={changed.has('tax')} className="p-6 space-y-5">
-        <h3 className="font-black text-ink-900">Pajak &amp; Pembulatan</h3>
-        <div className="flex items-center justify-between py-3 border-b border-paper-2">
-          <div>
-            <p className="font-bold text-ink-900">Aktifkan PPN</p>
-            <p className="text-xs text-ink-700">Pajak dihitung di kasir</p>
-          </div>
+      <SettingsCard changed={changed.has('tax')} title="Pajak & pembulatan" className="p-6 space-y-5">
+        <SettingRow title="Aktifkan pajak (PPN)" hint="Pajak dihitung di kasir" change={changeAt(changes, 'taxEnabled')}>
           <Switch label="Aktifkan pajak" checked={s.taxEnabled} onChange={() => setS((p) => ({ ...p, taxEnabled: !p.taxEnabled }))} />
-        </div>
+        </SettingRow>
         {s.taxEnabled && (
           <Input
             label="Tarif Pajak (%)"
@@ -49,13 +47,9 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
             className="w-32"
           />
         )}
-        <div className="flex items-center justify-between py-3 border-b border-paper-2">
-          <div>
-            <p className="font-bold text-ink-900">Pembulatan Harga</p>
-            <p className="text-xs text-ink-700">Membulatkan total transaksi</p>
-          </div>
+        <SettingRow title="Pembulatan harga" hint="Membulatkan total transaksi" change={changeAt(changes, 'roundingEnabled')}>
           <Switch label="Aktifkan pembulatan" checked={s.roundingEnabled} onChange={() => setS((p) => ({ ...p, roundingEnabled: !p.roundingEnabled }))} />
-        </div>
+        </SettingRow>
         {s.roundingEnabled && (
           <div className="grid grid-cols-2 gap-4">
             <Select
@@ -81,8 +75,7 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
       </SettingsCard>
 
       {/* Sub-section: Metode Pembayaran */}
-      <SettingsCard changed={changed.has('payments')} className="p-6 space-y-5">
-        <h3 className="font-black text-ink-900">Metode Pembayaran</h3>
+      <SettingsCard changed={changed.has('payments')} title="Metode pembayaran" className="p-6 space-y-5">
         <div className="space-y-2">
           {/* #18: the two switch columns are named once, here, instead of repeating the wording in every row. */}
           <div className={`${PAY_GRID} px-3 text-[11px] font-bold text-ink-700`}>
@@ -94,9 +87,16 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
           {s.paymentMethods.map((pm) => {
             // Always the RESOLVED value (id default when no explicit flag), never `?? false`.
             const isCash = isCashMethod(s.paymentMethods, pm.id)
+            const enabledChange = changeAt(changes, `paymentMethods[${pm.id}].isEnabled`)
+            const cashChange = changeAt(changes, `paymentMethods[${pm.id}].isCash`)
+            const rowChanged = !!(enabledChange || cashChange)
             return (
-              <div key={pm.id} className={`${PAY_GRID} p-3 bg-paper-1 rounded-xl`}>
-                <span className="font-bold text-ink-900 text-sm">{pm.label}</span>
+              <div key={pm.id} data-changed={rowChanged ? 'true' : undefined} className={`${PAY_GRID} p-3 rounded-xl ${rowChanged ? 'bg-warn-bg' : 'bg-paper-1'}`}>
+                <span>
+                  <span className="block font-bold text-ink-900 text-sm">{pm.label}</span>
+                  {enabledChange && <span className="block text-xs font-bold text-warn-strong">Aktif sebelumnya {enabledChange.from}</span>}
+                  {cashChange && <span className="block text-xs font-bold text-warn-strong">Masuk laci kas sebelumnya {cashChange.from}</span>}
+                </span>
                 <span className="flex justify-center">
                   <Switch
                     label={`Metode ${pm.label} masuk laci kas`}
@@ -158,11 +158,10 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed }: Transa
         {payError && <p role="alert" className="text-xs font-bold text-danger">{payError}</p>}
       </SettingsCard>
 
-      <SplitTenderCard changed={changed.has('split')} enabled={!!s.splitTenderEnabled} onChange={(v) => setS((p) => ({ ...p, splitTenderEnabled: v }))} />
+      <SplitTenderCard changed={changed.has('split')} change={changeAt(changes, 'splitTenderEnabled')} enabled={!!s.splitTenderEnabled} onChange={(v) => setS((p) => ({ ...p, splitTenderEnabled: v }))} />
 
       {/* Sub-section: Struk */}
-      <SettingsCard changed={changed.has('receipt')} className="p-6 space-y-5">
-        <h3 className="font-black text-ink-900">Pengaturan Struk</h3>
+      <SettingsCard changed={changed.has('receipt')} title="Struk" className="p-6 space-y-5">
         <Input
           label="Jumlah Salinan"
           type="number"

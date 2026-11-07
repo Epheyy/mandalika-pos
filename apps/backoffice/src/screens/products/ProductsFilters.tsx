@@ -14,6 +14,7 @@ export function ProductsFilters({ state, categories, activeCount, onChange, onRe
   const categoryOptions = [{ value: '', label: 'Semua kategori' }, ...categories.map((c) => ({ value: c.id, label: c.name }))]
   return (
     <FilterBar onReset={onReset} activeCount={activeCount}>
+      <FilterBar.Scope />
       <FilterBar.Search label="Cari produk" placeholder="Nama, brand, SKU atau barcode" value={state.q} onChange={(q) => onChange({ q })} />
       <FilterBar.Select label="Kategori" value={state.kategori} onChange={(kategori) => onChange({ kategori })} options={categoryOptions} />
       <FilterBar.Select label="Urutkan" value={state.urut} onChange={(urut) => onChange({ urut })} options={SORT_OPTIONS} />

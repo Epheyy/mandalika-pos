@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS } from './settingsDiff'
 import { TransaksiSection } from './TransaksiSection'
 
 const html = renderToStaticMarkup(
-  <TransaksiSection s={DEFAULT_SETTINGS} setS={() => {}} newPay="" setNewPay={() => {}} changed={new Set()} />,
+  <TransaksiSection s={DEFAULT_SETTINGS} setS={() => {}} newPay="" setNewPay={() => {}} changed={new Set()} changes={[]} />,
 )
 
 // #18: the two switch columns are named once in a header row; every row keeps its own named switches.

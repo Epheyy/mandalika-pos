@@ -16,7 +16,7 @@ import { SettingsCard } from './settings/SettingsCard'
 import { TransaksiSection } from './settings/TransaksiSection'
 import { Switch } from '../ui/Switch'
 import { SAVED_MESSAGE, useSettingsDraft } from './settings/useSettingsDraft'
-import { CARD_TAB, type TabId } from './settings/settingsDiff'
+import { CARD_TITLE, type TabId } from './settings/settingsDiff'
 
 // Moves inside Pengaturan (its own tabs) are not a leave: the draft survives them, so the guard only asks for moves out.
 const SETTINGS_SCOPE = [routeById('settings')?.path ?? 'pengaturan'] as const
@@ -34,8 +34,8 @@ export default function SettingsScreen() {
   const approverRoles = s.receiveApproverRoles ?? []
 
   // #15: the leave question names the sections that hold changes (from the same `changes` the save bar counts).
-  const changedSections = sections.filter((t) => changes.some((c) => CARD_TAB[c.card] === t.id)).map((t) => t.label)
-  const leaveDetail = changedSections.length > 0 ? ` Di: ${changedSections.join(', ')}.` : ''
+  const changedCards = [...new Set(changes.map((c) => CARD_TITLE[c.card]))]
+  const leaveDetail = changedCards.length > 0 ? ` (${changedCards.join(', ')})` : ''
 
   const askLeave = useCallback(() => new Promise<boolean>((resolveLeave) => setLeaveAsk(() => resolveLeave)), [])
   useUnsavedChanges(changes.length > 0, askLeave, SETTINGS_SCOPE)
@@ -72,7 +72,7 @@ export default function SettingsScreen() {
   if (!loaded) {
     return (
       <div className="p-6 space-y-5">
-        <PageHeader title="Pengaturan" subtitle="Konfigurasi sistem POS" />
+        <PageHeader title="Pengaturan" subtitle="Berlaku untuk semua outlet; tablet mengambilnya saat sinkron berikutnya." />
         {loadError ? (
           <p role="alert" className="text-sm font-bold text-danger">Gagal memuat pengaturan: {loadError}. Mencoba lagi otomatis.</p>
         ) : (
@@ -84,7 +84,7 @@ export default function SettingsScreen() {
 
   return (
     <div className="p-6 space-y-5">
-      <PageHeader title="Pengaturan" subtitle="Konfigurasi sistem POS" />
+      <PageHeader title="Pengaturan" subtitle="Berlaku untuk semua outlet; tablet mengambilnya saat sinkron berikutnya." />
 
       <Tabs value={section} onChange={setSection} label="Bagian Pengaturan" tabs={sections.map((t) => ({ ...t, dirty: markers.tabs.has(t.id) }))} />
 
@@ -92,8 +92,7 @@ export default function SettingsScreen() {
       {section === 'locations' && (
         <>
           <LocationsSection />
-          <SettingsCard changed={changed.has('stock')} className="p-6 max-w-2xl space-y-5">
-            <h3 className="font-black text-ink-900">Pengaturan Stok</h3>
+          <SettingsCard changed={changed.has('stock')} title="Pengaturan stok" className="p-6 max-w-4xl space-y-5">
             <div className="flex items-center justify-between py-3">
               <div>
                 <p className="font-bold text-ink-900">Izinkan Stok Minus</p>
@@ -107,15 +106,14 @@ export default function SettingsScreen() {
 
       {/* ── Transaksi: Pajak & Pembulatan · Metode Pembayaran · Struk ── */}
       {section === 'transaksi' && (
-        <TransaksiSection s={s} setS={setS} newPay={newPay} setNewPay={setNewPay} changed={changed} />
+        <TransaksiSection s={s} setS={setS} newPay={newPay} setNewPay={setNewPay} changed={changed} changes={changes} />
       )}
 
       {/* ── Operasional: Shift · Persetujuan Transfer · Dokumen ── */}
       {section === 'operasional' && (
-        <div className="max-w-2xl space-y-5">
+        <div className="max-w-4xl space-y-5">
           {/* Sub-section: Shift */}
-          <SettingsCard changed={changed.has('shift')} className="p-6 space-y-5">
-            <h3 className="font-black text-ink-900">Pengaturan Shift</h3>
+          <SettingsCard changed={changed.has('shift')} title="Pengaturan shift" className="p-6 space-y-5">
             <div className="flex items-center justify-between py-3">
               <div>
                 <p className="font-bold text-ink-900">Buka Shift Otomatis</p>
@@ -126,8 +124,7 @@ export default function SettingsScreen() {
           </SettingsCard>
 
           {/* Sub-section: Persetujuan Stok */}
-          <SettingsCard changed={changed.has('approval')} className="p-6 space-y-5">
-            <h3 className="font-black text-ink-900">Persetujuan Stok</h3>
+          <SettingsCard changed={changed.has('approval')} title="Persetujuan stok" className="p-6 space-y-5">
             <div className="flex items-center justify-between py-3">
               <div>
                 <p className="font-bold text-ink-900">Wajib persetujuan stok</p>
@@ -138,8 +135,7 @@ export default function SettingsScreen() {
           </SettingsCard>
 
           {/* Sub-section: Persetujuan Transfer */}
-          <SettingsCard changed={changed.has('transfer')} className="p-6 space-y-5">
-            <h3 className="font-black text-ink-900">Persetujuan Penerimaan Transfer</h3>
+          <SettingsCard changed={changed.has('transfer')} title="Persetujuan penerimaan transfer" className="p-6 space-y-5">
             <p className="text-xs text-ink-700">Admin selalu boleh; pilih peran lain yang boleh menyetujui penerimaan di POS.</p>
             <div className="border border-paper-2 rounded-xl overflow-hidden mt-2">
               {/* Admin row — always-on, non-interactive */}
@@ -169,8 +165,7 @@ export default function SettingsScreen() {
           </SettingsCard>
 
           {/* Sub-section: Dokumen */}
-          <SettingsCard changed={changed.has('docs')} className="p-6 space-y-5">
-            <h3 className="font-black text-ink-900">Dokumen Pengiriman</h3>
+          <SettingsCard changed={changed.has('docs')} title="Dokumen pengiriman" className="p-6 space-y-5">
             <p className="text-xs text-ink-700">
               Identitas merek yang muncul di surat jalan dan tanda terima. Bisa ditimpa per gudang/outlet (di halaman masing-masing).
             </p>
@@ -261,8 +256,7 @@ export default function SettingsScreen() {
 
       {/* ── Resep & Bahan ── */}
       {section === 'recipe' && (
-        <SettingsCard changed={changed.has('recipe')} className="p-6 max-w-2xl space-y-5">
-          <h3 className="font-black text-ink-900">Resep &amp; Bahan</h3>
+        <SettingsCard changed={changed.has('recipe')} title="Resep &amp; bahan" className="p-6 max-w-4xl space-y-5">
           <p className="text-xs text-ink-700">
             Aktifkan modul Resep &amp; Bahan untuk melacak bahan baku per gudang dan formula per
             produk. Saat dinonaktifkan, tab Bahan tidak akan muncul di layar Gudang.
@@ -305,7 +299,7 @@ export default function SettingsScreen() {
       <ConfirmDialog
         open={leaveAsk !== null}
         title="Simpan perubahan Pengaturan?"
-        consequence={`Ada ${changes.length} perubahan yang belum disimpan.${leaveDetail}`}
+        consequence={`Ada ${changes.length} perubahan yang belum disimpan${leaveDetail}. Kalau ditinggalkan, perubahan ini hilang.`}
         confirmLabel="Simpan & lanjut"
         cancelLabel="Tetap di sini"
         extra={{ label: 'Buang perubahan', tone: 'danger', onClick: discardAndLeave }}
