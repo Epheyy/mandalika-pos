@@ -6,6 +6,22 @@ import { zoneParts } from './promoValidate'
 
 export const PAGE_SIZE = 20
 
+/** Ordering rule for overlapping Riwayat loads: each load takes a ticket and only the newest ticket may write the panel.
+ *  A response for older filters (another day, page or search) is dropped even if it answers last, and only the newest
+ *  load ends the loading state. */
+export class LatestLoad {
+  private latest = 0
+
+  begin(): number {
+    this.latest += 1
+    return this.latest
+  }
+
+  isCurrent(ticket: number): boolean {
+    return ticket === this.latest
+  }
+}
+
 /** Today's business day (YYYY-MM-DD) on the outlet's clock; absent/unknown tz = Asia/Jakarta. */
 export function businessToday(now: Date, timezone?: string | null): string {
   return zoneParts(now, timezone).dateStr

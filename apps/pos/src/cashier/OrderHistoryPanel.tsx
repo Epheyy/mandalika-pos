@@ -12,7 +12,7 @@ import { variantLabel } from '@mandalika/types'
 import { RefundAction } from './RefundAction'
 import { methodCellLabel, refundSummaries, tenderLineText, visibleTenders, type PayoutMethodCfg } from './refundView'
 import type { RefundCache } from './refundSelection'
-import { PAGE_SIZE, businessToday, defaultHistoryDay, historyWindowFor, orderHistoryQuery, withPinnedOrder } from './orderHistoryQuery'
+import { LatestLoad, PAGE_SIZE, businessToday, defaultHistoryDay, historyWindowFor, orderHistoryQuery, withPinnedOrder } from './orderHistoryQuery'
 import { Sheet } from '../components/ui/Sheet'
 import { formatHistoryStamp } from './historyStamp'
 import { zoneParts } from './promoValidate'
@@ -126,25 +126,35 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
   const [expandedId, setExpandedId] = useState<string | null>(focus?.orderId ?? null)
   // The order the cashier came for, fetched by id: the day listing is filtered by the shift's business day and may miss it.
   const [pinned, setPinned] = useState<Order | null>(null)
+  // Day, page and search each start a load; a slow answer for the old filters must not overwrite the new one.
+  const [loadGate] = useState(() => new LatestLoad())
 
   const load = useCallback(async () => {
+    const ticket = loadGate.begin()
     setIsLoading(true)
     setError(null)
     const term = search.trim()
     const { qs, cacheKey } = orderHistoryQuery(from, to, page, term)
     try {
       const r = await api.request<OrderListResponse>('GET', `/api/v1/orders?${qs}`)
+      if (!loadGate.isCurrent(ticket)) return
       const data = r.data ?? []
       const t = r.meta?.total ?? 0
       setOrders(data)
       setTotal(t)
       setIsStale(false)
       if (focus && !data.some((o) => o.id === focus.orderId)) {
-        try { setPinned(await api.getOrder(focus.orderId)) } catch { setPinned(null) }
+        try {
+          const one = await api.getOrder(focus.orderId)
+          if (loadGate.isCurrent(ticket)) setPinned(one)
+        } catch {
+          if (loadGate.isCurrent(ticket)) setPinned(null)
+        }
       }
       // A search is never cached (A30); only the plain day listing is.
       if (cacheKey) cacheWrite(cacheKey, { orders: data, total: t }, 'orders:last')
     } catch (e: unknown) {
+      if (!loadGate.isCurrent(ticket)) return
       // Offline / transient: fall back to the last data seen while online so
       // the cashier still sees their history instead of "Failed to fetch".
       // A focused search is never cached, and the last unfiltered day listing would show unrelated sales under it: no fallback.
@@ -165,9 +175,9 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
         setIsStale(false)
       }
     } finally {
-      setIsLoading(false)
+      if (loadGate.isCurrent(ticket)) setIsLoading(false)
     }
-  }, [from, to, page, search, focus])
+  }, [from, to, page, search, focus, loadGate])
 
   // Debounced so typing a phone/name doesn't fire a request per keystroke.
   useEffect(() => {
