@@ -32,10 +32,11 @@ export function ManualDiscountSection({ state, dispatch, onApplyDiscount, onAppl
   const hasCap = isPercent || subtotal !== undefined
   const maxHint = isPercent ? 'Maksimal 100%' : subtotal !== undefined ? `Maksimal sebesar subtotal ${formatRupiah(subtotal)}` : null
   const overLimit = isPercent ? entered > 100 : subtotal !== undefined && entered > subtotal
+  // Discount-only hint: a surcharge is not capped by pricing, so wording must not forbid it.
   const overMessage = isPercent
-    ? 'Persentase tidak boleh lebih dari 100%.'
+    ? 'Untuk diskon: persentase tidak boleh lebih dari 100%.'
     : subtotal !== undefined
-      ? `Potongan manual tidak boleh melebihi subtotal keranjang (${formatRupiah(subtotal)}).`
+      ? `Untuk diskon: potongan tidak boleh melebihi subtotal keranjang (${formatRupiah(subtotal)}).`
       : null
 
   return (
@@ -72,12 +73,12 @@ export function ManualDiscountSection({ state, dispatch, onApplyDiscount, onAppl
         onChange={(e) => dispatch({ type: 'SET_ADJUST_INPUT', value: e.target.value })}
         placeholder={isPercent ? 'Contoh: 10' : 'Contoh: 5000'}
         aria-label="Nilai diskon atau biaya tambahan"
-        aria-invalid={overLimit || undefined}
+        aria-describedby="manual-discount-hint"
         className={`min-h-12 w-full rounded-control bg-white px-3 text-sm focus:outline-none ${overLimit ? 'border-2 border-danger' : 'border border-paper-2 focus:ring-1 focus:ring-brand-strong'}`}
       />
-      {overLimit && overMessage ? (
-        <p role="alert" className="mt-1 text-xs font-semibold text-danger">{overMessage}</p>
-      ) : null}
+      <p id="manual-discount-hint" role={overLimit && overMessage ? 'alert' : undefined} className={`mt-1 text-xs ${overLimit && overMessage ? 'font-semibold text-danger' : 'sr-only'}`}>
+        {overLimit && overMessage ? overMessage : (maxHint ?? '')}
+      </p>
       <div className="mt-3 flex gap-2">
         <Button onClick={onApplyDiscount} className="flex-1">
           Diskon −

@@ -219,7 +219,7 @@ export function BundleSlotPicker({
                           <p className="tnum text-xs text-ink-700">
                             {st !== null && (
                               <span className={st > 0 ? 'text-ok' : 'font-bold text-danger'}>
-                                {st > 0 ? `Stok tersedia: ${st} unit` : 'Stok 0'}
+                                {st > 0 ? `Stok tersedia: ${st} unit` : `Stok ${st}`}
                                 {' · '}
                               </span>
                             )}

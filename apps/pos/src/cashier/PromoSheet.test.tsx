@@ -65,7 +65,7 @@ describe('ManualDiscountSection', () => {
     expect(html(createElement(ManualDiscountSection, { ...props, state }))).toContain('tidak boleh lebih dari 100%')
   })
 
-  it('summarises an applied manual discount on the collapsed button', () => {
+  it('summarises an applied manual discount in the always-open block', () => {
     const state = { ...CASHIER_INITIAL_STATE, discountRunning: 10, appliedDiscountType: 'percentage' as const }
     expect(html(createElement(ManualDiscountSection, { ...props, state }))).toContain('Diskon manual 10%')
   })
