@@ -43,22 +43,27 @@ interface CustomerPickerProps {
   onOpenProfile?: (customer: Customer) => void
 }
 
-const FIELD = 'w-full min-h-11 rounded-control border border-paper-2 bg-white px-3 text-[0.9375rem] focus:outline-none focus:ring-2 focus:ring-ink-900'
+const FIELD = 'w-full min-h-11 rounded-control border border-paper-2 bg-white px-3 text-[0.9375rem] focus:outline-none focus:ring-2 focus:ring-brand'
+/** The phone search keeps the brand-gold border, as in the mock (W2-08). */
+const PHONE_FIELD = 'w-full min-h-12 rounded-control border-2 border-brand bg-white px-3 text-[1.0625rem] font-semibold text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand'
 
-function Row({ c, loyaltyEnabled, onSelect, onOpenProfile }: { c: Customer; loyaltyEnabled: boolean; onSelect: (c: Customer) => void; onOpenProfile?: (c: Customer) => void }) {
+/** One customer as a bordered card (W3-01). `match` = the exact hit for the typed phone: teal tint and border.
+ *  The mock's "N hadiah tersedia" is not shown: the tablet only knows a reward count for the attached customer. */
+function Row({ c, match, loyaltyEnabled, onSelect, onOpenProfile }: { c: Customer; match: boolean; loyaltyEnabled: boolean; onSelect: (c: Customer) => void; onOpenProfile?: (c: Customer) => void }) {
   const tier = knownTier(c)
+  const sub = [tier, loyaltyEnabled ? `${formatPoints(c.points)} poin` : null].filter((p) => p !== null).join(' · ')
+  const avatar = match ? 'bg-reward text-white' : 'bg-paper-2 text-ink-700'
   return (
-    <div className="flex items-stretch gap-2 border-b border-paper-2 last:border-0">
-      <button type="button" onClick={() => onSelect(c)} className="flex min-h-12 min-w-0 flex-1 items-center justify-between gap-3 px-1 py-2 text-left active:bg-paper-1">
-        <span className="min-w-0">
-          <span className="block truncate text-[0.9375rem] font-semibold text-ink-900">{c.name}</span>
-          <span className="flex flex-wrap items-center gap-x-1.5 text-[0.8125rem] text-ink-500">
-            <span>{c.phone}</span>
-            {tier && <span>· {tier}</span>}
-            {loyaltyEnabled && <span>· {formatPoints(c.points)} poin</span>}
-          </span>
+    <div className={`mb-2 flex items-stretch gap-1 rounded-control border pr-2 ${match ? 'border-reward bg-reward-bg' : 'border-paper-2 bg-white'}`} data-match={match || undefined}>
+      <button type="button" onClick={() => onSelect(c)} className="flex min-h-14 min-w-0 flex-1 items-center gap-3 px-3 py-2 text-left">
+        <span aria-hidden="true" className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-base font-bold ${avatar}`}>
+          {(c.name || '?').charAt(0).toUpperCase()}
         </span>
-        <span aria-hidden="true" className="flex-shrink-0 text-[0.9375rem] font-semibold text-ink-900">Pilih ›</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[0.9375rem] font-bold text-ink-900">{c.name} · {c.phone}</span>
+          {sub && <span className={`block truncate text-[0.8125rem] ${match ? 'text-reward' : 'text-ink-500'}`}>{sub}</span>}
+        </span>
+        <span aria-hidden="true" className="flex-shrink-0 text-[0.9375rem] font-bold text-brand-strong">Pilih ›</span>
       </button>
       {onOpenProfile && (
         <button type="button" onClick={() => onOpenProfile(c)} aria-label={`Profil ${c.name}`} className="touch flex-shrink-0 self-center rounded-control px-2 text-[0.8125rem] font-semibold text-ink-700 active:bg-paper-1">
@@ -107,7 +112,7 @@ export const CustomerPicker = memo(function CustomerPicker({
           <>
             <div className="flex gap-2">
               <input
-                className={`${FIELD} flex-1`}
+                className={`${PHONE_FIELD} flex-1`}
                 placeholder="No. telepon pelanggan…"
                 aria-label="Cari pelanggan dengan nomor telepon"
                 type="tel" inputMode="tel" value={customerSearch}
@@ -136,22 +141,25 @@ export const CustomerPicker = memo(function CustomerPicker({
             )}
             {hits.length > 0 && (
               <section aria-label="Cocok dengan nomor ini" className="mt-4">
-                <h3 className="pb-1 text-[0.8125rem] font-semibold uppercase tracking-wide text-ink-500">Cocok dengan nomor ini</h3>
-                {hits.map((c) => <Row key={c.id} c={c} loyaltyEnabled={loyaltyEnabled} onSelect={choose} onOpenProfile={onOpenProfile} />)}
+                <h3 className="pb-2 text-[0.8125rem] font-semibold text-ink-500">Cocok dengan nomor ini</h3>
+                {hits.map((c) => <Row key={c.id} c={c} match loyaltyEnabled={loyaltyEnabled} onSelect={choose} onOpenProfile={onOpenProfile} />)}
               </section>
             )}
             {recent.length > 0 && (
               <section aria-label="Terakhir dilayani di tablet ini" className="mt-4">
-                <h3 className="pb-1 text-[0.8125rem] font-semibold uppercase tracking-wide text-ink-500">Terakhir dilayani di tablet ini</h3>
-                {recent.map((c) => <Row key={c.id} c={c} loyaltyEnabled={loyaltyEnabled} onSelect={choose} onOpenProfile={onOpenProfile} />)}
+                <h3 className="pb-2 text-[0.8125rem] font-semibold text-ink-500">Terakhir dilayani di tablet ini</h3>
+                {recent.map((c) => <Row key={c.id} c={c} match={false} loyaltyEnabled={loyaltyEnabled} onSelect={choose} onOpenProfile={onOpenProfile} />)}
               </section>
-            )}
-            {!isOnline && (
-              <p className="mt-4 rounded-control bg-warn-bg px-3 py-2 text-[0.8125rem] font-semibold text-warn-strong">Offline: hanya pelanggan yang pernah dilayani di tablet ini yang bisa dicari.</p>
             )}
           </>
         )}
       </div>
+      {!isOnline && !isAddingCustomer && (
+        <p className="m-4 mt-0 flex flex-shrink-0 items-start gap-2 rounded-control bg-warn-bg px-3 py-2 text-[0.8125rem] font-semibold text-warn-strong">
+          <span aria-hidden="true" className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-current" />
+          Offline: hanya pelanggan yang pernah dilayani di tablet ini. Pencarian lengkap butuh internet.
+        </p>
+      )}
     </Sheet>
   )
 })

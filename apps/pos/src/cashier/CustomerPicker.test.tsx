@@ -103,6 +103,26 @@ describe('CustomerPicker sections (B3)', () => {
     expect(html).toContain('Bob Recent')
   })
 
+  it('draws each result as a card with an initial avatar, and tints only the exact match', () => {
+    const bob = { ...alice, id: 'b', name: 'Bob Recent' }
+    const html = render({ customerSearch: '081234567890', customers: [alice], recent: [bob] })
+    expect(html.match(/data-match="true"/g)).toHaveLength(1)
+    expect(html).toContain('border-reward')
+    expect(html).toContain('>A<')
+    expect(html).toContain('>B<')
+  })
+
+  it('writes the section headings in sentence case', () => {
+    const html = render({ customerSearch: '081234567890', customers: [alice], recent: [alice] })
+    expect(html).not.toContain('uppercase')
+  })
+
+  it('pins the offline notice with its dot and the full wording', () => {
+    const html = render({ isOnline: false })
+    expect(html).toContain('Pencarian lengkap butuh internet.')
+    expect(html).toMatch(/rounded-full bg-current[^]*Offline: hanya/)
+  })
+
   it('shows the profile entry only when the screen wires it', () => {
     expect(render({ customerSearch: '081234567890', customers: [alice] })).not.toContain('Profil Alice Priv')
     expect(render({ customerSearch: '081234567890', customers: [alice], onOpenProfile: vi.fn() })).toContain('Profil Alice Priv')

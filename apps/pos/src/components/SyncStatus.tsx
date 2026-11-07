@@ -16,6 +16,9 @@ import { chipModel } from '../lib/connectionChip'
 import { queueCountsLine } from '../lib/queueGuard'
 import { OFFLINE_LOCKED_MESSAGE, offlineHours, offlineWarnMessage } from '../lib/offlineCap'
 import { OTA_BLOCK_COPY, type OtaBlockReason } from '../lib/otaApplyGate'
+import { useKoneksiData, useOfflineStart } from '../hooks/useKoneksiData'
+import { queuedTimeText } from '../lib/queuedSales'
+import { formatRupiah } from '../cashier/pricing'
 import { Button, Chip, Sheet, toneClasses } from './ui'
 
 const TYPE_LABELS: Record<string, string> = {
@@ -30,8 +33,9 @@ const TYPE_LABELS: Record<string, string> = {
 const typeLabel = (t: string) => TYPE_LABELS[t] ?? t
 
 const PARKED_SENTENCE = 'Tidak bisa terkirim setelah beberapa kali coba. Hubungi admin. Transaksi aman di tablet ini.'
-const OFFLINE_SENTENCE =
-  'Transaksi disimpan di tablet dan terkirim otomatis saat online. Terkunci otomatis jika offline lebih dari 12 jam.'
+const OFFLINE_BASE =
+  'Transaksi disimpan di tablet dan terkirim otomatis saat online. Terkunci otomatis jika offline lebih dari 12 jam'
+const OFFLINE_SENTENCE = `${OFFLINE_BASE}.`
 const CAP_HOURS = 12
 const HOUR_MS = 3_600_000
 
@@ -51,35 +55,60 @@ function TechnicalDetail({ children }: { children: ReactNode }) {
   )
 }
 
+const COUNT_PILL = 'rounded-chip px-2 py-0.5 text-xs font-bold tnum'
+
+function SectionHeading({ tone, children, count }: { tone: 'warn' | 'danger'; children: ReactNode; count: number }) {
+  const heading = tone === 'warn' ? 'text-warn-strong' : 'text-danger'
+  const pill = tone === 'warn' ? 'bg-warn-bg text-warn-strong' : 'bg-danger-bg text-danger'
+  return (
+    <h3 className={`flex items-center gap-2 font-bold ${heading}`}>
+      {children}
+      <span className={`${COUNT_PILL} ${pill}`}>{count}</span>
+    </h3>
+  )
+}
+
 /** One parked item: what it is, what the cashier captured (e.g. a refund's order, amount and method), why it is parked. */
 export function ReviewRow({ f, onRetry, onAcknowledge }: { f: FailedItem; onRetry?: (key: string) => void; onAcknowledge?: (key: string) => void }) {
   const label = typeLabel(f.type)
+  const [showDetail, setShowDetail] = useState(false)
   return (
-    <div className="bg-danger-bg rounded-control px-3 py-2" data-testid="review-row" data-key={f.idempotencyKey}>
-      <p className="font-semibold text-danger">
-        {typeLabel(f.type)}
-        {f.clientCreatedAt && <span className="font-normal"> · {formatTime(f.clientCreatedAt)}</span>}
-      </p>
-      {f.detail && <p className="text-sm font-semibold text-danger break-words">{f.detail}</p>}
+    <div className="rounded-control border border-danger bg-danger-bg px-3 py-3 space-y-1" data-testid="review-row" data-key={f.idempotencyKey}>
+      <div className="flex items-start justify-between gap-3">
+        <p className="min-w-0 font-bold text-ink-900 break-words">
+          {label}
+          {f.detail && <span> · {f.detail}</span>}
+        </p>
+        {f.clientCreatedAt && <p className="flex-shrink-0 text-xs text-ink-500 tnum">{formatTime(f.clientCreatedAt)}</p>}
+      </div>
       {f.ownedBy && <p className="text-xs font-semibold text-danger">milik akun {f.ownedBy}</p>}
       <p className="text-xs text-danger">{PARKED_SENTENCE}</p>
       {f.reported && <p className="text-xs font-semibold text-danger">Dilaporkan ke kantor pusat</p>}
-      <TechnicalDetail>
-        <p>{f.lastError ?? 'Alasan tidak diketahui'}</p>
-      </TechnicalDetail>
-      {(onRetry || onAcknowledge) && (
-        <div className="flex flex-wrap gap-2 pt-1">
-          {onRetry && (
-            <Button variant="secondary" aria-label={`Coba lagi: ${label}${f.clientCreatedAt ? ` ${formatTime(f.clientCreatedAt)}` : ''}`} onClick={() => onRetry(f.idempotencyKey)}>
-              Coba lagi
-            </Button>
-          )}
-          {onAcknowledge && (
-            <Button variant="ghost" onClick={() => onAcknowledge(f.idempotencyKey)}>
-              Tandai sudah ditangani
-            </Button>
-          )}
-        </div>
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        {onRetry && (
+          <button
+            type="button"
+            aria-label={`Coba lagi: ${label}${f.clientCreatedAt ? ` ${formatTime(f.clientCreatedAt)}` : ''}`}
+            onClick={() => onRetry(f.idempotencyKey)}
+            className="press min-h-11 rounded-control border border-danger bg-white px-4 text-sm font-semibold text-danger active:bg-danger-bg"
+          >
+            Coba lagi
+          </button>
+        )}
+        <button
+          type="button"
+          aria-expanded={showDetail}
+          onClick={() => setShowDetail((v) => !v)}
+          className="press min-h-11 rounded-control bg-paper-1 px-4 text-sm font-semibold text-ink-900"
+        >
+          Detail teknis
+        </button>
+      </div>
+      {showDetail && <p className="break-words pt-1 text-xs text-danger">{f.lastError ?? 'Alasan tidak diketahui'}</p>}
+      {onAcknowledge && (
+        <Button variant="ghost" onClick={() => onAcknowledge(f.idempotencyKey)}>
+          Tandai sudah ditangani
+        </Button>
       )}
     </div>
   )
@@ -101,7 +130,7 @@ function explanation(o: {
     if (nudge) return `${nudge} ${OFFLINE_SENTENCE}`
     if (o.cap?.offlineMs == null) return OFFLINE_SENTENCE
     const left = Math.max(0, Math.ceil(CAP_HOURS - o.cap.offlineMs / HOUR_MS))
-    return `${OFFLINE_SENTENCE} Sisa sekitar ${left} jam.`
+    return `${OFFLINE_BASE} (${left} jam lagi).`
   }
   if (o.pendingCount > 0) return 'Transaksi tersimpan di tablet dan sedang dikirim.'
   if (o.wallRaised) return o.autoUpdate ? 'Diperbarui otomatis saat keranjang kosong.' : null
@@ -193,6 +222,12 @@ export const SyncStatus = memo(function SyncStatus({
     updating: isResyncing,
     wallRaised: updateAvailable,
   })
+  const { queued, dataUpdatedAt, now } = useKoneksiData(open, pendingCount)
+  const offlineStart = useOfflineStart(isOnline || offlineCap?.level === 'locked' ? null : (offlineCap?.offlineMs ?? null))
+  const offlineSince = offlineStart === null ? '' : queuedTimeText(new Date(offlineStart).toISOString(), now)
+  const otherQueued = Math.max(0, pendingCount - queued.length)
+  // A parked item outranks the offline note: its count stays the title.
+  const statusTitle = offlineSince && review.length === 0 ? `Offline sejak ${offlineSince} · penjualan tetap bisa` : chip.text
   const note = explanation({ isOnline, cap: offlineCap, accountProblem, wallRaised: updateAvailable, autoUpdate, pendingCount })
   const canFlush = pendingCount > 0 && !hasFailed
 
@@ -214,9 +249,13 @@ export const SyncStatus = memo(function SyncStatus({
       >
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 text-sm">
           <div className={`rounded-control px-4 py-3 space-y-1 ${toneClasses(chip.tone)}`}>
-            <p className="font-semibold">{chip.text}</p>
+            <p className="flex items-center gap-2 font-bold">
+              <span aria-hidden="true" className="h-2 w-2 flex-shrink-0 rounded-full bg-current" />
+              {statusTitle}
+            </p>
             {note && <p className="text-xs">{note}</p>}
-            {(pendingCount > 0 || review.length > 0) && <p className="text-xs font-semibold" data-testid="queue-counts">{queueCountsLine({ pending: pendingCount, parked: review.length }).text}</p>}
+            {/* The title or the section headings show the counts; this line stays for screen readers and the tests that read it. */}
+            {(pendingCount > 0 || review.length > 0) && <p className="sr-only" data-testid="queue-counts">{queueCountsLine({ pending: pendingCount, parked: review.length }).text}</p>}
           </div>
 
           {otaUpdate && (
@@ -232,25 +271,42 @@ export const SyncStatus = memo(function SyncStatus({
           )}
 
           {pendingCount > 0 && (
-            <section className="space-y-1">
-              <h3 className="font-semibold text-ink-900">Tersimpan di tablet ({pendingCount})</h3>
-              <p className="text-xs text-ink-500">Aman. Akan terkirim otomatis saat online.</p>
+            <section className="space-y-2" data-testid="queued-sales">
+              <SectionHeading tone="warn" count={pendingCount}>Tersimpan di tablet</SectionHeading>
+              {queued.length === 0 && <p className="text-xs text-ink-500">Aman. Akan terkirim otomatis saat online.</p>}
+              {queued.map((q) => (
+                <div key={q.key} className="surface-card flex items-center justify-between gap-3 rounded-control px-3 py-2" data-testid="queued-sale">
+                  <div className="min-w-0">
+                    <p className="truncate font-bold text-ink-900">#{q.number} · Penjualan · {q.methodLabel}</p>
+                    <p className="text-xs text-ink-500 tnum">{queuedTimeText(q.capturedAt, now)}</p>
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    {q.total !== null && <span className="font-bold text-ink-900 tnum">{formatRupiah(q.total)}</span>}
+                    <span className="rounded-chip bg-warn-bg px-2.5 py-1 text-xs font-bold text-warn-strong">Menunggu</span>
+                  </div>
+                </div>
+              ))}
+              {queued.length > 0 && otherQueued > 0 && (
+                <p className="text-xs text-ink-500">Dan {otherQueued} transaksi lain yang juga menunggu.</p>
+              )}
             </section>
           )}
 
           {hasFailed && (
             <section className="space-y-2">
-              <h3 className="font-semibold text-danger">Perlu ditinjau ({review.length})</h3>
+              <SectionHeading tone="danger" count={review.length}>Perlu ditinjau</SectionHeading>
               <div className="space-y-2">{rows.map((f) => <ReviewRow key={f.idempotencyKey} f={f} onRetry={onRetryOne} onAcknowledge={onAcknowledge} />)}</div>
               {hiddenCount > 0 && <p className="text-xs text-ink-500">{hiddenCount} transaksi sudah ditandai ditangani; tetap tersimpan di tablet. Coba lagi mengirimnya lagi.</p>}
               <p className="text-xs text-ink-500">Data tetap tersimpan di perangkat dan tidak dikirim ulang otomatis.</p>
-              <button
-                type="button"
-                onClick={() => { onRetryFailed(); setOpen(false) }}
-                className="press min-h-12 w-full rounded-control border border-danger bg-white px-4 text-sm font-semibold text-danger active:bg-danger-bg"
-              >
-                Coba lagi
-              </button>
+              {(!onRetryOne || rows.length > 1 || hiddenCount > 0) && (
+                <button
+                  type="button"
+                  onClick={() => { onRetryFailed(); setOpen(false) }}
+                  className="press min-h-12 w-full rounded-control border border-danger bg-white px-4 text-sm font-semibold text-danger active:bg-danger-bg"
+                >
+                  {onRetryOne ? 'Coba lagi semua' : 'Coba lagi'}
+                </button>
+              )}
             </section>
           )}
 
@@ -266,6 +322,13 @@ export const SyncStatus = memo(function SyncStatus({
             </section>
           )}
 
+          {dataUpdatedAt !== null && (
+            <p className="flex items-center gap-2 text-xs font-semibold text-ink-700" data-testid="data-freshness">
+              <span aria-hidden="true" className="h-2 w-2 flex-shrink-0 rounded-full bg-info" />
+              Data produk &amp; promo: diperbarui {queuedTimeText(new Date(dataUpdatedAt).toISOString(), now)}
+            </p>
+          )}
+
           <TechnicalDetail>
             <p>
               Versi data lokal {wall.localVersion} · server {wall.serverVersion}
@@ -273,29 +336,32 @@ export const SyncStatus = memo(function SyncStatus({
           </TechnicalDetail>
         </div>
 
-        <div className="border-t border-paper-2 px-4 py-3 space-y-2">
-          {canFlush && (
-            <Button fullWidth onClick={() => { onFlush(); setOpen(false) }}>
-              Kirim sekarang ({pendingCount})
-            </Button>
-          )}
-          {updateAvailable && (
-            <Button
-              variant={canFlush ? 'secondary' : 'primary'}
-              fullWidth
-              disabled={isResyncing}
-              onClick={() => { onResync(); setOpen(false) }}
-            >
-              {isResyncing ? 'Memperbarui data…' : 'Perbarui data'}
-            </Button>
-          )}
-          {hasFailed && (
-            <Button variant="secondary" fullWidth onClick={onExportLog}>
-              Bagikan log
-            </Button>
-          )}
-          {!canFlush && !updateAvailable && !hasFailed && offlineCap?.level !== 'locked' && (
-            <p className="py-2 text-center text-sm text-ink-500">Tidak ada yang perlu dilakukan</p>
+        <div className="border-t border-paper-2 px-4 py-3">
+          {canFlush || updateAvailable || hasFailed ? (
+            <div className="flex gap-2">
+              {canFlush && (
+                <Button className="flex-1" onClick={() => { onFlush(); setOpen(false) }}>
+                  Kirim sekarang ({pendingCount})
+                </Button>
+              )}
+              {updateAvailable && (
+                <Button
+                  variant={canFlush ? 'secondary' : 'primary'}
+                  className="flex-1"
+                  disabled={isResyncing}
+                  onClick={() => { onResync(); setOpen(false) }}
+                >
+                  {isResyncing ? 'Memperbarui data…' : 'Perbarui data'}
+                </Button>
+              )}
+              {hasFailed && (
+                <Button variant="secondary" className="flex-1" onClick={onExportLog}>
+                  Bagikan log
+                </Button>
+              )}
+            </div>
+          ) : (
+            offlineCap?.level !== 'locked' && <p className="py-2 text-center text-sm text-ink-500">Tidak ada yang perlu dilakukan</p>
           )}
         </div>
       </Sheet>
