@@ -18,10 +18,11 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { formatRupiah } from './pricing'
 import { variantLabel } from '@mandalika/types'
-import { IconHeart, IconScan } from '../components/ui/icons'
+import { IconHeart } from '../components/ui/icons'
 import { Chip } from '../components/ui/Chip'
 import { VariantSheet } from './VariantSheet'
 import { PRODUCT_GRID_COLS, ProductGridSkeleton } from '../components/Skeleton'
+import { PROMO_TAB_ID } from './promoProducts'
 import { STOCK_DOT_CLASS, STOCK_TEXT_CLASS, stockLabel, stockTone, type StockTone } from './stockTone'
 
 type Product = components['schemas']['Product']
@@ -65,14 +66,13 @@ interface ProductGridProps {
   showVariants: boolean
   onProductTap: (product: Product, variantQtys: Record<string, number>) => void
   onCategoryChange: (id: string | null) => void
-  onSearchChange: (q: string) => void
-  onSearchSubmit?: (q: string) => void
-  onScanClick?: () => void
+  /** Products in a live promotion; the virtual "Promo" tab lists them and is hidden while this is empty. */
+  promoProductIds?: ReadonlySet<string>
   onToggleFavourites: () => void
   isLoading: boolean
   /** Filled while the variant sheet is open so the screen's Android Back handler can close it (returns true when it did). */
   variantBackRef?: MutableRefObject<(() => boolean) | null>
-  /** Rendered at the top of the glass band, above the search row (the empty-cart customer chip and held-orders button). */
+  /** Rendered at the top of the glass band, above the category row (the empty-cart customer chip and held-orders button). */
   topSlot?: ReactNode
 }
 
@@ -221,16 +221,21 @@ const SortableCard = memo(function SortableCard({ product, gridCols, categoryNam
 
 interface CategoryTabsProps {
   categories: Category[]
+  showPromo: boolean
   selectedCategoryId: string | null
   onChange: (id: string | null) => void
 }
 
 /** Segmented category selector. The white thumb slides with `transform` only (its size is set, never animated);
  *  tabs are measured so any number of categories of any width work. Arrow keys / Home / End move the selection. */
-function CategoryTabs({ categories, selectedCategoryId, onChange }: CategoryTabsProps) {
+function CategoryTabs({ categories, showPromo, selectedCategoryId, onChange }: CategoryTabsProps) {
   const items = useMemo(
-    () => [{ id: null as string | null, name: 'Semua' }, ...categories.map((c) => ({ id: c.id as string | null, name: c.name }))],
-    [categories],
+    () => [
+      { id: null as string | null, name: 'Semua' },
+      ...(showPromo ? [{ id: PROMO_TAB_ID as string | null, name: 'Promo' }] : []),
+      ...categories.map((c) => ({ id: c.id as string | null, name: c.name })),
+    ],
+    [categories, showPromo],
   )
   const tabRefs = useRef(new Map<string | null, HTMLButtonElement>())
   const [thumb, setThumb] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
@@ -307,7 +312,7 @@ function CategoryTabs({ categories, selectedCategoryId, onChange }: CategoryTabs
                 aria-selected={selected}
                 tabIndex={selected || (selectedIndex < 0 && i === 0) ? 0 : -1}
                 onClick={() => onChange(it.id)}
-                className={`press relative z-10 inline-flex min-h-11 flex-shrink-0 items-center whitespace-nowrap rounded-chip px-4 text-sm font-semibold ${
+                className={`press relative z-10 inline-flex min-h-11 flex-shrink-0 flex-grow items-center justify-center whitespace-nowrap rounded-chip px-4 text-sm font-semibold ${
                   selected ? 'text-ink-900' : 'text-ink-700'
                 }`}
               >
@@ -333,9 +338,7 @@ export const ProductGrid = memo(function ProductGrid({
   showVariants,
   onProductTap,
   onCategoryChange,
-  onSearchChange,
-  onSearchSubmit,
-  onScanClick,
+  promoProductIds,
   onToggleFavourites,
   isLoading,
   variantBackRef,
@@ -343,7 +346,7 @@ export const ProductGrid = memo(function ProductGrid({
 }: ProductGridProps) {
   const [variantPopup, setVariantPopup] = useState<Product | null>(null)
   const [order, setOrder] = useState<string[]>(loadOrder)
-  // Glass band height (header zone + search + categories) = the scroller's top padding.
+  // Glass band height (header zone + categories) = the scroller's top padding.
   const bandRef = useRef<HTMLDivElement>(null)
   const [bandH, setBandH] = useState(0)
   useLayoutEffect(() => {
@@ -368,9 +371,18 @@ export const ProductGrid = memo(function ProductGrid({
 
   // Custom order applied first, then the category/search/favourite filters.
   const orderedAll = useMemo(() => sortByCustomOrder(products, order), [products, order])
+  // Only promoted products that are in the shown catalogue count (a deactivated product must not leave an empty tab).
+  const showPromoTab = promoProductIds != null && products.some((p) => promoProductIds.has(p.id))
+  // The Promo tab disappears with the last live promotion; a selection left on it then reads as "Semua".
+  const effectiveCategoryId = selectedCategoryId === PROMO_TAB_ID && !showPromoTab ? null : selectedCategoryId
+  // Selection parked on a vanished Promo tab: reset it, so it does not snap back when a promotion returns.
+  useEffect(() => {
+    if (selectedCategoryId === PROMO_TAB_ID && !showPromoTab) onCategoryChange(null)
+  }, [selectedCategoryId, showPromoTab, onCategoryChange])
   const filtered = orderedAll.filter((p) => {
     const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchCat = !selectedCategoryId || p.categoryId === selectedCategoryId
+    const matchCat = !effectiveCategoryId
+      || (effectiveCategoryId === PROMO_TAB_ID ? promoProductIds?.has(p.id) === true : p.categoryId === effectiveCategoryId)
     const matchFav = !showFavouritesOnly || p.isFavourite
     return matchSearch && matchCat && matchFav
   })
@@ -415,7 +427,7 @@ export const ProductGrid = memo(function ProductGrid({
 
   return (
     <div className="relative h-full overflow-hidden">
-      {/* P6a (D-85): the catalogue scrolls UNDER one glass band (header zone + search + categories). The band is a
+      {/* P6a (D-85): the catalogue scrolls UNDER one glass band (header zone + categories). The band is a
           sibling of the scroller (never inside it), so it is the only blurred layer on the POS; the scroller's top
           padding is the band's measured height, so the first row is not covered at scroll 0. */}
       <div
@@ -425,38 +437,9 @@ export const ProductGrid = memo(function ProductGrid({
         style={{ paddingTop: 'var(--cashier-top-h, 3.5rem)' }}
       >
         {topSlot}
-        {/* Search bar — Enter submits (keyboard-wedge scanners append CR) */}
-        <div className="flex flex-shrink-0 gap-2 px-3 pt-3">
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && onSearchSubmit) {
-                e.preventDefault()
-                onSearchSubmit(searchQuery)
-              }
-            }}
-            placeholder="Cari nama, SKU, atau pindai barcode"
-            aria-label="Cari atau scan produk"
-            className="h-12 min-w-0 flex-1 rounded-control border border-paper-2 bg-white px-4 text-base text-ink-900 placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-paper-2"
-          />
-          {onScanClick && (
-            <button
-              type="button"
-              onClick={onScanClick}
-              className="touch flex flex-shrink-0 items-center justify-center rounded-control border border-paper-2 bg-white text-ink-700 active:bg-paper-1"
-              title="Scan barcode / QR"
-              aria-label="Scan barcode atau QR"
-            >
-              <IconScan size={22} />
-            </button>
-          )}
-        </div>
-
         {/* Category selector: a segmented tablist with a sliding white thumb, plus the Favorit toggle. */}
         <div className="flex flex-shrink-0 items-center gap-2 px-3 py-3">
-          <CategoryTabs categories={categories} selectedCategoryId={selectedCategoryId} onChange={onCategoryChange} />
+          <CategoryTabs categories={categories} showPromo={showPromoTab} selectedCategoryId={effectiveCategoryId} onChange={onCategoryChange} />
           <Chip selected={showFavouritesOnly} onClick={onToggleFavourites} className="flex-shrink-0">
             <IconHeart size={16} /> Favorit
           </Chip>
@@ -467,7 +450,7 @@ export const ProductGrid = memo(function ProductGrid({
       <div
         data-kaca-scroller
         className="absolute inset-0 overflow-y-auto px-3 pb-3"
-        style={{ paddingTop: bandH > 0 ? bandH : 'calc(var(--cashier-top-h, 3.5rem) + 7.5rem)', scrollPaddingTop: bandH > 0 ? bandH : undefined }}
+        style={{ paddingTop: bandH > 0 ? bandH : 'calc(var(--cashier-top-h, 3.5rem) + 4.5rem)', scrollPaddingTop: bandH > 0 ? bandH : undefined }}
       >
         {isLoading ? (
           <div role="status">

@@ -1,4 +1,4 @@
-// Kaca P6a: the catalogue scrolls under ONE glass band (header zone + search + categories), the cart column stays solid.
+// Kaca P6a: the catalogue scrolls under ONE glass band (header zone + categories), the cart column stays solid.
 // Asserted at the real fleet tablet size (1006x601, `lg:` off, cart w-80) and at 1280x800. Screenshots go through shots.ts
 // (no baselines).
 import type { ScenarioPage } from './fixture'
@@ -52,6 +52,24 @@ export const posGlassBand = async (page: ScenarioPage) => {
     assert(rest.scrollTop === 0, `${vp}: the scroller rests at 0`)
     assert(rest.firstTileTop >= rest.bandBottom - 0.5, `${vp}: the first product row is not covered at scroll 0 (tile top ${rest.firstTileTop} vs band bottom ${rest.bandBottom})`)
     assert(rest.scrollable, `${vp}: the filler catalogue scrolls`)
+    // F7: search sits inside the header bar (W1-02), the bar's children do not overlap, and the search keeps a usable width.
+    const hdr = await page.evaluate(() => {
+      const header = document.querySelector('header') as HTMLElement
+      const search = document.querySelector('input[type=search][aria-label="Cari atau scan produk"]') as HTMLElement
+      const h = header.getBoundingClientRect(), r = search.getBoundingClientRect()
+      const kids = [...header.children].map((c) => c.getBoundingClientRect()).filter((k) => k.width > 0)
+      const overlap = kids.some((k, i) => i > 0 && k.left < kids[i - 1].right - 0.5) || kids.some((k) => k.right > h.right + 0.5)
+      return { inside: r.top >= h.top - 0.5 && r.bottom <= h.bottom + 0.5 && r.right <= h.right + 0.5, overlap, searchW: r.width,
+        headerCloseButtons: [...header.querySelectorAll('button')].filter((b) => b.textContent?.trim() === 'Tutup Shift').length }
+    })
+    assert(hdr.inside, `${vp}: the search field sits inside the header bar`)
+    assert(!hdr.overlap, `${vp}: the header bar's children do not overlap or spill`)
+    assert(hdr.searchW >= 160, `${vp}: the search input keeps at least 160 px (got ${hdr.searchW})`)
+    assert(hdr.headerCloseButtons === 0, `${vp}: no Tutup Shift button sits in the header bar itself`)
+    assert((await page.getByRole('tab', { name: 'Promo', exact: true }).count()) === 1, `${vp}: the Promo tab is in the category bar`)
+    await page.getByRole('button', { name: /^Shift aktif · \d\d:\d\d/ }).click()
+    assert((await page.getByRole('button', { name: 'Tutup Shift', exact: true }).count()) === 1, `${vp}: Tutup Shift is in the shift pill's menu`)
+    await page.locator('button[aria-label="Tutup"][tabindex="-1"]').click()
     // Scrolled: tiles pass under the band.
     await page.evaluate(() => { (document.querySelector('[data-kaca-scroller]') as HTMLElement).scrollTop = 260 })
     await settle(page)
@@ -69,6 +87,15 @@ export const posGlassBand = async (page: ScenarioPage) => {
   assert(fallback.bandFilter === 'none' && fallback.blurred === 0, 'data-material=static removes the blur')
   await page.evaluate(() => { document.documentElement.dataset.material = 'glass' })
   out.push({ fallback: 'data-material=static -> no backdrop-filter anywhere' })
+
+  // F7 / W1-09: the Promo tab lists only products in a live promotion (the fixture's bundle + buy-x-get-y target two products).
+  await page.getByRole('tab', { name: 'Promo', exact: true }).click()
+  await settle(page)
+  const promoTiles = await page.evaluate(() => document.querySelectorAll('[data-kaca-scroller] .grid > *').length)
+  assert(promoTiles === 2, `the Promo tab shows the 2 promoted products (got ${promoTiles})`)
+  await shot(page, 'f7-promo-tab')
+  await page.getByRole('tab', { name: 'Semua', exact: true }).click()
+  await settle(page)
 
   await page.setViewportSize(SHOT_VIEWPORTS['pos-a9'])
   await settle(page)
