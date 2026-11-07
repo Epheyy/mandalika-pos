@@ -90,7 +90,7 @@ export function PromoTypeFields({ form, setForm, products, errors }: PromoTypeFi
       <PromoTypePicker value={form.type} onChange={selectType} />
 
       {plainValue && (
-        <Input id={PROMO_FIELD.value} label="Nilai" type="number" value={form.value} error={errors[PROMO_FIELD.value]} onChange={(e) => setForm((f) => ({ ...f, value: parseFloat(e.target.value) || 0 }))} />
+        <Input id={PROMO_FIELD.value} label={form.type === 'percentage' ? 'Nilai Diskon (1% – 100%) *' : 'Nilai Diskon (Rp) *'} type="number" value={form.value} error={errors[PROMO_FIELD.value]} onChange={(e) => setForm((f) => ({ ...f, value: parseFloat(e.target.value) || 0 }))} />
       )}
 
       {form.type === 'buy_x_get_y' && (

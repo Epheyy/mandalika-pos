@@ -7,6 +7,7 @@ import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { exportToCSV, exportToXLSX, buildExportName } from '../lib/csvUtils'
 import { ERROR_KIND, ERROR_SOURCE } from '../lib/labels/errorSource'
+import { errorMessageText } from '../lib/labels/errorMessage'
 import { labelOf } from '../lib/labels/types'
 import { Button } from '../ui/Button'
 import { DataTable, type Column } from '../ui/DataTable'
@@ -78,7 +79,7 @@ export default function ErrorLogs() {
     { id: 'time', header: 'Waktu', cell: (e) => <span className="whitespace-nowrap">{fmtTime(e.createdAt)}</span> },
     { id: 'source', header: 'Sumber', cell: (e) => <StatusBadge map={ERROR_SOURCE} value={e.source} /> },
     { id: 'kind', header: 'Jenis', cell: (e) => (e.kind ? <StatusBadge map={ERROR_KIND} value={e.kind} /> : DASH) },
-    { id: 'message', header: 'Pesan', cell: (e) => <span className="line-clamp-2 font-bold">{e.message}</span> },
+    { id: 'message', header: 'Pesan', cell: (e) => <span className="line-clamp-2 font-bold">{errorMessageText(e.message, e.kind).summary}</span> },
     { id: 'outlet', header: 'Outlet', cell: (e) => e.outletName ?? DASH },
     { id: 'user', header: 'Pengguna', cell: (e) => e.userName ?? DASH, defaultHidden: true },
     { id: 'device', header: 'Perangkat', cell: (e) => e.deviceId ?? DASH, defaultHidden: true },
@@ -154,9 +155,10 @@ export default function ErrorLogs() {
 }
 
 function ErrorDetail({ e }: { e: ErrorLog }) {
+  const raw = errorMessageText(e.message, e.kind).raw
   return (
     <div className="space-y-4">
-      <p className="font-bold text-ink-900 break-words">{e.message}</p>
+      <p className="font-bold text-ink-900 break-words">{errorMessageText(e.message, e.kind).summary}</p>
       {e.action && <DetailField label="Aksi" value={e.action} />}
       <div className="grid grid-cols-2 gap-3 text-xs">
         <DetailField label="Outlet" value={e.outletName ?? e.outletId ?? DASH} />
@@ -181,12 +183,15 @@ function ErrorDetail({ e }: { e: ErrorLog }) {
         </div>
       )}
 
-      {e.payload != null && (
+      {(e.payload != null || raw) && (
         <div>
           <p className="text-xs font-black text-ink-700 uppercase tracking-widest mb-2">Detail teknis</p>
-          <pre className="text-[11px] bg-ink-900 text-paper-0 rounded-xl p-3 overflow-x-auto max-h-64">
-            {JSON.stringify(e.payload, null, 2)}
-          </pre>
+          {raw && <p className="mb-2 break-words font-mono text-xs text-ink-700">{raw}</p>}
+          {e.payload != null && (
+            <pre className="text-[11px] bg-ink-900 text-paper-0 rounded-xl p-3 overflow-x-auto max-h-64">
+              {JSON.stringify(e.payload, null, 2)}
+            </pre>
+          )}
         </div>
       )}
     </div>

@@ -300,7 +300,7 @@ export default function Users() {
                 <div key={r.id} className="px-5 py-4 flex items-center gap-3">
                   <div className="flex-1">
                     <p className="font-bold text-ink-900">{r.name}</p>
-                    <p className="text-xs text-ink-500 mt-0.5">{r.permissions.length} permission aktif</p>
+                    <p className="text-xs text-ink-500 mt-0.5">{r.permissions.length} izin akses aktif</p>
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {r.permissions.slice(0, 4).map((p) => (
                         <Badge key={p} tone="neutral">{PERMS[p]?.label || p}</Badge>
@@ -384,7 +384,7 @@ export default function Users() {
             </Field>
           )}
           {editRole !== 'admin' && (
-            <Field label="Permission">
+            <Field label="Izin akses">
               <PermissionPicker selected={editPerms} onToggle={(p) => dispatch({ type: 'TOGGLE_PERM', perm: p })} />
             </Field>
           )}

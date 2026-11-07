@@ -142,8 +142,11 @@ function maxApplicationsMessage(form: PromotionInput): string | null {
  */
 export function discountValueProblem(type: string, value: number, fieldId: string): FormProblem | null {
   if (type !== 'percentage' && type !== 'fixed') return null
-  if (!(value > 0)) return { fieldId, label: 'Nilai', message: 'Nilai harus lebih dari 0.', kind: 'required' }
-  if (type === 'percentage' && value > 100) return { fieldId, label: 'Nilai', message: 'Persentase tidak boleh lebih dari 100.', kind: 'invalid' }
+  const label = 'Nilai diskon'
+  if (type === 'percentage' && (!(value > 0) || value > 100)) {
+    return { fieldId, label, message: 'Maksimal 100% untuk tipe persentase, dan wajib > 0.', kind: value > 0 ? 'invalid' : 'required' }
+  }
+  if (!(value > 0)) return { fieldId, label, message: 'Nilai diskon wajib lebih dari 0.', kind: 'required' }
   return null
 }
 

@@ -45,7 +45,7 @@ function RoleModal({
         <div className="space-y-4">
           {error && <p role="alert" className="text-sm text-danger">{error}</p>}
           <Input label="Nama Role *" type="text" value={roleForm.name} onChange={(e) => setRoleForm((f) => ({ ...f, name: e.target.value }))} />
-          <Field label="Permission">
+          <Field label="Izin akses">
             <PermissionPicker
               selected={roleForm.permissions}
               onToggle={(p) => setRoleForm((f) => ({ ...f, permissions: f.permissions.includes(p) ? f.permissions.filter((x) => x !== p) : [...f.permissions, p] }))}
@@ -57,7 +57,7 @@ function RoleModal({
       <ConfirmDialog
         open={!!delRole}
         title={`Hapus role ${delRole?.name ?? ''}?`}
-        consequence="Template permission ini akan hilang. Pengguna yang sudah memakainya tidak berubah."
+        consequence="Template izin akses ini akan hilang. Pengguna yang sudah memakainya tidak berubah."
         confirmLabel="Hapus role"
         tone="danger"
         busy={deleting}

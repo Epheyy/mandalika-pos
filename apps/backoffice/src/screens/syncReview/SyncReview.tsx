@@ -16,6 +16,7 @@ import { useScreenTabs } from '../../lib/router/useScreenTabs'
 import { useListState, type ListSchema } from '../../lib/router/useListState'
 import { FilterBar } from '../../ui/FilterBar'
 import { Pagination } from '../../ui/Pagination'
+import { StatusBadge } from '../../ui/StatusBadge'
 import { REASON_FILTERS, fmtWib, isStale, outletOf, reasonFilterOf, reasonLabel, shouldStepBack, typeLabel } from './reviewLabels'
 import { SyncReviewDetail } from './SyncReviewDetail'
 
@@ -117,9 +118,12 @@ function ReviewListRow({ item, onOpen }: { item: SyncReviewItem; onOpen: () => v
   return (
     <li>
       <button type="button" onClick={onOpen} className="w-full text-left px-5 py-4 hover:bg-paper-1 focus-visible:bg-paper-1">
-        <p className="font-bold text-ink-900 text-sm">
-          {typeLabel(item.type)} · <span className="text-danger">{reasonLabel(item.reviewCode)}</span>
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="font-bold text-ink-900 text-sm">
+            {typeLabel(item.type)} · <span className="font-normal text-ink-700">{reasonLabel(item.reviewCode)}</span>
+          </p>
+          {!item.resolvedAt && <StatusBadge tone="warn" label="Perlu Ditinjau" />}
+        </div>
         <p className="text-xs text-ink-700">
           {item.outletName}{movedFrom ? ` (dibuat di ${movedFrom})` : ''}
           {item.ownerName ? ` · ${item.ownerName}` : ''}

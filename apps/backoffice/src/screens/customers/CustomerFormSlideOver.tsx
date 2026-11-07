@@ -27,23 +27,23 @@ export function CustomerFormSlideOver({ editing, form, setForm, dirty, busy, err
       open
       onClose={onClose}
       dirty={false}
-      title={editing ? 'Edit Pelanggan' : 'Tambah Pelanggan'}
+      title={editing ? 'Ubah Pelanggan' : 'Tambah Pelanggan'}
       errorSummary={errors.map((e) => ({ fieldId: e.fieldId, label: e.label }))}
       footer={
         <SlideOver.Footer dirty={dirty}>
           <Button variant="secondary" onClick={onClose}>Batal</Button>
-          <Button loading={busy} onClick={onSave}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
+          <Button loading={busy} onClick={onSave}>{busy ? 'Menyimpan...' : 'Simpan Pelanggan'}</Button>
         </SlideOver.Footer>
       }
     >
       <div className="space-y-4">
         {err && <p role="alert" className="text-sm text-danger">{err}</p>}
-        <Input id={CUSTOMER_FIELD_ID.name} label="Nama *" type="text" value={form.name} error={byField[CUSTOMER_FIELD_ID.name]} onChange={(e) => setForm({ name: e.target.value })} />
-        <Input id={CUSTOMER_FIELD_ID.phone} label="No. Telepon *" type="tel" value={form.phone} error={byField[CUSTOMER_FIELD_ID.phone]} hint="Nomor Indonesia (0812… / +62…) atau internasional (+65…)" onChange={(e) => setForm({ phone: e.target.value })} />
+        <Input id={CUSTOMER_FIELD_ID.name} label="Nama Lengkap *" type="text" value={form.name} error={byField[CUSTOMER_FIELD_ID.name]} onChange={(e) => setForm({ name: e.target.value })} />
+        <Input id={CUSTOMER_FIELD_ID.phone} label="Nomor Telepon (WhatsApp) *" type="tel" value={form.phone} error={byField[CUSTOMER_FIELD_ID.phone]} hint="Nomor Indonesia (0812… / +62…) atau internasional (+65…)" onChange={(e) => setForm({ phone: e.target.value })} />
         {phoneDupeName && !byField[CUSTOMER_FIELD_ID.phone] && (
           <p className="text-xs text-warn-strong">⚠ Nomor ini sudah dipakai oleh {phoneDupeName}. Tetap bisa disimpan; akan masuk antrean Duplikat.</p>
         )}
-        <Input id={CUSTOMER_FIELD_ID.email} label="Email" type="email" value={form.email} error={byField[CUSTOMER_FIELD_ID.email]} onChange={(e) => setForm({ email: e.target.value })} />
+        <Input id={CUSTOMER_FIELD_ID.email} label="Email (Opsional)" type="email" value={form.email} error={byField[CUSTOMER_FIELD_ID.email]} onChange={(e) => setForm({ email: e.target.value })} />
         <div className="grid grid-cols-2 gap-4">
           <Input label="Ulang Tahun" type="date" value={form.birthday} onChange={(e) => setForm({ birthday: e.target.value })} />
           <Input label="Hari Jadi" type="date" value={form.anniversary} onChange={(e) => setForm({ anniversary: e.target.value })} />

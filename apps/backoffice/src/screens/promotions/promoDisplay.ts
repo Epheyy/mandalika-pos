@@ -28,11 +28,27 @@ export function promoValueLabel(p: Promotion): string {
 
 export const codeValueLabel = (c: DiscountCode): string => (c.type === 'percentage' ? `${c.value}%` : BRAND.currency.format(c.value))
 
-/** "01 Nov → 30 Nov 26", "∞" for no end, "—" for no start. */
-export function periodText(startDate?: string | null, endDate?: string | null): string {
-  const start = startDate ? format(parseISO(startDate), 'dd MMM', { locale: idLocale }) : '—'
-  const end = endDate ? format(parseISO(endDate), 'dd MMM yy', { locale: idLocale }) : '∞'
-  return `${start} → ${end}`
+/** "25–30 Nov 2026" (same month), "28 Nov – 3 Des 2026", "Mulai 25 Nov 2026", "Sampai 30 Nov 2026"; "Tanpa batas waktu" when both ends are open. */
+export function periodRangeText(startDate?: string | null, endDate?: string | null): string {
+  const fmt = (d: string, pattern: string) => format(parseISO(d), pattern, { locale: idLocale })
+  if (!startDate && !endDate) return 'Tanpa batas waktu'
+  if (startDate && !endDate) return `Mulai ${fmt(startDate, 'd MMM yyyy')}`
+  if (!startDate && endDate) return `Sampai ${fmt(endDate, 'd MMM yyyy')}`
+  const start = parseISO(startDate as string)
+  const end = parseISO(endDate as string)
+  if (fmt(startDate as string, 'yyyy-MM') === fmt(endDate as string, 'yyyy-MM')) {
+    return start.getTime() === end.getTime() ? fmt(endDate as string, 'd MMM yyyy') : `${format(start, 'd')}–${fmt(endDate as string, 'd MMM yyyy')}`
+  }
+  const sameYear = start.getFullYear() === end.getFullYear()
+  return `${fmt(startDate as string, sameYear ? 'd MMM' : 'd MMM yyyy')} – ${fmt(endDate as string, 'd MMM yyyy')}`
+}
+
+/** One meta line for a list row: how it applies · outlet scope · period. Empty outletIds = every outlet. */
+export function promoMetaLine(p: Pick<Promotion, 'autoApply' | 'codeOnly' | 'outletIds' | 'startDate' | 'endDate'>): string {
+  const how = p.codeOnly ? 'Hanya dengan kode' : p.autoApply ? 'Otomatis di kasir' : 'Dipilih kasir'
+  const n = p.outletIds?.length ?? 0
+  const scope = n === 0 ? 'Semua outlet' : `${n} outlet`
+  return [how, scope, periodRangeText(p.startDate, p.endDate)].join(' · ')
 }
 
 type Dated = { isActive: boolean; startDate?: string | null; endDate?: string | null }
