@@ -590,11 +590,6 @@ function ShiftRecapPanelBody({
                           {!isCash && <span className={`${TAG_BASE} bg-paper-1 text-ink-700`}>Non-tunai</span>}
                           {inactive && <span className={`${TAG_BASE} bg-warn-bg text-warn-strong`}>Dinonaktifkan di BO · ada transaksi</span>}
                         </div>
-                        {isCash && revealed && currentShift && (
-                          <p className="tnum mt-0.5 text-xs text-ink-500">
-                            Kas awal {formatRupiah(currentShift.startingCash ?? 0)} + Kas masuk {formatRupiah(cashIn)}{cashOut > 0 ? ` − Kas keluar ${formatRupiah(cashOut)}` : ''} (tidak termasuk Tercatat)
-                          </p>
-                        )}
                         {inactive && revealed && <p className="mt-0.5 text-xs text-ink-500">Tetap muncul karena memiliki saldo tercatat {formatRupiah(recorded)} pada shift ini.</p>}
                       </div>
                       {currentShift && isCash && (
