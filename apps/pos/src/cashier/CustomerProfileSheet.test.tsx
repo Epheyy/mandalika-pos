@@ -24,7 +24,7 @@ const render = (over: Partial<Parameters<typeof CustomerProfileSheet>[0]> = {}) 
 describe('CustomerProfileSheet', () => {
   it('shows the identity, tier, stats, pitch, history, frequent items and notes from the server', () => {
     const html = render()
-    for (const t of ['Rina', 'Gold', 'Total belanja', 'Hari sejak terakhir', 'Bahan obrolan', 'Terakhir beli Rose', 'Woody belum pernah dicoba', 'Pembelian terakhir', 'Ulangi', 'Sering dibeli', 'suka floral', 'Pilih untuk transaksi ini'])
+    for (const t of ['Rina', 'Gold', 'total belanja', 'sejak terakhir', 'Rp 2,5 jt', 'pelanggan sejak', 'Bahan obrolan', 'Terakhir beli Rose', 'Woody belum pernah dicoba', 'Pembelian terakhir', 'Ulangi', 'Sering dibeli', 'suka floral', 'Pilih untuk transaksi ini'])
       expect(html).toContain(t)
     expect(html).not.toContain('Riwayat lengkap butuh internet')
   })
@@ -37,7 +37,7 @@ describe('CustomerProfileSheet', () => {
     expect(html).toContain('Riwayat lengkap butuh internet')
     expect(html).toContain('Oud')
     expect(html).not.toContain('Bahan obrolan')
-    expect(html).not.toContain('Total belanja')
+    expect(html).not.toContain('total belanja')
     expect(html).not.toContain('Sering dibeli')
   })
 
@@ -51,8 +51,20 @@ describe('CustomerProfileSheet', () => {
   })
 
   it('uses the live reward count when the cart knows it and hides loyalty stats when loyalty is off', () => {
-    expect(render({ rewardsCount: 3 })).toContain('>3<')
-    expect(render({ loyaltyEnabled: false })).not.toContain('Hadiah tersedia')
+    expect(render({ rewardsCount: 3 })).toContain('3 hadiah')
+    expect(render({ loyaltyEnabled: false })).not.toContain('hadiah<')
+  })
+
+  it('lists Pembelian terakhir before Sering dibeli, with outlet and method on the second line', () => {
+    const html = render()
+    expect(html.indexOf('Pembelian terakhir')).toBeLessThan(html.indexOf('Sering dibeli'))
+    expect(html).toContain('AAA · Tunai')
+  })
+
+  it('tints the hadiah tile only when a reward is available and writes points with a thousands dot', () => {
+    expect(render({ rewardsCount: 0 })).not.toContain('bg-reward-bg')
+    expect(render({ rewardsCount: 2 })).toContain('bg-reward-bg')
+    expect(render({ profile: { ...profile, customer: { ...profile.customer, points: 1250 } } as never })).toContain('1.250')
   })
 
   it('stays closed without a customer', () => {

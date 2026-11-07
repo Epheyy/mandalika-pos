@@ -2,6 +2,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { ReviewRow, SyncStatus } from './SyncStatus'
+import { SyncContext } from '../cashier/SyncProvider'
 
 const item = (k: string) => ({ idempotencyKey: k, type: 'order', lastError: 'x' })
 const render = (over: Partial<Parameters<typeof SyncStatus>[0]>) => renderToStaticMarkup(createElement(SyncStatus, {
@@ -77,17 +78,18 @@ describe('Koneksi & antrean sheet', () => {
   it('offers Kirim sekarang (N) for queued items', () => {
     const html = open({ pendingCount: 3 })
     expect(html).toContain('Kirim sekarang (3)')
-    expect(html).toContain('Tersimpan di tablet (3)')
+    expect(html).toContain('Tersimpan di tablet')
   })
   it('offers Perbarui data when the wall is raised', () => {
     expect(open({ wall: { raised: true, localVersion: 1, serverVersion: 2 } })).toContain('Perbarui data')
   })
   it('review rows carry the plain sentence and hide the raw error behind Detail teknis', () => {
     const html = open({ review: [{ ...item('a'), lastError: 'boom 500' }] })
-    expect(html).toContain('Perlu ditinjau (1)')
+    expect(html).toContain('Perlu ditinjau<')
     expect(html).toContain('Transaksi aman di tablet ini.')
     expect(html).toContain('Bagikan log')
-    expect(html.indexOf('Detail teknis')).toBeLessThan(html.indexOf('boom 500'))
+    expect(html).toContain('Detail teknis')
+    expect(html).not.toContain('boom 500')
   })
   it('C2: per-row Coba lagi / Tandai sudah ditangani only when wired, plus the count line', () => {
     expect(open({ review: [item('a')] })).not.toContain('Tandai sudah ditangani')
@@ -101,12 +103,17 @@ describe('Koneksi & antrean sheet', () => {
     const html = open({ review: [item('a'), item('b')], acknowledged: new Set(['a']), onRetryOne: vi.fn(), onAcknowledge: vi.fn() })
     expect(html).not.toContain('data-key="a"')
     expect(html).toContain('data-key="b"')
-    expect(html).toContain('Perlu ditinjau (2)')
+    expect(html).toContain('Perlu ditinjau<')
     expect(html).toContain('1 transaksi sudah ditandai ditangani; tetap tersimpan di tablet.')
     const all = open({ review: [item('a')], acknowledged: new Set(['a']) })
     expect(all).toContain('1 perlu ditinjau')
     expect(all).toContain('Bagikan log')
     expect(all).toContain('>Coba lagi<')
+  })
+  it('keeps a retry-all button when handled rows are hidden, so parked sales can still be re-sent', () => {
+    const html = open({ review: [item('a'), item('b')], acknowledged: new Set(['a', 'b']), onRetryOne: vi.fn(), onAcknowledge: vi.fn() })
+    expect(html).toContain('Coba lagi semua')
+    expect(open({ review: [item('a')], onRetryOne: vi.fn(), onAcknowledge: vi.fn() })).not.toContain('Coba lagi semua')
   })
   it('puts the data versions under Detail teknis', () => {
     expect(open({})).toContain('Versi data lokal 1 · server 1')
@@ -114,20 +121,21 @@ describe('Koneksi & antrean sheet', () => {
   it('explains offline and the hours left', () => {
     const html = open({ isOnline: false, offlineCap: { level: 'ok', offlineMs: 2 * 3_600_000 } })
     expect(html).toContain('terkirim otomatis saat online')
-    expect(html).toContain('Sisa sekitar 10 jam')
+    expect(html).toContain('(10 jam lagi)')
   })
 })
 
 describe('review row detail (A06)', () => {
   const row = (f: Parameters<typeof ReviewRow>[0]['f']) => renderToStaticMarkup(createElement(ReviewRow, { f }))
-  it('shows what a refund captured, above the reason', () => {
+  it('shows what a refund captured; the raw reason stays behind Detail teknis', () => {
     const html = row({ idempotencyKey: 'k', type: 'refund', lastError: 'sudah direfund', detail: 'BSD-G0007 · Rp 225.000 · Tunai' })
     expect(html).toContain('BSD-G0007 · Rp 225.000 · Tunai')
-    expect(html.indexOf('BSD-G0007')).toBeLessThan(html.indexOf('sudah direfund'))
+    expect(html).toContain('aria-expanded="false"')
+    expect(html).not.toContain('sudah direfund')
   })
-  it('renders an item without a snapshot exactly as before (no detail line)', () => {
+  it('renders an item without a snapshot with no detail line', () => {
     const html = row({ idempotencyKey: 'k', type: 'refund', lastError: 'ditolak' })
-    expect(html).toContain('ditolak')
+    expect(html).toContain('Refund')
     expect(html).not.toContain('text-[11px]')
   })
 })
@@ -198,5 +206,49 @@ describe('SyncStatus OTA prompt (C5)', () => {
   it('shows progress and failure copy', () => {
     expect(render({ open: true, otaUpdate: { ...ota, applying: true } })).toContain('Memulai ulang…')
     expect(render({ open: true, otaUpdate: { ...ota, error: 'Gagal memulai ulang. Coba lagi.' } })).toContain('Gagal memulai ulang. Coba lagi.')
+  })
+})
+
+describe('Koneksi queued sales (W5-03)', () => {
+  const receipt = (n: string, at: string, over: object = {}) => ({
+    orderUuid: `u${n}`, idempotencyKey: `k${n}`, orderNumber: n, capturedAt: at, outletId: 'o', shiftId: null,
+    paymentMethod: 'cash', quotedTotal: 1_251_000, receiptSnapshot: null, state: 'queued', refundQueued: false, refunded: false, ...over,
+  })
+  const withEngine = (receipts: object[]) => {
+    const engine = { localReceipts: () => receipts, lastPulledAt: () => Date.parse('2026-11-07T06:58:00Z') }
+    return renderToStaticMarkup(createElement(SyncContext.Provider, { value: engine as never }, createElement(SyncStatus, {
+      isOnline: false, pendingCount: 2, review: [], stuck: [], open: true,
+      wall: { raised: false, localVersion: 1, serverVersion: 1 }, isResyncing: false,
+      onResync: vi.fn(), onFlush: vi.fn(), onRetryFailed: vi.fn(), onExportLog: vi.fn(),
+    })))
+  }
+
+  it('lists each queued sale with number, method, total and "Menunggu", oldest first', () => {
+    const html = withEngine([
+      receipt('L-0413', '2026-11-07T07:11:00Z', { paymentMethod: 'qris', quotedTotal: 350_000 }),
+      receipt('L-0412', '2026-11-07T07:05:00Z'),
+      receipt('L-0399', '2026-11-07T04:40:00Z', { state: 'parked' }),
+    ])
+    expect(html.match(/data-testid="queued-sale"/g)).toHaveLength(2)
+    expect(html.indexOf('#L-0412')).toBeLessThan(html.indexOf('#L-0413'))
+    expect(html).toContain('Penjualan · Tunai')
+    expect(html).toContain('Penjualan · QRIS')
+    expect(html).toContain('Menunggu')
+    expect(html).not.toContain('#L-0399')
+  })
+
+  it('says how many other waiting items are not sales, and shows data freshness', () => {
+    const html = withEngine([receipt('L-1', '2026-11-07T07:05:00Z')])
+    expect(html).toContain('Dan 1 transaksi lain')
+    expect(html).toContain('Data produk &amp; promo: diperbarui')
+  })
+
+  it('puts Kirim sekarang and Perbarui data side by side in the footer row', () => {
+    const html = renderToStaticMarkup(createElement(SyncStatus, {
+      isOnline: true, pendingCount: 1, review: [], stuck: [], open: true,
+      wall: { raised: true, localVersion: 1, serverVersion: 2 }, isResyncing: false,
+      onResync: vi.fn(), onFlush: vi.fn(), onRetryFailed: vi.fn(), onExportLog: vi.fn(),
+    }))
+    expect(html).toMatch(/border-t border-paper-2 px-4 py-3"><div class="flex gap-2"><button[^>]*>Kirim sekarang \(1\)<\/button><button[^>]*>Perbarui data<\/button>/)
   })
 })
