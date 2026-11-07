@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { ChevronDown } from 'lucide-react'
 import type { Outlet } from '@mandalika/api'
 import { api, authStore } from './api'
 import { useAuth } from './auth'
@@ -121,20 +122,27 @@ export function useOutlet(): OutletState {
 export function OutletSwitcher() {
   const { outletId, setOutletId, outlets, isAdmin } = useOutlet()
   if (!isAdmin || outlets.length === 0) return null
+  // A filled paper pill with a muted "Cakupan" prefix (SH-04). The prefix is decoration: the select keeps its own name.
   return (
-    <select
-      aria-label="Cakupan outlet"
-      value={outletId ?? ''}
-      onChange={(e) => setOutletId(e.target.value || null)}
-      className="px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-gold-500/40"
-    >
-      <option value="">Semua Outlet</option>
-      {outlets.map((o) => (
-        <option key={o.id} value={o.id}>
-          {o.name}
-        </option>
-      ))}
-    </select>
+    <label className="relative inline-flex h-10 min-w-0 items-center gap-2 rounded-xl bg-paper-1 pl-3 pr-2 text-[13px] focus-within:ring-2 focus-within:ring-brand-strong">
+      <span aria-hidden="true" className="text-xs font-medium text-ink-700 max-sm:hidden">
+        Cakupan
+      </span>
+      <select
+        aria-label="Cakupan outlet"
+        value={outletId ?? ''}
+        onChange={(e) => setOutletId(e.target.value || null)}
+        className="h-full min-w-0 max-w-32 cursor-pointer appearance-none truncate bg-transparent pr-5 text-[13px] font-semibold text-ink-900 focus:outline-none sm:max-w-48"
+      >
+        <option value="">Semua outlet</option>
+        {outlets.map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.name}
+          </option>
+        ))}
+      </select>
+      <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 h-4 w-4 text-ink-700" />
+    </label>
   )
 }
 

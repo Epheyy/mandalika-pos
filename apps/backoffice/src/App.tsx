@@ -56,12 +56,21 @@ export default function App() {
 
   let body
   if (!outletsReady || resolution.kind === 'redirect') body = <LoadingFill />
-  else if (shown) body = <ScreenHost route={shown} />
+  else if (shown) {
+    // The gap under the bar is scrolled content, not main's padding: a sticky table header sticks at the padding edge,
+    // so padding would leave it floating below the bar with rows scrolling through the gap.
+    body = (
+      <>
+        <div aria-hidden="true" className="h-2" />
+        <ScreenHost route={shown} />
+      </>
+    )
+  }
   else body = <AccessDenied />
 
   return (
     // No background here: the page ground is the body paper plus the fixed ambient layer (index.css, main.tsx).
-    <div className="flex h-screen overflow-clip">
+    <div className="flex h-screen gap-3 overflow-clip p-2 sm:p-3">
       {/* First focusable element. A button, not a #link: the hash is the router's. */}
       <button
         type="button"
@@ -74,12 +83,14 @@ export default function App() {
         groups={groups}
         activeId={activeId}
         badgeOf={badgeOf}
+        user={user}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
-      {/* The top bar floats over this column and <main> fills it: content scrolls UNDER the blurred bar (D-86). The
-          padding keeps the first row clear of the bar at rest; scroll-padding keeps a focused element from landing
-          under the bar when the browser scrolls it into view. */}
+      {/* The page is a frame of floating panels (SH-01): the root's padding and gap are the margins, the sidebar and the
+          top bar are rounded cards. The bar floats over this column and <main> fills it: content scrolls UNDER the
+          blurred bar (D-86). The padding keeps the first row clear of the bar; scroll-padding keeps a focused element from
+          landing under the bar when the browser scrolls it into view. */}
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header route={shown} user={user} onOpenMenu={() => setSidebarOpen(true)} onLogout={logoutIfAllowed} />
         <main
