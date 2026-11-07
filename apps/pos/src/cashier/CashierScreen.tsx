@@ -1505,6 +1505,7 @@ export default function CashierScreen() {
         shiftActive={!!shift.currentShift}
         pendingSync={offlineData.pendingCount > 0}
         isSyncing={offlineData.isResyncing}
+        outletName={snapshot.outletName}
         lastSyncedLabel={offlineData.lastSyncedAt
           ? new Date(offlineData.lastSyncedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
           : null}

@@ -19,7 +19,9 @@ interface Props {
 const heldTime = (at: number): string => {
   const d = new Date(at)
   const p = (n: number) => (n < 10 ? `0${n}` : `${n}`)
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`
+  const hm = `${p(d.getHours())}:${p(d.getMinutes())}`
+  // W7-08: today shows just HH:mm (like the mock); an older park keeps its date so it stays unambiguous.
+  return new Date().toDateString() === d.toDateString() ? hm : `${p(d.getDate())}/${p(d.getMonth() + 1)} ${hm}`
 }
 const unitCount = (o: HeldOrder): number => o.lines.reduce((n, l) => n + l.quantity, 0)
 const lineTotal = (o: HeldOrder): number => o.lines.reduce((n, l) => n + l.subtotal, 0)
@@ -56,13 +58,12 @@ export function HeldOrdersSheet({ open, onClose, held, canSave, defaultName, onS
             {held.map((o) => (
               <li key={o.id} className="surface-card rounded-control p-3">
                 <div className="flex items-baseline justify-between gap-2">
-                  <p className="truncate text-[0.9375rem] font-semibold text-ink-900">{o.name}</p>
-                  <p className="tnum flex-shrink-0 text-[0.8125rem] text-ink-500">{heldTime(o.heldAt)}</p>
+                  <p className="truncate text-[0.9375rem] font-semibold text-ink-900">{o.name} · <span className="tnum">{heldTime(o.heldAt)}</span></p>
+                  <p className="tnum flex-shrink-0 text-[0.8125rem] text-ink-500">{unitCount(o)} item · {formatRupiah(lineTotal(o))}</p>
                 </div>
-                <p className="tnum text-[0.8125rem] text-ink-500">{unitCount(o)} item · {formatRupiah(lineTotal(o))}</p>
                 <div className="mt-2 flex gap-2">
-                  <Button variant="secondary" onClick={() => onResume(o)} aria-label={`Lanjutkan ${o.name}`} className="flex-1">Lanjutkan</Button>
-                  <Button variant="ghost" onClick={() => onDelete(o)} aria-label={`Hapus ${o.name}`} className="flex-1 !text-danger-solid">Hapus</Button>
+                  <Button onClick={() => onResume(o)} aria-label={`Lanjutkan ${o.name}`} className="flex-1">Lanjutkan</Button>
+                  <Button variant="ghost" onClick={() => onDelete(o)} aria-label={`Hapus ${o.name}`} className="flex-1 border border-danger !text-danger-solid">Hapus</Button>
                 </div>
               </li>
             ))}

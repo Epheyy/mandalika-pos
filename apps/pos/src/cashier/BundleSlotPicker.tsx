@@ -137,20 +137,22 @@ export function BundleSlotPicker({
 
   const panel = (
       <div className={inline ? 'flex h-full min-h-0 flex-col' : 'surface-solid relative flex max-h-[80vh] w-full max-w-sm flex-col rounded-panel'}>
-        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-paper-2 px-5 py-3">
-          <div className="min-w-0">
-            <h3 className="truncate font-bold text-ink-900"><IconPackage size={16} className="inline-block align-[-0.125em]" /> Pilih Item Paket</h3>
-            <p className="truncate text-xs text-ink-500">{promoName}</p>
-          </div>
-          {inline ? (
+        <div className="flex flex-shrink-0 items-center gap-3 border-b border-paper-2 px-5 py-3">
+          {inline && (
+            // W5-02: "‹ Kembali" top-left, like the mock and every other sheet.
             <button
               type="button"
               onClick={onCancel}
-              className="press -mr-2 inline-flex min-h-11 items-center rounded-control px-3 text-sm font-semibold text-ink-700 active:bg-paper-1"
+              className="press -ml-2 inline-flex min-h-11 flex-shrink-0 items-center rounded-control px-3 text-sm font-semibold text-brand-strong active:bg-paper-1"
             >
               ‹ Kembali
             </button>
-          ) : (
+          )}
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate font-bold text-ink-900"><IconPackage size={16} className="inline-block align-[-0.125em]" /> Pilih Item Paket</h3>
+            <p className="truncate text-xs text-ink-500">{promoName}</p>
+          </div>
+          {!inline && (
             <button
               type="button"
               onClick={onCancel}
@@ -185,60 +187,66 @@ export function BundleSlotPicker({
                     <span className="text-xs font-semibold text-ink-500">otomatis</span>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="space-y-2">
                   {slot.eligible.map((l) => {
                     const st = stockFor(l.productId, l.variantSize)
                     const picked = countFor(slot.index, l)
+                    const label = `${l.productName}${l.variantSize ? ` · ${l.variantSize}` : ''}`
                     if (!slot.ambiguous) {
                       // Auto-filled slot: read-only display of the consumed line(s).
                       return (
                         <div
                           key={lineKey(l)}
-                          className="flex min-h-11 items-center gap-1.5 rounded-control bg-paper-1 px-3"
+                          className="flex min-h-11 items-center gap-3 rounded-control bg-paper-1 px-3 py-2"
                         >
-                          <span className="text-sm font-semibold text-ink-700">
-                            {l.available}× {l.productName}
-                            {l.variantSize ? ` · ${l.variantSize}` : ''}
-                            <span className="tnum ml-1 text-ink-700">{formatRupiah(l.price)}</span>
+                          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink-700">
+                            {l.available}× {label}
                           </span>
+                          <span className="tnum flex-shrink-0 text-sm text-ink-700">{formatRupiah(l.price)}</span>
                         </div>
                       )
                     }
+                    // W7-13: the same row card as the BXGY picker: name, stock + price line, − n + stepper.
                     return (
                       <div
                         key={lineKey(l)}
-                        className={`flex items-center gap-1.5 rounded-control px-2 ${
+                        className={`flex items-center gap-3 rounded-control px-3 py-2 ${
                           picked > 0 ? 'bg-promo-bg ring-2 ring-promo' : 'surface-card'
                         }`}
                       >
-                        <button
-                          type="button"
-                          onClick={() => addUnit(slot, l)}
-                          disabled={remaining <= 0 || picked >= l.available}
-                          className="press min-h-11 text-left text-sm font-semibold text-ink-900 disabled:opacity-40"
-                        >
-                          {l.productName}
-                          {l.variantSize ? ` · ${l.variantSize}` : ''}
-                          <span className="tnum ml-1 text-promo">{formatRupiah(l.price)}</span>
-                          {st !== null && (
-                            <span className={st > 0 ? 'ml-1 text-ink-700' : 'ml-1 font-bold text-danger'}>
-                              · Stok {st}
-                            </span>
-                          )}
-                        </button>
-                        {picked > 0 && (
-                          <span className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => removeUnit(slot, l)}
-                              className="press inline-flex h-11 w-11 items-center justify-center rounded-control bg-paper-1 text-base font-bold leading-none text-ink-900"
-                              aria-label="Kurangi"
-                            >
-                              −
-                            </button>
-                            <span className="tnum w-4 text-center text-sm font-bold text-ink-900">{picked}</span>
-                          </span>
-                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-ink-900">{label}</p>
+                          <p className="tnum text-xs text-ink-700">
+                            {st !== null && (
+                              <span className={st > 0 ? 'text-ok' : 'font-bold text-danger'}>
+                                {st > 0 ? `Stok tersedia: ${st} unit` : 'Stok 0'}
+                                {' · '}
+                              </span>
+                            )}
+                            <span className="text-promo">{formatRupiah(l.price)}</span>
+                          </p>
+                        </div>
+                        <span className="flex flex-shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => removeUnit(slot, l)}
+                            disabled={picked <= 0}
+                            className="press inline-flex h-11 w-11 items-center justify-center rounded-control bg-paper-1 text-base font-bold leading-none text-ink-900 disabled:opacity-40"
+                            aria-label={`Kurangi ${label}`}
+                          >
+                            −
+                          </button>
+                          <span className="tnum w-5 text-center text-sm font-bold text-ink-900">{picked}</span>
+                          <button
+                            type="button"
+                            onClick={() => addUnit(slot, l)}
+                            disabled={remaining <= 0 || picked >= l.available}
+                            className="press inline-flex h-11 w-11 items-center justify-center rounded-control bg-paper-1 text-base font-bold leading-none text-ink-900 disabled:opacity-40"
+                            aria-label={`Tambah ${label}`}
+                          >
+                            +
+                          </button>
+                        </span>
                       </div>
                     )
                   })}

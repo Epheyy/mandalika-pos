@@ -4,7 +4,7 @@
  *                      Tap a row → opens the receive form.
  *   2. Receive form  — per line: product + variant + pre-filled sentQty (informed count).
  *                      Receiver edits only differing lines; any difference makes the
- *                      discrepancy-reason field required.  Primary action "Terima" →
+ *                      discrepancy-reason field required.  Primary action "Konfirmasi Penerimaan" →
  *                      calls onConfirm(transferId, items, discrepancyReason).
  *
  * This panel does NOT verify the PIN — it hands the counted lines up via onConfirm;
@@ -209,23 +209,23 @@ function ReceiveForm({ transfer, onBack, onConfirm }: ReceiveFormProps) {
 
   return (
     <Sheet open variant="center" maxWidth="max-w-lg" panelClassName="max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center gap-2 px-5 py-4 border-b border-paper-2 flex-shrink-0">
+        {/* Header: W5-02 "‹ Kembali" top-left; W7-14 title + status tag + route/rule sentence */}
+        <div className="px-5 py-3 border-b border-paper-2 flex-shrink-0">
           <button type="button"
             onClick={onBack}
-            className="press inline-flex h-11 w-11 items-center justify-center rounded-control active:bg-paper-1 text-ink-700 flex-shrink-0"
-            aria-label="Kembali"
+            className="press -ml-3 mb-1 inline-flex min-h-11 items-center rounded-control px-3 text-sm font-semibold text-brand-strong active:bg-paper-1"
           >
-            ‹
+            ‹ Kembali
           </button>
-          <div className="min-w-0">
+          <div className="flex items-center justify-between gap-2">
             <h3 className="font-bold text-ink-900 truncate">
-              Terima {transfer.transferNo}
+              Terima Transfer · {transfer.transferNo}
             </h3>
-            <p className="text-[11px] text-ink-500 truncate">
-              Dari {transfer.source.name ?? transfer.source.id}
-            </p>
+            <StatusBadge tone="warn" dot label="Dikirim" className="flex-shrink-0" />
           </div>
+          <p className="text-[0.8125rem] text-ink-700 mt-1">
+            Dari {transfer.source.name ?? transfer.source.id} → {transfer.dest.name ?? transfer.dest.id}. Jika jumlah diterima berbeda dari yang dikirim, alasan selisih wajib diisi.
+          </p>
         </div>
 
         {/* Item lines */}
@@ -312,12 +312,15 @@ function ReceiveForm({ transfer, onBack, onConfirm }: ReceiveFormProps) {
               Isi alasan selisih sebelum melanjutkan
             </p>
           )}
-          <Button fullWidth onClick={handleConfirm} disabled={!canSubmit}>
-            Terima
-          </Button>
-          <Button variant="secondary" fullWidth onClick={onBack}>
-            Kembali
-          </Button>
+          {/* W6-16: the one gold-gradient "bar utama" of this panel, same material as the cart's Bayar bar. */}
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={!canSubmit}
+            className="bar-primary press-bar tnum flex min-h-14 w-full items-center justify-center px-5 text-lg font-bold disabled:opacity-40"
+          >
+            Konfirmasi Penerimaan
+          </button>
         </div>
     </Sheet>
   )
