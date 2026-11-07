@@ -371,9 +371,14 @@ export const ProductGrid = memo(function ProductGrid({
 
   // Custom order applied first, then the category/search/favourite filters.
   const orderedAll = useMemo(() => sortByCustomOrder(products, order), [products, order])
-  const showPromoTab = (promoProductIds?.size ?? 0) > 0
+  // Only promoted products that are in the shown catalogue count (a deactivated product must not leave an empty tab).
+  const showPromoTab = promoProductIds != null && products.some((p) => promoProductIds.has(p.id))
   // The Promo tab disappears with the last live promotion; a selection left on it then reads as "Semua".
   const effectiveCategoryId = selectedCategoryId === PROMO_TAB_ID && !showPromoTab ? null : selectedCategoryId
+  // Selection parked on a vanished Promo tab: reset it, so it does not snap back when a promotion returns.
+  useEffect(() => {
+    if (selectedCategoryId === PROMO_TAB_ID && !showPromoTab) onCategoryChange(null)
+  }, [selectedCategoryId, showPromoTab, onCategoryChange])
   const filtered = orderedAll.filter((p) => {
     const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase())
     const matchCat = !effectiveCategoryId

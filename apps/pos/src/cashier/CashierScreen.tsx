@@ -689,11 +689,17 @@ export default function CashierScreen() {
     confirmOpen: !!confirm, checkoutOpen: state.isCheckoutOpen, processing: state.isProcessing,
     splitLocked: state.splitMode && state.tenders.length > 0,
   })
-  // F7: products in a live promotion (catalogue "Promo" tab); the minute tick keeps hour-gated promos current.
+  // F7: products in a live promotion (catalogue "Promo" tab). Its own minute tick (autoMinute stops without an auto promo),
+  // so hour/day/date-gated promos appear and expire on time; setState with an unchanged minute does not re-render.
+  const [promoMinute, setPromoMinute] = useState(() => Math.floor(Date.now() / 60_000))
+  useEffect(() => {
+    const t = setInterval(() => setPromoMinute(Math.floor(Date.now() / 60_000)), 30_000)
+    return () => clearInterval(t)
+  }, [])
   const promoIds = useMemo(
     () => promoProductIds(promotions, { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [promotions, outletTimezone, autoMinute],
+    [promotions, outletTimezone, promoMinute],
   )
   const autoFingerprint = autoReconcileFingerprint(state, promotions, autoMinute)
   useEffect(() => {

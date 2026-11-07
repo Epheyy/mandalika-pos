@@ -48,7 +48,7 @@ describe('SyncStatus chip', () => {
 
   it('offline is the plain offline state: no "server" wording, stuck items not announced', () => {
     const html = render({ isOnline: false, stuck: [item('a')], pendingCount: 1 })
-    expect(html).toContain('Offline · 1 tersimpan')
+    expect(html).toMatch(/Offline · 1 tersimpan(?! di tablet)/)
     expect(html).not.toContain('tertunda')
     expect(html).not.toMatch(/server/i)
   })

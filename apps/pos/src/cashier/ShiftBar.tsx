@@ -50,8 +50,7 @@ export const ShiftBar = memo(function ShiftBar({
 }: ShiftBarProps) {
   const [showOpenModal, setShowOpenModal] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
-  // The chip lives inside an overflow-hidden header, so the detail popover is
-  // rendered fixed and anchored to the button's on-screen rect (an absolute
+  // The popover is rendered fixed and anchored to the button's on-screen rect (an absolute
   // popover would be clipped — that was the "dropdown shows nothing" bug).
   const detailBtnRef = useRef<HTMLButtonElement>(null)
   const [detailPos, setDetailPos] = useState<{ top: number; left: number } | null>(null)
@@ -90,7 +89,7 @@ export const ShiftBar = memo(function ShiftBar({
 
   return (
     <>
-      {/* Compact inline chip — lives in the app header beside the brand logo.
+      {/* Compact inline chip — lives in the app header bar, right of the search field.
           Tap the chip to reveal Mulai / Kas-awal detail in a popover (works in
           portrait where the inline detail wouldn't fit). */}
       {currentShift ? (
@@ -103,7 +102,7 @@ export const ShiftBar = memo(function ShiftBar({
             title="Detail shift"
           >
             <span className="w-2 h-2 rounded-full bg-ok flex-shrink-0" />
-            <span className="tnum whitespace-nowrap text-sm font-bold flex-shrink-0">Shift aktif · {formatClock(currentShift.openedAt)}</span>
+            <span className="tnum whitespace-nowrap min-w-0 truncate text-sm font-bold">Shift aktif · {formatClock(currentShift.openedAt)}</span>
             <svg className={`w-3 h-3 flex-shrink-0 transition-transform ${showDetail ? 'rotate-180' : ''}`}
               viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="m6 9 6 6 6-6" />
