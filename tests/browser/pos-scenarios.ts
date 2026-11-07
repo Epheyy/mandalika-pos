@@ -411,26 +411,37 @@ export const posStockDrift = async (page: ScenarioPage) => {
 
 // Kaca F2 (W2-10): with a customer and the reward row, the method switch, amount field, keypad, quick chips and Konfirmasi
 // are all inside the viewport and the sheet body does not scroll, at the fleet tablet (1006x601) and the short laptop size.
-const bayarFit = async (page: any, shotName: string) => {
+const bayarFit = async (page: ScenarioPage, shotName: string) => {
   const assert = (v: unknown, m: string) => { if (!v) throw Error(m) }
-  for (const vp of ['pos-a9', 'pos-short', 'pos'] as ShotViewport[]) {
-    await page.setViewportSize(SHOT_VIEWPORTS[vp])
-    await page.evaluate(async () => { await document.fonts.ready })
-    const fit = await page.evaluate(() => {
-      const h = window.innerHeight
-      const inView = (el: Element | null) => { if (!el) return false; const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= h + 0.5 }
-      const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '000', '0'].map((k) => [...document.querySelectorAll('[role=dialog] button')].find((b) => b.textContent === k) ?? null)
-      const backspace = document.querySelector('[role=dialog] button[aria-label="Hapus satu angka"]')
-      const confirm = [...document.querySelectorAll('[role=dialog] button')].find((b) => /^Konfirmasi\s*Rp/.test(b.textContent ?? '')) ?? null
-      const field = document.getElementById('checkout-amount')
-      const method = document.querySelector('[role=dialog] [aria-label="Metode pembayaran"]')
-      const body = field?.closest('.overflow-y-auto') as HTMLElement | null
-      return { keys: keys.every(inView), backspace: inView(backspace), confirm: inView(confirm), field: inView(field), method: inView(method), noScroll: !!body && body.scrollHeight <= body.clientHeight + 1, h }
-    })
-    assert(fit.keys && fit.backspace && fit.confirm && fit.field && fit.method, `Bayar fit @${vp}: ${JSON.stringify(fit)}`)
-    assert(fit.noScroll, `Bayar body does not scroll @${vp}: ${JSON.stringify(fit)}`)
+  // The reward row loads from the preview: measure only once it is on screen.
+  await page.getByRole('button').filter({ hasText: 'Customer gift' }).waitFor()
+  const original = page.viewportSize()
+  try {
+    for (const vp of ['pos-a9', 'pos-short', 'pos'] as ShotViewport[]) {
+      await page.setViewportSize(SHOT_VIEWPORTS[vp])
+      await page.evaluate(async () => {
+        await document.fonts.ready
+        await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+      })
+      const fit = await page.evaluate(() => {
+        const h = window.innerHeight
+        const inView = (el: Element | null) => { if (!el) return false; const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= h + 0.5 }
+        const field = document.getElementById('checkout-amount')
+        const body = field?.closest('.overflow-y-auto') as HTMLElement | null
+        const keypadButtons = [...(body?.querySelectorAll('button') ?? [])]
+        const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '000', '0'].map((k) => keypadButtons.find((b) => b.textContent === k) ?? null)
+        const backspace = body?.querySelector('button[aria-label="Hapus satu angka"]') ?? null
+        const confirm = [...document.querySelectorAll('[role=dialog] button')].find((b) => /^Konfirmasi\s*Rp/.test(b.textContent ?? '')) ?? null
+        const method = document.querySelector('[role=dialog] [aria-label="Metode pembayaran"]')
+        return { keys: keys.every(inView), backspace: inView(backspace), confirm: inView(confirm), field: inView(field), method: inView(method), noScroll: !!body && body.scrollHeight <= body.clientHeight + 1, h }
+      })
+      assert(fit.keys && fit.backspace && fit.confirm && fit.field && fit.method, `Bayar fit @${vp}: ${JSON.stringify(fit)}`)
+      assert(fit.noScroll, `Bayar body does not scroll @${vp}: ${JSON.stringify(fit)}`)
+    }
+    await captureShot(page as any, shotName, ['pos-a9', 'pos', 'pos-short'])
+  } finally {
+    if (original) await page.setViewportSize(original)
   }
-  await captureShot(page, shotName, ['pos-a9', 'pos', 'pos-short'])
 }
 
 // B1 (POS UX direction, D-10): a multi-size tile opens the variant sheet, a size row adds one unit

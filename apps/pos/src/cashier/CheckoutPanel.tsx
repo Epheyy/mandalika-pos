@@ -185,7 +185,11 @@ export const CheckoutPanel = memo(function CheckoutPanel({
       open
       variant="side"
       z={50}
-      maxWidth="max-w-md lg:max-w-[486px] [@media(max-height:720px)]:max-w-[640px] [@media(max-height:720px)]:lg:max-w-[640px]"
+      maxWidth={
+        splitMode
+          ? 'max-w-md lg:max-w-[486px]'
+          : 'max-w-md lg:max-w-[486px] [@media(max-height:720px)]:max-w-[640px] [@media(max-height:720px)]:lg:max-w-[640px]'
+      }
       panelClassName="flex flex-col"
       onClose={isProcessing ? noop : handleBack}
       header
@@ -198,7 +202,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
         </>
       }
     >
-      <div className="flex-1 overflow-y-auto p-4 grid content-start items-start gap-3 [@media(max-height:720px)]:grid-cols-2">
+      <div className={`flex-1 overflow-y-auto p-4 grid content-start items-start gap-3 ${splitMode ? '' : '[@media(max-height:720px)]:grid-cols-2'}`}>
         {/* Short screens (the 1006x601 tablet) go two columns, so keep the sheet wide enough (see maxWidth): left = what is owed and who
             pays, right = the money entry. Tall screens stack them as before. */}
         <div className="space-y-3">
@@ -461,7 +465,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
               />
             </div>
             <div className="grid gap-2">
-              <div className="grid grid-cols-5 gap-2 [@media(max-height:720px)]:gap-1">
+              <div className={`grid grid-cols-5 gap-2 ${splitMode ? '' : '[@media(max-height:720px)]:grid-cols-3 [@media(max-height:720px)]:gap-1.5'}`}>
                 {quickAmounts.map((amt, i) => {
                   const isSel = typedAmount === amt || (i === 0 && typedAmount === null)
                   return (
@@ -548,7 +552,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
           </div>
         )}
         <div className="flex items-center gap-3">
-          <div aria-live="polite" aria-atomic="true" className="shrink-0 empty:hidden">
+          <div aria-live="polite" aria-atomic="true" className="shrink-0">
             {barChange > 0 && (
               <>
                 <p className="text-xs text-ink-700">Kembalian</p>
