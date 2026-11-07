@@ -44,6 +44,8 @@ import { AdjustmentDrawer } from './AdjustmentDrawer'
 import { MenuDrawer } from './MenuDrawer'
 import { ReceiveTransferPanel } from './receive/ReceiveTransferPanel'
 import { ReceiveApprovalModal } from './receive/ReceiveApprovalModal'
+import { promoProductIds } from './promoProducts'
+import { HeaderSearch } from './HeaderSearch'
 import { ShiftBar } from './ShiftBar'
 import { ReceiptPreview } from './ReceiptPreview'
 import { orderStateFor } from './orderState'
@@ -687,6 +689,12 @@ export default function CashierScreen() {
     confirmOpen: !!confirm, checkoutOpen: state.isCheckoutOpen, processing: state.isProcessing,
     splitLocked: state.splitMode && state.tenders.length > 0,
   })
+  // F7: products in a live promotion (catalogue "Promo" tab); the minute tick keeps hour-gated promos current.
+  const promoIds = useMemo(
+    () => promoProductIds(promotions, { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [promotions, outletTimezone, autoMinute],
+  )
   const autoFingerprint = autoReconcileFingerprint(state, promotions, autoMinute)
   useEffect(() => {
     if (!autoAllowed || (!autoPromosOn && state.autoPromotionIds.length === 0 && state.autoPrompts.length === 0)) return
@@ -1207,20 +1215,21 @@ export default function CashierScreen() {
           online/offline indicator in the same row (moved up out of the old
           shift bar / the drawer footer). */}
       <header className="min-h-14 px-3 py-1 flex items-center justify-between gap-2 safe-top">
-        <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+        <div className="flex items-center gap-2 min-w-0 flex-shrink overflow-hidden">
           <img src={brand.logo} alt={`${brand.displayName} POS`} className="h-7 w-auto object-contain flex-shrink-0" />
           {/* Read-only: the terminal's outlet is fixed (A04); change it only via Lepas terminal. */}
           {outletLabel && <span className="text-[0.9375rem] font-semibold text-ink-700 truncate flex-shrink min-w-0" title="Outlet terminal">{outletLabel}</span>}
-          <ShiftBar
-            currentShift={shift.currentShift} isLoading={shift.isLoadingShift}
-            isOpening={shift.isOpeningShift}
-            onOpenShift={shift.openShift}
-            isOnline={offlineData.isOnline} canOpen={shift.canOpenShift}
-            error={shift.shiftError}
-            onRequestClose={() => { setCloseIntent(true); setShowRecap(true) }}
-            promptOpen={shiftPrompt} onPromptConsumed={() => setShiftPrompt(false)}
-          />
         </div>
+        <HeaderSearch value={searchQuery} onChange={setSearchQuery} onSubmit={handleSearchSubmit} onScan={() => void handleCameraScan()} />
+        <ShiftBar
+          currentShift={shift.currentShift} isLoading={shift.isLoadingShift}
+          isOpening={shift.isOpeningShift}
+          onOpenShift={shift.openShift}
+          isOnline={offlineData.isOnline} canOpen={shift.canOpenShift}
+          error={shift.shiftError}
+          onRequestClose={() => { setCloseIntent(true); setShowRecap(true) }}
+          promptOpen={shiftPrompt} onPromptConsumed={() => setShiftPrompt(false)}
+        />
         <div className="flex items-center gap-2 flex-shrink-0">
           <SyncStatus
             open={showConnection} onOpenChange={setShowConnection}
@@ -1321,9 +1330,7 @@ export default function CashierScreen() {
             showFavouritesOnly={showFavouritesOnly} gridCols={gridCols}
             showPrice={showPrice} showStock={showStock} showVariants={showVariants}
             onProductTap={handleProductTap}
-            onCategoryChange={setSelectedCategoryId} onSearchChange={setSearchQuery}
-            onSearchSubmit={handleSearchSubmit}
-            onScanClick={() => void handleCameraScan()}
+            onCategoryChange={setSelectedCategoryId} promoProductIds={promoIds}
             onToggleFavourites={() => setShowFavouritesOnly((v) => !v)} isLoading={false}
             variantBackRef={variantBackRef}
           />

@@ -43,11 +43,11 @@ describe('chipModel offline', () => {
   it('empty queue: Offline · aman (warn)', () => {
     expect(chip(off)).toEqual({ text: 'Offline · aman', tone: 'warn' })
   })
-  it('queued N: Offline · N tersimpan di tablet', () => {
-    expect(chip({ ...off, pending: 3 })).toEqual({ text: 'Offline · 3 tersimpan di tablet', tone: 'warn' })
+  it('queued N: Offline · N tersimpan', () => {
+    expect(chip({ ...off, pending: 3 })).toEqual({ text: 'Offline · 3 tersimpan', tone: 'warn' })
   })
   it('stuck behaves like queued', () => {
-    expect(chip({ ...off, pending: 2, stuck: 2 }).text).toBe('Offline · 2 tersimpan di tablet')
+    expect(chip({ ...off, pending: 2, stuck: 2 }).text).toBe('Offline · 2 tersimpan')
   })
   it('parked: Offline · N perlu ditinjau (danger)', () => {
     expect(chip({ ...off, parked: 2, pending: 5 })).toEqual({ text: 'Offline · 2 perlu ditinjau', tone: 'danger' })

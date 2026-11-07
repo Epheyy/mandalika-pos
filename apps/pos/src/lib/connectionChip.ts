@@ -45,8 +45,7 @@ function offlineChip(i: ChipInput): ChipModel {
   if (i.parked > 0) return { text: `${prefix} · ${i.parked} perlu ditinjau`, tone: 'danger' }
   const tone: Tone = locked ? 'danger' : 'warn'
   if (i.pending > 0) {
-    const saved = locked || i.offlineLevel === 'warn' ? `${i.pending} tersimpan` : `${i.pending} tersimpan di tablet`
-    return { text: `${prefix} · ${saved}`, tone }
+    return { text: `${prefix} · ${i.pending} tersimpan`, tone }
   }
   return { text: `${prefix} · ${locked ? 'hubungi admin' : 'aman'}`, tone }
 }

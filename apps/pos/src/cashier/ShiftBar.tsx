@@ -21,12 +21,19 @@ interface ShiftBarProps {
   /** Persistent error when the open could not be stored on the device. */
   error?: string | null
   /** Closing is reconciled in the Rekap screen (counted income is mandatory),
-   *  so the header "Tutup" routes there instead of a quick-close modal. */
+   *  so "Tutup Shift" in the shift pill's menu routes there instead of a quick-close modal. */
   onRequestClose: () => void
   /** When toggled true, force-opens the open-shift modal (e.g. a sale was
    *  attempted with no active shift). */
   promptOpen?: boolean
   onPromptConsumed?: () => void
+}
+
+/** "09:12" in the tablet's local clock (the mock's pill copy; id-ID locale would print "09.12"). */
+function formatClock(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 export const ShiftBar = memo(function ShiftBar({
@@ -91,22 +98,16 @@ export const ShiftBar = memo(function ShiftBar({
           <button type="button"
             ref={detailBtnRef}
             onClick={toggleDetail}
-            className="surface-group press flex min-h-11 min-w-0 flex-shrink items-center gap-2 rounded-chip px-3"
+            className="press flex min-h-11 min-w-0 flex-shrink items-center gap-2 rounded-chip bg-ok-bg px-3 text-ok"
             aria-expanded={showDetail}
             title="Detail shift"
           >
             <span className="w-2 h-2 rounded-full bg-ok flex-shrink-0" />
-            <span className="text-sm font-bold text-ink-900 flex-shrink-0">Shift Aktif</span>
-            <svg className={`w-3 h-3 text-ink-500 flex-shrink-0 transition-transform ${showDetail ? 'rotate-180' : ''}`}
+            <span className="tnum whitespace-nowrap text-sm font-bold flex-shrink-0">Shift aktif · {formatClock(currentShift.openedAt)}</span>
+            <svg className={`w-3 h-3 flex-shrink-0 transition-transform ${showDetail ? 'rotate-180' : ''}`}
               viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="m6 9 6 6 6-6" />
             </svg>
-          </button>
-          <button type="button"
-            onClick={onRequestClose}
-            className="surface-card press min-h-11 flex-shrink-0 rounded-chip px-4 text-sm font-semibold text-ink-900 active:bg-paper-1"
-          >
-            Tutup Shift
           </button>
 
           {showDetail && (
@@ -135,6 +136,14 @@ export const ShiftBar = memo(function ShiftBar({
                 <p className="text-xs text-ink-500 pt-1 border-t border-paper-2">
                   Penjualan & rekonsiliasi ada di menu Rekap Shift.
                 </p>
+                {/* D-98 / W1-02: Tutup Shift lives in this menu so the header bar fits at 1006 px. It still opens the Rekap
+                    count + the selisih confirm; only the entry point moved. */}
+                <button type="button"
+                  onClick={() => { setShowDetail(false); onRequestClose() }}
+                  className="surface-card press mt-1 min-h-11 w-full rounded-chip px-4 text-sm font-semibold text-ink-900 active:bg-paper-1"
+                >
+                  Tutup Shift
+                </button>
               </div>
             </>
           )}
