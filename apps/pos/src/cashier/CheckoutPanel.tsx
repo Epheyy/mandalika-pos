@@ -79,6 +79,9 @@ interface CheckoutPanelProps {
 
 const noop = () => {}
 
+/** Quick-cash chip label without the "Rp" (W2-09): the field above already says what is being typed. */
+const quickLabel = (amount: number): string => formatRupiah(amount).replace(/^Rp\s?/, '')
+
 const KEYPAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '000', '0', '⌫'] as const
 
 
@@ -182,7 +185,11 @@ export const CheckoutPanel = memo(function CheckoutPanel({
       open
       variant="side"
       z={50}
-      maxWidth="max-w-md lg:max-w-[486px]"
+      maxWidth={
+        splitMode
+          ? 'max-w-md lg:max-w-[486px]'
+          : 'max-w-md lg:max-w-[486px] [@media(max-height:720px)]:max-w-[640px] [@media(max-height:720px)]:lg:max-w-[640px]'
+      }
       panelClassName="flex flex-col"
       onClose={isProcessing ? noop : handleBack}
       header
@@ -195,14 +202,17 @@ export const CheckoutPanel = memo(function CheckoutPanel({
         </>
       }
     >
-      <div className="flex-1 overflow-y-auto p-5 space-y-4">
-        {/* Totals summary */}
-        <div className="bg-paper-1 rounded-control p-4 space-y-2 text-sm">
-          <ReceiptTotals rows={totalRows} />
+      <div className={`flex-1 overflow-y-auto p-4 grid content-start items-start gap-3 ${splitMode ? '' : '[@media(max-height:720px)]:grid-cols-2'}`}>
+        {/* Short screens (the 1006x601 tablet) go two columns, so keep the sheet wide enough (see maxWidth): left = what is owed and who
+            pays, right = the money entry. Tall screens stack them as before. */}
+        <div className="space-y-3">
+        {/* Totals summary: the total itself is in the header and on Konfirmasi (W2-04), so no third TOTAL row here */}
+        <div className="bg-paper-1 rounded-control px-3 py-2 space-y-0.5 text-sm">
+          <ReceiptTotals rows={totalRows.filter((r) => r.kind !== 'total')} />
         </div>
 
-        {/* Customer info */}
-        {selectedCustomer && (
+        {/* Customer info: the loyalty card below names the customer already (W2-05), so this shows only without it */}
+        {selectedCustomer && !showLoyaltyCard && (
           <div className="flex items-center gap-2 p-3 bg-paper-1 rounded-control text-xs">
             <span className="text-ink-500"><IconUser size={12} /></span>
             <div>
@@ -222,12 +232,18 @@ export const CheckoutPanel = memo(function CheckoutPanel({
 
         {/* Hadiah & Poin: loyalty rewards (online-only) and points redemption */}
         {showLoyaltyCard && selectedCustomer && (
-          <div className="rounded-sheet bg-reward-bg p-3 space-y-3">
+          <div className="rounded-sheet bg-reward-bg p-2.5 space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-reward">
+              <p className="min-w-0 text-sm font-semibold text-reward">
                 <IconGift size={14} className="inline-block align-[-0.125em]" /> Hadiah &amp; Poin · {selectedCustomer.name}
               </p>
-              <span className="text-sm font-bold tnum text-reward shrink-0">{customerPoints} poin</span>
+              {customerPoints > 0 ? (
+                <Chip tone="reward" toggle={false} onClick={() => setUserOpenedPoints((o) => !o)} className="shrink-0 !min-h-11 !border-reward text-reward">
+                  Tukar {customerPoints} poin ›
+                </Chip>
+              ) : (
+                <span className="text-sm font-bold tnum text-reward shrink-0">{customerPoints} poin</span>
+              )}
             </div>
             {!isOnline && <p className="text-xs font-semibold text-reward">Butuh internet</p>}
             {isOnline && rewardsLoading && <p className="text-xs text-reward">Memeriksa hadiah…</p>}
@@ -236,8 +252,29 @@ export const CheckoutPanel = memo(function CheckoutPanel({
                 const picked = pickedRewards[rw.conditionId]
                 const pickedProduct = picked ? rw.products.find((p) => p.id === picked.productId) : undefined
                 const isExpanded = openRewards[rw.conditionId] ?? false
+                const options = rw.products.flatMap((p) => p.variants.map((v) => ({ p, v })))
+                if (options.length === 1) {
+                  // One choice only: a single tap picks it, a second tap lets it go (no fold-out needed).
+                  const { p, v } = options[0]
+                  const isSel = picked?.productId === p.id && picked?.variantSize === v.size
+                  const st = stockFor(stockProducts, p.id, v.size)
+                  return (
+                    <Chip
+                      key={rw.conditionId}
+                      selected={isSel}
+                      tone="reward"
+                      className="w-full"
+                      onClick={() => (isSel ? onClearReward(rw.conditionId) : onPickReward(rw.conditionId, { id: p.id, name: p.name }, v))}
+                    >
+                      {isSel ? '✓ ' : ''}
+                      {p.name}
+                      {v.size ? ` · ${v.size}` : ''} · {isSel ? 'Gratis' : 'Tersedia!'}
+                      {st === null ? null : <span className={st > 0 ? 'opacity-80' : 'font-bold text-danger'}>· Stok {st}</span>}
+                    </Chip>
+                  )
+                }
                 return (
-                  <div key={rw.conditionId} className="rounded-control bg-white p-3">
+                  <div key={rw.conditionId} className="rounded-control bg-white px-3 py-1">
                     <button
                       type="button"
                       onClick={() => setOpenRewards((o) => ({ ...o, [rw.conditionId]: !isExpanded }))}
@@ -318,12 +355,9 @@ export const CheckoutPanel = memo(function CheckoutPanel({
               })}
 
             {customerPoints > 0 && (
-              <div>
-                <Chip tone="reward" toggle={false} onClick={() => setUserOpenedPoints((o) => !o)} className="!border-reward text-reward">
-                  Tukar {customerPoints} poin ›
-                </Chip>
+              <>
                 {showPoints && (
-                  <div className="mt-2 rounded-control bg-white p-3">
+                  <div className="rounded-control bg-white p-3">
                     <p className="text-xs font-semibold text-ink-700 mb-2">Tukar Poin Loyalti</p>
                     <div className="flex items-center gap-2">
                       <input
@@ -355,11 +389,44 @@ export const CheckoutPanel = memo(function CheckoutPanel({
                     </p>
                   </div>
                 )}
-              </div>
+              </>
             )}
           </div>
         )}
 
+        {/* Payment method: a segmented switch, grey track with a white raised thumb (W2-07) */}
+        {!splitMode && (
+        <div>
+          <div role="group" aria-label="Metode pembayaran" className="flex gap-1 rounded-sheet bg-ink-900/5 p-1">
+            {enabledMethods.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                aria-pressed={paymentMethod === m.id}
+                onClick={() => onPaymentMethodChange(m.id)}
+                className={`press min-h-11 flex-1 rounded-control px-2 text-base font-semibold ${
+                  paymentMethod === m.id ? 'bg-white text-brand-strong shadow-sm' : 'text-ink-700'
+                }`}
+              >
+                {PAYMENT_LABELS[m.id] ?? m.label}
+              </button>
+            ))}
+          </div>
+          {splitOffered && (
+            <button
+              type="button"
+              onClick={onSplitStart}
+              className="mt-1 min-h-12 text-sm font-semibold text-brand underline"
+            >
+              Bagi pembayaran
+            </button>
+          )}
+        </div>
+
+        )}
+        </div>
+
+        <div className="space-y-3">
         {splitMode ? (
           <SplitTenderSection
             due={derived.total}
@@ -379,71 +446,56 @@ export const CheckoutPanel = memo(function CheckoutPanel({
           />
         ) : (
           <>
-        {/* Payment method */}
-        <div>
-          <p className="text-xs font-semibold text-ink-700 mb-2">Metode Pembayaran</p>
-          <div className="flex gap-2">
-            {enabledMethods.map((m) => (
-              <Chip
-                key={m.id}
-                selected={paymentMethod === m.id}
-                onClick={() => onPaymentMethodChange(m.id)}
-                className="flex-1 justify-center !min-h-14 !px-2 !text-base"
-              >
-                {PAYMENT_LABELS[m.id] ?? m.label}
-              </Chip>
-            ))}
-          </div>
-          {splitOffered && (
-            <button
-              type="button"
-              onClick={onSplitStart}
-              className="mt-2 min-h-12 text-sm font-semibold text-brand underline"
-            >
-              Bagi pembayaran
-            </button>
-          )}
-        </div>
-
         {/* Amount received (cash) or the bill (non-cash) */}
         {isCash ? (
-          <div>
-            <label htmlFor="checkout-amount" className="block text-sm font-semibold text-ink-700 mb-2">
-              Diterima dari pelanggan
-            </label>
-            <input
-              id="checkout-amount"
-              type="text"
-              inputMode="numeric"
-              autoComplete="off"
-              {...cashField}
-              placeholder={formatRupiah(derived.total)}
-              aria-label="Jumlah dibayar"
-              className="w-full h-16 border-2 border-ink-700 rounded-control px-4 text-[2rem] font-bold tnum text-ink-900 focus:outline-none"
-            />
-            <div className="flex gap-2 flex-wrap mt-2">
-              {quickAmounts.map((amt, i) => (
-                <Chip
-                  key={amt}
-                  selected={typedAmount === amt || (i === 0 && typedAmount === null)}
-                  onClick={() => onAmountPaidChange(String(amt))}
-                >
-                  {i === 0 ? 'Uang pas' : formatRupiah(amt)}
-                </Chip>
-              ))}
+          <div className="space-y-2">
+            <div>
+              <label htmlFor="checkout-amount" className="block text-[13px] font-medium text-ink-500 mb-1">
+                Diterima dari pelanggan
+              </label>
+              <input
+                id="checkout-amount"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                {...cashField}
+                placeholder={formatRupiah(derived.total)}
+                aria-label="Jumlah dibayar"
+                className="w-full h-14 border-2 border-brand-strong bg-white rounded-control px-4 text-[1.75rem] font-bold tnum text-ink-900 focus:outline-none"
+              />
             </div>
-            <div className="grid grid-cols-3 gap-2 mt-3">
-              {KEYPAD_KEYS.map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => onAmountPaidChange(applyKey(amountPaid, k))}
-                  aria-label={k === '⌫' ? 'Hapus satu angka' : undefined}
-                  className="h-12 rounded-control bg-paper-1 text-lg font-semibold tnum text-ink-900 active:bg-paper-2"
-                >
-                  {k}
-                </button>
-              ))}
+            <div className="grid gap-2">
+              <div className={`grid grid-cols-5 gap-2 ${splitMode ? '' : '[@media(max-height:720px)]:grid-cols-3 [@media(max-height:720px)]:gap-1.5'}`}>
+                {quickAmounts.map((amt, i) => {
+                  const isSel = typedAmount === amt || (i === 0 && typedAmount === null)
+                  return (
+                    <button
+                      key={amt}
+                      type="button"
+                      aria-pressed={isSel}
+                      onClick={() => onAmountPaidChange(String(amt))}
+                      className={`press min-h-11 rounded-control px-0.5 text-xs font-semibold tnum ${
+                        isSel ? 'bg-brand-strong text-on-brand' : 'surface-card text-ink-700'
+                      }`}
+                    >
+                      {i === 0 ? 'Uang pas' : quickLabel(amt)}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="grid grid-cols-3 gap-2 [@media(max-height:720px)]:gap-1.5">
+                {KEYPAD_KEYS.map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => onAmountPaidChange(applyKey(amountPaid, k))}
+                    aria-label={k === '⌫' ? 'Hapus satu angka' : undefined}
+                    className="press h-12 [@media(max-height:720px)]:h-11 rounded-control surface-card text-xl font-semibold tnum text-ink-900"
+                  >
+                    {k}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : (
@@ -466,10 +518,11 @@ export const CheckoutPanel = memo(function CheckoutPanel({
         )}
           </>
         )}
+        </div>
       </div>
 
-      {/* Sticky bar: Sales (opsional) as a small row, Kembalian / Kurang next to Konfirmasi */}
-      <div className="px-5 pt-3 pb-4 border-t border-paper-2 shrink-0 space-y-3">
+      {/* Sticky bar: Sales (opsional) as a small row, Kembalian / Kurang next to the gold Konfirmasi bar */}
+      <div className="px-4 pt-2 pb-3 border-t border-paper-2 shrink-0 space-y-2">
         {saveError && (
           <p role="alert" className="text-xs font-semibold text-danger bg-danger-bg rounded-control px-3 py-2">
             {saveError}
@@ -513,11 +566,21 @@ export const CheckoutPanel = memo(function CheckoutPanel({
               </>
             )}
           </div>
-          <Button size="lg" className="flex-1 !text-lg font-bold" onClick={handleConfirmClick} disabled={isProcessing || confirmBlocked}>
-            {isProcessing ? 'Memproses…' : `Konfirmasi ${formatRupiah(derived.total)}`}
-          </Button>
+          <button
+            type="button"
+            onClick={handleConfirmClick}
+            disabled={isProcessing || confirmBlocked}
+            className="bar-primary press-bar flex h-14 flex-1 items-center justify-between rounded-sheet px-5 font-bold tnum disabled:pointer-events-none disabled:opacity-50"
+          >
+            {isProcessing ? (
+              <span className="text-lg">Memproses…</span>
+            ) : (
+              <>
+                <span className="text-lg">Konfirmasi</span> <span className="text-xl">{formatRupiah(derived.total)}</span>
+              </>
+            )}
+          </button>
         </div>
-        <p className="text-xs text-ink-500 text-center">Order akan terkirim otomatis</p>
       </div>
 
       {confirmLeave && (

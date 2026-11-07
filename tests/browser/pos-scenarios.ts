@@ -1,6 +1,6 @@
 // Ordinary imported scenario functions, converted from the accepted manual scripts.
 import type { ScenarioPage } from './fixture'
-import { BAYAR_SHOT_VIEWPORTS, POS_SHOT_VIEWPORTS, captureShot } from './shots'
+import { BAYAR_SHOT_VIEWPORTS, POS_SHOT_VIEWPORTS, SHOT_VIEWPORTS, captureShot, type ShotViewport } from './shots'
 
 // A04: an outlet-less (admin) account on an unbound terminal must pick the outlet once. The
 // real picker is clicked here, exactly as a person would; the choice is then stored in the
@@ -193,7 +193,7 @@ export const guestSales = async (page: ScenarioPage) =>{
  const capture=async(name,method='qris',registered=false)=>{
   const before=(await box()).length;await page.getByRole('button',{name:'Bayar',exact:true}).click();
   if(!registered){assert(!(await page.locator('body').innerText()).includes('Tukar Poin Loyalti'),'guest redemption UI');assert(!(await page.locator('body').innerText()).includes('Hadiah Loyalti'),'guest reward UI');assert(!(await page.locator('body').innerText()).includes('Hadiah & Poin'),'guest reward card');assert((await page.getByRole('button',{name:/^Tukar [0-9]+ poin/}).count())===0,'guest points chip');}
-  if(method==='cash'){const amt=page.getByRole('textbox',{name:'Jumlah dibayar'});await amt.fill('100000');assert((await amt.inputValue()).replace(/\s/g,' ')==='Rp 100.000','cash amount is formatted while typing');if(!registered)await captureShot(page,'p6b-bayar-cash',BAYAR_SHOT_VIEWPORTS);}else await page.getByRole('button',{name:'QRIS',exact:true}).click();
+  if(method==='cash'){const amt=page.getByRole('textbox',{name:'Jumlah dibayar'});await amt.fill('100000');assert((await amt.inputValue()).replace(/\s/g,' ')==='Rp 100.000','cash amount is formatted while typing');if(!registered)await captureShot(page,'p6b-bayar-cash',['pos-a9',...BAYAR_SHOT_VIEWPORTS]);}else await page.getByRole('button',{name:'QRIS',exact:true}).click();
   await page.getByRole('button',{name:/^Konfirmasi Rp/}).click();await page.getByRole('heading',{name:'Pembayaran Berhasil',exact:true}).waitFor();
   const queue=await box(), item=queue.at(-1), receipt=await page.locator('body').innerText();
   assert(queue.length===before+1,'capture creates exactly one op');assert(item.idempotencyKey.endsWith(':'+item.payload.orderUuid),'original identity');
@@ -213,7 +213,7 @@ export const guestSales = async (page: ScenarioPage) =>{
  await page.getByRole('button',{name:'Bayar',exact:true}).click();await page.getByRole('button',{name:'QRIS',exact:true}).click();const n=(await box()).length;await page.getByRole('button',{name:/^Konfirmasi Rp/}).click();
  assert((await box()).length===n,'ineligible benefit must not queue');assert((await page.locator('body').innerText()).includes('tidak berlaku lagi'),'revalidation feedback');
  await page.getByRole('button',{name:/^Konfirmasi Rp/}).click();await page.getByRole('heading',{name:'Pembayaran Berhasil',exact:true}).waitFor();const cleared=(await box()).at(-1);assert(cleared.payload.customerId===null&&cleared.payload.discountCodes.length===0,'cleared guest identity/code');assert(cleared.payload.promotionIds.includes('generic-fixed'),'unrelated generic survives');results.push({name:'clear-assigned-reconfirm',item:cleared,receipt:await page.locator('body').innerText()});
- await fresh();await select();await page.getByRole('button',{name:'Bayar',exact:true}).click();await page.getByRole('button').filter({hasText:'Customer gift'}).click();await page.getByRole('button',{name:/Synthetic Tester · M/}).click();await page.getByRole('button',{name:/^Tukar [0-9]+ poin/}).click();await page.getByRole('button',{name:'Semua',exact:true}).last().click();await page.getByRole('heading',{name:'Bayar',exact:true}).locator('..').getByRole('button',{name:'Kembali'}).click();await clear();const loyaltyClear=await capture('clear-reward-points');assert(loyaltyClear.payload.items.length===1,'loyalty line removed');
+ await fresh();await select();await page.getByRole('button',{name:'Bayar',exact:true}).click();await bayarFit(page,'f2-bayar-customer-reward');await page.getByRole('button').filter({hasText:'Customer gift'}).click();await page.getByRole('button',{name:/Synthetic Tester · M/}).click();await page.getByRole('button',{name:/^Tukar [0-9]+ poin/}).click();await page.getByRole('button',{name:'Semua',exact:true}).last().click();await page.getByRole('heading',{name:'Bayar',exact:true}).locator('..').getByRole('button',{name:'Kembali'}).click();await clear();const loyaltyClear=await capture('clear-reward-points');assert(loyaltyClear.payload.items.length===1,'loyalty line removed');
  await fresh();await select();const registered=await capture('registered-preserved','qris',true);
  assert(registered.payload.customerId===page.__a24.customer.id&&registered.payload.customerName==='Synthetic Customer','registered identity preserved');
  // Browser reconstruction uses the same successful localStorage, no replacement engine or fixture payload.
@@ -408,6 +408,41 @@ export const posStockDrift = async (page: ScenarioPage) => {
   assert(pulls() === n1, 'an own sale acked at local seq + 1 causes no pull');
   return [{ step: 'foreign stock bump', pulls: n1 - n0 }, { step: 'own sale ack', pulls: pulls() - n1 }];
 };
+
+// Kaca F2 (W2-10): with a customer and the reward row, the method switch, amount field, keypad, quick chips and Konfirmasi
+// are all inside the viewport and the sheet body does not scroll, at the fleet tablet (1006x601) and the short laptop size.
+const bayarFit = async (page: ScenarioPage, shotName: string) => {
+  const assert = (v: unknown, m: string) => { if (!v) throw Error(m) }
+  // The reward row loads from the preview: measure only once it is on screen.
+  await page.getByRole('button').filter({ hasText: 'Customer gift' }).waitFor()
+  const original = page.viewportSize()
+  try {
+    for (const vp of ['pos-a9', 'pos-short', 'pos'] as ShotViewport[]) {
+      await page.setViewportSize(SHOT_VIEWPORTS[vp])
+      await page.evaluate(async () => {
+        await document.fonts.ready
+        await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+      })
+      const fit = await page.evaluate(() => {
+        const h = window.innerHeight
+        const inView = (el: Element | null) => { if (!el) return false; const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= h + 0.5 }
+        const field = document.getElementById('checkout-amount')
+        const body = field?.closest('.overflow-y-auto') as HTMLElement | null
+        const keypadButtons = [...(body?.querySelectorAll('button') ?? [])]
+        const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '000', '0'].map((k) => keypadButtons.find((b) => b.textContent === k) ?? null)
+        const backspace = body?.querySelector('button[aria-label="Hapus satu angka"]') ?? null
+        const confirm = [...document.querySelectorAll('[role=dialog] button')].find((b) => /^Konfirmasi\s*Rp/.test(b.textContent ?? '')) ?? null
+        const method = document.querySelector('[role=dialog] [aria-label="Metode pembayaran"]')
+        return { keys: keys.every(inView), backspace: inView(backspace), confirm: inView(confirm), field: inView(field), method: inView(method), noScroll: !!body && body.scrollHeight <= body.clientHeight + 1, h }
+      })
+      assert(fit.keys && fit.backspace && fit.confirm && fit.field && fit.method, `Bayar fit @${vp}: ${JSON.stringify(fit)}`)
+      assert(fit.noScroll, `Bayar body does not scroll @${vp}: ${JSON.stringify(fit)}`)
+    }
+    await captureShot(page as any, shotName, ['pos-a9', 'pos', 'pos-short'])
+  } finally {
+    if (original) await page.setViewportSize(original)
+  }
+}
 
 // B1 (POS UX direction, D-10): a multi-size tile opens the variant sheet, a size row adds one unit
 // and closes it; the cart line opens the line sheet (stepper, size switch as remove + add, Hapus).
