@@ -19,7 +19,12 @@ describe('unsaved-change marking', () => {
   it('tints each changed row and names the saved value', () => {
     expect(html).toContain('Sebelumnya aktif')
     expect(html).toContain('Aktif sebelumnya aktif')
-    expect(html.match(/data-changed="true"/g)!.length).toBeGreaterThanOrEqual(5)
+    // Rows: PPN, QRIS, Bayar terpisah (row) = 3 rows, plus the three cards (tax, payments, split) = 6 marks.
+    expect(html.match(/data-changed="true"/g)).toHaveLength(6)
+    expect(html).toMatch(/data-changed="true"[^>]*>(?:(?!<\/div>).)*Aktifkan pajak \(PPN\)/s)
+    // Unchanged siblings stay plain: the rounding row and the other payment methods carry no mark.
+    expect(html).not.toMatch(/data-changed="true"[^>]*>(?:(?!<\/div>).)*Pembulatan harga/s)
+    expect(html).not.toMatch(/data-changed="true"[^>]*>(?:(?!<\/div>).)*>Tunai</s)
   })
   it('tags the changed cards after their title', () => {
     expect(html).toContain('>Pajak &amp; pembulatan</h3><span')
@@ -29,5 +34,6 @@ describe('unsaved-change marking', () => {
     const clean = render(DEFAULT_SETTINGS as typeof draft, [])
     expect(clean).not.toContain('Belum disimpan')
     expect(clean).not.toContain('Sebelumnya')
+    expect(clean).not.toContain('data-changed')
   })
 })

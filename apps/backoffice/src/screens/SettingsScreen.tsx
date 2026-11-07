@@ -13,10 +13,11 @@ import { routeById } from '../lib/router/routes'
 import { useScreenTabs } from '../lib/router/useScreenTabs'
 import { LocationsSection } from './settings/LocationsSection'
 import { SettingsCard } from './settings/SettingsCard'
+import { SettingRow } from './settings/SettingRow'
 import { TransaksiSection } from './settings/TransaksiSection'
 import { Switch } from '../ui/Switch'
 import { SAVED_MESSAGE, useSettingsDraft } from './settings/useSettingsDraft'
-import { CARD_TITLE, type TabId } from './settings/settingsDiff'
+import { CARD_TITLE, changeAt, type TabId } from './settings/settingsDiff'
 
 // Moves inside Pengaturan (its own tabs) are not a leave: the draft survives them, so the guard only asks for moves out.
 const SETTINGS_SCOPE = [routeById('settings')?.path ?? 'pengaturan'] as const
@@ -93,13 +94,9 @@ export default function SettingsScreen() {
         <>
           <LocationsSection />
           <SettingsCard changed={changed.has('stock')} title="Pengaturan stok" className="p-6 max-w-4xl space-y-5">
-            <div className="flex items-center justify-between py-3">
-              <div>
-                <p className="font-bold text-ink-900">Izinkan Stok Minus</p>
-                <p className="text-xs text-ink-700">Jika nonaktif, kasir diberi peringatan saat menjual melebihi stok (masih bisa dilanjutkan).</p>
-              </div>
+            <SettingRow title="Izinkan stok minus" hint="Jika nonaktif, kasir diberi peringatan saat menjual melebihi stok (masih bisa dilanjutkan)." change={changeAt(changes, 'allowNegativeStock')}>
               <Switch label="Izinkan stok minus" checked={s.allowNegativeStock} onChange={() => setS((p) => ({ ...p, allowNegativeStock: !p.allowNegativeStock }))} />
-            </div>
+            </SettingRow>
           </SettingsCard>
         </>
       )}
@@ -114,24 +111,16 @@ export default function SettingsScreen() {
         <div className="max-w-4xl space-y-5">
           {/* Sub-section: Shift */}
           <SettingsCard changed={changed.has('shift')} title="Pengaturan shift" className="p-6 space-y-5">
-            <div className="flex items-center justify-between py-3">
-              <div>
-                <p className="font-bold text-ink-900">Buka Shift Otomatis</p>
-                <p className="text-xs text-ink-700">Shift dibuka otomatis saat kasir login</p>
-              </div>
+            <SettingRow title="Buka shift otomatis" hint="Shift dibuka otomatis saat kasir login" change={changeAt(changes, 'autoOpenShift')}>
               <Switch label="Buka shift otomatis" checked={s.autoOpenShift} onChange={() => setS((p) => ({ ...p, autoOpenShift: !p.autoOpenShift }))} />
-            </div>
+            </SettingRow>
           </SettingsCard>
 
           {/* Sub-section: Persetujuan Stok */}
           <SettingsCard changed={changed.has('approval')} title="Persetujuan stok" className="p-6 space-y-5">
-            <div className="flex items-center justify-between py-3">
-              <div>
-                <p className="font-bold text-ink-900">Wajib persetujuan stok</p>
-                <p className="text-xs text-ink-700">Koreksi stok dan opname harus disetujui peran penyetuju (di bawah) dengan PIN, penyetuju bukan pengaju (four-eyes).</p>
-              </div>
+            <SettingRow title="Wajib persetujuan stok" hint="Koreksi stok dan opname harus disetujui peran penyetuju (di bawah) dengan PIN, penyetuju bukan pengaju (four-eyes)." change={changeAt(changes, 'inventoryApprovalRequired')}>
               <Switch label="Wajib persetujuan stok" checked={s.inventoryApprovalRequired ?? false} onChange={() => setS((p) => ({ ...p, inventoryApprovalRequired: !p.inventoryApprovalRequired }))} />
-            </div>
+            </SettingRow>
           </SettingsCard>
 
           {/* Sub-section: Persetujuan Transfer */}
@@ -261,16 +250,13 @@ export default function SettingsScreen() {
             Aktifkan modul Resep &amp; Bahan untuk melacak bahan baku per gudang dan formula per
             produk. Saat dinonaktifkan, tab Bahan tidak akan muncul di layar Gudang.
           </p>
-          <div className="flex items-center justify-between py-3 border-b border-paper-2">
-            <div>
-              <p className="font-bold text-ink-900">Aktifkan modul Resep &amp; Bahan</p>
-            </div>
+          <SettingRow title="Aktifkan modul Resep &amp; Bahan" change={changeAt(changes, 'recipesEnabled')}>
             <Switch
               label="Aktifkan modul Resep & Bahan"
               checked={s.recipesEnabled ?? false}
               onChange={() => setS((p) => ({ ...p, recipesEnabled: !p.recipesEnabled }))}
             />
-          </div>
+          </SettingRow>
         </SettingsCard>
       )}
 

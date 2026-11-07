@@ -24,6 +24,9 @@ export const CARD_TAB: Record<CardId, TabId> = {
   recipe: 'recipe',
 }
 
+/** The pending change for one setting path, if the draft differs from the saved value. */
+export const changeAt = (changes: readonly Change[], path: string): Change | undefined => changes.find((c) => c.path === path)
+
 /** Card names for the leave question ("Ada 2 perubahan (Metode pembayaran, Bayar terpisah)"). */
 export const CARD_TITLE: Record<CardId, string> = {
   stock: 'Pengaturan stok',

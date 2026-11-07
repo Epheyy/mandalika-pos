@@ -2,10 +2,7 @@ import type { ReactNode } from 'react'
 import { cn } from '../../ui/cn'
 import type { Change } from './settingsDiff'
 
-/** The pending change for one setting path, if the draft differs from the saved value. */
-export const changeAt = (changes: readonly Change[], path: string): Change | undefined => changes.find((c) => c.path === path)
-
-/** Peach tint plus a "Sebelumnya {value}" hint for a row whose value is unsaved (BO3-03). Shared by every Pengaturan row. */
+/** The "Sebelumnya {value}" hint under a row whose value is unsaved (BO3-03). */
 export function ChangedHint({ change }: { change: Change | undefined }) {
   if (!change) return null
   return <p className="text-xs font-bold text-warn-strong">Sebelumnya {change.from}</p>
@@ -20,12 +17,12 @@ interface SettingRowProps {
   children: ReactNode
 }
 
-/** Label + helper on the left, the control on the right. */
+/** Label + helper on the left, the control on the right; tinted with a "Sebelumnya" hint while its value is unsaved. */
 export function SettingRow({ title, hint, change, rule = true, children }: SettingRowProps) {
   return (
     <div
       data-changed={change ? 'true' : undefined}
-      className={cn('flex items-center justify-between gap-4 px-3 py-3 rounded-xl', rule && !change && 'border-b border-paper-2 rounded-none', change && 'bg-warn-bg')}
+      className={cn('flex items-center justify-between gap-4 px-3 py-3', change ? 'rounded-xl bg-warn-bg' : rule ? 'border-b border-paper-2' : 'rounded-xl')}
     >
       <div>
         <p className="font-bold text-ink-900">{title}</p>

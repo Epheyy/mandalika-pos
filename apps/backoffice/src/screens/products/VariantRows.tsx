@@ -60,7 +60,7 @@ export function VariantRows({
             { k: 'size', id: FIELD_ID.size(i), span: 'col-span-3', ph: '30ml', label: 'Ukuran varian', value: shownSize(v) },
             { k: 'sku', id: FIELD_ID.sku(i), span: 'col-span-2', ph: 'MND-01', label: 'SKU varian', value: v.sku },
           ] as const
-          const rowErrors = [FIELD_ID.size(i), FIELD_ID.price(i), FIELD_ID.sku(i)].map((id) => errors[id]).filter((m): m is string => !!m)
+          const rowErrors = [FIELD_ID.size(i), FIELD_ID.sku(i), FIELD_ID.price(i)].map((id) => errors[id]).filter((m): m is string => !!m)
           const textInput = ({ k, id, span, ph, label, value }: (typeof textFields)[number]) => (
             <input key={k} id={id} type="text" value={value} onChange={(e) => onUpdVariant(i, k, e.target.value)} placeholder={ph} aria-label={label}
               aria-invalid={errors[id] ? true : undefined}

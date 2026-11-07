@@ -5,8 +5,8 @@ import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '../../ui/Button'
 import { Input, Select, Field } from '../../ui/Field'
 import { SettingsCard } from './SettingsCard'
-import { SettingRow, changeAt } from './SettingRow'
-import type { CardId, Change } from './settingsDiff'
+import { SettingRow } from './SettingRow'
+import { changeAt, type CardId, type Change } from './settingsDiff'
 import { IconButton } from '../../ui/IconButton'
 import { Switch } from '../../ui/Switch'
 import { SplitTenderCard } from './SplitTenderCard'
@@ -171,10 +171,9 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed, changes 
           onChange={(e) => setReceipt('copies', parseInt(e.target.value) || 1)}
           className="w-32"
         />
-        <div className="flex items-center justify-between py-2 border-b border-paper-2">
-          <p className="font-bold text-ink-900 text-sm">Cetak struk otomatis</p>
+        <SettingRow title="Cetak struk otomatis" change={changeAt(changes, 'receipt.autoPrint')}>
           <Switch label="Cetak struk otomatis" checked={!!s.receipt.autoPrint} size="sm" onChange={() => setReceipt('autoPrint', !s.receipt.autoPrint)} />
-        </div>
+        </SettingRow>
         {([['headerText', 'Teks Header'], ['footerText', 'Teks Footer']] as const).map(([k, label]) => (
           <Input
             key={k}
