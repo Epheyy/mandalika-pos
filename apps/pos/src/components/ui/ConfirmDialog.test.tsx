@@ -26,7 +26,7 @@ describe('ConfirmDialog', () => {
   it('wires Batal and the confirm button to their handlers', () => {
     const onCancel = vi.fn(), onConfirm = vi.fn()
     const tree = ConfirmDialog({ ...base, open: true, onCancel, onConfirm }) as ReactElement<{ children: ReactElement<{ children: unknown[] }>[] }>
-    const buttons = (tree.props.children as unknown as ReactElement<{ children: ReactElement<{ onClick: () => void; children: string }>[] }>[])[1].props.children
+    const buttons = (tree.props.children as unknown as ReactElement<{ children: ReactElement<{ onClick: () => void; children: string }>[] }>[]).at(-1)!.props.children
     buttons.find((b) => b.props.children === 'Batal')?.props.onClick()
     buttons.find((b) => b.props.children === 'Kosongkan')?.props.onClick()
     expect(onCancel).toHaveBeenCalledTimes(1)
