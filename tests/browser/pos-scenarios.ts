@@ -295,7 +295,7 @@ export const posRecap = async (page: ScenarioPage) =>{
     await page.getByTestId('denomination-sheet').waitFor();
     await page.getByLabel('Jumlah lembar Rp 100.000').fill('3');
     await captureShot(page,'p3-denomination',POS_BOTH_SHOT_VIEWPORTS);
-    await page.getByTestId('denomination-sheet').getByRole('button',{name:'Batal',exact:true}).click();
+    await page.getByTestId('denomination-sheet').getByRole('button',{name:'Kembali',exact:true}).click();
     await page.getByLabel('Terhitung').nth(0).fill('1000000');await page.getByLabel('Terhitung').nth(1).fill('5000');
     await captureShot(page,'p3-recap-counted',POS_BOTH_SHOT_VIEWPORTS);
     await page.getByRole('button',{name:'Tutup Shift',exact:true}).last().click();
