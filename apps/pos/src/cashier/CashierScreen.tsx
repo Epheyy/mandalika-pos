@@ -230,6 +230,10 @@ export default function CashierScreen() {
   // Raised when the recap was opened to close the shift (header "Tutup") — the
   // panel then requires counted income before allowing the close.
   const [closeIntent, setCloseIntent] = useState(false)
+  // The two flags move together: every way in states the intent, every way out (× and Android Back) clears both,
+  // so a backed-out close never leaves the close-shift block on the next plain Rekapan visit.
+  const openRecap = (intent: boolean) => { setCloseIntent(intent); setShowRecap(true) }
+  const closeRecap = () => { setShowRecap(false); setCloseIntent(false) }
   const [showMenu, setShowMenu] = useState(false)
   const [showConnection, setShowConnection] = useState(false)
   const [showReceive, setShowReceive] = useState(false)
@@ -1171,7 +1175,7 @@ export default function CashierScreen() {
       if (showLocalReceipts) { setShowLocalReceipts(false); return true }
       if (showTransferHistory) { setShowTransferHistory(false); return true }
       if (showRequisitions) { if (!requisitionBackRef.current?.()) setShowRequisitions(false); return true }
-      if (showRecap) { if (!recapBackRef.current?.()) setShowRecap(false); return true }
+      if (showRecap) { if (!recapBackRef.current?.()) closeRecap(); return true }
       if (refundOrder) { setRefundOrder(null); setRefundSale(null); return true }
       if (layer === 'close-picker') { setPendingFulfillment(null); return true }
       if (layer === 'close-success') { dispatch({ type: 'CLOSE_SUCCESS' }); return true }
@@ -1241,7 +1245,7 @@ export default function CashierScreen() {
           onOpenShift={shift.openShift}
           isOnline={offlineData.isOnline} canOpen={shift.canOpenShift}
           error={shift.shiftError}
-          onRequestClose={() => { setCloseIntent(true); setShowRecap(true) }}
+          onRequestClose={() => openRecap(true)}
           promptOpen={shiftPrompt} onPromptConsumed={() => setShiftPrompt(false)}
         />
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -1496,7 +1500,7 @@ export default function CashierScreen() {
 
       <ShiftRecapPanel
         isOpen={showRecap}
-        onClose={() => { setShowRecap(false); setCloseIntent(false) }}
+        onClose={closeRecap}
         paymentMethods={settings.paymentMethods}
         userName={user.displayName}
         userRole={user.role}
@@ -1534,7 +1538,7 @@ export default function CashierScreen() {
         onHeldOrders={() => heldOrders.setOpen(true)}
         onHistory={() => { setHistoryFocus(null); setShowHistory(true) }}
         onLocalReceipts={() => setShowLocalReceipts(true)}
-        onRecap={() => setShowRecap(true)}
+        onRecap={() => openRecap(false)}
         onCashFlow={() => openSettings('cashflow')}
         onSync={() => void offlineData.resync()}
         onPrintSettings={() => openSettings('printer')}
