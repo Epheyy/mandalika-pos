@@ -51,7 +51,7 @@ export function codeProblems(form: DiscountCodeInput): FormProblem[] {
   if (!form.code.trim()) out.push({ fieldId: CODE_FIELD.code, label: 'Kode', message: 'Kode wajib diisi.', kind: 'required' })
   // A code linked to a promotion follows its type and value (the fields are disabled), so only an unlinked code is checked.
   if (!form.promotionId) {
-    const v = discountValueProblem(form.type, form.value, CODE_FIELD.value)
+    const v = discountValueProblem(form.type, form.value, CODE_FIELD.value, 'Nilai')
     if (v) out.push(v)
   }
   const d = dateOrderProblem(form.startDate, form.endDate, CODE_FIELD.endDate)

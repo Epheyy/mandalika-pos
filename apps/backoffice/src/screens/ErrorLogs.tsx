@@ -79,7 +79,7 @@ export default function ErrorLogs() {
     { id: 'time', header: 'Waktu', cell: (e) => <span className="whitespace-nowrap">{fmtTime(e.createdAt)}</span> },
     { id: 'source', header: 'Sumber', cell: (e) => <StatusBadge map={ERROR_SOURCE} value={e.source} /> },
     { id: 'kind', header: 'Jenis', cell: (e) => (e.kind ? <StatusBadge map={ERROR_KIND} value={e.kind} /> : DASH) },
-    { id: 'message', header: 'Pesan', cell: (e) => <span className="line-clamp-2 font-bold">{errorMessageText(e.message, e.kind).summary}</span> },
+    { id: 'message', header: 'Pesan', cell: (e) => <span className="line-clamp-2 font-bold">{errorMessageText(e.message, e.kind, e.source).summary}</span> },
     { id: 'outlet', header: 'Outlet', cell: (e) => e.outletName ?? DASH },
     { id: 'user', header: 'Pengguna', cell: (e) => e.userName ?? DASH, defaultHidden: true },
     { id: 'device', header: 'Perangkat', cell: (e) => e.deviceId ?? DASH, defaultHidden: true },
@@ -155,10 +155,10 @@ export default function ErrorLogs() {
 }
 
 function ErrorDetail({ e }: { e: ErrorLog }) {
-  const raw = errorMessageText(e.message, e.kind).raw
+  const { summary, raw } = errorMessageText(e.message, e.kind, e.source)
   return (
     <div className="space-y-4">
-      <p className="font-bold text-ink-900 break-words">{errorMessageText(e.message, e.kind).summary}</p>
+      <p className="font-bold text-ink-900 break-words">{summary}</p>
       {e.action && <DetailField label="Aksi" value={e.action} />}
       <div className="grid grid-cols-2 gap-3 text-xs">
         <DetailField label="Outlet" value={e.outletName ?? e.outletId ?? DASH} />

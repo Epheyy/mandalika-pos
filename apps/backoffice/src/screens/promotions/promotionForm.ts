@@ -140,9 +140,8 @@ function maxApplicationsMessage(form: PromotionInput): string | null {
  * Mirrors the server (write.validateDiscountValue). Other types keep their numbers in a config blob. A 0 is
  * `required` (a new form starts at 0 and stays quiet until touched); a value out of range is `invalid`.
  */
-export function discountValueProblem(type: string, value: number, fieldId: string): FormProblem | null {
+export function discountValueProblem(type: string, value: number, fieldId: string, label = 'Nilai diskon'): FormProblem | null {
   if (type !== 'percentage' && type !== 'fixed') return null
-  const label = 'Nilai diskon'
   if (type === 'percentage' && (!(value > 0) || value > 100)) {
     return { fieldId, label, message: 'Maksimal 100% untuk tipe persentase, dan wajib > 0.', kind: value > 0 ? 'invalid' : 'required' }
   }
