@@ -46,9 +46,10 @@ export function orderPaymentCsv(o: Pick<Order, 'paymentMethod' | 'tenders'>, met
   return lines.map((t) => tenderLineText(t, methods)).join('; ')
 }
 
-/** List/detail text for the method of an order: the label for a split order, the raw id otherwise. */
-export function orderMethodText(o: Pick<Order, 'paymentMethod'>): string {
-  return isSplitMethodId(o.paymentMethod) ? SPLIT_LABEL : o.paymentMethod
+/** List/detail text for the method of an order: the display label (Tunai, QRIS, Split-Payment). Display only;
+ *  the CSV keeps the raw id (orderPaymentCsv). */
+export function orderMethodText(o: Pick<Order, 'paymentMethod'>, methods?: Methods): string {
+  return methodLabel(o.paymentMethod, methods)
 }
 
 /** Titles of the "⚠ Bayar" badge by tenderWarningReason. */

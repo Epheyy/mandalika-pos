@@ -263,7 +263,7 @@ export function OrdersPanel() {
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900 text-sm">{o.orderNumber}</p>
                     <p className="text-xs text-ink-500">
-                      {o.items.length} item · <span className="capitalize">{orderMethodText(o)}</span>
+                      {o.items.length} item · {orderMethodText(o, payMethods)}
                       {o.customerName && <> · {o.customerName}</>} · {o.cashierName} ·{' '}
                       {format(parseISO(o.createdAt), 'dd MMM yyyy HH:mm', { locale: id })}
                     </p>

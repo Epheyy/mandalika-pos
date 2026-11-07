@@ -18,6 +18,16 @@ const SPLIT = {
   tenders: [line(1, 'qris', 751000, { reference: '8812345' }), line(2, 'tunai', 500000, { tendered: 600000, change: 100000 })],
 }
 
+describe('row labels (BO5-02)', () => {
+  it('shows Tunai/QRIS for raw ids in the split rows, list text and refund payout', () => {
+    const o = { paymentMethod: 'Cash', tenders: [line(1, 'Qris', 10), line(2, 'Cash', 5)] }
+    expect(paymentLineRows(o).map((r) => r.label)).toEqual(['QRIS', 'Tunai'])
+    expect(orderMethodText(o)).toBe('Tunai')
+    expect(refundPayoutText({ paymentMethod: 'Cash', payoutSource: null })).toBe('Dikembalikan lewat Tunai')
+    expect(orderPaymentCsv({ paymentMethod: 'Cash' })).toBe('Cash') // CSV contract unchanged
+  })
+})
+
 describe('labels', () => {
   it('names the sentinel Split-Payment and uses the canonical label', () => {
     expect(methodLabel('split', METHODS)).toBe(SPLIT_LABEL)
@@ -25,7 +35,9 @@ describe('labels', () => {
     expect(methodLabel('bca', METHODS)).toBe('BCA')
     expect(methodLabel('Cash')).toBe('Tunai')
     expect(orderMethodText({ paymentMethod: 'SPLIT' })).toBe('Split-Payment')
-    expect(orderMethodText({ paymentMethod: 'qris' })).toBe('qris')
+    expect(orderMethodText({ paymentMethod: 'qris' }, METHODS)).toBe('QRIS')
+    expect(orderMethodText({ paymentMethod: 'Cash' })).toBe('Tunai')
+    expect(orderMethodText({ paymentMethod: 'qris' })).toBe('QRIS')
   })
   it('tells split orders from single-method ones like the server', () => {
     expect(isSplitOrder(SPLIT)).toBe(true)

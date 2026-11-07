@@ -74,7 +74,7 @@ async function idle(page: ScenarioPage, ms: number) {
 }
 
 const kpi = async (page: ScenarioPage, label: string) =>
-  (await page.locator('p', { hasText: new RegExp(`^${label}$`) }).locator('xpath=preceding-sibling::p[1]').innerText()).replace(/\s/g, '')
+  (await page.locator('p', { hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::p[1]').innerText()).replace(/\s/g, '')
 
 async function openRingkasan(page: ScenarioPage) {
   await page.clock.install()

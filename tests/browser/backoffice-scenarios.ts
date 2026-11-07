@@ -81,7 +81,7 @@ export const backofficeChecks = async (page: ScenarioPage) => {
     // T7: the revenue KPI is net; its subtitle shows Kotor / Refund (was "N transaksi"), proving the refund side loaded.
     const money=(n*1000).toLocaleString('id-ID');
     await page.getByText(new RegExp('^Kotor Rp\\s*'+money.replace(/\./g,'\\.')+'\\s*/ Refund Rp\\s*0$')).waitFor();
-    const kpiValue=(await page.locator('p',{hasText:/^Penjualan$/}).locator('xpath=preceding-sibling::p[1]').innerText()).replace(/\s/g,'');
+    const kpiValue=(await page.locator('p',{hasText:/^Penjualan$/}).locator('xpath=following-sibling::p[1]').innerText()).replace(/\s/g,'');
     check(kpiValue===`Rp${money}`,'dashboard net KPI value');
     const dashboard=await page.locator('main').innerText();
     check(dashboard.includes('Tren Penjualan (Bersih)'),'dashboard net trend heading');

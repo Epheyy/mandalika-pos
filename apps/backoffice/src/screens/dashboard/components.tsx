@@ -1,38 +1,38 @@
 import type { ReactNode } from 'react'
-import { ArrowDownRight, ArrowUpRight } from 'lucide-react'
 import { Card } from '../../ui/Card'
 
 interface KpiCardProps {
   label: string
   value: string
   sub?: string
-  icon: ReactNode
   /** Percent change vs the previous period; null hides the delta. */
   deltaPct?: number | null
+  /** Comparison words shown in the delta pill, e.g. "vs 30 hari lalu". */
+  compare?: string
 }
 
-/** Headline metric with a gold icon chip and an optional period-over-period delta. */
-export function KpiCard({ label, value, sub, icon, deltaPct }: KpiCardProps) {
+/** Delta text of the KPI pill: one decimal, comma (id-ID), arrow, sign dropped (the arrow carries it). */
+export function formatDelta(pct: number): string {
+  const n = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Math.abs(pct))
+  return `${pct >= 0 ? '↗' : '↘'} ${n}%`
+}
+
+/** Headline metric (Kaca BO5): grey label on top, big value, delta as a tinted pill with the comparison words. */
+export function KpiCard({ label, value, sub, deltaPct, compare }: KpiCardProps) {
   const up = deltaPct != null && deltaPct >= 0
   return (
     <Card className="p-5">
-      <div className="flex items-start justify-between mb-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-paper-1 text-brand-strong">
-          {icon}
-        </div>
-        {deltaPct != null && (
-          <span
-            className={`inline-flex items-center gap-0.5 text-xs font-bold ${up ? 'text-ok' : 'text-danger'}`}
-            title="vs periode sebelumnya"
-          >
-            {up ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-            {Math.abs(deltaPct).toFixed(0)}%
-          </span>
-        )}
-      </div>
-      <p className="text-2xl font-black text-ink-900 leading-none mb-1 tabular-nums">{value}</p>
-      <p className="text-xs font-bold text-ink-700">{label}</p>
-      {sub && <p className="text-xs text-ink-500 mt-0.5">{sub}</p>}
+      <p className="text-[13px] text-ink-500">{label}</p>
+      <p className="text-2xl font-black text-ink-900 leading-none my-2 tabular-nums">{value}</p>
+      {deltaPct != null && (
+        <span
+          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${up ? 'bg-ok-bg text-ok' : 'bg-danger-bg text-danger'}`}
+        >
+          {formatDelta(deltaPct)}
+          {compare ? ` ${compare}` : ''}
+        </span>
+      )}
+      {sub && <p className="text-xs text-ink-500 mt-1.5">{sub}</p>}
     </Card>
   )
 }
