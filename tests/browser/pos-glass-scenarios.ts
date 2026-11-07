@@ -52,7 +52,7 @@ export const posGlassBand = async (page: ScenarioPage) => {
     assert(rest.scrollTop === 0, `${vp}: the scroller rests at 0`)
     assert(rest.firstTileTop >= rest.bandBottom - 0.5, `${vp}: the first product row is not covered at scroll 0 (tile top ${rest.firstTileTop} vs band bottom ${rest.bandBottom})`)
     assert(rest.scrollable, `${vp}: the filler catalogue scrolls`)
-    // F7: search sits inside the header bar (W1-02), the bar's children do not overlap, and the search keeps a usable width (font metrics differ between Windows and the Linux runner).
+    // F7: search sits inside the header bar (W1-02), the bar's children do not overlap, and the search keeps a usable width.
     const hdr = await page.evaluate(() => {
       const header = document.querySelector('header') as HTMLElement
       const search = document.querySelector('input[type=search][aria-label="Cari atau scan produk"]') as HTMLElement
@@ -64,7 +64,7 @@ export const posGlassBand = async (page: ScenarioPage) => {
     })
     assert(hdr.inside, `${vp}: the search field sits inside the header bar`)
     assert(!hdr.overlap, `${vp}: the header bar's children do not overlap or spill`)
-    assert(hdr.searchW >= 140, `${vp}: the search input keeps at least 140 px (got ${hdr.searchW})`)
+    assert(hdr.searchW >= 160, `${vp}: the search input keeps at least 160 px (got ${hdr.searchW})`)
     assert(hdr.headerCloseButtons === 0, `${vp}: no Tutup Shift button sits in the header bar itself`)
     assert((await page.getByRole('tab', { name: 'Promo', exact: true }).count()) === 1, `${vp}: the Promo tab is in the category bar`)
     await page.getByRole('button', { name: /^Shift aktif · \d\d:\d\d/ }).click()

@@ -102,7 +102,7 @@ export const ShiftBar = memo(function ShiftBar({
             title="Detail shift"
           >
             <span className="w-2 h-2 rounded-full bg-ok flex-shrink-0" />
-            <span className="tnum whitespace-nowrap min-w-0 truncate text-sm font-bold">Shift aktif · {formatClock(currentShift.openedAt)}</span>
+            <span className="tnum whitespace-nowrap min-w-0 truncate text-sm font-bold">Shift<span className="sr-only min-[1100px]:not-sr-only"> aktif</span> · {formatClock(currentShift.openedAt)}</span>
             <svg className={`w-3 h-3 flex-shrink-0 transition-transform ${showDetail ? 'rotate-180' : ''}`}
               viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="m6 9 6 6 6-6" />
