@@ -2,7 +2,6 @@ import { useEffect, useState, type MutableRefObject } from 'react'
 import { Sheet } from '../components/ui/Sheet'
 import { Button } from '../components/ui/Button'
 import { CashAmountInput } from './CashAmountInput'
-import { GOLD_BAR_CLASS } from './goldBar'
 import { MAX_NOTE_COUNT, parseNoteCount } from './recapEntry'
 import { formatRupiah } from './pricing'
 import { DENOMINATIONS, denominationTotal } from './countRules'
@@ -67,10 +66,13 @@ export function DenominationSheet({ onApply, onClose, backRef }: Props) {
         </div>
       </div>
       <div className="flex-shrink-0 border-t border-paper-2 p-4">
-        <Button onClick={() => onApply(total)} size="lg" fullWidth className={`justify-between px-5 ${GOLD_BAR_CLASS}`}>
+        <button
+          type="button" onClick={() => onApply(total)}
+          className="bar-primary press-bar tnum flex min-h-16 w-full items-center justify-between px-5 text-base font-bold"
+        >
           <span>Pakai Hasil Hitung</span>
-          <span className="tnum text-xl font-black">{formatRupiah(total)}</span>
-        </Button>
+          <span className="text-xl font-black">{formatRupiah(total)}</span>
+        </button>
       </div>
     </Sheet>
   )

@@ -7,7 +7,7 @@ export const MAX_NOTE_COUNT = 9999
  * Returns a new map; the previous one is never touched.
  */
 export function withCountedRaw(prev: Readonly<Record<string, number>>, id: string, raw: string): Record<string, number> {
-  const { [id]: _removed, ...rest } = prev
+  const rest = Object.fromEntries(Object.entries(prev).filter(([key]) => key !== id))
   return raw === '' ? rest : { ...rest, [id]: Number(raw) }
 }
 

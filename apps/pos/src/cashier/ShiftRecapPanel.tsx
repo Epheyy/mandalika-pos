@@ -27,7 +27,6 @@ import { aggregate, type Breakdown, type PaymentMethodCfg } from './recapAggrega
 import { recapRows, differenceLines } from './recapRows'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { CashAmountInput } from './CashAmountInput'
-import { GOLD_BAR_CLASS } from './goldBar'
 import { countedRaw, withCountedRaw } from './recapEntry'
 import { RecapLoadGate, ownsFlags, startRefresh, switchTab } from './recapRefresh'
 
@@ -390,7 +389,9 @@ function ShiftRecapPanelBody({
   const inFlows = currentFlows.filter((f) => !isCashOut(f.type))
   const outFlows = currentFlows.filter((f) => isCashOut(f.type))
   // W6-08: the close bar names the selisih once every method has a count (never while counts are missing).
-  const allCounted = rows.length > 0 && rows.every((r) => counted[r.id] !== undefined)
+  // Same methods handleClose requires a count for, so the bar and the close check agree.
+  const countRequired = rows.filter((r) => blindCount || r.recorded !== 0 || (live?.byMethod[r.id] ?? 0) > 0)
+  const allCounted = countRequired.every((r) => counted[r.id] !== undefined)
   const countedSum = Object.values(counted).reduce((a, b) => a + b, 0)
   const closeDiff = countedSum - (cur?.total ?? 0)
   const hasSelisih = revealed && allCounted && differenceLines(rows, counted).length > 0
@@ -591,13 +592,13 @@ function ShiftRecapPanelBody({
                         </div>
                         {isCash && revealed && currentShift && (
                           <p className="tnum mt-0.5 text-xs text-ink-500">
-                            Kas awal {formatRupiah(currentShift.startingCash ?? 0)} + Kas masuk {formatRupiah(cashIn)}{cashOut > 0 ? ` − Kas keluar ${formatRupiah(cashOut)}` : ''}
+                            Kas awal {formatRupiah(currentShift.startingCash ?? 0)} + Kas masuk {formatRupiah(cashIn)}{cashOut > 0 ? ` − Kas keluar ${formatRupiah(cashOut)}` : ''} (tidak termasuk Tercatat)
                           </p>
                         )}
                         {inactive && revealed && <p className="mt-0.5 text-xs text-ink-500">Tetap muncul karena memiliki saldo tercatat {formatRupiah(recorded)} pada shift ini.</p>}
                       </div>
                       {currentShift && isCash && (
-                        <Button variant="secondary" aria-label="Hitung lembar" onClick={() => setDenomFor(pm.id)} className="min-h-11 flex-shrink-0 px-3 text-xs">Hitung lembar ›</Button>
+                        <Button variant="secondary" aria-label="Hitung lembar" onClick={() => setDenomFor(pm.id)} className="!min-h-11 flex-shrink-0 !px-3 text-xs">Hitung lembar ›</Button>
                       )}
                     </div>
                     {currentShift && (
@@ -699,14 +700,14 @@ function ShiftRecapPanelBody({
                   <p role="alert" className="text-xs font-semibold text-danger bg-danger-bg border border-danger/30 rounded-control px-3 py-2">{shiftError}</p>
                 )}
                 {queue && <QueueGuardLine pending={queue.pending} parked={queue.parked} />}
-                <Button
-                  onClick={() => void handleClose()} disabled={isClosingShift} size="lg" fullWidth
-                  aria-label="Tutup Shift" aria-describedby={hasSelisih ? 'close-selisih-hint' : undefined}
-                  className={`justify-between px-5 ${GOLD_BAR_CLASS}`}
+                <button
+                  type="button" onClick={() => void handleClose()} disabled={isClosingShift}
+                  aria-label="Tutup Shift" aria-busy={isClosingShift || undefined}
+                  className="bar-primary press-bar tnum flex min-h-16 w-full items-center justify-between px-5 text-base font-bold disabled:opacity-40 disabled:pointer-events-none"
                 >
                   <span aria-hidden="true">{isClosingShift ? 'Menutup…' : hasSelisih ? 'Tutup Shift · Ada Selisih' : 'Tutup Shift'}</span>
-                  {hasSelisih && !isClosingShift && <span id="close-selisih-hint" className="tnum">{signed(closeDiff)}</span>}
-                </Button>
+                  {hasSelisih && !isClosingShift && closeDiff !== 0 && <span aria-hidden="true">{signed(closeDiff)}</span>}
+                </button>
                 <Button variant="secondary" onClick={() => void handlePrintRecap(buildCurrentRecap())} disabled={!revealed} fullWidth
                   leading={<svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>}>
                   Cetak Rekap
@@ -731,7 +732,7 @@ function ShiftRecapPanelBody({
                 <dl className="tnum mt-3 space-y-1 rounded-control bg-paper-1 p-3 text-sm">
                   <div className="flex justify-between"><dt className="text-ink-500">Total Tercatat (Semua Metode)</dt><dd className="font-bold">{formatRupiah(closeConfirm.recorded)}</dd></div>
                   <div className="flex justify-between"><dt className="text-ink-500">Total Terhitung</dt><dd className="font-bold">{formatRupiah(closeConfirm.counted)}</dd></div>
-                  <div className="flex justify-between border-t border-paper-2 pt-1"><dt className="font-semibold">Selisih</dt><dd className="font-black text-danger">{signed(closeConfirm.diff)}</dd></div>
+                  <div className="flex justify-between border-t border-paper-2 pt-1"><dt className="font-semibold">Selisih</dt><dd className={`font-black ${closeConfirm.diff < 0 ? 'text-danger' : 'text-warn-strong'}`}>{signed(closeConfirm.diff)}</dd></div>
                 </dl>
               )}
             </ConfirmDialog>

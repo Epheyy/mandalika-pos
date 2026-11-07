@@ -301,7 +301,7 @@ export const posRecap = async (page: ScenarioPage) =>{
     await page.getByRole('button',{name:'Tutup Shift',exact:true}).last().click();
     await page.getByRole('alert').filter({hasText:'Ada selisih'}).waitFor();
     await captureShot(page,'p3-recap-selisih-confirm',POS_BOTH_SHOT_VIEWPORTS);
-    await page.getByRole('button',{name:'Batal',exact:true}).last().click();
+    await page.getByRole('button',{name:'Periksa Lagi',exact:true}).click();
   }
   return {active,historical,cacheCounts:{activeOrders:401,activeFlows:401,history:251,historicalOrders:401,historicalFlows:401},failure:'visible stale notice; unchanged complete bytes',reconstruction:'same storage; actual panel remount offline',calls:page.__a26pos.calls};
 }
