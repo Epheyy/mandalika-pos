@@ -182,7 +182,7 @@ async function exportFlow(page: ScenarioPage, state: { calls: Call[] }, results:
 
 async function editorFlow(page: ScenarioPage, state: { calls: Call[]; products: MockProduct[] }, results: object[]) {
   const target = state.products[3]
-  const dialog = page.getByRole('dialog', { name: 'Ubah Produk' })
+  const dialog = page.getByRole('dialog', { name: 'Ubah produk' })
   const confirm = page.getByRole('alertdialog')
   const nameInput = dialog.getByLabel('Nama Produk *')
 
@@ -229,7 +229,7 @@ async function editorFlow(page: ScenarioPage, state: { calls: Call[]; products: 
   await page.getByRole('button', { name: `Ubah ${target.name}`, exact: true }).click()
   await dialog.waitFor()
   await nameInput.fill('Parfum Tersimpan')
-  await dialog.getByRole('button', { name: 'Simpan', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Simpan perubahan', exact: true }).click()
   await dialog.waitFor({ state: 'detached' })
   check((await confirm.count()) === 0, 'no question after a save')
   const put = state.calls.find((c) => c.method === 'PUT' && c.path === `/products/${target.id}`)
@@ -239,11 +239,11 @@ async function editorFlow(page: ScenarioPage, state: { calls: Call[]; products: 
 }
 
 async function formErrorsFlow(page: ScenarioPage, results: object[]) {
-  const dialog = page.getByRole('dialog', { name: 'Tambah Produk' })
-  await page.getByRole('button', { name: 'Tambah', exact: true }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'Tambah produk' })
+  await page.getByRole('button', { name: 'Tambah produk', exact: true }).first().click()
   await dialog.waitFor()
   check(['1', 'true'].includes((await hashQuery(page)).baru), '?baru= opens the new-product form')
-  await dialog.getByRole('button', { name: 'Tambah', exact: true }).last().click()
+  await dialog.getByRole('button', { name: 'Tambah produk', exact: true }).last().click()
   await dialog.getByText(/kolom perlu diperbaiki:/).waitFor()
   await dialog.getByText('Nama produk wajib diisi').waitFor()
   await dialog.getByRole('button', { name: 'Kategori', exact: true }).click()
@@ -259,7 +259,7 @@ async function formErrorsFlow(page: ScenarioPage, results: object[]) {
 
 async function recipeLayerFlow(page: ScenarioPage, state: { products: MockProduct[] }, results: object[]) {
   const target = state.products[4]
-  const editor = page.getByRole('dialog', { name: 'Ubah Produk' })
+  const editor = page.getByRole('dialog', { name: 'Ubah produk' })
   const recipe = page.getByRole('dialog', { name: 'Resep' })
   await page.getByRole('button', { name: `Ubah ${target.name}`, exact: true }).click()
   await editor.waitFor()

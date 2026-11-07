@@ -26,6 +26,10 @@ interface ProductsTableProps {
 
 const STOCK_TONE = { out: 'danger', low: 'warning', ok: 'neutral' } as const
 const noop = () => {}
+/** Mock row height (BO1-14). */
+const ROW_HEIGHT = 52
+// BO1-15: the row switch is read-only (status changes in the editor), but it must not look disabled: keep it full colour.
+const READ_ONLY_SWITCH = 'disabled:opacity-100! disabled:cursor-default!'
 const ERP_LOCK_REASON = 'Produk dari ERP tidak bisa dihapus; nonaktifkan saja'
 
 /** A single-unit product carries the internal "Satuan" size: it shows as "Stok", never as a variant name. */
@@ -37,9 +41,9 @@ export function ProductsTable({ rows, catName, loading, error, onRetry, selected
       id: 'product',
       header: 'Produk',
       cell: (p) => (
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-paper-1 overflow-hidden flex-shrink-0 flex items-center justify-center">
-            {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package className="w-5 h-5 text-ink-500" aria-hidden="true" />}
+        <div className="flex items-center gap-3 whitespace-nowrap">
+          <div className="w-8 h-8 rounded-lg bg-paper-1 overflow-hidden flex-shrink-0 flex items-center justify-center">
+            {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <Package className="w-4 h-4 text-ink-500" aria-hidden="true" />}
           </div>
           <div>
             <p className="font-bold text-ink-900 text-sm">{p.name}</p>
@@ -48,12 +52,12 @@ export function ProductsTable({ rows, catName, loading, error, onRetry, selected
         </div>
       ),
     },
-    { id: 'category', header: 'Kategori', cell: (p) => <Badge tone="neutral">{catName(p.categoryId)}</Badge> },
+    { id: 'category', header: 'Kategori', cell: (p) => <span className="text-sm text-ink-900 whitespace-nowrap">{catName(p.categoryId)}</span> },
     {
       id: 'stock',
       header: 'Varian & Stok',
       cell: (p) => (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex gap-1 whitespace-nowrap">
           {p.variants.map((v) => (
             <Badge key={v.size} tone={STOCK_TONE[stockLevel(v.stock)]}>
               {stockBadgeLabel(v.size)}
@@ -67,11 +71,11 @@ export function ProductsTable({ rows, catName, loading, error, onRetry, selected
       id: 'status',
       header: 'Status',
       cell: (p) => (
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
           {/* Read-only here: the status is changed inside the editor, where the whole product is saved at once. */}
-          <Switch checked={p.isActive} onChange={noop} disabled size="sm" label={`Status ${p.name}`} />
+          <Switch checked={p.isActive} onChange={noop} disabled size="sm" label={`Status ${p.name}`} className={READ_ONLY_SWITCH} />
           {/* M-8: the switch plus one state word; the source (ERP / internal) is a small neutral tag, never a second status. */}
-          <span className={p.isActive ? 'text-xs font-bold text-ok' : 'text-xs font-bold text-ink-700'}>{p.isActive ? 'Aktif' : 'Nonaktif'}</span>
+          <span className="text-xs font-bold text-ink-700">{p.isActive ? 'Aktif' : 'Nonaktif'}</span>
           {p.erpLinked && <Badge tone="neutral" className="px-1.5! py-0.5! text-[11px]!">Dari ERP</Badge>}
           {p.erpLinked && <span id={`erp-nodelete-${p.id}`} className="sr-only">{ERP_LOCK_REASON}</span>}
           {p.sellable === false && <Badge tone="neutral" className="px-1.5! py-0.5! text-[11px]!">Internal</Badge>}
@@ -111,6 +115,8 @@ export function ProductsTable({ rows, catName, loading, error, onRetry, selected
       error={error}
       onRetry={onRetry}
       selectedKey={selectedId}
+      rowHeight={ROW_HEIGHT}
+      columnPrefsKey="bo.products.columns"
       empty={<EmptyState icon={<Package />} title={filtered ? 'Tidak ada produk yang cocok' : 'Belum ada produk'} subtitle={filtered ? 'Ubah atau atur ulang filter.' : undefined} />}
       footer={footer}
     />

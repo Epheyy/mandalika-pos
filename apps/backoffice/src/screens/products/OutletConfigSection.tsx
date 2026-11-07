@@ -1,7 +1,7 @@
 import type { ProductVariant } from '@mandalika/api'
 import { variantLabel } from '@mandalika/types'
 import { ChevronDown, ChevronRight, Store } from 'lucide-react'
-import { fieldClass } from '../../ui/Field'
+import { MoneyField } from './MoneyField'
 import type { OcRow, OcfgOutlet } from './types'
 
 interface OutletConfigSectionProps {
@@ -67,7 +67,7 @@ export function OutletConfigSection({
                                 <input type="checkbox" checked={c.available} onChange={(e) => ocSet(o.id, v.size, { available: e.target.checked })} aria-label={`Jual ${name} di outlet ini`} className="w-4 h-4 accent-brand-strong" />
                               </label>
                               <span className={`col-span-4 text-xs truncate ${c.available ? 'text-ink-700' : 'text-ink-500 line-through'}`}>{name}</span>
-                              <input type="number" value={c.price ?? ''} onChange={(e) => ocSet(o.id, v.size, { price: e.target.value === '' ? null : Number(e.target.value) })} placeholder={`${basePriceOf(v.size)}`} disabled={!c.available} aria-label={`Harga ${name} di outlet ini`} className={`${fieldClass} col-span-7 py-1.5 disabled:opacity-40`} />
+                              <MoneyField raw={c.price === null || c.price === undefined ? '' : String(c.price)} onRawChange={(raw) => ocSet(o.id, v.size, { price: raw === '' ? null : Number(raw) })} placeholder={`Rp ${basePriceOf(v.size).toLocaleString('id-ID')}`} disabled={!c.available} label={`Harga ${name} di outlet ini`} className="col-span-7 py-1.5 disabled:opacity-40" />
                             </div>
                           )
                         })}

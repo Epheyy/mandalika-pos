@@ -93,8 +93,7 @@ export function ProductsListView({ categories, refetchCategories, tabs }: Produc
     <>
       <PageHeader
         title="Produk"
-        count={list.loaded ? `${list.total} produk` : undefined}
-        subtitle="Katalog, harga dasar dan ketersediaan per outlet. Stok diatur di Inventori."
+        count={list.loaded ? <span className="font-normal">{`${list.total} produk`}</span> : undefined}
         actions={
           <>
             {tabs}
@@ -107,7 +106,7 @@ export function ProductsListView({ categories, refetchCategories, tabs }: Produc
               onTemplate={downloadProductTemplate}
             />
             <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => openEditor({ baru: true, ubah: '' })}>
-              Tambah
+              Tambah produk
             </Button>
           </>
         }

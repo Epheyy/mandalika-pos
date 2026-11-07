@@ -5,6 +5,7 @@ import { Button } from '../../ui/Button'
 import { IconButton } from '../../ui/IconButton'
 import { fieldClass } from '../../ui/Field'
 import { cn } from '../../ui/cn'
+import { MoneyField } from './MoneyField'
 import { FIELD_ID } from './validateForm'
 
 // Disabled look for an ERP-owned control (the shared field class has none).
@@ -34,10 +35,7 @@ export function VariantRows({
   const shownSize = (v: ProductVariant) => (single ? variantLabel(v.size) : v.size)
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <label htmlFor={FIELD_ID.size(0)} className="text-xs font-black text-ink-700 uppercase tracking-widest">Varian *</label>
-        <Button variant="ghost" size="sm" icon={<Plus className="w-3 h-3" />} onClick={onAddVariant}>Tambah</Button>
-      </div>
+      <label htmlFor={FIELD_ID.size(0)} className="block mb-3 text-xs font-black text-ink-700 uppercase tracking-widest">Varian *</label>
       {!editing && (
         <p className="text-[11px] text-ink-700 mb-2 -mt-1 flex items-center gap-1">
           <Store className="w-3 h-3" /> Harga dasar di sini. Stok diatur di menu Inventori.
@@ -50,27 +48,29 @@ export function VariantRows({
       )}
       <div className="grid grid-cols-12 gap-2 px-1 mb-1">
         <span className="col-span-3 text-[11px] font-bold text-ink-700">Ukuran</span>
-        <span className="col-span-3 text-[11px] font-bold text-ink-700">Harga Dasar</span>
         <span className="col-span-2 text-[11px] font-bold text-ink-700">SKU</span>
         <span className="col-span-2 text-[11px] font-bold text-ink-700">Barcode</span>
+        <span className="col-span-3 text-[11px] font-bold text-ink-700">Harga dasar</span>
         <span className="col-span-2" />
       </div>
       <div className="space-y-2">
         {variants.map((v, i) => {
-          const fields = [
-            { k: 'size', id: FIELD_ID.size(i), span: 'col-span-3', ph: '30ml', num: false, label: 'Ukuran varian', value: shownSize(v) },
-            { k: 'price', id: FIELD_ID.price(i), span: 'col-span-3', ph: '150000', num: true, label: 'Harga dasar varian', value: v.price === 0 ? '' : v.price },
-            { k: 'sku', id: FIELD_ID.sku(i), span: 'col-span-2', ph: 'MND-01', num: false, label: 'SKU varian', value: v.sku },
+          const locked = !!v.erpSlug
+          const textFields = [
+            { k: 'size', id: FIELD_ID.size(i), span: 'col-span-3', ph: '30ml', label: 'Ukuran varian', value: shownSize(v) },
+            { k: 'sku', id: FIELD_ID.sku(i), span: 'col-span-2', ph: 'MND-01', label: 'SKU varian', value: v.sku },
           ] as const
-          const rowErrors = fields.map((f) => errors[f.id]).filter((m): m is string => !!m)
+          const rowErrors = [FIELD_ID.size(i), FIELD_ID.sku(i), FIELD_ID.price(i)].map((id) => errors[id]).filter((m): m is string => !!m)
+          const textInput = ({ k, id, span, ph, label, value }: (typeof textFields)[number]) => (
+            <input key={k} id={id} type="text" value={value} onChange={(e) => onUpdVariant(i, k, e.target.value)} placeholder={ph} aria-label={label}
+              aria-invalid={errors[id] ? true : undefined}
+              disabled={locked} title={locked ? 'Dikelola ERP' : undefined}
+              className={cn(fieldClass, span, locked && ERP_LOCKED, errors[id] && INVALID)} />
+          )
           return (
             <div key={v.id ?? `new-${i}`} className="grid grid-cols-12 gap-2 items-center">
-              {fields.map(({ k, id, span, ph, num, label, value }) => (
-                <input key={k} id={id} type={num ? 'number' : 'text'} value={value} onChange={(e) => onUpdVariant(i, k, e.target.value)} placeholder={ph} aria-label={label}
-                  aria-invalid={errors[id] ? true : undefined}
-                  disabled={!!v.erpSlug && k !== 'price'} title={v.erpSlug && k !== 'price' ? 'Dikelola ERP' : undefined}
-                  className={cn(fieldClass, span, v.erpSlug && k !== 'price' && ERP_LOCKED, errors[id] && INVALID)} />
-              ))}
+              {textInput(textFields[0])}
+              {textInput(textFields[1])}
               <input
                 type="text"
                 value={v.barcode ?? ''}
@@ -79,6 +79,15 @@ export function VariantRows({
                 aria-label="Barcode varian"
                 title="Kosongkan untuk memakai SKU sebagai barcode"
                 className={`${fieldClass} col-span-2`}
+              />
+              <MoneyField
+                id={FIELD_ID.price(i)}
+                raw={v.price === 0 ? '' : String(v.price)}
+                onRawChange={(raw) => onUpdVariant(i, 'price', raw)}
+                label="Harga dasar varian"
+                placeholder="Rp 150.000"
+                invalid={!!errors[FIELD_ID.price(i)]}
+                className={cn('col-span-3', errors[FIELD_ID.price(i)] && INVALID)}
               />
               <div className="col-span-2 flex items-center justify-end gap-0.5">
                 {recipesEnabled && (
@@ -111,6 +120,7 @@ export function VariantRows({
           )
         })}
       </div>
+      <Button variant="ghost" size="sm" className="mt-2" icon={<Plus className="w-3 h-3" />} onClick={onAddVariant}>Tambah varian</Button>
     </div>
   )
 }

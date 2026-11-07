@@ -67,19 +67,19 @@ export function ProductFormSlideOver({
       width="lg"
       // Unsaved changes are guarded by the screen (one question for ×, Escape, Back and the sidebar), not by the panel.
       dirty={false}
-      title={editing ? 'Ubah Produk' : 'Tambah Produk'}
+      title={editing ? 'Ubah produk' : 'Tambah produk'}
       subtitle={erpLinked ? (
         <>
-          Dari ERP{form.erpGroupKey && <span className="ml-1 font-mono text-[10px] text-ink-700">({form.erpGroupKey})</span>}
+          {editing && form.name.trim() && <>{form.name.trim()} · </>}Dari ERP{form.erpGroupKey && <span className="ml-1 font-mono text-[10px] text-ink-700">({form.erpGroupKey})</span>}
         </>
-      ) : undefined}
+      ) : (editing && form.name.trim() ? form.name.trim() : undefined)}
       errorSummary={errors.map((e) => ({ fieldId: e.fieldId, label: e.label }))}
       footer={
         <SlideOver.Footer dirty={dirty}>
           <Button variant="secondary" onClick={onClose}>{ready ? 'Batal' : 'Tutup'}</Button>
           {ready && (
             <Button variant="primary" loading={busy} onClick={onSave}>
-              {editing ? 'Simpan' : 'Tambah'}
+              {editing ? 'Simpan perubahan' : 'Tambah produk'}
             </Button>
           )}
         </SlideOver.Footer>
@@ -126,18 +126,21 @@ export function ProductFormSlideOver({
           </Field>
           <div className="grid grid-cols-2 gap-4">
             <Input id={FIELD_ID.name} label="Nama Produk *" type="text" value={form.name} error={byField[FIELD_ID.name]} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-            <Input id="product-brand" label="Brand *" type="text" value={form.brand} onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))} />
+            <Input id="product-brand" label="Merek *" type="text" value={form.brand} onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))} />
           </div>
           <Select id={FIELD_ID.category} label="Kategori *" value={form.categoryId} error={byField[FIELD_ID.category]} onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}>
             <option value="">Pilih kategori...</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
           <Textarea label="Deskripsi" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} />
-          <div className="flex gap-6 flex-wrap items-center">
-            <div className="flex items-center gap-2">
-              <Switch checked={form.isActive} onChange={(isActive) => setForm((f) => ({ ...f, isActive }))} label="Produk Aktif" />
-              <span aria-hidden="true" className="text-sm font-bold text-ink-700">Produk Aktif</span>
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-paper-2 px-4 py-3">
+            <div>
+              <p aria-hidden="true" className="text-sm font-bold text-ink-900">Aktif</p>
+              <p className="text-xs text-ink-700">Tampil di POS saat tablet sinkron berikutnya</p>
             </div>
+            <Switch checked={form.isActive} onChange={(isActive) => setForm((f) => ({ ...f, isActive }))} label="Produk Aktif" />
+          </div>
+          <div className="flex gap-6 flex-wrap items-center">
             {(['isFeatured', 'sellable'] as const).map((k) => (
               <label key={k} className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.checked }))} className="w-4 h-4 accent-brand-strong" />
