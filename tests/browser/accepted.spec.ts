@@ -607,6 +607,6 @@ for (const [id, title, run, opts] of [
 
 test('BO-KIT-SHELL the skip link lands on main, Produk has one scroll area with a sticky header, tabs follow the tab pattern with manual activation, and a narrow screen scrolls the table inside its card', async ({ page }, info) => {
   const result = await kitShellFlow(page as ScenarioPage)
-  expect(result).toHaveLength(5)
+  expect(result).toHaveLength(7)
   await evidence(info, result)
 })

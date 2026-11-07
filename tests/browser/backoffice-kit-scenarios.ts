@@ -102,6 +102,20 @@ export const kitShellFlow = async (page: ScenarioPage) => {
   const th = (await page.locator('thead th').first().boundingBox())!
   const barBottom = bar.y + bar.height
   check(th.y >= barBottom - 1 && th.y <= barBottom + 2, `th sticks just below the bar (th ${th.y}, bar bottom ${barBottom})`)
+  // G2 floating frame (SH-01): sidebar and bar are rounded cards inset from the window edges, not flush panels.
+  const frame = await page.evaluate(() => {
+    const r = (el: Element | null) => { const b = el!.getBoundingClientRect(); return { x: b.x, y: b.y, right: b.right, bottom: b.bottom } }
+    const aside = document.querySelector('aside')!
+    const header = document.querySelector('header')!
+    return {
+      aside: r(aside), header: r(header), asideRadius: parseFloat(getComputedStyle(aside).borderTopLeftRadius), headerRadius: parseFloat(getComputedStyle(header).borderTopLeftRadius),
+      vw: document.documentElement.clientWidth, vh: document.documentElement.clientHeight,
+    }
+  })
+  check(frame.aside.x >= 8 && frame.aside.y >= 8 && frame.vh - frame.aside.bottom >= 8, `the sidebar floats inset from the window edges, got ${JSON.stringify(frame.aside)}`)
+  check(frame.header.y >= 8 && frame.header.x - frame.aside.right >= 8, `the top bar floats clear of the window top and of the sidebar, got ${JSON.stringify(frame.header)}`)
+  check(frame.asideRadius >= 20 && frame.headerRadius >= 16, `both panels are rounded (sidebar ${frame.asideRadius}, bar ${frame.headerRadius})`)
+  results.push({ frame })
   const topmost = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('thead th') !== null, [th.x + 8, th.y + th.height / 2])
   check(topmost, 'the sticky header is the topmost element at its own position, so it is not under the bar')
   // A row that crosses the bar's own band: it is genuinely under the glass (a row scrolled fully away would not count).
@@ -145,8 +159,27 @@ export const kitShellFlow = async (page: ScenarioPage) => {
   check(narrow.some((b) => b === 'div(x)'), `at 375 px the table wrapper scrolls sideways; found ${JSON.stringify(narrow)}`)
   check(!narrow.includes('main#konten(x)'), '<main> does not scroll sideways')
   results.push({ narrow })
+  // SH-07: at 375 px the outlet scope and the user menu stay on screen, reachable, and the page never scrolls sideways.
+  const reach = await page.evaluate(() => {
+    const vw = document.documentElement.clientWidth
+    const box = (sel: string) => { const b = document.querySelector(sel)?.getBoundingClientRect(); return b ? { left: b.left, right: b.right, width: b.width } : null }
+    const h = (sel: string) => document.querySelector(sel)?.getBoundingClientRect().height ?? 0
+    return { vw, select: box('header select'), user: box('header button[aria-controls]'), selectH: h('header select'), userH: h('header button[aria-controls]') }
+  })
+  check(reach.select !== null && reach.select.left >= 0 && reach.select.width >= 64 && reach.selectH >= 36, `the outlet select fits inside the 375 px window, got ${JSON.stringify(reach)}`)
+  check(reach.user !== null && reach.user.left >= 0 && reach.user.right <= reach.vw - 8 && reach.userH >= 36 && reach.select!.right <= reach.user.left, `the user menu fits inside the 375 px window, got ${JSON.stringify(reach)}`)
+  await page.locator('header button[aria-controls]').click()
+  check(await page.getByRole('button', { name: 'Keluar' }).isVisible(), 'Keluar is reachable from the user menu at 375 px')
+  await page.keyboard.press('Escape')
+  check(!(await page.getByRole('button', { name: 'Keluar' }).isVisible()), 'Escape closes the user menu')
+  results.push({ reach })
 
   // 6. Evidence for the reviewer: Produk at 1440, 768 and 375.
-  if (process.env.A34C_RUN_DIR) await captureShot(page, 'k2-produk', BO_SHOT_VIEWPORTS)
+  if (process.env.A34C_RUN_DIR) {
+    await captureShot(page, 'k2-produk', BO_SHOT_VIEWPORTS)
+    await page.evaluate(() => { document.documentElement.dataset.brand = 'flamboyan' })
+    await captureShot(page, 'k2-produk-flamboyan', BO_SHOT_VIEWPORTS)
+    await page.evaluate(() => { document.documentElement.dataset.brand = 'mandalika' })
+  }
   return results
 }

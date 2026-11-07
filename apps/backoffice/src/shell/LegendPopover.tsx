@@ -16,7 +16,7 @@ export function LegendPopover() {
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-8 w-full items-center gap-2 rounded-lg px-3 text-xs text-ink-700 hover:bg-paper-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong"
+        className="flex h-8 w-full items-center justify-center gap-2 rounded-lg px-3 text-xs text-ink-700 hover:bg-paper-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong"
       >
         <Info className="h-4 w-4" aria-hidden="true" />
         Arti angka di menu

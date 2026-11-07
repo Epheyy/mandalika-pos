@@ -1,4 +1,7 @@
 import { X } from 'lucide-react'
+import type { User } from '@mandalika/api'
+import { labelOf } from '../lib/labels/types'
+import { ROLE } from '../lib/labels/role'
 import { BRAND } from '../lib/brand'
 import { Link } from '../lib/router/Link'
 import { hashFor, type NavId, type RouteGroup } from '../lib/router/routes'
@@ -10,6 +13,7 @@ interface SidebarProps {
   groups: readonly RouteGroup[]
   activeId: NavId | null
   badgeOf: (id: NavId) => NavBadge | null
+  user: User
   /** The slide-in drawer below the lg breakpoint. */
   open: boolean
   onClose: () => void
@@ -29,7 +33,7 @@ function CountBadge({ badge }: { badge: NavBadge }) {
   )
 }
 
-export function Sidebar({ groups, activeId, badgeOf, open, onClose }: SidebarProps) {
+export function Sidebar({ groups, activeId, badgeOf, user, open, onClose }: SidebarProps) {
   return (
     <>
       {open && (
@@ -44,8 +48,9 @@ export function Sidebar({ groups, activeId, badgeOf, open, onClose }: SidebarPro
       <aside
         className={cn(
           // Below lg it is a drawer over content, so opaque (owner rule 1); docked it is non-scrolling chrome, so glass-static (tint, never a blur).
-          'max-lg:surface-solid lg:surface-glass-static fixed inset-y-0 left-0 z-30 flex w-64 flex-col transition-transform duration-300 lg:static',
-          open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+          // A floating card in both forms (SH-01): docked it fills the frame's height, as a drawer it keeps the same margin.
+          'max-lg:surface-solid lg:surface-glass-static fixed inset-y-2 left-2 z-30 flex w-64 flex-col rounded-3xl transition-transform duration-300 sm:inset-y-3 sm:left-3 lg:static lg:inset-auto lg:flex-shrink-0',
+          open ? 'translate-x-0' : '-translate-x-[calc(100%+1rem)] lg:translate-x-0',
         )}
       >
         <div className="flex h-16 flex-shrink-0 items-center justify-between border-b border-paper-2 px-5">
@@ -71,9 +76,9 @@ export function Sidebar({ groups, activeId, badgeOf, open, onClose }: SidebarPro
             <p className="px-3 py-2 text-xs text-ink-500">Tidak ada menu yang dapat diakses.</p>
           ) : (
             groups.map(({ section, routes }) => (
-              <div key={section.id}>
+              <div key={section.id} className="border-t border-ink-900/[0.08] first:border-t-0">
                 {/* An h2, never a button: sections are not collapsible and the tests need every item visible. */}
-                <h2 className="px-3 pb-1.5 pt-4 text-[11px] font-semibold uppercase tracking-wider text-ink-500">
+                <h2 className="px-3 pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-wider text-ink-500">
                   {section.label}
                 </h2>
                 <ul className="space-y-0.5">
@@ -91,11 +96,11 @@ export function Sidebar({ groups, activeId, badgeOf, open, onClose }: SidebarPro
                           className={cn(
                             'flex h-10 items-center gap-3 rounded-[10px] px-3 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong',
                             active
-                              ? 'bg-paper-1 font-semibold text-ink-900 shadow-[inset_3px_0_0_var(--color-brand)]'
+                              ? 'bg-brand-strong/[0.13] font-semibold text-ink-900'
                               : 'font-medium text-ink-700 hover:bg-paper-1 hover:text-ink-900',
                           )}
                         >
-                          <Icon className={cn('h-[18px] w-[18px] flex-shrink-0', active ? 'text-ink-900' : 'text-ink-500')} aria-hidden="true" />
+                          <Icon className={cn('h-[18px] w-[18px] flex-shrink-0', active ? 'text-brand-strong' : 'text-ink-500')} aria-hidden="true" />
                           <span>{route.label}</span>
                           {badge && <CountBadge badge={badge} />}
                         </Link>
@@ -108,6 +113,9 @@ export function Sidebar({ groups, activeId, badgeOf, open, onClose }: SidebarPro
           )}
         </nav>
         <LegendPopover />
+        <p className="flex-shrink-0 border-t border-paper-2 px-5 py-3 text-center text-xs text-ink-700">
+          Masuk sebagai {labelOf(ROLE, user.role).label}
+        </p>
       </aside>
     </>
   )
