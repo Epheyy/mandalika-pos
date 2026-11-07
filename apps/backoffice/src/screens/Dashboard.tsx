@@ -3,10 +3,6 @@ import type { Promotion } from '@mandalika/api'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import {
-  ShoppingBag,
-  TrendingUp,
-  Package,
-  Users,
   Crown,
   ArrowDownNarrowWide,
   PackageX,
@@ -30,6 +26,13 @@ import { useListState } from '../lib/router/useListState'
 import { DASHBOARD_SCHEMA, periodFromSlug, periodSlug } from './dashboard/periodRoute'
 import { type Period, PERIOD_TABS, dashboardFetchWindow, lowStock } from './dashboard/metrics'
 import { DASHBOARD_POLL_MS, dashboardView, fetchDashboard, type DashboardData } from './dashboard/fetchDashboard'
+
+const COMPARE_TEXT: Record<Period, string> = {
+  today: 'vs kemarin',
+  '7d': 'vs 7 hari sebelumnya',
+  '30d': 'vs 30 hari lalu',
+  all: '',
+}
 
 // recharts is code-split out of the dashboard's initial bundle; the chart bodies
 // live in ./dashboard/Charts and load on first render behind a sized fallback.
@@ -124,29 +127,29 @@ export default function Dashboard() {
               ? `Kotor ${BRAND.currency.format(net.gross)} / Refund ${BRAND.currency.format(net.refunds)}`
               : `${v.orders} transaksi`
           }
-          icon={<TrendingUp className="w-5 h-5" />}
           deltaPct={v.deltaRevenue}
+          compare={COMPARE_TEXT[period]}
         />
         <KpiCard
           label="Transaksi"
           value={String(v.orders)}
           sub={`${BRAND.currency.format(Math.round(v.aov))} / transaksi`}
-          icon={<ShoppingBag className="w-5 h-5" />}
           deltaPct={v.deltaOrders}
+          compare={COMPARE_TEXT[period]}
         />
         <KpiCard
           label="Produk Terjual"
           value={v.itemsSold.toLocaleString('id-ID')}
           sub={`${v.distinctProducts} jenis produk`}
-          icon={<Package className="w-5 h-5" />}
           deltaPct={v.deltaItems}
+          compare={COMPARE_TEXT[period]}
         />
         <KpiCard
           label="Pelanggan"
           value={String(v.customers)}
           sub="pelanggan teridentifikasi"
-          icon={<Users className="w-5 h-5" />}
           deltaPct={v.deltaCustomers}
+          compare={COMPARE_TEXT[period]}
         />
       </div>
 

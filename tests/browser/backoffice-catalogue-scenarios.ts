@@ -118,7 +118,7 @@ export const catalogueIdleFlow = async (page: ScenarioPage) => {
   await page.waitForTimeout(300)
   await deepLink(page, '#/ringkasan')
   await page.getByText('Penjualan', { exact: true }).first().waitFor()
-  const kpi = async () => (await page.locator('p', { hasText: /^Penjualan$/ }).locator('xpath=preceding-sibling::p[1]').innerText()).replace(/\s/g, '')
+  const kpi = async () => (await page.locator('p', { hasText: /^Penjualan$/ }).locator('xpath=following-sibling::p[1]').innerText()).replace(/\s/g, '')
   await page.waitForFunction(() => /Rp300\.000/.test(document.body.innerText.replace(/\s/g, '')))
   const first = await kpi()
   await page.waitForTimeout(300)
