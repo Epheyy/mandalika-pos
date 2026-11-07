@@ -8,6 +8,7 @@ import {
   refundAmountFor, remainingAmount, selectAll, setLineQty, toggleLine,
   type RefundBasis, type RefundCache, type RefundLine, type Selection,
 } from './refundSelection'
+import { formatHistoryStamp } from './historyStamp'
 import { Sheet } from '../components/ui/Sheet'
 import { Banner } from '../components/ui/Banner'
 import { Button } from '../components/ui/Button'
@@ -58,10 +59,10 @@ function LineRow({ line, lines, sel, onChange, onToggle }: {
         {picked > 0 ? <IconCheck size={18} /> : null}
       </button>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-ink-900 truncate">{line.name}{line.isReward && line.net === 0 ? ' · GRATIS' : ''}</p>
+        <p className="text-sm font-semibold text-ink-900 truncate">{line.name}</p>
         <p className="text-xs text-ink-500">
-          {locked ?? `${line.remainingQty} dari ${line.soldQty} bisa direfund`}
-          {line.refundedQty > 0 && !locked ? ` · ${line.refundedQty} sudah direfund` : ''}
+          {[locked ?? (line.remainingQty < line.soldQty ? `${line.remainingQty} dari ${line.soldQty} bisa direfund` : null),
+            line.refundedQty > 0 && !locked ? `${line.refundedQty} sudah direfund` : null].filter(Boolean).join(' · ')}
         </p>
       </div>
       {!grouped && !locked && line.remainingQty > 1 && (
@@ -73,9 +74,12 @@ function LineRow({ line, lines, sel, onChange, onToggle }: {
             className="w-11 h-11 rounded-control surface-card text-lg font-bold text-ink-900 press disabled:opacity-30">+</button>
         </div>
       )}
+      <span className="shrink-0 w-10 text-right text-sm font-medium text-ink-700 tabular-nums">{line.soldQty} ×</span>
       <div className="text-right shrink-0 w-24">
         {discounted && <p className="text-xs text-ink-500 line-through">{formatRupiah(line.unitPrice * line.soldQty)}</p>}
-        <p className="text-sm font-semibold text-ink-900">{formatRupiah(line.net)}</p>
+        {line.isReward && line.net === 0
+          ? <p className="text-sm font-semibold text-reward">Gratis</p>
+          : <p className="text-sm font-semibold text-ink-900">{formatRupiah(line.net)}</p>}
       </div>
     </div>
   )
@@ -144,7 +148,10 @@ function RefundDialogBody({ order, cache, methods, isProcessing, error, onConfir
   return (
     <Sheet open variant="center" maxWidth="max-w-lg" panelClassName="p-5 max-h-[92vh] overflow-y-auto">
       <h3 className="font-bold text-ink-900 mb-1">Refund Order</h3>
-      <p className="text-xs text-ink-500 mb-1">{order.orderNumber} · Dibayar {paidBy}</p>
+      <p className="text-sm font-semibold text-ink-900 mb-1">#{order.orderNumber}</p>
+      <p className="text-xs text-ink-500 mb-1">
+        {[formatHistoryStamp(order.createdAt), `Dibayar ${paidBy}`, order.cashierName ? `Kasir ${order.cashierName}` : null, order.customerName].filter(Boolean).join(' · ')}
+      </p>
       {perLine && basis.priorAmount > 0 && (
         <StatusBadge tone="warn" label={refundPartialNote(remainingAmount(basis))} className="mb-3" />
       )}
