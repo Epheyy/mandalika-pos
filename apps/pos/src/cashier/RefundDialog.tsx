@@ -50,6 +50,7 @@ function LineRow({ line, lines, sel, onChange, onToggle }: {
   const locked = lineLockReason(line, lines)
   const picked = sel[line.lineNo] ?? 0
   const grouped = line.group !== null
+  const hasStepper = !grouped && !locked && line.remainingQty > 1
   const discounted = line.soldQty > 0 && line.net < line.unitPrice * line.soldQty
   return (
     <div className={`flex items-center gap-3 min-h-14 px-3 py-2 ${locked ? 'opacity-50' : ''}`} data-testid="refund-line">
@@ -65,7 +66,7 @@ function LineRow({ line, lines, sel, onChange, onToggle }: {
             line.refundedQty > 0 && !locked ? `${line.refundedQty} sudah direfund` : null].filter(Boolean).join(' · ')}
         </p>
       </div>
-      {!grouped && !locked && line.remainingQty > 1 && (
+      {hasStepper && (
         <div className="flex items-center gap-1" role="group" aria-label={`Jumlah ${line.name}`}>
           <button type="button" aria-label={`Kurangi ${line.name}`} onClick={() => onChange(line.lineNo, picked - 1)} disabled={picked === 0}
             className="w-11 h-11 rounded-control surface-card text-lg font-bold text-ink-900 press disabled:opacity-30">−</button>
@@ -74,7 +75,8 @@ function LineRow({ line, lines, sel, onChange, onToggle }: {
             className="w-11 h-11 rounded-control surface-card text-lg font-bold text-ink-900 press disabled:opacity-30">+</button>
         </div>
       )}
-      <span className="shrink-0 w-10 text-right text-sm font-medium text-ink-700 tabular-nums">{line.soldQty} ×</span>
+      {/* The stepper's "1 / 2" already says the quantity; the plain column is for lines without one. */}
+      {!hasStepper && <span className="shrink-0 w-10 text-right text-sm font-medium text-ink-700 tabular-nums">{line.soldQty} ×</span>}
       <div className="text-right shrink-0 w-24">
         {discounted && <p className="text-xs text-ink-500 line-through">{formatRupiah(line.unitPrice * line.soldQty)}</p>}
         {line.isReward && line.net === 0
