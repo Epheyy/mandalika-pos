@@ -1,6 +1,6 @@
 // Ordinary imported scenario functions, converted from the accepted manual scripts.
 import type { ScenarioPage } from './fixture'
-import { BAYAR_SHOT_VIEWPORTS, POS_SHOT_VIEWPORTS, captureShot } from './shots'
+import { BAYAR_SHOT_VIEWPORTS, POS_BOTH_SHOT_VIEWPORTS, POS_SHOT_VIEWPORTS, captureShot } from './shots'
 
 // A04: an outlet-less (admin) account on an unbound terminal must pick the outlet once. The
 // real picker is clicked here, exactly as a person would; the choice is then stored in the
@@ -271,7 +271,7 @@ export const posRecap = async (page: ScenarioPage) =>{
   if(failedCache!==cache['mandalika.cache.rekap:current'])throw new Error('partial cache overwritten');
   // Unmount/remount the real panel, retaining successful storage and failing every recap request.
   page.__a26pos.offline=true;
-  await page.getByRole('button',{name:'✕ Kembali ke Kasir',exact:true}).click();
+  await page.getByRole('button',{name:'Kembali ke Kasir',exact:true}).click();
   await page.getByRole('button',{name:'Menu',exact:true}).click();
   await page.getByRole('button',{name:'Rekap Shift',exact:true}).click();
   await page.getByText('201 Uang Masuk',{exact:true}).waitFor();
@@ -290,17 +290,17 @@ export const posRecap = async (page: ScenarioPage) =>{
     await page.getByRole('button',{name:'Menu',exact:true}).click();
     await page.getByRole('button',{name:'Rekap Shift',exact:true}).click();
     await page.getByText('201 Uang Masuk',{exact:true}).waitFor();
-    await captureShot(page,'p3-recap-blind',POS_SHOT_VIEWPORTS);
+    await captureShot(page,'p3-recap-blind',POS_BOTH_SHOT_VIEWPORTS);
     await page.getByRole('button',{name:'Hitung lembar',exact:true}).first().click();
     await page.getByTestId('denomination-sheet').waitFor();
     await page.getByLabel('Jumlah lembar Rp 100.000').fill('3');
-    await captureShot(page,'p3-denomination',POS_SHOT_VIEWPORTS);
+    await captureShot(page,'p3-denomination',POS_BOTH_SHOT_VIEWPORTS);
     await page.getByTestId('denomination-sheet').getByRole('button',{name:'Batal',exact:true}).click();
     await page.getByLabel('Terhitung').nth(0).fill('1000000');await page.getByLabel('Terhitung').nth(1).fill('5000');
-    await captureShot(page,'p3-recap-counted',POS_SHOT_VIEWPORTS);
+    await captureShot(page,'p3-recap-counted',POS_BOTH_SHOT_VIEWPORTS);
     await page.getByRole('button',{name:'Tutup Shift',exact:true}).last().click();
     await page.getByRole('alert').filter({hasText:'Ada selisih'}).waitFor();
-    await captureShot(page,'p3-recap-selisih-confirm',POS_SHOT_VIEWPORTS);
+    await captureShot(page,'p3-recap-selisih-confirm',POS_BOTH_SHOT_VIEWPORTS);
     await page.getByRole('button',{name:'Batal',exact:true}).last().click();
   }
   return {active,historical,cacheCounts:{activeOrders:401,activeFlows:401,history:251,historicalOrders:401,historicalFlows:401},failure:'visible stale notice; unchanged complete bytes',reconstruction:'same storage; actual panel remount offline',calls:page.__a26pos.calls};

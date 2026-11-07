@@ -26,6 +26,9 @@ import { applyRefundRecap, recapFigures, refundRecap, type RefundRecap } from '.
 import { aggregate, type Breakdown, type PaymentMethodCfg } from './recapAggregate'
 import { recapRows, differenceLines } from './recapRows'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { CashAmountInput } from './CashAmountInput'
+import { GOLD_BAR_CLASS } from './goldBar'
+import { countedRaw, withCountedRaw } from './recapEntry'
 import { RecapLoadGate, ownsFlags, startRefresh, switchTab } from './recapRefresh'
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
@@ -76,6 +79,9 @@ const REFRESH_BASE_MS = 2000
 
 type Tab = 'rekapan' | 'riwayat'
 
+/** What the selisih confirm shows (display only): the per-method sentence and the all-method totals. */
+interface CloseConfirm { message: string; recorded: number; counted: number; diff: number }
+
 /** Muted notes under the recorded total: refunds this drawer paid for other shifts' sales, refunds
  *  parked for review (not subtracted: the server never counted them) and legacy items without detail. */
 function RefundRecapNotes({ rec }: { rec: RefundRecap }) {
@@ -104,6 +110,9 @@ const sumRow = (label: string, value: string, bold = false) => (
       <span>{value}</span>
     </div>
   )
+
+const TAG_BASE = 'inline-flex h-[22px] items-center whitespace-nowrap rounded-md px-2 text-xs font-bold'
+const signed = (n: number): string => `${n > 0 ? '+' : n < 0 ? '−' : ''}${formatRupiah(Math.abs(n))}`
 
 export function ShiftRecapPanel(props: ShiftRecapPanelProps) {
   // Mount the panel only while open, so per-shift view state (tab, selected
@@ -160,7 +169,7 @@ function ShiftRecapPanelBody({
   // D-116: disabled methods that still hold money are listed with a neutral hint (display only).
   const inactiveIds = useMemo(() => new Set(paymentMethods.filter((m) => !m.isEnabled).map((m) => m.id)), [paymentMethods])
   // P-15: the selisih text awaiting the cashier's Tutup Shift confirmation (null = no dialog).
-  const [closeConfirm, setCloseConfirm] = useState<string | null>(null)
+  const [closeConfirm, setCloseConfirm] = useState<CloseConfirm | null>(null)
   // Android Back with the selisih dialog open closes only the dialog; the typed counts stay.
   useEffect(() => {
     if (!backRef || closeConfirm === null) return
@@ -361,7 +370,12 @@ function ShiftRecapPanelBody({
       // D-115: a negative recorded amount always lands here (counts cannot be negative); say why.
       const negatives = rows.filter((r) => r.recorded < 0 && counted[r.id] !== undefined).map((r) => r.label)
       const reason = negatives.length > 0 ? ` Tercatat negatif untuk ${negatives.join(', ')}, jadi perlu konfirmasi.` : ''
-      setCloseConfirm(`Ada selisih: ${list}. Tutup shift dengan selisih ini?${reason}`)
+      const countedTotal = Object.values(counted).reduce((a, b) => a + b, 0)
+      const recorded = cur?.total ?? 0
+      setCloseConfirm({
+        message: `Ada selisih antara uang fisik yang dihitung dan catatan sistem: ${list}.${reason}`,
+        recorded, counted: countedTotal, diff: countedTotal - recorded,
+      })
       return
     }
     await runClose()
@@ -375,6 +389,12 @@ function ShiftRecapPanelBody({
   const cashOut = currentFlows.filter((f) => isCashOut(f.type)).reduce((s, f) => s + f.amount, 0)
   const inFlows = currentFlows.filter((f) => !isCashOut(f.type))
   const outFlows = currentFlows.filter((f) => isCashOut(f.type))
+  // W6-08: the close bar names the selisih once every method has a count (never while counts are missing).
+  const allCounted = rows.length > 0 && rows.every((r) => counted[r.id] !== undefined)
+  const countedSum = Object.values(counted).reduce((a, b) => a + b, 0)
+  const closeDiff = countedSum - (cur?.total ?? 0)
+  const hasSelisih = revealed && allCounted && differenceLines(rows, counted).length > 0
+  const partRefund = (live?.refundTotal ?? 0) - (live?.refundFullTotal ?? 0)
 
   const handlePrintRecap = async (data: RecapData) => {
     setPrintMsg(null)
@@ -435,6 +455,12 @@ function ShiftRecapPanelBody({
 
       {/* ── LEFT: nav (desktop only) ── */}
       <aside className="hidden sm:flex w-44 bg-white border-r border-paper-2 flex-col flex-shrink-0">
+        <div className="px-3 pt-3 flex-shrink-0">
+          <button type="button" onClick={onClose} aria-label="Kembali ke Kasir"
+            className="min-h-11 flex items-center gap-1.5 px-3 text-sm font-bold text-ink-700 hover:bg-paper-1 rounded-control press">
+            ‹ Kembali
+          </button>
+        </div>
         <div className="px-4 py-4 border-b border-paper-2 flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-full bg-paper-1 flex items-center justify-center flex-shrink-0">
             <span className="text-xs font-black text-ink-900">{(userName || '?').charAt(0).toUpperCase()}</span>
@@ -467,10 +493,6 @@ function ShiftRecapPanelBody({
               <p className="text-xs text-ink-500 capitalize truncate">{userRole}</p>
             </div>
           </div>
-          <button type="button" onClick={onClose}
-            className="w-full min-h-11 flex items-center justify-center gap-1.5 px-3 text-xs font-bold text-ink-500 hover:bg-paper-1 rounded-control press">
-            ✕ Kembali ke Kasir
-          </button>
         </div>
       </aside>
 
@@ -500,14 +522,47 @@ function ShiftRecapPanelBody({
                 {heldCount} pesanan tersimpan di tablet ini. Tetap ada setelah shift ditutup.
               </p>
             )}
-            <div className="flex gap-2.5 surface-group border border-paper-2 rounded-control p-3">
-              <div className="w-4 h-4 mt-0.5 rounded-full bg-info flex items-center justify-center flex-shrink-0">
-                <span className="text-on-brand text-xs font-black">i</span>
-              </div>
-              <p className="text-xs text-ink-900">
-                Rekap memastikan pembayaran yang dicatat untuk setiap transaksi seimbang dengan setiap jenis pembayaran yang diterima.
-              </p>
+            {revealed && currentShift && (
+              <section aria-label="Ringkasan Penjualan" className="surface-group rounded-control border border-paper-2 p-4">
+                <div className="mb-2 flex items-baseline justify-between gap-3 text-xs">
+                  <p className="font-black uppercase tracking-wide text-ink-500">Ringkasan Penjualan</p>
+                  <p className="truncate text-ink-500">{currentShift.outletName ?? outletName} · Kasir: {userName}</p>
+                </div>
+                <div className="tnum space-y-1 text-sm">
+                  <div className="flex justify-between"><span>Penjualan Kotor ({live?.totalOrders ?? 0} transaksi)</span><span className="font-bold">{formatRupiah(live?.gross ?? 0)}</span></div>
+                  <div className="flex justify-between text-promo"><span>Potongan Promo &amp; Diskon</span><span className="font-bold">−{formatRupiah(live?.discount ?? 0)}</span></div>
+                  <div className="flex justify-between text-danger">
+                    <span>Pengembalian / Refund{(live?.refundFullTotal ?? 0) === 0 ? ` (${live?.refundCount ?? 0} transaksi)` : ''}</span>
+                    <span className="font-bold">−{formatRupiah(partRefund)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-paper-2 pt-2 text-base font-black text-ink-900">
+                    <span>Penjualan Bersih</span><span className="text-brand-strong">{formatRupiah(live?.net ?? 0)}</span>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+              <h2 className="text-base font-bold text-ink-900">Hitung Kas &amp; Metode Pembayaran</h2>
+              {blindCount && <span className={`${TAG_BASE} bg-warn-bg text-warn-strong`}>Hitung buta aktif</span>}
             </div>
+            {blindCount ? (
+              <div className="flex gap-2.5 rounded-control bg-warn-bg p-3">
+                <span aria-hidden="true" className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-warn" />
+                <p className="text-xs font-medium text-warn-strong">
+                  Masukkan jumlah fisik yang dihitung pada tiap metode. Sistem menyembunyikan angka tercatat sampai semua kolom diisi. Metode nonaktif yang memiliki transaksi tetap ditampilkan.
+                </p>
+              </div>
+            ) : (
+              <div className="flex gap-2.5 surface-group border border-paper-2 rounded-control p-3">
+                <div className="w-4 h-4 mt-0.5 rounded-full bg-info flex items-center justify-center flex-shrink-0">
+                  <span className="text-on-brand text-xs font-black">i</span>
+                </div>
+                <p className="text-xs text-ink-900">
+                  Rekap memastikan pembayaran yang dicatat untuk setiap transaksi seimbang dengan setiap jenis pembayaran yang diterima.
+                </p>
+              </div>
+            )}
 
             {closeIntent && currentShift && (
               <div className="flex gap-2.5 bg-warn-bg border border-warn/30 rounded-control p-3">
@@ -523,49 +578,50 @@ function ShiftRecapPanelBody({
                 const recorded = pm.recorded
                 const hasC = counted[pm.id] !== undefined
                 const diff = (counted[pm.id] ?? 0) - recorded
+                const isCash = isCashMethod(paymentMethods, pm.id)
+                const inactive = inactiveIds.has(pm.id)
                 return (
                   <div key={pm.id} className="surface-card rounded-control px-4 py-3">
-                    <div className="flex items-center justify-between">
-                      <span className="min-w-0 text-sm font-semibold text-ink-700">
-                        {pm.label}
-                        {inactiveIds.has(pm.id) && <span className="block text-xs font-normal text-ink-500">Metode nonaktif · ada transaksi</span>}
-                      </span>
-                      {revealed && (
-                        <span className="text-xs text-ink-500">
-                          Tercatat <span className="font-bold text-ink-700">{formatRupiah(recorded)}</span>
-                        </span>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-sm font-semibold text-ink-900">{pm.label}</span>
+                          {!isCash && <span className={`${TAG_BASE} bg-paper-1 text-ink-700`}>Non-tunai</span>}
+                          {inactive && <span className={`${TAG_BASE} bg-warn-bg text-warn-strong`}>Dinonaktifkan di BO · ada transaksi</span>}
+                        </div>
+                        {isCash && revealed && currentShift && (
+                          <p className="tnum mt-0.5 text-xs text-ink-500">
+                            Kas awal {formatRupiah(currentShift.startingCash ?? 0)} + Kas masuk {formatRupiah(cashIn)}{cashOut > 0 ? ` − Kas keluar ${formatRupiah(cashOut)}` : ''}
+                          </p>
+                        )}
+                        {inactive && revealed && <p className="mt-0.5 text-xs text-ink-500">Tetap muncul karena memiliki saldo tercatat {formatRupiah(recorded)} pada shift ini.</p>}
+                      </div>
+                      {currentShift && isCash && (
+                        <Button variant="secondary" aria-label="Hitung lembar" onClick={() => setDenomFor(pm.id)} className="min-h-11 flex-shrink-0 px-3 text-xs">Hitung lembar ›</Button>
                       )}
                     </div>
                     {currentShift && (
                       <>
-                        <div className="mt-2 flex items-center gap-2">
-                          <span className="flex-shrink-0 text-xs font-semibold text-ink-500">Terhitung</span>
-                          <input
-                            type="number" inputMode="numeric"
+                        <div className="mt-2 flex items-center justify-between gap-3">
+                          <label htmlFor={`counted-${pm.id}`} className="flex-shrink-0 text-xs font-semibold text-ink-500">Terhitung (Rp)</label>
+                          <CashAmountInput
+                            id={`counted-${pm.id}`}
                             aria-label="Terhitung"
-                            value={hasC ? String(counted[pm.id]) : ''}
-                            onChange={(e) => {
-                              const v = e.target.value
-                              setCounted((prev) => {
-                                const next = { ...prev }
-                                if (v === '') delete next[pm.id]
-                                else next[pm.id] = Math.max(0, Math.round(Number(v) || 0))
-                                return next
-                              })
-                            }}
-                            placeholder={revealed ? String(recorded) : '0'}
-                            className="tnum min-h-12 flex-1 min-w-0 px-3 bg-paper-0 border border-paper-2 focus:border-ink-700 rounded-control text-base font-bold text-right focus:outline-none"
+                            raw={countedRaw(counted, pm.id)}
+                            onRawChange={(raw) => setCounted((prev) => withCountedRaw(prev, pm.id, raw))}
+                            placeholder={revealed ? formatRupiah(recorded) : 'Rp 0'}
+                            className="tnum min-h-12 w-1/2 min-w-0 px-3 bg-paper-0 border border-paper-2 focus:border-ink-700 rounded-control text-base font-bold text-right focus:outline-none"
                           />
                         </div>
-                        {isCashMethod(paymentMethods, pm.id) && (
-                          <Button variant="secondary" onClick={() => setDenomFor(pm.id)} className="mt-2 min-h-11 w-full">Hitung lembar</Button>
+                        {revealed && (
+                          <div className="tnum mt-2 flex items-center justify-between border-t border-paper-2 pt-2 text-xs">
+                            <span className="text-ink-500">Tercatat: {formatRupiah(recorded)}</span>
+                            {hasC && diff === 0 && <span className="font-bold text-ok">Sesuai (Rp 0)</span>}
+                            {hasC && diff !== 0 && (
+                              <span className={`font-bold ${diff > 0 ? 'text-warn-strong' : 'text-danger'}`}>Selisih: {signed(diff)}</span>
+                            )}
+                          </div>
                         )}
-                        {revealed && hasC && diff !== 0 && (
-                          <p className={`tnum mt-1 text-xs font-bold text-right ${diff > 0 ? 'text-warn-strong' : 'text-danger'}`}>
-                            Selisih · {diff > 0 ? 'Lebih' : 'Kurang'} {diff > 0 ? '+' : ''}{formatRupiah(diff)}
-                          </p>
-                        )}
-                        {revealed && hasC && diff === 0 && <p className="mt-1 text-xs font-bold text-right text-ok">Sesuai</p>}
                       </>
                     )}
                   </div>
@@ -614,8 +670,8 @@ function ShiftRecapPanelBody({
                 <p className="text-sm font-bold text-ink-700">Buka Shift Baru</p>
                 <div>
                   <label htmlFor="shift-kas-awal" className="block text-xs font-bold text-ink-500 mb-1.5">Kas Awal (Rp)</label>
-                  <input id="shift-kas-awal" type="number" inputMode="numeric" value={depositAmount}
-                    onChange={(e) => setDepositAmount(e.target.value)} placeholder="0"
+                  <CashAmountInput id="shift-kas-awal" raw={depositAmount}
+                    onRawChange={setDepositAmount} placeholder="Rp 0"
                     className="w-full px-3 py-2.5 bg-paper-0 border-2 border-paper-2 focus:border-ink-700 rounded-control font-bold text-lg focus:outline-none" />
                 </div>
                 {shiftError && (
@@ -628,8 +684,8 @@ function ShiftRecapPanelBody({
             ) : (
               <div className="surface-card rounded-control p-4 space-y-2">
                 <label htmlFor="shift-kas-akhir" className="block text-xs font-bold text-ink-500 mb-1">Kas Akhir (Rp)</label>
-                <input id="shift-kas-akhir" type="number" inputMode="numeric" value={closingCash}
-                  onChange={(e) => setClosingCash(e.target.value)} placeholder="0"
+                <CashAmountInput id="shift-kas-akhir" raw={closingCash}
+                  onRawChange={setClosingCash} placeholder="Rp 0"
                   className="w-full px-3 py-2.5 bg-paper-0 border-2 border-paper-2 focus:border-ink-700 rounded-control font-bold text-lg focus:outline-none" />
               </div>
             )}
@@ -643,8 +699,13 @@ function ShiftRecapPanelBody({
                   <p role="alert" className="text-xs font-semibold text-danger bg-danger-bg border border-danger/30 rounded-control px-3 py-2">{shiftError}</p>
                 )}
                 {queue && <QueueGuardLine pending={queue.pending} parked={queue.parked} />}
-                <Button onClick={() => void handleClose()} disabled={isClosingShift} size="lg" fullWidth>
-                  {isClosingShift ? 'Menutup…' : 'Tutup Shift'}
+                <Button
+                  onClick={() => void handleClose()} disabled={isClosingShift} size="lg" fullWidth
+                  aria-label="Tutup Shift" aria-describedby={hasSelisih ? 'close-selisih-hint' : undefined}
+                  className={`justify-between px-5 ${GOLD_BAR_CLASS}`}
+                >
+                  <span aria-hidden="true">{isClosingShift ? 'Menutup…' : hasSelisih ? 'Tutup Shift · Ada Selisih' : 'Tutup Shift'}</span>
+                  {hasSelisih && !isClosingShift && <span id="close-selisih-hint" className="tnum">{signed(closeDiff)}</span>}
                 </Button>
                 <Button variant="secondary" onClick={() => void handlePrintRecap(buildCurrentRecap())} disabled={!revealed} fullWidth
                   leading={<svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>}>
@@ -657,11 +718,23 @@ function ShiftRecapPanelBody({
             )}
             <ConfirmDialog
               open={closeConfirm !== null}
-              message={closeConfirm ?? ''}
-              confirmLabel="Tutup Shift"
+              title={closeConfirm ? (closeConfirm.diff === 0 ? 'Tutup shift dengan selisih antar metode?' : `Tutup shift dengan selisih ${signed(closeConfirm.diff)}?`) : undefined}
+              message={closeConfirm?.message ?? ''}
+              tone="danger"
+              confirmLabel="Konfirmasi & Tutup Shift"
+              cancelLabel="Periksa Lagi"
+              backdropLabel="Batal"
               onCancel={() => setCloseConfirm(null)}
               onConfirm={() => { setCloseConfirm(null); void runClose() }}
-            />
+            >
+              {closeConfirm && (
+                <dl className="tnum mt-3 space-y-1 rounded-control bg-paper-1 p-3 text-sm">
+                  <div className="flex justify-between"><dt className="text-ink-500">Total Tercatat (Semua Metode)</dt><dd className="font-bold">{formatRupiah(closeConfirm.recorded)}</dd></div>
+                  <div className="flex justify-between"><dt className="text-ink-500">Total Terhitung</dt><dd className="font-bold">{formatRupiah(closeConfirm.counted)}</dd></div>
+                  <div className="flex justify-between border-t border-paper-2 pt-1"><dt className="font-semibold">Selisih</dt><dd className="font-black text-danger">{signed(closeConfirm.diff)}</dd></div>
+                </dl>
+              )}
+            </ConfirmDialog>
             {/* Portrait: open the cash-flow / sales summary as an overlay. */}
             <Button variant="secondary" onClick={() => setShowMobileDetail(true)} fullWidth className="sm:hidden mb-4">
               Lihat Ringkasan
