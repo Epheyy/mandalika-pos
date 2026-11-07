@@ -14,13 +14,16 @@ const TONE: Record<Tone, string> = {
 interface BadgeProps {
   tone?: Tone
   className?: string
+  /** A coloured dot before the word, for status pills (KIT-05). Role/count badges leave it off. */
+  dot?: boolean
   children: ReactNode
 }
 
 /** Small status/role pill. Color carries meaning (semantic-only). */
-export function Badge({ tone = 'neutral', className, children }: BadgeProps) {
+export function Badge({ tone = 'neutral', className, dot = false, children }: BadgeProps) {
   return (
-    <span className={cn('px-2.5 py-1 text-xs font-bold rounded-lg', TONE[tone], className)}>
+    <span className={cn(dot ? 'inline-flex items-center gap-1.5' : '', 'px-2.5 py-1 text-xs font-bold rounded-lg', TONE[tone], className)}>
+      {dot && <span aria-hidden="true" className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-current" />}
       {children}
     </span>
   )

@@ -1,5 +1,5 @@
 import { useId, useRef, useState, type ReactNode } from 'react'
-import { X } from 'lucide-react'
+import { AlertTriangle, X } from 'lucide-react'
 import { ConfirmDialog } from './ConfirmDialog'
 import { useFocusTrap } from './focus'
 import { OVERLAY_Z, useOverlayLayer } from './overlayStack'
@@ -18,6 +18,8 @@ export interface SlideOverProps {
   dirty?: boolean
   /** Top alert listing field errors; each item focuses its field by id. */
   errorSummary?: readonly { fieldId: string; label: string }[]
+  /** Heading of that alert; default "{n} kolom perlu diperbaiki:". */
+  errorSummaryTitle?: string
   /** Sticky footer, usually <SlideOver.Footer>. */
   footer?: ReactNode
   children: ReactNode
@@ -40,6 +42,7 @@ function SlideOverBody({
   width = 'md',
   dirty,
   errorSummary,
+  errorSummaryTitle,
   footer,
   children,
 }: Omit<SlideOverProps, 'open'>) {
@@ -58,7 +61,7 @@ function SlideOverBody({
   const focusField = (fieldId: string) => document.getElementById(fieldId)?.focus()
 
   return (
-    <div className="fixed inset-0 flex justify-end" style={{ zIndex: OVERLAY_Z.slideOver }}>
+    <div className="fixed inset-0 flex justify-end p-3" style={{ zIndex: OVERLAY_Z.slideOver }}>
       <div aria-hidden="true" className="absolute inset-0 bg-ink-900/30" onClick={requestClose} />
       <div
         ref={panel}
@@ -67,7 +70,7 @@ function SlideOverBody({
         aria-labelledby={titleId}
         tabIndex={-1}
         style={{ maxWidth: WIDTH_PX[width] }}
-        className="surface-solid relative flex h-full w-full flex-col rounded-l-3xl"
+        className="surface-solid relative flex h-full w-full flex-col overflow-hidden rounded-3xl"
         onChangeCapture={() => {
           touched.current = true
         }}
@@ -83,19 +86,22 @@ function SlideOverBody({
             type="button"
             aria-label="Tutup"
             onClick={requestClose}
-            className="flex-shrink-0 rounded-xl p-2 text-ink-700 hover:bg-paper-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong"
+            className="flex-shrink-0 rounded-xl bg-paper-1 p-2 text-ink-700 hover:bg-paper-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
         {errorSummary && errorSummary.length > 0 && (
-          <div role="alert" className="mx-6 mt-4 rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger">
-            <p className="font-bold">Periksa isian berikut:</p>
-            <ul className="mt-1 list-disc pl-5">
+          <div role="alert" className="mx-6 mt-4 rounded-xl bg-danger-bg px-3 py-2.5 text-sm text-danger">
+            <p className="flex items-center gap-2 font-bold">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+              {errorSummaryTitle ?? `${errorSummary.length} kolom perlu diperbaiki:`}
+            </p>
+            <ul className="mt-1 list-disc pl-10">
               {errorSummary.map((e) => (
                 <li key={e.fieldId}>
-                  <button type="button" className="underline" onClick={() => focusField(e.fieldId)}>
+                  <button type="button" className="rounded underline focus:outline-none focus-visible:ring-2 focus-visible:ring-danger" onClick={() => focusField(e.fieldId)}>
                     {e.label}
                   </button>
                 </li>

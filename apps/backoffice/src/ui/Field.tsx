@@ -16,7 +16,7 @@ export const fieldClass =
 /** Single-line controls are 40 px (plan 2.2); a textarea keeps its rows. */
 const lineClass = 'h-10 py-0!'
 
-const labelClass = 'block text-xs font-black text-ink-700 uppercase tracking-widest mb-2'
+const labelClass = 'block text-[13px] font-bold text-ink-700 mb-1.5'
 
 interface FieldShellProps {
   /** id of the control, so the label is associated with it. */

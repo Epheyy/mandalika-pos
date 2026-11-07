@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { Search } from 'lucide-react'
+import { CalendarDays, Search } from 'lucide-react'
 import { localDay } from '../lib/businessDay'
 import { useOptionalOutlet } from '../outlet'
 import { cn } from './cn'
@@ -17,13 +17,16 @@ const CONTROL =
   'h-10 rounded-xl border border-paper-2 bg-white px-3 text-[13px] text-ink-900 focus:outline-none ' +
   'focus:ring-2 focus:ring-brand-strong'
 const CHIP =
-  'h-10 rounded-full border px-4 text-[13px] font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong'
+  'h-10 rounded-xl px-4 text-[13px] font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong'
+const CHIP_OFF = 'bg-paper-1 text-ink-700 hover:bg-paper-2'
+const RANGE_INPUT = 'h-8 bg-transparent text-[13px] font-bold text-ink-900 focus:outline-none'
+const CHIP_ON = 'bg-brand-strong text-on-brand'
 
 /** Layout shell for a list's filters. Values live in the screen (useListState); parts are static members. */
 export function FilterBar({ children, actions, onReset, activeCount }: FilterBarProps) {
   const showReset = !!onReset && (activeCount === undefined || activeCount > 0)
   return (
-    <div role="search" aria-label="Filter daftar" className="flex flex-wrap items-center gap-3">
+    <div role="search" aria-label="Filter daftar" className="surface-group flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3">
       {children}
       {(actions || showReset) && (
         <div className="ml-auto flex items-center gap-2">
@@ -141,25 +144,44 @@ interface DateRangeProps {
 
 function DateRange({ from, to, onChange, presets }: DateRangeProps) {
   const uid = useId()
+  // The preset whose range equals the current one reads as selected (white thumb); a hand-picked range selects none.
+  const active = presets?.find((p) => {
+    const r = presetRange(p)
+    return r.from === from && r.to === to
+  })
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex items-center gap-1.5">
-        <label htmlFor={`${uid}-from`} className="text-[13px] font-bold text-ink-700">
+      {presets && presets.length > 0 && (
+        <div role="group" aria-label="Rentang cepat" className="flex h-10 items-center gap-0.5 rounded-xl bg-paper-1 p-1">
+          {presets.map((p) => (
+            <button
+              key={p}
+              type="button"
+              aria-pressed={active === p}
+              onClick={() => onChange(presetRange(p))}
+              className={cn(
+                'h-8 rounded-lg px-3 text-[13px] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong',
+                active === p
+                  ? 'bg-white font-bold text-brand-strong ring-1 ring-brand-strong shadow-[0_0_0_0.5px_rgba(26,16,8,0.08),0_3px_10px_-2px_rgba(70,46,10,0.18)]'
+                  : 'text-ink-700 hover:bg-paper-2',
+              )}
+            >
+              {PRESET_LABEL[p]}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="flex h-10 items-center gap-2 rounded-xl bg-paper-1 px-3 focus-within:ring-2 focus-within:ring-brand-strong">
+        <CalendarDays className="h-4 w-4 flex-shrink-0 text-ink-500" aria-hidden="true" />
+        <label htmlFor={`${uid}-from`} className="text-[13px] font-semibold text-ink-700">
           Dari
         </label>
-        <input id={`${uid}-from`} type="date" value={from} max={to || undefined} onChange={(e) => onChange({ from: e.target.value, to })} className={CONTROL} />
-      </div>
-      <div className="flex items-center gap-1.5">
-        <label htmlFor={`${uid}-to`} className="text-[13px] font-bold text-ink-700">
+        <input id={`${uid}-from`} type="date" value={from} max={to || undefined} onChange={(e) => onChange({ from: e.target.value, to })} className={RANGE_INPUT} />
+        <label htmlFor={`${uid}-to`} className="text-[13px] font-semibold text-ink-700">
           Sampai
         </label>
-        <input id={`${uid}-to`} type="date" value={to} min={from || undefined} onChange={(e) => onChange({ from, to: e.target.value })} className={CONTROL} />
+        <input id={`${uid}-to`} type="date" value={to} min={from || undefined} onChange={(e) => onChange({ from, to: e.target.value })} className={RANGE_INPUT} />
       </div>
-      {presets?.map((p) => (
-        <button key={p} type="button" onClick={() => onChange(presetRange(p))} className={cn(CHIP, 'border-paper-2 bg-white text-ink-700 hover:bg-paper-1')}>
-          {PRESET_LABEL[p]}
-        </button>
-      ))}
     </div>
   )
 }
@@ -193,14 +215,14 @@ function Chips(props: ChipsProps) {
           onClick={() => pick(it.id)}
           className={cn(
             CHIP,
-            selected(it.id) ? 'border-brand-strong bg-brand-strong text-on-brand' : 'border-paper-2 bg-white text-ink-700 hover:bg-paper-1',
+            selected(it.id) ? CHIP_ON : CHIP_OFF,
           )}
         >
           {it.label}
           {it.count !== undefined && (
             <>
               <span className="sr-only"> </span>
-              <span className="ml-1.5 tabular-nums">{it.count}</span>
+              <span className="ml-1.5 text-xs tabular-nums">{it.count}</span>
             </>
           )}
         </button>
@@ -223,11 +245,11 @@ function SelectField({ label, value, onChange, options, disabled }: SelectProps)
   return (
     <div
       className={cn(
-        'flex h-10 items-center gap-1.5 rounded-xl border border-paper-2 bg-white pl-3 pr-1 text-[13px] focus-within:ring-2 focus-within:ring-brand-strong',
+        'flex h-10 items-center gap-1.5 rounded-xl bg-paper-1 pl-3 pr-1 text-[13px] focus-within:ring-2 focus-within:ring-brand-strong',
         disabled && 'opacity-60',
       )}
     >
-      <span aria-hidden="true" className="flex-shrink-0 text-ink-500">
+      <span aria-hidden="true" className="flex-shrink-0 text-ink-700">
         {label}:
       </span>
       <select

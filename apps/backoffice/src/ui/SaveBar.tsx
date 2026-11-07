@@ -27,7 +27,7 @@ export function SaveBar({ count, items, status, message, onSave, onDiscard, noti
   const listed = items.slice(0, MAX_LISTED).join(' · ')
   const more = items.length > MAX_LISTED ? ` · dan ${items.length - MAX_LISTED} lainnya` : ''
   return (
-    <div className="sticky bottom-0 z-10 -mx-6 -mb-6 px-6 py-3 bg-(--surface-solid-bg) border-t border-paper-2 shadow-[0_-8px_24px_-12px_rgba(70,46,10,0.28)]" data-testid="save-bar">
+    <div className="sticky bottom-3 z-10 mt-4 rounded-2xl border border-paper-2 bg-(--surface-solid-bg) px-5 py-3 shadow-[0_12px_28px_-14px_rgba(70,46,10,0.4)]" data-testid="save-bar">
       {notice}
       {count === 0 && status === 'saved' && (
         <p role="status" className="flex items-center gap-2 text-sm font-bold text-ok">
@@ -42,10 +42,13 @@ export function SaveBar({ count, items, status, message, onSave, onDiscard, noti
       {count > 0 && (
         <div className="flex items-center gap-4">
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-black text-ink-900">{count} perubahan belum disimpan</p>
+            <p className="flex items-center gap-2 text-sm font-bold text-warn-strong">
+              <span aria-hidden="true" className="h-2 w-2 flex-shrink-0 rounded-full bg-current" />
+              {count} perubahan belum disimpan
+            </p>
             <p className="text-xs text-ink-700 truncate" title={items.join(' · ')}>{listed}{more}</p>
           </div>
-          <Button variant="ghost" onClick={onDiscard} disabled={saving}>Batalkan perubahan</Button>
+          <Button variant="secondary" onClick={onDiscard} disabled={saving}>Batalkan perubahan</Button>
           <Button onClick={onSave} loading={saving}>{saving ? 'Menyimpan...' : 'Simpan perubahan'}</Button>
         </div>
       )}

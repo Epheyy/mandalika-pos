@@ -16,14 +16,14 @@ export function EmptyState({ icon, title, subtitle, action, className }: EmptySt
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center gap-3 p-12 text-center text-gray-300',
+        'flex flex-col items-center justify-center gap-3 p-12 text-center text-ink-500',
         '[&>svg]:h-12 [&>svg]:w-12',
         className,
       )}
     >
       {icon}
-      <p className="font-bold text-gray-400">{title}</p>
-      {subtitle && <p className="text-sm text-gray-400">{subtitle}</p>}
+      <p className="font-bold text-ink-700">{title}</p>
+      {subtitle && <p className="text-sm text-ink-700">{subtitle}</p>}
       {action}
     </div>
   )

@@ -18,13 +18,13 @@ export function PageHeader({ title, subtitle, count, actions, className }: PageH
       <div className="min-w-0">
         {count ? (
           <div className="flex items-baseline gap-2">
-            <h2 className="text-xl font-black text-gray-900">{title}</h2>
+            <h2 className="text-xl font-black text-ink-900">{title}</h2>
             <span className="text-sm font-bold text-ink-700">{count}</span>
           </div>
         ) : (
-          <h2 className="text-xl font-black text-gray-900">{title}</h2>
+          <h2 className="text-xl font-black text-ink-900">{title}</h2>
         )}
-        {subtitle && <p className="text-sm text-gray-400">{subtitle}</p>}
+        {subtitle && <p className="text-sm text-ink-700">{subtitle}</p>}
       </div>
       {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
     </div>

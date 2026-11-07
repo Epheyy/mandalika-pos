@@ -29,6 +29,8 @@ export interface ConfirmDialogProps {
   error?: string | null
   /** A third action, e.g. the leave guard's "Buang perubahan". */
   extra?: { label: string; tone: 'danger' | 'ghost'; onClick: () => void }
+  /** Dialog width; 'wide' (~520 px) keeps a three-button row on one line. Implied when `extra` is set. */
+  width?: 'default' | 'wide'
   /** A required or optional text answer, e.g. "Alasan pembatalan" (replaces window.prompt). */
   input?: { label: string; required?: boolean; multiline?: boolean; maxLength?: number }
   onConfirm: (value?: string) => void | Promise<void>
@@ -62,6 +64,7 @@ function ConfirmBody({
   busy = false,
   error,
   extra,
+  width = 'default',
   input,
   onConfirm,
   onCancel,
@@ -91,10 +94,12 @@ function ConfirmBody({
     layer,
   )
 
+  // A third action (the leave guard) needs the wide dialog so its three buttons stay on one row.
+  const wide = width === 'wide' || !!extra
   const missing = !!input?.required && value.trim() === ''
   const danger = tone === 'danger'
   const fieldClass =
-    'w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-strong'
+    'w-full rounded-xl border border-paper-2 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-strong'
 
   return (
     <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: OVERLAY_Z.confirm }}>
@@ -106,7 +111,7 @@ function ConfirmBody({
         aria-labelledby={titleId}
         aria-describedby={descId}
         tabIndex={-1}
-        className="surface-solid relative w-full max-w-sm rounded-3xl p-6"
+        className={cn('surface-solid relative w-full rounded-3xl p-6', wide ? 'max-w-[520px]' : 'max-w-sm')}
       >
         <h2 id={titleId} className="text-lg font-black text-ink-900">
           {title}
@@ -150,7 +155,7 @@ function ConfirmBody({
             {error}
           </p>
         )}
-        <div className="mt-5 flex flex-wrap justify-end gap-2">
+        <div className={cn('mt-5 flex justify-end gap-2', wide ? 'flex-wrap sm:flex-nowrap' : 'flex-wrap')}>
           {extra && (
             <button
               type="button"
@@ -166,7 +171,7 @@ function ConfirmBody({
             type="button"
             disabled={busy}
             onClick={cancel}
-            className={cn(BUTTON, 'border border-paper-2 bg-white text-ink-700 hover:bg-paper-1')}
+            className={cn(BUTTON, 'bg-paper-1 text-ink-900 hover:bg-paper-2')}
           >
             {cancelLabel}
           </button>

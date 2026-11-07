@@ -100,7 +100,7 @@ export const customersListFlow = async (page: ScenarioPage) => {
   await page.getByText('Pelanggan 10', { exact: true }).waitFor()
   check(!(await hashOf(page)).includes('hal='), `a search returns to page 1, got ${await hashOf(page)}`)
   check(lastList()?.query.q === 'pelanggan 1' && lastList()?.query.page === '1', `the request carries q: ${JSON.stringify(lastList()?.query)}`)
-  await page.getByLabel('Baris:').selectOption('50')
+  await page.getByLabel('Baris per halaman').selectOption('50')
   await page.waitForFunction(() => location.hash.includes('per=50'))
   const filtered = await hashOf(page)
   await page.reload()
