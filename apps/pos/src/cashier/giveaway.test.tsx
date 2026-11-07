@@ -120,14 +120,14 @@ describe('C3 rendering', () => {
   }
   const html = (giveaway: ReturnType<typeof giveawayLine>) => renderToStaticMarkup(createElement(Cart, { ...cartProps, giveaway }))
 
-  it('the cart shows HADIAH, name and size, caption, qty 1 and GRATIS in the reward colour; no stock warning in stock', () => {
+  it('the cart shows Hadiah, name and size, caption, qty 1 and Gratis in the reward colour; no stock warning in stock', () => {
     const out = html(giveawayLine([paid], config, 5))
     expect(out).toContain('data-testid="giveaway-line"')
     expect(out).toContain('Tote Bag')
-    expect(out).toContain('HADIAH')
+    expect(out).toContain('>Hadiah</span>')
     expect(out).toContain(GIVEAWAY_CAPTION)
     expect(out).toContain('text-reward')
-    expect(out).toContain('GRATIS')
+    expect(out).toContain('>Gratis</p>')
     expect(out).not.toContain(GIVEAWAY_OUT_OF_STOCK)
   })
 

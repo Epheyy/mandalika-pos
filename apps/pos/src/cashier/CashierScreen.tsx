@@ -119,6 +119,9 @@ const DEFAULT_LOYALTY: components['schemas']['LoyaltySettings'] = {
   enabled: true, tierEnabled: true, pointsPerThousand: 1, redemptionRate: 100,
 }
 
+/** D-93: how long the "Ditambahkan · {nama}" add-to-cart toast stays up. */
+const ADD_TOAST_MS = 1600
+
 export default function CashierScreen() {
   const { user } = useAuth()
   const engine = use(SyncContext)!
@@ -464,7 +467,11 @@ export default function CashierScreen() {
     product: components['schemas']['Product'],
     variantQtys: Record<string, number>,
   ) => {
-    if (addWithStockWarning(product, variantQtys) === 'oversold') showToast(OVERSELL_WARNING)
+    const result = addWithStockWarning(product, variantQtys)
+    if (result === 'oversold') showToast(OVERSELL_WARNING)
+    // D-93: every successful add confirms with an opaque 'info' toast (1.6 s). 'info' is the lowest severity, so it can
+    // never replace the oversell warning or block the refund success toast (toastTones.wiring.test.ts).
+    else if (result === 'added') kitToast.showToast(`Ditambahkan · ${product.name}`, { tone: 'info', duration: ADD_TOAST_MS })
   }
 
   // B1 line sheet size switch: the existing remove + add actions (planSizeSwitch), through
@@ -1188,6 +1195,7 @@ export default function CashierScreen() {
   const attached = state.selectedCustomer
   const customerChip = (
     <CustomerChip
+      compact={derived.totalCartItems > 0}
       customer={state.selectedCustomer}
       loyaltyEnabled={loyalty.enabled && hasFeature('loyalty')}
       earnedPoints={derived.earnedPoints}
@@ -1336,7 +1344,7 @@ export default function CashierScreen() {
               cart={state.cart} giveaway={giveaway} derived={derived} settings={settings}
               customerSlot={customerChip}
               pendingSync={offlineData.pendingCount > 0}
-              products={displayProducts}
+              products={displayProducts} categories={categories}
               onRemove={cartActions.removeItem} onSetQty={cartActions.setQty}
               onSwitchSize={handleSwitchSize} lineBackRef={lineBackRef}
               heldCount={heldOrders.held.length} onOpenHeld={() => heldOrders.setOpen(true)}
