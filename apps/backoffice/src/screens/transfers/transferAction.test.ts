@@ -16,6 +16,7 @@ const transfer = (status: string) => ({
   transferNo: 'TRF-7',
   status: status as 'draft',
   source: { kind: 'warehouse' as const, id: 'w1', name: 'Gudang Pusat' },
+  dest: { kind: 'outlet' as const, id: 'o1', name: 'BSD' },
   items: [
     { productId: 'p1', productName: 'A', variantSize: '30ml', sentQty: 4 },
     { productId: 'p2', productName: 'B', variantSize: '50ml', sentQty: 8 },
@@ -27,7 +28,7 @@ describe('transferConfirmCopy', () => {
     expect(transferUnits(transfer('draft'))).toBe(12)
     const copy = transferConfirmCopy('send', transfer('draft'))
     expect(copy.title).toBe('Kirim transfer TRF-7?')
-    expect(copy.consequence).toBe('Stok 12 unit akan keluar dari Gudang Pusat sekarang.')
+    expect(copy.consequence).toBe('Stok 12 unit akan keluar dari Gudang Pusat sekarang dan tercatat “Dikirim” sampai BSD menerima.')
     expect(copy.tone).toBe('default')
   })
 

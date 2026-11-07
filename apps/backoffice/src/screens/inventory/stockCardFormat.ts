@@ -50,17 +50,33 @@ export function refTypeLabel(refType: string): string {
   return Object.prototype.hasOwnProperty.call(REF_TYPE_LABEL, refType) ? REF_TYPE_LABEL[refType] : 'Dokumen'
 }
 
-/** An instant as `dd/mm/yyyy HH.mm` in the location's timezone. */
+/** Short month names as date-fns `id` prints them elsewhere in the app (Agt, not Intl's Agu). */
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des']
+
+/** An instant as `04 Nov 2026 · 14:22` in the location's timezone (same month names as Opname and Persetujuan). */
 export function formatMovementTime(iso: string, zone: string): string {
-  return new Date(iso).toLocaleString('id-ID', {
+  const parts = new Intl.DateTimeFormat('id-ID', {
     timeZone: zone,
     day: '2-digit',
-    month: '2-digit',
+    month: 'numeric',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  })
+    hourCycle: 'h23',
+  }).formatToParts(new Date(iso))
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ''
+  return `${get('day')} ${MONTHS_SHORT[Number(get('month')) - 1] ?? ''} ${get('year')} · ${get('hour')}:${get('minute')}`
 }
+
+/** A quantity with its direction: `+9`, `−1` (true minus sign); empty for zero. */
+export function signedQty(qty: number): string {
+  if (qty === 0) return ''
+  return `${qty > 0 ? '+' : '−'}${Math.abs(qty).toLocaleString('id-ID')}`
+}
+
+/** Only inbound movements (transfer in, goods receipt) read green in the Jenis pill, as in the mock; the rest stay neutral. */
+const INBOUND_KINDS: ReadonlySet<string> = new Set(['transfer_in', 'receipt'])
+export const movementKindTone = (kind: string): 'ok' | 'neutral' => (INBOUND_KINDS.has(kind) ? 'ok' : 'neutral')
 
 /** A day as YYYY-MM-DD in the location timezone. */
 function dayInZone(iso: string, zone: string): string {

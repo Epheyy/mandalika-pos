@@ -49,8 +49,8 @@ export function newestFirst<T extends Pick<StockCount, 'createdAt'>>(counts: rea
   return [...counts].sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
 }
 
-/** The line a new count freezes: "{n} produk · {m} varian aktif" (variants of the active products). */
+/** The scope a new count freezes: "{n} produk aktif ({m} baris varian ukuran)" (variants of the active products). */
 export function freezeSummary(products: readonly Pick<Product, 'variants'>[]): string {
   const variants = products.reduce((sum, p) => sum + p.variants.length, 0)
-  return `${products.length} produk · ${variants} varian aktif`
+  return `${products.length} produk aktif (${variants} baris varian ukuran)`
 }

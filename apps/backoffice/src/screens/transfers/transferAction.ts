@@ -23,13 +23,13 @@ export interface TransferConfirmCopy {
 /** Question, one-line consequence and button words for a transfer action. A draft moves no stock, so cancelling it says so. */
 export function transferConfirmCopy(
   action: TransferAction,
-  t: Pick<Transfer, 'transferNo' | 'status' | 'items' | 'source'>,
+  t: Pick<Transfer, 'transferNo' | 'status' | 'items' | 'source'> & { dest?: Pick<Transfer['dest'], 'name'> },
 ): TransferConfirmCopy {
   const source = t.source.name ?? 'sumber'
   if (action === 'send') {
     return {
       title: `Kirim transfer ${t.transferNo}?`,
-      consequence: `Stok ${units(transferUnits(t))} akan keluar dari ${source} sekarang.`,
+      consequence: `Stok ${units(transferUnits(t))} akan keluar dari ${source} sekarang dan tercatat “Dikirim” sampai ${t.dest?.name ?? 'tujuan'} menerima.`,
       confirmLabel: 'Kirim transfer',
       cancelLabel: 'Batal',
       tone: 'default',
