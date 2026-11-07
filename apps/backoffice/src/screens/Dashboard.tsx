@@ -29,7 +29,7 @@ import { DASHBOARD_POLL_MS, dashboardView, fetchDashboard, type DashboardData } 
 
 const COMPARE_TEXT: Record<Period, string> = {
   today: 'vs kemarin',
-  '7d': 'vs 7 hari lalu',
+  '7d': 'vs 7 hari sebelumnya',
   '30d': 'vs 30 hari lalu',
   all: '',
 }

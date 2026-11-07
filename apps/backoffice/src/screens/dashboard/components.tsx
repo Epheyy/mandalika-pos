@@ -11,24 +11,29 @@ interface KpiCardProps {
   compare?: string
 }
 
-/** Delta text of the KPI pill: one decimal, comma (id-ID), arrow, sign dropped (the arrow carries it). */
+/** Delta text of the KPI pill: one id-ID decimal, arrow; the sign is carried by the arrow (and by `deltaDirection`). */
 export function formatDelta(pct: number): string {
-  const n = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Math.abs(pct))
-  return `${pct >= 0 ? '↗' : '↘'} ${n}%`
+  const r = Math.round(pct * 10) / 10
+  const n = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Math.abs(r))
+  return `${r >= 0 ? '↗' : '↘'} ${n}%`
 }
+
+/** Spoken direction of a delta, from the same rounded value the pill shows. */
+export const deltaDirection = (pct: number): 'naik' | 'turun' => (Math.round(pct * 10) / 10 >= 0 ? 'naik' : 'turun')
 
 /** Headline metric (Kaca BO5): grey label on top, big value, delta as a tinted pill with the comparison words. */
 export function KpiCard({ label, value, sub, deltaPct, compare }: KpiCardProps) {
-  const up = deltaPct != null && deltaPct >= 0
+  const up = deltaPct != null && deltaDirection(deltaPct) === 'naik'
   return (
     <Card className="p-5">
       <p className="text-[13px] text-ink-500">{label}</p>
       <p className="text-2xl font-black text-ink-900 leading-none my-2 tabular-nums">{value}</p>
       {deltaPct != null && (
         <span
-          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${up ? 'bg-ok-bg text-ok' : 'bg-danger-bg text-danger'}`}
+          className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-bold ${up ? 'bg-ok-bg text-ok' : 'bg-danger-bg text-danger'}`}
         >
-          {formatDelta(deltaPct)}
+          <span className="sr-only">{deltaDirection(deltaPct)} </span>
+          <span aria-hidden="true">{formatDelta(deltaPct)}</span>
           {compare ? ` ${compare}` : ''}
         </span>
       )}
