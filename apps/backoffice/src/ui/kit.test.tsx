@@ -466,12 +466,12 @@ describe('K2: pagination, filters, icon buttons', () => {
     expect(html).toContain('aria-label="Baris per halaman"')
     expect(html).toContain('h-9')
   })
-  it('Pagination controls are real buttons (keyboard works natively); prev/next disable at the ends', () => {
+  it('Pagination controls are real buttons (keyboard works natively); prev/next are aria-disabled at the ends so focus is never dropped', () => {
     const first = renderToStaticMarkup(<Pagination page={1} totalPages={3} total={60} pageSize={25} onChange={noop} onPageSizeChange={noop} />)
-    expect(first).toMatch(/<button type="button" aria-label="Sebelumnya"[^>]*disabled=""/)
-    expect(first).not.toMatch(/aria-label="Berikutnya"[^>]*disabled=""/)
+    expect(first).toMatch(/<button type="button" aria-label="Sebelumnya"[^>]*aria-disabled="true"/)
+    expect(first).not.toMatch(/aria-label="Berikutnya"[^>]*aria-disabled="true"/)
     const last = renderToStaticMarkup(<Pagination page={3} totalPages={3} total={60} pageSize={25} onChange={noop} onPageSizeChange={noop} />)
-    expect(last).toMatch(/aria-label="Berikutnya"[^>]*disabled=""/)
+    expect(last).toMatch(/aria-label="Berikutnya"[^>]*aria-disabled="true"/)
   })
   it('pageList collapses long ranges to first, last and the current neighbours', () => {
     expect(pageList(1, 1)).toEqual([1])
@@ -552,10 +552,10 @@ describe('G1: Kaca fidelity kit changes', () => {
     expect(html).not.toContain('border')
   })
 
-  it('Switch off track is light grey, not the dark ink', () => {
+  it('Switch off track is light grey with an ink-500 edge ring', () => {
     const html = renderToStaticMarkup(<Switch checked={false} label="Aktif" onChange={noop} />)
-    expect(html).toContain('bg-ink-900/25')
-    expect(html).not.toContain('bg-ink-500')
+    expect(html).toContain('bg-ink-900/15')
+    expect(html).toContain('ring-ink-500')
   })
 
   it('field labels are sentence-case bold, not uppercase', () => {
@@ -600,7 +600,7 @@ describe('G1: Kaca fidelity kit changes', () => {
     const html = renderToStaticMarkup(
       <SlideOver open onClose={noop} title="Ubah" errorSummary={[{ fieldId: 'a', label: 'SKU' }, { fieldId: 'b', label: 'Harga' }]}>b</SlideOver>,
     )
-    expect(html).toContain('p-3')
+    expect(html).toContain('fixed inset-0 flex justify-end p-3')
     expect(html).toContain('rounded-3xl')
     expect(html).not.toContain('rounded-l-3xl')
     expect(html).toContain('bg-paper-1 p-2')

@@ -7,7 +7,7 @@ interface SwitchProps {
   label: string
   size?: 'sm' | 'md'
   disabled?: boolean
-  /** Track colour while off (default: light grey; the white knob and aria-checked carry the state). */
+  /** Track colour while off (default: light grey with an ink-500 inset ring so the control edge clears 3:1). */
   offClassName?: string
   className?: string
 }
@@ -17,7 +17,7 @@ const THUMB = { sm: 'h-4 w-4', md: 'h-5 w-5' } as const
 const SHIFT = { sm: 'translate-x-4', md: 'translate-x-5' } as const
 
 /** On/off switch. Replaces settings/Toggle, the raw icon toggles and click-to-mutate status pills. */
-export function Switch({ checked, onChange, label, size = 'md', disabled, offClassName = 'bg-ink-900/25', className }: SwitchProps) {
+export function Switch({ checked, onChange, label, size = 'md', disabled, offClassName = 'bg-ink-900/15 ring-1 ring-inset ring-ink-500', className }: SwitchProps) {
   return (
     <button
       type="button"

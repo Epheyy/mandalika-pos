@@ -53,8 +53,8 @@ export interface DataTableProps<Row> {
   stickyHeader?: boolean
   /** <Pagination/> or "Muat lebih banyak". */
   footer?: ReactNode
-  /** Fixed body-row height in px (mock: 52). Rows no longer grow with their content, so keep cells on one line
-   *  (`whitespace-nowrap`, a truncating tag cell). Unset keeps the content-sized rows. */
+  /** Fixed body-row height in px (mock: 52). This is the row's minimum height (a `<tr>` height never clips): keep cells on one line
+   *  (`whitespace-nowrap`, a truncating tag cell) so rows stay even. Unset keeps the content-sized rows. */
   rowHeight?: number
 }
 

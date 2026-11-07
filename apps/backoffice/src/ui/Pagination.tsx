@@ -38,7 +38,7 @@ export function pageList(page: number, totalPages: number): Array<number | 'gap'
 const NAV =
   'inline-flex h-9 min-w-9 items-center justify-center rounded-[10px] px-2 text-sm font-semibold text-ink-700 ' +
   'hover:bg-paper-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong ' +
-  'disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent'
+  'aria-disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:hover:bg-transparent'
 
 /**
  * Reusable pagination footer: "Menampilkan 1–25 dari 312" on the left, numbered pages in the middle
@@ -69,10 +69,10 @@ export function Pagination({
   return (
     <div className={cn('flex flex-wrap items-center justify-between gap-3', className)}>
       <span aria-live="polite" className="text-[13px] tabular-nums text-ink-700">
-        {total > 0 ? `Menampilkan ${from}–${to} dari ${total}` : 'Tidak ada data'}
+        {total > 0 ? `Menampilkan ${from}–${to} dari ${total}` : ''}
       </span>
       <nav aria-label="Halaman" className="flex items-center gap-1">
-        <button type="button" aria-label="Sebelumnya" className={NAV} onClick={() => onChange(Math.max(1, shown - 1))} disabled={shown <= 1}>
+        <button type="button" aria-label="Sebelumnya" className={NAV} onClick={() => shown > 1 && onChange(shown - 1)} aria-disabled={shown <= 1}>
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
         </button>
         {pageList(shown, last).map((p, i) =>
@@ -90,14 +90,14 @@ export function Pagination({
               className={cn(
                 NAV,
                 'tabular-nums',
-                p === shown && 'bg-white text-brand-strong shadow-[0_0_0_0.5px_rgba(26,16,8,0.08),0_3px_10px_-2px_rgba(70,46,10,0.18)] hover:bg-white',
+                p === shown && 'bg-white font-bold text-brand-strong ring-1 ring-brand-strong shadow-[0_0_0_0.5px_rgba(26,16,8,0.08),0_3px_10px_-2px_rgba(70,46,10,0.18)] hover:bg-white',
               )}
             >
               {p}
             </button>
           ),
         )}
-        <button type="button" aria-label="Berikutnya" className={NAV} onClick={() => onChange(Math.min(last, shown + 1))} disabled={shown >= last}>
+        <button type="button" aria-label="Berikutnya" className={NAV} onClick={() => shown < last && onChange(shown + 1)} aria-disabled={shown >= last}>
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </button>
       </nav>
@@ -105,7 +105,7 @@ export function Pagination({
         aria-label="Baris per halaman"
         value={pageSize}
         onChange={(e) => onPageSizeChange(Number(e.target.value))}
-        className="h-9 rounded-[10px] border border-paper-2 bg-white px-2 text-[13px] font-semibold text-ink-700 focus:outline-none focus:ring-2 focus:ring-brand-strong/40"
+        className="h-9 rounded-[10px] border border-paper-2 bg-white px-2 text-[13px] font-semibold text-ink-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong"
       >
         {pageSizes.map((s) => (
           <option key={s} value={s}>

@@ -101,7 +101,7 @@ function SlideOverBody({
             <ul className="mt-1 list-disc pl-10">
               {errorSummary.map((e) => (
                 <li key={e.fieldId}>
-                  <button type="button" className="underline" onClick={() => focusField(e.fieldId)}>
+                  <button type="button" className="rounded underline focus:outline-none focus-visible:ring-2 focus-visible:ring-danger" onClick={() => focusField(e.fieldId)}>
                     {e.label}
                   </button>
                 </li>

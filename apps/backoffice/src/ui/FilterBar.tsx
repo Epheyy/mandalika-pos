@@ -162,7 +162,7 @@ function DateRange({ from, to, onChange, presets }: DateRangeProps) {
               className={cn(
                 'h-8 rounded-lg px-3 text-[13px] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong',
                 active === p
-                  ? 'bg-white text-brand-strong shadow-[0_0_0_0.5px_rgba(26,16,8,0.08),0_3px_10px_-2px_rgba(70,46,10,0.18)]'
+                  ? 'bg-white font-bold text-brand-strong ring-1 ring-brand-strong shadow-[0_0_0_0.5px_rgba(26,16,8,0.08),0_3px_10px_-2px_rgba(70,46,10,0.18)]'
                   : 'text-ink-700 hover:bg-paper-2',
               )}
             >
