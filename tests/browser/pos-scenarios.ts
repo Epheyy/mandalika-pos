@@ -128,10 +128,10 @@ export const posBoundaries = async (page: ScenarioPage) =>{
  for(const kind of ['Bundle','BXGY'])for(const owner of ['direct','linked']){
   await fresh();await apply(kind,owner);
   // Remove both qualifying paid scent lines through the real cart controls.
-  await page.getByRole('button',{name: 'Kurangi', exact: true}).first().click();
-  await page.getByRole('button',{name: 'Kurangi', exact: true}).first().click();
+  // The cart line is one quantity pill now; remove each paid scent line through its line sheet (Ubah ... > Hapus).
+  for(const n of ['Synthetic Scent M','Synthetic Scent L']){await page.getByRole('button',{name:'Ubah '+n,exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Hapus',exact:true}).click();}
   // The reducer drops a promo whose participants are gone in a post-commit effect (CashierScreen "Whole-owner cleanup"),
-  // so the DOM clears one render after the last Kurangi click: wait for it instead of reading the body at once.
+  // so the DOM clears one render after the last Hapus: wait for it instead of reading the body at once.
   await page.waitForFunction(()=>!/Hadiah Promo|Kode:/.test(document.body.innerText),undefined,{timeout:5000}).catch(()=>{});
   const edited=await page.locator('body').innerText();if(edited.includes('Hadiah Promo')||edited.includes('Kode:'))throw Error('participant edit left effect '+kind+owner);if((await page.getByRole('button',{name:/Hapus promo|Hapus kode/}).count())!==0)throw Error('no leftover promo line');
   out.push({kind,owner,participantEdit:edited});
@@ -606,7 +606,7 @@ export const posGiveaway = async (page: ScenarioPage) => {
   await page.getByRole('button', { name: 'Ubah Synthetic Scent M', exact: true }).waitFor()
   await line.waitFor()
   const text = await line.innerText()
-  assert(text.includes('Synthetic Bag') && text.includes('HADIAH') && text.includes('GRATIS') && text.includes('Hadiah pembelian'), 'the cart shows the bag as a HADIAH / GRATIS line: ' + text)
+  assert(text.includes('Synthetic Bag') && (await line.getByText('Hadiah', { exact: true }).count()) > 0 && text.includes('Gratis') && text.includes('Hadiah pembelian'), 'the cart shows the bag as a Hadiah / Gratis line: ' + text)
   assert((await line.getByRole('button').count()) === 0, 'the giveaway line has no stepper or remove control')
   out.push({ cart: text.replace(/\s+/g, ' ') })
 

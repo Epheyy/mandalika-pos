@@ -16,16 +16,20 @@ interface CustomerChipProps {
   onOpenPicker: () => void
   /** Releases the customer ("Lepas"); the screen asks first when promos or rewards would drop. */
   onRelease: () => void
+  /** Cart-column variant: one row, one subtitle line (points, preview and rewards joined), so it costs ~56 px on the 601 px A9. */
+  compact?: boolean
 }
 
 /** A2/B3 customer chip: "+ Pelanggan" when empty; otherwise name · tier · points and the reward count, with
  *  Ganti and Lepas. Tapping the name opens the profile. */
-export function CustomerChip({ customer, loyaltyEnabled, rewards, earnedPoints = 0, onOpenProfile, onOpenPicker, onRelease }: CustomerChipProps) {
+export function CustomerChip({ customer, loyaltyEnabled, rewards, earnedPoints = 0, onOpenProfile, onOpenPicker, onRelease, compact = false }: CustomerChipProps) {
   if (!customer) {
     return (
       <button
         type="button" onClick={onOpenPicker}
-        className="touch flex min-h-14 w-full flex-shrink-0 items-center gap-3 border-b border-paper-2 bg-white px-4 text-left text-[0.9375rem] font-semibold text-ink-900 active:bg-paper-1"
+        className={compact
+          ? 'touch mx-3 flex min-h-12 flex-shrink-0 items-center gap-3 rounded-control bg-paper-1 px-3 text-left text-[0.9375rem] font-semibold text-ink-900 active:bg-paper-2'
+          : 'touch flex min-h-14 w-full flex-shrink-0 items-center gap-3 border-b border-paper-2 bg-white px-4 text-left text-[0.9375rem] font-semibold text-ink-900 active:bg-paper-1'}
       >
         <IconUser size={20} className="text-ink-500" />
         + Pelanggan
@@ -34,6 +38,43 @@ export function CustomerChip({ customer, loyaltyEnabled, rewards, earnedPoints =
   }
   const tier = knownTier(customer)
   const rewardText = loyaltyEnabled ? rewardChipText(rewards) : null
+  if (compact) {
+    const base = [
+      loyaltyEnabled ? `${customer.points} poin` : customer.phone,
+      loyaltyEnabled && earnedPoints > 0 ? `+${earnedPoints} poin (sementara)` : null,
+    ].filter((x): x is string => !!x).join(' · ')
+    const rewardsLit = rewards.kind === 'count' && rewards.n > 0
+    const compactBody = (
+      <>
+        <span className="block truncate text-[0.9375rem] font-semibold text-ink-900">
+          {customer.name}
+          {tier && ` · ${tier}`}
+        </span>
+        <span className="block truncate text-[0.8125rem] text-ink-500">
+          {/* A lit reward goes first: it is the cashier's cue to hand over a gift, and the line truncates at its end. */}
+          {rewardText && rewardsLit && <span className="font-semibold text-reward">{rewardText}{base && ' · '}</span>}
+          {base}
+          {rewardText && !rewardsLit && <>{base && ' · '}{rewardText}</>}
+        </span>
+      </>
+    )
+    return (
+      <div className="mx-3 flex min-h-12 flex-shrink-0 items-center gap-2 rounded-control bg-paper-1 px-3 py-0.5">
+        <span aria-hidden="true" className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-paper-2 text-[0.9375rem] font-bold text-ink-700">
+          {(customer.name || '?').charAt(0).toUpperCase()}
+        </span>
+        <div className="min-w-0 flex-1">
+          {onOpenProfile ? (
+            <button type="button" onClick={onOpenProfile} aria-label={`Profil ${customer.name}`} className="block w-full min-w-0 text-left">{compactBody}</button>
+          ) : (
+            <div>{compactBody}</div>
+          )}
+        </div>
+        <button type="button" onClick={onOpenPicker} className="touch flex-shrink-0 rounded-control px-1.5 text-[0.9375rem] font-semibold text-ink-700 active:bg-paper-2">Ganti</button>
+        <button type="button" onClick={onRelease} className="touch flex-shrink-0 rounded-control px-1.5 text-[0.9375rem] font-semibold text-danger active:bg-paper-2">Lepas</button>
+      </div>
+    )
+  }
   const body = (
     <>
       <span className="block truncate text-[0.9375rem] font-semibold text-ink-900">{customer.name}</span>

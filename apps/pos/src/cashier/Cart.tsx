@@ -6,7 +6,6 @@ import { variantLabel } from '@mandalika/types'
 import type { AppliedPromoCode } from './promoValidate'
 import { IconChevronRight, IconClock, IconClose } from '../components/ui/icons'
 import { Button } from '../components/ui/Button'
-import { Stepper } from '../components/ui/Stepper'
 import { LineSheet } from './LineSheet'
 import { sizeOptions } from './lineSizes'
 import { autoPromptLabel } from './promoCopy'
@@ -17,6 +16,15 @@ type CartItem = components['schemas']['CartItem']
 type AppSettings = components['schemas']['AppSettings']
 type Promotion = components['schemas']['Promotion']
 type Product = components['schemas']['Product']
+type Category = components['schemas']['Category']
+
+/** "50 ml · Extrait": size label, then the product's category (W1-24). Empty when neither is known. */
+export function lineSubtitle(item: CartItem, products: Product[], categories: Category[]): string {
+  const size = variantLabel(item.variantSize)
+  const categoryId = products.find((p) => p.id === item.productId)?.categoryId
+  const category = categoryId ? categories.find((c) => c.id === categoryId)?.name : undefined
+  return [size, category].filter(Boolean).join(' · ')
+}
 
 interface LineKey {
   productId: string
@@ -34,6 +42,8 @@ interface CartProps {
   pendingSync: boolean
   /** Catalog (pending-adjusted) for the line sheet's size switch. */
   products: Product[]
+  /** Category names for the line subtitle ("50 ml · Extrait"). */
+  categories?: Category[]
   onRemove: (productId: string, variantSize: string) => void
   onSetQty: (productId: string, variantSize: string, qty: number) => void
   /** B1 size switch; returns true when the line was moved (false = blocked, nothing changed). */
@@ -82,6 +92,14 @@ function RemoveButton({ label, onClick }: { label: string; onClick: () => void }
   )
 }
 
+const ICON_PROPS = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true } as const
+const IconTag = () => <svg {...ICON_PROPS}><path d="M3 12V4h8l10 10-8 8L3 12z" /><circle cx="7.5" cy="8.5" r="1.5" /></svg>
+const IconNote = () => <svg {...ICON_PROPS}><path d="M5 4h14v16H5z" /><path d="M9 9h6M9 13h6M9 17h3" /></svg>
+const IconTrash = () => <svg {...ICON_PROPS}><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
+
+/** Cart action row: three equal icon buttons below the totals (W1 mock). Names stay "Promo & Diskon" / "Catatan" / "Kosongkan". */
+const ACTION = 'press flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-control px-1 text-sm font-semibold'
+
 export const Cart = memo(function Cart({
   cart,
   giveaway,
@@ -90,6 +108,7 @@ export const Cart = memo(function Cart({
   customerSlot,
   pendingSync,
   products,
+  categories = [],
   onRemove,
   onSetQty,
   onSwitchSize,
@@ -158,41 +177,36 @@ export const Cart = memo(function Cart({
   }
 
   return (
-    <div className="flex h-full flex-col border-l border-paper-2 bg-[var(--surface-solid-bg)] shadow-[-10px_0_26px_-18px_rgba(70,46,10,0.3)]">
-      {/* Customer chip (B3) — pinned at the very top of the cart */}
-      {customerSlot}
-      {/* Header */}
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-paper-2 py-1 pl-4 pr-2">
-        <h2 className="flex items-baseline gap-2 text-[1.0625rem] font-bold text-ink-900">
+    <div className="m-1.5 ml-0 flex h-[calc(100%-0.75rem)] min-h-0 flex-col overflow-hidden rounded-panel border border-paper-2 bg-[var(--surface-solid-bg)] shadow-[-10px_0_26px_-18px_rgba(70,46,10,0.3)]">
+      {/* Header: title + count on one baseline, Simpan / Tersimpan on the right */}
+      <div className="flex flex-shrink-0 flex-wrap items-center justify-between py-0.5 pl-4 pr-2">
+        <h2 className="flex min-w-0 flex-1 items-baseline justify-between gap-2 pr-2 text-[1.0625rem] font-bold text-ink-900">
           Pesanan
           {derived.totalCartItems > 0 && (
-            <span className="tnum whitespace-nowrap text-[0.8125rem] font-semibold text-ink-500">
-              {derived.totalCartItems} item
+            <span className="tnum whitespace-nowrap text-[0.8125rem] font-medium text-ink-500">
+              {derived.totalCartItems} barang
             </span>
           )}
         </h2>
         <div className="flex items-center">
           {heldCount > 0 && (
-            <Button variant="ghost" onClick={onOpenHeld} className="min-h-11 px-2">
+            <Button variant="ghost" onClick={onOpenHeld} className="-my-1 min-h-11 px-2">
               Tersimpan ({heldCount})
             </Button>
           )}
           {!isEmpty && (
-            <>
-              {/* aria-label differs from the visible text so exact "Simpan" (customer form) stays unambiguous. */}
-              <Button variant="ghost" onClick={onOpenHeld} aria-label="Simpan keranjang" className="min-h-11 px-2">
-                Simpan
-              </Button>
-              <Button variant="ghost" onClick={onClear} className="min-h-11 px-2">
-                Kosongkan
-              </Button>
-            </>
+            /* aria-label differs from the visible text so exact "Simpan" (customer form) stays unambiguous. */
+            <Button variant="ghost" onClick={onOpenHeld} aria-label="Simpan keranjang" className="-my-1 min-h-11 px-2">
+              Simpan
+            </Button>
           )}
         </div>
       </div>
+      {/* Customer card (B3), one compact row under the title */}
+      {customerSlot}
 
       {/* Items */}
-      <div className="flex-1 overflow-y-auto px-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4">
         {isEmpty ? (
           <div className="flex h-32 flex-col items-center justify-center text-ink-500">
             <p className="text-[0.9375rem]">Keranjang kosong</p>
@@ -202,16 +216,16 @@ export const Cart = memo(function Cart({
           cart.map((item) => (
             <div
               key={`${item.productId}-${item.variantSize}-${item.isReward ? item.rewardPromotionId ?? item.rewardConditionId ?? 'r' : ''}`}
-              className="flex min-h-16 flex-wrap items-center gap-x-3 gap-y-1 border-b border-paper-2 py-2 lg:flex-nowrap"
+              className="flex min-h-11 items-center gap-2 border-b border-paper-2 py-0.5 last:border-b-0"
             >
               {item.isReward ? (
-                <div className="order-1 min-w-0 flex-1 basis-[calc(100%-4rem)] lg:basis-auto">
+                <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-2 text-[0.9375rem] font-semibold text-ink-900">
                     <span className="truncate">{item.productName}</span>
-                    <Tag tone="reward">HADIAH</Tag>
+                    <Tag tone="reward">Hadiah</Tag>
                   </p>
-                  {variantLabel(item.variantSize) && <p className="text-[0.8125rem] text-ink-500">{variantLabel(item.variantSize)}</p>}
-                  <p className="text-[0.8125rem] text-ink-500">{item.rewardPromotionId ? 'Hadiah Promo' : 'Hadiah Loyalti'}</p>
+                  {lineSubtitle(item, products, categories) && <p className="truncate text-[0.8125rem] text-ink-500">{lineSubtitle(item, products, categories)}</p>}
+                  <p className="truncate text-[0.8125rem] text-ink-500">{item.rewardPromotionId ? 'Hadiah Promo' : 'Hadiah Loyalti'}</p>
                 </div>
               ) : (
                 /* B1: the line body opens the line sheet (qty, size switch, Hapus). */
@@ -219,31 +233,24 @@ export const Cart = memo(function Cart({
                   type="button"
                   onClick={() => setLineKey({ productId: item.productId, variantSize: item.variantSize })}
                   aria-label={`Ubah ${item.productName}${variantLabel(item.variantSize) ? ' ' + variantLabel(item.variantSize) : ''}`}
-                  className="order-1 min-h-12 min-w-0 flex-1 basis-[calc(100%-4rem)] rounded-control text-left active:bg-paper-1 lg:basis-auto"
+                  className="min-h-12 min-w-0 flex-1 rounded-control text-left active:bg-paper-1"
                 >
                   <span className="line-clamp-2 text-[0.9375rem] font-semibold leading-snug text-ink-900">{item.productName}</span>
-                  {variantLabel(item.variantSize) && <span className="block text-[0.8125rem] text-ink-500">{variantLabel(item.variantSize)}</span>}
+                  {lineSubtitle(item, products, categories) && <span className="block truncate text-[0.8125rem] text-ink-500">{lineSubtitle(item, products, categories)}</span>}
                 </button>
               )}
+              {/* One 36 px quantity pill (W1-23); the quantity is edited in the line sheet (tap the line). */}
+              <span className="tnum flex h-9 min-w-9 flex-shrink-0 items-center justify-center rounded-control bg-paper-1 px-2 text-[0.9375rem] font-bold text-ink-900">
+                {item.quantity}
+              </span>
               {item.isReward ? (
-                <>
-                  <span className="tnum order-2 flex h-9 min-w-9 items-center justify-center rounded-control bg-paper-1 px-2 text-base font-semibold text-ink-900">
-                    {item.quantity}
-                  </span>
-                  <p className={`tnum order-3 ml-auto w-28 flex-shrink-0 text-right text-base font-bold ${item.subtotal <= 0 ? 'text-reward' : 'text-ink-900'}`}>
-                    {item.subtotal <= 0 ? 'GRATIS' : formatRupiah(item.subtotal)}
-                  </p>
-                </>
+                <p className={`tnum min-w-[4.5rem] flex-shrink-0 text-right text-[0.9375rem] font-bold ${item.subtotal <= 0 ? 'text-reward' : 'text-ink-900'}`}>
+                  {item.subtotal <= 0 ? 'Gratis' : formatRupiah(item.subtotal)}
+                </p>
               ) : (
                 <>
-                  <Stepper
-                    className="order-3 lg:order-2"
-                    value={item.quantity}
-                    onDecrement={() => onSetQty(item.productId, item.variantSize, item.quantity - 1)}
-                    onIncrement={() => onSetQty(item.productId, item.variantSize, item.quantity + 1)}
-                  />
-                  <div className="order-4 ml-auto w-28 flex-shrink-0 text-right lg:order-3 lg:ml-0">
-                    <p className="tnum text-base font-bold text-ink-900">{formatRupiah(item.subtotal)}</p>
+                  <div className="min-w-[4.5rem] flex-shrink-0 text-right">
+                    <p className="tnum text-[0.9375rem] font-bold text-ink-900">{formatRupiah(item.subtotal)}</p>
                     {item.quantity > 1 && <p className="tnum text-xs text-ink-500">@ {formatRupiah(item.price)}</p>}
                   </div>
                   {/* Visual "›" affordance for the same sheet; the body button carries the accessible name. */}
@@ -252,9 +259,9 @@ export const Cart = memo(function Cart({
                     tabIndex={-1}
                     aria-hidden="true"
                     onClick={() => setLineKey({ productId: item.productId, variantSize: item.variantSize })}
-                    className="touch order-2 -mr-2 inline-flex lg:order-4 items-center justify-center rounded-control text-ink-500 active:bg-paper-1"
+                    className="-mx-1 inline-flex min-h-12 w-6 flex-shrink-0 items-center justify-center rounded-control text-ink-500 active:bg-paper-1"
                   >
-                    <IconChevronRight size={20} />
+                    <IconChevronRight size={16} />
                   </button>
                 </>
               )}
@@ -262,25 +269,22 @@ export const Cart = memo(function Cart({
           ))
         )}
         {giveaway && (
-          <div
-            data-testid="giveaway-line"
-            className="flex min-h-16 flex-wrap items-center gap-x-3 gap-y-1 border-b border-paper-2 py-2 lg:flex-nowrap"
-          >
-            <div className="order-1 min-w-0 flex-1 basis-[calc(100%-4rem)] lg:basis-auto">
+          <div data-testid="giveaway-line" className="flex min-h-11 items-center gap-2 border-b border-paper-2 py-0.5 last:border-b-0">
+            <div className="min-w-0 flex-1">
               <p className="flex items-center gap-2 text-[0.9375rem] font-semibold text-ink-900">
                 <span className="truncate">
                   {giveaway.productName}
                   {variantLabel(giveaway.variantSize) ? ` · ${variantLabel(giveaway.variantSize)}` : ''}
                 </span>
-                <Tag tone="reward">HADIAH</Tag>
+                <Tag tone="reward">Hadiah</Tag>
               </p>
               <p className="text-[0.8125rem] text-ink-500">{GIVEAWAY_CAPTION}</p>
               {giveaway.outOfStock && <p className="text-[0.8125rem] font-semibold text-warn-strong">{GIVEAWAY_OUT_OF_STOCK}</p>}
             </div>
-            <span className="tnum order-2 flex h-9 min-w-9 items-center justify-center rounded-control bg-paper-1 px-2 text-base font-semibold text-ink-900">
+            <span className="tnum flex h-9 min-w-9 flex-shrink-0 items-center justify-center rounded-control bg-paper-1 px-2 text-[0.9375rem] font-bold text-ink-900">
               {giveaway.quantity}
             </span>
-            <p className="tnum order-3 ml-auto w-28 flex-shrink-0 text-right text-base font-bold text-reward">GRATIS</p>
+            <p className="tnum min-w-[4.5rem] flex-shrink-0 text-right text-[0.9375rem] font-bold text-reward">Gratis</p>
           </div>
         )}
       </div>
@@ -313,21 +317,9 @@ export const Cart = memo(function Cart({
         </div>
       )}
 
-      {/* Adjustments row */}
+      {/* Totals: compact; the total itself lives on the Bayar bar only (W1-21) */}
       {!isEmpty && (
-        <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-t border-paper-2 px-4 py-2">
-          <Button variant="promo" active={hasPromo || hasManual} onClick={() => onOpenAdjustment('promo')} className="flex-1">
-            Promo &amp; Diskon
-          </Button>
-          <Button variant="secondary" active={orderNotes !== ''} onClick={() => onOpenAdjustment('notes')} className="flex-1">
-            Catatan
-          </Button>
-        </div>
-      )}
-
-      {/* Totals */}
-      {!isEmpty && (
-        <div className="flex-shrink-0 space-y-2 border-t border-paper-2 px-4 py-3 text-[0.9375rem]">
+        <div className="flex-shrink-0 space-y-0.5 border-t border-paper-2 px-4 py-1 text-[0.9375rem]">
           <div className="tnum flex justify-between text-ink-700">
             <span>Subtotal</span>
             <span>{formatRupiah(derived.subtotal)}</span>
@@ -335,7 +327,7 @@ export const Cart = memo(function Cart({
           {appliedPromotions.map((p) => (
             <div key={p.id} className="flex min-h-12 items-center justify-between gap-2 text-promo">
               <span className="flex min-w-0 items-center gap-2">
-                <Tag tone="promo">PROMO</Tag>
+                <Tag tone="promo">Promo</Tag>
                 <span className="truncate">{p.name}</span>
                 {autoPromotionIds.includes(p.id) && <Tag tone="auto">Otomatis</Tag>}
               </span>
@@ -345,22 +337,16 @@ export const Cart = memo(function Cart({
           {appliedPromoCodes.map((c) => (
             <div key={c.code} className="flex min-h-12 items-center justify-between gap-2 text-promo">
               <span className="flex min-w-0 items-center gap-2">
-                <Tag tone="promo">PROMO</Tag>
+                <Tag tone="promo">Promo</Tag>
                 <span className="truncate">Kode Promo: {c.code}</span>
               </span>
               <RemoveButton label="Hapus kode" onClick={() => onRemovePromoCode(c.code)} />
             </div>
           ))}
-          {hasPromo && derived.appliedPromoDiscountAmount > 0 && (
-            <div className="tnum flex justify-between text-promo">
-              <span>Hemat promo</span>
-              <span>−{formatRupiah(derived.appliedPromoDiscountAmount)}</span>
-            </div>
-          )}
           {discountRunning > 0 && (
             <div className="flex min-h-12 items-center justify-between gap-2 text-promo">
               <span className="flex min-w-0 items-center gap-2">
-                <Tag tone="promo">PROMO</Tag>
+                <Tag tone="promo">Promo</Tag>
                 <span className="truncate">
                   Diskon manual{' '}
                   {discountType === 'percentage' ? `${discountRunning}%` : formatRupiah(discountRunning)}
@@ -388,22 +374,40 @@ export const Cart = memo(function Cart({
               <span>{formatRupiah(derived.taxAmount)}</span>
             </div>
           )}
-          <div className="tnum flex justify-between border-t border-paper-2 pt-2 font-bold text-ink-900">
-            <span>Total</span>
-            <span>{formatRupiah(derived.total)}</span>
-          </div>
           {pendingSync && (
-            <p className="mt-1 text-center text-[0.8125rem] text-warn-strong">
+            <p className="text-center text-[0.8125rem] text-warn-strong">
               <IconClock size={14} className="inline-block align-[-0.125em]" /> Tersimpan di tablet
             </p>
           )}
         </div>
       )}
 
-      {/* Bayar bar: 64 dp, brand fill. The aria-label keeps the button's name "Bayar" (the total is in the visible text). */}
+      {/* Action row: Promo, Catatan, Kosongkan, equal width, below the totals (W1-19) */}
+      {!isEmpty && (
+        <div className="flex flex-shrink-0 items-center gap-2 px-3 pb-1.5">
+          <button
+            type="button" onClick={() => onOpenAdjustment('promo')} aria-label={'Promo & Diskon'}
+            className={`${ACTION} bg-promo-bg text-promo ${hasPromo || hasManual ? 'ring-2 ring-promo' : ''}`}
+          >
+            <IconTag /> Promo
+          </button>
+          <button
+            type="button" onClick={() => onOpenAdjustment('notes')}
+            className={`${ACTION} ${orderNotes !== '' ? 'border border-ink-700 bg-white text-ink-900' : 'bg-paper-1 text-ink-700'}`}
+          >
+            <IconNote /> Catatan
+          </button>
+          <button type="button" onClick={onClear} className={`${ACTION} bg-paper-1 text-ink-700`}>
+            <IconTrash /> Kosongkan
+          </button>
+        </div>
+      )}
+
+      {/* Bayar bar: 64 dp, brand fill, inset in the card. The aria-label keeps the button's name "Bayar" (the total is in the visible text). */}
       <div className="flex-shrink-0 safe-bottom">
+      <div className="px-3 pb-2">
         {isEmpty ? (
-          <button type="button" disabled className="flex min-h-16 w-full items-center justify-center bg-paper-1 text-base font-semibold text-ink-500">
+          <button type="button" disabled className="flex min-h-16 w-full items-center justify-center rounded-control bg-paper-1 text-base font-semibold text-ink-500">
             Pilih produk
           </button>
         ) : (
@@ -412,18 +416,24 @@ export const Cart = memo(function Cart({
             onClick={onCheckout}
             disabled={wallRaised}
             aria-label={wallRaised ? undefined : 'Bayar'}
-            className="bar-primary press-bar tnum flex min-h-16 w-full items-center justify-between px-5 disabled:opacity-40"
+            aria-describedby={wallRaised ? undefined : 'cart-total'}
+            className="bar-primary press-bar tnum flex min-h-16 w-full items-center justify-between rounded-control px-5 disabled:opacity-40"
           >
             {wallRaised ? (
-              <span className="mx-auto text-lg font-bold">Sinkronisasi diperlukan</span>
+              <>
+                <span className="text-lg font-bold">Sinkronisasi diperlukan</span>
+                <span className="text-xl font-bold">{formatRupiah(derived.total)}</span>
+              </>
             ) : (
               <>
                 <span className="text-xl font-bold">Bayar</span>
                 <span className="text-2xl font-bold">{formatRupiah(derived.total)}</span>
+                <span id="cart-total" className="sr-only">Total {formatRupiah(derived.total)}</span>
               </>
             )}
           </button>
         )}
+        </div>
       </div>
     </div>
   )

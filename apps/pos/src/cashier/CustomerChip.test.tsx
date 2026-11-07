@@ -54,3 +54,24 @@ describe('CustomerChip', () => {
     expect(rewardChipText({ kind: 'hidden' })).toBeNull()
   })
 })
+
+describe('CustomerChip compact (cart column)', () => {
+  it('is one row: name · tier, then points, the provisional earned points and the rewards on one line', () => {
+    const html = chip({ compact: true, earnedPoints: 12 })
+    expect(html).toContain('Rina')
+    expect(html).toContain('Gold')
+    expect(html).toContain('70 poin · +12 poin (sementara)')
+    expect(html.indexOf('2 hadiah tersedia')).toBeLessThan(html.indexOf('70 poin'))
+    expect(html).toContain('2 hadiah tersedia')
+    expect(html).toContain('aria-label="Profil Rina"')
+    expect(html).toContain('Ganti')
+    expect(html).toContain('Lepas')
+  })
+
+  it('shows the phone instead of points when loyalty is off, and a compact + Pelanggan when empty', () => {
+    expect(chip({ compact: true, loyaltyEnabled: false, rewards: { kind: 'hidden' } })).toContain('0812')
+    const empty = chip({ compact: true, customer: null })
+    expect(empty).toContain('+ Pelanggan')
+    expect(empty).toContain('rounded-control')
+  })
+})

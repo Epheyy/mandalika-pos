@@ -12,6 +12,11 @@ describe('CashierScreen toast tones', () => {
     expect(src).toMatch(/`Ditambah: [^`]*`, 'info'\)/)
   })
 
+  it('confirms a tile add with an info toast (D-93) so it can never block the refund success toast', () => {
+    expect(src).toMatch(/`Ditambahkan · \$\{product\.name\}`, \{ tone: 'info', duration: ADD_TOAST_MS \}/)
+    expect(src).toMatch(/const ADD_TOAST_MS = 1600/)
+  })
+
   it('routes the hook toasts through a tone-by-wording wrapper', () => {
     expect(src.match(/showToast: hookToast/g)).toHaveLength(3)
   })
