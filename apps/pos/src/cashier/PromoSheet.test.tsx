@@ -22,6 +22,12 @@ describe('PromoSheet', () => {
     expect(out).toContain('aria-hidden="true" tabindex="-1"')
   })
 
+  it('shows the subtotal beside the title (W7-11) and omits it when not given', () => {
+    const withSub = html(createElement(PromoSheet, { onClose: noop, subtotal: 100000, children: createElement('p', null, 'x') }))
+    expect(withSub).toMatch(/Subtotal Rp\s?100\.000/)
+    expect(html(createElement(PromoSheet, { onClose: noop, children: createElement('p', null, 'x') }))).not.toContain('Subtotal')
+  })
+
   it('replaces the list with the picker instead of stacking it', () => {
     const out = html(createElement(PromoSheet, { onClose: noop, picker: createElement('p', null, 'PICKER'), children: createElement('p', null, 'LIST-BODY') }))
     expect(out).toContain('PICKER')
@@ -33,22 +39,33 @@ describe('PromoSheet', () => {
 describe('ManualDiscountSection', () => {
   const props = { state: CASHIER_INITIAL_STATE, dispatch: noop, onApplyDiscount: noop, onApplySurcharge: noop }
 
-  it('starts collapsed: only the disclosure button, no input', () => {
+  it('is an open block: bukan PROMO tag, Nominal before Persen, % / nominal toggle and both actions', () => {
     const out = html(createElement(ManualDiscountSection, props))
-    expect(out).toContain('Diskon manual / Biaya tambahan')
-    expect(out).toContain('aria-expanded="false"')
-    expect(out).not.toContain('Nilai diskon atau biaya tambahan')
-  })
-
-  it('opens inline with the % / nominal toggle and both actions', () => {
-    const out = html(createElement(ManualDiscountSection, { ...props, initiallyOpen: true }))
-    expect(out).toContain('Persen (%)')
-    expect(out).toContain('Nominal (Rp)')
+    expect(out).toContain('bukan PROMO')
+    expect(out.indexOf('Nominal (Rp)')).toBeGreaterThan(-1)
+    expect(out.indexOf('Nominal (Rp)')).toBeLessThan(out.indexOf('Persen (%)'))
     expect(out).toContain('Biaya tambahan +')
     expect(out).toContain('Nilai diskon atau biaya tambahan')
+    expect(out).not.toContain('aria-expanded')
   })
 
-  it('summarises an applied manual discount on the collapsed button', () => {
+  it('shows the max hint and an inline red message only when the nominal exceeds the subtotal', () => {
+    const base = { ...props, subtotal: 100000 }
+    const stateFixed = (adjustInputStr: string) => ({ ...CASHIER_INITIAL_STATE, discountType: 'fixed' as const, adjustInputStr })
+    const ok = html(createElement(ManualDiscountSection, { ...base, state: stateFixed('50000') }))
+    expect(ok).toContain('maksimal sebesar subtotal Rp')
+    expect(ok).not.toContain('role="alert"')
+    const over = html(createElement(ManualDiscountSection, { ...base, state: stateFixed('200000') }))
+    expect(over).toContain('role="alert"')
+    expect(over).toContain('tidak boleh melebihi subtotal')
+  })
+
+  it('flags a percentage above 100 inline', () => {
+    const state = { ...CASHIER_INITIAL_STATE, discountType: 'percentage' as const, adjustInputStr: '150' }
+    expect(html(createElement(ManualDiscountSection, { ...props, state }))).toContain('tidak boleh lebih dari 100%')
+  })
+
+  it('summarises an applied manual discount in the always-open block', () => {
     const state = { ...CASHIER_INITIAL_STATE, discountRunning: 10, appliedDiscountType: 'percentage' as const }
     expect(html(createElement(ManualDiscountSection, { ...props, state }))).toContain('Diskon manual 10%')
   })
@@ -62,6 +79,15 @@ describe('BxgyRewardModal inline', () => {
     const out = html(createElement(BxgyRewardModal, { ...base, inline: true }))
     expect(out).toContain('‹ Kembali')
     expect(out).not.toContain('fixed inset-0')
+  })
+
+  it('puts Kembali before the title (top-left) and renders row cards with a - n + stepper', () => {
+    const options = [{ productId: 'p', productName: 'Amber Oud', variantSize: '10ml', net: 0 }] as never
+    const out = html(createElement(BxgyRewardModal, { ...base, options, inline: true }))
+    expect(out.indexOf('‹ Kembali')).toBeLessThan(out.indexOf('Pilih Hadiah'))
+    expect(out).toContain('Gratis (Rp 0)')
+    expect(out).toContain('aria-label="Tambah Amber Oud · 10ml"')
+    expect(out).toContain('aria-label="Kurangi Amber Oud · 10ml"')
   })
 
   it('keeps the legacy overlay when not inline', () => {

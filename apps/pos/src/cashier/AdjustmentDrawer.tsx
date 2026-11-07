@@ -117,7 +117,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
     ) : null
 
   return (
-    <PromoSheet onClose={onClosePromo} picker={picker}>
+    <PromoSheet onClose={onClosePromo} picker={picker} subtotal={subtotal}>
       <PromoPanel
         promotions={promotions}
         discountCodes={discountCodes}
@@ -147,7 +147,7 @@ export const AdjustmentDrawer = memo(function AdjustmentDrawer({
         dispatch={dispatch}
         onApplyDiscount={onApplyDiscount}
         onApplySurcharge={onApplySurcharge}
-        initiallyOpen={state.activeAdjustment === 'discount'}
+        subtotal={subtotal}
       />
     </PromoSheet>
   )

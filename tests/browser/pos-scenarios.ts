@@ -91,7 +91,7 @@ export const qualifyPos = async (page: ScenarioPage) =>{
  const panel=async()=>{await page.getByRole('button',{name:'Promo & Diskon',exact:true}).click();};
  const direct=async(kind)=>{await panel();await page.getByRole('button').filter({hasText:'Synthetic '+kind}).last().click();};
  const code=async(kind)=>{await panel();await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill('Raw-'+kind);await page.getByRole('button',{name:'Pakai',exact:true}).click();};
- const confirm=async(kind)=>{if(process.env.A34C_RUN_DIR)await captureShot(page,'p7-picker-'+kind.toLowerCase(),POS_SHOT_VIEWPORTS);await page.getByRole('button',{name:kind==='Bundle'?/Synthetic Scent · MRp/:/Synthetic Tester · MRp/}).click();await page.getByRole('button',{name:'Terapkan',exact:true}).click();};
+ const confirm=async(kind)=>{if(process.env.A34C_RUN_DIR)await captureShot(page,'p7-picker-'+kind.toLowerCase(),POS_SHOT_VIEWPORTS);await page.getByRole('button',{name:kind==='Bundle'?/Tambah Synthetic Scent · M$/:/Tambah Synthetic Tester · M$/}).click();await page.getByRole('button',{name:'Terapkan',exact:true}).click();};
  for(const kind of ['Bundle','BXGY'])for(const owner of ['direct','linked']){
   await fresh();const before=await body();
   await (owner==='direct'?direct(kind):code(kind));
@@ -124,7 +124,7 @@ export const posBoundaries = async (page: ScenarioPage) =>{
  page.__a24.codes.push({...page.__a24.codes[0],id:'invalid-code',code:'Raw-Invalid',promotionId:'invalid'});
  const scan=async(sku)=>{await page.getByRole('searchbox').fill(sku);await page.getByRole('searchbox').press('Enter');};
  const fresh=async()=>{await page.evaluate(()=>{for(const k of Object.keys(localStorage))if(k.startsWith('mandalika.pos.openCart.'))localStorage.removeItem(k);});await page.reload();await page.getByRole('button',{name:/^Synthetic Scent/}).first().waitFor();for(const sku of ['SYN-M','SYN-L','TEST-M'])await scan(sku);};
- const apply=async(kind,owner)=>{await page.getByRole('button',{name:'Promo & Diskon',exact:true}).click();if(owner==='direct')await page.getByRole('button').filter({hasText:'Synthetic '+kind}).last().click();else {await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill('Raw-'+kind);await page.getByRole('button',{name:'Pakai',exact:true}).click();}await page.getByRole('button',{name:kind==='Bundle'?/Synthetic Scent · MRp/:/Synthetic Tester · MRp/}).click();await page.getByRole('button',{name:'Terapkan',exact:true}).click();};
+ const apply=async(kind,owner)=>{await page.getByRole('button',{name:'Promo & Diskon',exact:true}).click();if(owner==='direct')await page.getByRole('button').filter({hasText:'Synthetic '+kind}).last().click();else {await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill('Raw-'+kind);await page.getByRole('button',{name:'Pakai',exact:true}).click();}await page.getByRole('button',{name:kind==='Bundle'?/Tambah Synthetic Scent · M$/:/Tambah Synthetic Tester · M$/}).click();await page.getByRole('button',{name:'Terapkan',exact:true}).click();};
  for(const kind of ['Bundle','BXGY'])for(const owner of ['direct','linked']){
   await fresh();await apply(kind,owner);
   // Remove both qualifying paid scent lines through the real cart controls.
@@ -149,7 +149,7 @@ export const physicalQueue = async (page: ScenarioPage) =>{
  for(const kind of ['Bundle','BXGY'])for(const owner of ['direct','linked']){
   await page.reload();await page.getByRole('button',{name:/^Synthetic Scent/}).first().waitFor();
   for(const sku of ['SYN-M','SYN-L','TEST-M']){await page.getByRole('searchbox').fill(sku);await page.getByRole('searchbox').press('Enter');}
-  const apply=async()=>{await page.getByRole('button',{name:'Promo & Diskon',exact:true}).click();if(owner==='direct')await page.getByRole('button').filter({hasText:'Synthetic '+kind}).last().click();else{await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill('Raw-'+kind);await page.getByRole('button',{name:'Pakai',exact:true}).click();}await page.getByRole('button',{name:kind==='Bundle'?/Synthetic Scent · MRp/:/Synthetic Tester · MRp/}).click();await page.getByRole('button',{name:'Terapkan',exact:true}).click();};
+  const apply=async()=>{await page.getByRole('button',{name:'Promo & Diskon',exact:true}).click();if(owner==='direct')await page.getByRole('button').filter({hasText:'Synthetic '+kind}).last().click();else{await page.getByRole('textbox',{name:'Kode promo',exact:true}).fill('Raw-'+kind);await page.getByRole('button',{name:'Pakai',exact:true}).click();}await page.getByRole('button',{name:kind==='Bundle'?/Tambah Synthetic Scent · M$/:/Tambah Synthetic Tester · M$/}).click();await page.getByRole('button',{name:'Terapkan',exact:true}).click();};
   await apply();
   await page.getByRole('button',{name:/^Promo(?: |$)/}).first().click();await page.getByRole('button',{name:'Hapus '+(owner==='direct'?'Synthetic ':'Raw-')+kind,exact:true}).click();
   await page.getByRole('heading',{name:'Promo & Diskon'}).locator('..').getByRole('button',{name:'Kembali',exact:true}).click();assert(!(await page.locator('body').innerText()).includes('Hadiah Promo'),'individual removal');
@@ -506,10 +506,9 @@ export const posPromoSheet = async (page: ScenarioPage) => {
   const heading = page.getByRole('heading', { name: 'Promo & Diskon' })
   await heading.waitFor()
   assert((await page.getByRole('textbox', { name: 'Kode promo', exact: true }).count()) === 1, 'the code field sits in the sheet')
-  // Manual discount is collapsed, opens inline, and applying keeps the sheet open (replaces, no gate).
-  const section = page.getByRole('button', { name: /^Diskon manual \/ Biaya tambahan/ })
-  assert((await section.getAttribute('aria-expanded')) === 'false', 'manual section starts collapsed')
-  await section.click()
+  // Manual discount is an open block (W7-12, Nominal first, bukan PROMO) and applying keeps the sheet open (replaces, no gate).
+  assert((await page.getByTestId('manual-discount').count()) === 1, 'manual discount block is open inline')
+  assert((await page.getByTestId('manual-discount').innerText()).includes('bukan PROMO'), 'manual block says bukan PROMO')
   if (process.env.A34C_RUN_DIR) await captureShot(page, 'p7-promo-sheet', POS_SHOT_VIEWPORTS)
   await page.getByRole('button', { name: 'Persen (%)', exact: true }).click()
   await page.getByRole('spinbutton', { name: 'Nilai diskon atau biaya tambahan' }).fill('10')
@@ -603,7 +602,7 @@ export const posHeldOrders = async (page: ScenarioPage) => {
 
   // Restore from the hamburger menu, then pay.
   await page.getByRole('button', { name: 'Menu', exact: true }).click()
-  await page.getByRole('button', { name: 'Pesanan tersimpan (1)' }).last().click()
+  await page.getByRole('button', { name: 'Pesanan tersimpan 1', exact: true }).click() // the menu row: label + count tag (W7-05)
   await sheet.waitFor()
   assert((await sheet.innerText()).includes('Bu Sari'), 'the held order is listed')
   await sheet.getByRole('button', { name: 'Lanjutkan Bu Sari', exact: true }).click()

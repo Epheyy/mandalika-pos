@@ -20,6 +20,7 @@ import { formatRupiah } from './pricing'
 import { stockFor } from './stock'
 import { IconGift } from '../components/ui/icons'
 import { Button } from '../components/ui/Button'
+import { StatusBadge } from '../components/ui/StatusBadge'
 
 type Promotion = components['schemas']['Promotion']
 type Product = components['schemas']['Product']
@@ -101,20 +102,22 @@ export function BxgyRewardModal({
 
   const panel = (
       <div className={inline ? 'flex h-full min-h-0 flex-col' : 'surface-solid relative flex max-h-[80vh] w-full max-w-sm flex-col rounded-panel'}>
-        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-paper-2 px-5 py-3">
-          <div className="min-w-0">
-            <h3 className="truncate font-bold text-ink-900"><IconGift size={16} className="inline-block align-[-0.125em]" /> Pilih Hadiah</h3>
-            <p className="truncate text-xs text-ink-500">{promo.name}</p>
-          </div>
-          {inline ? (
+        <div className="flex flex-shrink-0 items-center gap-3 border-b border-paper-2 px-5 py-3">
+          {inline && (
+            // W5-02: "‹ Kembali" top-left, like the mock and every other sheet.
             <button
               type="button"
               onClick={onCancel}
-              className="press -mr-2 inline-flex min-h-11 items-center rounded-control px-3 text-sm font-semibold text-ink-700 active:bg-paper-1"
+              className="press -ml-2 inline-flex min-h-11 flex-shrink-0 items-center rounded-control px-3 text-sm font-semibold text-brand-strong active:bg-paper-1"
             >
               ‹ Kembali
             </button>
-          ) : (
+          )}
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate font-bold text-ink-900"><IconGift size={16} className="inline-block align-[-0.125em]" /> Pilih Hadiah</h3>
+            <p className="truncate text-xs text-ink-500">{promo.name}</p>
+          </div>
+          {!inline && (
             <button
               type="button"
               onClick={onCancel}
@@ -140,47 +143,53 @@ export function BxgyRewardModal({
               Tidak ada produk hadiah tersedia
             </p>
           ) : (
-            <div className="flex flex-wrap gap-2">
+            <div className="space-y-2">
               {options.map((o) => {
                 const picked = countFor(o)
                 const st = stockFor(stockProducts, o.productId, o.variantSize)
+                const label = `${o.productName}${o.variantSize ? ` · ${o.variantSize}` : ''}`
                 return (
+                  // W7-13: a row card: name, stock + price line, and a − n + stepper (the + / − rules are the old tap rules).
                   <div
                     key={optionKey(o)}
-                    className={`flex items-center gap-1.5 rounded-control px-2 ${
+                    className={`flex items-center gap-3 rounded-control px-3 py-2 ${
                       picked > 0 ? 'bg-reward-bg ring-2 ring-reward' : 'surface-card'
                     }`}
                   >
-                    <button
-                      type="button"
-                      onClick={() => addPick(o)}
-                      disabled={remaining <= 0 || countFor(o) >= availFor(o)}
-                      className="press min-h-11 text-left text-sm font-semibold text-ink-900 disabled:opacity-40"
-                    >
-                      {o.productName}
-                      {o.variantSize ? ` · ${o.variantSize}` : ''}
-                      <span className="tnum ml-1 text-reward">
-                        {o.net <= 0 ? 'GRATIS' : formatRupiah(o.net)}
-                      </span>
-                      {st !== null && (
-                        <span className={st > 0 ? 'ml-1 text-ink-700' : 'ml-1 font-bold text-danger'}>
-                          · Stok {st}
-                        </span>
-                      )}
-                    </button>
-                    {picked > 0 && (
-                      <span className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => removeLastPickFor(o)}
-                          className="press inline-flex h-11 w-11 items-center justify-center rounded-control bg-paper-1 text-base font-bold leading-none text-ink-900"
-                          aria-label="Kurangi"
-                        >
-                          −
-                        </button>
-                        <span className="tnum w-4 text-center text-sm font-bold text-ink-900">{picked}</span>
-                      </span>
-                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink-900">{label}</p>
+                      <p className="tnum text-xs text-ink-700">
+                        {st !== null && (
+                          <span className={st > 0 ? 'text-ok' : 'font-bold text-danger'}>
+                            {st > 0 ? `Stok tersedia: ${st} unit` : `Stok ${st}`}
+                            {' · '}
+                          </span>
+                        )}
+                        <span className="text-reward">{o.net <= 0 ? 'Gratis (Rp 0)' : formatRupiah(o.net)}</span>
+                      </p>
+                    </div>
+                    {o.net <= 0 && <StatusBadge tone="reward" label="Gratis" className="flex-shrink-0" />}
+                    <span className="flex flex-shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => removeLastPickFor(o)}
+                        disabled={picked <= 0}
+                        className="press inline-flex h-11 w-11 items-center justify-center rounded-control bg-paper-1 text-base font-bold leading-none text-ink-900 disabled:opacity-40"
+                        aria-label={`Kurangi ${label}`}
+                      >
+                        −
+                      </button>
+                      <span className="tnum w-5 text-center text-sm font-bold text-ink-900">{picked}</span>
+                      <button
+                        type="button"
+                        onClick={() => addPick(o)}
+                        disabled={remaining <= 0 || countFor(o) >= availFor(o)}
+                        className="press inline-flex h-11 w-11 items-center justify-center rounded-control bg-paper-1 text-base font-bold leading-none text-ink-900 disabled:opacity-40"
+                        aria-label={`Tambah ${label}`}
+                      >
+                        +
+                      </button>
+                    </span>
                   </div>
                 )
               })}
