@@ -16,9 +16,9 @@ describe('PromoSheet', () => {
     expect(out).toContain('LIST-BODY')
   })
 
-  it('shows exactly one Tutup control in the list view', () => {
+  it('shows exactly one close control (Kembali) in the list view', () => {
     const out = html(createElement(PromoSheet, { onClose: noop, children: createElement('p', null, 'LIST-BODY') }))
-    expect(out.match(/aria-label="Tutup"/g)).toHaveLength(2) // header close + the aria-hidden backdrop
+    expect(out.match(/<button[^>]*>(?:(?!<\/button>).)*Kembali/g)).toHaveLength(1) // the header control; the backdrop and the centring twin are aria-hidden
     expect(out).toContain('aria-hidden="true" tabindex="-1"')
   })
 

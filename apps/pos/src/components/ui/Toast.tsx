@@ -35,13 +35,14 @@ export function useToast(): ToastApi {
   return api
 }
 
-// Warnings and errors are announced assertively; info and success politely. The surface is opaque (owner rule: nothing
-// read over content is see-through) and the tone is carried by the dot, so contrast never depends on a tint.
+// Warnings and errors are announced assertively; info and success politely. The surface is solid ink-900 with white text (plan §1.2, W1-27; owner
+// rule: nothing read over content is see-through) and the tone is carried by the dot, so contrast never depends on a tint.
 const DOT_CLASSES: Record<ToastTone, string> = {
-  info: 'bg-info',
-  ok: 'bg-ok',
-  warn: 'bg-warn',
-  danger: 'bg-danger',
+  // Lighter tints than the page tones: the page tokens drop below 3:1 on ink-900 (WCAG 1.4.11).
+  info: 'bg-[#8ab4f8]',
+  ok: 'bg-[#6fd39a]',
+  warn: 'bg-[#f5b94a]',
+  danger: 'bg-[#ff8a80]',
 }
 
 export function ToastViewport({ toast }: { toast: ToastItem | null }) {
@@ -52,7 +53,7 @@ export function ToastViewport({ toast }: { toast: ToastItem | null }) {
     <div
       key={toast.id}
       data-tone={toast.tone}
-      className="surface-solid flex max-w-md items-center gap-3 whitespace-pre-line rounded-control px-4 py-2.5 text-sm font-semibold text-ink-900"
+      className="flex max-w-md items-center gap-3 whitespace-pre-line rounded-control bg-ink-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg"
     >
       <span aria-hidden="true" className={`h-2 w-2 flex-shrink-0 rounded-full ${DOT_CLASSES[toast.tone]}`} />
       <span>{toast.message}</span>

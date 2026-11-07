@@ -14,11 +14,13 @@ describe('ToastViewport', () => {
     expect(html).toContain('<div role="alert" aria-live="assertive"></div>')
   })
 
-  it('shows the message on an opaque surface, with a tone dot', () => {
+  it('shows the message as white text on a solid ink-900 surface, with a tone dot', () => {
     const html = view(toast('info', 'Ditambahkan · Parfum'))
     expect(html).toContain('Ditambahkan · Parfum')
-    expect(html).toContain('surface-solid')
-    expect(html).toContain('bg-info')
+    expect(html).toContain('bg-ink-900 ')
+    expect(html).toContain('text-white')
+    expect(html).not.toContain('text-ink-900')
+    expect(html).toContain('bg-[#8ab4f8]')
     expect(html).not.toMatch(/backdrop-blur|bg-white\//)
   })
 

@@ -143,7 +143,7 @@ export const posSplitOff = async (page: ScenarioPage) => {
     assert((await page.getByRole('button', { name: 'Bagi pembayaran', exact: true }).count()) === 0, `${label}: no Bagi pembayaran`)
     assert((await page.getByLabel('No. referensi (opsional)').count()) === 1, `${label}: the reference field stays`)
     out.push({ [label]: 'no split entry' })
-    await page.getByRole('heading', { name: 'Bayar', exact: true }).locator('..').getByRole('button', { name: 'Tutup', exact: true }).click()
+    await page.getByRole('heading', { name: 'Bayar', exact: true }).locator('..').getByRole('button', { name: 'Kembali', exact: true }).click()
   }
   await check('key absent')
   page.__a24.snapshot.appSettings.splitTenderEnabled = false

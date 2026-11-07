@@ -160,7 +160,7 @@ export const posRequisition = async (page: ScenarioPage) => {
   await page.getByRole('button', { name: 'Buka Terima Transfer', exact: true }).click();
   await page.getByRole('heading', { name: 'Terima Transfer' }).waitFor();
   assert(await page.getByRole('heading', { name: 'Permintaan Barang', exact: true }).count() === 0, '(d) the requisition panel closed');
-  await page.getByRole('heading', { name: 'Terima Transfer' }).locator('..').getByRole('button', { name: 'Tutup', exact: true }).click();
+  await page.getByRole('heading', { name: 'Terima Transfer' }).locator('..').getByRole('button', { name: 'Kembali', exact: true }).click();
   result.push({ assert: 'd', receivePanelOpened: true });
 
   // (e) cancel a draft
