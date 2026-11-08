@@ -9,6 +9,11 @@ export interface PaymentOption {
 export const LEGACY_CASH_ID = 'cash'
 export const LEGACY_CASH_LABEL = 'Tunai (data lama)'
 
+/** Readable label for a method id that is no longer configured: "MANDIRI (nonaktif)". The id itself is never changed. */
+export function retiredMethodLabel(id: string): string {
+  return `${id.trim().replace(/_/g, ' ').toUpperCase()} (nonaktif)`
+}
+
 /**
  * Options for a payment-method filter: every configured method (disabled ones too, their
  * historical orders still exist), the legacy "cash" id, then any other method id found on
@@ -40,8 +45,10 @@ export function paymentFilterOptions(
   for (const m of configured) add(m.id, m.label)
   const hasOtherCash = configured.some((m) => m.id.trim().toLowerCase() !== LEGACY_CASH_ID && isCashMethod(methods, m.id))
   add(LEGACY_CASH_ID, hasOtherCash ? LEGACY_CASH_LABEL : 'Tunai')
-  for (const o of orders) if (!isSplitMethodId(o.paymentMethod)) add(o.paymentMethod, o.paymentMethod)
-  for (const id of historicalIds) if (!isSplitMethodId(id)) add(id, id)
+  // Until the settings list has loaded we cannot tell a retired method from a live one, so keep the raw id.
+  const unknownLabel = (id: string) => (methods ? retiredMethodLabel(id) : id)
+  for (const o of orders) if (!isSplitMethodId(o.paymentMethod)) add(o.paymentMethod, unknownLabel(o.paymentMethod))
+  for (const id of historicalIds) if (!isSplitMethodId(id)) add(id, unknownLabel(id))
   add(SPLIT_METHOD_ID, SPLIT_LABEL)
   return out
 }

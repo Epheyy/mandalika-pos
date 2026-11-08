@@ -4,6 +4,7 @@ import {
   receiptCopiesError,
   redemptionRateError,
   unitCostError,
+  defaultUnitCostError,
   wholeQtyError,
 } from './inputRules'
 
@@ -41,5 +42,17 @@ describe('goods-in field rules', () => {
     expect(unitCostError('12500.5')).toBeNull()
     expect(unitCostError('-1')).toContain('negatif')
     expect(unitCostError('x')).not.toBeNull()
+  })
+})
+
+describe('ingredient default unit cost', () => {
+  it('optional, zero allowed, never negative or non-finite', () => {
+    expect(defaultUnitCostError('')).toBeNull()
+    expect(defaultUnitCostError('0')).toBeNull()
+    expect(defaultUnitCostError('12500.5')).toBeNull()
+    expect(defaultUnitCostError('-1')).toContain('negatif')
+    expect(defaultUnitCostError('x')).not.toBeNull()
+    expect(defaultUnitCostError('Infinity')).not.toBeNull()
+    expect(defaultUnitCostError('1e20')).toContain('terlalu besar')
   })
 })

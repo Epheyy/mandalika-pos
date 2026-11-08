@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -43,6 +44,20 @@ func validateIngredient(i Ingredient) error {
 	}
 	if i.Unit == "" {
 		return fmt.Errorf("satuan bahan wajib")
+	}
+	return validateDefaultUnitCost(i.DefaultUnitCost)
+}
+
+// validateDefaultUnitCost rejects a negative, non-finite or oversized default cost (0 and nil are fine).
+func validateDefaultUnitCost(c *float64) error {
+	if c == nil {
+		return nil
+	}
+	if math.IsNaN(*c) || math.IsInf(*c, 0) || *c < 0 {
+		return fmt.Errorf("biaya default tidak boleh negatif")
+	}
+	if *c > MaxUnitCost {
+		return fmt.Errorf("biaya default terlalu besar")
 	}
 	return nil
 }

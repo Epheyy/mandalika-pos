@@ -53,3 +53,14 @@ export function unitCostError(text: string): string | null {
   if (n > 999_999_999_999) return 'Harga beli terlalu besar.'
   return null
 }
+
+/** Ingredient default unit cost text: optional; zero is allowed, negative or non-numeric is not (server: validateDefaultUnitCost). */
+export function defaultUnitCostError(text: string): string | null {
+  const t = text.trim()
+  if (t === '') return null
+  const n = Number(t)
+  if (!Number.isFinite(n)) return 'Biaya default harus berupa angka.'
+  if (n < 0) return 'Biaya default tidak boleh negatif.'
+  if (n > 999_999_999_999) return 'Biaya default terlalu besar.'
+  return null
+}
