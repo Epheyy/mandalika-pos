@@ -3,7 +3,7 @@
 Date 2026-11-05 · base `prod-hardening` `d474f4fb` (live: backend `00163-deb`, backoffice `824a38aa`, POS OTA 2.6.0) · planner: Opus (plan only, no app code changed).
 
 **Source.**
-- The owner's polish spec, committed temporarily at `docs/design-kaca/`:
+- The owner's polish spec, committed temporarily at `docs/design-kaca/`: (Removed in slice Z; read it with `git show 9e781db3:docs/design-kaca/<path>`.)
   - `HANDOFF.md`: tokens, materials, components, motion, and a 4-phase playbook;
   - `screens/*.dc.html`: 19 mockups;
   - `QA-FINDINGS.md`: the live QA run.

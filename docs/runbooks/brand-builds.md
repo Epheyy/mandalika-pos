@@ -24,8 +24,7 @@ What the variable selects (registry: `apps/pos/src/brand/brands.ts`):
 | performance | `#a93226` | 15 % darker | solid danger surfaces use `ink-900` (D-28) |
 
 `applyBrand()` runs in `main.tsx` before first render and sets `--color-brand`, `--color-brand-pressed`
-and the overrides on `<html>`. Non-Mandalika skins also re-derive the legacy `indigo-*` scale from the
-primary (160 usages still use it); Mandalika sets nothing, so its CSS is unchanged. The brand also picks
+and the overrides on `<html>`. The legacy `indigo-*` remap and its per-skin derivation were deleted in slice Z; screens use token classes. The brand also picks
 the logo, the `displayName` (login panel, receipt preview, header alt text) and the fallback receipt
 header (`receiptHeader`, used only when the pulled snapshot has no `appSettings`; the backend value wins
 as a whole object, so a backend header of '' stays empty. `packages/printer` code is untouched, but it prints

@@ -92,7 +92,7 @@ describe('darken', () => {
 })
 
 describe('applyBrand', () => {
-  it('sets only brand colours for mandalika (indigo scale stays the css default)', () => {
+  it('sets only brand colours for mandalika', () => {
     const { root, props } = fakeRoot()
     applyBrand(BRANDS.mandalika, root)
     expect([...props.keys()].sort()).toEqual([
@@ -105,7 +105,7 @@ describe('applyBrand', () => {
     expect(props.get('--color-brand-pressed')).toBe('#8f6412')
   })
 
-  it('sets promo/info and re-derives the indigo scale for flamboyan', () => {
+  it('sets promo/info for flamboyan', () => {
     const { root, props } = fakeRoot()
     applyBrand(BRANDS.flamboyan, root)
     expect(props.get('--color-brand')).toBe('#9b59b6')
@@ -113,7 +113,6 @@ describe('applyBrand', () => {
     expect(props.get('--color-promo-bg')).toContain('color-mix')
     expect(props.get('--color-info')).toBe('#475569')
     expect(props.get('--color-info-bg')).toContain('#475569')
-    expect(props.get('--color-indigo-600')).toBe('#9b59b6')
     expect(props.has('--color-danger-solid')).toBe(false)
   })
 

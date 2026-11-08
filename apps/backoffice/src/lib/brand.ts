@@ -107,7 +107,6 @@ export const BRAND = {
   },
 
   colors: {
-    primary: 'indigo',
     primaryHex: skin.primary,
     dark: '#1a1008',
   },

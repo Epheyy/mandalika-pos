@@ -20,7 +20,7 @@ interface Options {
   ensureShift: () => boolean
   offlineLock: () => string | null
   askConfirm: (c: ConfirmRequest) => void
-  showToast: (msg: string) => void
+  showToast: (msg: string, tone: 'info' | 'warn') => void
 }
 
 /** D-6 Pesanan tersimpan: the held list for this outlet plus save / resume / delete, all through existing reducer actions. */
@@ -36,11 +36,11 @@ export function useHeldOrders({ outletId, state, dispatch, getEnv, ensureShift, 
     if (!hasCart) return
     const order = heldOrderFromState(state, { id: crypto.randomUUID(), name, now: Date.now() })
     const result = store.save(order)
-    if (!result.ok) { showToast(result.reason === 'full' ? HELD_ORDERS_FULL_MESSAGE : HELD_ORDERS_WRITE_MESSAGE); return }
+    if (!result.ok) { showToast(result.reason === 'full' ? HELD_ORDERS_FULL_MESSAGE : HELD_ORDERS_WRITE_MESSAGE, 'warn'); return }
     dispatch({ type: 'CART_CLEAR' })
     refresh()
     setOpen(false)
-    showToast(`Pesanan "${name}" tersimpan di tablet ini`)
+    showToast(`Pesanan "${name}" tersimpan di tablet ini`, 'info')
   }
 
   const restore = (order: HeldOrder): void => {
@@ -51,13 +51,13 @@ export function useHeldOrders({ outletId, state, dispatch, getEnv, ensureShift, 
     refresh()
     setOpen(false)
     const head = plan.lossless ? `Pesanan "${order.name}" dilanjutkan` : `Pesanan "${order.name}" dilanjutkan; salinannya tetap tersimpan`
-    showToast(plan.notes.length > 0 ? `${head}.\n${plan.notes.join('\n')}` : head)
+    showToast(plan.notes.length > 0 ? `${head}.\n${plan.notes.join('\n')}` : head, plan.lossless && plan.notes.length === 0 ? 'info' : 'warn')
   }
 
   const resume = (order: HeldOrder): void => {
     if (!ensureShift()) return
     const locked = offlineLock()
-    if (locked) { showToast(locked); return }
+    if (locked) { showToast(locked, 'warn'); return }
     if (!hasCart) { restore(order); return }
     askConfirm({ message: 'Ganti keranjang saat ini? Isinya tidak tersimpan kecuali kamu simpan dulu.', confirmLabel: 'Ganti', tone: 'primary', run: () => restore(order) })
   }

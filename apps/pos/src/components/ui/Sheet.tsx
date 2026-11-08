@@ -25,7 +25,7 @@ type Props = {
    */
   header?: boolean
   /**
-   * Accessible name when no visible `title` is passed (the dialog then has no gray h2). Ignored when `title` is set.
+   * Accessible name when no visible `title` is passed (the dialog then has no visible h2). Ignored when `title` is set.
    * Lets a dialog that draws its own heading still be announced by name.
    */
   ariaLabel?: string
@@ -45,7 +45,7 @@ const Z_CLASSES: Record<SheetZ, string> = {
 const OVERLAY_CLASSES: Record<SheetVariant, string> = {
   center: 'fixed inset-0 bg-ink-900/40 flex items-center justify-center p-4',
   side: 'fixed inset-0 flex justify-end',
-  full: 'fixed inset-0 bg-gray-50',
+  full: 'fixed inset-0 bg-paper-0',
 }
 
 const PANEL_CLASSES: Record<SheetVariant, string> = {
@@ -128,7 +128,7 @@ export function Sheet({
             </span>
           </div>
         ) : title ? (
-          <h2 id={titleId} className="font-bold text-gray-900">
+          <h2 id={titleId} className="font-bold text-ink-900">
             {title}
           </h2>
         ) : null}

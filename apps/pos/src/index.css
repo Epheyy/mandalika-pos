@@ -4,18 +4,6 @@
 @import '../../../packages/ui-tokens/materials.css';
 
 @theme {
-  /* Override indigo palette → Mandalika Gold. Legacy remap: stays until slice Z deletes it. */
-  --color-indigo-50: #fdf8ee;
-  --color-indigo-100: #f9edcc;
-  --color-indigo-200: #f0d48a;
-  --color-indigo-300: #e4b84a;
-  --color-indigo-400: #d4a030;
-  --color-indigo-500: #c49020;
-  --color-indigo-600: #b07d18; /* ← Main brand gold */
-  --color-indigo-700: #8f6210;
-  --color-indigo-800: #6e4a0c;
-  --color-indigo-900: #4d3408;
-
   /* The POS ships no Roboto Variable file (system Roboto on the tablet), so it overrides the shared stack. */
   --font-sans: Roboto, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
