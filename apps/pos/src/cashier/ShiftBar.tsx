@@ -96,11 +96,13 @@ export const ShiftBar = memo(function ShiftBar({
           Tap the chip to reveal Mulai / Kas-awal detail in a popover (works in
           portrait where the inline detail wouldn't fit). */}
       {currentShift ? (
-        <div className="relative flex items-center gap-1.5 min-w-0">
+        <div className="relative flex flex-shrink-0 items-center gap-1.5">
+          {/* Never shrinks: the header search absorbs a narrow header (cart open, wide fonts), so the label
+              never truncates to "Sh..." (owner, 2026-11-08). */}
           <button type="button"
             ref={detailBtnRef}
             onClick={toggleDetail}
-            className="press flex min-h-11 min-w-0 flex-shrink items-center gap-2 rounded-chip bg-ok-bg px-3 text-ok"
+            className="press flex min-h-11 flex-shrink-0 items-center gap-2 rounded-chip bg-ok-bg px-3 text-ok"
             aria-expanded={showDetail}
             title="Detail shift"
           >
