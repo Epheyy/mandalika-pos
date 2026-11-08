@@ -5222,6 +5222,13 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses: { '200': { description: ok } }
+  /api/v1/ingredient-stock-counts/{id}/cancel:
+    post:
+      operationId: cancelIngredientStockCount
+      tags: [catalog]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: ok } }
   /api/v1/products/{productId}/variants/{variantId}/recipe:
     get:
       operationId: getVariantRecipe

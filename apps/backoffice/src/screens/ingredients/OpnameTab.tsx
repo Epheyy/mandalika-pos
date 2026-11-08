@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { fetchAllPages, type IngredientStockCount, type IngredientStockCountItem, type Outlet, type Warehouse } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
-import { Plus, Play, CheckCircle, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
+import { Plus, Play, CheckCircle, XCircle, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
 import { api } from '../../api'
 import { localDay } from '../../lib/businessDay'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
@@ -28,6 +28,7 @@ import {
   startIngredientCountConfirm,
   summarizeIngredientCount,
 } from './opnameConfirm'
+import { cancelCountConfirm } from '../stockcount/countConfirm'
 import { buildIngredientCountSaveItems, parseCountInput, withCountEntry, withoutSavedEntries } from './opnameSave'
 
 const fmtQty = (n: number | null | undefined) => {
@@ -274,6 +275,25 @@ export default function OpnameTab() {
     }
   }
 
+  const cancelSC = async (sc: IngredientStockCount) => {
+    if (!(await ask(cancelCountConfirm(sc.name, sc.status))).confirmed) return
+    setActiveId(sc.id)
+    setPageErr(null)
+    try {
+      await api.cancelIngredientStockCount(sc.id)
+      setDraft((d) => {
+        const n = { ...d }
+        delete n[sc.id]
+        return n
+      })
+      await scq.refetch()
+    } catch (e: unknown) {
+      setPageErr(e instanceof Error ? e.message : 'Gagal membatalkan opname.')
+    } finally {
+      setActiveId(null)
+    }
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -377,6 +397,16 @@ export default function OpnameTab() {
                       </>
                     )}
 
+                    {['planned', 'in_progress'].includes(sc.status) && (
+                      <IconButton
+                        tone="danger"
+                        aria-label={`Batalkan opname ${sc.name}`}
+                        disabled={activeId === sc.id}
+                        onClick={() => cancelSC(sc)}
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </IconButton>
+                    )}
                     <IconButton
                       label={expanded === sc.id ? `Tutup rincian ${sc.name}` : `Buka rincian ${sc.name}`}
                       aria-expanded={expanded === sc.id}

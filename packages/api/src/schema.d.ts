@@ -1461,6 +1461,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ingredient-stock-counts/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelIngredientStockCount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/products/{productId}/variants/{variantId}/recipe": {
         parameters: {
             query?: never;
@@ -9266,6 +9282,26 @@ export interface operations {
         };
     };
     completeIngredientStockCount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    cancelIngredientStockCount: {
         parameters: {
             query?: never;
             header?: never;
