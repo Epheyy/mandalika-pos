@@ -487,6 +487,7 @@ export interface Api {
   startIngredientStockCount: (id: string) => Promise<void>
   saveIngredientStockCount: (id: string, input: IngredientStockCountSaveInput) => Promise<void>
   completeIngredientStockCount: (id: string) => Promise<void>
+  cancelIngredientStockCount: (id: string) => Promise<void>
 
   // promo reward grants report
   listPromoRewardGrants: (opts?: { dateFrom?: string; dateTo?: string; outletId?: string; promotionId?: string; productId?: string; page?: number; limit?: number }) => Promise<PromoRewardGrantReport>
@@ -1110,6 +1111,9 @@ export function createClient(opts: ClientOptions): Api {
     },
     completeIngredientStockCount: async (id) => {
       await request('POST', `${API}/ingredient-stock-counts/${id}/complete`)
+    },
+    cancelIngredientStockCount: async (id) => {
+      await request('POST', `${API}/ingredient-stock-counts/${id}/cancel`)
     },
 
     listPromoRewardGrants: (opts) => {

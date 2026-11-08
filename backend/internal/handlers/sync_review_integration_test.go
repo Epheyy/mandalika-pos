@@ -244,7 +244,7 @@ func TestSyncReviewPostgres(t *testing.T) {
 		}
 		exec(`INSERT INTO operation_receipts(idempotency_key,op_type,scope,fingerprint,outcome) VALUES('devA:refund-ok','refund',$1,'f','{}')`, outletA)
 		exec(`INSERT INTO processed_keys(idempotency_key) VALUES('devA:order-ok')`)
-		exec(`INSERT INTO transfers(source_outlet_id,dest_outlet_id,status,received_idempotency_key) VALUES($1,$2,'received','devA:trf-ok')`, outletB, outletA)
+		exec(`INSERT INTO transfers(source_outlet_id,dest_outlet_id,status,received_idempotency_key) VALUES($1,$2,'completed','devA:trf-ok')`, outletB, outletA)
 		for _, k := range []string{"devA:refund-ok", "devA:order-ok", "devA:trf-ok"} {
 			if !applied(k) {
 				t.Fatalf("%s not flagged applied", k)

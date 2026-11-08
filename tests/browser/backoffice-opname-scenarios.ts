@@ -158,7 +158,7 @@ export const opnameConfirmFlow = async (page: ScenarioPage) => {
   await page.getByText('1/3 dihitung').waitFor()
   await page.getByRole('button', { name: 'Simpan', exact: true }).click()
   check(ingredientSaves.length === 0, `Simpan with nothing entered sends nothing, got ${JSON.stringify(ingredientSaves)}`)
-  await page.getByRole('button', { name: 'Selesai', exact: true }).locator('xpath=following-sibling::button').click()
+  await page.getByRole('button', { name: 'Buka rincian Opname Bahan Uji', exact: true }).click()
   await page.getByLabel('Jumlah dihitung').nth(1).fill('5')
   await page.getByText('2/3 dihitung').waitFor()
   await page.getByRole('button', { name: 'Simpan', exact: true }).click()

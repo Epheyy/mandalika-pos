@@ -28,6 +28,7 @@ export type PaymentMethod = typeof PaymentMethod[keyof typeof PaymentMethod]
 export const OrderStatus = {
   COMPLETED: 'completed',
   REFUNDED: 'refunded',
+  // Never written by runtime code; only orders imported from legacy Firestore (fsmigrate) can carry it.
   CANCELLED: 'cancelled',
 } as const
 export type OrderStatus = typeof OrderStatus[keyof typeof OrderStatus]

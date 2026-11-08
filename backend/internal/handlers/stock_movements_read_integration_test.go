@@ -581,9 +581,9 @@ func TestStockMovementsReadPostgres(t *testing.T) {
 		exec(`INSERT INTO products(id,name) VALUES($1,'MV bucket R')`, prodR)
 		exec(`INSERT INTO product_variants(product_id,size,price,sku,barcode) VALUES($1,'M',100000,'MV-R-M','8990007')`, prodR)
 		exec(`INSERT INTO goods_receipts(id,outlet_id,source) VALUES($1,$3,'supply'),($2,$3,'warranty')`, supplyReceipt, warrantyReceipt, outC)
-		exec(`INSERT INTO transfers(id,status,source_warehouse_id,dest_outlet_id) VALUES($1,'received',$2,$3)`, whTransfer, mvWarehouse, outC)
-		exec(`INSERT INTO transfers(id,status,source_outlet_id,dest_outlet_id) VALUES($1,'received',$2,$3)`, outTransfer, mvOutletB, outC)
-		exec(`INSERT INTO transfers(id,status,source_outlet_id,dest_outlet_id) VALUES($1,'received',$2,$3)`, backTransfer, outC, mvOutletB)
+		exec(`INSERT INTO transfers(id,status,source_warehouse_id,dest_outlet_id) VALUES($1,'completed',$2,$3)`, whTransfer, mvWarehouse, outC)
+		exec(`INSERT INTO transfers(id,status,source_outlet_id,dest_outlet_id) VALUES($1,'completed',$2,$3)`, outTransfer, mvOutletB, outC)
+		exec(`INSERT INTO transfers(id,status,source_outlet_id,dest_outlet_id) VALUES($1,'completed',$2,$3)`, backTransfer, outC, mvOutletB)
 		exec(`INSERT INTO goods_receipt_items(receipt_id,product_id,variant_size,qty,unit_cost) VALUES($1,$3,'M',3,12500.50),($2,$3,'M',5,NULL)`, warrantyReceipt, supplyReceipt, prodR)
 		chain := 0
 		n := 0

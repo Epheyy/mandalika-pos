@@ -368,6 +368,8 @@ func TestStockLedgerPostgres(t *testing.T) {
 	t.Run("guards", func(t *testing.T) { slGuards(t, ctx, pool) })
 	t.Run("delete-zeroed-product", func(t *testing.T) { slDeleteZeroed(t, ctx, pool) })
 	t.Run("delete-warehouse-with-history", func(t *testing.T) { slDeleteWarehouseHistory(t, ctx, pool) })
+	t.Run("ingredient-count-cancel", func(t *testing.T) { slIngredientCountCancel(t, ctx, pool) })
+	t.Run("status-checks", func(t *testing.T) { slStatusChecks(t, ctx, pool) })
 
 	t.Run("refund-link", func(t *testing.T) {
 		slSetup(t, ctx, pool)

@@ -84,6 +84,35 @@ func (r *Repo) StartIngredientStockCount(ctx context.Context, id string) error {
 	return tx.Commit(ctx)
 }
 
+// CancelIngredientStockCount abandons a planned or in-progress count. Item rows stay as history;
+// no stock, movement or outbox side effect (Start/Save never touch stock either).
+func (r *Repo) CancelIngredientStockCount(ctx context.Context, id string) error {
+	tx, err := r.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var status string
+	if err := tx.QueryRow(ctx,
+		`SELECT status FROM ingredient_stock_counts WHERE id=$1 FOR UPDATE`, id,
+	).Scan(&status); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("load: %w", err)
+	}
+	if status != "planned" && status != "in_progress" {
+		return fmt.Errorf("status %q tidak bisa dibatalkan", status)
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE ingredient_stock_counts SET status='cancelled' WHERE id=$1`, id,
+	); err != nil {
+		return fmt.Errorf("mark cancelled: %w", err)
+	}
+	return tx.Commit(ctx)
+}
+
 type IngredientStockCountSaveItem struct {
 	ItemID  string  `json:"itemId"`
 	Counted float64 `json:"counted"`

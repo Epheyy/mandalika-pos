@@ -71,3 +71,7 @@ func (h *Handlers) SaveIngredientStockCount(w http.ResponseWriter, r *http.Reque
 func (h *Handlers) CompleteIngredientStockCount(w http.ResponseWriter, r *http.Request) {
 	h.mutated(w, r, h.Write.CompleteIngredientStockCount(r.Context(), chi.URLParam(r, "id")))
 }
+
+func (h *Handlers) CancelIngredientStockCount(w http.ResponseWriter, r *http.Request) {
+	h.mutated(w, r, h.Write.CancelIngredientStockCount(r.Context(), chi.URLParam(r, "id")))
+}

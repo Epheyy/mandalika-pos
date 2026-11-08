@@ -349,6 +349,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 					r.Post("/ingredient-stock-counts/{id}/start", h.StartIngredientStockCount)
 					r.Put("/ingredient-stock-counts/{id}/save", h.SaveIngredientStockCount)
 					r.Post("/ingredient-stock-counts/{id}/complete", h.CompleteIngredientStockCount)
+					r.Post("/ingredient-stock-counts/{id}/cancel", h.CancelIngredientStockCount)
 					// recipes (SP-Recipe-2; per-variant, reuse manage_inventory + recipes flag)
 					r.Get("/products/{productId}/recipe-variant-ids", h.RecipeVariantIDs)
 					r.Get("/products/{productId}/variants/{variantId}/recipe", h.VariantRecipe)
