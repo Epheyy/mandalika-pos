@@ -27,7 +27,7 @@ export interface Breakdown {
  *  (old, local, or only the server's synthetic line) keeps its whole amount under the payment method, as before. */
 const hasRealTenders = (o: Order): boolean => (o.tenders ?? []).some((t) => !t.synthetic)
 
-function keptByMethod(o: Order, kept: number, refunded: number, methods: PaymentMethodCfg[]): Record<string, number> {
+export function keptByMethod(o: Order, kept: number, refunded: number, methods: PaymentMethodCfg[]): Record<string, number> {
   const lines = o.tenders ?? []
   if (!hasRealTenders(o)) return { [o.paymentMethod]: kept }
   const out: Record<string, number> = {}
@@ -102,3 +102,28 @@ export function aggregate(orders: Order[], methods: PaymentMethodCfg[]): Breakdo
   return b
 }
 
+
+export interface SplitMove {
+  /** Refunds of split sales paid out in this method beyond what the method took on that sale (a positive number). */
+  paidOut: number
+  /** What this method took on split sales that were refunded through another method (a positive number). */
+  redirected: number
+}
+
+/** Display only (recap hint): where a FULLY refunded split sale moved money between methods. A same-method refund nets
+ *  to zero per method and adds nothing. Part refunds are left out: their natural split per method is not knowable.
+ *  Never feeds the Tercatat figures (aggregate owns those). */
+export function splitRefundMoves(orders: Order[], methods: PaymentMethodCfg[]): Record<string, SplitMove> {
+  const out: Record<string, SplitMove> = {}
+  for (const o of orders) {
+    if (o.status !== 'refunded' || !hasRealTenders(o)) continue
+    const refunded = o.refundedAmount ?? o.total
+    for (const [m, v] of Object.entries(keptByMethod(o, 0, refunded, methods))) {
+      if (v === 0) continue
+      const e = (out[m] ??= { paidOut: 0, redirected: 0 })
+      if (v < 0) e.paidOut += -v
+      else e.redirected += v
+    }
+  }
+  return out
+}

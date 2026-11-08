@@ -23,7 +23,7 @@ import { Button } from '../components/ui/Button'
 import { DenominationSheet } from './DenominationSheet'
 import { isCountRevealed } from './countRules'
 import { applyRefundRecap, recapFigures, refundRecap, type RefundRecap } from './refundRecap'
-import { aggregate, type Breakdown, type PaymentMethodCfg } from './recapAggregate'
+import { aggregate, splitRefundMoves, type Breakdown, type PaymentMethodCfg } from './recapAggregate'
 import { recapRows, differenceLines } from './recapRows'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { CashAmountInput } from './CashAmountInput'
@@ -79,7 +79,7 @@ const REFRESH_BASE_MS = 2000
 type Tab = 'rekapan' | 'riwayat'
 
 /** What the selisih confirm shows (display only): the per-method sentence and the all-method totals. */
-interface CloseConfirm { message: string; recorded: number; counted: number; diff: number }
+interface CloseConfirm { message: string; recorded: number; counted: number; diff: number; lines: { id: string; label: string; diff: number }[] }
 
 /** Muted notes under the recorded total: refunds this drawer paid for other shifts' sales, refunds
  *  parked for review (not subtracted: the server never counted them) and legacy items without detail. */
@@ -166,6 +166,8 @@ function ShiftRecapPanelBody({
   // P-16: every enabled method plus any method (disabled or unconfigured) holding money, so rows add up to the total.
   const rows = useMemo(() => recapRows(paymentMethods, cur?.byMethod ?? {}), [paymentMethods, cur?.byMethod])
   // D-116: disabled methods that still hold money are listed with a neutral hint (display only).
+  // D-56 hint (display only): refunds of split sales that moved money to another method. Numbers come from aggregate.
+  const moves = useMemo(() => (liveOrders ? splitRefundMoves(liveOrders, paymentMethods) : {}), [liveOrders, paymentMethods])
   const inactiveIds = useMemo(() => new Set(paymentMethods.filter((m) => !m.isEnabled).map((m) => m.id)), [paymentMethods])
   // P-15: the selisih text awaiting the cashier's Tutup Shift confirmation (null = no dialog).
   const [closeConfirm, setCloseConfirm] = useState<CloseConfirm | null>(null)
@@ -373,7 +375,7 @@ function ShiftRecapPanelBody({
       const recorded = cur?.total ?? 0
       setCloseConfirm({
         message: `Ada selisih antara uang fisik yang dihitung dan catatan sistem: ${list}.${reason}`,
-        recorded, counted: countedTotal, diff: countedTotal - recorded,
+        recorded, counted: countedTotal, diff: countedTotal - recorded, lines: diffs.map((d) => ({ id: d.id, label: d.label, diff: d.diff })),
       })
       return
     }
@@ -536,6 +538,11 @@ function ShiftRecapPanelBody({
                     <span>Pengembalian / Refund{(live?.refundFullTotal ?? 0) === 0 ? ` (${live?.refundCount ?? 0} transaksi)` : ''}</span>
                     <span className="font-bold">−{formatRupiah(partRefund)}</span>
                   </div>
+                  {(live?.refundFullTotal ?? 0) > 0 && (
+                    <div className="flex justify-between text-xs text-ink-500" data-testid="recap-full-refund">
+                      <span>Refund penuh (tidak termasuk di Kotor)</span><span>{formatRupiah(live?.refundFullTotal ?? 0)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between border-t border-paper-2 pt-2 text-base font-black text-ink-900">
                     <span>Penjualan Bersih</span><span className="text-brand-strong">{formatRupiah(live?.net ?? 0)}</span>
                   </div>
@@ -590,6 +597,14 @@ function ShiftRecapPanelBody({
                           {!isCash && <span className={`${TAG_BASE} bg-paper-1 text-ink-700`}>Non-tunai</span>}
                           {inactive && <span className={`${TAG_BASE} bg-warn-bg text-warn-strong`}>Dinonaktifkan di BO · ada transaksi</span>}
                         </div>
+                        {revealed && moves[pm.id] && (
+                          <p className="mt-0.5 text-xs text-ink-500" data-testid="recap-split-hint">
+                            {[
+                              moves[pm.id].paidOut > 0 ? `Refund split lewat ${pm.label} melebihi bagian ${pm.label}: −${formatRupiah(moves[pm.id].paidOut)}` : null,
+                              moves[pm.id].redirected > 0 ? `Penjualan ${pm.label} direfund lewat metode lain: +${formatRupiah(moves[pm.id].redirected)}` : null,
+                            ].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
                         {inactive && revealed && <p className="mt-0.5 text-xs text-ink-500">Tetap muncul karena memiliki saldo tercatat {formatRupiah(recorded)} pada shift ini.</p>}
                       </div>
                       {currentShift && isCash && (
@@ -724,11 +739,19 @@ function ShiftRecapPanelBody({
               onConfirm={() => { setCloseConfirm(null); void runClose() }}
             >
               {closeConfirm && (
+                closeConfirm.diff === 0 ? (
+                  <dl className="tnum mt-3 space-y-1 rounded-control bg-paper-1 p-3 text-sm" data-testid="close-confirm-methods">
+                    {closeConfirm.lines.map((l) => (
+                      <div key={l.id} className="flex justify-between"><dt className="text-ink-500">{l.label}</dt><dd className={`font-black ${l.diff < 0 ? 'text-danger' : 'text-warn-strong'}`}>{signed(l.diff)}</dd></div>
+                    ))}
+                  </dl>
+                ) : (
                 <dl className="tnum mt-3 space-y-1 rounded-control bg-paper-1 p-3 text-sm">
                   <div className="flex justify-between"><dt className="text-ink-500">Total Tercatat (Semua Metode)</dt><dd className="font-bold">{formatRupiah(closeConfirm.recorded)}</dd></div>
                   <div className="flex justify-between"><dt className="text-ink-500">Total Terhitung</dt><dd className="font-bold">{formatRupiah(closeConfirm.counted)}</dd></div>
                   <div className="flex justify-between border-t border-paper-2 pt-1"><dt className="font-semibold">Selisih</dt><dd className={`font-black ${closeConfirm.diff < 0 ? 'text-danger' : 'text-warn-strong'}`}>{signed(closeConfirm.diff)}</dd></div>
                 </dl>
+                )
               )}
             </ConfirmDialog>
             {/* Portrait: open the cash-flow / sales summary as an overlay. */}

@@ -2,7 +2,7 @@ import { memo, useMemo, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { formatRupiah } from './pricing'
 import { MAX_REFUND_REASON_CHARS } from '@mandalika/types'
-import { PAYMENT_LABELS, defaultPayoutMethod, isSplitOrder, paidByText, payoutChoices, refundPartialNote, tenderName, type PayoutMethodCfg } from './refundView'
+import { PAYMENT_LABELS, defaultPayoutMethod, isSplitOrder, paidByText, payoutChoices, payoutWarning, refundPartialNote, tenderName, type PayoutMethodCfg } from './refundView'
 import {
   EMPTY_SELECTION, GIVEAWAY_NOTE, REASON_PRESETS, WHOLE_ONLY_NOTE, buildReason, buildRefundBasis, lineLockReason, pickedUnits,
   refundAmountFor, remainingAmount, selectAll, setLineQty, toggleLine,
@@ -139,6 +139,7 @@ function RefundDialogBody({ order, cache, methods, isProcessing, error, onConfir
   const split = isSplitOrder(order)
   const choices = useMemo(() => payoutChoices(order, methods), [order, methods])
   const payout = split ? (payoutPick ?? defaultPayoutMethod(order, methods) ?? undefined) : undefined
+  const warning = split ? payoutWarning(order, payout, amount, methods) : null
   const method = PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod
   const paidBy = split && (order.tenders?.length ?? 0) > 0 ? paidByText(order, methods) : `${method} ${formatRupiah(order.total)}`
 
@@ -196,6 +197,9 @@ function RefundDialogBody({ order, cache, methods, isProcessing, error, onConfir
             {choices.map((c) => (
               <Chip key={c.id} selected={payout === c.id} onClick={() => setPayoutPick(c.id)}>{c.label}</Chip>
             ))}
+          </div>
+          <div role="status" data-testid="refund-payout-warning">
+            {warning && <p className="text-xs font-semibold text-warn-strong bg-warn-bg border border-warn/30 rounded-control px-3 py-2 mb-2">{warning}</p>}
           </div>
         </>
       )}
