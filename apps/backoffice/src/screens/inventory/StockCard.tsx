@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import type { MovementSku, StockMovementPage, StockMovementParams, StockMovementRow, WarehouseStockRow } from '@mandalika/api'
 import { PackagePlus, Search, SlidersHorizontal, X } from 'lucide-react'
@@ -440,6 +440,8 @@ interface SkuComboboxProps {
 function SkuCombobox({ locationType, locationId, pickedLabel, onPick, onClear }: SkuComboboxProps) {
   const [text, setText] = useState('')
   const [results, setResults] = useState<MovementSku[]>([])
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [active, setActive] = useState(-1)
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const listId = useId()
@@ -449,14 +451,28 @@ function SkuCombobox({ locationType, locationId, pickedLabel, onPick, onClear }:
     const q = text.trim()
     if (!locationType || !locationId || q.length < 2) {
       setResults([])
+      setStatus('idle')
+      setActive(-1)
       return
     }
     let stale = false
+    setStatus('loading')
+    setActive(-1)
     const t = setTimeout(() => {
       api
         .listMovementSkus({ locationType, locationId, q })
-        .then((r) => !stale && setResults(r.data))
-        .catch(() => !stale && setResults([]))
+        .then((r) => {
+          if (stale) return
+          setResults(r.data)
+          setActive(-1)
+          setStatus('done')
+        })
+        .catch(() => {
+          if (stale) return
+          setResults([])
+          setActive(-1)
+          setStatus('error')
+        })
     }, 300)
     return () => {
       stale = true
@@ -465,6 +481,29 @@ function SkuCombobox({ locationType, locationId, pickedLabel, onPick, onClear }:
   }, [text, locationType, locationId])
 
   useDismiss(open, () => setOpen(false), root)
+
+  const pick = (r: MovementSku) => {
+    onPick(r)
+    setText('')
+    setResults([])
+    setStatus('idle')
+    setActive(-1)
+    setOpen(false)
+  }
+  const optionId = (i: number) => `${listId}-opt-${i}`
+  const listVisible = pickedLabel === null && open && status !== 'idle'
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (results.length === 0) return
+      e.preventDefault()
+      setOpen(true)
+      const down = e.key === 'ArrowDown'
+      setActive((i) => (down ? (i + 1) % results.length : i <= 0 ? results.length - 1 : i - 1))
+    } else if (e.key === 'Enter' && listVisible && active >= 0 && results[active]) {
+      e.preventDefault()
+      pick(results[active])
+    }
+  }
 
   return (
     <div ref={root} className="relative">
@@ -489,34 +528,50 @@ function SkuCombobox({ locationType, locationId, pickedLabel, onPick, onClear }:
             ref={inputRef}
             id="kartu-sku"
             type="search"
+            role="combobox"
             aria-label="SKU / barcode / nama"
+            aria-autocomplete="list"
+            aria-expanded={listVisible && results.length > 0}
+            aria-controls={listVisible && results.length > 0 ? listId : undefined}
+            aria-activedescendant={listVisible && active >= 0 ? optionId(active) : undefined}
             value={text}
             onChange={(e) => {
               setText(e.target.value)
               setOpen(true)
             }}
             onFocus={() => setOpen(true)}
+            onKeyDown={onKeyDown}
             placeholder="Semua SKU: ketik untuk memilih"
             className="h-full min-w-0 flex-1 bg-transparent font-bold text-ink-900 placeholder:font-normal focus:outline-none"
           />
         )}
       </div>
-      {pickedLabel === null && open && results.length > 0 && (
-        <ul id={listId} aria-label="Hasil SKU" className="absolute left-0 top-full z-20 mt-1 max-h-72 w-full min-w-72 overflow-auto rounded-xl border border-paper-2 bg-white py-1 shadow-lg">
-          {results.map((r) => (
-            <li key={`${r.productId}|${r.variantSize}`}>
-              <button
-                type="button"
-                className="flex h-10 w-full items-center px-3 text-left text-[13px] text-ink-900 hover:bg-paper-1 focus:bg-paper-1 focus:outline-none"
-                onClick={() => {
-                  onPick(r)
-                  setText('')
-                  setResults([])
-                  setOpen(false)
-                }}
-              >
-                {skuLabel(r)}
-              </button>
+      {listVisible && status !== 'done' && results.length === 0 && (
+        <p
+          role={status === 'error' ? 'alert' : 'status'}
+          className={`absolute left-0 top-full z-20 mt-1 w-full min-w-72 rounded-xl border border-paper-2 bg-white px-3 py-2 text-[13px] shadow-lg ${status === 'error' ? 'text-danger' : 'text-ink-700'}`}
+        >
+          {status === 'error' ? 'Gagal memuat SKU. Coba lagi.' : 'Mencari SKU...'}
+        </p>
+      )}
+      {listVisible && status === 'done' && results.length === 0 && (
+        <p role="status" className="absolute left-0 top-full z-20 mt-1 w-full min-w-72 rounded-xl border border-paper-2 bg-white px-3 py-2 text-[13px] text-ink-700 shadow-lg">
+          Tidak ada SKU yang cocok.
+        </p>
+      )}
+      {listVisible && results.length > 0 && (
+        <ul id={listId} role="listbox" aria-label="Hasil SKU" className="absolute left-0 top-full z-20 mt-1 max-h-72 w-full min-w-72 overflow-auto rounded-xl border border-paper-2 bg-white py-1 shadow-lg">
+          {results.map((r, i) => (
+            <li
+              key={`${r.productId}|${r.variantSize}`}
+              id={optionId(i)}
+              role="option"
+              aria-selected={i === active}
+              className={`flex h-10 w-full cursor-pointer items-center px-3 text-left text-[13px] text-ink-900 hover:bg-paper-1 ${i === active ? 'bg-paper-1' : ''}`}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => pick(r)}
+            >
+              {skuLabel(r)}
             </li>
           ))}
         </ul>

@@ -565,6 +565,24 @@ export const posCustomerProfile = async (page: ScenarioPage) => {
   await page.getByRole('heading', { name: 'Profil Pelanggan' }).waitFor()
   await page.getByText('Bahan obrolan', { exact: true }).waitFor()
   if (process.env.A34C_RUN_DIR) await captureShot(page as any, 'p2-profil-pelanggan', POS_SHOT_VIEWPORTS)
+  // F21: the profile is the top layer. Shift+Tab never reaches the picker behind it, that picker is inert, and Escape closes only the profile.
+  const profileDialog = page.getByRole('dialog', { name: 'Profil Pelanggan' })
+  const focusInProfile = () => page.evaluate(() => {
+    const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'))
+    const top = dialogs.find((d) => d.textContent?.includes('Bahan obrolan'))
+    return !!top && top.contains(document.activeElement)
+  })
+  for (let i = 0; i < 12; i++) {
+    await page.keyboard.press('Shift+Tab')
+    assert(await focusInProfile(), 'Shift+Tab stays inside Profil Pelanggan (step ' + i + ')')
+  }
+  assert(await page.evaluate(() => !!document.querySelector('[inert] input[aria-label="Cari pelanggan dengan nomor telepon"]')), 'the Pelanggan picker behind the profile is inert')
+  await page.keyboard.press('Escape')
+  await profileDialog.waitFor({ state: 'detached' })
+  assert((await page.getByRole('heading', { name: 'Pelanggan', exact: true }).count()) === 1, 'Escape closed only the profile, the picker stays')
+  assert(await page.evaluate(() => document.activeElement?.getAttribute('aria-label') === 'Profil Synthetic Customer'), 'focus returned to the Profil button that opened it')
+  await page.getByRole('button', { name: 'Profil Synthetic Customer', exact: true }).click()
+  await page.getByText('Bahan obrolan', { exact: true }).waitFor()
   const text = await body()
   assert(text.includes('Terakhir beli Synthetic Scent') && text.includes('3 minggu lalu'), 'the pitch sentence is built from the profile')
   assert(text.includes('Woody belum pernah dicoba'), 'never-tried line')

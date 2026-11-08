@@ -1,10 +1,11 @@
 import { useState, useEffect, useReducer } from 'react'
 import type { DupCandidate, Customer } from '@mandalika/api'
-import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { api } from '../../api'
 import { BRAND } from '../../lib/brand'
 import { Button } from '../../ui/Button'
 import { Card } from '../../ui/Card'
+import { ConfirmDialog } from '../../ui/ConfirmDialog'
 import { tagChipClasses } from './tagColors'
 import {
   computeConflicts, MERGE_FIELD_LABELS,
@@ -311,33 +312,25 @@ export default function MergeReview({ candidateId, onBack, onDone = onBack }: Me
         </Card>
       )}
 
-      {/* Confirm modal (inline, no Modal component to keep it simple) */}
-      {review.confirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <Card className="p-6 space-y-4 max-w-sm w-full shadow-2xl">
-            <div className="text-center">
-              <div className="w-14 h-14 bg-warn-bg rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <ArrowRight className="w-7 h-7 text-warn-strong" />
-              </div>
-              <h3 className="text-lg font-black text-ink-900 mb-2">Gabungkan Pelanggan?</h3>
-              <p className="text-sm text-ink-500">
-                Gabungkan <span className="font-bold text-ink-900">{dup.name}</span> ke{' '}
-                <span className="font-bold text-ink-900">{keeper.name}</span> secara permanen?
-                Pesanan &amp; poin pindah; tidak bisa dibatalkan otomatis.
-              </p>
-            </div>
-            {actionErr && <p className="text-sm text-danger text-center">{actionErr}</p>}
-            <div className="flex gap-3">
-              <Button variant="secondary" className="flex-1" disabled={busy} onClick={() => dispatch({ type: 'CLOSE_CONFIRM' })}>
-                Batal
-              </Button>
-              <Button variant="danger" className="flex-1" loading={busy} onClick={doMerge}>
-                Ya, Gabungkan
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+      {/* Shared accessible dialog: focus trap, Escape, focus restore. Never merges without the explicit confirm. */}
+      <ConfirmDialog
+        open={review.confirmOpen}
+        title="Gabungkan Pelanggan?"
+        consequence={
+          <>
+            Gabungkan <span className="font-bold text-ink-900">{dup.name}</span> ke{' '}
+            <span className="font-bold text-ink-900">{keeper.name}</span> secara permanen?
+            Pesanan &amp; poin pindah; tidak bisa dibatalkan otomatis.
+          </>
+        }
+        confirmLabel="Ya, Gabungkan"
+        cancelLabel="Batal"
+        tone="danger"
+        busy={busy}
+        error={actionErr}
+        onCancel={() => dispatch({ type: 'CLOSE_CONFIRM' })}
+        onConfirm={doMerge}
+      />
     </div>
   )
 }

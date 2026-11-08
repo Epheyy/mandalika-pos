@@ -190,7 +190,7 @@ export const stockCardFlow = async (page: ScenarioPage) => {
   const summaryBefore = summaryCalls.length
   await page.getByRole('button', { name: 'Hapus pilihan SKU' }).click()
   await page.getByLabel('SKU / barcode / nama').fill('canvas')
-  await page.getByRole('button', { name: 'Canvas Bag · Std (CB-STD)' }).click()
+  await page.getByRole('option', { name: 'Canvas Bag · Std (CB-STD)' }).click()
   check(skuCalls.some((q) => q.get('q') === 'canvas' && q.get('locationId') === OUTLET), 'sku picker query')
   check(summaryCalls.length === summaryBefore, 'sku picker must not call the summary')
   results.push({ step: 'sku-picker' })
