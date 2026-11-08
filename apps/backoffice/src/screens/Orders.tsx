@@ -345,6 +345,12 @@ export function OrdersPanel() {
                             </div>
                           )
                         )}
+                        {(o.pointsRedemptionAmount ?? 0) > 0 && (
+                          <div className="flex justify-between text-sm text-ok" data-testid="order-points-redemption">
+                            <span>Tukar poin{(o.pointsRedeemed ?? 0) > 0 ? ` (${o.pointsRedeemed})` : ''}</span>
+                            <span>-{BRAND.currency.format(o.pointsRedemptionAmount ?? 0)}</span>
+                          </div>
+                        )}
                         <div className="flex justify-between text-sm text-ink-700"><span>Pajak</span><span>{BRAND.currency.format(o.taxAmount)}</span></div>
                         <div className="flex justify-between font-black text-gray-900"><span>Total</span><span>{BRAND.currency.format(o.total)}</span></div>
                         {receiptTotalLine(o, BRAND.currency.format) && (

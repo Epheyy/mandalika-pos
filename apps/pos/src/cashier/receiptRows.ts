@@ -80,7 +80,10 @@ export function quoteTotalRows(
 }
 
 /** The slice of a stored order the adjustment needs. */
-type StoredOrderTotals = { subtotal: number; discountAmount: number; surchargeAmount?: number | null; taxAmount: number; total: number }
+type StoredOrderTotals = {
+  subtotal: number; discountAmount: number; surchargeAmount?: number | null; taxAmount: number; total: number
+  pointsRedeemed?: number | null; pointsRedemptionAmount?: number | null
+}
 
 /**
  * F24: a stored order (Riwayat) carries no loyalty redemption or rounding field in the API schema, yet both sit
@@ -94,4 +97,26 @@ export function orderAdjustmentRow(o: StoredOrderTotals): TotalRow | null {
   if (Math.abs(residual) < 1) return null
   const amount = -Math.round(residual)
   return { key: 'adjustment', kind: amount < 0 ? 'points' : 'rounding', label: 'Tukar poin / pembulatan', amount }
+}
+
+/**
+ * Riwayat rows for what sits between the visible lines and `total`. When the server reports the points
+ * redemption (`pointsRedemptionAmount`) it gets its own "Tukar poin (N)" row, same wording as the receipt, and only
+ * what is still unexplained shows as "Pembulatan". An order from an older server (no field) keeps the single
+ * residual row from `orderAdjustmentRow`.
+ */
+export function orderAdjustmentRows(o: StoredOrderTotals): TotalRow[] {
+  const redeemed = o.pointsRedemptionAmount ?? 0
+  if (redeemed <= 0) {
+    const legacy = orderAdjustmentRow(o)
+    return legacy ? [legacy] : []
+  }
+  const rows: TotalRow[] = []
+  const points = o.pointsRedeemed ?? 0
+  rows.push({ key: 'points', kind: 'points', label: points > 0 ? `Tukar poin (${points})` : 'Tukar poin', amount: -Math.round(redeemed) })
+  const residual = o.subtotal - o.discountAmount + (o.surchargeAmount ?? 0) + o.taxAmount - redeemed - o.total
+  if (Math.abs(residual) >= 1) {
+    rows.push({ key: 'rounding', kind: 'rounding', label: 'Pembulatan', amount: -Math.round(residual) })
+  }
+  return rows
 }

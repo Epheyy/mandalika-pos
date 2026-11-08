@@ -1746,6 +1746,10 @@ components:
         discountWarning: { type: boolean }
         discountWarningReason: { type: string, nullable: true }
         stockWarning: { type: boolean }
+        # Loyalty points redeemed on this order and their Rupiah value (frozen at sale time). Read-only; absent
+        # on orders from an older server. pointsRedemptionAmount is null for a pre-0085 order that could not be derived.
+        pointsRedeemed: { type: integer, description: 'Loyalty points spent on this order (0 when none)' }
+        pointsRedemptionAmount: { type: number, format: double, nullable: true, description: 'Rupiah value of the redeemed points, already deducted from total; null when none or not derivable' }
         tenderWarning: { type: boolean }
         tenderWarningReason: { type: string, nullable: true }
         # A10: the total the POS showed/printed (null = no real quote). Flag-only.

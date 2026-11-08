@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { freshCustomer } from './CustomerProfileSheet'
-import { orderAdjustmentRow } from './receiptRows'
+import { orderAdjustmentRow, orderAdjustmentRows } from './receiptRows'
 
 const read = (f: string): string => readFileSync(new URL(f, import.meta.url), 'utf8')
 
@@ -16,6 +16,28 @@ describe('F24 orderAdjustmentRow', () => {
   it('includes surcharge and tax and returns a positive row when rounding went up', () => {
     const o = { subtotal: 100_000, discountAmount: 0, surchargeAmount: 5_000, taxAmount: 11_000, total: 116_300 }
     expect(orderAdjustmentRow(o)).toMatchObject({ amount: 300, kind: 'rounding' })
+  })
+})
+
+describe('orderAdjustmentRows (points redemption amount)', () => {
+  const o = { subtotal: 10_000, discountAmount: 0, surchargeAmount: null, taxAmount: 0, total: 9_100 }
+  it('shows a Tukar poin row from the server amount and no residual when it explains the gap', () => {
+    const rows = orderAdjustmentRows({ ...o, pointsRedeemed: 9, pointsRedemptionAmount: 900 })
+    expect(rows).toEqual([{ key: 'points', kind: 'points', label: 'Tukar poin (9)', amount: -900 }])
+  })
+  it('keeps only the unexplained remainder as Pembulatan', () => {
+    const rows = orderAdjustmentRows({ ...o, total: 9_050, pointsRedeemed: 9, pointsRedemptionAmount: 900 })
+    expect(rows).toEqual([
+      { key: 'points', kind: 'points', label: 'Tukar poin (9)', amount: -900 },
+      { key: 'rounding', kind: 'rounding', label: 'Pembulatan', amount: -50 },
+    ])
+  })
+  it('falls back to the single residual row without the field (older server or null amount)', () => {
+    expect(orderAdjustmentRows(o)).toEqual([orderAdjustmentRow(o)])
+    expect(orderAdjustmentRows({ ...o, pointsRedemptionAmount: null })).toEqual([orderAdjustmentRow(o)])
+  })
+  it('returns nothing when lines add up and nothing was redeemed', () => {
+    expect(orderAdjustmentRows({ ...o, total: 10_000 })).toEqual([])
   })
 })
 

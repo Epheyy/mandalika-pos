@@ -310,7 +310,7 @@ func TestSaleInputPreservesKnownReceiptAndQ08Shortage(t *testing.T) {
 				t.Fatalf("id=%s dup=%v warn=%v err=%v tx=%+v", id, dup, warn, err, tx)
 			}
 			// Current tax raises total; capture is kept and tender is not flagged.
-			if tx.orderArgs[20].(float64) != 110000 || tx.orderArgs[22].(float64) != 110000 || tx.orderArgs[36] != false {
+			if tx.orderArgs[20].(float64) != 110000 || tx.orderArgs[22].(float64) != 110000 || tx.orderArgs[37] != false {
 				t.Fatalf("capture/total: %v", tx.orderArgs)
 			}
 			if !reflect.DeepEqual(in.Items, original) {
@@ -344,7 +344,7 @@ func TestTenderShortfallBeforeEffects(t *testing.T) {
 				}
 				return
 			}
-			if err != nil || tx.commits != 1 || tx.orderArgs[22].(float64) != 100000 || tx.orderArgs[36] != true || tx.orderArgs[37] != any(TenderCashShort) {
+			if err != nil || tx.commits != 1 || tx.orderArgs[22].(float64) != 100000 || tx.orderArgs[37] != true || tx.orderArgs[38] != any(TenderCashShort) {
 				t.Fatalf("batch must accept and flag: err=%v args=%v", err, tx.orderArgs)
 			}
 		})
@@ -374,7 +374,7 @@ func TestTenderCashIdentityFromSettings(t *testing.T) {
 				}
 				return
 			}
-			if err != nil || tx.orderArgs[36] != true || tx.orderArgs[37] != any(TenderNoncashMismatch) {
+			if err != nil || tx.orderArgs[37] != true || tx.orderArgs[38] != any(TenderNoncashMismatch) {
 				t.Fatalf("want accepted + mismatch flag: err=%v args=%v", err, tx.orderArgs)
 			}
 		})

@@ -1454,6 +1454,22 @@ func TestRefundLinesPostgres(t *testing.T) {
 		if total(oid) != 0 || redeemed != 500 || earned <= 0 {
 			t.Fatalf("fixture: total=%d redeemed=%d earned=%d", total(oid), redeemed, earned)
 		}
+		// the read API exposes the redeemed points and their frozen Rupiah value (500 x Rp100, clamped to the total)
+		got, err := rd.Order(ctx, read.Scope{CrossAll: true}, oid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.PointsRedeemed == nil || *got.PointsRedeemed != 500 || got.PointsRedemptionAmount.IsNull() || !got.PointsRedemptionAmount.IsSpecified() || got.PointsRedemptionAmount.MustGet() != 50000 {
+			t.Fatalf("order read: pointsRedeemed=%v amount=%+v, want 500 / 50000", got.PointsRedeemed, got.PointsRedemptionAmount)
+		}
+		plain := sell(o, saleOpt{items: []map[string]any{line(pA, 1, 30000)}})
+		gotPlain, err := rd.Order(ctx, read.Scope{CrossAll: true}, plain)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if gotPlain.PointsRedemptionAmount.IsSpecified() && !gotPlain.PointsRedemptionAmount.IsNull() {
+			t.Fatalf("an order without redemption must carry no amount, got %+v", gotPlain.PointsRedemptionAmount)
+		}
 		before := custRow(cu)
 		wantOK("partial refund", rf(o, rp(oid, [2]int{0, 1}), ""))
 		r1 := refunds(oid)[0]
