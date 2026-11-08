@@ -20,7 +20,7 @@ import { Button } from '../components/ui/Button'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import type { Tone } from '../components/ui/tone'
 import { IconPrinter } from '../components/ui/icons'
-import { orderAdjustmentRow } from './receiptRows'
+import { orderAdjustmentRows } from './receiptRows'
 
 type Order = components['schemas']['Order']
 type OrderListResponse = components['schemas']['OrderListResponse']
@@ -353,14 +353,11 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
                             <span>PPN</span><span>{formatRupiah(o.taxAmount)}</span>
                           </div>
                         )}
-                        {(() => {
-                          const adj = orderAdjustmentRow(o)
-                          return adj && (
-                            <div className="flex justify-between text-ink-500" data-testid="history-adjustment">
-                              <span>{adj.label}</span><span>{adj.amount < 0 ? '−' : '+'}{formatRupiah(Math.abs(adj.amount))}</span>
-                            </div>
-                          )
-                        })()}
+                        {orderAdjustmentRows(o).map((adj) => (
+                          <div key={adj.key} className="flex justify-between text-ink-500" data-testid="history-adjustment">
+                            <span>{adj.label}</span><span>{adj.amount < 0 ? '−' : '+'}{formatRupiah(Math.abs(adj.amount))}</span>
+                          </div>
+                        ))}
                         <div className="flex justify-between font-bold text-ink-900 pt-0.5">
                           <span>Total</span><span>{formatRupiah(o.total)}</span>
                         </div>

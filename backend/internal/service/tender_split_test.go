@@ -246,7 +246,7 @@ func TestSalePathWritesTenderRows(t *testing.T) {
 			t.Fatalf("err=%v rows=%v", err, tx.tenderRows)
 		}
 		a := tx.orderArgs
-		if a[21] != "split" || a[22].(float64) != 110000 || a[23].(float64) != 10000 || a[36] != false {
+		if a[21] != "split" || a[22].(float64) != 110000 || a[23].(float64) != 10000 || a[37] != false {
 			t.Fatalf("summary args = %v", a[21:24])
 		}
 		if r := tx.tenderRows[1]; r[1] != 2 || r[2] != "tunai" || r[3].(float64) != 60000 || r[4].(float64) != 70000 || r[5].(float64) != 10000 {
@@ -269,7 +269,7 @@ func TestSalePathWritesTenderRows(t *testing.T) {
 	t.Run("batch split shortfall is accepted and flagged", func(t *testing.T) {
 		short := json.RawMessage(`[{"method":"qris","amount":40000},{"method":"tunai","amount":10000}]`)
 		tx, err := createWithTenders(t, func(in *CreateOrderInput) { in.Tenders, in.Offline = short, true })
-		if err != nil || tx.orderArgs[36] != true || tx.orderArgs[37] != any(TenderShort) {
+		if err != nil || tx.orderArgs[37] != true || tx.orderArgs[38] != any(TenderShort) {
 			t.Fatalf("err=%v args=%v", err, tx.orderArgs)
 		}
 	})

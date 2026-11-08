@@ -4493,6 +4493,13 @@ export interface components {
             discountWarning?: boolean;
             discountWarningReason?: string | null;
             stockWarning?: boolean;
+            /** @description Loyalty points spent on this order (0 when none) */
+            pointsRedeemed?: number;
+            /**
+             * Format: double
+             * @description Rupiah value of the redeemed points, already deducted from total; null when none or not derivable
+             */
+            pointsRedemptionAmount?: number | null;
             tenderWarning?: boolean;
             tenderWarningReason?: string | null;
             /**
