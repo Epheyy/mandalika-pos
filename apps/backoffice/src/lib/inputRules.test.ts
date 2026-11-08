@@ -31,8 +31,8 @@ describe('goods-in field rules', () => {
     expect(wholeQtyError('')).toBeNull()
     expect(wholeQtyError('3')).toBeNull()
     expect(wholeQtyError('1.5')).toContain('bulat')
-    expect(wholeQtyError('0')).toContain('lebih dari 0')
-    expect(wholeQtyError('-2')).toContain('lebih dari 0')
+    expect(wholeQtyError('0')).toBeNull() // 0 = skip the line
+    expect(wholeQtyError('-2')).toContain('negatif')
     expect(wholeQtyError('abc')).not.toBeNull()
   })
   it('unit cost: optional, zero allowed, never negative', () => {

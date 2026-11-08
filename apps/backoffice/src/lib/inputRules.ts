@@ -1,7 +1,8 @@
 /**
  * Field rules for the QA wave E inputs (2026-11-08). Each returns an Indonesian message to show next to the
- * field, or null when the value is fine. The server enforces the same bounds (backend/internal/write), so a
- * stale form cannot save what the form itself would refuse.
+ * field, or null when the value is fine. The server enforces the same bounds for loyalty, receipt copies and
+ * unit cost (backend/internal/write). Opening cash is enforced by the POS field and the direct route only: the
+ * sync batch route accepts what a client queued (see HANDOFF 2026-11-08 wave E).
  */
 
 export const MAX_POINTS_PER_THOUSAND = 1000
@@ -32,13 +33,13 @@ export function receiptCopiesError(v: number | null | undefined): string | null 
   return null
 }
 
-/** Goods-in quantity text: empty is "no line"; anything else must be a whole number above 0. */
+/** Goods-in quantity text: empty or 0 is "no line" (skipped, as the on-screen hint says); anything else must be a whole number above 0. */
 export function wholeQtyError(text: string): string | null {
   const t = text.trim()
   if (t === '') return null
   const n = Number(t)
   if (!Number.isFinite(n) || !Number.isInteger(n)) return 'Jumlah harus bilangan bulat.'
-  if (n <= 0) return 'Jumlah harus lebih dari 0.'
+  if (n < 0) return 'Jumlah tidak boleh negatif.'
   return null
 }
 
@@ -49,5 +50,6 @@ export function unitCostError(text: string): string | null {
   const n = Number(t)
   if (!Number.isFinite(n)) return 'Harga beli harus berupa angka.'
   if (n < 0) return 'Harga beli tidak boleh negatif.'
+  if (n > 999_999_999_999) return 'Harga beli terlalu besar.'
   return null
 }

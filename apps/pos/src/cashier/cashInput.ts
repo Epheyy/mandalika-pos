@@ -45,14 +45,41 @@ export function formatCashInput(raw: string): string {
 }
 
 /**
- * What the field's onChange stores. Typing and pasting share one rule (whole rupiah, a trailing fraction is
- * dropped: "50000.5" and "Rp 50.000,00" both give 50000). The one exception is a DELETION: removing a digit from
- * "Rp 1.000" leaves "Rp 1.00", whose ".00" is regrouping debris, not a fraction, so it reads 100 (parseTypedCash).
- * Over the maximum, the current value stays.
+ * What the field's onChange stores when the keystroke kind is unknown (no InputEvent.inputType): a DELETION
+ * leaves regrouping debris ("Rp 1.00" after deleting from "Rp 1.000", read 100 by parseTypedCash); anything else
+ * is read by the shared whole-rupiah rule parseCashInput. Over the maximum, the current value stays.
  */
 export function nextCashInput(current: string, text: string): string {
   const isDeletion = text.length < formatCashInput(current).length
   return (isDeletion ? parseTypedCash(text) : parseCashInput(text)) ?? current
+}
+
+export interface Keystroke {
+  /** InputEvent.inputType ('insertText', 'deleteContentBackward', ...); '' when the engine gives none. */
+  inputType: string
+  /** InputEvent.data: the typed character for insertText. */
+  data: string
+}
+
+/**
+ * The reducer behind the field's onChange. The field is controlled, so a typed "." never stays in it; the next
+ * digit would then join the amount ("Rp 50.000" + "." + "5" = 500005). So a typed "." or "," is swallowed and
+ * switches to fraction mode: digits typed after it are ignored (rupiah has no cents) until a deletion, a paste,
+ * or leaving the field. Deletions regroup digits as before. Everything else uses the shared parser.
+ */
+export function reduceCashKeystroke(
+  current: string,
+  text: string,
+  key: Keystroke,
+  inFraction: boolean,
+): { raw: string; inFraction: boolean } {
+  if (key.inputType.startsWith('delete')) return { raw: parseTypedCash(text) ?? current, inFraction: false }
+  if (key.inputType === 'insertText') {
+    if (/^[.,]$/.test(key.data)) return { raw: current, inFraction: true }
+    if (inFraction && /^\d$/.test(key.data)) return { raw: current, inFraction: true }
+  }
+  if (key.inputType === '') return { raw: nextCashInput(current, text), inFraction: false }
+  return { raw: parseCashInput(text) ?? current, inFraction: false }
 }
 
 /** What the field's onPaste stores: the pasted amount, or the current value when it is over the maximum. */
@@ -80,6 +107,7 @@ export interface CashFieldProps {
   value: string
   onChange: (e: ChangeEvent<HTMLInputElement>) => void
   onPaste: (e: ClipboardEvent<HTMLInputElement>) => void
+  onBlur: () => void
 }
 
 /**
@@ -90,6 +118,7 @@ export interface CashFieldProps {
 export function useCashField(raw: string, onRawChange: (raw: string) => void): CashFieldProps {
   const ref = useRef<HTMLInputElement>(null)
   const pendingDigits = useRef<number | null>(null)
+  const inFraction = useRef(false)
   useLayoutEffect(() => {
     const el = ref.current
     if (pendingDigits.current === null || !el) return
@@ -103,11 +132,18 @@ export function useCashField(raw: string, onRawChange: (raw: string) => void): C
     onChange: (e) => {
       const el = e.target
       pendingDigits.current = countDigits(el.value.slice(0, el.selectionStart ?? el.value.length))
-      onRawChange(nextCashInput(raw, el.value))
+      const ne = e.nativeEvent as Partial<InputEvent>
+      const next = reduceCashKeystroke(raw, el.value, { inputType: ne.inputType ?? '', data: ne.data ?? '' }, inFraction.current)
+      inFraction.current = next.inFraction
+      onRawChange(next.raw)
+    },
+    onBlur: () => {
+      inFraction.current = false
     },
     onPaste: (e) => {
       e.preventDefault()
       pendingDigits.current = null
+      inFraction.current = false
       onRawChange(pastedCashInput(raw, e.clipboardData.getData('text')))
     },
   }

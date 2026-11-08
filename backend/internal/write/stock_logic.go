@@ -28,15 +28,18 @@ func validateReceiptSource(s string) error {
 }
 
 // MaxUnitCost bounds an informational receipt unit cost (numeric column headroom).
-const MaxUnitCost = 1e12
+const MaxUnitCost = 999_999_999_999.99
 
 // validateUnitCost accepts an absent cost and zero; negative or non-finite is refused.
 func validateUnitCost(c *float64) error {
 	if c == nil {
 		return nil
 	}
-	if math.IsNaN(*c) || math.IsInf(*c, 0) || *c < 0 || *c > MaxUnitCost {
+	if math.IsNaN(*c) || math.IsInf(*c, 0) || *c < 0 {
 		return fmt.Errorf("harga beli tidak boleh negatif")
+	}
+	if *c > MaxUnitCost {
+		return fmt.Errorf("harga beli terlalu besar")
 	}
 	return nil
 }
