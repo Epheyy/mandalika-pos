@@ -74,6 +74,8 @@ interface ProductGridProps {
   variantBackRef?: MutableRefObject<(() => boolean) | null>
   /** Rendered at the top of the glass band, above the category row (the empty-cart customer chip and held-orders button). */
   topSlot?: ReactNode
+  /** The phone/portrait bottom tab bar overlays the screen (below `sm`); keeps the last row clear of it. */
+  clearBottomBar?: boolean
 }
 
 interface SortableCardProps {
@@ -263,9 +265,18 @@ function CategoryTabs({ categories, showPromo, selectedCategoryId, onChange }: C
     if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [selectedCategoryId])
 
+  // Opening/closing the cart column changes the strip width without a window resize; the tabs re-flow under
+  // a stale thumb unless the tablist itself is observed.
+  const tablistRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     window.addEventListener('resize', measure)
-    return () => window.removeEventListener('resize', measure)
+    const el = tablistRef.current
+    const ro = el && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => measure()) : null
+    if (el && ro) ro.observe(el)
+    return () => {
+      window.removeEventListener('resize', measure)
+      ro?.disconnect()
+    }
   }, [measure])
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -284,7 +295,7 @@ function CategoryTabs({ categories, showPromo, selectedCategoryId, onChange }: C
   return (
     <div className="surface-group min-w-0 flex-1 rounded-panel px-1">
       <div className="overflow-x-auto [mask-image:linear-gradient(to_right,transparent,#000_12px,#000_calc(100%-12px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div role="tablist" aria-label="Kategori" onKeyDown={onKeyDown} className="relative flex w-max min-w-full gap-1 px-3 py-1">
+        <div ref={tablistRef} role="tablist" aria-label="Kategori" onKeyDown={onKeyDown} className="relative flex w-max min-w-full gap-1 px-3 py-1">
           {thumb && (
             <span
               aria-hidden="true"
@@ -343,6 +354,7 @@ export const ProductGrid = memo(function ProductGrid({
   isLoading,
   variantBackRef,
   topSlot,
+  clearBottomBar = false,
 }: ProductGridProps) {
   const [variantPopup, setVariantPopup] = useState<Product | null>(null)
   const [order, setOrder] = useState<string[]>(loadOrder)
@@ -449,7 +461,7 @@ export const ProductGrid = memo(function ProductGrid({
       {/* Product grid */}
       <div
         data-kaca-scroller
-        className="absolute inset-0 overflow-y-auto px-3 pb-3"
+        className={`absolute inset-0 overflow-y-auto px-3 ${clearBottomBar ? 'pb-20 sm:pb-3' : 'pb-3'}`}
         style={{ paddingTop: bandH > 0 ? bandH : 'calc(var(--cashier-top-h, 3.5rem) + 4.5rem)', scrollPaddingTop: bandH > 0 ? bandH : undefined }}
       >
         {isLoading ? (

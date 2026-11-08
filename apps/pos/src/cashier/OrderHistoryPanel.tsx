@@ -20,6 +20,7 @@ import { Button } from '../components/ui/Button'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import type { Tone } from '../components/ui/tone'
 import { IconPrinter } from '../components/ui/icons'
+import { orderAdjustmentRow } from './receiptRows'
 
 type Order = components['schemas']['Order']
 type OrderListResponse = components['schemas']['OrderListResponse']
@@ -204,7 +205,7 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
 
         {/* Filters: quick day segments like the mock; "Pilih tanggal" reveals the range boxes. */}
         <div className="px-5 py-3 border-b border-paper-2 space-y-2 flex-shrink-0">
-          <div role="group" aria-label="Tanggal" className="grid grid-cols-3 gap-1 p-1 rounded-control bg-paper-1">
+          <div role="group" aria-label="Tanggal hari shift" title="Menurut hari bisnis shift, bukan jam transaksi" className="grid grid-cols-3 gap-1 p-1 rounded-control bg-paper-1">
             {([['today', 'Hari ini'], ['yesterday', 'Kemarin'], ['custom', 'Pilih tanggal']] as const).map(([key, label]) => (
               <button key={key} type="button" aria-pressed={mode === key}
                 onClick={() => (key === 'today' ? pickDay(today) : key === 'yesterday' ? pickDay(dayBefore(today)) : setCustomOpen(true))}
@@ -217,7 +218,7 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
             {mode === 'custom' && (
               <>
                 <div>
-                  <label htmlFor="history-from" className="block text-xs text-ink-700 font-semibold mb-1">Dari</label>
+                  <label htmlFor="history-from" className="block text-xs text-ink-700 font-semibold mb-1">Dari (hari shift)</label>
                   <input
                     id="history-from"
                     type="date" value={from} max={to}
@@ -226,7 +227,7 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
                   />
                 </div>
                 <div>
-                  <label htmlFor="history-to" className="block text-xs text-ink-700 font-semibold mb-1">Sampai</label>
+                  <label htmlFor="history-to" className="block text-xs text-ink-700 font-semibold mb-1">Sampai (hari shift)</label>
                   <input
                     id="history-to"
                     type="date" value={to} min={from} max={today}
@@ -352,6 +353,14 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
                             <span>PPN</span><span>{formatRupiah(o.taxAmount)}</span>
                           </div>
                         )}
+                        {(() => {
+                          const adj = orderAdjustmentRow(o)
+                          return adj && (
+                            <div className="flex justify-between text-ink-500" data-testid="history-adjustment">
+                              <span>{adj.label}</span><span>{adj.amount < 0 ? '−' : '+'}{formatRupiah(Math.abs(adj.amount))}</span>
+                            </div>
+                          )
+                        })()}
                         <div className="flex justify-between font-bold text-ink-900 pt-0.5">
                           <span>Total</span><span>{formatRupiah(o.total)}</span>
                         </div>

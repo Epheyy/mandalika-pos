@@ -62,6 +62,12 @@ const monthYear = (iso: string | null | undefined): string => {
   return Number.isFinite(t) ? new Date(t).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }) : ''
 }
 
+/** F23: the customer to attach from Profil. The sheet shows the freshly fetched points balance, so the cart must
+ *  get that balance too (not the possibly stale object the search or cache returned). */
+export function freshCustomer(customer: Customer, profile: { customer: { id: string; points: number } } | null): Customer {
+  return profile && profile.customer.id === customer.id ? { ...customer, points: profile.customer.points } : customer
+}
+
 interface HistoryRow { id: string; number: string; at: string; total: number; lines: Line[]; paymentMethod?: string; outletCode?: string }
 
 /** Second line of a purchase card: date, outlet (server only), payment method, and the reward given. */
@@ -186,7 +192,7 @@ export function CustomerProfileSheet({
               <p className="py-3 text-center text-[0.9375rem] font-semibold text-ink-700">Sudah dipilih untuk transaksi ini</p>
             ) : (
               <button
-                type="button" onClick={() => onSelect(customer)}
+                type="button" onClick={() => onSelect(freshCustomer(customer, server ? profile : null))}
                 className="bar-primary press-bar flex min-h-14 w-full items-center justify-between rounded-control px-4 text-[0.9375rem] font-bold"
               >
                 <span>Pilih untuk transaksi ini</span>
