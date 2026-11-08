@@ -35,6 +35,8 @@ const tone = countStatusTone
 const label = countStatusLabel
 const locKind = (sc: StockCount) => (sc.warehouseId ? 'Gudang' : 'Outlet')
 
+/** Products are counted in whole units: digits only. */
+const isWholeCount = (text: string) => /^\d+$/.test(text)
 const lineKey = (it: StockCountItem) => `${it.productId}|${it.variantSize}`
 
 export default function StockCount() {
@@ -106,7 +108,14 @@ export default function StockCount() {
           const e = edits[sc.id]?.[lineKey(it)]
           return e === undefined ? it : { ...it, actualQty: e }
         })
-  const dropEdits = (scId: string) =>
+  // Typed text that is not a whole number (e.g. 1.9, -2): shown with a message, never turned into a count or saved.
+  const [badInput, setBadInput] = useState<Record<string, string>>({})
+  const badKey = (scId: string, it: StockCountItem) => `${scId}|${lineKey(it)}`
+  const dropEdits = (scId: string) => {
+    setBadInput((b) => Object.fromEntries(Object.entries(b).filter(([k]) => !k.startsWith(`${scId}|`))))
+    dropEditsOnly(scId)
+  }
+  const dropEditsOnly = (scId: string) =>
     updateEdits((d) => {
       if (!(scId in d)) return d
       const rest = { ...d }
@@ -199,12 +208,22 @@ export default function StockCount() {
     await scq.refetch()
   }
   const setQty = (sc: StockCount, it: StockCountItem, raw: string) => {
-    const qty = raw.trim() === '' ? null : Math.max(0, parseInt(raw, 10) || 0)
+    const text = raw.trim()
+    if (text !== '' && !isWholeCount(text)) {
+      setBadInput((b) => ({ ...b, [badKey(sc.id, it)]: raw }))
+      return
+    }
+    setBadInput((b) => {
+      const { [badKey(sc.id, it)]: _gone, ...rest } = b
+      return rest
+    })
+    const qty = text === '' ? null : parseInt(text, 10)
     updateEdits((d) => ({ ...d, [sc.id]: { ...(d[sc.id] ?? {}), [lineKey(it)]: qty } }))
   }
   // Save one line on blur/Enter so the server captures the stock at count time. One
   // request per line at a time (see createLineSaver); resolves true if saved.
   const saveLine = async (sc: StockCount, it: StockCountItem): Promise<boolean> => {
+    if (badInput[badKey(sc.id, it)] !== undefined) return false
     try {
       await lineSaver.save(sc.id, lineKey(it))
       setPageErr(null)
@@ -216,6 +235,8 @@ export default function StockCount() {
   }
   // Save every pending line (each through its own queue); true only if none is left pending.
   const flushPending = async (sc: StockCount): Promise<boolean> => {
+    // A field still showing a refused (non-whole) entry is an unsaved count the operator can see.
+    if (Object.keys(badInput).some((k) => k.startsWith(`${sc.id}|`))) return false
     const results = await Promise.all(pendingLines(sc).map((it) => saveLine(sc, it)))
     await scq.refetch()
     return !results.includes(false) && pendingLines(sc).length === 0
@@ -432,8 +453,11 @@ export default function StockCount() {
                             <td className="px-4 py-2 text-sm font-bold text-gold-700">{it.frozenQty}</td>
                             <td className="px-4 py-2">
                               {sc.status === 'in_progress' ? (
-                                <div className="flex items-center gap-2">
-                                  <input type="number" min={0} value={it.actualQty ?? ''} onChange={(e) => setQty(sc, it, e.target.value)} onBlur={() => void saveLine(sc, it)} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }} aria-label={`Jumlah dihitung ${it.productName}${it.variantSize ? ` ${it.variantSize}` : ''}`} className={`${fieldClass} w-20 px-2 py-1 text-center`} />
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <input type="number" min={0} step={1} inputMode="numeric" value={badInput[badKey(sc.id, it)] ?? it.actualQty ?? ''} aria-invalid={badInput[badKey(sc.id, it)] !== undefined} onChange={(e) => setQty(sc, it, e.target.value)} onBlur={() => void saveLine(sc, it)} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }} aria-label={`Jumlah dihitung ${it.productName}${it.variantSize ? ` ${it.variantSize}` : ''}`} className={`${fieldClass} w-20 min-w-[5rem] shrink-0 px-2 py-1 text-center`} />
+                                  {badInput[badKey(sc.id, it)] !== undefined && (
+                                    <span role="alert" className="text-xs text-danger">Hanya bilangan bulat, 0 atau lebih. Belum disimpan.</span>
+                                  )}
                                   {it.countedAt && edits[sc.id]?.[lineKey(it)] === undefined && (
                                     <span className="text-[10px] text-gray-400">dihitung {format(parseISO(it.countedAt), 'HH:mm')}</span>
                                   )}

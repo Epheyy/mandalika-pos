@@ -29,6 +29,7 @@ import {
   summarizeIngredientCount,
 } from './opnameConfirm'
 import { cancelCountConfirm } from '../stockcount/countConfirm'
+import { useIngredientCountDetails, type CountDetail } from './useIngredientCountDetails'
 import { buildIngredientCountSaveItems, parseCountInput, withCountEntry, withoutSavedEntries } from './opnameSave'
 
 const fmtQty = (n: number | null | undefined) => {
@@ -120,6 +121,26 @@ function ItemsTable({ sc, items, counted, onCountChange }: ItemsTableProps) {
 }
 
 
+function DetailError({ detail, onRetry }: { detail: CountDetail; onRetry: () => void }) {
+  return (
+    <div role="alert" className="border-t border-gray-100 px-4 py-6 text-center text-sm text-red-700">
+      <p>{detail.error}</p>
+      <Button variant="secondary" size="sm" className="mt-2" onClick={onRetry}>
+        Coba lagi
+      </Button>
+    </div>
+  )
+}
+
+function DetailStatus({ detail, onRetry }: { detail: CountDetail; onRetry: () => void }) {
+  if (detail.error) return <DetailError detail={detail} onRetry={onRetry} />
+  return (
+    <p role="status" className="border-t border-gray-100 px-4 py-6 text-center text-sm text-gray-400">
+      Memuat rincian…
+    </p>
+  )
+}
+
 // ---- main component ----
 
 const parseLocationKey = (key: string): { kind: 'outlet' | 'warehouse'; id: string } | null => {
@@ -190,6 +211,7 @@ export default function OpnameTab() {
     notes: '',
   })
 
+  const { detailOf, reload } = useIngredientCountDetails(stockCounts, expanded)
   const countedFor = (sc: IngredientStockCount) => draft[sc.id] ?? {}
 
   const createSC = async () => {
@@ -222,7 +244,7 @@ export default function OpnameTab() {
     try {
       await api.startIngredientStockCount(sc.id)
       setExpanded(sc.id)
-      await scq.refetch()
+      await Promise.all([scq.refetch(), reload(sc.id)])
     } catch (e: unknown) {
       setPageErr(e instanceof Error ? e.message : 'Gagal memulai opname.')
     } finally {
@@ -235,7 +257,9 @@ export default function OpnameTab() {
   }
 
   const saveProgress = async (sc: IngredientStockCount) => {
-    const saveItems = buildIngredientCountSaveItems(sc.items ?? [], countedFor(sc))
+    const lines = detailOf(sc.id).items
+    if (!lines) return setPageErr('Rincian opname belum dimuat. Tunggu sebentar atau coba lagi.')
+    const saveItems = buildIngredientCountSaveItems(lines, countedFor(sc))
     // Nothing entered since the last save: nothing to send, and uncounted lines must stay uncounted.
     if (saveItems.length === 0) return
     setActiveId(sc.id)
@@ -244,7 +268,7 @@ export default function OpnameTab() {
       await api.saveIngredientStockCount(sc.id, { items: saveItems })
       // Saved: the server now holds these quantities. Edits made while the request was in flight stay in the draft.
       setDraft((d) => ({ ...d, [sc.id]: withoutSavedEntries(d[sc.id] ?? {}, saveItems) }))
-      await scq.refetch()
+      await Promise.all([scq.refetch(), reload(sc.id)])
     } catch (e: unknown) {
       setPageErr(e instanceof Error ? e.message : 'Gagal menyimpan hitungan.')
     } finally {
@@ -255,8 +279,16 @@ export default function OpnameTab() {
   const completeSC = async (sc: IngredientStockCount) => {
     // Only saved quantities are completed by the server: unsaved ones would be silently left out.
     if (Object.keys(countedFor(sc)).length > 0) return setPageErr(UNSAVED_COUNT_MESSAGE)
+    if (!detailOf(sc.id).items) return setPageErr('Rincian opname belum dimuat. Tunggu sebentar atau coba lagi.')
+    // Read the lines fresh: the confirm names what the server will apply, so it must not come from a stale detail.
+    let lines: IngredientStockCountItem[]
+    try {
+      lines = (await api.getIngredientStockCount(sc.id)).items ?? []
+    } catch (e: unknown) {
+      return setPageErr(e instanceof Error ? e.message : 'Gagal memuat rincian opname.')
+    }
     const locationLabel = sc.location.name ?? sc.location.id
-    const summary = summarizeIngredientCount(sc.items ?? [])
+    const summary = summarizeIngredientCount(lines)
     if (!(await ask(completeIngredientCountConfirm(sc.name, locationLabel, summary))).confirmed) return
     setActiveId(sc.id)
     setPageErr(null)
@@ -334,9 +366,10 @@ export default function OpnameTab() {
           </Card>
         ) : (
           stockCounts.map((sc) => {
-            const items = sc.items ?? []
+            const detail = detailOf(sc.id)
+            const items = detail.items
             const counted = countedFor(sc)
-            const countedCount = items.filter(
+            const countedCount = (items ?? []).filter(
               (it) => counted[it.id] !== undefined || it.counted != null,
             ).length
             return (
@@ -357,8 +390,15 @@ export default function OpnameTab() {
                         {sc.plannedDate
                           ? format(parseISO(sc.plannedDate), 'dd MMM yyyy', { locale: idLocale })
                           : format(parseISO(sc.createdAt), 'dd MMM yyyy', { locale: idLocale })}{' '}
-                        · {items.length} bahan
-                        {sc.status === 'in_progress' && ` · ${countedCount}/${items.length} dihitung`}
+                        {items
+                          ? ` · ${items.length} bahan${sc.status === 'in_progress' ? ` · ${countedCount}/${items.length} dihitung` : ''}`
+                          : detail.error
+                            ? ' · rincian gagal dimuat'
+                            : sc.status === 'planned'
+                              ? ''
+                              : sc.status === 'in_progress' || expanded === sc.id
+                                ? ' · memuat rincian…'
+                                : ''}
                       </p>
                     </div>
                   </div>
@@ -382,6 +422,7 @@ export default function OpnameTab() {
                           variant="secondary"
                           size="sm"
                           loading={activeId === sc.id}
+                          disabled={!items}
                           onClick={() => saveProgress(sc)}
                         >
                           Simpan
@@ -389,7 +430,7 @@ export default function OpnameTab() {
                         <Button
                           size="sm"
                           icon={<CheckCircle className="w-3 h-3" />}
-                          disabled={activeId === sc.id}
+                          disabled={activeId === sc.id || !items}
                           onClick={() => completeSC(sc)}
                         >
                           Selesai
@@ -423,12 +464,19 @@ export default function OpnameTab() {
 
                 {/* Expandable items table */}
                 {expanded === sc.id && (
-                  <ItemsTable
-                    sc={sc}
-                    items={items}
-                    counted={counted}
-                    onCountChange={(itemId, val) => setQty(sc, itemId, val)}
-                  />
+                  items ? (
+                    <>
+                    {detail.error && <DetailError detail={detail} onRetry={() => void reload(sc.id)} />}
+                    <ItemsTable
+                      sc={sc}
+                      items={items}
+                      counted={counted}
+                      onCountChange={(itemId, val) => setQty(sc, itemId, val)}
+                    />
+                    </>
+                  ) : (
+                    <DetailStatus detail={detail} onRetry={() => void reload(sc.id)} />
+                  )
                 )}
               </Card>
             )

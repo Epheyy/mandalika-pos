@@ -52,7 +52,11 @@ async function mockApi(page: ScenarioPage) {
     if (path.endsWith('/outlets')) return route.fulfill({ json: { data: [{ id: OUTLET, name: 'MV Outlet', isActive: true, timezone: 'Asia/Jakarta' }] } })
     if (path.endsWith('/settings/app')) return route.fulfill({ json: { data: settings } })
     if (path.endsWith('/ingredient-stock-counts') && request.method() === 'GET') {
-      return route.fulfill({ json: { data: [ingredientCount], meta: { total: 1, page: 1, limit: 25 } } })
+      // Like the real list endpoint (backend/internal/read/ingredient_stock_counts.go): the lines are NOT in the list.
+      return route.fulfill({ json: { data: [{ ...ingredientCount, items: [] }], meta: { total: 1, page: 1, limit: 25 } } })
+    }
+    if (path.endsWith(`/ingredient-stock-counts/${ING_COUNT_ID}`) && request.method() === 'GET') {
+      return route.fulfill({ json: { data: ingredientCount } })
     }
     if (path.endsWith(`/ingredient-stock-counts/${ING_COUNT_ID}/save`) && request.method() === 'PUT') {
       const body = request.postDataJSON() as { items: IngredientSave['items'] }
@@ -118,7 +122,23 @@ export const opnameConfirmFlow = async (page: ScenarioPage) => {
   // (b) an unsaved edit (Parfum A 10 to 4) is saved first, then Selesai names the net the saved count gives
   // (10 to 4 and 5 to 6 = -5) before anything is applied
   const doneDialog = page.getByRole('alertdialog', { name: 'Selesaikan opname Opname Uji?' })
-  await page.getByLabel('Jumlah dihitung Parfum A 30ml').fill('4')
+  // F28/F29: a decimal is refused with a message and never saved; the field stays readable in portrait (602x1006).
+  const fieldA = page.getByLabel('Jumlah dihitung Parfum A 30ml')
+  const updatesBefore = updates(RUN_ID).length
+  await fieldA.fill('1.9')
+  await fieldA.blur()
+  await page.getByText('Hanya bilangan bulat').waitFor()
+  await page.waitForTimeout(500)
+  check(updates(RUN_ID).length === updatesBefore, 'a decimal count sends nothing')
+  await page.getByRole('button', { name: 'Selesai', exact: true }).click()
+  await page.getByText('Ada hitungan yang belum tersimpan').waitFor()
+  check(!calls.some((c) => c.kind === 'complete'), 'Selesai with a refused value still showing completes nothing')
+  await page.setViewportSize({ width: 602, height: 1006 })
+  const box = await fieldA.boundingBox()
+  check(box !== null && box.width >= 70, `the count field keeps its width in portrait, got ${box?.width}`)
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await fieldA.fill('4')
+  await page.getByText('Hanya bilangan bulat').waitFor({ state: 'detached' })
   await page.getByRole('button', { name: 'Selesai', exact: true }).click()
   await doneDialog.waitFor()
   const text = (await doneDialog.textContent()) ?? ''
