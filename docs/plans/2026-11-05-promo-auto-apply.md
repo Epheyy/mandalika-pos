@@ -1,7 +1,7 @@
 # Promo auto-apply (per-promotion setting): plan
 
 Date: 2026-11-05. Status: plan only, no code. Branch `docs/promo-auto-apply-plan` off `prod-hardening` `d474f4fb`.
-Source: QA item P-21 (`docs/design-kaca/QA-FINDINGS.md`): the backoffice says promos are "Diskon otomatis di kasir", but the cashier has to tap
+Source: QA item P-21 (`docs/design-kaca/QA-FINDINGS.md`, in git history: `git show 9e781db3:docs/design-kaca/QA-FINDINGS.md`): the backoffice says promos are "Diskon otomatis di kasir", but the cashier has to tap
 "+ Tambah" for each one. Owner decision (2026-11-05): auto-apply is a **per-promotion setting** in the backoffice, default off, not a global
 change. Binding: no PIN or permission gates (D-11), no see-through dialogs, never auto-merge customers.
 Every file:line below was read from `d474f4fb` in this session, not taken from memory or older docs.

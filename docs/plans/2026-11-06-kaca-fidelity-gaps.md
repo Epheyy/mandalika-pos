@@ -2,7 +2,7 @@
 
 Date 2026-11-06 · base `prod-hardening` `460fa704` · auditor: Claude (Opus 5.5), docs only, no app code changed.
 
-**Question (owner):** did the Kaca builds follow the 19 visual mocks in `docs/design-kaca/screens/*.dc.html`?
+**Question (owner):** did the Kaca builds follow the 19 visual mocks in `docs/design-kaca/screens/*.dc.html`? (Removed in slice Z; read with `git show 9e781db3:docs/design-kaca/<path>`.)
 
 **Short answer:** Partly. The builds use the Kaca tokens, colours, materials and kit, and the README owner rules hold (solid dialogs, no PINs, cart appears on add, one glass band). But several decided items were not built: the red Tutup Shift confirm (D-98), the "Ditambahkan" add toast (D-93), switch-only promo rows (M-8), one close-control position (M-12) and the one-row leave dialog (B1). The slices built from the plan's written rows and never saw the rendered mocks, so many layout and component details also differ. Of 200 visible differences, 38 are intended, 111 were missed (2 structural, 38 component, 71 polish) and 51 need your call. 75 of the 111 misses were never asked for in the plan rows; 36 were asked for and not built. The most serious show on the real tablet: Bayar's amount field and keypad sit below the fold, and the cart shows about one line once a customer and a promo are attached.
 
@@ -482,5 +482,5 @@ Restyled on the kit. ERP shows a plain reason with the raw error tucked away, an
 
 ## 7. How the captures were made (reproducible, not committed)
 
-- Mocks: `cd docs/design-kaca/screens && python -m http.server 8765 --bind 127.0.0.1`, then a Playwright script screenshots each `.dc.html` at `window.__dc.preview`, full page.
+- Mocks (removed in slice Z; `git show 9e781db3:docs/design-kaca/screens/<file>` to extract them first): `cd docs/design-kaca/screens && python -m http.server 8765 --bind 127.0.0.1`, then a Playwright script screenshots each `.dc.html` at `window.__dc.preview`, full page.
 - Built: `corepack pnpm browser:ci --output <dir>` (passed; writes every `captureShot`), plus a throwaway spec with its own Playwright config that imports `tests/browser/fixture.ts` and `setupPos` and reaches the other states. Neither script is in the repo or in CI; both lived under the gitignored `artifacts/` folder.

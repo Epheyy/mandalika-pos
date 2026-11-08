@@ -265,10 +265,6 @@ export default function CashierScreen() {
   const showToast = (msg: string, tone: 'info' | 'warn' = 'warn') => {
     kitToast.showToast(msg, { tone })
   }
-  // The held-order / split-draft / open-cart hooks call showToast(msg) for both confirmations ("Pesanan ... tersimpan") and
-  // refusals/failures; they get a tone by wording so a confirmation never blocks a later success toast (the refund one) and a
-  // refusal is never dropped.
-  const hookToast = (msg: string) => showToast(msg, /tidak|gagal|belum|penuh|jangan|kunci|offline|ganti|selesaikan/i.test(msg) ? 'warn' : 'info')
 
   // P6a (D-85): the header + banners are one stack the catalogue scrolls under. Its height is published as
   // --cashier-top-h on the screen root (layout only; no state), and the product panel is pulled up by it.
@@ -423,7 +419,7 @@ export default function CashierScreen() {
 
   // D-6: carts parked on this tablet (never queued, never sent). Restore re-validates promos against the live catalog.
   const heldOrders = useHeldOrders({
-    outletId: authStore.outletId ?? '', state, dispatch, ensureShift, offlineLock, showToast: hookToast,
+    outletId: authStore.outletId ?? '', state, dispatch, ensureShift, offlineLock, showToast,
     askConfirm: (c) => setConfirm(c),
     getEnv: () => ({ products: displayProducts, promotions, discountCodes, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }),
   })
@@ -437,12 +433,12 @@ export default function CashierScreen() {
       ...engine.outbox.all().flatMap((i) => (i.type === 'order' && typeof i.payload.orderUuid === 'string' ? [i.payload.orderUuid] : [])),
       ...engine.localReceipts().map((r) => r.orderUuid),
     ]),
-    ensureShift, offlineLock, showToast: hookToast,
+    ensureShift, offlineLock, showToast,
   })
 
   // P-20: the open cart survives a reload. A split draft, when pending, owns the restore; a draft whose sale is already queued is dropped.
   const openCart = useOpenCartDraft({
-    outletId: authStore.outletId ?? '', userId: authStore.userId, state, dispatch, showToast: hookToast,
+    outletId: authStore.outletId ?? '', userId: authStore.userId, state, dispatch, showToast,
     catalogueReady: products.length > 0, splitDraftOrderUuid: splitDraft.pending?.orderUuid ?? null,
     getEnv: () => ({ products: displayProducts, promotions, discountCodes, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }),
     saleUuids: () => new Set([

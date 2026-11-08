@@ -33,7 +33,7 @@ export function DenominationSheet({ onApply, onClose, backRef }: Props) {
 
   return (
     <Sheet
-      open onClose={onClose} variant="side" z={70} title="Hitung Lembar Tunai" header closeLabel="Batal"
+      open onClose={onClose} variant="side" z={70} title="Hitung Lembar Tunai" header
       panelClassName="flex flex-col" testId="denomination-sheet"
     >
       <div className="flex flex-shrink-0 items-start justify-between gap-3 px-5 py-2">

@@ -244,7 +244,7 @@ export function SyncProvider({
         // Persistent, non-dismissable and stacked (never overlapping); pointer-events-none so it never blocks the header.
         <div className="pointer-events-none fixed inset-x-0 top-0 z-[100] flex flex-col safe-top">
           {journalNotice && (
-            <div role="alert" className="bg-amber-600 text-white text-sm font-bold px-4 py-2 text-center">
+            <div role="alert" className="bg-warn-strong text-white text-sm font-bold px-4 py-2 text-center">
               {JOURNAL_FALLBACK_MESSAGE}
             </div>
           )}

@@ -15,7 +15,7 @@ interface Options {
   splitDraftOrderUuid: string | null
   /** Every sale uuid this tablet already holds (outbox rows and archived receipts). */
   saleUuids: () => ReadonlySet<string>
-  showToast: (msg: string) => void
+  showToast: (msg: string, tone: 'info' | 'warn') => void
 }
 
 /**
@@ -50,8 +50,10 @@ export function useOpenCartDraft({ outletId, userId, state, dispatch, getEnv, ca
     for (const action of plan.actions) dispatch(action)
     // Nothing of it could come back (every line retired): no point keeping the draft.
     if (plan.result.cart.length === 0) void store.clear().catch(() => {})
-    const toast = restoreToast(revalidationDelta(draft.held, env.products), plan.notes)
-    if (toast) showToast(toast)
+    const delta = revalidationDelta(draft.held, env.products)
+    const toast = restoreToast(delta, plan.notes)
+    // A price-only refresh is a confirmation (info); a lost item or a note the cashier must act on is a warning.
+    if (toast) showToast(toast, delta.unavailable > 0 || plan.notes.length > 0 ? 'warn' : 'info')
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the catalogue and the account are known
   }, [catalogueReady, userId])
 

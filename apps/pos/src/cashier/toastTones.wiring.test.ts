@@ -17,8 +17,19 @@ describe('CashierScreen toast tones', () => {
     expect(src).toMatch(/const ADD_TOAST_MS = 1600/)
   })
 
-  it('routes the hook toasts through a tone-by-wording wrapper', () => {
-    expect(src.match(/showToast: hookToast/g)).toHaveLength(3)
+  it('hands the hooks the tone-explicit showToast, with no wording regex', () => {
+    expect(src).not.toMatch(/hookToast/)
+    for (const hook of ['useHeldOrders', 'useSplitDraft', 'useOpenCartDraft']) {
+      const h = readFileSync(new URL(`./${hook}.ts`, import.meta.url), 'utf8')
+      expect(h).toMatch(/showToast: \(msg: string, tone: 'info' \| 'warn'\) => void/)
+    }
+  })
+
+  it('keeps the held-order save confirmation info and its refusals warn', () => {
+    const h = readFileSync(new URL('./useHeldOrders.ts', import.meta.url), 'utf8')
+    expect(h).toMatch(/tersimpan di tablet ini`, 'info'\)/)
+    expect(h).toMatch(/HELD_ORDERS_WRITE_MESSAGE, 'warn'\)/)
+    expect(h).toMatch(/showToast\(locked, 'warn'\)/)
   })
 
   it('a warn toast would drop the ok refund toast (why confirmations must be info)', () => {

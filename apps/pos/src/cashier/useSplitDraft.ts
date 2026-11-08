@@ -17,7 +17,7 @@ interface Options {
   /** Same gates as adding to the cart (an open shift, the 12 h offline lock): restore re-opens a SALE, so it needs them too. */
   ensureShift: () => boolean
   offlineLock: () => string | null
-  showToast: (msg: string) => void
+  showToast: (msg: string, tone: 'info' | 'warn') => void
 }
 
 /**
@@ -39,7 +39,7 @@ export function useSplitDraft({ outletId, state, total, dispatch, isCash, defaul
   }, [])
 
   const kept = useRef(false)
-  const toastWriteFailed = () => showToast('Pembayaran terpisah belum tersimpan di tablet ini. Jangan tutup aplikasi sebelum Konfirmasi.')
+  const toastWriteFailed = () => showToast('Pembayaran terpisah belum tersimpan di tablet ini. Jangan tutup aplikasi sebelum Konfirmasi.', 'warn')
   useEffect(() => {
     const draft = splitDraftFromState(state, total, isCash, Date.now())
     if (draft) {
@@ -64,14 +64,14 @@ export function useSplitDraft({ outletId, state, total, dispatch, isCash, defaul
     if (!pending) return
     if (!ensureShift()) return
     const locked = offlineLock()
-    if (locked) { showToast(locked); return }
+    if (locked) { showToast(locked, 'warn'); return }
     const plan = planHeldRestore(pending.held, getEnv())
     for (const action of plan.actions) dispatch(action)
     dispatch({ type: 'OPEN_CHECKOUT', defaultMethod })
     dispatch({ type: 'SPLIT_RESTORE', orderUuid: pending.orderUuid, tenders: pending.tenders })
     kept.current = true
     setPending(null)
-    if (plan.notes.length > 0) showToast(plan.notes.join('\n'))
+    if (plan.notes.length > 0) showToast(plan.notes.join('\n'), 'warn')
   }
 
   const discard = (): void => {

@@ -133,10 +133,10 @@ function LoginScreen() {
 function OutletUnassignedScreen() {
   const { user, logout } = useAuth()
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6 safe-top safe-bottom">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <h1 className="text-xl font-black text-gray-900">Akun belum terikat ke outlet</h1>
-        <p className="text-sm text-gray-500 mt-2">
+    <div className="min-h-screen flex items-center justify-center bg-paper-0 p-6 safe-top safe-bottom">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-paper-2 p-6">
+        <h1 className="text-xl font-black text-ink-900">Akun belum terikat ke outlet</h1>
+        <p className="text-sm text-ink-500 mt-2">
           Akun {user?.displayName ?? ''} belum memiliki outlet, jadi tidak bisa dipakai untuk transaksi di kasir.
           Hubungi admin untuk menetapkan outlet pada akun ini, lalu masuk kembali.
         </p>
