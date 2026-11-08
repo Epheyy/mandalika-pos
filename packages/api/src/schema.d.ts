@@ -4389,7 +4389,7 @@ export interface components {
             /** @description The payout method: where the money was paid back. */
             paymentMethod: string;
             /**
-             * @description How the payout method was decided: sale (single-method order), chosen (cashier picked it on a split order), default (split order, the cashier did not pick: the server default, or the preselected default chip a newer POS sent with payoutPicked=false). null = recorded before split payment.
+             * @description How the payout method was decided: sale (single-method order), chosen (cashier picked it on a split order), default (split order, the cashier did not pick: the server default, including a preselected chip a newer POS sent with payoutPicked=false that equals it). null = recorded before split payment.
              * @enum {string|null}
              */
             payoutSource?: "sale" | "chosen" | "default" | null;
@@ -5082,7 +5082,7 @@ export interface components {
             deviceId?: string;
             /** @description Server-read payout method for a split-payment order (C6a); unlike the display-only paymentMethod snapshot, which is ignored. */
             payoutMethod?: string;
-            /** @description Audit flag for a split-order refund that carries payoutMethod: false = the cashier kept the preselected default chip (recorded as payoutSource default); true or absent = chosen. Never changes the method or an amount; any non-boolean value is treated as absent. */
+            /** @description Audit flag for a split-order refund that carries payoutMethod: false = the cashier kept the preselected default chip, recorded as payoutSource default only when payoutMethod equals the own server default for the order; otherwise, and for true or absent, chosen. Never changes the method or an amount; any non-boolean value is treated as absent. */
             payoutPicked?: boolean;
         };
         OpenShiftRequest: {

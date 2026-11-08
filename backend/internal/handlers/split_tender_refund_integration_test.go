@@ -134,14 +134,17 @@ func (e *spEnv) payoutConfigured(o spOutlet, pid string) {
 	e.want("unconfigured chosen payout kept trimmed", e.payouts(free), "Voucher/chosen")
 
 	// payoutPicked (POS audit flag): false = the preselected default chip was kept -> 'default', the
-	// method is still honoured as sent; true, absent (old bundles) or a non-boolean -> 'chosen'.
+	// method is still honoured as sent, and only when it equals the server default; true, absent (old bundles) or a non-boolean -> 'chosen'.
 	for i, tc := range []struct {
 		picked any
 		set    bool
 		want   string
-	}{{false, true, "Kas_Kecil/default"}, {true, true, "Kas_Kecil/chosen"}, {nil, false, "Kas_Kecil/chosen"}, {"no", true, "Kas_Kecil/chosen"}} {
+		method string
+	}{{false, true, "Kas_Kecil/default", "kas_kecil"}, {true, true, "Kas_Kecil/chosen", "kas_kecil"}, {nil, false, "Kas_Kecil/chosen", "kas_kecil"}, {"no", true, "Kas_Kecil/chosen", "kas_kecil"},
+		// picked=false only counts when the method IS the server default (the cash line, Kas_Kecil): a mismatch stays chosen
+		{false, true, "qris/chosen", "qris"}} {
 		sp := e.splitSale(o, pid, line("qris", 60000), line("kas_kecil", 40000))
-		extra := map[string]any{"payoutMethod": "kas_kecil"}
+		extra := map[string]any{"payoutMethod": tc.method}
 		if tc.set {
 			extra["payoutPicked"] = tc.picked
 		}

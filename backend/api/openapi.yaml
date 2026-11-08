@@ -1661,7 +1661,7 @@ components:
         claimedAmount: { type: number, format: double, nullable: true, description: 'The amount the tablet claimed, kept as information when it was capped (D-49); null when no claim was sent.' }
         amountWarning: { type: string, nullable: true, description: 'amount_mismatch (claim differs from computedAmount) or over_total (claim exceeded what the order had left).' }
         paymentMethod: { type: string, description: 'The payout method: where the money was paid back.' }
-        payoutSource: { type: string, enum: [sale, chosen, default], nullable: true, description: 'How the payout method was decided: sale (single-method order), chosen (cashier picked it on a split order), default (split order, the cashier did not pick: the server default, or the preselected default chip a newer POS sent with payoutPicked=false). null = recorded before split payment.' }
+        payoutSource: { type: string, enum: [sale, chosen, default], nullable: true, description: 'How the payout method was decided: sale (single-method order), chosen (cashier picked it on a split order), default (split order, the cashier did not pick: the server default, including a preselected chip a newer POS sent with payoutPicked=false that equals it). null = recorded before split payment.' }
         reason: { type: string }
         reasonCode: { type: string, nullable: true }
         shiftId: { type: string, format: uuid, nullable: true }
@@ -2364,7 +2364,7 @@ components:
         orderUuid: { type: string, description: 'Client refund uuid (unique with deviceId).' }
         deviceId: { type: string }
         payoutMethod: { type: string, maxLength: 64, description: 'Server-read payout method for a split-payment order (C6a); unlike the display-only paymentMethod snapshot, which is ignored.' }
-        payoutPicked: { type: boolean, description: 'Audit flag for a split-order refund that carries payoutMethod: false = the cashier kept the preselected default chip (recorded as payoutSource default); true or absent = chosen. Never changes the method or an amount; any non-boolean value is treated as absent.' }
+        payoutPicked: { type: boolean, description: 'Audit flag for a split-order refund that carries payoutMethod: false = the cashier kept the preselected default chip, recorded as payoutSource default only when payoutMethod equals the own server default for the order; otherwise, and for true or absent, chosen. Never changes the method or an amount; any non-boolean value is treated as absent.' }
     OpenShiftRequest:
       type: object
       required: [startingCash]
