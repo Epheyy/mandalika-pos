@@ -23,7 +23,8 @@ import { Pagination } from '../ui/Pagination'
 import { canViewSummary, lastDaysRange, orderFilterParams, paymentFilterHint, transaksiFilters, transaksiHeader } from './reports/orderQuery'
 import { useOrderReport } from './reports/useOrderReport'
 import { useUrlSearchText } from './reports/useUrlSearchText'
-import { PAGING_SCHEMA, PAGE_SIZES, dayOf, dayToQuery, enumOf, pageOf, isAnswerFor, pageSizeOf, pageToClamp, paymentOf, withCurrent } from './reports/reportFilters'
+import { useHistoricalPaymentIds } from './reports/useHistoricalPaymentIds'
+import { PAGING_SCHEMA, PAGE_SIZES, dateRangeError, dayOf, dayToQuery, enumOf, pageOf, isAnswerFor, pageSizeOf, pageToClamp, paymentOf, withCurrent } from './reports/reportFilters'
 import { refundedByLine } from './refundDisplay'
 import { orderIconClasses, orderStatusLabel, orderStatusTone } from '../lib/orderStatus'
 import { OrderRefundSection } from './orders/OrderRefundSection'
@@ -105,6 +106,7 @@ export function OrdersPanel() {
   const [exportBusy, setExportBusy] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
 
+  const rangeError = allDates || debouncedQuery.trim() !== '' ? null : dateRangeError(range.dateFrom, range.dateTo)
   const filters = transaksiFilters(range, allDates, { status: fStatus, payment: fPay, q: debouncedQuery })
   const showSummary = canViewSummary(user?.role === 'admin', user?.permissions ?? [])
   const { summary: sq, list: q } = useOrderReport(filters, page, pageSize, outletId, showSummary)
@@ -119,7 +121,8 @@ export function OrdersPanel() {
   }, [q.loading, q.error, q.data, page, total, pageSize, setState])
   const settingsQ = usePolledQuery<AppSettings>(() => api.getAppSettings(), [], 60000)
   const payMethods = settingsQ.data?.paymentMethods
-  const payOptions = withCurrent(paymentFilterOptions(payMethods, orders), fPay)
+  const historicalPay = useHistoricalPaymentIds(filters, outletId, showSummary && !rangeError)
+  const payOptions = withCurrent(paymentFilterOptions(payMethods, orders, historicalPay), fPay)
 
   const canRefund = user?.role === 'admin'
   const reloadAfterRefund = async () => {
@@ -134,6 +137,7 @@ export function OrdersPanel() {
     setExportError(null)
     try {
       // The live search text, not the 300 ms debounced one, so Export matches what was typed.
+      if (query.trim() === '' && !allDates && dateRangeError(range.dateFrom, range.dateTo)) return
       const params = orderFilterParams(transaksiFilters(range, allDates, { status: fStatus, payment: fPay, q: query }))
       const all = await fetchAllPages((p, limit) => api.listOrders({ ...params, page: p, limit }))
       const rows = all.map((o) => ({
@@ -190,7 +194,7 @@ export function OrdersPanel() {
           variant="secondary"
           className="shrink-0 whitespace-nowrap"
           onClick={() => void handleExport()}
-          disabled={exportBusy || q.loading || !!q.error || total === 0}
+          disabled={exportBusy || q.loading || !!q.error || total === 0 || !!rangeError}
           icon={<Download className="w-4 h-4" />}
         >
           Unduh Excel
@@ -201,6 +205,7 @@ export function OrdersPanel() {
           type="date"
           aria-label="Dari tanggal"
           value={range.dateFrom}
+          max={range.dateTo || undefined}
           disabled={allDates}
           onChange={(e) => setState({ dari: dayToQuery(e.target.value), hal: 1 }, { replace: true })}
           className="w-auto"
@@ -209,6 +214,7 @@ export function OrdersPanel() {
           type="date"
           aria-label="Sampai tanggal"
           value={range.dateTo}
+          min={range.dateFrom || undefined}
           disabled={allDates}
           onChange={(e) => setState({ sampai: dayToQuery(e.target.value), hal: 1 }, { replace: true })}
           className="w-auto"
@@ -234,7 +240,9 @@ export function OrdersPanel() {
       )}
 
       <Card className="overflow-clip">
-        {q.loading ? (
+        {rangeError ? (
+          <p role="alert" data-testid="range-error" className="px-5 py-8 text-sm text-danger">{rangeError}</p>
+        ) : q.loading ? (
           <TableSkeleton />
         ) : orders.length === 0 ? (
           <EmptyState icon={<ShoppingBag />} title="Tidak ada transaksi" />

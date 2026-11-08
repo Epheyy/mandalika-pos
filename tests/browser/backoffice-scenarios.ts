@@ -103,9 +103,16 @@ export const backofficeChecks = async (page: ScenarioPage) => {
     await page.locator('select').filter({has:page.locator('option[value="refunded"]')}).selectOption('');
     await page.locator('select').filter({has:page.locator('option[value="qris"]')}).selectOption('');
     await page.locator('input[type=date]').first().fill('2099-01-01');
+    // F10: Dari after Sampai is explained, not shown as an empty result.
+    await page.getByTestId('range-error').waitFor();
+    check(!(await page.locator('main').innerText()).includes('0 transaksi'),'reversed range shows no empty table');
+    await page.locator('input[type=date]').nth(1).fill('2099-01-01');
+    await page.getByTestId('range-error').waitFor({state:'detached'});
+    await page.waitForFunction(()=>document.querySelector('main')?.innerText.includes('0 transaksi'));
     check((await page.locator('main').innerText()).includes('0 transaksi'),'date filter');
     // Restore "today" in the browser's timezone (Asia/Jakarta), matching the Reports default.
     const localToday=await page.evaluate(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;});
+    await page.locator('input[type=date]').nth(1).fill(localToday);
     await page.locator('input[type=date]').first().fill(localToday);
     await clickTab(page, 'shifts');
     const shifts=await capture();check(shifts.split('\n').length-1===n,'shift CSV');

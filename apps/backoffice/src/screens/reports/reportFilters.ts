@@ -142,3 +142,10 @@ export function totalPagesOf(total: number, limit: number): number {
   if (!Number.isFinite(total) || !Number.isFinite(limit) || limit <= 0) return 1
   return Math.max(1, Math.ceil(total / limit))
 }
+
+/** Message for a range whose start is after its end ('' on either side = unbounded, always fine); null when valid. */
+export function dateRangeError(from: string, to: string): string | null {
+  return from !== '' && to !== '' && from > to
+    ? 'Tanggal "Dari" lebih akhir dari "Sampai". Ubah rentang tanggal agar data tampil.'
+    : null
+}

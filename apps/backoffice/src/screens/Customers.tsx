@@ -129,6 +129,8 @@ export default function Customers() {
   // The header counts every registered customer; while a search/tag/segment narrows the list it adds "· N cocok".
   const isNarrowed = search !== '' || tagId !== '' || segmentId !== ''
   const allQ = usePolledQuery(() => (isNarrowed ? api.listCustomers(1, 1, '', 'belanja', '', '') : Promise.resolve(null)), [isNarrowed], 300_000)
+  // The page query and the headline total are separate reads: every change to the customer set refreshes both.
+  const refreshCounts = () => Promise.all([cq.refetch(), allQ.refetch()])
   const registered = isNarrowed ? (allQ.data?.meta?.total ?? null) : total
   const registeredText = registered === null ? '…' : String(registered)
   const filterSummary = describeCustomerFilters(
@@ -261,7 +263,7 @@ export default function Customers() {
     const gone = delTarget.id
     setDelTarget(null)
     if (selectedId === gone) exitAfterRemoval()
-    await cq.refetch()
+    await refreshCounts()
   }
 
   const loyaltyErrors = {
@@ -353,7 +355,7 @@ export default function Customers() {
         <CustomerDetail
           customerId={selectedId}
           loyaltyEnabled={loyalty.enabled}
-          onBack={() => { toList(); void cq.refetch() }}
+          onBack={() => { toList(); void refreshCounts() }}
           onEdit={(c) => setEditor({ customer: c })}
           onDelete={askDelete}
         />
@@ -381,7 +383,7 @@ export default function Customers() {
                   exportDisabled={customers.length === 0}
                   filterSummary={filterSummary}
                   importKind="customers"
-                  onImported={() => void cq.refetch()}
+                  onImported={() => void refreshCounts()}
                   onTemplate={() => exportToCSV(CUSTOMER_TEMPLATE_ROWS, 'template_pelanggan_mandalika')}
                 />
                 <Button icon={<Plus className="w-4 h-4" />} onClick={() => setEditor({ customer: null })}>
@@ -495,7 +497,7 @@ export default function Customers() {
         </div>
       ) : view === 'duplikat' ? (
         selectedDupId ? (
-          <MergeReview candidateId={selectedDupId} onBack={toList} onDone={exitAfterRemoval} />
+          <MergeReview candidateId={selectedDupId} onBack={toList} onDone={() => { exitAfterRemoval(); void refreshCounts() }} />
         ) : (
           <DupCandidates refreshKey={dupRefresh} onReview={(id) => void navigate(dupReviewHash(id))} />
         )
@@ -620,7 +622,7 @@ export default function Customers() {
         <CustomerEditorHost
           key={editor.customer?.id ?? 'new'}
           customer={editor.customer}
-          onSaved={() => cq.refetch()}
+          onSaved={() => refreshCounts()}
           onClose={() => setEditor(null)}
         />
       )}

@@ -60,7 +60,11 @@ export const splitOrderFlow = async (page: ScenarioPage) => {
     if (path.includes('/auth/')) return route.fulfill({ json: { data: { access: 'SYNTHETIC-NON-TOKEN', refresh: 'SYNTHETIC-NON-TOKEN', user } } })
     if (path.endsWith('/outlets')) return route.fulfill({ json: { data: [{ id: OUTLET, name: 'MV Outlet', isActive: true, timezone: 'Asia/Jakarta' }] } })
     if (path.endsWith('/settings/app')) return route.fulfill({ json: { data: { paymentMethods: METHODS, splitTenderEnabled: true } } })
-    if (path.endsWith('/reports/summary')) return route.fulfill({ json: { data: EMPTY_SUMMARY } })
+    if (path.endsWith('/reports/summary')) {
+      // F06: the unfiltered summary reports a method removed from settings ('gopay') and the old 'cash' id.
+      const hist = url.searchParams.get('paymentMethod') ? {} : { gopay: 5000, cash: 1000 }
+      return route.fulfill({ json: { data: { ...EMPTY_SUMMARY, grossByPaymentMethod: hist } } })
+    }
     if (path.endsWith('/refund') && req.method() === 'POST') {
       const body = JSON.parse(req.postData() ?? '{}') as Record<string, unknown>
       posts.push(body)
@@ -109,6 +113,27 @@ export const splitOrderFlow = async (page: ScenarioPage) => {
   await payFilter.selectOption('qris')
   await page.getByText(/berisi metode QRIS/).waitFor()
   await payFilter.selectOption('')
+  // F06/F07: a method removed from settings stays filterable; the legacy cash id is clearly named, not a twin of "Tunai"
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('select[aria-label="Filter pembayaran"] option')).some((o) => o.textContent === 'gopay'))
+  const payTexts = await payFilter.locator('option').allInnerTexts()
+  check(payTexts.includes('gopay'), `historical method option ${payTexts.join('|')}`)
+  check(payTexts.includes('Tunai') && payTexts.includes('Tunai (data lama)'), `cash options ${payTexts.join('|')}`)
+  check(payTexts.filter((t) => t.trim().toLowerCase() === 'tunai').length === 1, 'exactly one plain Tunai option')
+
+  // F10: a start after the end explains itself instead of showing an empty table
+  const fromInput = page.getByLabel('Dari tanggal')
+  const toInput = page.getByLabel('Sampai tanggal')
+  const [origFrom, origTo] = [await fromInput.inputValue(), await toInput.inputValue()]
+  await fromInput.fill('2026-12-31')
+  await toInput.fill('2026-01-01')
+  await page.getByTestId('range-error').waitFor()
+  check(/lebih akhir/.test(await page.getByTestId('range-error').innerText()), 'range error text')
+  check((await page.getByRole('button', { name: /INV-S-1001/ }).count()) === 0, 'no rows while the range is reversed')
+  await toInput.fill('2027-01-01')
+  await page.getByTestId('range-error').waitFor({ state: 'detached' })
+  await fromInput.fill(origFrom)
+  await toInput.fill(origTo)
+  await page.getByRole('button', { name: /INV-S-1001/ }).waitFor()
   results.push({ step: 'filter' })
 
   // refund payout chips: split orders only, default (cash, the sale had cash) preselected; the chosen one is posted
