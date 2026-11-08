@@ -74,6 +74,23 @@ export function payoutChoices(order: Pick<Order, 'paymentMethod' | 'tenders'>, m
   return ids.map((id) => ({ id, label: lineLabel(id, methods) }))
 }
 
+/** D-56 warning (display only, never a block): the amount this refund pays out through `method` is more than that
+ *  method took on the sale, less earlier refunds already paid out in it (the order's refund rows, when known).
+ *  Null for a non-split order, or when the payout fits what the method took. */
+export function payoutWarning(
+  order: Pick<Order, 'paymentMethod' | 'tenders' | 'refunds'>, method: string | undefined, amount: number, methods?: readonly PayoutMethodCfg[],
+): string | null {
+  if (!method || !isSplitOrder(order) || !(amount > 0)) return null
+  const took = (order.tenders ?? []).filter((t) => sameMethod(t.method, method)).reduce((n, t) => n + t.amount, 0)
+  const paidBefore = (order.refunds ?? []).filter((r) => sameMethod(r.paymentMethod || order.paymentMethod, method)).reduce((n, r) => n + r.amount, 0)
+  const room = Math.max(0, took - paidBefore)
+  if (amount <= room) return null
+  const label = lineLabel(method, methods)
+  const lc = isCashMethod(methods, method) ? label.toLowerCase() : label
+  const received = paidBefore > 0 ? `sisa ${lc} yang diterima ${formatRupiah(room)} (diterima ${formatRupiah(took)}, sudah dikembalikan ${formatRupiah(paidBefore)})` : `${lc} yang diterima ${formatRupiah(took)}`
+  return `${label} ${formatRupiah(amount)} keluar dari ${isCashMethod(methods, method) ? 'laci' : 'rekening/EDC'}; ${received}.`
+}
+
 /** "QRIS · Ref 8812345  Rp 751.000": one payment line as Riwayat and the receipt book show it. */
 export function tenderLineText(t: { method: string; amount: number; reference?: string | null }, methods?: readonly PayoutMethodCfg[]): string {
   const ref = t.reference ? ` · Ref ${t.reference}` : ''
