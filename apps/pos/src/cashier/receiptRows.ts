@@ -86,11 +86,10 @@ type StoredOrderTotals = {
 }
 
 /**
- * F24: a stored order (Riwayat) carries no loyalty redemption or rounding field in the API schema, yet both sit
- * inside `total`. The residual of subtotal - discount + surcharge + PPN - total is exactly that, so the screen shows
- * it as one signed row and the block adds up. Null when the lines already sum (|residual| < Rp 1).
- * Label is honest about the two possible causes; once the API exposes `pointsRedeemed` + amount, build the
- * "Tukar poin (N)" row from `receiptTotalRows` instead.
+ * F24: legacy fallback for a stored order (Riwayat) from a server that does not report `pointsRedemptionAmount`.
+ * Loyalty redemption and rounding both sit inside `total`; the residual of subtotal - discount + surcharge + PPN -
+ * total is exactly their sum, so the screen shows it as one signed row and the block adds up. Null when the lines
+ * already sum (|residual| < Rp 1). Newer orders go through `orderAdjustmentRows`, which splits the two.
  */
 export function orderAdjustmentRow(o: StoredOrderTotals): TotalRow | null {
   const residual = o.subtotal - o.discountAmount + (o.surchargeAmount ?? 0) + o.taxAmount - o.total

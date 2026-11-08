@@ -32,9 +32,17 @@ describe('orderAdjustmentRows (points redemption amount)', () => {
       { key: 'rounding', kind: 'rounding', label: 'Pembulatan', amount: -50 },
     ])
   })
+  it('labels the row without a count when pointsRedeemed is missing, and shows a positive rounding remainder', () => {
+    const rows = orderAdjustmentRows({ ...o, total: 9_300, pointsRedemptionAmount: 900 })
+    expect(rows).toEqual([
+      { key: 'points', kind: 'points', label: 'Tukar poin', amount: -900 },
+      { key: 'rounding', kind: 'rounding', label: 'Pembulatan', amount: 200 },
+    ])
+  })
   it('falls back to the single residual row without the field (older server or null amount)', () => {
-    expect(orderAdjustmentRows(o)).toEqual([orderAdjustmentRow(o)])
-    expect(orderAdjustmentRows({ ...o, pointsRedemptionAmount: null })).toEqual([orderAdjustmentRow(o)])
+    const legacy = [{ key: 'adjustment', kind: 'points', label: 'Tukar poin / pembulatan', amount: -900 }]
+    expect(orderAdjustmentRows(o)).toEqual(legacy)
+    expect(orderAdjustmentRows({ ...o, pointsRedemptionAmount: null })).toEqual(legacy)
   })
   it('returns nothing when lines add up and nothing was redeemed', () => {
     expect(orderAdjustmentRows({ ...o, total: 10_000 })).toEqual([])
