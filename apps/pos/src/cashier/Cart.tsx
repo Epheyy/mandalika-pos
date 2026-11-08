@@ -177,7 +177,7 @@ export const Cart = memo(function Cart({
   }
 
   return (
-    <div className="m-1.5 ml-0 flex h-[calc(100%-0.75rem)] min-h-0 flex-col overflow-hidden rounded-panel border border-paper-2 bg-[var(--surface-solid-bg)] shadow-[-10px_0_26px_-18px_rgba(70,46,10,0.3)]">
+    <div className="m-1.5 ml-0 flex h-[calc(100%-0.75rem)] min-h-0 flex-col overflow-hidden rounded-panel border border-paper-2 sm:m-0 sm:h-full sm:rounded-none sm:border-y-0 sm:border-r-0 bg-[var(--surface-solid-bg)] shadow-[-10px_0_26px_-18px_rgba(70,46,10,0.3)]">
       {/* Header: title with the count under it (a ~280px cart cannot fit title, count, Tersimpan and Simpan on one
           line), Simpan / Tersimpan on the right. The title never shrinks under its text; when title + actions still
           do not fit (wide or scaled fonts) the actions wrap to a second row instead of overlapping the title. */}
