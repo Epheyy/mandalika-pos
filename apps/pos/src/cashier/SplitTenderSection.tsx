@@ -5,6 +5,7 @@ import { tenderLabel } from '../lib/paymentLabels'
 import { quickCashAmounts } from '../lib/quickCash'
 import { applyKey } from '../lib/cashKeypad'
 import { Chip } from '../components/ui/Chip'
+import { PaymentMethodSwitch } from './PaymentMethodSwitch'
 import { Button } from '../components/ui/Button'
 import { Sheet } from '../components/ui/Sheet'
 import { formatRupiah } from './pricing'
@@ -42,7 +43,7 @@ const parseTyped = (raw: string): number | null => {
   return Number.isFinite(n) ? n : null
 }
 
-/** "Bagi pembayaran" (C6, W2 split mode): pick a method, enter its amount, add it; repeat until Sisa is Lunas. */
+/** "Split-Payment" (C6, W2 split mode): pick a method, enter its amount, add it; repeat until Sisa is Lunas. */
 export function SplitTenderSection(p: SplitTenderSectionProps) {
   const [removeAt, setRemoveAt] = useState<number | null>(null)
   const cashField = useCashField(p.amountInput, p.onAmountChange)
@@ -71,21 +72,15 @@ export function SplitTenderSection(p: SplitTenderSectionProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <div>
         <p className="text-xs font-semibold text-ink-700 mb-2">Metode Pembayaran</p>
-        <div className="flex gap-2">
-          {p.enabledMethods.map((m) => (
-            <Chip
-              key={m.id}
-              selected={p.method === m.id}
-              onClick={() => p.onMethodChange(m.id)}
-              className="flex-1 justify-center !min-h-14 !px-2 !text-base"
-            >
-              {tenderLabel(m.id, p.allMethods)}
-            </Chip>
-          ))}
-        </div>
+        <PaymentMethodSwitch
+          methods={p.enabledMethods.map((m) => ({ id: m.id, label: tenderLabel(m.id, p.allMethods) }))}
+          selected={p.method}
+          disabled={p.disabled}
+          onChange={p.onMethodChange}
+        />
       </div>
 
       {p.lines.length === 0 && (
@@ -108,14 +103,15 @@ export function SplitTenderSection(p: SplitTenderSectionProps) {
               {...cashField}
               placeholder={formatRupiah(sisa)}
               aria-label="Jumlah pembayaran ini"
-              className="flex-1 min-w-0 h-16 border-2 border-ink-700 rounded-control px-4 text-[2rem] font-bold tnum text-ink-900 focus:outline-none"
+              className="flex-1 min-w-0 h-14 border-2 border-ink-700 rounded-control px-4 text-[1.75rem] font-bold tnum text-ink-900 focus:outline-none"
             />
             {!composeCash && (
-              <Chip tone="info" onClick={() => p.onAmountChange(String(sisa))} className="!min-h-16 !px-4 shrink-0">
+              <Chip tone="info" onClick={() => p.onAmountChange(String(sisa))} className="!min-h-14 !px-4 shrink-0">
                 Sisa
               </Chip>
             )}
           </div>
+          {typed === null && <p className="text-xs text-ink-500 mt-1">Kosong = sisa tagihan {formatRupiah(sisa)}.</p>}
           {composeCash && (
             <>
               <div className="flex gap-2 flex-wrap mt-2">
@@ -187,7 +183,7 @@ export function SplitTenderSection(p: SplitTenderSectionProps) {
         </div>
       )}
 
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-baseline justify-between gap-2">
         <span className="text-sm text-ink-700">Sisa tagihan</span>
         {covered ? (
           <span className="text-[1.75rem] font-bold tnum text-ok">Lunas</span>
@@ -195,6 +191,7 @@ export function SplitTenderSection(p: SplitTenderSectionProps) {
           <span className="text-[1.75rem] font-bold tnum text-warn">{formatRupiah(sisa)}</span>
         )}
       </div>
+      {!covered && <p className="text-xs text-ink-500">Konfirmasi aktif setelah sisa tagihan Lunas.</p>}
       {overCharged && block && (
         <p role="alert" className="text-xs font-semibold text-danger bg-danger-bg rounded-control px-3 py-2">{block}</p>
       )}

@@ -17,6 +17,7 @@ import { Chip } from '../components/ui/Chip'
 import { Button } from '../components/ui/Button'
 import { IconUser, IconGift, IconWarning } from '../components/ui/icons'
 import { SplitTenderSection } from './SplitTenderSection'
+import { PaymentMethodSwitch } from './PaymentMethodSwitch'
 import { allocateTenders, cashPredicate, isCovered, MAX_REFERENCE_LEN, splitBlockReason, type TenderLine } from './tenderSplit'
 import { useCashField } from './cashInput'
 
@@ -60,7 +61,7 @@ interface CheckoutPanelProps {
   /** C6: the optional "No. referensi" of the line being composed (single mode: of the one payment). */
   tenderReference: string
   onTenderReferenceChange: (reference: string) => void
-  /** C6: split mode and its entered lines; "Bagi pembayaran" is offered only when the server delivers the setting as true. */
+  /** C6: split mode and its entered lines; "Split-Payment" is offered only when the server delivers the setting as true. */
   splitMode: boolean
   tenders: readonly TenderLine[]
   onSplitStart: () => void
@@ -202,10 +203,10 @@ export const CheckoutPanel = memo(function CheckoutPanel({
         </>
       }
     >
-      <div className={`flex-1 overflow-y-auto p-4 grid content-start items-start gap-3 ${splitMode ? '' : '[@media(max-height:720px)]:grid-cols-2'}`}>
+      <div className={`flex-1 overflow-y-auto p-4 grid content-start items-start gap-3 ${splitMode ? 'grid-cols-[minmax(0,1fr)]' : 'grid-cols-[minmax(0,1fr)] [@media(max-height:720px)]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]'}`}>
         {/* Short screens (the 1006x601 tablet) go two columns, so keep the sheet wide enough (see maxWidth): left = what is owed and who
             pays, right = the money entry. Tall screens stack them as before. */}
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
         {/* Totals summary: the total itself is in the header and on Konfirmasi (W2-04), so no third TOTAL row here */}
         <div className="bg-paper-1 rounded-control px-3 py-2 space-y-0.5 text-sm">
           <ReceiptTotals rows={totalRows.filter((r) => r.kind !== 'total')} />
@@ -224,7 +225,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
 
         {/* Notes */}
         {orderNotes && (
-          <div className="p-3 bg-warn-bg rounded-control text-xs text-ink-700">
+          <div className="p-3 bg-warn-bg rounded-control text-xs text-ink-700 whitespace-pre-wrap [overflow-wrap:anywhere]">
             <span className="font-semibold">Catatan: </span>
             {orderNotes}
           </div>
@@ -397,28 +398,18 @@ export const CheckoutPanel = memo(function CheckoutPanel({
         {/* Payment method: a segmented switch, grey track with a white raised thumb (W2-07) */}
         {!splitMode && (
         <div>
-          <div role="group" aria-label="Metode pembayaran" className="flex gap-1 rounded-sheet bg-ink-900/5 p-1">
-            {enabledMethods.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                aria-pressed={paymentMethod === m.id}
-                onClick={() => onPaymentMethodChange(m.id)}
-                className={`press min-h-11 flex-1 rounded-control px-2 text-base font-semibold ${
-                  paymentMethod === m.id ? 'bg-white text-brand-strong shadow-sm' : 'text-ink-700'
-                }`}
-              >
-                {PAYMENT_LABELS[m.id] ?? m.label}
-              </button>
-            ))}
-          </div>
+          <PaymentMethodSwitch
+            methods={enabledMethods.map((m) => ({ id: m.id, label: PAYMENT_LABELS[m.id] ?? m.label }))}
+            selected={paymentMethod}
+            onChange={onPaymentMethodChange}
+          />
           {splitOffered && (
             <button
               type="button"
               onClick={onSplitStart}
               className="mt-1 min-h-12 text-sm font-semibold text-brand underline"
             >
-              Bagi pembayaran
+              Split-Payment
             </button>
           )}
         </div>
@@ -426,7 +417,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
         )}
         </div>
 
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
         {splitMode ? (
           <SplitTenderSection
             due={derived.total}

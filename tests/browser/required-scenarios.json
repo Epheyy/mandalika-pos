@@ -386,9 +386,15 @@
       "source": "tests/browser/pos-split-scenarios.ts"
     },
     {
+      "id": "POS-BAYAR-OVERFLOW",
+      "finding": "QA-F16/F31/U5",
+      "description": "With five payment methods, a 246-character unbroken order note and split mode, the Bayar dialog never scrolls sideways at 1006x601 and 602x1006; the method switch wraps with 44px targets and Konfirmasi stays on screen",
+      "source": "tests/browser/pos-split-scenarios.ts"
+    },
+    {
       "id": "POS-SPLIT-OFF",
       "finding": "C6b",
-      "description": "With the splitTenderEnabled setting absent or false there is no Bagi pembayaran and the single-method checkout (with the optional reference field) is unchanged",
+      "description": "With the splitTenderEnabled setting absent or false there is no Split-Payment and the single-method checkout (with the optional reference field) is unchanged",
       "source": "tests/browser/pos-split-scenarios.ts"
     },
     {
