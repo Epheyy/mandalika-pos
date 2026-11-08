@@ -13,7 +13,7 @@ import (
 const shiftObj = `json_build_object('id',s.id,'outletId',s.outlet_id,'businessDate',s.business_date,
   'outletName',s.outlet_name,'cashierId',s.cashier_id,'cashierName',s.cashier_name,
   'status',s.status,'openedAt',s.opened_at,'closedAt',s.closed_at,
-  'startingCash',s.starting_cash,'closingCash',s.closing_cash,
+  'startingCash',s.starting_cash,'startingCashWarning',(s.starting_cash_warning OR s.starting_cash < 0),'closingCash',s.closing_cash,
   'totalSales',s.total_sales,'totalOrders',s.total_orders,
   'totalRefunds',s.total_refunds,'cashSales',s.cash_sales,'cardSales',s.card_sales,
   'transferSales',s.transfer_sales,'qrisSales',s.qris_sales,

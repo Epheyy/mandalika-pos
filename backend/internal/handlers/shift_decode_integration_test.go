@@ -210,8 +210,21 @@ func TestShiftDecodePostgres(t *testing.T) {
 				}
 				var cash float64
 				var uid string
-				if err := pool.QueryRow(ctx, `SELECT id,starting_cash,cashier_id FROM shifts WHERE outlet_id=$1 AND status='open'`, outlet).Scan(&id, &cash, &uid); err != nil || cash != tc.amount || uid != user {
+				var warned bool
+				if err := pool.QueryRow(ctx, `SELECT id,starting_cash,cashier_id,starting_cash_warning FROM shifts WHERE outlet_id=$1 AND status='open'`, outlet).Scan(&id, &cash, &uid, &warned); err != nil || cash != tc.amount || uid != user {
 					t.Fatalf("cash=%v uid=%s err=%v", cash, uid, err)
+				}
+				// A negative opening cash only reaches the table through the batch route: stored as sent, flagged
+				// for review. Every other open (direct, zero, positive) stays unflagged.
+				if wantWarn := transport == "batch" && tc.amount < 0; warned != wantWarn {
+					t.Fatalf("%s open %v: starting_cash_warning=%v want %v", transport, tc.amount, warned, wantWarn)
+				}
+				if transport == "batch" && tc.amount < 0 {
+					// head office sees it: the read model behind GET /shifts and /shifts/{id} carries the flag
+					got, rerr := rd.Shift(ctx, read.Scope{OutletID: outlet}, id)
+					if rerr != nil || got.StartingCashWarning == nil || !*got.StartingCashWarning || got.StartingCash != tc.amount {
+						t.Fatalf("flagged shift not visible to review: %+v err=%v", got, rerr)
+					}
 				}
 				exec(`UPDATE shifts SET counted_by_method='{"cash":12}'::jsonb WHERE id=$1`, id)
 				closeBody := fmt.Sprintf(`{"closingCash":%g%s,"shiftId":"%s","outletId":"forged"} `, tc.amount, tc.counted, id)

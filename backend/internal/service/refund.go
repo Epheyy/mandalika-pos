@@ -248,7 +248,7 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 		newBal = afterClaw + restored
 	}
 
-	payoutMethod, payoutSource, err := resolveRefundPayout(ctx, tx, orderID, o.paymentMethod, in.PayoutMethod)
+	payoutMethod, payoutSource, err := resolveRefundPayout(ctx, tx, orderID, o.paymentMethod, in.PayoutMethod, in.PayoutPicked)
 	if err != nil {
 		return RefundResult{}, err
 	}

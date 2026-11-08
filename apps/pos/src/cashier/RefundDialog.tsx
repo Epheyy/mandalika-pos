@@ -25,6 +25,8 @@ export interface RefundConfirmInput {
   selection: Selection
   /** C6 (D-56): the payout chip, set for a split order only. */
   payoutMethod?: string
+  /** Audit only: true when the cashier tapped a payout chip, false when the preselected default was kept. */
+  payoutPicked?: boolean
 }
 
 interface RefundDialogProps {
@@ -145,7 +147,7 @@ function RefundDialogBody({ order, cache, methods, isProcessing, error, onConfir
 
   const confirm = () => {
     if (!ready || !reason.ok) return
-    onConfirm(order.id, { reason: reason.reason, reasonCode: reason.reasonCode, selection: sel, ...(payout ? { payoutMethod: payout } : {}) })
+    onConfirm(order.id, { reason: reason.reason, reasonCode: reason.reasonCode, selection: sel, ...(payout ? { payoutMethod: payout, payoutPicked: payoutPick !== null } : {}) })
   }
 
   return (

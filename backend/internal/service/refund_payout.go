@@ -14,7 +14,7 @@ import (
 const (
 	payoutSourceSale    = "sale"    // single-method order: the sale's own method
 	payoutSourceChosen  = "chosen"  // split order, the cashier named the method
-	payoutSourceDefault = "default" // split order, the server picked the default
+	payoutSourceDefault = "default" // split order, the cashier did not pick: the server default (incl. a POS default chip kept, payoutPicked=false, that equals it)
 )
 
 // payoutLine is one tender line as the payout rule sees it: Amount is the applied amount in
@@ -85,10 +85,12 @@ func payoutLineBefore(a, b payoutLine, isCash func(string) bool) bool {
 // resolveRefundPayout picks the method and payout_source a refund row records. A
 // single-method order pays out in orders.payment_method and ignores any requested method
 // (byte-identical to pre-C6a). A split order uses the requested method (chosen) or the
-// default. requested is the raw request value: it is validated here, only for a split order,
+// default. picked (sync audit flag, nil = absent) only relabels a requested method: payout_source
+// is default only when picked is false AND the requested method is the server's own default for the
+// order; any other case stays chosen. The method and amounts are never changed. requested is the raw request value: it is validated here, only for a split order,
 // because a single-method order ignores it entirely (a malformed value is not an error
 // there). Runs inside the refund's locked tx.
-func resolveRefundPayout(ctx context.Context, tx pgx.Tx, orderID, saleMethod string, requested *string) (method, source string, err error) {
+func resolveRefundPayout(ctx context.Context, tx pgx.Tx, orderID, saleMethod string, requested *string, picked *bool) (method, source string, err error) {
 	lines, err := loadPayoutLines(ctx, tx, orderID)
 	if err != nil {
 		return "", "", err
@@ -104,14 +106,33 @@ func resolveRefundPayout(ctx context.Context, tx pgx.Tx, orderID, saleMethod str
 	if err != nil {
 		return "", "", fmt.Errorf("load settings for refund payout: %w", err)
 	}
-	if asked != nil {
-		return canonicalPayoutMethod(settings.PaymentMethods, *asked), payoutSourceChosen, nil
-	}
 	isCash := func(id string) bool { return IsCashMethod(settings.PaymentMethods, id) }
-	if m := defaultPayoutMethod(lines, isCash); m != "" {
-		return m, payoutSourceDefault, nil
+	serverDefault := serverDefaultPayout(saleMethod, lines, isCash)
+	if asked != nil {
+		method := canonicalPayoutMethod(settings.PaymentMethods, *asked)
+		return method, askedPayoutSource(picked, method, serverDefault), nil
 	}
-	return saleMethod, payoutSourceDefault, nil // sentinel without lines: SQL's synthetic line
+	return serverDefault, payoutSourceDefault, nil
+}
+
+// serverDefaultPayout is the D-56 default of a split order: the default line's method, or the sale
+// method for a sentinel order without lines (SQL's synthetic line).
+func serverDefaultPayout(saleMethod string, lines []payoutLine, isCash func(string) bool) string {
+	if m := defaultPayoutMethod(lines, isCash); m != "" {
+		return m
+	}
+	return saleMethod
+}
+
+// askedPayoutSource is the payout_source of a split refund that named a method: 'chosen', unless the
+// POS said it only kept the preselected default (picked == false) AND the method it sent really is the
+// server's default for the order (same id, case-insensitive) -> 'default'. A client claim never
+// relabels a method the server would not have picked. Audit only.
+func askedPayoutSource(picked *bool, method, serverDefault string) string {
+	if picked != nil && !*picked && normMethod(method) == normMethod(serverDefault) {
+		return payoutSourceDefault
+	}
+	return payoutSourceChosen
 }
 
 func loadPayoutLines(ctx context.Context, tx pgx.Tx, orderID string) ([]payoutLine, error) {

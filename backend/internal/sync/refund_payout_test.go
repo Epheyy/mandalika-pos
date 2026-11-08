@@ -30,4 +30,30 @@ func TestRefundPayloadPayoutMethod(t *testing.T) {
 	}
 }
 
+func TestRefundPayloadPayoutPicked(t *testing.T) {
+	tr, fa := true, false
+	for _, tc := range []struct {
+		name, body string
+		want       *bool
+	}{
+		{"absent (old bundle / already queued) = chosen", `{"payoutMethod":"qris"}`, nil},
+		{"null", `{"payoutPicked":null}`, nil},
+		{"true", `{"payoutPicked":true}`, &tr},
+		{"false = default chip kept", `{"payoutPicked":false}`, &fa},
+		{"non-boolean never fails the decode, reads as absent", `{"payoutPicked":"no"}`, nil},
+		{"number reads as absent", `{"payoutPicked":0}`, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var p refundPayload
+			if err := json.Unmarshal([]byte(tc.body), &p); err != nil {
+				t.Fatal(err)
+			}
+			got := p.input(Caller{}, "o").PayoutPicked
+			if (got == nil) != (tc.want == nil) || (got != nil && *got != *tc.want) {
+				t.Fatalf("got %v want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func strp(s string) *string { return &s }

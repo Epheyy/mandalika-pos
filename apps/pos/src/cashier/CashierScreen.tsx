@@ -1083,7 +1083,7 @@ export default function CashierScreen() {
     if (ids.some((k) => synced.has(k))) { setRefundError(REFUND_DONE); return }
     if (ids.some((k) => queuedIds.has(k) || queuedUuids.has(k))) { setRefundError(REFUND_QUEUED); return }
     const plan = planRefundSubmit({
-      refundOrder, orderId, reason: input.reason, reasonCode: input.reasonCode, selection: input.selection, cache: refundCacheFor(ids), payoutMethod: input.payoutMethod, methods: settings.paymentMethods,
+      refundOrder, orderId, reason: input.reason, reasonCode: input.reasonCode, selection: input.selection, cache: refundCacheFor(ids), payoutMethod: input.payoutMethod, payoutPicked: input.payoutPicked, methods: settings.paymentMethods,
       canRefund: canRefund(user), shiftId: shift.currentShift?.id, sale: refundSale ?? undefined,
     })
     if (plan.kind === 'error') {

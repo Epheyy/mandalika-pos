@@ -151,25 +151,35 @@ func TestResolveRefundPayout(t *testing.T) {
 		lines      []payoutLine
 		methods    string
 		asked      *string
+		picked     *bool
 		wantMethod string
 		wantSource string
 	}{
-		{"pre-C6 order ignores payoutMethod", "qris", nil, "", sp("cash"), "qris", "sale"},
-		{"single method ignores a blank payoutMethod", "card", []payoutLine{{"card", 100, 1}}, "", sp(""), "card", "sale"},
-		{"single method ignores split/overlong/NUL payoutMethod", "card", nil, "", sp("SPLİT"), "card", "sale"},
-		{"split sentinel without lines: SQL default", "split", nil, "", nil, "split", "default"},
+		{"pre-C6 order ignores payoutMethod", "qris", nil, "", sp("cash"), nil, "qris", "sale"},
+		{"single method ignores a blank payoutMethod", "card", []payoutLine{{"card", 100, 1}}, "", sp(""), nil, "card", "sale"},
+		{"single method ignores split/overlong/NUL payoutMethod", "card", nil, "", sp("SPLİT"), nil, "card", "sale"},
+		{"split sentinel without lines: SQL default", "split", nil, "", nil, nil, "split", "default"},
 		{"split chosen method is canonicalised to the configured id", "split", split,
-			`[{"id":"tunai","label":"Tunai","isEnabled":true,"isCash":true}]`, sp(" Tunai "), "tunai", "chosen"},
-		{"split chosen unconfigured method is kept trimmed", "split", split, "", sp(" Voucher "), "Voucher", "chosen"},
-		{"single-method lines ignore payoutMethod", "card", []payoutLine{{"card", 100, 1}}, "", sp("cash"), "card", "sale"},
-		{"split without payoutMethod: the cash line", "split", split, "", nil, "cash", "default"},
-		{"split with payoutMethod: chosen, any method", "split", split, "", sp("transfer"), "transfer", "chosen"},
+			`[{"id":"tunai","label":"Tunai","isEnabled":true,"isCash":true}]`, sp(" Tunai "), nil, "tunai", "chosen"},
+		{"split chosen unconfigured method is kept trimmed", "split", split, "", sp(" Voucher "), nil, "Voucher", "chosen"},
+		{"single-method lines ignore payoutMethod", "card", []payoutLine{{"card", 100, 1}}, "", sp("cash"), nil, "card", "sale"},
+		{"split without payoutMethod: the cash line", "split", split, "", nil, nil, "cash", "default"},
+		{"split with payoutMethod: chosen, any method", "split", split, "", sp("transfer"), nil, "transfer", "chosen"},
 		{"split default honours isCash:false on the cash id", "split", split,
-			`[{"id":"cash","name":"Tunai","isCash":false}]`, nil, "card", "default"},
+			`[{"id":"cash","name":"Tunai","isCash":false}]`, nil, nil, "card", "default"},
+		{"split picked=false and the method IS the server default (cash line): default", "split", split, "", sp("cash"), bp(false), "cash", "default"},
+		{"split picked=false and method matches the default case-insensitively: default", "split", split,
+			`[{"id":"Cash","label":"Tunai","isEnabled":true,"isCash":true}]`, sp(" CASH "), bp(false), "Cash", "default"},
+		{"split picked=false but the method is NOT the server default: chosen, method kept", "split", split, "", sp("card"), bp(false), "card", "chosen"},
+		{"split picked=false, unconfigured method: chosen", "split", split, "", sp("Voucher"), bp(false), "Voucher", "chosen"},
+		{"split picked=nil (old bundle) with the default method: chosen", "split", split, "", sp("cash"), nil, "cash", "chosen"},
+		{"split picked=true is chosen", "split", split, "", sp("card"), bp(true), "card", "chosen"},
+		{"single method ignores picked=false", "card", []payoutLine{{"card", 100, 1}}, "", sp("cash"), bp(false), "card", "sale"},
+		{"no method asked ignores picked, still the server default", "split", split, "", nil, bp(true), "cash", "default"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tx := &payoutTx{lines: tc.lines, paymentMethods: []byte(tc.methods)}
-			m, s, err := resolveRefundPayout(context.Background(), tx, refundTestOrderID, tc.sale, tc.asked)
+			m, s, err := resolveRefundPayout(context.Background(), tx, refundTestOrderID, tc.sale, tc.asked, tc.picked)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -184,7 +194,7 @@ func TestResolveRefundPayoutRejectsMalformedOnlyOnSplit(t *testing.T) {
 	split := []payoutLine{{"card", 70000, 1}, {"cash", 30000, 2}}
 	for _, v := range []string{"", "  ", "split", "SPL\u0130T", "qr\x00is", strings.Repeat("a", 65)} {
 		tx := &payoutTx{lines: split}
-		if _, _, err := resolveRefundPayout(context.Background(), tx, refundTestOrderID, "split", sp(v)); err != ErrRefundPayoutInvalid {
+		if _, _, err := resolveRefundPayout(context.Background(), tx, refundTestOrderID, "split", sp(v), nil); err != ErrRefundPayoutInvalid {
 			t.Fatalf("split order, payoutMethod %q: want ErrRefundPayoutInvalid, got %v", v, err)
 		}
 	}
@@ -198,3 +208,5 @@ func TestCanonicalPayoutMethod(t *testing.T) {
 		}
 	}
 }
+
+func bp(v bool) *bool { return &v }
