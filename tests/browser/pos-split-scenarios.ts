@@ -235,9 +235,11 @@ export const posBayarOverflow = async (page: ScenarioPage) => {
           switchInside: buttons.length === 5 && buttons.every((b) => b.getBoundingClientRect().right <= (sw as HTMLElement).getBoundingClientRect().right + 0.5) && buttons.every((b) => b.getBoundingClientRect().height >= 43.5) && buttons.every((b) => b.scrollWidth <= b.clientWidth + 1),
           dialogInside: dialog.getBoundingClientRect().right <= w + 0.5,
           confirmInside: inside(confirm),
+          // Split entry row: the amount field and the Sisa chip next to it stay inside the sheet's right edge (a vertical scroll is fine).
+          entryInside: (() => { const f = dialog.querySelector('#split-amount'); if (!f) return true; const edge = dialog.getBoundingClientRect().right; const chip = [...dialog.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Sisa'); return f.getBoundingClientRect().right <= edge + 0.5 && (!chip || chip.getBoundingClientRect().right <= edge + 0.5) })(),
         }
       })
-      assert(m.noHScroll && m.switchInside && m.dialogInside && m.confirmInside, `${label} @${vp}: ${JSON.stringify(m)}`)
+      assert(m.noHScroll && m.switchInside && m.dialogInside && m.confirmInside && m.entryInside, `${label} @${vp}: ${JSON.stringify(m)}`)
       out.push({ step: label, vp })
     }
   }
@@ -249,7 +251,12 @@ export const posBayarOverflow = async (page: ScenarioPage) => {
     await page.getByRole('button', { name: 'Split-Payment', exact: true }).click()
     await page.getByRole('button', { name: 'NEOBANK', exact: true }).click()
     await measure('split, NEOBANK selected')
-    await captureShot(page, 'qa-b-bayar-split', ['pos-a9', 'pos-a9-portrait'])
+    for (const vp of ['pos-a9', 'pos-a9-portrait'] as ShotViewport[]) {
+      // Scroll the entry row (field + Sisa chip + Sisa tagihan) into view so the shot shows it, not the note.
+      await page.setViewportSize(SHOT_VIEWPORTS[vp])
+      await page.locator('#split-amount').evaluate((el) => el.scrollIntoView({ block: 'center' }))
+      await captureShot(page, 'qa-b-bayar-split-entry', [vp])
+    }
     await page.getByRole('button', { name: 'Tunai', exact: true }).click()
     await measure('split, Tunai selected')
   } finally {
