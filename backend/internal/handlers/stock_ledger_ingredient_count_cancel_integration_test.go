@@ -172,10 +172,10 @@ func slStatusChecks(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	// One pair per row: the pair is unique.
 	pair := func(n int) (string, string) {
 		var a, b string
-		if err := pool.QueryRow(ctx, `INSERT INTO customers(name,phone) VALUES('SL chk new','0811-sl-chk-n'||$1::text) RETURNING id::text`, n).Scan(&a); err != nil {
+		if err := pool.QueryRow(ctx, `INSERT INTO customers(name,phone) VALUES('SL chk new','0811-sl-chk-n'||$1::int) RETURNING id::text`, n).Scan(&a); err != nil {
 			t.Fatal(err)
 		}
-		if err := pool.QueryRow(ctx, `INSERT INTO customers(name,phone) VALUES('SL chk old','0811-sl-chk-o'||$1::text) RETURNING id::text`, n).Scan(&b); err != nil {
+		if err := pool.QueryRow(ctx, `INSERT INTO customers(name,phone) VALUES('SL chk old','0811-sl-chk-o'||$1::int) RETURNING id::text`, n).Scan(&b); err != nil {
 			t.Fatal(err)
 		}
 		return a, b
