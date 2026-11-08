@@ -4,7 +4,7 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-08 by Claude (Opus 5.5) - POS OTA 2.11.1 LIVE and VERIFIED ON DEVICE over USB debugging (#110 both checks pass); next Z on the owner's word; see Progress board.
+Last updated: 2026-11-08 by Claude (Opus 5.5) - #111 sweep leftovers MERGED (`df4c36e1`, gate 5/5 green); backend deploy + backoffice publish in progress; see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
