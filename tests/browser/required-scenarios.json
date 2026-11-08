@@ -422,6 +422,12 @@
       "source": "tests/browser/pos-glass-scenarios.ts"
     },
     {
+      "id": "POS-QAC-HEADER-TABS",
+      "finding": "QA-C-U1-U6-F25",
+      "description": "With the cart open the header's Shift pill sits inside the cart column (1006x601), the category thumb stays under its tab as the cart opens and closes at both orientations, and the 602x1006 catalogue clears the bottom bar",
+      "source": "tests/browser/pos-qac-scenarios.ts"
+    },
+    {
       "id": "POS-GLASS-PROMO-LINES",
       "finding": "Kaca-P6a",
       "description": "The Otomatis promo lines (tag, remove x) show in the restyled cart column",

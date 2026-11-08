@@ -25,6 +25,7 @@ import { posOpenCart } from './pos-opencart-scenarios'
 import { posStockPending, posTwoTabs } from './pos-wave-g-scenarios'
 import { posAutoPromo } from './pos-autopromo-scenarios'
 import { posGlassBand, posGlassPromoLines } from './pos-glass-scenarios'
+import { posQaCHeaderTabs } from './pos-qac-scenarios'
 import { posSplitTender, posSplitOffline, posSplitRefund, posSplitOff, posSplitDraft, posBayarOverflow } from './pos-split-scenarios'
 
 test('BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate toggle', async ({ page }, info) => {
@@ -601,6 +602,7 @@ for (const [id, title, run, opts] of [
   ['POS-OPEN-CART', 'the open cart is restored after a reload; a draft whose sale is already queued is dropped and the paid cart never reappears', posOpenCart, {}],
   ['POS-AUTO-PROMO', 'an Otomatis promo enters the cart by itself; the x removes it for the sale (cart edit, hold + resume, reload) and + Tambah re-adds it as manual', posAutoPromo, { autoPromo: true }],
   ['POS-GLASS-BAND', 'the catalogue scrolls under one glass band (the only blurred layer), the first row is uncovered at rest at 1006x601 and 1280x800, the cart mounts solid, data-material=static drops the blur', posGlassBand, { fillerProducts: 40 }],
+  ['POS-QAC-HEADER-TABS', 'with the cart open the Shift pill sits inside the cart column, the category thumb stays under its tab as the cart opens and closes, and the portrait catalogue clears the bottom bar', posQaCHeaderTabs, { fillerProducts: 40 }],
   ['POS-GLASS-PROMO-LINES', 'the Otomatis promo lines show in the cart column next to the glass band', posGlassPromoLines, { autoPromo: true, fillerProducts: 4 }],
   ['POS-SPLIT-DRAFT', 'an unfinished split payment is offered back after a reload; a draft whose sale is already queued is dropped silently', posSplitDraft, { splitTender: true }],
 ] as const) test(`${id} ${title}`, async ({ page }, info) => {

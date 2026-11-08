@@ -59,7 +59,7 @@ export function HeldOrdersSheet({ open, onClose, held, canSave, defaultName, onS
               <li key={o.id} className="surface-card rounded-control p-3">
                 <div className="flex items-baseline justify-between gap-2">
                   <p className="truncate text-[0.9375rem] font-semibold text-ink-900">{o.name} · <span className="tnum">{heldTime(o.heldAt)}</span></p>
-                  <p className="tnum flex-shrink-0 text-[0.8125rem] text-ink-500">{unitCount(o)} item · {formatRupiah(lineTotal(o))}</p>
+                  <p className="tnum flex-shrink-0 text-[0.8125rem] text-ink-500">{unitCount(o)} item · Subtotal {formatRupiah(lineTotal(o))}</p>
                 </div>
                 <div className="mt-2 flex gap-2">
                   <Button onClick={() => onResume(o)} aria-label={`Lanjutkan ${o.name}`} className="flex-1">Lanjutkan</Button>

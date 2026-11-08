@@ -1248,7 +1248,10 @@ export default function CashierScreen() {
           onRequestClose={() => openRecap(true)}
           promptOpen={shiftPrompt} onPromptConsumed={() => setShiftPrompt(false)}
         />
-        <div className="flex items-center gap-2 flex-shrink-0">
+        {/* U6: with the cart column open (sm+) the Online pill and Menu take the cart column's width, so the
+            boundary falls between the Shift pill (over the catalogue) and these (over the cart) instead of
+            through the Shift pill. */}
+        <div className={`flex items-center justify-end gap-2 flex-shrink-0 ${derived.totalCartItems > 0 ? 'min-[960px]:min-w-[calc(20rem-0.75rem)] lg:min-w-[calc(486px-0.75rem)]' : ''}`}>
           <SyncStatus
             open={showConnection} onOpenChange={setShowConnection}
             otaUpdate={ota.state.pending && {
@@ -1331,6 +1334,7 @@ export default function CashierScreen() {
         {/* Product panel */}
         <div className={`-mt-[var(--cashier-top-h,3.5rem)] flex-1 min-w-0 overflow-hidden sm:block ${state.activeTab === 'cart' ? 'hidden' : 'block'}`}>
           <ProductGrid
+            clearBottomBar={derived.totalCartItems > 0}
             topSlot={(
               <>
                 {derived.totalCartItems === 0 && customerChip}

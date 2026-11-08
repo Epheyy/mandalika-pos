@@ -63,7 +63,7 @@ export function LocalReceiptsPanel({ isOpen, onClose, receipts, canReprint, onRe
                   <div>
                     <p className="font-semibold text-sm text-ink-900">{r.orderNumber}</p>
                     <p className="text-xs text-ink-500">
-                      {formatHistoryStamp(r.capturedAt)}
+                      Dicatat di tablet {formatHistoryStamp(r.capturedAt)}
                       {' · '}{PAYMENT_LABELS[r.paymentMethod] ?? r.paymentMethod}
                     </p>
                     {visibleTenders(order).map((t) => (
