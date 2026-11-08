@@ -21,8 +21,8 @@ function digitsToRaw(digits: string): string | null {
 }
 
 /**
- * Raw digits for text TYPED into the field: every non-digit is dropped. Deleting one character of "Rp 1.000"
- * leaves "Rp 1.00", which must read as 100, so typing never looks for a fraction.
+ * Raw digits for text left after a DELETION in the field: every non-digit is dropped. Deleting one character of
+ * "Rp 1.000" leaves "Rp 1.00", which must read as 100, so this never looks for a fraction (see nextCashInput).
  * Null when the amount is longer than the maximum. A typed zero stays "0" (short, as before); empty stays empty.
  */
 export function parseTypedCash(text: string): string | null {
@@ -30,7 +30,7 @@ export function parseTypedCash(text: string): string | null {
 }
 
 /**
- * Raw digits for text PASTED into the field ("Rp 350.000", "350 000", "IDR 1,250,000"). Like typing, but a
+ * Raw digits for text typed or PASTED into the field ("Rp 350.000", "350 000", "IDR 1,250,000"). A
  * trailing fraction ("350.50", "350,5", "350.000,00") is cut off: rupiah has no cents, and reading its digits
  * as part of the amount would multiply it by 10 or 100. Null when over the maximum.
  */
@@ -44,9 +44,15 @@ export function formatCashInput(raw: string): string {
   return `${RUPIAH_PREFIX}${GROUPING.format(Number(raw))}`
 }
 
-/** What the field's onChange stores: the typed digits, or the current value when the text is over the maximum. */
+/**
+ * What the field's onChange stores. Typing and pasting share one rule (whole rupiah, a trailing fraction is
+ * dropped: "50000.5" and "Rp 50.000,00" both give 50000). The one exception is a DELETION: removing a digit from
+ * "Rp 1.000" leaves "Rp 1.00", whose ".00" is regrouping debris, not a fraction, so it reads 100 (parseTypedCash).
+ * Over the maximum, the current value stays.
+ */
 export function nextCashInput(current: string, text: string): string {
-  return parseTypedCash(text) ?? current
+  const isDeletion = text.length < formatCashInput(current).length
+  return (isDeletion ? parseTypedCash(text) : parseCashInput(text)) ?? current
 }
 
 /** What the field's onPaste stores: the pasted amount, or the current value when it is over the maximum. */

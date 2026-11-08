@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -81,6 +82,9 @@ func (r *Repo) UpdateAppSettingsBy(ctx context.Context, actor string, raw json.R
 	}
 	if len(s.Receipt) == 0 {
 		s.Receipt = json.RawMessage("{}")
+	}
+	if err := validateReceiptSettings(s.Receipt); err != nil {
+		return err
 	}
 	if s.ReceiveApproverRoles == nil {
 		s.ReceiveApproverRoles = []string{}
@@ -165,6 +169,13 @@ func (r *Repo) UpdateLoyaltySettings(ctx context.Context, raw json.RawMessage) e
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return err
 	}
+	// Rates only matter while points are on; a switched-off save must not fail on a value
+	// an earlier release stored (the form hides the fields then).
+	if s.Enabled {
+		if err := validateLoyaltyRates(s.PointsPerK, s.RedemptionRate); err != nil {
+			return err
+		}
+	}
 	return r.tx(ctx, "loyaltySettings", func(t pgx.Tx) error {
 		_, e := t.Exec(ctx, `
 			UPDATE loyalty_settings SET enabled=$1, tier_enabled=$2,
@@ -172,4 +183,42 @@ func (r *Repo) UpdateLoyaltySettings(ctx context.Context, raw json.RawMessage) e
 			s.Enabled, s.TierEnabled, s.PointsPerK, s.RedemptionRate)
 		return e
 	})
+}
+
+// Loyalty rate bounds: both rates divide or multiply money, so zero, negative and
+// non-finite values are refused; the ceiling only catches typos.
+const (
+	MaxPointsPerThousand = 1000
+	MaxRedemptionRate    = 100000
+	MinReceiptCopies     = 1
+	MaxReceiptCopies     = 5 // the printer clamps to the same range (packages/printer/src/print.ts)
+)
+
+func validateLoyaltyRates(pointsPerK, redemptionRate float64) error {
+	if math.IsNaN(pointsPerK) || math.IsInf(pointsPerK, 0) || pointsPerK <= 0 || pointsPerK > MaxPointsPerThousand {
+		return fmt.Errorf("poin per Rp 1.000 harus lebih dari 0 dan paling banyak %d", MaxPointsPerThousand)
+	}
+	if math.IsNaN(redemptionRate) || math.IsInf(redemptionRate, 0) || redemptionRate <= 0 || redemptionRate > MaxRedemptionRate {
+		return fmt.Errorf("poin untuk Rp 1.000 diskon harus lebih dari 0 dan paling banyak %d", MaxRedemptionRate)
+	}
+	return nil
+}
+
+// validateReceiptSettings checks the one numeric receipt field the server can trust:
+// copies, a whole number 1-5 when present (absent keeps the printer default of 1).
+func validateReceiptSettings(raw json.RawMessage) error {
+	var rc struct {
+		Copies *float64 `json:"copies"`
+	}
+	if err := json.Unmarshal(raw, &rc); err != nil {
+		return fmt.Errorf("receipt tidak valid: %w", err)
+	}
+	if rc.Copies == nil {
+		return nil
+	}
+	n := *rc.Copies
+	if n != math.Trunc(n) || n < MinReceiptCopies || n > MaxReceiptCopies {
+		return fmt.Errorf("jumlah salinan struk harus bilangan bulat %d-%d", MinReceiptCopies, MaxReceiptCopies)
+	}
+	return nil
 }

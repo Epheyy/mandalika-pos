@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { unitCostError } from '../../lib/inputRules'
 import type { Ingredient, Outlet, Warehouse } from '@mandalika/api'
 import { api } from '../../api'
 import { loadAllIngredients } from '../../lib/loadAll'
@@ -96,6 +97,10 @@ export function IngredientGoodsInModal({ onClose, onDone, location: propLocation
     const validItems = items.filter((it) => it.ingredientId && it.qty.trim())
     if (validItems.length === 0) {
       setErr('Isi minimal satu baris dengan bahan dan qty > 0.')
+      return
+    }
+    if (items.some((it) => unitCostError(it.unitCost))) {
+      setErr('Periksa isian yang bertanda merah.')
       return
     }
     for (const it of validItems) {
@@ -245,6 +250,11 @@ export function IngredientGoodsInModal({ onClose, onDone, location: propLocation
                   >
                     ×
                   </button>
+                  {unitCostError(it.unitCost) && (
+                    <p role="alert" className="col-span-12 text-[11px] text-red-600 -mt-1">
+                      {unitCostError(it.unitCost)}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

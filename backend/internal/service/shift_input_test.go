@@ -82,3 +82,20 @@ func TestShiftCountedMethodsAndReference(t *testing.T) {
 		t.Fatalf("%+v %v", out, err)
 	}
 }
+
+func TestDecodeOpenShiftDirectRejectsNegativeCash(t *testing.T) {
+	for _, raw := range []string{`{"startingCash":-1}`, `{"startingCash":-0.01,"outletName":"x"}`} {
+		if _, err := DecodeOpenShiftDirect(strings.NewReader(raw)); !errors.Is(err, ErrNegativeStartingCash) {
+			t.Fatalf("%s: err=%v", raw, err)
+		}
+		// The batch decoder keeps accepting it: a queued offline shift_open is never dropped.
+		if _, err := DecodeOpenShift(strings.NewReader(raw)); err != nil {
+			t.Fatalf("batch decode %s: %v", raw, err)
+		}
+	}
+	for _, raw := range []string{`{"startingCash":0}`, `{"startingCash":150000}`} {
+		if _, err := DecodeOpenShiftDirect(strings.NewReader(raw)); err != nil {
+			t.Fatalf("%s: %v", raw, err)
+		}
+	}
+}

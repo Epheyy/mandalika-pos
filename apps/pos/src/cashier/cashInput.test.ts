@@ -130,3 +130,29 @@ describe('caretAfterDigits', () => {
     expect(caretAfterDigits('', 0)).toBe(0)
   })
 })
+
+describe('one whole-rupiah rule for typing and pasting (F18)', () => {
+  it('typed and pasted text give the same amount, never a magnified one', () => {
+    const cases: Array<[string, string]> = [
+      ['50000.5', '50000'],
+      ['50000,5', '50000'],
+      ['Rp 50.000,00', '50000'],
+      ['Rp 50.000.5', '50000'],
+      ['Rp 1.0000', '10000'],
+    ]
+    for (const [text, want] of cases) {
+      expect(pastedCashInput('', text)).toBe(want)
+      expect(nextCashInput('', text)).toBe(want)
+    }
+  })
+  it('typing a fraction after the amount leaves the amount alone', () => {
+    // field shows "Rp 50.000"; the user types ".", then "5": 500005 before this fix
+    expect(nextCashInput('50000', 'Rp 50.000.')).toBe('50000')
+    expect(nextCashInput('50000', 'Rp 50.000.5')).toBe('50000')
+    expect(nextCashInput('50000', 'Rp 50.000,50')).toBe('50000')
+  })
+  it('a deletion still regroups digits instead of reading a fraction', () => {
+    expect(nextCashInput('1000', 'Rp 1.00')).toBe('100')
+    expect(nextCashInput('1000', 'Rp .000')).toBe('0')
+  })
+})

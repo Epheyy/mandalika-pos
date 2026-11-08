@@ -14,6 +14,9 @@ func validateIngredientGoodsReceipt(kind string, items []IngredientGoodsReceiptI
 		if it.Qty <= 0 {
 			return fmt.Errorf("qty harus lebih dari 0")
 		}
+		if err := validateUnitCost(it.UnitCost); err != nil {
+			return err
+		}
 	}
 	return nil
 }

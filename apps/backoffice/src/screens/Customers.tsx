@@ -21,6 +21,7 @@ import { ImportExportMenu } from '../ui/ImportExportMenu'
 import { Button } from '../ui/Button'
 import { Switch } from '../ui/Switch'
 import { Input, Select, Field } from '../ui/Field'
+import { pointsPerThousandError, redemptionRateError } from '../lib/inputRules'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { Modal } from '../ui/Modal'
 import { Card } from '../ui/Card'
@@ -263,7 +264,14 @@ export default function Customers() {
     await cq.refetch()
   }
 
+  const loyaltyErrors = {
+    pointsPerThousand: pointsPerThousandError(loyaltyForm.pointsPerThousand),
+    redemptionRate: redemptionRateError(loyaltyForm.redemptionRate),
+  }
+  const loyaltyInvalid = loyaltyForm.enabled && (loyaltyErrors.pointsPerThousand !== null || loyaltyErrors.redemptionRate !== null)
+
   const saveLoyalty = async () => {
+    if (loyaltyInvalid) return
     setSavingLoyalty(true)
     setPageErr(null)
     try {
@@ -424,19 +432,23 @@ export default function Customers() {
                   <Input
                     label="Poin per Rp 1.000 belanja"
                     type="number"
-                    value={loyaltyForm.pointsPerThousand}
-                    onChange={(e) => setLoyaltyForm((f) => ({ ...f, pointsPerThousand: parseFloat(e.target.value) || 1 }))}
+                    min={0}
+                    value={Number.isNaN(loyaltyForm.pointsPerThousand) ? '' : loyaltyForm.pointsPerThousand}
+                    error={loyaltyErrors.pointsPerThousand}
+                    onChange={(e) => setLoyaltyForm((f) => ({ ...f, pointsPerThousand: e.target.value === '' ? NaN : Number(e.target.value) }))}
                   />
                   <Input
                     label="Poin untuk Rp 1.000 diskon"
                     type="number"
-                    value={loyaltyForm.redemptionRate}
-                    onChange={(e) => setLoyaltyForm((f) => ({ ...f, redemptionRate: parseFloat(e.target.value) || 100 }))}
+                    min={0}
+                    value={Number.isNaN(loyaltyForm.redemptionRate) ? '' : loyaltyForm.redemptionRate}
+                    error={loyaltyErrors.redemptionRate}
+                    onChange={(e) => setLoyaltyForm((f) => ({ ...f, redemptionRate: e.target.value === '' ? NaN : Number(e.target.value) }))}
                   />
                 </>
               )}
               <p className="text-xs text-ink-500">Nilai aktif: {loyalty.enabled ? 'poin ON' : 'poin OFF'}</p>
-              <Button className="w-full" loading={savingLoyalty} disabled={!lq.data} onClick={saveLoyalty}>
+              <Button className="w-full" loading={savingLoyalty} disabled={!lq.data || loyaltyInvalid} onClick={saveLoyalty}>
                 {savingLoyalty ? 'Menyimpan...' : 'Simpan Pengaturan'}
               </Button>
             </Card>

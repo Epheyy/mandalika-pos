@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import type { AppSettings } from '@mandalika/api'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
+import { receiptCopiesError } from '../../lib/inputRules'
 import {
   applyChanges,
   buildSaveBody,
@@ -60,6 +61,11 @@ export function useSettingsDraft() {
 
   const save = useCallback(async (): Promise<boolean> => {
     if (savingRef.current) return false
+    const invalid = receiptCopiesError(stateRef.current.draft.receipt.copies)
+    if (invalid) {
+      setStatus({ kind: 'error', message: `Jumlah salinan struk: ${invalid}` })
+      return false
+    }
     savingRef.current = true
     clearTimeout(savedTimer.current)
     setStatus({ kind: 'saving' })
