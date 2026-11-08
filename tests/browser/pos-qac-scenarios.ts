@@ -49,6 +49,8 @@ export const posQaCHeaderTabs = async (page: ScenarioPage) => {
     await shot(page, `qac-${vp}-cart-open`, vp)
     const geo = await page.evaluate(() => {
       const box = (el: Element | null | undefined) => { const r = el?.getBoundingClientRect(); return r ? { left: r.left, right: r.right, top: r.top, bottom: r.bottom } : null }
+      // The rendered text only (not the 44px touch target, which may reach a few px past its label by design).
+      const textBox = (el: Element | null | undefined) => { if (!el) return null; const rg = document.createRange(); rg.selectNodeContents(el); const r = rg.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom } }
       const header = document.querySelector('header') as HTMLElement
       const shiftBtn = [...header.querySelectorAll('button')].find((b) => /^Shift/.test(b.textContent?.trim() ?? ''))
       const cart = [...document.querySelectorAll('[data-kaca-scroller]')][0]?.closest('div.min-w-0')?.nextElementSibling as HTMLElement | null
@@ -69,11 +71,11 @@ export const posQaCHeaderTabs = async (page: ScenarioPage) => {
       if (count) {
         const was = count.textContent
         count.textContent = '99 barang'
-        const c99 = box(count)
-        overlap99 = hit(c99, box(held)) || hit(c99, box(save)) || hit(c99, box(heading))
+        const c99 = textBox(count)
+        overlap99 = hit(c99, textBox(held)) || hit(c99, textBox(save)) || hit(c99, textBox(heading))
         count.textContent = was
       }
-      const cb = box(count)
+      const cb = textBox(count)
       const sb = box(shiftBtn)
       // Visible text only (the sr-only " aktif" span would inflate scrollWidth): do the label's own text nodes fit?
       const clipped = (el: HTMLElement) => {
@@ -91,7 +93,7 @@ export const posQaCHeaderTabs = async (page: ScenarioPage) => {
         cartLeft: cart ? cart.getBoundingClientRect().left : -1,
         cartTop: cart ? cart.getBoundingClientRect().top : -1,
         sat: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sat')) || 0,
-        countOverlaps: { held: hit(cb, box(held)), save: hit(cb, box(save)), heading: hit(cb, box(heading)), at99: overlap99 },
+        countOverlaps: { held: hit(cb, textBox(held)), save: hit(cb, textBox(save)), heading: hit(cb, textBox(heading)), at99: overlap99 },
         hasHeld: !!held, hasCount: !!count,
         padBottom: parseFloat(getComputedStyle(scroller).paddingBottom),
         vw: window.innerWidth,
