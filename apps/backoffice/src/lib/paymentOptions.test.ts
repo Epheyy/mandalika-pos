@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { paymentFilterOptions } from './paymentOptions'
+import { paymentFilterOptions, retiredMethodLabel } from './paymentOptions'
 
 describe('paymentFilterOptions', () => {
   it('lists configured methods, the legacy cash id and unseen order methods once each', () => {
@@ -37,5 +37,20 @@ describe('paymentFilterOptions', () => {
   it('adds historical ids from the server once, case-insensitively, without split (F06)', () => {
     const got = paymentFilterOptions([{ id: 'qris', label: 'QRIS' }], [], ['gopay', 'QRIS', 'split', 'cash'])
     expect(got.map((o) => o.id)).toEqual(['qris', 'cash', 'gopay', 'split'])
+  })
+  it('labels retired ids readably with (nonaktif) and keeps the stored id', () => {
+    const got = paymentFilterOptions([{ id: 'neobank', label: 'NEOBANK' }], [{ paymentMethod: 'mandiri' }], ['neo_bank'])
+    expect(got.find((o) => o.id === 'mandiri')?.label).toBe('MANDIRI (nonaktif)')
+    expect(got.find((o) => o.id === 'neo_bank')?.label).toBe('NEO BANK (nonaktif)')
+    expect(got.find((o) => o.id === 'neobank')?.label).toBe('NEOBANK')
+    expect(got.find((o) => o.id === 'cash')?.label).toBe('Tunai')
+  })
+  it('retiredMethodLabel uppercases and spaces underscores', () => {
+    expect(retiredMethodLabel(' gopay_qr ')).toBe('GOPAY QR (nonaktif)')
+  })
+  it('keeps raw ids (no "nonaktif") while the settings list is not loaded', () => {
+    const got = paymentFilterOptions(undefined, [{ paymentMethod: 'qris' }], ['gopay'])
+    expect(got.find((o) => o.id === 'qris')?.label).toBe('qris')
+    expect(got.find((o) => o.id === 'gopay')?.label).toBe('gopay')
   })
 })

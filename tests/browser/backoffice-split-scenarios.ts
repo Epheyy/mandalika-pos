@@ -114,9 +114,9 @@ export const splitOrderFlow = async (page: ScenarioPage) => {
   await page.getByText(/berisi metode QRIS/).waitFor()
   await payFilter.selectOption('')
   // F06/F07: a method removed from settings stays filterable; the legacy cash id is clearly named, not a twin of "Tunai"
-  await page.waitForFunction(() => Array.from(document.querySelectorAll('select[aria-label="Filter pembayaran"] option')).some((o) => o.textContent === 'gopay'))
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('select[aria-label="Filter pembayaran"] option')).some((o) => o.textContent === 'GOPAY (nonaktif)'))
   const payTexts = await payFilter.locator('option').allInnerTexts()
-  check(payTexts.includes('gopay'), `historical method option ${payTexts.join('|')}`)
+  check(payTexts.includes('GOPAY (nonaktif)'), `historical method option (retired id, readable label) ${payTexts.join('|')}`)
   check(payTexts.includes('Tunai') && payTexts.includes('Tunai (data lama)'), `cash options ${payTexts.join('|')}`)
   check(payTexts.filter((t) => t.trim().toLowerCase() === 'tunai').length === 1, 'exactly one plain Tunai option')
 

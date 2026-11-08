@@ -4,6 +4,7 @@ import { api } from '../../api'
 import { Button } from '../../ui/Button'
 import { Input, Select, Textarea, Field, fieldClass } from '../../ui/Field'
 import { Modal } from '../../ui/Modal'
+import { defaultUnitCostError } from '../../lib/inputRules'
 import { COMMON_UNITS, isCommonUnit } from './units'
 import { CategoryManager } from './CategoryManager'
 
@@ -75,9 +76,12 @@ export function IngredientFormModal({ editing, onClose, onDone }: IngredientForm
   const resolvedUnit =
     form.unitSelect === 'Lainnya' ? form.unitCustom.trim() : form.unitSelect
 
+  const costErr = defaultUnitCostError(form.defaultUnitCost)
+
   const valid =
     form.name.trim() !== '' &&
-    resolvedUnit !== ''
+    resolvedUnit !== '' &&
+    !costErr
 
   const handleAddCategory = async () => {
     if (!newCatName.trim()) return
@@ -104,8 +108,7 @@ export function IngredientFormModal({ editing, onClose, onDone }: IngredientForm
     if (!resolvedUnit) { setErr('Satuan wajib diisi.'); return }
 
     const cost = form.defaultUnitCost.trim() ? Number(form.defaultUnitCost) : null
-    if (form.defaultUnitCost.trim() && (Number.isNaN(cost) || (cost ?? 0) < 0)) {
-      setErr('Biaya default harus angka ≥ 0.')
+    if (defaultUnitCostError(form.defaultUnitCost)) {
       return
     }
 
@@ -298,6 +301,7 @@ export function IngredientFormModal({ editing, onClose, onDone }: IngredientForm
           value={form.defaultUnitCost}
           onChange={(e) => setField('defaultUnitCost', e.target.value)}
           placeholder="Opsional"
+          error={costErr ?? undefined}
         />
         <Textarea
           label="Catatan"

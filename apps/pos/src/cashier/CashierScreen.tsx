@@ -1242,6 +1242,8 @@ export default function CashierScreen() {
           <img src={brand.logo} alt={`${brand.displayName} POS`} className="h-7 w-auto object-contain flex-shrink-0" />
         </div>
         <HeaderSearch value={searchQuery} onChange={setSearchQuery} onSubmit={handleSearchSubmit} onScan={() => void handleCameraScan()} />
+        {/* Shift pill + status + menu are one group so portrait (search wraps to row 2) packs them at the right of row 1 next to the Online pill. */}
+        <div className="flex items-center justify-end gap-2 flex-shrink-0 ml-auto sm:ml-0">
         <ShiftBar
           currentShift={shift.currentShift} isLoading={shift.isLoadingShift}
           isOpening={shift.isOpeningShift}
@@ -1251,7 +1253,6 @@ export default function CashierScreen() {
           onRequestClose={() => openRecap(true)}
           promptOpen={shiftPrompt} onPromptConsumed={() => setShiftPrompt(false)}
         />
-        <div className="flex items-center justify-end gap-2 flex-shrink-0">
           <SyncStatus
             open={showConnection} onOpenChange={setShowConnection}
             otaUpdate={ota.state.pending && {

@@ -133,6 +133,11 @@ export const posQaCHeaderTabs = async (page: ScenarioPage) => {
     if (vp === 'pos-a9-portrait') {
       assert(geo.padBottom >= 80, `${vp}: the catalogue clears the bottom bar (padding-bottom ${geo.padBottom})`)
       assert(!geo.shiftClipped, `${vp}: the portrait Shift pill keeps its full label (width ${geo.shiftWidth})`)
+      const c = geo.controls as Record<string, { left: number; right: number; top: number; bottom: number } | null>
+      assert(c.shift && c.online && c.menu && c.search, `${vp}: Shift, Online, Menu and search are all found`)
+      const gapToOnline = c.online!.left - c.shift!.right
+      assert(gapToOnline >= 0 && gapToOnline <= 16, `${vp}: the Shift pill sits next to the Online pill (gap ${gapToOnline}px)`)
+      assert(Math.abs(c.shift!.top - c.online!.top) < 24 && c.shift!.bottom <= c.search!.top + 1, `${vp}: Shift shares row 1 with Online, above the search (${JSON.stringify(c)})`)
     }
     out[vp] = { before, opened, geo, clrClosed, clrOpen }
     // Close the cart again: the thumb must follow the re-flow back (the two-column layout only exists in landscape).
