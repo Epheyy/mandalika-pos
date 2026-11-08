@@ -1,4 +1,5 @@
-import { useId, type ReactNode } from 'react'
+import { useId, useRef, type ReactNode } from 'react'
+import { useSheetLayer } from './sheetLayers'
 
 export type SheetVariant = 'center' | 'side' | 'full'
 export type SheetZ = 40 | 50 | 60 | 70
@@ -23,6 +24,11 @@ type Props = {
    * the `full` variant.
    */
   header?: boolean
+  /**
+   * Accessible name when no visible `title` is passed (the dialog then has no gray h2). Ignored when `title` is set.
+   * Lets a dialog that draws its own heading still be announced by name.
+   */
+  ariaLabel?: string
   /** Optional data-testid on the overlay element. */
   testId?: string
   children?: ReactNode
@@ -65,6 +71,7 @@ export function Sheet({
   closeLabel = 'Tutup',
   backLabel = 'Kembali',
   header = false,
+  ariaLabel,
   testId,
   children,
 }: Props) {
@@ -90,7 +97,12 @@ export function Sheet({
           onClick={onClose}
         />
       )}
-      <div role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined} className={panelClasses}>
+      <SheetPanel
+        titleId={title ? titleId : undefined}
+        ariaLabel={title ? undefined : ariaLabel}
+        className={panelClasses}
+        onEscape={onClose}
+      >
         {hasHeader ? (
           <div className="grid flex-shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 py-1">
             {/* No aria-label: the visible text is the accessible name (label in name, WCAG 2.5.3). */}
@@ -121,7 +133,39 @@ export function Sheet({
           </h2>
         ) : null}
         {children}
-      </div>
+      </SheetPanel>
+    </div>
+  )
+}
+
+/** The dialog panel. Holds the hooks (layer registration, focus trap) so `Sheet` itself stays a plain function. */
+function SheetPanel({
+  titleId,
+  ariaLabel,
+  className,
+  onEscape,
+  children,
+}: {
+  titleId?: string
+  ariaLabel?: string
+  className: string
+  onEscape?: () => void
+  children: ReactNode
+}) {
+  const layerId = useId()
+  const panel = useRef<HTMLDivElement>(null)
+  useSheetLayer(layerId, panel, onEscape)
+  return (
+    <div
+      ref={panel}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      aria-label={ariaLabel}
+      tabIndex={-1}
+      className={`${className} focus:outline-none`}
+    >
+      {children}
     </div>
   )
 }

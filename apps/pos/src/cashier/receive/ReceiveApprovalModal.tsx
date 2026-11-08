@@ -119,7 +119,7 @@ export function ReceiveApprovalModal({
   }
 
   const shell = (children: React.ReactNode) => (
-    <Sheet open variant="center" maxWidth="max-w-sm" panelClassName="p-5">{children}</Sheet>
+    <Sheet open variant="center" ariaLabel="Persetujuan penerimaan" maxWidth="max-w-sm" panelClassName="p-5">{children}</Sheet>
   )
   const closeOnly = (text: string) =>
     shell(

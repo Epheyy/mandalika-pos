@@ -149,7 +149,7 @@ function RefundDialogBody({ order, cache, methods, isProcessing, error, onConfir
   }
 
   return (
-    <Sheet open variant="center" maxWidth="max-w-lg" panelClassName="p-5 max-h-[92vh] overflow-y-auto">
+    <Sheet open variant="center" ariaLabel="Refund Order" maxWidth="max-w-lg" panelClassName="p-5 max-h-[92vh] overflow-y-auto">
       <h3 className="font-bold text-ink-900 mb-1">Refund Order</h3>
       <p className="text-sm font-semibold text-ink-900 mb-1">#{order.orderNumber}</p>
       <p className="text-xs text-ink-500 mb-1">

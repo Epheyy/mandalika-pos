@@ -258,7 +258,7 @@ export function RequisitionPanel({ onClose, onOpenReceive, isOnline, products, u
   const back = () => (view.name === 'list' ? requestLeave(onClose) : requestLeave(goList))
 
   return (
-    <Sheet open variant="side" onClose={() => requestLeave(onClose)} panelClassName="flex flex-col">
+    <Sheet open variant="side" onClose={() => { if (confirm) setConfirm(null); else requestLeave(onClose) }} panelClassName="flex flex-col">
         <div className="py-1 pl-4 pr-2 border-b border-paper-2 flex items-center justify-between">
           <div className="flex items-center gap-1">
             {view.name !== 'list' && <button type="button" onClick={back} aria-label="Kembali" className="press inline-flex h-11 w-11 items-center justify-center rounded-control font-bold text-brand-strong active:bg-paper-1">←</button>}

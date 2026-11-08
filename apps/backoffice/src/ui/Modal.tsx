@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { cn } from './cn'
+import { ConfirmDialog } from './ConfirmDialog'
 import { useFocusTrap } from './focus'
 import { useOverlayLayer } from './overlayStack'
 
@@ -116,37 +117,17 @@ function ModalBody({
         )}
       </div>
 
-      {confirming && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Tutup"
-            tabIndex={-1}
-            className="absolute inset-0 bg-ink-900/40"
-            onClick={() => setConfirming(false)}
-          />
-          <div role="alertdialog" aria-modal="true" aria-labelledby={`${titleId}-confirm`} className="surface-solid relative rounded-3xl p-6 w-full max-w-xs text-center">
-            <h3 id={`${titleId}-confirm`} className="text-lg font-black text-ink-900 mb-1">Buang perubahan?</h3>
-            <p className="text-sm text-ink-700 mb-5">
-              Perubahan yang belum disimpan akan hilang.
-            </p>
-            <div className="flex gap-3">
-              <button type="button"
-                onClick={() => setConfirming(false)}
-                className="flex-1 h-10 border border-paper-2 text-ink-700 font-bold rounded-xl"
-              >
-                Lanjut Edit
-              </button>
-              <button type="button"
-                onClick={discard}
-                className="flex-1 h-10 bg-danger-solid hover:opacity-90 text-on-brand font-bold rounded-xl"
-              >
-                Buang
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* The shared ConfirmDialog is its own overlay layer: focus moves into it, Tab stays inside, Escape returns to the form. */}
+      <ConfirmDialog
+        open={confirming}
+        title="Buang perubahan?"
+        consequence="Perubahan yang belum disimpan akan hilang."
+        confirmLabel="Buang"
+        cancelLabel="Lanjut Edit"
+        tone="danger"
+        onCancel={() => setConfirming(false)}
+        onConfirm={discard}
+      />
     </div>
   )
 }

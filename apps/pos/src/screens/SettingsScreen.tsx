@@ -204,39 +204,53 @@ export const SettingsScreen = memo(function SettingsScreen({
           {section === 'display' && (
             <div className="space-y-4">
               <div>
-                <p className="text-xs text-ink-700 font-semibold mb-1.5">Ukuran Font</p>
-                <div className="flex gap-2">
-                  {(['sm', 'md', 'lg'] as FontSize[]).map((s) => (
-                    <button type="button"
-                      key={s}
-                      onClick={() => onFontSizeChange(s)}
-                      className={`press flex-1 min-h-11 py-1.5 rounded-control text-xs font-semibold border ${
-                        fontSize === s
+                <p id="display-font-size-label" className="text-xs text-ink-700 font-semibold mb-1.5">Ukuran Font</p>
+                <div role="radiogroup" aria-labelledby="display-font-size-label" className="flex gap-2">
+                  {(['sm', 'md', 'lg'] as FontSize[]).map((v) => (
+                    <label
+                      key={v}
+                      className={`press flex-1 min-h-11 py-1.5 rounded-control text-xs font-semibold border flex items-center justify-center cursor-pointer focus-within:ring-2 focus-within:ring-brand-strong ${
+                        fontSize === v
                           ? 'bg-brand-strong text-on-brand border-brand-strong'
                           : 'surface-card text-ink-700'
                       }`}
                     >
-                      {s.toUpperCase()}
-                    </button>
+                      <input
+                        type="radio"
+                        name="display-font-size"
+                        value={String(v)}
+                        checked={fontSize === v}
+                        onChange={() => onFontSizeChange(v)}
+                        className="sr-only"
+                      />
+                      {v.toUpperCase()}
+                    </label>
                   ))}
                 </div>
               </div>
 
               <div>
-                <p className="text-xs text-ink-700 font-semibold mb-1.5">Kolom Grid Produk</p>
-                <div className="flex gap-2">
-                  {([2, 3, 4, 6] as GridCols[]).map((c) => (
-                    <button type="button"
-                      key={c}
-                      onClick={() => onGridColsChange(c)}
-                      className={`press flex-1 min-h-11 py-1.5 rounded-control text-xs font-semibold border ${
-                        gridCols === c
+                <p id="display-grid-cols-label" className="text-xs text-ink-700 font-semibold mb-1.5">Kolom Grid Produk</p>
+                <div role="radiogroup" aria-labelledby="display-grid-cols-label" className="flex gap-2">
+                  {([2, 3, 4, 6] as GridCols[]).map((v) => (
+                    <label
+                      key={v}
+                      className={`press flex-1 min-h-11 py-1.5 rounded-control text-xs font-semibold border flex items-center justify-center cursor-pointer focus-within:ring-2 focus-within:ring-brand-strong ${
+                        gridCols === v
                           ? 'bg-brand-strong text-on-brand border-brand-strong'
                           : 'surface-card text-ink-700'
                       }`}
                     >
-                      {c}
-                    </button>
+                      <input
+                        type="radio"
+                        name="display-grid-cols"
+                        value={String(v)}
+                        checked={gridCols === v}
+                        onChange={() => onGridColsChange(v)}
+                        className="sr-only"
+                      />
+                      {v}
+                    </label>
                   ))}
                 </div>
               </div>
@@ -411,6 +425,7 @@ export const SettingsScreen = memo(function SettingsScreen({
                 inputMode="numeric"
                 value={cashFlowAmount}
                 onChange={(e) => { setCashFlowAmount(e.target.value); setCashFlowMsg(null) }}
+                aria-label="Jumlah kas (Rp)"
                 placeholder="Jumlah (Rp)"
                 className="w-full min-h-11 border border-paper-2 bg-white rounded-control px-3 py-2 text-sm text-ink-900 focus:outline-none focus:border-ink-700"
               />
@@ -420,6 +435,7 @@ export const SettingsScreen = memo(function SettingsScreen({
               <input
                 value={cashFlowDesc}
                 onChange={(e) => { setCashFlowDesc(e.target.value); setCashFlowMsg(null) }}
+                aria-label="Keterangan kas"
                 placeholder="Keterangan *"
                 className="w-full min-h-11 border border-paper-2 bg-white rounded-control px-3 py-2 text-sm text-ink-900 focus:outline-none focus:border-ink-700"
               />

@@ -26,6 +26,17 @@ describe('Sheet', () => {
     expect(html).toContain('isi')
   })
 
+  it('names a title-less dialog with ariaLabel, and prefers the visible title when both are given', () => {
+    expect(render({ ariaLabel: 'Refund Order' })).toContain('aria-label="Refund Order"')
+    const both = render({ title: 'Judul', ariaLabel: 'Refund Order' })
+    expect(both).toContain('aria-labelledby="sheet-title"')
+    expect(both).not.toContain('aria-label="Refund Order"')
+  })
+
+  it('makes the panel focusable so the layer can move focus to it on open', () => {
+    expect(render({})).toContain('tabindex="-1"')
+  })
+
   it('renders the existing centred modal recipe with z-index and width', () => {
     const html = render({ z: 70, maxWidth: 'max-w-sm', panelClassName: 'p-5' })
     expect(html).toContain('fixed inset-0 bg-ink-900/40 flex items-center justify-center p-4 z-[70]')
