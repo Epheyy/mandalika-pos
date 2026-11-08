@@ -66,6 +66,9 @@ type OpenShiftInput struct {
 	CashierID    string
 	CashierName  string
 	StartingCash float64
+	// StartingCashWarning flags a shift accepted with a negative opening cash (sync route only;
+	// the direct route refuses negatives before this point). The amount is stored as sent.
+	StartingCashWarning bool
 }
 
 // OpenShift creates an open shift; rejects a second concurrent open shift for
@@ -109,10 +112,10 @@ func (s *OrderService) OpenShiftTx(ctx context.Context, tx pgx.Tx, in OpenShiftI
 	var id string
 	err := tx.QueryRow(ctx, `
 		INSERT INTO shifts (outlet_id, outlet_name, cashier_id, cashier_name,
-		  status, opened_at, starting_cash)
-		VALUES ($1,$2,$3,$4,'open',now(),$5) RETURNING id`,
+		  status, opened_at, starting_cash, starting_cash_warning)
+		VALUES ($1,$2,$3,$4,'open',now(),$5,$6) RETURNING id`,
 		in.OutletID, nullStr(in.OutletName), in.CashierID, in.CashierName,
-		in.StartingCash).Scan(&id)
+		in.StartingCash, in.StartingCashWarning).Scan(&id)
 	if err != nil {
 		var pg *pgconn.PgError
 		if errors.As(err, &pg) && pg.Code == "23505" && pg.ConstraintName == openShiftIndex {

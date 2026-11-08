@@ -132,6 +132,26 @@ func (e *spEnv) payoutConfigured(o spOutlet, pid string) {
 	free := e.splitSale(o, pid, line("qris", 60000), line("kas_kecil", 40000))
 	e.refundOK(o, free, map[string]any{"payoutMethod": " Voucher "})
 	e.want("unconfigured chosen payout kept trimmed", e.payouts(free), "Voucher/chosen")
+
+	// payoutPicked (POS audit flag): false = the preselected default chip was kept -> 'default', the
+	// method is still honoured as sent; true, absent (old bundles) or a non-boolean -> 'chosen'.
+	for i, tc := range []struct {
+		picked any
+		set    bool
+		want   string
+	}{{false, true, "Kas_Kecil/default"}, {true, true, "Kas_Kecil/chosen"}, {nil, false, "Kas_Kecil/chosen"}, {"no", true, "Kas_Kecil/chosen"}} {
+		sp := e.splitSale(o, pid, line("qris", 60000), line("kas_kecil", 40000))
+		extra := map[string]any{"payoutMethod": "kas_kecil"}
+		if tc.set {
+			extra["payoutPicked"] = tc.picked
+		}
+		e.refundOK(o, sp, extra)
+		e.want(fmt.Sprintf("payoutPicked case %d", i), e.payouts(sp), tc.want)
+	}
+	// a single-method order ignores payoutPicked like payoutMethod
+	one := e.sale(o, pid, "qris", 100000, 100000, nil, "")
+	e.refundOK(o, one, map[string]any{"payoutMethod": "cash", "payoutPicked": false})
+	e.want("single method ignores payoutPicked", e.payouts(one), "qris/sale")
 }
 
 func (e *spEnv) payoutLegacyWriter(o spOutlet, pid string) {

@@ -13,6 +13,7 @@ import { EmptyState } from '../../ui/EmptyState'
 import { ExportButton } from '../../ui/ExportButton'
 import { FilterBar } from '../../ui/FilterBar'
 import { CASH_REFUNDS_PAID_HEADER, cashRefundsPaidCell } from '../refundDisplay'
+import { NEGATIVE_STARTING_CASH_HINT, startingCashBadge } from './shiftFlags'
 
 interface ShiftsTabProps {
   dateFrom: string
@@ -29,7 +30,19 @@ const REFUND_SHIFT_HINT = 'Mengikuti shift yang membuat penjualan. Tab Unduh dat
 
 function shiftColumns(outletName: (id: string) => string): Column<Shift>[] {
   return [
-    { id: 'kasir', header: 'Kasir', cell: (s) => <span className="font-bold">{s.cashierName}</span> },
+    {
+      id: 'kasir',
+      header: 'Kasir',
+      cell: (s) => {
+        const badge = startingCashBadge(s)
+        return (
+          <span className="font-bold">
+            {s.cashierName}
+            {badge && <span className="ml-2 rounded bg-danger/10 px-1.5 py-0.5 text-[10px] font-bold text-danger" title={`${NEGATIVE_STARTING_CASH_HINT} Kas awal: ${money(s.startingCash)}`}>{badge}</span>}
+          </span>
+        )
+      },
+    },
     { id: 'outlet', header: 'Outlet', cell: (s) => outletName(s.outletId) },
     { id: 'dibuka', header: 'Dibuka', cell: (s) => <span className="whitespace-nowrap text-xs">{whenShort(s.openedAt)}</span> },
     {

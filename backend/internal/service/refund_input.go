@@ -106,6 +106,10 @@ type RefundInput struct {
 	// decides); a non-nil blank is malformed (ValidateRefundPayoutMethod). Only honoured on a
 	// split-payment order; a single-method order always pays out in its sale method.
 	PayoutMethod *string
+	// PayoutPicked (sync route audit flag): false = the cashier kept the preselected default chip,
+	// recorded as payout_source 'default' while PayoutMethod is still honoured as sent. NIL (old
+	// bundles, queued payloads) or true = 'chosen'. Never changes the method or any amount.
+	PayoutPicked *bool
 }
 
 // NormalizeRefund validates the refund input shared by the direct route and the

@@ -92,7 +92,7 @@ export function paymentLineRows(o: Pick<Order, 'tenders'>, methods?: Methods): P
 const SOURCE_TEXT: Record<string, string> = {
   sale: 'sama dengan metode penjualan',
   chosen: 'dipilih saat refund',
-  default: 'otomatis: tunai, atau pembayaran terbesar',
+  default: 'otomatis, kasir tidak memilih (biasanya tunai, atau pembayaran terbesar)',
 }
 
 /** Plain-Indonesian payout of one refund: "Dikembalikan lewat Tunai (dipilih saat refund)".

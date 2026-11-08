@@ -80,6 +80,10 @@ type refundPayload struct {
 	// structural reject, never a silent default) can be told apart. The older display-only
 	// `paymentMethod` key is not decoded and stays ignored.
 	PayoutMethod json.RawMessage `json:"payoutMethod"`
+	// PayoutPicked is an audit flag only: false = the cashier kept the preselected default chip
+	// (recorded as payout_source 'default'). Raw on purpose: only a literal true/false counts; any
+	// other value is treated as absent, which means 'chosen' (never fails the whole decode).
+	PayoutPicked json.RawMessage `json:"payoutPicked"`
 	// OrderUUID is the outbox item's client uuid (commitOutbox adds it): the refund's own id.
 	OrderUUID string `json:"orderUuid"`
 }
@@ -109,6 +113,7 @@ func (p refundPayload) input(c Caller, orderID string) service.RefundInput {
 		}
 	}
 	in.PayoutMethod = payoutMethodFromRaw(p.PayoutMethod)
+	in.PayoutPicked = payoutPickedFromRaw(p.PayoutPicked)
 	if p.RefundAmount != nil {
 		v := int64(-1)
 		if a := math.Round(*p.RefundAmount); a >= 0 && a <= 1e12 {
@@ -117,6 +122,17 @@ func (p refundPayload) input(c Caller, orderID string) service.RefundInput {
 		in.RefundAmount = &v
 	}
 	return in
+}
+
+// payoutPickedFromRaw maps the raw payoutPicked key: a JSON boolean = itself; absent, null or any
+// other type = nil (treated as picked, i.e. today's 'chosen').
+func payoutPickedFromRaw(raw json.RawMessage) *bool {
+	var b bool
+	// json.Unmarshal("null", &b) succeeds and leaves false, so null must be ruled out first.
+	if len(raw) == 0 || string(raw) == "null" || json.Unmarshal(raw, &b) != nil {
+		return nil
+	}
+	return &b
 }
 
 // payoutMethodFromRaw maps the raw payoutMethod key: absent or null = nil (the server
@@ -439,6 +455,8 @@ func (e *Engine) processOneWithSeq(ctx context.Context, c Caller, it BatchItem,
 				OutletID: c.OutletID, OutletName: p.OutletName,
 				CashierID: c.UserID, CashierName: c.DisplayName,
 				StartingCash: p.StartingCash,
+				// Never dropped, stored as sent, flagged for head-office review.
+				StartingCashWarning: p.StartingCash < 0,
 			})
 		})
 		if err != nil {

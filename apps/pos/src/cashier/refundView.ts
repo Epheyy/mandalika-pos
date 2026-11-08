@@ -220,6 +220,9 @@ export interface RefundPayload {
   paymentMethod: string
   /** C6 (D-56): the method the refund is paid out in. Server-read; present for a split order ONLY. */
   payoutMethod?: string
+  /** Audit flag next to payoutMethod (split orders only): false = the cashier kept the preselected default chip. Absent in
+   *  payloads queued by older bundles, which the server reads as a chosen method. */
+  payoutPicked?: boolean
   /** The shift the sale belonged to (null when history did not say). */
   saleShiftId: string | null
 }
@@ -240,6 +243,8 @@ export function prepareRefund(i: {
   sale?: LocalSaleRef
   /** The payout method chosen for a split order; ignored (never sent) for any other order. */
   payoutMethod?: string
+  /** Whether the cashier tapped the payout chip (see RefundPayload.payoutPicked). Only sent together with payoutMethod. */
+  payoutPicked?: boolean
   /** The sale's tender lines (a split order is recognised from them). */
   tenders?: Order['tenders']
 }): PreparedRefund {
@@ -264,7 +269,9 @@ export function prepareRefund(i: {
       orderNumber: i.order.orderNumber,
       total: i.lines ? i.lines.amount : i.order.total,
       paymentMethod: i.order.paymentMethod,
-      ...(i.payoutMethod && isSplitOrder({ paymentMethod: i.order.paymentMethod, tenders: i.tenders }) ? { payoutMethod: i.payoutMethod } : {}),
+      ...(i.payoutMethod && isSplitOrder({ paymentMethod: i.order.paymentMethod, tenders: i.tenders })
+        ? { payoutMethod: i.payoutMethod, payoutPicked: i.payoutPicked !== false }
+        : {}),
       saleShiftId: i.order.shiftId ?? null,
     },
   }
@@ -304,6 +311,8 @@ export function planRefundSubmit(i: {
   sale?: LocalSaleRef
   /** C6: the payout chip chosen in the dialog; only a split order uses it (default when absent). */
   payoutMethod?: string
+  /** Whether the cashier tapped the chip (false = the preselected default was kept). Audit only. */
+  payoutPicked?: boolean
   /** The configured payment methods, to judge which line is cash for the default payout. */
   methods?: readonly PayoutMethodCfg[]
 }): RefundSubmitPlan {
@@ -323,9 +332,11 @@ export function planRefundSubmit(i: {
   }
   // A split order always carries a payout: the chosen chip, else the D-56 default. Any other order carries none.
   const payoutMethod = isSplitOrder(i.refundOrder) ? (i.payoutMethod || defaultPayoutMethod(i.refundOrder, i.methods) || undefined) : undefined
+  // No chip passed = the default was used, which is not a pick. A passed chip counts as picked unless the dialog says otherwise.
+  const payoutPicked = i.payoutMethod ? i.payoutPicked !== false : false
   const prepared = prepareRefund({
     order: i.refundOrder, reason: i.reason, reasonCode: i.reasonCode, lines, canRefund: i.canRefund, shiftId: i.shiftId, sale: i.sale,
-    payoutMethod, tenders: i.refundOrder.tenders,
+    payoutMethod, payoutPicked, tenders: i.refundOrder.tenders,
   })
   return prepared.ok ? { kind: 'enqueue', payload: prepared.payload } : { kind: 'error', message: prepared.message }
 }

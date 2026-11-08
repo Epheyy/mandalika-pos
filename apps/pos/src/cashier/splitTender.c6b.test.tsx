@@ -70,6 +70,19 @@ describe('refund payload payoutMethod', () => {
     const dflt = planRefundSubmit({ refundOrder: order(), orderId: 'o1', ...base, methods })
     expect(dflt.kind === 'enqueue' && dflt.payload.payoutMethod).toBe('tunai')
   })
+  it('payoutPicked: true for a tapped chip, false when the preselected default was kept, absent off split orders', () => {
+    const tapped = planRefundSubmit({ refundOrder: order(), orderId: 'o1', ...base, payoutMethod: 'qris', payoutPicked: true, methods })
+    expect(tapped.kind === 'enqueue' && tapped.payload.payoutPicked).toBe(true)
+    // the dialog always passes the preselected chip as payoutMethod; payoutPicked=false marks it as untouched
+    const kept = planRefundSubmit({ refundOrder: order(), orderId: 'o1', ...base, payoutMethod: 'tunai', payoutPicked: false, methods })
+    expect(kept.kind === 'enqueue' && kept.payload.payoutMethod).toBe('tunai')
+    expect(kept.kind === 'enqueue' && kept.payload.payoutPicked).toBe(false)
+    // no chip passed at all = the default was used, not picked
+    const none = planRefundSubmit({ refundOrder: order(), orderId: 'o1', ...base, methods })
+    expect(none.kind === 'enqueue' && none.payload.payoutPicked).toBe(false)
+    const one = planRefundSubmit({ refundOrder: single(), orderId: 'o1', ...base, payoutMethod: 'tunai', payoutPicked: true, methods })
+    expect(one.kind === 'enqueue' && 'payoutPicked' in one.payload).toBe(false)
+  })
 })
 
 describe('RefundDialog for a split order', () => {
