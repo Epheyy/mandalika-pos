@@ -708,14 +708,30 @@ export class SyncEngine {
     const signal = server !== null && outlet !== undefined
     if (this.followUpPull) return signal && this.seqRulesOn() ? 'stock' : 'data'
     if (!signal) return null
-    const local = this.snapshot.localStockSeq()
-    // Unbound (older snapshot, another outlet, no counter) or a restore: a pull is needed to start over.
-    if (!this.seqBound() || this.seqRegressed || local === undefined || server < local) return 'stock'
-    // The counter moves by exactly one per stock transaction, so this tablet's own acked sales in the window
-    // (local, server] account for that many bumps; anything beyond is another tablet, a refund or a backoffice sale.
-    if (server - local > this.settling.explainedCount(outlet, local, server)) return 'stock'
+    if (this.stockDrifted(server, outlet)) return 'stock'
     if (this.settling.list().length >= SETTLING_HOUSEKEEPING_AT) return 'stock'
     return null
+  }
+
+  /** The displayed stock may differ from the server's (another tablet, a refund, a backoffice sale, or a snapshot
+   *  that cannot be compared). Needs the seq signal. Housekeeping and own-sale follow-ups are NOT drift. */
+  private stockDrifted(server: number, outlet: string): boolean {
+    const local = this.snapshot.localStockSeq()
+    // Unbound (older snapshot, another outlet, no counter) or a restore: a pull is needed to start over.
+    if (!this.seqBound() || this.seqRegressed || local === undefined || server < local) return true
+    // The counter moves by exactly one per stock transaction, so this tablet's own acked sales in the window
+    // (local, server] account for that many bumps; anything beyond is another tablet, a refund or a backoffice sale.
+    return server - local > this.settling.explainedCount(outlet, local, server)
+  }
+
+  /** F19, read-only: true while stock drift is known but not yet pulled (the pull is throttled or deferred behind
+   *  an open cashier flow). False while the data wall is raised (its own chip) and without a seq signal. Changes
+   *  no state; the pull timing is untouched. */
+  stockRefreshPending(): boolean {
+    if (this.wall.raised) return false
+    const server = this.serverStockSeq
+    const outlet = this.actorOutlet()
+    return server !== null && outlet !== undefined && this.stockDrifted(server, outlet)
   }
 
   /** Called whenever the wall may have changed (poll, batch ack, any resync outcome). */

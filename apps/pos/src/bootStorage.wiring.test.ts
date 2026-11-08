@@ -46,6 +46,16 @@ describe('storage boot (A01b)', () => {
     expect(appAt).toBeGreaterThan(returnAt) // the catch returns before App can render
     expect(main.slice(catchAt, returnAt)).not.toMatch(/<App/)
   })
+  it('main.tsx claims the single active tab before OTA startup and storage, and waits for the grant first (F22/W01)', () => {
+    const main = src('./main.tsx')
+    const claimAt = main.indexOf('await claimActiveTab()')
+    const grantAt = main.indexOf('await claim.granted')
+    expect(claimAt).toBeGreaterThan(-1)
+    expect(grantAt).toBeGreaterThan(claimAt)
+    expect(main.indexOf('await startupOta()')).toBeGreaterThan(grantAt)
+    expect(main.indexOf('await bootStorage()')).toBeGreaterThan(grantAt)
+    expect(main.match(/createRoot\(/g)).toHaveLength(1) // the ONE root, reused by every render (no second createRoot over the notice)
+  })
   it('the OTA confirm is called from App.tsx only; native.ts merely defines it (A35)', () => {
     const root = fileURLToPath(new URL('.', import.meta.url))
     const files = (readdirSync(root, { recursive: true }) as string[])

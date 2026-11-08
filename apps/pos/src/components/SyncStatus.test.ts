@@ -240,7 +240,7 @@ describe('Koneksi queued sales (W5-03)', () => {
   it('says how many other waiting items are not sales, and shows data freshness', () => {
     const html = withEngine([receipt('L-1', '2026-11-07T07:05:00Z')])
     expect(html).toContain('Dan 1 transaksi lain')
-    expect(html).toContain('Data produk &amp; promo: diperbarui')
+    expect(html).toContain('Data produk, stok &amp; promo: diperbarui')
   })
 
   it('puts Kirim sekarang and Perbarui data side by side in the footer row', () => {
@@ -250,5 +250,37 @@ describe('Koneksi queued sales (W5-03)', () => {
       onResync: vi.fn(), onFlush: vi.fn(), onRetryFailed: vi.fn(), onExportLog: vi.fn(),
     }))
     expect(html).toMatch(/border-t border-paper-2 px-4 py-3"><div class="flex gap-2"><button[^>]*>Kirim sekarang \(1\)<\/button><button[^>]*>Perbarui data<\/button>/)
+  })
+})
+
+describe('Koneksi stock pending (F19)', () => {
+  const render = (over: object) => renderToStaticMarkup(createElement(SyncStatus, {
+    isOnline: true, pendingCount: 0, review: [], stuck: [], open: true,
+    wall: { raised: false, localVersion: 1, serverVersion: 1 }, isResyncing: false,
+    onResync: vi.fn(), onFlush: vi.fn(), onRetryFailed: vi.fn(), onExportLog: vi.fn(), ...over,
+  }))
+
+  it('quiet when nothing is pending: Tersinkron, no stock sentence, no refresh button', () => {
+    const html = render({})
+    expect(html).toContain('Online · Tersinkron')
+    expect(html).not.toContain('Stok')
+    expect(html).toContain('Tidak ada yang perlu dilakukan')
+  })
+  it('says the stock lags, never promises an automatic update, and offers Perbarui stok', () => {
+    for (const autoUpdate of [true, false]) {
+      const html = render({ stockPending: true, autoUpdate })
+      expect(html).not.toContain('Online · Tersinkron')
+      expect(html).toContain('Stok menunggu diperbarui')
+      expect(html).toContain('tekan Perbarui stok untuk memperbarui sekarang')
+      expect(html).not.toContain('otomatis')
+      expect(html).toMatch(/<button[^>]*>Perbarui stok<\/button>/)
+    }
+  })
+  it('is not claimed offline or beside a raised data wall (that has its own chip and button)', () => {
+    expect(render({ stockPending: true, isOnline: false })).not.toContain('Stok menunggu')
+    const wall = render({ stockPending: true, wall: { raised: true, localVersion: 1, serverVersion: 2 } })
+    expect(wall).toContain('Data baru siap')
+    expect(wall).toContain('>Perbarui data<')
+    expect(wall).not.toContain('Perbarui stok')
   })
 })

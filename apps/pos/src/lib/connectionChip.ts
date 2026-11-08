@@ -15,6 +15,8 @@ export type ChipInput = {
   updating: boolean
   /** Backoffice has newer reference data than this tablet. */
   wallRaised: boolean
+  /** Stock drift (another tablet, a refund) is known but not pulled yet (F19). Absent = nothing pending. */
+  stockPending?: boolean
 }
 
 export type ChipModel = { text: string; tone: Tone }
@@ -35,6 +37,8 @@ function onlineChip(i: ChipInput): ChipModel {
   if (i.pending > 0) return { text: `Mengirim ${i.pending}…`, tone: 'info' }
   if (i.updating) return { text: 'Memperbarui data…', tone: 'info' }
   if (i.wallRaised) return { text: 'Data baru siap · perbarui', tone: 'info' }
+  // The queue is sent but the stock snapshot lags: do not claim everything is fresh.
+  if (i.stockPending) return { text: 'Stok menunggu diperbarui', tone: 'info' }
   return { text: 'Online · Tersinkron', tone: 'ok' }
 }
 
