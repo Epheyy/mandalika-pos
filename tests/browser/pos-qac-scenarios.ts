@@ -22,6 +22,19 @@ const thumbGap = (page: ScenarioPage) => page.evaluate(() => {
   return { dx: Math.abs(t.left - s.left), dw: Math.abs(t.width - s.width) }
 })
 
+// The first catalogue row starts right under the glass band at scroll 0 (never under it, no gap), also after a
+// rotation: the portrait header is two rows, so the band's padding changes height on its own (2.13.1 regression).
+const bandClearance = (page: ScenarioPage) => page.evaluate(() => {
+  const band = document.querySelector('[data-kaca-band]') as HTMLElement
+  const sc = document.querySelector('[data-kaca-scroller]') as HTMLElement
+  sc.scrollTop = 0
+  const first = [...sc.querySelectorAll('button, [role=button]')].find((b) => (b as HTMLElement).offsetParent && b.getBoundingClientRect().height > 60)
+  const bb = band.getBoundingClientRect().bottom
+  const ft = first ? first.getBoundingClientRect().top : Number.NaN
+  return { bandBottom: Math.round(bb), firstTop: Math.round(ft), gap: Math.round(ft - bb) }
+})
+const clearOk = (c: { gap: number }) => Number.isFinite(c.gap) && c.gap >= -1 && c.gap <= 16
+
 export const posQaCHeaderTabs = async (page: ScenarioPage) => {
   const out: Record<string, unknown> = {}
   for (const vp of ['pos-a9', 'pos-a9-portrait'] as ShotViewport[]) {
@@ -29,6 +42,8 @@ export const posQaCHeaderTabs = async (page: ScenarioPage) => {
     await settle(page)
     await shot(page, `qac-${vp}-cart-closed`, vp)
     const before = await thumbGap(page)
+    const clrClosed = await bandClearance(page)
+    assert(clearOk(clrClosed), `${vp}: first product row sits right under the band with the cart closed (${JSON.stringify(clrClosed)})`)
     assert(before.dx < 1 && before.dw < 1, `${vp}: thumb under its tab with the cart closed (${JSON.stringify(before)})`)
     await page.getByRole('button', { name: /^Filler 01(?!\d)/ }).first().click()
     if (vp === 'pos-a9') {
@@ -45,6 +60,8 @@ export const posQaCHeaderTabs = async (page: ScenarioPage) => {
     else await page.getByRole('button', { name: /^Keranjang/ }).waitFor()
     await settle(page)
     const opened = await thumbGap(page)
+    const clrOpen = await bandClearance(page)
+    assert(clearOk(clrOpen), `${vp}: first product row sits right under the band with the cart open (${JSON.stringify(clrOpen)})`)
     assert(opened.dx < 1 && opened.dw < 1, `${vp}: thumb still under its tab after the cart opened (${JSON.stringify(opened)})`)
     await shot(page, `qac-${vp}-cart-open`, vp)
     const geo = await page.evaluate(() => {
@@ -65,7 +82,8 @@ export const posQaCHeaderTabs = async (page: ScenarioPage) => {
       const count = [...document.querySelectorAll('p')].find((x) => /^\d+ barang$/.test(x.textContent?.trim() ?? ''))
       const held = [...document.querySelectorAll('button')].find((b) => /^Tersimpan \(\d+\)/.test(b.textContent?.trim() ?? ''))
       const save = document.querySelector('button[aria-label="Simpan keranjang"]')
-      const hit = (a: ReturnType<typeof box>, b: ReturnType<typeof box>) => !!a && !!b && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+      // 1px tolerance: stacked text lines may touch by a subpixel depending on the font.
+      const hit = (a: ReturnType<typeof box>, b: ReturnType<typeof box>) => !!a && !!b && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1
       // Stress the count at 99 items: swap the text, re-measure, restore.
       let overlap99 = false
       if (count) {
@@ -116,7 +134,7 @@ export const posQaCHeaderTabs = async (page: ScenarioPage) => {
       assert(geo.padBottom >= 80, `${vp}: the catalogue clears the bottom bar (padding-bottom ${geo.padBottom})`)
       assert(!geo.shiftClipped, `${vp}: the portrait Shift pill keeps its full label (width ${geo.shiftWidth})`)
     }
-    out[vp] = { before, opened, geo }
+    out[vp] = { before, opened, geo, clrClosed, clrOpen }
     // Close the cart again: the thumb must follow the re-flow back (the two-column layout only exists in landscape).
     if (vp !== 'pos-a9') continue
     await page.getByRole('button', { name: 'Kosongkan' }).first().click()

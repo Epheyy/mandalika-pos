@@ -368,7 +368,10 @@ export const ProductGrid = memo(function ProductGrid({
     measure()
     if (typeof ResizeObserver === 'undefined') return
     const ro = new ResizeObserver(measure)
-    ro.observe(el)
+    // border-box: the header height reaches the band as its padding-top (--cashier-top-h), which a content-box
+    // observer never sees. Since the portrait header is two rows (taller than landscape), a rotation would leave the
+    // scroller padding stale: a gap above the cards in landscape, the first row under the band in portrait.
+    ro.observe(el, { box: 'border-box' })
     return () => ro.disconnect()
   }, [])
 
