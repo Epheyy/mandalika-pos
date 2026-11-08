@@ -24,7 +24,7 @@ func (h *Handlers) openShift(w http.ResponseWriter, r *http.Request,
 	resolveCaller func(*http.Request) (callerID, error),
 	open func(context.Context, service.OpenShiftInput) (string, error),
 ) {
-	body, err := service.DecodeOpenShift(r.Body)
+	body, err := service.DecodeOpenShiftDirect(r.Body)
 	if err != nil {
 		writeErr(w, r, http.StatusBadRequest, err)
 		return

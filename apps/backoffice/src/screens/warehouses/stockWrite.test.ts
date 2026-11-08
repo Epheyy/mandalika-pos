@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError, type WarehouseStockRow } from '@mandalika/api'
-import { AMBIGUOUS_HINT, KEY_CONFLICT_MESSAGE, goodsReceiptItems, isAmbiguousFailure, isKeyConflict, stockChangeLine, stockWriteError } from './stockWrite'
+import { AMBIGUOUS_HINT, KEY_CONFLICT_MESSAGE, goodsLineErrors, goodsLineKey, goodsReceiptItems, isAmbiguousFailure, isKeyConflict, stockChangeLine, stockWriteError } from './stockWrite'
 
 const row = (productId: string, variantSize: string): WarehouseStockRow =>
   ({ productId, productName: productId, variantSize, sku: null, stock: 0 }) as unknown as WarehouseStockRow
@@ -75,5 +75,18 @@ describe('stockChangeLine', () => {
 
   it('has no line until the new quantity is usable', () => {
     expect(stockChangeLine(9, null)).toBeNull()
+  })
+})
+
+describe('goodsLineErrors (F03/F04)', () => {
+  const rows = [{ productId: 'p1', variantSize: '50ml', productName: 'A' }] as unknown as Parameters<typeof goodsLineErrors>[0]
+  const key = goodsLineKey('p1', '50ml')
+  it('flags a decimal quantity and a negative cost next to their fields', () => {
+    expect(goodsLineErrors(rows, { [key]: { qty: '1.5', unitCost: '' } })[key]?.qty).toMatch(/bulat/)
+    expect(goodsLineErrors(rows, { [key]: { qty: '2', unitCost: '-1' } })[key]?.unitCost).toMatch(/negatif/)
+  })
+  it('accepts whole quantities, zero cost and empty lines', () => {
+    expect(goodsLineErrors(rows, { [key]: { qty: '2', unitCost: '0' } })).toEqual({})
+    expect(goodsLineErrors(rows, { [key]: { qty: '', unitCost: '' } })).toEqual({})
   })
 })

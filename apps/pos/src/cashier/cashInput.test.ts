@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { cashTender } from './tender'
-import { formatCashInput, MAX_CASH_DIGITS, nextCashInput, parseCashInput, parseTypedCash, pastedCashInput, caretAfterDigits } from './cashInput'
+import { formatCashInput, MAX_CASH_DIGITS, nextCashInput, parseCashInput, reduceCashKeystroke, parseTypedCash, pastedCashInput, caretAfterDigits } from './cashInput'
 
 describe('parseCashInput', () => {
   it('reads a typed id-ID amount as plain digits', () => {
@@ -128,5 +128,52 @@ describe('caretAfterDigits', () => {
   it('falls back to the end and handles an empty field', () => {
     expect(caretAfterDigits('Rp 5', 9)).toBe(4)
     expect(caretAfterDigits('', 0)).toBe(0)
+  })
+})
+
+describe('one whole-rupiah rule for typing and pasting (F18)', () => {
+  it('typed and pasted text give the same amount, never a magnified one', () => {
+    const cases: Array<[string, string]> = [
+      ['50000.5', '50000'],
+      ['50000,5', '50000'],
+      ['Rp 50.000,00', '50000'],
+      ['Rp 50.000.5', '50000'],
+      ['Rp 1.0000', '10000'],
+    ]
+    for (const [text, want] of cases) {
+      expect(pastedCashInput('', text)).toBe(want)
+      expect(nextCashInput('', text)).toBe(want)
+    }
+  })
+  it('typing a fraction key by key leaves the amount alone (the field re-formats after every keystroke)', () => {
+    // Simulates the controlled field: every keystroke inserts one char at the end of the CURRENT formatted text.
+    const type = (keys: string, start = ''): string => {
+      let raw = start
+      let frac = false
+      for (const k of keys) {
+        const r = reduceCashKeystroke(raw, formatCashInput(raw) + k, { inputType: 'insertText', data: k }, frac)
+        raw = r.raw
+        frac = r.inFraction
+      }
+      return raw
+    }
+    expect(type('50000.5')).toBe('50000')
+    expect(type('50000,50')).toBe('50000')
+    expect(type('50000.')).toBe('50000')
+    expect(type('50000')).toBe('50000')
+    expect(type('0.5')).toBe('0')
+    expect(type('.5', '50000')).toBe('50000')
+  })
+  it('a separator typed mid-string no longer shrinks the amount', () => {
+    expect(reduceCashKeystroke('1000', 'Rp 1.0.00', { inputType: 'insertText', data: '.' }, false).raw).toBe('1000')
+    expect(reduceCashKeystroke('50000', 'Rp 50.0,00', { inputType: 'insertText', data: ',' }, false).raw).toBe('50000')
+  })
+  it('deleting leaves fraction mode and regroups', () => {
+    const r = reduceCashKeystroke('1000', 'Rp 1.00', { inputType: 'deleteContentBackward', data: '' }, true)
+    expect(r).toEqual({ raw: '100', inFraction: false })
+  })
+  it('a deletion still regroups digits instead of reading a fraction', () => {
+    expect(nextCashInput('1000', 'Rp 1.00')).toBe('100')
+    expect(nextCashInput('1000', 'Rp .000')).toBe('0')
   })
 })

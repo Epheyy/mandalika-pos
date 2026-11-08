@@ -11,6 +11,7 @@ import { IconButton } from '../../ui/IconButton'
 import { Switch } from '../../ui/Switch'
 import { SplitTenderCard } from './SplitTenderCard'
 import { isSplitMethodId } from '../../lib/splitPayment'
+import { receiptCopiesError } from '../../lib/inputRules'
 
 interface TransaksiSectionProps {
   s: AppSettings
@@ -167,8 +168,9 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed, changes 
           type="number"
           min={1}
           max={5}
-          value={s.receipt.copies ?? 1}
-          onChange={(e) => setReceipt('copies', parseInt(e.target.value) || 1)}
+          value={s.receipt.copies ?? ''}
+          error={receiptCopiesError(s.receipt.copies)}
+          onChange={(e) => setReceipt('copies', e.target.value === '' ? undefined : Number(e.target.value))}
           className="w-32"
         />
         <SettingRow title="Cetak struk otomatis" change={changeAt(changes, 'receipt.autoPrint')}>

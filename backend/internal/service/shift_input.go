@@ -109,6 +109,23 @@ func DecodeOpenShift(r io.Reader) (OpenShiftBody, error) {
 	return out, nil
 }
 
+// ErrNegativeStartingCash is the online-route refusal of an opening cash below zero (owner, 2026-11-08).
+var ErrNegativeStartingCash = fmt.Errorf("kas awal tidak boleh negatif")
+
+// DecodeOpenShiftDirect is DecodeOpenShift for the online route: a negative starting cash is refused with a
+// clear message. The sync batch route keeps DecodeOpenShift on purpose: a shift_open queued offline (by an
+// older client, before the POS form refused negatives) must never be dropped, so it is accepted as sent.
+func DecodeOpenShiftDirect(r io.Reader) (OpenShiftBody, error) {
+	out, err := DecodeOpenShift(r)
+	if err != nil {
+		return out, err
+	}
+	if out.StartingCash < 0 {
+		return OpenShiftBody{}, ErrNegativeStartingCash
+	}
+	return out, nil
+}
+
 // Direct close uses the route ID; only a batch close consumes a body shiftId.
 // Authority still comes from the authenticated outlet and scoped service lookup.
 func DecodeCloseShift(r io.Reader, batch bool) (CloseShiftBody, error) {

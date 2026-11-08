@@ -188,6 +188,15 @@ func TestShiftDecodePostgres(t *testing.T) {
 			}{{0, ""}, {125.25, `,"countedByMethod":null`}, {-1.25, `,"countedByMethod":{}`}, {0, `,"countedByMethod":{"cash":0,"custom_BANK":1.25}`}} {
 				openBody := fmt.Sprintf(`{"startingCash":%g,"outletName":null,"outletId":"forged","cashierId":"forged","role":"admin","future":true} `, tc.amount)
 				var id string
+				if transport == "direct" && tc.amount < 0 {
+					// Online route refuses a negative opening cash (owner, 2026-11-08); the batch route below
+					// still accepts it so a queued offline shift_open is never dropped.
+					w := request("/shifts", openBody, token, "")
+					if w.Code != 400 || !strings.Contains(w.Body.String(), "kas awal tidak boleh negatif") {
+						t.Fatalf("negative direct open: %d %s", w.Code, w.Body.String())
+					}
+					continue
+				}
 				if transport == "direct" {
 					w := request("/shifts", openBody, token, "")
 					if w.Code != 201 {

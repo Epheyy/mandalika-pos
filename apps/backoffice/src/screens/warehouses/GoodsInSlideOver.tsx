@@ -5,7 +5,7 @@ import { newIdempotencyKey } from '../../lib/inventoryApproval'
 import { Button } from '../../ui/Button'
 import { Input, fieldClass } from '../../ui/Field'
 import { SlideOver } from '../../ui/SlideOver'
-import { goodsLineKey, goodsReceiptItems, stockWriteError, type GoodsLine } from './stockWrite'
+import { goodsLineErrors, goodsLineKey, goodsReceiptItems, stockWriteError, type GoodsLine } from './stockWrite'
 import { useStockWriteGuard } from './useStockWriteGuard'
 
 interface GoodsInSlideOverProps {
@@ -47,9 +47,14 @@ function GoodsInForm({ location, rows, onClose, onDone }: Omit<GoodsInSlideOverP
     supplier !== '' || note !== '' || isWarranty || Object.values(lines).some((l) => l.qty !== '' || l.unitCost !== '')
 
   useStockWriteGuard(busy, dirty)
+  const lineErrors = goodsLineErrors(rows, lines)
 
   const submit = async () => {
     if (inFlight.current) return
+    if (Object.keys(lineErrors).length > 0) {
+      setErr('Periksa isian yang bertanda merah.')
+      return
+    }
     const items = goodsReceiptItems(rows, lines)
     if (items.length === 0) {
       setErr('Isi jumlah (qty) minimal satu baris.')
@@ -139,6 +144,7 @@ function GoodsInForm({ location, rows, onClose, onDone }: Omit<GoodsInSlideOverP
               {rows.map((r) => {
                 const lineKey = goodsLineKey(r.productId, r.variantSize)
                 const l = lines[lineKey]
+                const le = lineErrors[lineKey]
                 return (
                   <div key={lineKey} className="grid grid-cols-12 gap-2 items-center">
                     <span className="col-span-5 text-xs text-gray-600 truncate">{r.productName}</span>
@@ -146,6 +152,7 @@ function GoodsInForm({ location, rows, onClose, onDone }: Omit<GoodsInSlideOverP
                     <input
                       type="number"
                       min={0}
+                      step={1}
                       value={l?.qty ?? ''}
                       aria-label={`Qty masuk ${r.productName} ${r.variantSize}`}
                       onChange={(e) => setLine(lineKey, { qty: e.target.value })}
@@ -161,6 +168,11 @@ function GoodsInForm({ location, rows, onClose, onDone }: Omit<GoodsInSlideOverP
                       placeholder="—"
                       className={`${fieldClass} col-span-3 py-1.5`}
                     />
+                    {le && (
+                      <p role="alert" className="col-span-12 text-[11px] text-red-600 -mt-1">
+                        {[le.qty, le.unitCost].filter(Boolean).join(' ')}
+                      </p>
+                    )}
                   </div>
                 )
               })}

@@ -1,4 +1,5 @@
 import { ApiError, type GoodsReceiptInput, type WarehouseStockRow } from '@mandalika/api'
+import { unitCostError, wholeQtyError } from '../../lib/inputRules'
 
 /** What the server says when an Idempotency-Key was already used for another operation (409). */
 export const KEY_CONFLICT_PREFIX = 'kunci idempotensi'
@@ -52,6 +53,28 @@ export function goodsReceiptItems(
     })
   }
   return items
+}
+
+/** Field messages of one goods-in line: shown next to the quantity / unit cost input. */
+export interface GoodsLineErrors {
+  qty: string | null
+  unitCost: string | null
+}
+
+/** Per-line field errors (lines with none are left out). A cost typed on a line without quantity is still checked. */
+export function goodsLineErrors(
+  rows: readonly WarehouseStockRow[],
+  lines: Readonly<Record<string, GoodsLine>>,
+): Record<string, GoodsLineErrors> {
+  const out: Record<string, GoodsLineErrors> = {}
+  for (const r of rows) {
+    const key = goodsLineKey(r.productId, r.variantSize)
+    const l = lines[key]
+    if (!l) continue
+    const e = { qty: wholeQtyError(l.qty), unitCost: unitCostError(l.unitCost) }
+    if (e.qty || e.unitCost) out[key] = e
+  }
+  return out
 }
 
 /** "Stok sekarang 9 → baru 7 (−2)"; null while the new quantity is not a usable number. */

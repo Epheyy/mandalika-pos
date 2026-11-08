@@ -4,6 +4,7 @@ import { formatRupiah } from './pricing'
 import { Sheet } from '../components/ui/Sheet'
 import { Button } from '../components/ui/Button'
 import { IconLock } from '../components/ui/icons'
+import { CashAmountInput } from './CashAmountInput'
 
 type Shift = components['schemas']['Shift']
 
@@ -80,7 +81,9 @@ export const ShiftBar = memo(function ShiftBar({
   }
 
   const handleOpen = async () => {
-    const cash = parseFloat(depositStr) || 0
+    // The field only holds digits (whole rupiah, never negative); Number('') is the empty field = Rp 0.
+    const cash = Number(depositStr) || 0
+    if (cash < 0) return
     // Keep the modal (and the typed amount) open unless the shift was saved.
     if (!(await onOpenShift(cash))) return
     setShowOpenModal(false)
@@ -174,13 +177,11 @@ export const ShiftBar = memo(function ShiftBar({
             <label htmlFor="shift-starting-cash" className="mb-1 block text-sm font-semibold text-ink-700">
               Kas Awal
             </label>
-            <input
+            <CashAmountInput
               id="shift-starting-cash"
-              type="number"
-              inputMode="numeric"
-              value={depositStr}
-              onChange={(e) => setDepositStr(e.target.value)}
-              placeholder="0"
+              raw={depositStr}
+              onRawChange={setDepositStr}
+              placeholder="Rp 0"
               className="tnum mb-4 min-h-12 w-full rounded-control border border-paper-2 bg-paper-0 px-3 text-base font-bold focus:border-ink-700 focus:outline-none"
             />
             {error && (

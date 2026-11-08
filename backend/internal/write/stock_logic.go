@@ -1,6 +1,9 @@
 package write
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 // Goods receipt sources: what a receipt is for. Pergerakan reports warranty replacements apart.
 const (
@@ -24,6 +27,23 @@ func validateReceiptSource(s string) error {
 	return nil
 }
 
+// MaxUnitCost bounds an informational receipt unit cost (numeric column headroom).
+const MaxUnitCost = 999_999_999_999.99
+
+// validateUnitCost accepts an absent cost and zero; negative or non-finite is refused.
+func validateUnitCost(c *float64) error {
+	if c == nil {
+		return nil
+	}
+	if math.IsNaN(*c) || math.IsInf(*c, 0) || *c < 0 {
+		return fmt.Errorf("harga beli tidak boleh negatif")
+	}
+	if *c > MaxUnitCost {
+		return fmt.Errorf("harga beli terlalu besar")
+	}
+	return nil
+}
+
 // validateGoodsReceipt checks a location goods-in request before any DB work.
 // MaxReceiptQty bounds one goods-receipt line so the int32 stock arithmetic can
 // never wrap.
@@ -42,6 +62,9 @@ func validateGoodsReceipt(kind string, items []GoodsReceiptItem) error {
 		}
 		if it.Qty > MaxReceiptQty {
 			return fmt.Errorf("qty tidak boleh lebih dari %d", MaxReceiptQty)
+		}
+		if err := validateUnitCost(it.UnitCost); err != nil {
+			return err
 		}
 	}
 	return nil
