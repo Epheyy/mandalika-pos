@@ -1,6 +1,6 @@
 // C6b split payment: rendered POS flows against the synthetic API. Methods in the fixture are cash (Tunai) and qris (QRIS).
 import type { ScenarioPage } from './fixture'
-import { BAYAR_SHOT_VIEWPORTS, POS_SHOT_VIEWPORTS, captureShot } from './shots'
+import { BAYAR_SHOT_VIEWPORTS, POS_SHOT_VIEWPORTS, SHOT_VIEWPORTS, captureShot, type ShotViewport } from './shots'
 
 const OUTLET = '00000000-0000-4000-8300-000000000090'
 const DRAFT_KEY = `mandalika.pos.splitDraft.${OUTLET}`
@@ -20,7 +20,7 @@ const storedOutbox = (page: ScenarioPage) =>
 /** Split QRIS (with a reference) + cash on a Rp 100.000 cart: QRIS 60.000, cash 50.000 handed over, change 10.000. */
 const paySplit = async (page: ScenarioPage) => {
   await openPay(page)
-  await page.getByRole('button', { name: 'Bagi pembayaran', exact: true }).click()
+  await page.getByRole('button', { name: 'Split-Payment', exact: true }).click()
   await page.getByRole('button', { name: 'QRIS', exact: true }).click()
   await page.getByLabel('Jumlah pembayaran ini').fill('60000')
   await page.getByLabel('No. referensi (opsional)').fill('8812345')
@@ -140,7 +140,7 @@ export const posSplitOff = async (page: ScenarioPage) => {
     await addScent(page)
     await openPay(page)
     await page.getByRole('button', { name: 'QRIS', exact: true }).click()
-    assert((await page.getByRole('button', { name: 'Bagi pembayaran', exact: true }).count()) === 0, `${label}: no Bagi pembayaran`)
+    assert((await page.getByRole('button', { name: 'Split-Payment', exact: true }).count()) === 0, `${label}: no Split-Payment`)
     assert((await page.getByLabel('No. referensi (opsional)').count()) === 1, `${label}: the reference field stays`)
     out.push({ [label]: 'no split entry' })
     await page.getByRole('heading', { name: 'Bayar', exact: true }).locator('..').getByRole('button', { name: 'Kembali', exact: true }).click()
@@ -159,7 +159,7 @@ export const posSplitDraft = async (page: ScenarioPage) => {
   const out: any[] = []
   await addScent(page)
   await openPay(page)
-  await page.getByRole('button', { name: 'Bagi pembayaran', exact: true }).click()
+  await page.getByRole('button', { name: 'Split-Payment', exact: true }).click()
   await page.getByRole('button', { name: 'QRIS', exact: true }).click()
   await page.getByLabel('Jumlah pembayaran ini').fill('60000')
   await page.getByRole('button', { name: '+ Tambah pembayaran', exact: true }).click()
@@ -199,5 +199,61 @@ export const posSplitDraft = async (page: ScenarioPage) => {
   assert(after.sales === 1 && after.withUuid === 1, 'still exactly one queued sale with the same orderUuid after the reload: ' + JSON.stringify(after))
   await page.waitForFunction((k) => localStorage.getItem(k) === null, DRAFT_KEY)
   out.push({ killAfterEnqueue: 'no prompt, one queued sale, same orderUuid, stale draft dropped' })
+  return out
+}
+
+// POS-BAYAR-OVERFLOW (QA wave B: F16, F31, U5): five methods, a 246-char unbroken note and split mode never push the Bayar dialog
+// sideways, at the fleet tablet in both orientations; the chosen method and Konfirmasi stay on screen.
+export const posBayarOverflow = async (page: ScenarioPage) => {
+  const out: any[] = []
+  await addScent(page)
+  await page.getByRole('button', { name: 'Catatan', exact: true }).first().click()
+  await page.getByRole('textbox', { name: 'Catatan order' }).fill('N'.repeat(246))
+  await page.getByRole('button', { name: 'Simpan', exact: true }).click()
+  await openPay(page)
+  await page.getByRole('button', { name: 'NEOBANK', exact: true }).waitFor()
+  assert((await page.getByRole('dialog').getByText('N'.repeat(246)).count()) === 1, 'the long note is shown in Bayar')
+  const original = page.viewportSize()
+  const measure = async (label: string) => {
+    for (const vp of ['pos-a9', 'pos-a9-portrait'] as ShotViewport[]) {
+      await page.setViewportSize(SHOT_VIEWPORTS[vp])
+      await page.evaluate(async () => {
+        await document.fonts.ready
+        await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+      })
+      const m = await page.evaluate(() => {
+        const dialog = document.querySelector('[role=dialog]') as HTMLElement
+        const w = window.innerWidth
+        const h = window.innerHeight
+        const inside = (el: Element | null) => { if (!el) return false; const r = el.getBoundingClientRect(); return r.left >= -0.5 && r.right <= w + 0.5 && r.top >= 0 && r.bottom <= h + 0.5 }
+        const sw = document.querySelector('[role=dialog] [aria-label="Metode pembayaran"]')
+        const buttons = [...(sw?.querySelectorAll('button') ?? [])]
+        const confirm = [...dialog.querySelectorAll('button')].find((b) => /^Konfirmasi\s*Rp/.test(b.textContent ?? '')) ?? null
+        const bodyEl = dialog.querySelector('.overflow-y-auto') as HTMLElement | null
+        return {
+          noHScroll: dialog.scrollWidth <= dialog.clientWidth + 1 && (!bodyEl || bodyEl.scrollWidth <= bodyEl.clientWidth + 1),
+          switchInside: buttons.length === 5 && buttons.every((b) => b.getBoundingClientRect().right <= (sw as HTMLElement).getBoundingClientRect().right + 0.5) && buttons.every((b) => b.getBoundingClientRect().height >= 43.5) && buttons.every((b) => b.scrollWidth <= b.clientWidth + 1),
+          dialogInside: dialog.getBoundingClientRect().right <= w + 0.5,
+          confirmInside: inside(confirm),
+        }
+      })
+      assert(m.noHScroll && m.switchInside && m.dialogInside && m.confirmInside, `${label} @${vp}: ${JSON.stringify(m)}`)
+      out.push({ step: label, vp })
+    }
+  }
+  try {
+    await measure('single, 5 methods + long note')
+    await captureShot(page, 'qa-b-bayar-single', ['pos-a9', 'pos-a9-portrait'])
+    await page.getByRole('button', { name: 'NEOBANK', exact: true }).click()
+    await measure('single, NEOBANK selected')
+    await page.getByRole('button', { name: 'Split-Payment', exact: true }).click()
+    await page.getByRole('button', { name: 'NEOBANK', exact: true }).click()
+    await measure('split, NEOBANK selected')
+    await captureShot(page, 'qa-b-bayar-split', ['pos-a9', 'pos-a9-portrait'])
+    await page.getByRole('button', { name: 'Tunai', exact: true }).click()
+    await measure('split, Tunai selected')
+  } finally {
+    if (original) await page.setViewportSize(original)
+  }
   return out
 }

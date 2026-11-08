@@ -15,6 +15,8 @@ export const SHOT_VIEWPORTS = {
   'pos-a9': { width: 1006, height: 601 },
   /** POS short height: the Bayar sheet (P-5 was found here). */
   'pos-short': { width: 1280, height: 667 },
+  /** The fleet tablet rotated (portrait CSS viewport). */
+  'pos-a9-portrait': { width: 602, height: 1006 },
   'bo-desktop': { width: 1440, height: 900 },
   'bo-tablet': { width: 768, height: 1024 },
   'bo-phone': { width: 375, height: 812 },
