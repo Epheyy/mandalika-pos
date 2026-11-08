@@ -10,6 +10,8 @@ import { installGlobalErrorHandler } from './lib/errorReporter'
 import App from './App'
 import { BootError } from './BootError'
 import { bootStorage } from './bootStorage'
+import { claimActiveTab } from './tabGuard'
+import { TabBlocked } from './TabBlocked'
 import { sweepOrderHistoryCache } from './lib/offlineCache'
 import { dropLegacyPinLockout } from './lib/legacyPinLockout'
 
@@ -38,9 +40,23 @@ function applyMaterial(brandId: string, root: HTMLElement = document.documentEle
 
 // Boot order matters: hydrate secure storage (refresh token / outbox / device
 // id / snapshot) and set up the native shell BEFORE React reads any of it.
+// A refresh/reload hands the lock over within a moment; only a longer wait shows the "other tab" screen.
+const TAB_BLOCKED_SHOW_MS = 800
+
 async function boot(): Promise<void> {
   applyBrand(brand)
   applyMaterial(brand.id)
+  const root = createRoot(document.getElementById('root')!)
+  // F22/W01: ONE live tab per browser profile, claimed before anything touches storage (OTA, journal, sync engine,
+  // cart draft). A second tab waits here, shows a notice, and continues by itself when the first one closes.
+  const claim = await claimActiveTab()
+  if (!claim.owner) {
+    const notice = setTimeout(() => root.render(<TabBlocked />), TAB_BLOCKED_SHOW_MS)
+    await claim.granted
+    clearTimeout(notice)
+  }
+  // A page restored from the back/forward cache would run on state (and a lock) from before it was frozen.
+  window.addEventListener('pageshow', (e) => { if (e.persisted) window.location.reload() })
   // C5: first thing, before storage hydrate and any UI/cart: arm the kill delay (a queued OTA bundle must not
   // apply on background) and apply a bundle queued by an earlier session once. Bounded, never throws.
   await startupOta()
@@ -49,7 +65,7 @@ async function boot(): Promise<void> {
   } catch (err) {
     // Never fall back to an empty queue: stop with a visible, retryable error.
     void hideSplash()
-    createRoot(document.getElementById('root')!).render(
+    root.render(
       <BootError detail={err instanceof Error ? err.message : 'storage init failed'} />,
     )
     return
@@ -61,7 +77,7 @@ async function boot(): Promise<void> {
   // A08: the receive-PIN lockout is server-side now; drop the old local copy.
   dropLegacyPinLockout()
 
-  createRoot(document.getElementById('root')!).render(
+  root.render(
     <StrictMode>
       <AuthProvider>
         <PrinterProvider>

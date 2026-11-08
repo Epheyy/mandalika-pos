@@ -398,6 +398,18 @@
       "source": "tests/browser/pos-split-scenarios.ts"
     },
     {
+      "id": "POS-STOCK-PENDING",
+      "finding": "F19",
+      "description": "A foreign stock bump behind an open cart: after a 60 s hold-off the connection chip says Stok menunggu diperbarui instead of Online Tersinkron; one pull clears it once the cart is empty",
+      "source": "tests/browser/pos-wave-g-scenarios.ts"
+    },
+    {
+      "id": "POS-TWO-TABS",
+      "finding": "F22/W01",
+      "description": "A second tab of the same browser profile shows the other-tab notice, makes no storage writes, leaves the first tab cart alone, and starts by itself once the first tab closes",
+      "source": "tests/browser/pos-wave-g-scenarios.ts"
+    },
+    {
       "id": "POS-OPEN-CART",
       "finding": "P-20",
       "description": "The open cart is saved on this tablet, restored after a reload, deleted once the sale is queued; a stale draft whose sale is already queued is dropped and the paid cart never reappears",

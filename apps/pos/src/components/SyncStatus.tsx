@@ -17,6 +17,7 @@ import { queueCountsLine } from '../lib/queueGuard'
 import { OFFLINE_LOCKED_MESSAGE, offlineHours, offlineWarnMessage } from '../lib/offlineCap'
 import { OTA_BLOCK_COPY, type OtaBlockReason } from '../lib/otaApplyGate'
 import { useKoneksiData, useOfflineStart } from '../hooks/useKoneksiData'
+import { useStockPending } from '../hooks/useStockPending'
 import { queuedTimeText } from '../lib/queuedSales'
 import { formatRupiah } from '../cashier/pricing'
 import { Button, Chip, Sheet, toneClasses } from './ui'
@@ -120,6 +121,7 @@ function explanation(o: {
   cap?: OfflineCapState
   accountProblem: string | null
   wallRaised: boolean
+  stockPending: boolean
   autoUpdate: boolean
   pendingCount: number
 }): string | null {
@@ -134,6 +136,8 @@ function explanation(o: {
   }
   if (o.pendingCount > 0) return 'Transaksi tersimpan di tablet dan sedang dikirim.'
   if (o.wallRaised) return o.autoUpdate ? 'Diperbarui otomatis saat keranjang kosong.' : null
+  // No promise of an automatic update: the stock pull has its own hourly cap that autoUpdate does not reflect.
+  if (o.stockPending) return 'Transaksi terkirim. Stok produk belum diperbarui; tekan Perbarui stok untuk memperbarui sekarang.'
   return 'Semua transaksi sudah terkirim.'
 }
 
@@ -177,6 +181,8 @@ interface SyncStatusProps {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   otaUpdate?: OtaUpdateView | null
+  /** Stock drift not pulled yet (F19). Normally read from the engine by the component; a prop for tests. */
+  stockPending?: boolean
 }
 
 export const SyncStatus = memo(function SyncStatus({
@@ -199,6 +205,7 @@ export const SyncStatus = memo(function SyncStatus({
   open: openProp,
   onOpenChange,
   otaUpdate = null,
+  stockPending: stockPendingProp,
 }: SyncStatusProps) {
   const [innerOpen, setInnerOpen] = useState(false)
   const open = openProp ?? innerOpen
@@ -210,6 +217,9 @@ export const SyncStatus = memo(function SyncStatus({
   const showStuck = isOnline && stuck.length > 0
   const showAccount = isOnline && accountProblem !== null
   const updateAvailable = wall.raised
+  const enginePending = useStockPending()
+  // Only stock-only changes: a raised data wall already has its own chip and button.
+  const stockPending = isOnline && !updateAvailable && (stockPendingProp ?? enginePending)
 
   const chip = chipModel({
     reachable: isOnline,
@@ -221,6 +231,7 @@ export const SyncStatus = memo(function SyncStatus({
     accountIssue: showAccount,
     updating: isResyncing,
     wallRaised: updateAvailable,
+    stockPending,
   })
   const { queued, dataUpdatedAt, now } = useKoneksiData(open, pendingCount)
   const offlineStart = useOfflineStart(isOnline || offlineCap?.level === 'locked' ? null : (offlineCap?.offlineMs ?? null))
@@ -228,7 +239,7 @@ export const SyncStatus = memo(function SyncStatus({
   const otherQueued = Math.max(0, pendingCount - queued.length)
   // A parked item outranks the offline note: its count stays the title.
   const statusTitle = offlineSince && review.length === 0 ? `Offline sejak ${offlineSince} · penjualan tetap bisa` : chip.text
-  const note = explanation({ isOnline, cap: offlineCap, accountProblem, wallRaised: updateAvailable, autoUpdate, pendingCount })
+  const note = explanation({ isOnline, cap: offlineCap, accountProblem, wallRaised: updateAvailable, stockPending, autoUpdate, pendingCount })
   const canFlush = pendingCount > 0 && !hasFailed
 
   return (
@@ -325,7 +336,7 @@ export const SyncStatus = memo(function SyncStatus({
           {dataUpdatedAt !== null && (
             <p className="flex items-center gap-2 text-xs font-semibold text-ink-700" data-testid="data-freshness">
               <span aria-hidden="true" className="h-2 w-2 flex-shrink-0 rounded-full bg-info" />
-              Data produk &amp; promo: diperbarui {queuedTimeText(new Date(dataUpdatedAt).toISOString(), now)}
+              Data produk, stok &amp; promo: diperbarui {queuedTimeText(new Date(dataUpdatedAt).toISOString(), now)}
             </p>
           )}
 
@@ -337,21 +348,21 @@ export const SyncStatus = memo(function SyncStatus({
         </div>
 
         <div className="border-t border-paper-2 px-4 py-3">
-          {canFlush || updateAvailable || hasFailed ? (
+          {canFlush || updateAvailable || stockPending || hasFailed ? (
             <div className="flex gap-2">
               {canFlush && (
                 <Button className="flex-1" onClick={() => { onFlush(); setOpen(false) }}>
                   Kirim sekarang ({pendingCount})
                 </Button>
               )}
-              {updateAvailable && (
+              {(updateAvailable || stockPending) && (
                 <Button
                   variant={canFlush ? 'secondary' : 'primary'}
                   className="flex-1"
                   disabled={isResyncing}
                   onClick={() => { onResync(); setOpen(false) }}
                 >
-                  {isResyncing ? 'Memperbarui data…' : 'Perbarui data'}
+                  {isResyncing ? 'Memperbarui data…' : updateAvailable ? 'Perbarui data' : 'Perbarui stok'}
                 </Button>
               )}
               {hasFailed && (

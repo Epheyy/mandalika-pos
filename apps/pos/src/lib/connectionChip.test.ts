@@ -11,6 +11,14 @@ describe('chipModel online', () => {
   it('empty queue is Online · Tersinkron (ok)', () => {
     expect(chip({})).toEqual({ text: 'Online · Tersinkron', tone: 'ok' })
   })
+  it('stock waiting for an update is info, and only when nothing louder is pending', () => {
+    expect(chip({ stockPending: true })).toEqual({ text: 'Stok menunggu diperbarui', tone: 'info' })
+    expect(chip({ stockPending: false }).text).toBe('Online · Tersinkron')
+    expect(chip({ stockPending: true, wallRaised: true }).text).toBe('Data baru siap · perbarui')
+    expect(chip({ stockPending: true, updating: true }).text).toBe('Memperbarui data…')
+    expect(chip({ stockPending: true, pending: 2 }).text).toBe('Mengirim 2…')
+    expect(chip({ stockPending: true, reachable: false }).text).toBe('Offline · aman')
+  })
   it('sending N is info', () => {
     expect(chip({ pending: 3 })).toEqual({ text: 'Mengirim 3…', tone: 'info' })
   })

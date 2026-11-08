@@ -180,6 +180,52 @@ describe.each(['kv', 'journal'] as const)('A15 phase B stock seq over the %s sto
     expect(s.pulls).toBe(1)
   })
 
+  it('F19 stockRefreshPending: true from the poll that sees foreign drift until the throttled pull lands; own sales never', async () => {
+    const { s, engine } = await setup(kind)
+    expect(engine.stockRefreshPending()).toBe(false)
+    await queue(engine, 1)
+    await until(engine.flushNow())
+    await advance(POLL)
+    expect(engine.stockRefreshPending()).toBe(false) // an own, explained bump is not drift
+    s.foreignSale(1)
+    await advance(POLL)
+    expect(engine.stockRefreshPending()).toBe(true)
+    await advance(5_000 + STOCK_FLOOR)
+    expect(s.pulls).toBe(1)
+    expect(engine.stockRefreshPending()).toBe(false)
+  })
+
+  it('F19 stockRefreshPending stays true while the gate defers the pull, and a manual resync clears it', async () => {
+    const { s, engine, gateState } = await setup(kind)
+    gateState.open = false
+    s.foreignSale(1)
+    await advance(POLL + 10 * 60_000)
+    expect(s.pulls).toBe(0)
+    expect(engine.stockRefreshPending()).toBe(true)
+    await until(engine.resync())
+    expect(engine.stockRefreshPending()).toBe(false)
+  })
+
+  it('F19 stockRefreshPending is false while the data wall is raised and for housekeeping alone', async () => {
+    const { s, engine } = await setup(kind)
+    s.version = 2
+    s.foreignSale(1)
+    await advance(POLL)
+    expect(engine.getWall().raised).toBe(true)
+    expect(engine.stockRefreshPending()).toBe(false)
+    await until(engine.resync())
+    const lines = [{ productId: 'p1', variantSize: '10ml', qty: 1 }]
+    await peek(engine).settling.recordMany(Array.from({ length: 200 }, (_, i) => ({ key: `h${i}`, lines })))
+    expect(engine.stockRefreshPending()).toBe(false)
+  })
+
+  it('F19 stockRefreshPending is false on a server without seq', async () => {
+    const { s, engine } = await setup(kind, { withSeq: false })
+    s.foreignSale(1)
+    await advance(POLL)
+    expect(engine.stockRefreshPending()).toBe(false)
+  })
+
   it('a refund (seq moves, no entry explains it) pulls the restock', async () => {
     const { s, engine } = await setup(kind)
     s.refund(1)
