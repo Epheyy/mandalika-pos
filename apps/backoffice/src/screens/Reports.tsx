@@ -14,7 +14,8 @@ import { DiscountCodeReportTab } from './reports/DiscountCodeReportTab'
 import { RefundReportTab } from './reports/RefundReportTab'
 import { OversellTab } from './reports/OversellTab'
 import { useOversellOpenCount } from './reports/useOversellOpenCount'
-import { PAGE_ONLY_SCHEMA, carriedDays, dayOf, dayToQuery, enumOf, pageOf, paymentOf, withCurrent } from './reports/reportFilters'
+import { useHistoricalPaymentIds } from './reports/useHistoricalPaymentIds'
+import { PAGE_ONLY_SCHEMA, carriedDays, dateRangeError, dayOf, dayToQuery, enumOf, pageOf, paymentOf, withCurrent } from './reports/reportFilters'
 import { Input, Select } from '../ui/Field'
 import { Card } from '../ui/Card'
 import { PageHeader } from '../ui/PageHeader'
@@ -81,6 +82,7 @@ export default function Reports() {
   const dateTo = dayOf(state.sampai, today)
   const fStatus = enumOf<string>(state.status, EXPORT_STATUSES, '')
   const fPay = paymentOf(state.bayar)
+  const rangeError = datesInert ? null : dateRangeError(dateFrom, dateTo)
 
   // An outlet switch can leave a page number that does not exist in the new scope; the tabs that remount on the
   // outlet keep their race protection, this puts hal back to 1 (replace: Back must not return to the old page).
@@ -98,7 +100,11 @@ export default function Reports() {
   // Only the lightweight lookups live here; each tab fetches its own data while active.
   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const aq = usePolledQuery<AppSettings>(() => api.getAppSettings(), [], 60000)
-  const payOptions = withCurrent(paymentFilterOptions(aq.data?.paymentMethods), fPay)
+  // Methods that exist in the chosen period (even ones removed from settings), ignoring the payment filter itself.
+  const historicalPay = useHistoricalPaymentIds(
+    { dateFrom, dateTo, status: fStatus, payment: '', q: '' }, outletId, tab === 'export' && canViewReports && !rangeError,
+  )
+  const payOptions = withCurrent(paymentFilterOptions(aq.data?.paymentMethods, [], historicalPay), fPay)
   const outlets = ouq.data ?? []
 
   return (
@@ -124,6 +130,7 @@ export default function Reports() {
           label="Dari"
           disabled={datesInert}
           value={dateFrom}
+          max={dateTo || undefined}
           onChange={(e) => setState({ dari: dayToQuery(e.target.value), hal: 1 }, { replace: true })}
           className="w-auto"
         />
@@ -132,6 +139,7 @@ export default function Reports() {
           label="Sampai"
           disabled={datesInert}
           value={dateTo}
+          min={dateFrom || undefined}
           onChange={(e) => setState({ sampai: dayToQuery(e.target.value), hal: 1 }, { replace: true })}
           className="w-auto"
         />
@@ -162,17 +170,19 @@ export default function Reports() {
       </Card>
       )}
 
-      {tab === 'grants' && <PromoGrantsTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
+      {tab !== 'orders' && rangeError && <p role="alert" data-testid="range-error" className="text-sm text-danger">{rangeError}</p>}
 
-      {tab === 'codeReport' && <DiscountCodeReportTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
+      {tab === 'grants' && !rangeError && <PromoGrantsTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
 
-      {tab === 'refund' && <RefundReportTab key={`${outletId}|${dateFrom}|${dateTo}`} dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
+      {tab === 'codeReport' && !rangeError && <DiscountCodeReportTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
 
-      {tab === 'oversell' && (
+      {tab === 'refund' && !rangeError && <RefundReportTab key={`${outletId}|${dateFrom}|${dateTo}`} dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
+
+      {tab === 'oversell' && !rangeError && (
         <OversellTab onRangeActiveChange={setOversellFollowsRange} dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} canAcknowledge={canAcknowledgeOversell} />
       )}
 
-      {tab === 'export' && (
+      {tab === 'export' && !rangeError && (
         // Remount on a filter change (it also carries the outlet-switch race protection); hal goes back to 1 in the
         // same patch that changed the filter, so paging restarts at page 1.
         <ExportTab
@@ -184,7 +194,7 @@ export default function Reports() {
         />
       )}
 
-      {tab === 'shifts' && <ShiftsTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId} outlets={outlets} />}
+      {tab === 'shifts' && !rangeError && <ShiftsTab dateFrom={dateFrom} dateTo={dateTo} outletId={outletId} outlets={outlets} />}
     </div>
   )
 }

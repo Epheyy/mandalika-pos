@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  UNBOUNDED_DAY, carriedDays, isAnswerFor, dayOf, dayToQuery, enumOf, isDay, pageOf, pageSizeOf, pageToClamp, totalPagesOf, paymentOf, uuidOf, withCurrent,
+  UNBOUNDED_DAY, carriedDays, dateRangeError, isAnswerFor, dayOf, dayToQuery, enumOf, isDay, pageOf, pageSizeOf, pageToClamp, totalPagesOf, paymentOf, uuidOf, withCurrent,
 } from './reportFilters'
 
 describe('pageOf / pageSizeOf', () => {
@@ -148,5 +148,17 @@ describe('totalPagesOf', () => {
   it('treats a bad limit or total as one page', () => {
     expect(totalPagesOf(10, 0)).toBe(1)
     expect(totalPagesOf(Number.NaN, 50)).toBe(1)
+  })
+})
+
+describe('dateRangeError (F10)', () => {
+  it('flags a start after the end', () => {
+    expect(dateRangeError('2026-11-09', '2026-11-01')).toMatch(/lebih akhir/)
+  })
+  it('accepts equal days, ordered days and unbounded ends', () => {
+    expect(dateRangeError('2026-11-01', '2026-11-01')).toBeNull()
+    expect(dateRangeError('2026-11-01', '2026-11-09')).toBeNull()
+    expect(dateRangeError('', '2026-11-01')).toBeNull()
+    expect(dateRangeError('2026-11-09', '')).toBeNull()
   })
 })
