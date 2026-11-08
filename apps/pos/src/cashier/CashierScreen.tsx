@@ -123,6 +123,10 @@ const DEFAULT_LOYALTY: components['schemas']['LoyaltySettings'] = {
 
 /** D-93: how long the "Ditambahkan · {nama}" add-to-cart toast stays up. */
 const ADD_TOAST_MS = 1600
+// The cart column (sm+) runs the full screen height; the header + banners span only the catalogue column, so
+// the top stack gets a right margin equal to the cart width while the cart shows. Keep the two in step.
+const CART_WIDTH = 'w-full sm:w-80 lg:w-[486px]'
+const CART_STACK_MARGIN = 'sm:mr-80 lg:mr-[486px]'
 
 export default function CashierScreen() {
   const { user } = useAuth()
@@ -335,6 +339,7 @@ export default function CashierScreen() {
   const loyalty = snapshot.loyaltySettings ?? DEFAULT_LOYALTY
 
   const { actions: cartActions, derived } = useCart({ state, dispatch, settings, loyalty })
+  const cartShown = derived.totalCartItems > 0
   // C3: the outlet giveaway the server adds to every sale, shown as a derived Rp0 line (never in state.cart).
   const giveawayConfig = hasFeature('giveaway') ? snapshot.outletGiveaway : undefined
   const giveaway = giveawayLine(state.cart, giveawayConfig, giveawayConfig ? giveawayStock(giveawayConfig, displayProducts, pendingStockDeltas) : 0)
@@ -1228,15 +1233,13 @@ export default function CashierScreen() {
     <div ref={screenRef} className="relative h-screen flex flex-col overflow-hidden">
       {/* Top stack: header + banners. It sits above the glass band (z-20) and has no background of its own, so the
           band's glass (inside the product panel) shows through the header. */}
-      <div ref={topStackRef} className="relative z-20 flex-shrink-0">
+      <div ref={topStackRef} className={`relative z-20 flex-shrink-0 ${cartShown ? CART_STACK_MARGIN : ''}`}>
       {/* Header — brand logo, then the active-shift chip and the live
           online/offline indicator in the same row (moved up out of the old
           shift bar / the drawer footer). */}
-      <header className="min-h-14 px-3 py-1 flex items-center justify-between gap-2 safe-top">
+      <header className="min-h-14 px-3 py-1 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 safe-top">
         <div className="flex items-center gap-2 min-w-0 flex-shrink overflow-hidden">
           <img src={brand.logo} alt={`${brand.displayName} POS`} className="h-7 w-auto object-contain flex-shrink-0" />
-          {/* Read-only: the terminal's outlet is fixed (A04); change it only via Lepas terminal. */}
-          {outletLabel && <span className="text-[0.9375rem] font-semibold text-ink-700 truncate flex-shrink min-w-0" title="Outlet terminal">{outletLabel}</span>}
         </div>
         <HeaderSearch value={searchQuery} onChange={setSearchQuery} onSubmit={handleSearchSubmit} onScan={() => void handleCameraScan()} />
         <ShiftBar
@@ -1248,10 +1251,7 @@ export default function CashierScreen() {
           onRequestClose={() => openRecap(true)}
           promptOpen={shiftPrompt} onPromptConsumed={() => setShiftPrompt(false)}
         />
-        {/* U6: with the cart column open (sm+) the Online pill and Menu take the cart column's width, so the
-            boundary falls between the Shift pill (over the catalogue) and these (over the cart) instead of
-            through the Shift pill. */}
-        <div className={`flex items-center justify-end gap-2 flex-shrink-0 ${derived.totalCartItems > 0 ? 'min-[960px]:min-w-[calc(20rem-0.75rem)] lg:min-w-[calc(486px-0.75rem)]' : ''}`}>
+        <div className="flex items-center justify-end gap-2 flex-shrink-0">
           <SyncStatus
             open={showConnection} onOpenChange={setShowConnection}
             otaUpdate={ota.state.pending && {
@@ -1360,7 +1360,7 @@ export default function CashierScreen() {
 
         {/* Cart panel — only mounts once the cart has items (dynamic). */}
         {derived.totalCartItems > 0 && (
-          <div className={`w-full sm:w-80 lg:w-[486px] flex-shrink-0 flex-col sm:flex pb-20 sm:pb-0 ${state.activeTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
+          <div className={`${CART_WIDTH} flex-shrink-0 flex-col sm:flex pb-20 sm:pb-0 sm:-mt-[var(--cashier-top-h,3.5rem)] sm:pt-[max(var(--sat,env(safe-area-inset-top)),0px)] ${state.activeTab === 'products' ? 'hidden sm:flex' : 'flex'}`}>
             <Cart
               cart={state.cart} giveaway={giveaway} derived={derived} settings={settings}
               customerSlot={customerChip}
@@ -1534,7 +1534,7 @@ export default function CashierScreen() {
         shiftActive={!!shift.currentShift}
         pendingSync={offlineData.pendingCount > 0}
         isSyncing={offlineData.isResyncing}
-        outletName={snapshot.outletName}
+        outletName={snapshot.outletName || outletLabel}
         lastSyncedLabel={offlineData.lastSyncedAt
           ? new Date(offlineData.lastSyncedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
           : null}

@@ -7,10 +7,11 @@ interface HeaderSearchProps {
   onScan?: () => void
 }
 
-/** Product search + scan inside the glass header bar, next to the brand (W1-02). */
+/** Product search + scan inside the glass header bar, next to the brand (W1-02). Below sm (portrait) it takes its own
+ *  second row so the Shift pill keeps its label. */
 export function HeaderSearch({ value, onChange, onSubmit, onScan }: HeaderSearchProps) {
   return (
-    <div className="flex min-h-11 min-w-[12rem] flex-1 items-center gap-2 rounded-chip border border-paper-2 bg-white px-3 focus-within:ring-2 focus-within:ring-paper-2">
+    <div className="flex min-h-11 min-w-[7rem] flex-1 order-last basis-full sm:order-none sm:basis-0 items-center gap-2 rounded-chip border border-paper-2 bg-white px-3 focus-within:ring-2 focus-within:ring-paper-2">
       <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 text-ink-500">
         <circle cx="11" cy="11" r="7" />
         <path d="m20 20-3.5-3.5" />

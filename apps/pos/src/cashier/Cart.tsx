@@ -178,17 +178,19 @@ export const Cart = memo(function Cart({
 
   return (
     <div className="m-1.5 ml-0 flex h-[calc(100%-0.75rem)] min-h-0 flex-col overflow-hidden rounded-panel border border-paper-2 bg-[var(--surface-solid-bg)] shadow-[-10px_0_26px_-18px_rgba(70,46,10,0.3)]">
-      {/* Header: title + count on one baseline, Simpan / Tersimpan on the right */}
-      <div className="flex flex-shrink-0 flex-wrap items-center justify-between py-0.5 pl-4 pr-2">
-        <h2 className="flex min-w-0 flex-1 items-baseline justify-between gap-2 pr-2 text-[1.0625rem] font-bold text-ink-900">
-          Pesanan
+      {/* Header: title with the count under it (a ~280px cart cannot fit title, count, Tersimpan and Simpan on one
+          line), Simpan / Tersimpan on the right. The title never shrinks under its text; when title + actions still
+          do not fit (wide or scaled fonts) the actions wrap to a second row instead of overlapping the title. */}
+      <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-x-1 py-0.5 pl-4 pr-2">
+        <div className="flex-shrink-0">
+          <h2 className="text-[1.0625rem] font-bold leading-tight text-ink-900">Pesanan</h2>
           {derived.totalCartItems > 0 && (
-            <span className="tnum whitespace-nowrap text-[0.8125rem] font-medium text-ink-500">
+            <p className="tnum whitespace-nowrap text-[0.8125rem] font-medium leading-tight text-ink-500">
               {derived.totalCartItems} barang
-            </span>
+            </p>
           )}
-        </h2>
-        <div className="flex items-center">
+        </div>
+        <div className="ml-auto flex flex-shrink-0 items-center">
           {heldCount > 0 && (
             <Button variant="ghost" onClick={onOpenHeld} className="-my-1 min-h-11 px-2">
               Tersimpan ({heldCount})

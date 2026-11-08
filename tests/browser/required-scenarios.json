@@ -424,7 +424,7 @@
     {
       "id": "POS-QAC-HEADER-TABS",
       "finding": "QA-C-U1-U6-F25",
-      "description": "With the cart open the header's Shift pill sits inside the cart column (1006x601), the category thumb stays under its tab as the cart opens and closes at both orientations, and the 602x1006 catalogue clears the bottom bar",
+      "description": "With the cart open (1006x601) the cart column runs from the viewport top, every header control (search, Shift, Online, Menu) ends at or left of it, the header has no outlet name and the cart header count never meets Tersimpan/Simpan; the category thumb stays under its tab as the cart opens and closes at both orientations, and the 602x1006 catalogue clears the bottom bar",
       "source": "tests/browser/pos-qac-scenarios.ts"
     },
     {
