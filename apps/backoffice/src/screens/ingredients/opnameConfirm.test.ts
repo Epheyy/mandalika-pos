@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { completeIngredientCountConfirm, startIngredientCountConfirm, summarizeIngredientCount } from './opnameConfirm'
+import { completeIngredientCountConfirm, leaveUnsavedCountConfirm, startIngredientCountConfirm, summarizeIngredientCount } from './opnameConfirm'
 
 describe('summarizeIngredientCount', () => {
   it('counts the lines with a saved quantity (zero is a count)', () => {
@@ -25,5 +25,15 @@ describe('startIngredientCountConfirm', () => {
     expect(c.title).toBe('Mulai opname Opname Mei?')
     expect(c.consequence).not.toContain('dibekukan')
     expect(c.consequence).toContain('Stok tidak berubah')
+  })
+})
+
+describe('leaveUnsavedCountConfirm', () => {
+  it('says how many rows are unsaved and defaults to keeping the work', () => {
+    const c = leaveUnsavedCountConfirm(3)
+    expect(c.consequence).toContain('3 bahan')
+    expect(c.cancelLabel).toBe('Lanjut edit')
+    expect(c.confirmLabel).toBe('Tinggalkan dan buang')
+    expect(c.tone).toBe('danger') // danger starts focus on the cancel button, so Enter keeps editing
   })
 })

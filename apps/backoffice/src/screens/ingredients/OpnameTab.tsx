@@ -30,7 +30,8 @@ import {
 } from './opnameConfirm'
 import { cancelCountConfirm } from '../stockcount/countConfirm'
 import { useIngredientCountDetails, type CountDetail } from './useIngredientCountDetails'
-import { buildIngredientCountSaveItems, parseCountInput, withCountEntry, withoutSavedEntries } from './opnameSave'
+import { buildIngredientCountSaveItems, parseCountInput, unsavedEntryCount, withCountEntry, withoutSavedEntries } from './opnameSave'
+import { useCountLeaveGuard } from './useCountLeaveGuard'
 
 const fmtQty = (n: number | null | undefined) => {
   if (n == null) return '—'
@@ -91,18 +92,16 @@ function ItemsTable({ sc, items, counted, onCountChange }: ItemsTableProps) {
                         {serverDiff > 0 ? '+' : ''}
                         {fmtQty(serverDiff)}
                       </span>
-                    ) : sc.status === 'in_progress' && counted[it.id] !== undefined && it.counted != null ? (
-                      (() => {
-                        const d = (counted[it.id] ?? 0) - (it.counted ?? 0)
-                        return (
-                          <span
-                            className={`text-xs ${d > 0 ? 'text-green-600' : d < 0 ? 'text-red-500' : 'text-gray-400'}`}
-                          >
-                            {d > 0 ? '+' : ''}
-                            {fmtQty(d)}
+                    ) : sc.status === 'in_progress' && counted[it.id] !== undefined ? (
+                      <span className="text-xs font-bold text-amber-700">
+                        Belum disimpan
+                        {it.counted != null && (
+                          <span className="ml-1 font-normal">
+                            ({counted[it.id] - it.counted > 0 ? '+' : ''}
+                            {fmtQty(counted[it.id] - it.counted)})
                           </span>
-                        )
-                      })()
+                        )}
+                      </span>
                     ) : (
                       <span className="text-gray-300">—</span>
                     )}
@@ -212,6 +211,8 @@ export default function OpnameTab() {
   })
 
   const { detailOf, reload } = useIngredientCountDetails(stockCounts, expanded)
+  // Typed-but-unsaved rows live only in `draft`: asking before the screen is left keeps them from vanishing silently.
+  useCountLeaveGuard(unsavedEntryCount(draft, stockCounts))
   const countedFor = (sc: IngredientStockCount) => draft[sc.id] ?? {}
 
   const createSC = async () => {
