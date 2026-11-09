@@ -69,6 +69,11 @@ export function formatMovementTime(iso: string, zone: string): string {
 }
 
 /** A quantity with its direction: `+9`, `−1` (true minus sign); empty for zero. */
+/** State of the SKU picker the moment a new query starts: the previous results are dropped so they cannot be picked while the new answer loads. */
+export function skuSearchStart<T>(): { results: T[]; status: 'loading'; active: -1 } {
+  return { results: [], status: 'loading', active: -1 }
+}
+
 export function signedQty(qty: number): string {
   if (qty === 0) return ''
   return `${qty > 0 ? '+' : '−'}${Math.abs(qty).toLocaleString('id-ID')}`

@@ -50,6 +50,13 @@ describe('claimedIfDifferent', () => {
   })
 })
 
+describe('refundCsvRows time', () => {
+  it('writes Waktu as yyyy-MM-dd HH:mm', () => {
+    const local = new Date(2026, 10, 9, 21, 41).toISOString()
+    expect(refundCsvRows([row({ refundedAt: local })])[0].Waktu).toBe('2026-11-09 21:41')
+  })
+})
+
 describe('refundCsvRows', () => {
   it('builds one row per refund', () => {
     const [r] = refundCsvRows([row({ refundedByName: 'Admin', reasonCode: 'damaged' })])

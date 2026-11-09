@@ -1,6 +1,7 @@
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import type { RefundReportRow } from '@mandalika/api'
+import { csvDateTime } from '../orderTimes'
 
 export type RefundFlagFilter = '' | 'any' | 'amount_mismatch' | 'over_total'
 export type RefundBadgeTone = 'success' | 'warning' | 'danger' | 'neutral'
@@ -66,7 +67,7 @@ export function refundCsvRows(rows: RefundReportRow[]): Record<string, unknown>[
   return rows.map((r) => ({
     'No. struk': r.orderNumber,
     'Refund ke-': r.seq,
-    Waktu: formatRefundTime(r.refundedAt),
+    Waktu: csvDateTime(r.refundedAt),
     'Hari refund': r.refundBusinessDate ?? '',
     Item: itemSummary(r.items),
     Qty: r.items.length > 0 ? totalQuantity(r.items) : '',

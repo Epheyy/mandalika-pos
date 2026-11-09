@@ -18,7 +18,7 @@ import { EmptyState } from '../../ui/EmptyState'
 import { ExportButton } from '../../ui/ExportButton'
 import { FilterBar } from '../../ui/FilterBar'
 import { StatusBadge } from '../../ui/StatusBadge'
-import { KIND_GROUPS, daysAgoDay, formatMovementTime, isRecordedLate, movementKindTone, refTypeLabel, signedQty } from './stockCardFormat'
+import { KIND_GROUPS, daysAgoDay, formatMovementTime, isRecordedLate, movementKindTone, refTypeLabel, signedQty, skuSearchStart } from './stockCardFormat'
 import {
   KARTU_SCHEMA,
   decodeSku,
@@ -456,8 +456,10 @@ function SkuCombobox({ locationType, locationId, pickedLabel, onPick, onClear }:
       return
     }
     let stale = false
-    setStatus('loading')
-    setActive(-1)
+    const start = skuSearchStart<MovementSku>()
+    setResults(start.results)
+    setStatus(start.status)
+    setActive(start.active)
     const t = setTimeout(() => {
       api
         .listMovementSkus({ locationType, locationId, q })

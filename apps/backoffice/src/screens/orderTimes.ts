@@ -43,6 +43,17 @@ export function orderTimeLabels(o: Pick<Order, 'createdAt' | 'clientCreatedAt'>)
 
 const csvStamp = (d: Date) => (valid(d) ? format(d, 'yyyy-MM-dd HH:mm') : '')
 
+/** The one date-time format of every report export cell: yyyy-MM-dd HH:mm (sortable, and Excel cannot misread 09/11 as 11 September). '' when absent or unparsable. */
+export function csvDateTime(iso: string | null | undefined): string {
+  return iso ? csvStamp(parseISO(iso)) : ''
+}
+
+/** Rupiah of redeemed points for an export cell; '' when points were spent but the amount is not derivable (legacy). */
+export function pointsRedemptionCell(o: Pick<Order, 'pointsRedeemed' | 'pointsRedemptionAmount'>): number | '' {
+  if (o.pointsRedemptionAmount != null) return o.pointsRedemptionAmount
+  return (o.pointsRedeemed ?? 0) > 0 ? '' : 0
+}
+
 /** Explicit CSV columns instead of one ambiguous "Tanggal". */
 export function orderTimeCsv(o: OrderTimes): { 'Waktu Transaksi': string; 'Diterima Server': string; 'Hari Bisnis': string } {
   const { sale, server } = saleAndServer(o)
