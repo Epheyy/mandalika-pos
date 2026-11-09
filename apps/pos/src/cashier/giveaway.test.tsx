@@ -148,7 +148,7 @@ describe('C3 rendering', () => {
   it('the on-screen receipt lists the giveaway row as GRATIS', () => {
     const props = {
       isOpen: true, orderId: 'o1', orderNumber: 'T1', items: [paid], totalRows: [], paymentMethod: 'cash', amountPaid: 100000, change: 0,
-      customerName: null, cashierName: 'K', settings: { receipt: { headerText: '' } } as never, orderState: 'unknown' as const,
+      customerName: null, cashierName: 'K', settings: { receipt: { headerText: '' } } as never, orderState: 'unknown' as const, capturedAt: null,
       isPendingSync: false, canReprint: false, printError: null, onReprint: noop, onClose: noop, onNewSale: noop,
     }
     const withIt = renderToStaticMarkup(createElement(ReceiptPreview, { ...props, giveaway: giveawayLine([paid], config, 5) }))

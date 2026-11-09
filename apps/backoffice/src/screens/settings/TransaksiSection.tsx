@@ -1,6 +1,6 @@
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import type { AppSettings } from '@mandalika/api'
-import { isCashMethod } from '@mandalika/types'
+import { isCashMethod, resolveReceiptFlags } from '@mandalika/types'
 import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '../../ui/Button'
 import { Input, Select, Field } from '../../ui/Field'
@@ -28,6 +28,7 @@ const PAY_GRID = 'grid grid-cols-[minmax(0,1fr)_6.5rem_3.5rem_2.25rem] items-cen
 
 /** Transaksi tab: Pajak & Pembulatan · Metode Pembayaran · Struk. */
 export function TransaksiSection({ s, setS, newPay, setNewPay, changed, changes }: TransaksiSectionProps) {
+  const receiptFlags = resolveReceiptFlags(s.receipt)
   const [payError, setPayError] = useState<string | null>(null)
   const setReceipt = (k: string, v: unknown) =>
     setS((p) => ({ ...p, receipt: { ...p.receipt, [k]: v } }))
@@ -196,12 +197,15 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed, changes 
               ['showDiscount', 'Tampilkan Diskon'],
               ['showSubtotal', 'Tampilkan Subtotal'],
               ['showChange', 'Tampilkan Kembalian'],
-            ] as const).map(([k, label]) => (
+            ] as const).map(([k, label]) => {
+              const on = receiptFlags[k]
+              return (
               <div key={k} className="flex items-center justify-between px-4 py-3 border-b border-paper-2 last:border-0">
                 <p className="font-bold text-ink-900 text-sm">{label}</p>
-                <Switch label={label} checked={!!s.receipt[k]} size="sm" onChange={() => setReceipt(k, !s.receipt[k])} />
+                <Switch label={label} checked={on} size="sm" onChange={() => setReceipt(k, !on)} />
               </div>
-            ))}
+              )
+            })}
           </div>
         </Field>
       </SettingsCard>

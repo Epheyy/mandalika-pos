@@ -1,5 +1,5 @@
 import type { AppSettings } from '@mandalika/api'
-import { isCashMethod } from '@mandalika/types'
+import { isCashMethod, resolveReceiptFlags } from '@mandalika/types'
 
 /*
  * Pengaturan draft logic, all pure. The screen keeps a `baseline` (what the server held when the
@@ -106,7 +106,9 @@ export function normalize(data?: Partial<AppSettings> | null): AppSettings {
   return {
     ...m,
     paymentMethods: m.paymentMethods ?? [],
-    receipt: m.receipt ?? DEFAULT_SETTINGS.receipt,
+    // A stored receipt object can be partial (absent show* keys). Resolve each key the way the printer reads it,
+    // per key, so the switches, the on-screen receipt and the paper agree; never merge DEFAULT_SETTINGS in.
+    receipt: m.receipt ? { ...m.receipt, ...resolveReceiptFlags(m.receipt) } : DEFAULT_SETTINGS.receipt,
     // The server stores the list as sent, so a stored 'admin' is possible; admin is always allowed and must not count as a change.
     receiveApproverRoles: (m.receiveApproverRoles ?? []).filter((r) => r !== 'admin'),
     recipesEnabled: !!m.recipesEnabled,

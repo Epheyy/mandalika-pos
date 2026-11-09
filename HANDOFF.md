@@ -8,6 +8,8 @@ Last updated: 2026-11-09 by Claude (Opus 5.5) - Codex R11 compared at `3121c2bf`
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-09: **R11 F35+F36 PR open, awaiting review** (not merged/deployed). One shared `resolveReceiptFlags` (`@mandalika/types`, defaults = the printer's) drives the Backoffice switches, the on-screen receipt and `buildReceipt`; the success screen shows "Kembalian Rp X" outside the paper when `showChange` is off; the on-screen receipt time is the engine's stored capture time, not the render clock. No `packages/sync` change.
+
 > 2026-11-09: **CODEX R11 COMPARED, FIX SLICES STARTED** (owner: "compare it against the current project state", then "Yes, start them"). R11 (`Downloads/Mandalika-QA-Retest-R11-2026-11-09.md`) reviewed exactly `3121c2bf`. Every R10 fix passed its live retest except one. The four new P2s are all confirmed in source:
 > - **F22** (partial): owner-close and owner-reload hand over, but navigating the owner tab to another https site leaves the waiter blocked until that tab closes. `tabGuard.ts` holds the lock until document destruction, and nothing releases it on departure. The R10 entry below claimed navigate-away passed, but its browser test only navigates to `about:blank`, so that claim is wrong. APK unaffected. A fix would touch the single-writer boundary (Opus high review, plus a real cross-origin navigation test). **Owner call: fix or accept** (recommended: accept, since the browser POS is dev/QA only).
 > - **F34**: the ingredient-count detail is never refetched when an in-progress count is reopened (`useIngredientCountDetails.ts` `wantedKey`). Slice `r11-ingredient`: reload on expand, the draft still wins.

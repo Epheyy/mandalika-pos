@@ -5,7 +5,7 @@ import { ReceiptTotals } from './ReceiptTotals'
 import { receiptTenderRows, type TotalRow } from './receiptRows'
 import { receiptRefLabel } from './orderRef'
 import { brand } from '../brand'
-import { variantLabel } from '@mandalika/types'
+import { variantLabel, resolveReceiptFlags } from '@mandalika/types'
 import { PAYMENT_LABELS } from '../lib/paymentLabels'
 import { Sheet } from '../components/ui/Sheet'
 import { Button } from '../components/ui/Button'
@@ -33,8 +33,12 @@ interface ReceiptPreviewProps {
   tenders?: { label: string; amount: number; reference?: string }[]
   change: number
   customerName: string | null
+  /** Phone of the selected customer; shown only when the Backoffice flag is on, as the paper does. */
+  customerPhone?: string | null
   cashierName: string
   settings: AppSettings
+  /** When the sale was captured on this tablet (the engine's stored capture time). Never the render time (R11 F36). */
+  capturedAt: Date | null
   /** Sync state of THIS sale from the engine's local receipts; 'unknown' falls back to isPendingSync. */
   orderState: OrderState
   isPendingSync: boolean
@@ -60,8 +64,10 @@ export const ReceiptPreview = memo(function ReceiptPreview({
   tenders,
   change,
   customerName,
+  customerPhone,
   cashierName,
   settings,
+  capturedAt,
   orderState,
   isPendingSync,
   canReprint,
@@ -80,14 +86,16 @@ export const ReceiptPreview = memo(function ReceiptPreview({
   }
   if (!isOpen) return null
 
-  const now = new Date()
-  const timeStr = now.toLocaleString('id-ID', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const flags = resolveReceiptFlags(settings.receipt)
+  const timeStr = capturedAt
+    ? capturedAt.toLocaleString('id-ID', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : ''
 
   const refLabel = receiptRefLabel(orderNumber, orderId)
   // Per-order state from the engine's local receipts; 'unknown' keeps the old global-pending behaviour.
@@ -113,6 +121,13 @@ export const ReceiptPreview = memo(function ReceiptPreview({
           <div className="mt-2">{syncBadge}</div>
         </div>
 
+        {/* The cashier still needs the change when the paper hides it. */}
+        {!flags.showChange && change > 0 && (
+          <p className="px-5 pt-3 text-center text-sm font-bold text-ink-900" data-testid="change-callout">
+            Kembalian {formatRupiah(change)}
+          </p>
+        )}
+
         {/* Receipt body */}
         <div className="flex-1 overflow-y-auto p-5">
           <img
@@ -126,7 +141,10 @@ export const ReceiptPreview = memo(function ReceiptPreview({
             </p>
           )}
 
-          <p className="text-xs text-ink-500 text-center mb-4">
+          {flags.showOrderNumber && (
+            <p className="text-xs text-ink-500 text-center" data-testid="receipt-order-number">No {refLabel}</p>
+          )}
+          <p className="text-xs text-ink-500 text-center mb-4" data-testid="receipt-time">
             {timeStr}
           </p>
 
@@ -173,8 +191,8 @@ export const ReceiptPreview = memo(function ReceiptPreview({
                 {t.reference && <p className="text-xs text-ink-500">Ref {t.reference}</p>}
               </div>
             ))}
-            {change > 0 && (
-              <div className="flex justify-between text-ink-700">
+            {flags.showChange && change > 0 && (
+              <div className="flex justify-between text-ink-700" data-testid="receipt-change">
                 <span>Kembalian</span>
                 <span>{formatRupiah(change)}</span>
               </div>
@@ -183,8 +201,9 @@ export const ReceiptPreview = memo(function ReceiptPreview({
 
           {/* Customer / cashier */}
           <div className="mt-3 border-t border-dashed border-paper-2 pt-3 text-xs text-ink-500 space-y-0.5">
-            {customerName && <p>Pelanggan: {customerName}</p>}
-            {settings.receipt.showCashier && <p>Kasir: {cashierName}</p>}
+            {flags.showCustomerName && customerName && <p>Pelanggan: {customerName}</p>}
+            {flags.showCustomerPhone && customerPhone && <p>Telp: {customerPhone}</p>}
+            {flags.showCashier && <p>Kasir: {cashierName}</p>}
           </div>
 
           {settings.receipt.footerText && (
