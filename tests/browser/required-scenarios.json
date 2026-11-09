@@ -416,6 +416,12 @@
       "source": "tests/browser/pos-wave-g-scenarios.ts"
     },
     {
+      "id": "POS-TWO-TABS-TAKEOVER",
+      "finding": "F22/W01",
+      "description": "In one real Chromium context a waiting second POS tab writes no storage and calls no API, shows no cashier controls, then reaches the cashier with the first tab's open-cart draft without a reload when the owner closes or navigates away; when the owner reloads, the already queued tab wins and the reloaded page waits, then takes over when that owner closes",
+      "source": "tests/browser/pos-tabguard-scenarios.ts"
+    },
+    {
       "id": "POS-OPEN-CART",
       "finding": "P-20",
       "description": "The open cart is saved on this tablet, restored after a reload, deleted once the sale is queued; a stale draft whose sale is already queued is dropped and the paid cart never reappears",

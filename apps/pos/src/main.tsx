@@ -12,6 +12,7 @@ import { BootError } from './BootError'
 import { bootStorage } from './bootStorage'
 import { claimActiveTab } from './tabGuard'
 import { TabBlocked } from './TabBlocked'
+import { TabGuardUnavailableNotice } from './TabGuardUnavailableNotice'
 import { sweepOrderHistoryCache } from './lib/offlineCache'
 import { dropLegacyPinLockout } from './lib/legacyPinLockout'
 
@@ -79,6 +80,7 @@ async function boot(): Promise<void> {
 
   root.render(
     <StrictMode>
+      {claim.owner && claim.unguarded ? <TabGuardUnavailableNotice /> : null}
       <AuthProvider>
         <PrinterProvider>
           <App />

@@ -23,6 +23,7 @@ import { reportPagerFlow, roleDeleteFlow } from './backoffice-d5a-scenarios'
 import { posRequisition } from './pos-requisition-scenarios'
 import { posOpenCart } from './pos-opencart-scenarios'
 import { posStockPending, posTwoTabs } from './pos-wave-g-scenarios'
+import { posTabTakeover } from './pos-tabguard-scenarios'
 import { posAutoPromo } from './pos-autopromo-scenarios'
 import { posGlassBand, posGlassPromoLines } from './pos-glass-scenarios'
 import { posQaCHeaderTabs } from './pos-qac-scenarios'
@@ -601,6 +602,7 @@ for (const [id, title, run, opts] of [
   ['POS-CASH-TYPED-PASTED', 'the Bayar cash field gives the same amount and change for the same text typed key by key and pasted (150.000, 123.456, 12.3457, 1.000.000, 150,000, 120000.5), pending fraction digits are never shown, and blur never changes the shown amount', posCashInputTypedPasted, { splitTender: true }],
   ['POS-STOCK-PENDING', 'a foreign stock bump behind an open cart: after the hold-off the chip says Stok menunggu diperbarui instead of Tersinkron, and one pull clears it once the cart is empty', posStockPending, {}],
   ['POS-TWO-TABS', 'a second tab of the same browser profile shows the other-tab notice, writes nothing to storage, leaves the first tab cart alone and starts when the first tab closes', posTwoTabs, {}],
+  ['POS-TWO-TABS-TAKEOVER', 'a waiting second tab starts by itself with the open-cart draft when the first tab closes, navigates away or reloads (the queued tab wins a reload), writing nothing and calling no API while it waits', posTabTakeover, {}],
   ['POS-OPEN-CART', 'the open cart is restored after a reload; a draft whose sale is already queued is dropped and the paid cart never reappears', posOpenCart, {}],
   ['POS-AUTO-PROMO', 'an Otomatis promo enters the cart by itself; the x removes it for the sale (cart edit, hold + resume, reload) and + Tambah re-adds it as manual', posAutoPromo, { autoPromo: true }],
   ['POS-GLASS-BAND', 'the catalogue scrolls under one glass band (the only blurred layer), the first row is uncovered at rest at 1006x601 and 1280x800, the cart mounts solid, data-material=static drops the blur', posGlassBand, { fillerProducts: 40 }],
