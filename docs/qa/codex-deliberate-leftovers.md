@@ -83,20 +83,44 @@ Citations: `HO:n` = line n of `HANDOFF.md` at commit `f491d988` (`git show f491d
 
 ## C. Still open or untested (fair to report)
 
-- **R11 verification gaps:**
-  - The deployed CSV/XLSX export bytes are unverified.
-  - External consumers of the old `Tanggal` column have not been inventoried.
-- **R10 gaps not covered by us:**
-  - native A9/A11+ viewports, Samsung keyboard, font scale, insets, native Back, printer and scanner;
-  - native offline sale and refund recovery, force-stop, power and storage pressure;
-  - role-separated cashier and manager testing;
-  - pinned deployed versions;
-  - load.
-- **R10 and R9 probe candidates with no fix or decision yet** (stale ingredient detail and receipt parity became
-  R11 F34 and F35 above):
-  - repeated ingredient field labels;
-  - SKU results kept while a new search runs;
-  - many-variant picker height;
-  - identifying long product names in refunds.
-- **CheckoutPanel:** a stale overstock / leave confirm can remain after Back. This predates the QA work and is not fixed (HO:53).
+- **Covered by our own run on 2026-11-09** (SM-X115, Android 16, APK 2.1 + OTA 2.13.7, live Backoffice; details
+  in HANDOFF):
+  - **Passed:**
+    - OTA 2.13.3 to 2.13.7 applied with status `success`; F12/F18/F24/F26/F35/F36 checked on the device.
+    - Samsung keyboard typing (via adb key events).
+    - Native Back closes the keyboard, then checkout, History and the picker.
+    - Offline sale + force-stop + relaunch: the sale arrived exactly once.
+    - Offline refund + force-stop + relaunch: the refund arrived exactly once.
+    - Portrait and landscape layouts at normal font: F25 gap 25 px; the 5-size picker fits.
+    - Deployed export bytes (shift CSV, sales CSV, refund CSV, Transaksi XLSX), including the new time columns.
+    - Laporan > Shift "Belum dihitung" with a real open shift.
+  - **Found, open, owner to decide:**
+    - **Landscape keyboard (P3):** the Samsung keyboard covers Kembalian and Konfirmasi while the cash amount is
+      typed. The page does not resize.
+    - **System font scale 2.0 (P3):**
+      - The landscape cart clips the product name and the Bayar amount.
+      - Payment method names break mid-word.
+      - Portrait quick-amount buttons are cut ("100.00").
+      - Cause: the WebView follows Android's font size on top of the app's SM/MD/LG setting.
+    - **CSV (LOW):**
+      - An empty "-" cell is written as `'-` (formula guard).
+      - The sales CSV mixes `2026-11-09 21:36` and `09/11/2026 21:41`.
+      - No point-redemption column, so Subtotal - Diskon != Total for redemption orders.
+  - **Not covered:**
+    - No paired printer; scanner not tried.
+    - Power and storage pressure.
+    - Role-separated cashier and manager testing (needs other logins).
+    - Load.
+    - Real finger typing on the soft keyboard.
+- **External consumers of the old `Tanggal` column** have not been inventoried (outside the repo).
+- **R10 and R9 probe candidates, now settled:**
+  - **Repeated ingredient field labels (LOW, confirmed):** every count input is named "Jumlah dihitung".
+  - **SKU results kept during a new search (LOW, confirmed in source):** Kartu Stok keeps the previous results
+    selectable until the new answer arrives (`StockCard.tsx` SkuCombobox). It is a view filter only.
+  - **Many-variant picker height:** passes in both orientations, including at font scale 2.0.
+  - **Long similar names in refunds (source risk, not reproduced):** names are one truncated line with no title
+    (`RefundDialog.tsx`).
+- **CheckoutPanel:** a stale overstock / leave confirm can remain after Back. This predates the QA work and is not
+  fixed (HO:53). It cannot occur while `allowNegativeStock` is on (the current setting), because the overstock
+  confirm never appears.
 - **Narrow 375 px checkout horizontal scrollbar:** phone width is not a stated requirement. No owner decision is recorded.

@@ -4,9 +4,45 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-09 by Claude (Opus 5.5) - Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.3-2.13.7 not done; see Progress board.
+Last updated: 2026-11-09 by Claude (Opus 5.5) - Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09 (two P3 + three LOW findings await the owner); see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
+
+> 2026-11-09: **TABLET + BACKOFFICE "NOT DONE" CHECKS RUN** (owner: "tablet is connected go ahead do the checks and do all the \"Not done\" for both backoffice & POS"; test sales/refunds approved; the owner set font size and rotation). Device: SM-X115, Android 16, APK 2.1. The owner signed in to the Backoffice (live, Admin). Evidence screenshots are in the session scratchpad `tablet/r11-*.png`.
+> - **OTA:** the tablet ran 2.13.3 with 2.13.7 `pending`. "Mulai ulang sekarang" took it to `2.13.7: success`, no rollback.
+> - **POS on 2.13.7, all PASS:**
+>   - No one-tab warning in the APK (F22).
+>   - History shows "Hari shift" + hint and real dates (F12).
+>   - AQ0006 reads "08 Nov 08:30 · Diterima server 08:46" (F26).
+>   - AQ0005 shows "Tukar poin (9)" −Rp 900, Total Rp 9.100 (F24).
+>   - Typed via the Samsung keyboard (adb key events): `50.000`→Rp 50.000, `1.000.000`→Rp 1.000.000, `50000.5`→Rp 50.000; blur stable (F18).
+>   - Test sale BSD-AP0006 (QA customer, cash 20k): the receipt shows No/Kembalian/Pelanggan and hides Telp/Kasir/PPN, matching the printer for the stored flags (F35).
+>   - The receipt time stayed 21.36 past 21:37, and AP0007 stayed 21.38 across Tersimpan→Terkirim (F36).
+>   - Native Back closes the keyboard, then Bayar, History and the picker.
+>   - Picker: 5 sizes fit in landscape and portrait.
+>   - Portrait F25 gap: 25 px.
+> - **Offline + force-stop, PASS** (CDP offline emulation, no device setting changed):
+>   - Sale AP0008 queued offline; server 0 before and during `am force-stop`; after relaunch exactly 1.
+>   - Its refund queued offline ("Offline · 1 tersimpan"); force-stop; after relaunch `refunded` once.
+> - **Cleanup:** AP0006/7/8 fully refunded (reasons "QA-R11-tablet ..."). QA customer back to 0 points, QA stock 16, tablet online, cart empty.
+> - **Backoffice live, PASS:**
+>   - Laporan > Shift with the real open shift (BSD, opened 08 Nov 00:03): 7 "Belum dihitung" cells + hint; cards sum closed only with "+ 1 shift masih buka".
+>   - Export bytes captured in-page (no download): shift CSV (8 "Belum dihitung" columns), sales CSV + Transaksi XLSX (Waktu Transaksi / Diterima Server / Hari Bisnis; AQ0006 08:30/08:46), refund CSV unchanged.
+> - **Findings, open, owner to decide:**
+>   - **P3:** landscape Samsung keyboard covers Kembalian + Konfirmasi while typing cash (visual viewport 299/601, no resize).
+>   - **P3:** at Android font scale 2.0 the WebView text doubles.
+>     - The landscape cart clips the product name and the Bayar amount ("BayarRp 10.00").
+>     - Method names break mid-word; portrait quick-amount buttons are cut ("100.00").
+>     - Likely fix: pin WebView textZoom to 100 and rely on the app's SM/MD/LG setting. Native, so APK.
+>   - **LOW:** CSV writes empty "-" as `'-`; the sales CSV mixes two date formats; no point-redemption column (Subtotal − Diskon ≠ Total for AQ0005).
+>   - **LOW:** ingredient count inputs all named "Jumlah dihitung".
+>   - **LOW:** Kartu Stok SKU picker keeps old results selectable while a new query loads.
+>   - **Risk:** refund line names truncate with no title.
+> - **Notes:**
+>   - Today's three sales sit on business day 8 Nov, because the shift has been open since 08 Nov 00:03 (A28).
+>   - The stale CheckoutPanel overstock confirm cannot occur while `allowNegativeStock` is on.
+> - **NOT covered:** printer (none paired), scanner, power/storage pressure, role-separated testing (other logins), load, real finger typing.
+> - **Codex doc:** `docs/qa/codex-deliberate-leftovers.md` Section C updated with all of the above.
 
 > 2026-11-09: **R11 OWNER DECISIONS: F22 ACCEPTED; OPEN-SHIFT "BELUM DIHITUNG" LIVE** (owner: "F22 : accept , Open-shift totals: \"Belum dihitung\"", then "Yes, release it").
 > - **PR #132:** merged no-ff `59fe69fe` on `8b9ec184`. Gate `gate/r11-decisions` 5/5 green; pushed behind `[CF-Pages-Skip]` `f0a18ec7`.
