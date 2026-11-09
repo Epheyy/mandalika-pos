@@ -4,16 +4,21 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-09 by Claude (Opus 5.5) - Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09; both P3 fixes LIVE in APK 2.2 (versionCode 13, #134 keyboard + #133 text zoom), installed and verified on the test tablet; tablets on APK 2.1 need 2.2 (OTAs now target code 13); three LOW findings await the owner; see Progress board.
+Last updated: 2026-11-10 by Claude (Opus 5.5) - LOW findings (#135) LIVE (backoffice `1043b4c4`, POS OTA 2.13.8 for APK 2.2; not yet seen on a tablet). Earlier: Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09; both P3 fixes LIVE in APK 2.2 (versionCode 13, #134 keyboard + #133 text zoom), installed and verified on the test tablet; tablets on APK 2.1 need 2.2 (OTAs now target code 13); see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
-> 2026-11-10: **LOW FINDINGS (#135) MERGED, RELEASE IN PROGRESS** (owner: "go ahead work on low findings", "Yes, release it").
+> 2026-11-10: **LOW FINDINGS (#135) LIVE: Backoffice `1043b4c4` + POS OTA 2.13.8** (owner: "go ahead work on low findings", "Yes, release it").
 > - **First gate failed:** BO-PAGES-XLSX pins the exact XLSX header row ("XLSX column contract changed"); the PR had only run unit tests locally, not the browser gate.
 >   - Fix `bf510fdc` on the PR branch: the expected headers gain Tukar Poin and Biaya Tambahan, and the Total cell moves from column Q to S.
 >   - Other browser tests that read these exports (refund CSV header, split CSV, opname labels, SKU picker) were checked by hand and do not pin the changed parts.
 > - **Merge:** #135 (`079fbce1` + `bf510fdc`) no-ff on `2b5dfa66` as `6b98e5bd`. Gate `gate/low-findings` re-run, 5 workflows.
-> - **Release plan:** Backoffice publish plus POS OTA 2.13.8 (targets versionCode 13 / APK 2.2). No backend deploy: the only backend change is the csvimport golden fixture and a test comment.
+> - **Release:** gate 5/5 green on `6b98e5bd`; pushed to origin + ci behind `[CF-Pages-Skip]` `b3647ed0`; Backoffice published by `1043b4c4` `[skip actions]`. No backend deploy: the only backend change is the csvimport golden fixture and a test comment.
+> - **Verified:**
+>   - Live Backoffice crawl: "Biaya Tambahan" and "Tukar Poin" served in the Reports chunk.
+>   - OTA 2.13.8 (id `5466afcc`, 302557 B) published from `6b98e5bd`, target versionCode 13. `/ota/check` offers it to code 13 with checksum `948982a1...`, which matches the download. Code 12 gets "up-to-date" (2.13.7).
+>   - The bundle contains the refund dialog change (`line-clamp-2 break-words`, `title`).
+> - **NOT done:** the tablet was not connected, so 2.13.8 has not been applied or looked at on a device. Exports were not re-downloaded from the live Backoffice (CI BO-PAGES-XLSX and BO-PAGES-CSV cover the columns).
 > - **What changed:**
 >   - CSV `-` placeholder written as `-`, not `'-`.
 >   - Every export date-time is `yyyy-MM-dd HH:mm`.

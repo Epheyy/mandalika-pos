@@ -80,7 +80,7 @@ Citations: `HO:n` = line n of `HANDOFF.md` at commit `f491d988` (`git show f491d
   - The summary cards sum closed shifts only, and say how many shifts in the range are still open.
   - The CSV writes "Belum dihitung" in those columns (and Kas Akhir) for open shifts.
   - The cash-refunds-paid column stays live for open shifts.
-- **LOW findings from our 2026-11-09 run** (PR #135): Backoffice and POS OTA 2.13.8 (APK 2.2 only). Expected now:
+- **LOW findings from our 2026-11-09 run** (PR #135): Backoffice `1043b4c4` and POS OTA 2.13.8 (APK 2.2 only). Expected now:
   - **CSV placeholder:** an empty "-" cell (or a lone + − – —) is written as `-`, not `'-`. Text that starts
     with = @ + - and is not a plain number still gets the guard quote.
   - **One date-time format:** every date-time cell in the sales CSV (Waktu Refund), the refund CSV (Waktu) and
