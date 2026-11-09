@@ -203,7 +203,7 @@ export const opnameConfirmFlow = async (page: ScenarioPage) => {
   check((await leaveDialog.count()) === 0, 'a saved count asks nothing when the sub-tab is switched')
   await page.getByRole('button', { name: 'Buka rincian Opname Bahan Uji', exact: true }).click()
   await rows.nth(2).fill('2.5')
-  await page.locator('tr', { has: rows.nth(2) }).getByText('Belum disimpan').waitFor()
+  await rows.nth(2).locator('xpath=ancestor::tr[1]').getByText('Belum disimpan').waitFor()
   await page.locator('[data-tab-key="opname.produk"]').click()
   await leaveDialog.waitFor()
   check((await leaveDialog.getByText('1 bahan').count()) === 1, 'the question names the one unsaved row')
