@@ -4,9 +4,21 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-09 by Claude (Opus 5.5) - Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09 (two P3 + three LOW findings await the owner); see Progress board.
+Last updated: 2026-11-09 by Claude (Opus 5.5) - Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09; both P3 fixes merged (#134 keyboard, #133 text zoom), APK 2.2 (versionCode 13) build in progress; three LOW findings await the owner; see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
+
+> 2026-11-09: **P3 FIXES MERGED, APK 2.2 RELEASE IN PROGRESS** (owner: "Fix both P3s", then "One APK with both").
+> - **Merges:** #134 (`2b61373c`) and #133 (`69fdbbc5`), no-ff on `6d9a774e`. Gate `gate/apk22`. No backend change. No Backoffice change, so no Cloudflare publish.
+> - **#134 keyboard (web):** `apps/pos/src/keyboardInset.ts` publishes `--kb` from `visualViewport` (0 when closed, pinch-zoomed, or under 80 px), and every `Sheet` overlay ends at `bottom: var(--kb, 0px)`. Prototyped live in portrait: Konfirmasi at 615-664 with the visible area ending at 675.
+> - **#133 text zoom (native):** `MainActivity` `setTextZoom(100)`; versionCode 12 → 13, versionName 2.1 → 2.2.
+> - **After this lands:**
+>   - `make ota-release` targets code 13, so tablets on APK 2.1 get no further OTAs until they install 2.2.
+>   - The journal-guard base moves to `69fdbbc5`.
+> - **Plan:** `android-release.yml` (`release_type: test`, keeps WebView debugging) from origin. The tablet was "Online · Tersinkron" (0 pending) before the upgrade. Then on-device acceptance:
+>   - keyboard in both orientations;
+>   - font_scale 2.0 measuring like 1.0;
+>   - updater on the built-in bundle (no leftover 2.13.7).
 
 > 2026-11-09: **TABLET + BACKOFFICE "NOT DONE" CHECKS RUN** (owner: "tablet is connected go ahead do the checks and do all the \"Not done\" for both backoffice & POS"; test sales/refunds approved; the owner set font size and rotation). Device: SM-X115, Android 16, APK 2.1. The owner signed in to the Backoffice (live, Admin). Evidence screenshots are in the session scratchpad `tablet/r11-*.png`.
 > - **OTA:** the tablet ran 2.13.3 with 2.13.7 `pending`. "Mulai ulang sekarang" took it to `2.13.7: success`, no rollback.
