@@ -51,16 +51,17 @@ describe('claimActiveTab (F22/W01)', () => {
     const request = vi.fn()
     const claim = await claimActiveTab({ locks: { request } as unknown as LockManagerLike, native: true })
     expect(claim).toEqual({ owner: true })
+    expect(await claimActiveTab({ locks: null, native: true })).toEqual({ owner: true }) // no warning flag on the APK
     expect(request).not.toHaveBeenCalled()
   })
 
   it('falls back to owner without Web Locks, and when the request throws or rejects', async () => {
-    expect(await claimActiveTab({ locks: null, native: false })).toEqual({ owner: true })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const throwing = { request: () => { throw new Error('SecurityError') } } as unknown as LockManagerLike
-    expect(await claimActiveTab({ locks: throwing, native: false })).toEqual({ owner: true })
+    expect(await claimActiveTab({ locks: throwing, native: false })).toEqual({ owner: true, unguarded: true })
     const rejecting = { request: () => Promise.reject(new Error('nope')) } as unknown as LockManagerLike
-    expect(await claimActiveTab({ locks: rejecting, native: false })).toEqual({ owner: true })
+    expect(await claimActiveTab({ locks: rejecting, native: false })).toEqual({ owner: true, unguarded: true })
+    expect(await claimActiveTab({ locks: null, native: false })).toEqual({ owner: true, unguarded: true })
     warn.mockRestore()
   })
 })

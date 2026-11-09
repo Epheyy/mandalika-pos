@@ -18,7 +18,8 @@ export interface LockManagerLike {
 }
 
 export type TabClaim =
-  | { owner: true }
+  /** `unguarded`: a browser (not the APK) where the lock could not be used, so nothing stops a second tab. */
+  | { owner: true; unguarded?: true }
   /** Another tab owns the app. `granted` resolves when this tab became the owner (the other tab went away). */
   | { owner: false; granted: Promise<void> }
 
@@ -37,11 +38,16 @@ function browserLocks(): LockManagerLike | null {
 
 /** Take the active-tab lock. The lock is held for the life of the page (the callback never settles), so the
  *  browser releases it on close, reload or crash. Never throws: an environment without Web Locks (insecure
- *  context, old browser) or a refused request falls back to `owner`, i.e. no protection but no outage. */
+ *  context, old browser) or a refused request falls back to `owner` with `unguarded` set (no protection, no outage, and the app
+ *  shows a visible warning). */
 export function claimActiveTab(opts: ClaimOptions = {}): Promise<TabClaim> {
   const native = opts.native ?? Capacitor.isNativePlatform()
   const locks = opts.locks === undefined ? browserLocks() : opts.locks
-  if (native || !locks) return Promise.resolve({ owner: true })
+  if (native) return Promise.resolve({ owner: true })
+  if (!locks) {
+    console.warn('[tab-guard] Web Locks unavailable, running unguarded')
+    return Promise.resolve({ owner: true, unguarded: true })
+  }
   return new Promise<TabClaim>((resolve) => {
     const owner = (): Promise<never> => {
       resolve({ owner: true })
@@ -49,7 +55,7 @@ export function claimActiveTab(opts: ClaimOptions = {}): Promise<TabClaim> {
     }
     const failOpen = (err: unknown) => {
       console.warn('[tab-guard] Web Locks unavailable, running unguarded', err)
-      resolve({ owner: true })
+      resolve({ owner: true, unguarded: true })
     }
     try {
       void locks
