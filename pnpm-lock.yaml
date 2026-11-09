@@ -252,6 +252,9 @@ importers:
       '@mandalika/api':
         specifier: workspace:*
         version: link:../api
+      '@mandalika/types':
+        specifier: workspace:*
+        version: link:../types
     devDependencies:
       typescript:
         specifier: ~5.9.3

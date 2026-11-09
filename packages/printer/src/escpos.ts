@@ -4,6 +4,7 @@
 // on-screen ReceiptPreview so the printed slip matches what the cashier sees.
 
 import type { components } from '@mandalika/api'
+import { resolveReceiptFlags } from '@mandalika/types'
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
 
@@ -174,6 +175,7 @@ export function buildReceipt(
   reprint = false,
 ): Uint8Array {
   const b = new Buf().raw(INIT)
+  const flags = resolveReceiptFlags(settings)
 
   b.raw(ALIGN_CENTER)
   if (settings.headerText) {
@@ -186,7 +188,7 @@ export function buildReceipt(
 
   // The receipt always shows the order id. Sync state is an app concern, not
   // something the customer's printed receipt should announce.
-  if (settings.showOrderNumber !== false) b.line(pad('No', data.orderRef))
+  if (flags.showOrderNumber) b.line(pad('No', data.orderRef))
   b.line(
     pad(
       'Tgl',
@@ -211,11 +213,11 @@ export function buildReceipt(
   }
   b.divider()
 
-  if (settings.showSubtotal !== false) b.line(pad('Subtotal', money(data.subtotal)))
+  if (flags.showSubtotal) b.line(pad('Subtotal', money(data.subtotal)))
   // An itemised (C1) slip always prints its deductions and PPN: hiding a row that is inside TOTAL would
   // make the slip not add up. The Pengaturan toggles still govern pre-C1 receipts.
   const itemised = data.discounts !== undefined
-  if (itemised || settings.showDiscount !== false) {
+  if (itemised || flags.showDiscount) {
     if (data.discounts) {
       for (const d of data.discounts) if (d.amount > 0) labelRow(b, `- ${d.label}`, minusRp(d.amount))
     } else if (data.discountAmount > 0) {
@@ -227,7 +229,7 @@ export function buildReceipt(
   if (data.pointsRedeemed && data.pointsRedeemed.amount > 0) {
     b.line(pad(`Tukar poin (${data.pointsRedeemed.points})`, minusRp(data.pointsRedeemed.amount)))
   }
-  if ((itemised || settings.showTax) && data.taxAmount > 0) {
+  if ((itemised || flags.showTax) && data.taxAmount > 0) {
     b.line(pad('PPN', money(data.taxAmount)))
   }
   if (data.rounding) b.line(pad('Pembulatan', (data.rounding > 0 ? '+' : '') + money(data.rounding)))
@@ -240,18 +242,18 @@ export function buildReceipt(
   } else {
     b.line(pad(data.paymentLabel, money(data.amountPaid)))
   }
-  if (settings.showChange !== false && data.change > 0) {
+  if (flags.showChange && data.change > 0) {
     b.line(pad('Kembalian', money(data.change)))
   }
   b.divider()
 
-  if (settings.showCustomerName !== false && data.customerName) {
+  if (flags.showCustomerName && data.customerName) {
     b.line('Pelanggan: ' + data.customerName)
   }
-  if (settings.showCustomerPhone && data.customerPhone) {
+  if (flags.showCustomerPhone && data.customerPhone) {
     b.line('Telp: ' + data.customerPhone)
   }
-  if (settings.showCashier) b.line('Kasir: ' + data.cashierName)
+  if (flags.showCashier) b.line('Kasir: ' + data.cashierName)
 
   if (settings.footerText) {
     b.line().raw(ALIGN_CENTER).line(settings.footerText).raw(ALIGN_LEFT)

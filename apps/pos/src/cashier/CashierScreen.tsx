@@ -256,6 +256,8 @@ export default function CashierScreen() {
   /** What the success view shows of the payment (ORDER_SUCCESS clears the split lines, and the single-mode inputs are re-derived on a new sale). */
   const lastPayment = useRef<{ paymentMethod: string; amountPaid: number; change: number } | null>(null)
   const [printError, setPrintError] = useState<string | null>(null)
+  /** R11 F36: when the sale just made was captured (the engine's stored time). One value feeds the on-screen receipt and the printed slip. */
+  const [saleTime, setSaleTime] = useState<Date | null>(null)
   // K3 toast (one viewport, timer reset per toast, a warning is never replaced by an info toast). The cashier tree
   // sits inside App's ToastProvider. The oversell notice is the one message that is a warning, so a later
   // "Ditambahkan"-style info toast cannot hide it.
@@ -946,9 +948,14 @@ export default function CashierScreen() {
       }
       const { orderUuid } = outcome.value
       // A saved sale always built its quote inside the gate (outcome.status 'ok').
+      // The time the engine stored for this sale; the fixed fallback is taken once here, never at render time.
+      const capturedAt = engine.localReceipts().find((r) => r.orderUuid === orderUuid)?.capturedAt
+      const parsedAt = capturedAt ? new Date(capturedAt) : null
+      const saleAt = parsedAt && !Number.isNaN(parsedAt.getTime()) ? parsedAt : new Date()
+      setSaleTime(saleAt)
       const receipt: ReceiptData = receiptFromQuote(quoteHolder.current!, {
         orderRef: orderNo,
-        dateTime: new Date(),
+        dateTime: saleAt,
         paymentLabel: PAYMENT_LABELS[plan.paymentMethod] ?? plan.paymentMethod,
         customerName: state.selectedCustomer?.name ?? null,
         customerPhone: state.selectedCustomer?.phone ?? null,
@@ -1483,8 +1490,8 @@ export default function CashierScreen() {
         amountPaid={successPayment.amountPaid}
         change={successPayment.change}
         tenders={state.isSuccessOpen ? lastReceipt.current?.tenders : undefined}
-        customerName={state.selectedCustomer?.name ?? null} cashierName={user.displayName}
-        settings={settings} isPendingSync={offlineData.pendingCount > 0}
+        customerName={state.selectedCustomer?.name ?? null} customerPhone={state.selectedCustomer?.phone ?? null} cashierName={user.displayName}
+        settings={settings} capturedAt={saleTime} isPendingSync={offlineData.pendingCount > 0}
         orderState={state.isSuccessOpen ? orderStateFor(engine.localReceipts(), state.lastOrderId) : 'unknown'}
         onPairPrinter={() => openSettings('printer')}
         canReprint={printer.isPaired} printError={printError}

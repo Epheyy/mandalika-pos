@@ -356,3 +356,4 @@ export interface StockCount {
 }
 export { normalizePhone, PHONE_MIN_DIGITS, PHONE_MAX_DIGITS } from './phone'
 export { phoneProblem, emailProblem, PHONE_REQUIRED_MESSAGE, PHONE_INVALID_MESSAGE, EMAIL_INVALID_MESSAGE } from './customerRules'
+export { RECEIPT_FLAG_KEYS, RECEIPT_FLAG_DEFAULTS, resolveReceiptFlags, type ReceiptFlagKey, type ReceiptFlags } from './receiptFlags'
