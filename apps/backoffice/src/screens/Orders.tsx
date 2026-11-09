@@ -30,7 +30,7 @@ import { orderIconClasses, orderStatusLabel, orderStatusTone } from '../lib/orde
 import { OrderRefundSection } from './orders/OrderRefundSection'
 import { AdminRefundForm } from './orders/AdminRefundForm'
 import { quoteWarningTitle, receiptTotalLine } from './quoteDisplay'
-import { orderTimeCsv, orderTimeLabels } from './orderTimes'
+import { orderTimeCsv, orderTimeLabels, pointsRedemptionCell } from './orderTimes'
 
 /** Payment lines of an order: one row per line with its reference and change; shown for split orders only. */
 function PaymentLines({ order, methods }: { order: Order; methods: AppSettings['paymentMethods'] | undefined }) {
@@ -157,7 +157,9 @@ export function OrdersPanel() {
         'Rincian Diskon': (o.discountBreakdown ?? [])
           .map((d) => `${d.label}: ${d.amount}`)
           .join('; '),
+        'Tukar Poin': pointsRedemptionCell(o),
         Pajak: o.taxAmount,
+        'Biaya Tambahan': o.surchargeAmount ?? 0,
         Total: o.total,
       }))
       const scope = outletId ? (ctxOutlets.find((o) => o.id === outletId)?.name ?? null) : 'semua-outlet'

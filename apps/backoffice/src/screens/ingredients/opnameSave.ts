@@ -49,3 +49,8 @@ export function unsavedEntryCount(
   }
   return rows
 }
+
+/** Accessible name of one row's count input, so a screen reader can tell the rows apart. */
+export function countInputLabel(name: string, unit?: string | null): string {
+  return ['Jumlah dihitung', name, unit ? `(${unit})` : ''].filter(Boolean).join(' ')
+}

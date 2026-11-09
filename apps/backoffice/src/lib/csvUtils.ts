@@ -15,17 +15,19 @@ export function exportToXLSX(data: Row[], filename: string) {
 const FORMULA_TRIGGER = /^[=@\t\r]/
 /** '+' / '-' only start a formula when what follows is not a plain number ("+62812...", "-5000" are fine). */
 const SIGN_TRIGGER = /^[+-]/
+/** A lone dash or sign is an empty-cell placeholder, not a formula. */
+const PLACEHOLDER_SIGN = /^[+\-–—−]$/
 const PLAIN_SIGNED_NUMBER = /^[+-]?\d+([.,]\d+)*$/
 
 /**
  * One CSV cell. Only TEXT cells that could run as a formula get a leading apostrophe
- * (= @ tab CR, and + or - unless the cell is a plain number), so they open as text;
+ * (= @ tab CR, and + or - unless the cell is a plain number or a lone placeholder sign), so they open as text;
  * real numbers (including negative stock) stay numbers. The importer strips exactly
  * that one apostrophe again (backend csvimport), so a round trip is lossless.
  */
 export function csvCell(val: unknown): string {
   let s = String(val ?? '')
-  if (typeof val === 'string' && (FORMULA_TRIGGER.test(s) || (SIGN_TRIGGER.test(s) && !PLAIN_SIGNED_NUMBER.test(s)))) {
+  if (typeof val === 'string' && (FORMULA_TRIGGER.test(s) || (SIGN_TRIGGER.test(s) && !PLAIN_SIGNED_NUMBER.test(s) && !PLACEHOLDER_SIGN.test(s)))) {
     s = `'${s}`
   }
   return /[,;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s

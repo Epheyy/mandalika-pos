@@ -62,7 +62,7 @@ function LineRow({ line, lines, sel, onChange, onToggle }: {
         {picked > 0 ? <IconCheck size={18} /> : null}
       </button>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-ink-900 truncate">{line.name}</p>
+        <p className="text-sm font-semibold text-ink-900 line-clamp-2 break-words" title={line.name}>{line.name}</p>
         <p className="text-xs text-ink-500">
           {[locked ?? (line.remainingQty < line.soldQty ? `${line.remainingQty} dari ${line.soldQty} bisa direfund` : null),
             line.refundedQty > 0 && !locked ? `${line.refundedQty} sudah direfund` : null].filter(Boolean).join(' · ')}

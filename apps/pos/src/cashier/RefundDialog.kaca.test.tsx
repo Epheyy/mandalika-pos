@@ -15,6 +15,17 @@ const order = {
   ],
 } as unknown as Order
 
+describe('RefundDialog long product names', () => {
+  const longName = 'GORGEOUS TUBEROSE 110ml EXTRAIT DE PARFUM INTENSE'
+  const long = { ...order, items: [{ ...(order.items[0] as object), productName: longName }] } as unknown as Order
+  const html = renderToStaticMarkup(createElement(RefundDialog, { order: long, isProcessing: false, onConfirm: vi.fn(), onClose: vi.fn() }))
+  it('keeps the full name in the title and wraps to at most two lines', () => {
+    expect(html).toContain(`title="${longName}`)
+    expect(html).toContain('line-clamp-2')
+    expect(html).not.toMatch(/text-ink-900 truncate/)
+  })
+})
+
 describe('RefundDialog Kaca header and rows (W4-08, W4-09)', () => {
   const html = renderToStaticMarkup(createElement(RefundDialog, { order, isProcessing: false, onConfirm: vi.fn(), onClose: vi.fn() })).replace(/\s/g, ' ')
   it('names the sale with #number, kasir and customer', () => {

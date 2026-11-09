@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { orderTimeCsv, orderTimeLabels, RECEIVED_LATE_MS } from './orderTimes'
+import { csvDateTime, orderTimeCsv, orderTimeLabels, pointsRedemptionCell, RECEIVED_LATE_MS } from './orderTimes'
 
 // Built from local parts so the assertions hold in any browser/runner time zone.
 const at = (d: number, h: number, m: number) => new Date(2026, 10, d, h, m).toISOString()
@@ -50,5 +50,34 @@ describe('orderTimeCsv', () => {
     expect(row['Waktu Transaksi']).toBe('2026-11-09 09:05')
     expect(row['Diterima Server']).toBe('2026-11-09 09:05')
     expect(row['Hari Bisnis']).toBe('')
+  })
+})
+
+describe('csvDateTime', () => {
+  it('writes yyyy-MM-dd HH:mm, the same format as the order time columns', () => {
+    expect(csvDateTime(at(9, 21, 41))).toBe('2026-11-09 21:41')
+  })
+  it('is empty for a missing or unparsable time', () => {
+    expect(csvDateTime(null)).toBe('')
+    expect(csvDateTime(undefined)).toBe('')
+    expect(csvDateTime('nope')).toBe('')
+  })
+})
+
+describe('pointsRedemptionCell + Total reconciliation', () => {
+  const recon = (o: { subtotal: number; discountAmount: number; taxAmount: number; surchargeAmount?: number | null; pointsRedeemed?: number; pointsRedemptionAmount?: number | null }) =>
+    o.subtotal - o.discountAmount - Number(pointsRedemptionCell(o)) + o.taxAmount + (o.surchargeAmount ?? 0)
+  it('a redemption order reconciles to Total (Subtotal 10000, Tukar Poin 900, Total 9100)', () => {
+    const o = { subtotal: 10000, discountAmount: 0, taxAmount: 0, pointsRedeemed: 9, pointsRedemptionAmount: 900 }
+    expect(pointsRedemptionCell(o)).toBe(900)
+    expect(recon(o)).toBe(9100)
+  })
+  it('is empty for a legacy order with points spent but no derivable amount', () => {
+    expect(pointsRedemptionCell({ pointsRedeemed: 9, pointsRedemptionAmount: null })).toBe('')
+  })
+  it('is 0 for a plain order', () => {
+    expect(pointsRedemptionCell({ pointsRedeemed: 0, pointsRedemptionAmount: null })).toBe(0)
+    expect(pointsRedemptionCell({})).toBe(0)
+    expect(recon({ subtotal: 50000, discountAmount: 5000, taxAmount: 4950 })).toBe(49950)
   })
 })

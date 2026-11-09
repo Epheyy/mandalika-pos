@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatMovementTime, movementKindTone, signedQty } from './stockCardFormat'
+import { formatMovementTime, movementKindTone, signedQty, skuSearchStart } from './stockCardFormat'
 
 describe('formatMovementTime', () => {
   it('reads "04 Nov 2026 · 14:22" in the location zone', () => {
@@ -25,5 +25,11 @@ describe('movementKindTone', () => {
   it('greens only the stock-adding kinds', () => {
     expect(movementKindTone('transfer_in')).toBe('ok')
     expect(movementKindTone('sale')).toBe('neutral')
+  })
+})
+
+describe('skuSearchStart', () => {
+  it('drops old results and shows loading with nothing highlighted when a new query starts', () => {
+    expect(skuSearchStart<{ id: string }>()).toEqual({ results: [], status: 'loading', active: -1 })
   })
 })

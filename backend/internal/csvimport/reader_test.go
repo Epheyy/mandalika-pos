@@ -253,7 +253,7 @@ func TestReadGoldenExport(t *testing.T) {
 		{"Melati, Putih", `say "hi"`, "a;b", "12345.5"},
 		{"Mawar", "line1\nline2", "", "-3"},
 		{"=1+1", "+6281234567", "-5000", "0"},
-		{"-2+3", "- bahan alami", "", ""}, // `'-` placeholder imports as blank; `'- bahan alami` keeps its text
+		{"-2+3", "- bahan alami", "", ""}, // the exported `-` placeholder imports as blank; `'- bahan alami` keeps its text
 		{"Ni Luh Äyu 香 🌺", "@SUM(A1)", "x", "7"},
 	}
 	if len(tb.Rows) != len(want) {

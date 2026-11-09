@@ -4,6 +4,7 @@ import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import { BRAND } from '../../lib/brand'
 import type { Column } from '../../ui/DataTable'
+import { csvDateTime } from '../orderTimes'
 import { CASH_REFUNDS_PAID_HEADER, cashRefundsPaidCell } from '../refundDisplay'
 import { NEGATIVE_STARTING_CASH_HINT, SNAPSHOT_PENDING_HINT, SNAPSHOT_PENDING_LABEL, isSnapshotPending, startingCashBadge } from './shiftFlags'
 
@@ -85,8 +86,8 @@ export function shiftCsvRow(s: Shift, outletName: (id: string) => string): Recor
   return {
     Kasir: s.cashierName,
     Outlet: outletName(s.outletId),
-    Dibuka: s.openedAt ? format(parseISO(s.openedAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }) : '-',
-    Ditutup: s.closedAt ? format(parseISO(s.closedAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }) : '-',
+    Dibuka: csvDateTime(s.openedAt) || '-',
+    Ditutup: csvDateTime(s.closedAt) || '-',
     Status: s.status,
     'Kas Awal': s.startingCash,
     'Kas Akhir': snap(s.closingCash || 0),

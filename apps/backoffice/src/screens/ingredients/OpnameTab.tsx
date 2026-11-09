@@ -30,7 +30,7 @@ import {
 } from './opnameConfirm'
 import { cancelCountConfirm } from '../stockcount/countConfirm'
 import { useIngredientCountDetails, type CountDetail } from './useIngredientCountDetails'
-import { buildIngredientCountSaveItems, parseCountInput, unsavedEntryCount, withCountEntry, withoutSavedEntries } from './opnameSave'
+import { buildIngredientCountSaveItems, countInputLabel, parseCountInput, unsavedEntryCount, withCountEntry, withoutSavedEntries } from './opnameSave'
 import { useCountLeaveGuard } from './useCountLeaveGuard'
 
 const fmtQty = (n: number | null | undefined) => {
@@ -77,7 +77,7 @@ function ItemsTable({ sc, items, counted, onCountChange }: ItemsTableProps) {
                       value={counted[it.id] !== undefined ? counted[it.id] : (it.counted ?? '')}
                       onChange={(e) => onCountChange(it.id, parseCountInput(e.target.value))}
                       className={`${fieldClass} w-24 px-2 py-1 text-center`}
-                      aria-label="Jumlah dihitung"
+                      aria-label={countInputLabel(it.ingredientName, it.ingredientUnit)}
                     />
                   ) : (
                     <span className="text-sm font-bold text-gray-900">{fmtQty(it.counted)}</span>

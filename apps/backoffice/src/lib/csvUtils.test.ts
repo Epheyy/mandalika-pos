@@ -42,7 +42,7 @@ describe('existing XLSX export contract', () => {
 
 describe('csvCell formula safety (A44/A39)', () => {
   it('prefixes text cells that start with a formula trigger', () => {
-    for (const t of ['=1+1', '@SUM(A1)', '\tcmd', '\rcmd', '-', '+', '-2+3', '+cmd|calc', '-A1', '+1+1']) {
+    for (const t of ['=1+1', '@SUM(A1)', '\tcmd', '\rcmd', '-2+3', '+cmd|calc', '-A1', '+1+1']) {
       expect(csvCell(t).replace(/^"|"$/g, '').startsWith("'")).toBe(true)
     }
   })
@@ -51,7 +51,7 @@ describe('csvCell formula safety (A44/A39)', () => {
     expect(csvCell('+628123')).toBe('+628123')
     expect(csvCell('-5000')).toBe('-5000')
     expect(csvCell('-1.500,5')).toBe('"-1.500,5"')
-    expect(csvCell('-')).toBe("'-")
+    expect(csvCell('-')).toBe('-')
     expect(csvCell('-2+3')).toBe("'-2+3")
   })
 
@@ -109,5 +109,17 @@ describe('XLSX never writes formula cells (A39)', () => {
       expect(book.Sheets.Data[addr].t).toBe('s')
       expect(book.Sheets.Data[addr].f).toBeUndefined()
     }
+  })
+})
+
+describe('csvCell placeholder signs', () => {
+  it('leaves a lone dash or sign unprefixed (empty-cell placeholder)', () => {
+    for (const t of ['-', '+', '–', '—', '−']) expect(csvCell(t)).toBe(t)
+  })
+  it('still prefixes real triggers and sign-led text', () => {
+    for (const t of ['=', '@', '-1+2', '+cmd', '--', '-A1']) expect(csvCell(t)).toBe(`'${t}`)
+  })
+  it('round trips: stripping exactly one leading apostrophe restores the original', () => {
+    for (const t of ['-', '=1+1', '-1+2', '+cmd']) expect(csvCell(t).replace(/^'/, '')).toBe(t)
   })
 })

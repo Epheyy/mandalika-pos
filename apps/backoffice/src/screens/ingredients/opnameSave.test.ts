@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildIngredientCountSaveItems, parseCountInput, withCountEntry, withoutSavedEntries, unsavedEntryCount } from './opnameSave'
+import { buildIngredientCountSaveItems, countInputLabel, parseCountInput, withCountEntry, withoutSavedEntries, unsavedEntryCount } from './opnameSave'
 
 const items = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
 
@@ -73,5 +73,13 @@ describe('unsavedEntryCount', () => {
 
   it('still counts a draft whose count is not on the listed page', () => {
     expect(unsavedEntryCount({ elsewhere: { i1: 3 } }, [running('a')])).toBe(1)
+  })
+})
+
+describe('countInputLabel', () => {
+  it('names the ingredient and unit so every row input is distinguishable', () => {
+    expect(countInputLabel('Carrier', 'ml')).toBe('Jumlah dihitung Carrier (ml)')
+    expect(countInputLabel('Carrier')).toBe('Jumlah dihitung Carrier')
+    expect(countInputLabel('Carrier', 'ml')).not.toBe(countInputLabel('Alkohol', 'ml'))
   })
 })

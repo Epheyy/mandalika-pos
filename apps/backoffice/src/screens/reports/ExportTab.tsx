@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchAllPages } from '@mandalika/api'
 import type { Order, Outlet } from '@mandalika/api'
-import { format, parseISO } from 'date-fns'
-import { id as idLocale } from 'date-fns/locale'
 import { Download, ShoppingBag, TrendingUp, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '../../api'
 import { exportToCSV, buildExportName } from '../../lib/csvUtils'
@@ -20,7 +18,7 @@ import { methodLabel, orderPaymentCsv, refundPayoutCsv } from '../../lib/splitPa
 import { useOrderReport } from './useOrderReport'
 import { useListState } from '../../lib/router/useListState'
 import { PAGING_SCHEMA, isAnswerFor, pageOf, pageSizeOf, pageToClamp } from './reportFilters'
-import { orderTimeCsv, orderTimeLabels } from '../orderTimes'
+import { csvDateTime, orderTimeCsv, orderTimeLabels, pointsRedemptionCell } from '../orderTimes'
 
 const statusBadge = (st: string) => <Badge tone={orderStatusTone(st)}>{orderStatusLabel(st)}</Badge>
 
@@ -62,7 +60,7 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
       return {
       'No. Order': o.orderNumber,
       ...orderTimeCsv(o),
-      'Waktu Refund': rf.refundedAt ? format(parseISO(rf.refundedAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }) : '',
+      'Waktu Refund': csvDateTime(rf.refundedAt),
       'Hari Refund': rf.refundBusinessDate ?? '',
       Kasir: o.cashierName,
       Salesman: o.salesmanName || '-',
@@ -70,7 +68,9 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
       Item: o.items.map((i) => `${i.productName} ${i.variantSize} x${i.quantity}`).join('; '),
       Subtotal: o.subtotal,
       Diskon: o.discountAmount,
+      'Tukar Poin': pointsRedemptionCell(o),
       Pajak: o.taxAmount,
+      'Biaya Tambahan': o.surchargeAmount ?? 0,
       Total: o.total,
       'Jumlah Refund': rf.amount,
       // A split sale lists its lines ("QRIS 751.000; Tunai 500.000"); 'Metode Refund' is where the

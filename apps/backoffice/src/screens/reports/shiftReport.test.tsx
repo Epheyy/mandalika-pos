@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { Shift } from '@mandalika/api'
 import { SNAPSHOT_PENDING_HINT, SNAPSHOT_PENDING_LABEL } from './shiftFlags'
+import { csvCell } from '../../lib/csvUtils'
 import { shiftColumns, shiftCsvRow, summarizeShifts } from './shiftReport'
 
 const base = {
@@ -40,6 +41,14 @@ describe('shiftCsvRow', () => {
     expect(row['Total Penjualan']).toBe(500000)
     expect(row['Jumlah Transaksi']).toBe(7)
     expect(row.QRIS).toBe(50000)
+  })
+  it('writes Dibuka/Ditutup as yyyy-MM-dd HH:mm and keeps "-" for a missing Ditutup', () => {
+    const local = new Date(2026, 10, 9, 21, 41).toISOString()
+    const row = shiftCsvRow({ ...closed, openedAt: local, closedAt: local } as Shift, outletName)
+    expect(row.Dibuka).toBe('2026-11-09 21:41')
+    expect(row.Ditutup).toBe('2026-11-09 21:41')
+    expect(shiftCsvRow(open, outletName).Ditutup).toBe('-')
+    expect(csvCell(shiftCsvRow(open, outletName).Ditutup)).toBe('-')
   })
   it('keeps column names and order', () => {
     expect(Object.keys(shiftCsvRow(closed, outletName))).toEqual([
