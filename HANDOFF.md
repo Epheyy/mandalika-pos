@@ -8,6 +8,21 @@ Last updated: 2026-11-09 by Claude (Opus 5.5) - Codex R11 closed out: F34 + F35 
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-10: **LOW FINDINGS (#135) MERGED, RELEASE IN PROGRESS** (owner: "go ahead work on low findings", "Yes, release it").
+> - **First gate failed:** BO-PAGES-XLSX pins the exact XLSX header row ("XLSX column contract changed"); the PR had only run unit tests locally, not the browser gate.
+>   - Fix `bf510fdc` on the PR branch: the expected headers gain Tukar Poin and Biaya Tambahan, and the Total cell moves from column Q to S.
+>   - Other browser tests that read these exports (refund CSV header, split CSV, opname labels, SKU picker) were checked by hand and do not pin the changed parts.
+> - **Merge:** #135 (`079fbce1` + `bf510fdc`) no-ff on `2b5dfa66` as `6b98e5bd`. Gate `gate/low-findings` re-run, 5 workflows.
+> - **Release plan:** Backoffice publish plus POS OTA 2.13.8 (targets versionCode 13 / APK 2.2). No backend deploy: the only backend change is the csvimport golden fixture and a test comment.
+> - **What changed:**
+>   - CSV `-` placeholder written as `-`, not `'-`.
+>   - Every export date-time is `yyyy-MM-dd HH:mm`.
+>   - Sales CSV and Transaksi XLSX gain "Tukar Poin" and "Biaya Tambahan".
+>   - Ingredient count inputs are named per ingredient.
+>   - Kartu Stok SKU search clears stale results.
+>   - POS refund dialog wraps long names, with a hover title.
+> - **Still open:** rounded orders can differ from Total by the rounding amount (orders store no rounding field).
+
 > 2026-11-09: **P3 FIXES LIVE: APK 2.2 (versionCode 13)** (owner: "Fix both P3s", "One APK with both", "Yes, install it").
 > - **Merges:** #134 (`2b61373c`) and #133 (`69fdbbc5`), no-ff on `6d9a774e`. Gate `gate/apk22` 5/5 green; pushed behind `[CF-Pages-Skip]` `db4cca71`. No backend or Backoffice change.
 > - **APK build:** `android-release.yml` run `42645099571` (`release_type: test`, WebView debugging kept), artifact `mandalika-pos-2.2-build13-test-db4cca7`.

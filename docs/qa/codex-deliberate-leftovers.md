@@ -80,6 +80,19 @@ Citations: `HO:n` = line n of `HANDOFF.md` at commit `f491d988` (`git show f491d
   - The summary cards sum closed shifts only, and say how many shifts in the range are still open.
   - The CSV writes "Belum dihitung" in those columns (and Kas Akhir) for open shifts.
   - The cash-refunds-paid column stays live for open shifts.
+- **LOW findings from our 2026-11-09 run** (PR #135): Backoffice and POS OTA 2.13.8 (APK 2.2 only). Expected now:
+  - **CSV placeholder:** an empty "-" cell (or a lone + − – —) is written as `-`, not `'-`. Text that starts
+    with = @ + - and is not a plain number still gets the guard quote.
+  - **One date-time format:** every date-time cell in the sales CSV (Waktu Refund), the refund CSV (Waktu) and
+    the shift CSV (Dibuka, Ditutup) reads `yyyy-MM-dd HH:mm`, the same as Waktu Transaksi.
+  - **Totals add up:** the sales CSV and the Transaksi XLSX have "Tukar Poin" after the discount columns (right
+    after Diskon in the CSV, after Rincian Diskon in the XLSX) and "Biaya Tambahan" after Pajak. Subtotal - Diskon - Tukar Poin + Pajak + Biaya Tambahan = Total, except for rounded orders,
+    because orders store no rounding amount. A legacy order with points spent but no stored amount shows an
+    empty Tukar Poin cell, not 0. The new columns shift later columns to the right.
+  - **Ingredient count labels:** each count input is named "Jumlah dihitung <ingredient> (<unit>)".
+  - **Kartu Stok SKU search:** starting a new search clears the previous results, so a stale SKU cannot be
+    picked.
+  - **POS refund dialog:** long product names wrap to two lines, and the full name shows on hover (title).
 
 ## C. Still open or untested (fair to report)
 
@@ -104,11 +117,9 @@ Citations: `HO:n` = line n of `HANDOFF.md` at commit `f491d988` (`git show f491d
       - Expected: Android's font size has no effect on the POS layout.
       - Measured at `font_scale` 2.0: body 14 px, the same as at 1.0, with no clipping.
     - Tablets still on APK 2.1 (code 12) do not have these fixes and get no further OTAs until they install 2.2.
-  - **Found, open, owner to decide:**
-    - **CSV (LOW):**
-      - An empty "-" cell is written as `'-` (formula guard).
-      - The sales CSV mixes `2026-11-09 21:36` and `09/11/2026 21:41`.
-      - No point-redemption column, so Subtotal - Diskon != Total for redemption orders.
+  - **Found as LOW, fixed in PR #135** (see B): the CSV `'-` placeholder, mixed date formats, and the missing
+    point-redemption column. Still open: rounded orders can differ from Total by the rounding amount (no
+    stored rounding field; closing it needs a backend change).
   - **Not covered:**
     - No paired printer; scanner not tried.
     - Power and storage pressure.
@@ -117,12 +128,10 @@ Citations: `HO:n` = line n of `HANDOFF.md` at commit `f491d988` (`git show f491d
     - Real finger typing on the soft keyboard.
 - **External consumers of the old `Tanggal` column** have not been inventoried (outside the repo).
 - **R10 and R9 probe candidates, now settled:**
-  - **Repeated ingredient field labels (LOW, confirmed):** every count input is named "Jumlah dihitung".
-  - **SKU results kept during a new search (LOW, confirmed in source):** Kartu Stok keeps the previous results
-    selectable until the new answer arrives (`StockCard.tsx` SkuCombobox). It is a view filter only.
+  - **Repeated ingredient field labels:** fixed in PR #135 (see B).
+  - **SKU results kept during a new search:** fixed in PR #135 (see B).
   - **Many-variant picker height:** passes in both orientations, including at font scale 2.0.
-  - **Long similar names in refunds (source risk, not reproduced):** names are one truncated line with no title
-    (`RefundDialog.tsx`).
+  - **Long similar names in refunds:** fixed in PR #135 (see B): two lines plus a hover title.
 - **CheckoutPanel:** a stale overstock / leave confirm can remain after Back. This predates the QA work and is not
   fixed (HO:53). It cannot occur while `allowNegativeStock` is on (the current setting), because the overstock
   confirm never appears.
