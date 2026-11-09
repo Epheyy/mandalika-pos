@@ -4,11 +4,18 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-09 by Claude (Opus 5.5) - Codex R11 F34 + F35 + F36 merged (#130, #131), release in progress (Backoffice + POS OTA 2.13.7, no backend); F22 and the open-shift totals wait on the owner; see Progress board.
+Last updated: 2026-11-09 by Claude (Opus 5.5) - Codex R11 F34 + F35 + F36 LIVE: backoffice `82103714`, POS OTA 2.13.7 (backend unchanged, `00175-jos`); F22 and the open-shift totals wait on the owner; on-tablet check of 2.13.3-2.13.7 not done; see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
-> 2026-11-09: **R11 F34 + F35 + F36 MERGED, RELEASE IN PROGRESS** (owner: "Yes, release both"). Opus review: both approved. #131 needed one LOW fix, applied in `70a001c1`: a NULL stored `receipt` now resolves to the printer defaults, not the Backoffice all-ON defaults. Merged no-ff `8223f45b` (#130) + `fc45ffb7` (#131) on `7e1f9d5e`; gate `gate/r11` running. No backend change. Plan: Backoffice publish, then POS OTA 2.13.7 (journal guard acknowledged under "Yes, release both").
+> 2026-11-09: **R11 F34 + F35 + F36 LIVE** (owner: "Yes, release both").
+> - **Review:** Opus approved both PRs. #131 needed one LOW fix, applied in `70a001c1`: a NULL stored `receipt` now resolves to the printer defaults, not the Backoffice all-ON defaults.
+> - **Merge and gate:** merged no-ff `8223f45b` (#130) + `fc45ffb7` (#131) on `7e1f9d5e`. Gate `gate/r11` 5/5 green (quality, backend, postgres, browser, dependency-security). Pushed behind `[CF-Pages-Skip]` `a4ef1251`.
+> - **Backend:** unchanged (`00175-jos`).
+> - **Backoffice:** published by `82103714` (`[skip actions]`, Cloudflare green). The live entry is `index-GHuxTF2d.js`; `SettingsScreen-*.js` carries the resolver defaults (`showCashier:!1`).
+> - **POS OTA 2.13.7:** built from `fc45ffb7`, journal guard acknowledged under "Yes, release both". Id `753abd2f`, versionCode 12, 302132 B, sha256 `675dfb84...` matches the download. The bundle carries `change-callout` and the resolver defaults. `/ota/check`: 2.13.6 -> 2.13.7, 2.13.7 -> up-to-date, code 11 -> no release.
+> - **Visible change:** with today's stored settings, the Backoffice switches for order number, customer name, discount, subtotal and change now show ON. That is what has always printed. The first Backoffice save stores all 8 flags explicitly.
+> - **NOT done:** on-tablet check of 2.13.3-2.13.7; F22 fix-or-accept and the open-shift totals label (owner); deployed export bytes.
 > - **#130 F34:** reopening an ingredient count reloads its detail, and the draft still wins.
 > - **#131 F35+F36:** one shared `resolveReceiptFlags` (`@mandalika/types`, defaults = the printer's) drives the Backoffice switches, the on-screen receipt and `buildReceipt`; the success screen shows "Kembalian Rp X" outside the paper when `showChange` is off; the on-screen receipt time is the engine's stored capture time, not the render clock. No `packages/sync` change.
 

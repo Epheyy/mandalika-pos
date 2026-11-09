@@ -60,21 +60,25 @@ Citations: `HO:n` = line n of `HANDOFF.md` at commit `f491d988` (`git show f491d
   - Backoffice `89b230d6`.
   - POS OTA 2.13.6.
 - **F11, F13, F14, F15:** resolved or superseded in Codex's own R2.
+- **R11 F34, F35, F36:** Backoffice `82103714` and POS OTA 2.13.7 (PRs #130, #131). Expected now:
+  - **F34:** a clean tab that reopens an ingredient count shows what another tab saved, without a page reload.
+    A tab with unsaved input keeps that input.
+  - **F35:** each of the eight receipt flags reads the same in the Backoffice switch, the on-screen receipt and
+    the paper.
+    - An absent or null flag means ON for order number, subtotal, discount, change and customer name, and OFF
+      for tax, cashier and phone. This is what the printer has always done.
+    - With today's stored settings, the switches for order number, customer name, discount, subtotal and change
+      therefore show ON.
+    - When "Tampilkan Kembalian" is OFF, the paper mock hides the change, and the success screen shows
+      "Kembalian Rp X" above the receipt.
+  - **F36:** the on-screen and printed receipt both show the time the sale was recorded on the tablet. That is
+    the same value History shows, and it never moves on a rerender or sync.
 
 ## C. Still open or untested (fair to report)
 
-- **R11 findings, confirmed against source at `3121c2bf`:**
-  - **F22, navigation-away handover:** the tab lock is held until the page is destroyed, and nothing releases
-    it when the tab navigates away. Fix or accept is an owner decision, still pending. The APK has one WebView
-    and is unaffected.
-  - **F34, stale ingredient-count detail after another tab saves:** a fix is in progress. It reloads the detail
-    when a count is opened, and unsaved input is kept.
-  - **F35, receipt visibility flags:** the live settings store only `showCashier: false` and `showTax: false`.
-    - Backoffice drew the six missing flags as OFF, while the printer and preview treat five of them as ON.
-    - The preview also ignored the customer-name and change flags, and never showed the phone number.
-    - A fix is in progress: one shared per-flag rule whose defaults equal what the printer prints today.
-  - **F36, preview receipt time moving on rerender:** a fix is in progress. One fixed time, the order's recorded
-    client time, will be used for the preview and the printed receipt.
+- **R11 F22, navigation-away handover:** the tab lock is held until the page is destroyed, and nothing releases
+  it when the tab navigates away. Fix or accept is an owner decision, still pending. The APK has one WebView and
+  is unaffected.
 - **R11 advisory, owner decision pending:** an open shift's report totals show 0 until close, because they are
   a close-time snapshot. This is not data loss.
 - **R11 verification gaps:**
