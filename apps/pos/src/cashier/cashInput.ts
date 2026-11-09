@@ -61,25 +61,43 @@ export interface Keystroke {
   data: string
 }
 
+/** Digits typed after a "." or ",": null = not after a separator. They only become part of the amount as a group of three. */
+export type PendingFraction = string | null
+
+/** How many digits after a separator make it a thousands separator ("50.000"); one or two make a fraction ("50.5"). */
+const GROUP_DIGITS = 3
+
 /**
- * The reducer behind the field's onChange. The field is controlled, so a typed "." never stays in it; the next
- * digit would then join the amount ("Rp 50.000" + "." + "5" = 500005). So a typed "." or "," is swallowed and
- * switches to fraction mode: digits typed after it are ignored (rupiah has no cents) until a deletion, a paste,
- * or leaving the field. Deletions regroup digits as before. Everything else uses the shared parser.
+ * The reducer behind the field's onChange, so that typing "50.000" key by key gives what pasting it gives. The field
+ * is controlled, so a typed "." never stays in it; the next digit would then join the amount ("Rp 50.000" + "." + "5" =
+ * 500005). A typed "." or "," is therefore swallowed and the digits that follow are held PENDING, not shown: exactly
+ * three of them are a thousands group and join the amount, one or two are a fraction (rupiah has no cents) and are
+ * dropped by the next separator, a deletion, a paste, blur, or any edit that is not an append at the end. The field
+ * text never shows an amount other than the one that will be used. Four or more digits keep the paste rule: all count.
+ * Deletions regroup digits as before. Everything else uses the shared parser.
  */
 export function reduceCashKeystroke(
   current: string,
   text: string,
   key: Keystroke,
-  inFraction: boolean,
-): { raw: string; inFraction: boolean } {
-  if (key.inputType.startsWith('delete')) return { raw: parseTypedCash(text) ?? current, inFraction: false }
-  if (key.inputType === 'insertText') {
-    if (/^[.,]$/.test(key.data)) return { raw: current, inFraction: true }
-    if (inFraction && /^\d$/.test(key.data)) return { raw: current, inFraction: true }
+  pending: PendingFraction,
+): { raw: string; pending: PendingFraction } {
+  if (key.inputType.startsWith('delete')) return { raw: parseTypedCash(text) ?? current, pending: null }
+  const formatted = formatCashInput(current)
+  // No inputType: a plain append of one character is read as a typed character, like insertText.
+  const appended = key.inputType === '' && text.length === formatted.length + 1 && text.startsWith(formatted) ? text.slice(-1) : ''
+  // Some soft keyboards report single keys as insertCompositionText; one character is a typed key either way.
+  const isInsert = key.inputType === 'insertText' || (key.inputType === 'insertCompositionText' && key.data.length === 1)
+  const typed = isInsert ? key.data : appended
+  if (typed !== '' && /^[.,]$/.test(typed)) return { raw: current, pending: '' }
+  const isAppend = text === formatted + typed
+  if (typed !== '' && /^\d$/.test(typed) && pending !== null && isAppend) {
+    const held = pending + typed
+    if (held.length < GROUP_DIGITS) return { raw: current, pending: held }
+    return { raw: digitsToRaw(current + held) ?? current, pending: null }
   }
-  if (key.inputType === '') return { raw: nextCashInput(current, text), inFraction: false }
-  return { raw: parseCashInput(text) ?? current, inFraction: false }
+  if (key.inputType === '') return { raw: nextCashInput(current, text), pending: null }
+  return { raw: parseCashInput(text) ?? current, pending: null }
 }
 
 /** What the field's onPaste stores: the pasted amount, or the current value when it is over the maximum. */
@@ -118,7 +136,11 @@ export interface CashFieldProps {
 export function useCashField(raw: string, onRawChange: (raw: string) => void): CashFieldProps {
   const ref = useRef<HTMLInputElement>(null)
   const pendingDigits = useRef<number | null>(null)
-  const inFraction = useRef(false)
+  const pending = useRef<PendingFraction>(null)
+  // The amount changed (the keypad, a quick-cash chip, a reset, or this field's own commit): digits still pending belong to the old text.
+  useLayoutEffect(() => {
+    pending.current = null
+  }, [raw])
   useLayoutEffect(() => {
     const el = ref.current
     if (pendingDigits.current === null || !el) return
@@ -131,19 +153,22 @@ export function useCashField(raw: string, onRawChange: (raw: string) => void): C
     value: formatCashInput(raw),
     onChange: (e) => {
       const el = e.target
-      pendingDigits.current = countDigits(el.value.slice(0, el.selectionStart ?? el.value.length))
       const ne = e.nativeEvent as Partial<InputEvent>
-      const next = reduceCashKeystroke(raw, el.value, { inputType: ne.inputType ?? '', data: ne.data ?? '' }, inFraction.current)
-      inFraction.current = next.inFraction
+      const next = reduceCashKeystroke(raw, el.value, { inputType: ne.inputType ?? '', data: ne.data ?? '' }, pending.current)
+      // A group of three is accepted as an append, but only its last digit was in the field: the two held ones were not,
+      // so counting digits before the caret would leave it two short. An accepted group always ends at the end.
+      const groupAccepted = pending.current !== null && next.pending === null && next.raw !== raw && el.value.length === formatCashInput(raw).length + 1
+      pendingDigits.current = groupAccepted ? countDigits(formatCashInput(next.raw)) : countDigits(el.value.slice(0, el.selectionStart ?? el.value.length))
+      pending.current = next.pending
       onRawChange(next.raw)
     },
     onBlur: () => {
-      inFraction.current = false
+      pending.current = null
     },
     onPaste: (e) => {
       e.preventDefault()
       pendingDigits.current = null
-      inFraction.current = false
+      pending.current = null
       onRawChange(pastedCashInput(raw, e.clipboardData.getData('text')))
     },
   }

@@ -146,17 +146,6 @@ describe('one whole-rupiah rule for typing and pasting (F18)', () => {
     }
   })
   it('typing a fraction key by key leaves the amount alone (the field re-formats after every keystroke)', () => {
-    // Simulates the controlled field: every keystroke inserts one char at the end of the CURRENT formatted text.
-    const type = (keys: string, start = ''): string => {
-      let raw = start
-      let frac = false
-      for (const k of keys) {
-        const r = reduceCashKeystroke(raw, formatCashInput(raw) + k, { inputType: 'insertText', data: k }, frac)
-        raw = r.raw
-        frac = r.inFraction
-      }
-      return raw
-    }
     expect(type('50000.5')).toBe('50000')
     expect(type('50000,50')).toBe('50000')
     expect(type('50000.')).toBe('50000')
@@ -165,15 +154,97 @@ describe('one whole-rupiah rule for typing and pasting (F18)', () => {
     expect(type('.5', '50000')).toBe('50000')
   })
   it('a separator typed mid-string no longer shrinks the amount', () => {
-    expect(reduceCashKeystroke('1000', 'Rp 1.0.00', { inputType: 'insertText', data: '.' }, false).raw).toBe('1000')
-    expect(reduceCashKeystroke('50000', 'Rp 50.0,00', { inputType: 'insertText', data: ',' }, false).raw).toBe('50000')
+    expect(reduceCashKeystroke('1000', 'Rp 1.0.00', { inputType: 'insertText', data: '.' }, null).raw).toBe('1000')
+    expect(reduceCashKeystroke('50000', 'Rp 50.0,00', { inputType: 'insertText', data: ',' }, null).raw).toBe('50000')
   })
-  it('deleting leaves fraction mode and regroups', () => {
-    const r = reduceCashKeystroke('1000', 'Rp 1.00', { inputType: 'deleteContentBackward', data: '' }, true)
-    expect(r).toEqual({ raw: '100', inFraction: false })
+  it('deleting drops the pending digits and regroups', () => {
+    const r = reduceCashKeystroke('1000', 'Rp 1.00', { inputType: 'deleteContentBackward', data: '' }, '00')
+    expect(r).toEqual({ raw: '100', pending: null })
   })
   it('a deletion still regroups digits instead of reading a fraction', () => {
     expect(nextCashInput('1000', 'Rp 1.00')).toBe('100')
     expect(nextCashInput('1000', 'Rp .000')).toBe('0')
+  })
+})
+
+/** Simulates the controlled field: every keystroke inserts one char at the end of the CURRENT formatted text. */
+function typeKeys(keys: string, start = '', withInputType = true): { raw: string; pending: string | null } {
+  let raw = start
+  let pending: string | null = null
+  for (const k of keys) {
+    const r = reduceCashKeystroke(raw, formatCashInput(raw) + k, { inputType: withInputType ? 'insertText' : '', data: withInputType ? k : '' }, pending)
+    raw = r.raw
+    pending = r.pending
+  }
+  return { raw, pending }
+}
+function type(keys: string, start = ''): string {
+  return typeKeys(keys, start).raw
+}
+
+describe('typed equals pasted: a separator + exactly three digits is a thousands group (F18 retest R10)', () => {
+  const table: Array<[string, string]> = [
+    ['50.000', '50000'],
+    ['500.000', '500000'],
+    ['1.000.000', '1000000'],
+    ['50,000', '50000'],
+    ['350.000,00', '350000'],
+    ['50000.5', '50000'],
+    ['50.5', '50'],
+    ['50.00', '50'],
+    ['1.2345', '12345'],
+    ['50.0000', '500000'],
+    ['12.500', '12500'],
+    ['1.2345', '12345'],
+  ]
+  it.each(table)('%s gives %s whether typed (with or without inputType) or pasted', (text, want) => {
+    expect(pastedCashInput('', text)).toBe(want)
+    expect(typeKeys(text).raw).toBe(want)
+    expect(typeKeys(text, '', false).raw).toBe(want)
+  })
+  it('holds the digits after a separator pending: the field never shows an amount the sale will not use', () => {
+    expect(typeKeys('50.')).toEqual({ raw: '50', pending: '' })
+    expect(typeKeys('50.0')).toEqual({ raw: '50', pending: '0' })
+    expect(typeKeys('50.00')).toEqual({ raw: '50', pending: '00' })
+    expect(typeKeys('50.000')).toEqual({ raw: '50000', pending: null })
+  })
+  it('another separator drops one or two pending digits', () => {
+    expect(typeKeys('50.0,')).toEqual({ raw: '50', pending: '' })
+    expect(type('50.0,000')).toBe('50000')
+  })
+  it('clearing the field and typing again starts from nothing', () => {
+    const cleared = reduceCashKeystroke('50000', 'Rp ', { inputType: 'deleteContentBackward', data: '' }, null)
+    expect(cleared).toEqual({ raw: '', pending: null })
+    expect(type('50.000', cleared.raw)).toBe('50000')
+  })
+  it('backspace after a committed group regroups; backspace mid-fraction drops the pending digits', () => {
+    expect(reduceCashKeystroke('50000', 'Rp 50.00', { inputType: 'deleteContentBackward', data: '' }, null).raw).toBe('5000')
+    const mid = typeKeys('50.0')
+    expect(reduceCashKeystroke(mid.raw, 'Rp 5', { inputType: 'deleteContentBackward', data: '' }, mid.pending)).toEqual({ raw: '5', pending: null })
+  })
+  it('replacing a selection with a digit starts a new amount even mid-fraction', () => {
+    const mid = typeKeys('50.0')
+    expect(reduceCashKeystroke(mid.raw, '7', { inputType: 'insertText', data: '7' }, mid.pending)).toEqual({ raw: '7', pending: null })
+  })
+  it('a digit typed mid-field after a separator is an ordinary digit, not a pending one', () => {
+    const mid = typeKeys('50.')
+    expect(reduceCashKeystroke('50', 'Rp 550', { inputType: 'insertText', data: '5' }, mid.pending).raw).toBe('550')
+  })
+  it('after blur (the hook resets pending to null) later digits are plain', () => {
+    expect(type('7', typeKeys('50.00').raw)).toBe('507')
+  })
+  it('single keys reported as insertCompositionText are typed keys too', () => {
+    let raw = ''
+    let pending: string | null = null
+    for (const k of '50.5') {
+      const r = reduceCashKeystroke(raw, formatCashInput(raw) + k, { inputType: 'insertCompositionText', data: k }, pending)
+      raw = r.raw
+      pending = r.pending
+    }
+    expect(raw).toBe('50')
+  })
+  it('over the maximum the current amount stays and nothing is left pending', () => {
+    const max = '9'.repeat(MAX_CASH_DIGITS)
+    expect(typeKeys('.000', max)).toEqual({ raw: max, pending: null })
   })
 })
