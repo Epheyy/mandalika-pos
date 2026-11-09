@@ -5,7 +5,8 @@ Production POS is the Android APK: one WebView, so one POS instance per tablet. 
 ## What the browser guard does
 
 - On start, the POS takes the Web Lock `mandalika-pos-active-tab` (`apps/pos/src/tabGuard.ts`) before anything reads or writes storage.
-- A second tab in the same browser profile shows "POS sudah terbuka di tab lain", writes nothing and calls no API. It starts by itself, with the first tab's open-cart draft, when the first tab closes or navigates away. No reload is needed (browser scenario `POS-TWO-TABS-TAKEOVER`).
+- A second tab in the same browser profile shows "POS sudah terbuka di tab lain", writes nothing and calls no API. It starts by itself, with the first tab's open-cart draft, when the first tab closes. No reload is needed (browser scenario `POS-TWO-TABS-TAKEOVER`).
+- If the first tab **navigates to another site** instead of closing, the second tab stays on the notice until that first tab is closed. The browser can keep the old page (and its lock) alive for back/forward. To hand over, close the first tab. This is accepted by the owner (2026-11-09, Codex R11 F22), and there is no plan to fix it. Releasing the lock on departure would touch the single-writer boundary below, and the APK is unaffected.
 - If the owner **reloads** while a second tab is waiting, the waiting tab owns the POS afterwards and the reloaded page waits behind it (the queue is first come, first served).
 - The APK skips the guard (no-op).
 

@@ -766,6 +766,12 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
   opening cash is rejected ("doesn't make sense logically"); cash entry is whole rupiah, typed and pasted alike (digits
   only, never a fraction); the split entry link reads "Split-Payment" and its picker uses the single-mode segmented style;
   held-order amount labelled "Subtotal".
+- 2026-11-09 (Codex R11):
+  - **F22 accepted:** when the owner tab navigates to another site, the waiting browser tab stays blocked until that
+    tab is closed. There will be no fix: the browser POS is dev/QA only, the APK is unaffected, and a fix would touch
+    the single-writer boundary.
+  - **Open-shift report totals:** they stay a close-time snapshot, labelled "Belum dihitung" while the shift is open.
+    There is no live aggregate.
 
 ## Next
 

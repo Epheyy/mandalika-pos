@@ -22,7 +22,7 @@ Citations: `HO:n` = line n of `HANDOFF.md` at commit `f491d988` (`git show f491d
 
 | Id | Decision and why | Expected behaviour | Source |
 |---|---|---|---|
-| F22 / W01 | **Mitigated with a one-tab guard at the entry point only.**<br>- The APK is the production POS. A browser is for dev and QA only, in Chromium with Web Locks.<br>- The KV outbox (`packages/sync/src/outboxStore.ts`) still rewrites its whole array on every save. That is by design: there is a single writer.<br>- Making the guard fail closed is an owner decision, not a defect. | - A second Chromium tab shows "POS sudah terbuka di tab lain": no cashier controls, no writes, and the draft is kept.<br>- When the owning tab closes, the waiting tab takes over by itself, with no reload.<br>- If the owning tab reloads while another tab waits, the waiting tab becomes the owner.<br>- If the owning tab navigates to another site, the waiting tab stays blocked until that tab is closed. This is R11 F22, open in Section C.<br>- A browser without Web Locks (for example plain-http LAN serving) has no guard and shows "Perlindungan satu tab tidak aktif di browser ini. Buka POS di satu tab saja."<br>- The APK shows no warning; it has a single WebView.<br>- Do not report the whole-array outbox store as an open bug. | HO:47; TRIAGE W01 "by design single-writer"; `docs/runbooks/browser-pos-support-policy.md` |
+| F22 / W01 | **Mitigated with a one-tab guard at the entry point only.**<br>- The APK is the production POS. A browser is for dev and QA only, in Chromium with Web Locks.<br>- The KV outbox (`packages/sync/src/outboxStore.ts`) still rewrites its whole array on every save. That is by design: there is a single writer.<br>- Making the guard fail closed is an owner decision, not a defect. | - A second Chromium tab shows "POS sudah terbuka di tab lain": no cashier controls, no writes, and the draft is kept.<br>- When the owning tab closes, the waiting tab takes over by itself, with no reload.<br>- If the owning tab reloads while another tab waits, the waiting tab becomes the owner.<br>- If the owning tab navigates to another site, the waiting tab stays blocked until that tab is closed; closing it hands over with the draft. **The owner accepted this on 2026-11-09 (R11 F22); it will not be fixed.** Releasing the lock on departure would touch the single-writer boundary, and the APK is unaffected.<br>- A browser without Web Locks (for example plain-http LAN serving) has no guard and shows "Perlindungan satu tab tidak aktif di browser ini. Buka POS di satu tab saja."<br>- The APK shows no warning; it has a single WebView.<br>- Do not report the whole-array outbox store as an open bug. | HO:47; TRIAGE W01 "by design single-writer"; `docs/runbooks/browser-pos-support-policy.md` |
 | F19 | **The 5-minute stock-only auto-pull floor is deliberate** (`packages/sync/src/autoPull.ts`). Only the wording changed. | - Stock can be up to 5 minutes behind.<br>- The chip changes to "Stok menunggu diperbarui" only for stock changed elsewhere, after a 60 s hold-off. It never changes for follow-ups to the tablet's own sales.<br>- Koneksi -> "Perbarui stok" pulls stock immediately. | TRIAGE F19 "DESIGN"; HO:47 |
 | F20 (sync batch) | **A queued `shift_open` with a negative opening cash is still accepted and stored as sent, but flagged.**<br>- A queued shift is never dropped.<br>- Clamping the amount would skew drawer reconciliation.<br>- The Buka Shift field cannot produce a negative, and a direct API call rejects one. A tablet on a bundle older than OTA 2.12.0 can still queue -1. | - The Buka Shift opening-cash field accepts digits only, like every cash field. A typed minus sign is dropped with no error, so typing `-1` gives Rp 1.<br>- `POST /shifts` with a negative returns 400 "kas awal tidak boleh negatif".<br>- A queued negative shift lands with its value and shows a red "Kas awal negatif" badge in Laporan > Shift. | HO:59; HO:27 |
 | F07 | **The legacy `cash` id and the configured `tunai` id are not merged.** The server matches the exact id, so they are separate datasets. | Both appear in filters. The legacy one reads "Tunai (data lama)" and returns only orders with the legacy id. | HO:49; R10 F07 row |
@@ -73,14 +73,16 @@ Citations: `HO:n` = line n of `HANDOFF.md` at commit `f491d988` (`git show f491d
       "Kembalian Rp X" above the receipt.
   - **F36:** the on-screen and printed receipt both show the time the sale was recorded on the tablet. That is
     the same value History shows, and it never moves on a rerender or sync.
+- **R11 open-shift totals advisory** (owner decision 2026-11-09: label, no live aggregate). The totals stay a
+  close-time snapshot. Expected in Laporan > Shift:
+  - For an open shift, the Transaksi, Refund penjualan shift, Penjualan, Tunai, QRIS, Transfer and Kartu cells
+    read "Belum dihitung" (hint: "Shift masih buka. Angka dihitung saat shift ditutup."), not 0.
+  - The summary cards sum closed shifts only, and say how many shifts in the range are still open.
+  - The CSV writes "Belum dihitung" in those columns (and Kas Akhir) for open shifts.
+  - The cash-refunds-paid column stays live for open shifts.
 
 ## C. Still open or untested (fair to report)
 
-- **R11 F22, navigation-away handover:** the tab lock is held until the page is destroyed, and nothing releases
-  it when the tab navigates away. Fix or accept is an owner decision, still pending. The APK has one WebView and
-  is unaffected.
-- **R11 advisory, owner decision pending:** an open shift's report totals show 0 until close, because they are
-  a close-time snapshot. This is not data loss.
 - **R11 verification gaps:**
   - The deployed CSV/XLSX export bytes are unverified.
   - External consumers of the old `Tanggal` column have not been inventoried.
