@@ -14,10 +14,11 @@ Production POS is the Android APK: one WebView, so one POS instance per tablet. 
 | Environment | Level |
 |---|---|
 | APK (Capacitor) | Production. No guard, no notice. |
-| Chromium-based browsers with Web Locks (Chrome, Edge) | Supported for dev/QA; one-tab protection is tested in the browser gate. |
-| Other browsers, or Web Locks missing / request failing | Runs with the guard off and a persistent notice: "Perlindungan satu tab tidak aktif di browser ini. Buka POS di satu tab saja." Open one tab only. |
+| Chromium-based browsers with Web Locks (Chrome, Edge) | Supported for dev/QA. One-tab protection is tested in the browser gate with headless Chromium (Edge is the same engine, not run separately). |
+| Firefox, Safari | Have Web Locks, so the guard runs, but it is not tested here. Not supported. |
+| Web Locks missing or the request failing (old browser, or an insecure context such as Chrome on `http://<LAN-IP>:5183`, where `navigator.locks` does not exist) | Runs with the guard off and a persistent notice: "Perlindungan satu tab tidak aktif di browser ini. Buka POS di satu tab saja." Open one tab only. |
 
-The guard fails open (the POS still starts) by design. Switching to fail-closed (refuse to start without the lock) is an owner decision and has not been made.
+The guard fails open (the POS still starts) when Web Locks are missing or the first request fails. One path fails closed: if a second tab's queued request is rejected, that tab stays on the other-tab notice and does not start (console warning only), even after the owner is gone; reload it.  Switching to fail-closed (refuse to start without the lock) is an owner decision and has not been made.
 
 ## Remaining boundary
 

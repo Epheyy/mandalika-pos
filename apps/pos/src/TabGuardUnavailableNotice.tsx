@@ -10,7 +10,7 @@ export function TabGuardUnavailableNotice() {
     <div
       role="status"
       data-testid="tab-guard-unavailable"
-      style={{ position: 'fixed', left: '50%', bottom: 8, transform: 'translateX(-50%)', zIndex: 2147483000, maxWidth: 'calc(100vw - 16px)', padding: '6px 12px', borderRadius: 8, background: '#92400e', color: '#fff', font: '600 12px/1.3 system-ui', textAlign: 'center', pointerEvents: 'none' }}
+      style={{ position: 'fixed', left: '50%', bottom: 8, transform: 'translateX(-50%)', zIndex: 70, maxWidth: 'calc(100vw - 16px)', padding: '6px 12px', borderRadius: 8, background: '#92400e', color: '#fff', font: '600 12px/1.3 system-ui', textAlign: 'center', pointerEvents: 'none' }}
     >
       {TAB_GUARD_UNAVAILABLE_TEXT}
     </div>

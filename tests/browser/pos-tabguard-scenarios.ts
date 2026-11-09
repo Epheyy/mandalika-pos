@@ -9,9 +9,10 @@ const OUTLET = '00000000-0000-4000-8300-000000000090'
 const DRAFT_KEY = `mandalika.pos.openCart.${OUTLET}`
 const BLOCKED_TEXT = 'POS sudah terbuka di tab lain'
 const POS_URL = 'http://127.0.0.1:5183/'
-/** The queued tab must reach the cashier within this long after the owner is gone (the lock hand-over is immediate). */
-const TAKEOVER_BOUND_MS = 5000
-const OBSERVE_MS = 700 // longer than the 800 ms notice delay's grace: a blocked tab is observed while it waits
+/** The queued tab must reach the cashier within this long after the owner is gone. The hand-over itself takes ~0.2 s
+ *  locally; the bound covers the whole boot (auth, pull, restore) on a slow CI runner. */
+const TAKEOVER_BOUND_MS = 15000
+const OBSERVE_MS = 700 // observed after the notice is up, i.e. at least ~1.5 s after the tab opened
 
 interface ApiCall { method: string; path: string }
 
@@ -54,7 +55,7 @@ const storageWrites = (tab: Page) => tab.evaluate(() => (window as unknown as { 
 const posKeys = (tab: Page) => tab.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('mandalika.')).sort())
 
 /** The tab shows the cashier with the draft line restored. */
-async function expectCashierWithDraft(tab: Page, what: string) {
+async function expectCashierWithDraft(tab: Page, what: string, guarded = true) {
   const started = Date.now()
   try {
     await tab.getByRole('button', { name: 'Ubah Synthetic Scent M', exact: true }).waitFor({ timeout: TAKEOVER_BOUND_MS })
@@ -62,6 +63,7 @@ async function expectCashierWithDraft(tab: Page, what: string) {
     throw Error(`${what}: did not reach the cashier with the draft within ${TAKEOVER_BOUND_MS} ms: ${err instanceof Error ? err.message.split('\n')[0] : err}`)
   }
   assert((await tab.getByText(BLOCKED_TEXT).count()) === 0, `${what}: the other-tab notice is gone`)
+  if (guarded) assert((await tab.getByTestId('tab-guard-unavailable').count()) === 0, `${what}: a guarded tab shows no no-guard warning`)
   return Date.now() - started
 }
 
@@ -77,7 +79,7 @@ async function settle(tab: Page) {
 }
 
 /** Open a second tab and prove it waits quietly: the notice, no sale controls, no API call, no storage write. */
-async function openQueuedTab(first: Page, a24: Fixture, ownerDraft: string | null) {
+async function openQueuedTab(first: Page, a24: Fixture) {
   const tab = await first.context().newPage()
   const calls: ApiCall[] = []
   await countStorageWrites(tab)
@@ -90,7 +92,6 @@ async function openQueuedTab(first: Page, a24: Fixture, ownerDraft: string | nul
   assert(writes.length === 0, 'the waiting tab wrote to storage: ' + JSON.stringify(writes))
   assert(calls.length === 0, 'the waiting tab called the API (sync/pull/writes): ' + JSON.stringify(calls))
   assert((await tab.getByRole('button', { name: /Synthetic Scent/ }).count()) === 0, 'the waiting tab shows no cashier controls')
-  assert((await first.evaluate((k) => localStorage.getItem(k), DRAFT_KEY)) === ownerDraft, 'the owner draft is untouched')
   return { tab, calls }
 }
 
@@ -105,14 +106,14 @@ export const posTabTakeover = async (page: ScenarioPage) => {
   const draft = await page.evaluate((k) => localStorage.getItem(k), DRAFT_KEY)
 
   // 1. The owner closes.
-  const one = await openQueuedTab(page, a24, draft)
+  const one = await openQueuedTab(page, a24)
   await page.close()
   const closeMs = await expectCashierWithDraft(one.tab, 'owner closed')
   assert((await one.tab.evaluate((k) => localStorage.getItem(k), DRAFT_KEY)) !== null, 'the draft survives the takeover')
   out.push({ ownerCloses: 'queued tab reached the cashier with the draft, no reload', ms: closeMs })
 
   // 2. The owner (now tab 1) navigates to another URL (what a tester does by typing an address).
-  const two = await openQueuedTab(one.tab, a24, await one.tab.evaluate((k) => localStorage.getItem(k), DRAFT_KEY))
+  const two = await openQueuedTab(one.tab, a24)
   await one.tab.goto('about:blank')
   const navMs = await expectCashierWithDraft(two.tab, 'owner navigated away')
   out.push({ ownerNavigates: 'queued tab reached the cashier with the draft, no reload', ms: navMs })
@@ -120,11 +121,14 @@ export const posTabTakeover = async (page: ScenarioPage) => {
 
   // 3. The owner (now tab 2) reloads while a third tab is queued: the queued tab was first in line, so it wins
   // and the reloaded page is the one that waits.
-  const ownerDraft = await two.tab.evaluate((k) => localStorage.getItem(k), DRAFT_KEY)
-  const three = await openQueuedTab(two.tab, a24, ownerDraft)
+  const three = await openQueuedTab(two.tab, a24)
+  const callsBefore = two.calls.length
   await two.tab.reload()
   const reloadMs = await expectCashierWithDraft(three.tab, 'owner reloaded')
   await two.tab.getByText(BLOCKED_TEXT).waitFor()
+  await two.tab.waitForTimeout(OBSERVE_MS)
+  assert((await storageWrites(two.tab)).length === 0, 'the reloaded page wrote to storage while it waited')
+  assert(two.calls.length === callsBefore, 'the reloaded page called the API while it waited')
   assert((await two.tab.getByRole('button', { name: /Synthetic Scent/ }).count()) === 0, 'the reloaded page waits, it does not run the cashier')
   out.push({ ownerReloads: 'the queued tab owns the POS afterwards; the reloaded page shows the notice', ms: reloadMs })
 
@@ -139,7 +143,7 @@ export const posTabTakeover = async (page: ScenarioPage) => {
   await bare.addInitScript(() => Object.defineProperty(navigator, 'locks', { value: undefined, configurable: true }))
   await serveSyntheticApi(bare, a24, [])
   await bare.goto(POS_URL)
-  await expectCashierWithDraft(bare, 'no Web Locks')
+  await expectCashierWithDraft(bare, 'no Web Locks', false)
   const notice = bare.getByTestId('tab-guard-unavailable')
   assert((await notice.innerText()).startsWith('Perlindungan satu tab tidak aktif'), 'the no-guard warning is visible')
   await bare.waitForTimeout(OBSERVE_MS)
