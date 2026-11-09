@@ -1,64 +1,22 @@
 import { fetchAllPages } from '@mandalika/api'
 import type { ListShiftsParams, Outlet, Shift } from '@mandalika/api'
-import { format, parseISO } from 'date-fns'
-import { id as idLocale } from 'date-fns/locale'
 import { ShoppingBag } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { exportToCSV, buildExportName } from '../../lib/csvUtils'
 import { BRAND } from '../../lib/brand'
 import { Card } from '../../ui/Card'
-import { DataTable, type Column } from '../../ui/DataTable'
+import { DataTable } from '../../ui/DataTable'
 import { EmptyState } from '../../ui/EmptyState'
 import { ExportButton } from '../../ui/ExportButton'
 import { FilterBar } from '../../ui/FilterBar'
-import { CASH_REFUNDS_PAID_HEADER, cashRefundsPaidCell } from '../refundDisplay'
-import { NEGATIVE_STARTING_CASH_HINT, startingCashBadge } from './shiftFlags'
+import { REFUND_SHIFT_HINT, REFUND_SHIFT_LABEL, shiftColumns, shiftCsvRow, summarizeShifts } from './shiftReport'
 
 interface ShiftsTabProps {
   dateFrom: string
   dateTo: string
   outletId: string | null | undefined
   outlets: Outlet[]
-}
-
-const money = (n: number) => BRAND.currency.format(n)
-const whenShort = (iso: string | null | undefined) => (iso ? format(parseISO(iso), 'dd MMM HH:mm', { locale: idLocale }) : '-')
-
-const REFUND_SHIFT_LABEL = 'Refund penjualan shift'
-const REFUND_SHIFT_HINT = 'Mengikuti shift yang membuat penjualan. Tab Unduh data menghitung refund pada hari refund, jadi angkanya bisa berbeda.'
-
-function shiftColumns(outletName: (id: string) => string): Column<Shift>[] {
-  return [
-    {
-      id: 'kasir',
-      header: 'Kasir',
-      cell: (s) => {
-        const badge = startingCashBadge(s)
-        return (
-          <span className="font-bold">
-            {s.cashierName}
-            {badge && <span className="ml-2 rounded bg-danger/10 px-1.5 py-0.5 text-[10px] font-bold text-danger" title={`${NEGATIVE_STARTING_CASH_HINT} Kas awal: ${money(s.startingCash)}`}>{badge}</span>}
-          </span>
-        )
-      },
-    },
-    { id: 'outlet', header: 'Outlet', cell: (s) => outletName(s.outletId) },
-    { id: 'dibuka', header: 'Dibuka', cell: (s) => <span className="whitespace-nowrap text-xs">{whenShort(s.openedAt)}</span> },
-    {
-      id: 'ditutup',
-      header: 'Ditutup',
-      cell: (s) => (s.closedAt ? <span className="whitespace-nowrap text-xs">{whenShort(s.closedAt)}</span> : <span className="text-xs font-bold text-ok">Buka</span>),
-    },
-    { id: 'transaksi', header: 'Transaksi', align: 'right', cell: (s) => <span className="font-bold">{s.totalOrders}</span> },
-    { id: 'refund', header: REFUND_SHIFT_LABEL, align: 'right', cell: (s) => <span className="font-bold text-danger" title={REFUND_SHIFT_HINT}>{money(s.totalRefunds || 0)}</span> },
-    { id: 'refund-tunai', header: CASH_REFUNDS_PAID_HEADER, align: 'right', cell: (s) => <span className="text-xs">{cashRefundsPaidCell(s, money)}</span> },
-    { id: 'penjualan', header: 'Penjualan', align: 'right', cell: (s) => <span className="font-black">{money(s.totalSales)}</span> },
-    { id: 'tunai', header: 'Tunai', align: 'right', cell: (s) => <span className="text-xs">{money(s.cashSales)}</span> },
-    { id: 'qris', header: 'QRIS', align: 'right', cell: (s) => <span className="text-xs">{money(s.qrisSales)}</span> },
-    { id: 'transfer', header: 'Transfer', align: 'right', cell: (s) => <span className="text-xs">{money(s.transferSales)}</span> },
-    { id: 'kartu', header: 'Kartu', align: 'right', cell: (s) => <span className="text-xs">{money(s.cardSales)}</span> },
-  ]
 }
 
 /** Laporan > Shift: shifts opened inside the WIB date range (server filtered on
@@ -73,26 +31,12 @@ export function ShiftsTab({ dateFrom, dateTo, outletId, outlets }: ShiftsTabProp
   const shifts = sq.data ?? []
   const outletName = (oid: string) => outlets.find((o) => o.id === oid)?.name || oid
   const columns = shiftColumns(outletName)
+  const sum = summarizeShifts(shifts)
+  const pendingNote = sum.openCount > 0 ? `+ ${sum.openCount} shift masih buka (belum dihitung)` : null
 
   const exportSh = () =>
     exportToCSV(
-      shifts.map((s) => ({
-        Kasir: s.cashierName,
-        Outlet: outletName(s.outletId),
-        Dibuka: s.openedAt ? format(parseISO(s.openedAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }) : '-',
-        Ditutup: s.closedAt ? format(parseISO(s.closedAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }) : '-',
-        Status: s.status,
-        'Kas Awal': s.startingCash,
-        'Kas Akhir': s.closingCash || 0,
-        'Total Penjualan': s.totalSales,
-        [REFUND_SHIFT_LABEL]: s.totalRefunds || 0,
-        [CASH_REFUNDS_PAID_HEADER]: cashRefundsPaidCell(s),
-        'Jumlah Transaksi': s.totalOrders,
-        Tunai: s.cashSales,
-        Kartu: s.cardSales,
-        Transfer: s.transferSales,
-        QRIS: s.qrisSales,
-      })),
+      shifts.map((s) => shiftCsvRow(s, outletName)),
       buildExportName('laporan-shift', [
         outletId ? outletName(outletId) : 'semua-outlet',
         dateFrom ? `dari-${dateFrom}` : 'semua-tanggal',
@@ -124,14 +68,15 @@ export function ShiftsTab({ dateFrom, dateTo, outletId, outlets }: ShiftsTabProp
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: 'Total Penjualan', value: BRAND.currency.format(shifts.reduce((s, sh) => s + sh.totalSales, 0)) },
-              { label: 'Total Transaksi', value: String(shifts.reduce((s, sh) => s + sh.totalOrders, 0)) },
-              { label: REFUND_SHIFT_LABEL, hint: REFUND_SHIFT_HINT, value: BRAND.currency.format(shifts.reduce((s, sh) => s + (sh.totalRefunds || 0), 0)) },
-              { label: 'Jumlah Shift', value: String(shifts.length) },
+              { label: 'Total Penjualan', value: BRAND.currency.format(sum.totalSales), note: pendingNote },
+              { label: 'Total Transaksi', value: String(sum.totalOrders), note: pendingNote },
+              { label: REFUND_SHIFT_LABEL, hint: REFUND_SHIFT_HINT, value: BRAND.currency.format(sum.totalRefunds), note: pendingNote },
+              { label: 'Jumlah Shift', value: String(sum.shiftCount), note: sum.openCount > 0 ? `${sum.openCount} masih buka` : null },
             ].map((c) => (
               <Card key={c.label} className="p-4">
                 <p className="text-xl font-black text-gray-900">{c.value}</p>
                 <p className="text-xs text-ink-500" title={'hint' in c ? c.hint : undefined}>{c.label}</p>
+                {c.note && <p className="text-[11px] text-ink-500">{c.note}</p>}
               </Card>
             ))}
           </div>
