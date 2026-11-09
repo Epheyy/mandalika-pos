@@ -66,8 +66,19 @@ describe('F35 Backoffice switches read each flag the way the printer does', () =
     expect(body.taxRate).toBe(fresh.taxRate)
   })
 
-  it('an empty receipt object resolves to the printer defaults; a missing one keeps the old all-ON fallback', () => {
+  it('an empty receipt object resolves to the printer defaults', () => {
     expect(normalize(serverWith({ headerText: '', footerText: '' })).receipt.showCustomerPhone).toBe(false)
-    expect(normalize({ ...DEFAULT_SETTINGS, receipt: undefined } as never).receipt).toEqual(DEFAULT_SETTINGS.receipt)
   })
+
+  for (const missing of [null, undefined]) {
+    it(`no receipt object (${String(missing)}): switches equal the printer defaults, no unsaved change on open`, () => {
+      const raw = { ...DEFAULT_SETTINGS, receipt: missing } as never
+      const s = normalize(raw)
+      const html = renderOn(s)
+      for (const [label, [key, dflt]] of Object.entries(SWITCHES)) {
+        expect(switchOn(html, label), key).toBe(dflt)
+      }
+      expect(diffSettings(normalize(raw), s)).toEqual([])
+    })
+  }
 })

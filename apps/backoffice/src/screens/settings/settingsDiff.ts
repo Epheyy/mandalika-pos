@@ -108,7 +108,7 @@ export function normalize(data?: Partial<AppSettings> | null): AppSettings {
     paymentMethods: m.paymentMethods ?? [],
     // A stored receipt object can be partial (absent show* keys). Resolve each key the way the printer reads it,
     // per key, so the switches, the on-screen receipt and the paper agree; never merge DEFAULT_SETTINGS in.
-    receipt: m.receipt ? { ...m.receipt, ...resolveReceiptFlags(m.receipt) } : DEFAULT_SETTINGS.receipt,
+    receipt: { ...(m.receipt ?? DEFAULT_SETTINGS.receipt), ...resolveReceiptFlags(m.receipt) },
     // The server stores the list as sent, so a stored 'admin' is possible; admin is always allowed and must not count as a change.
     receiveApproverRoles: (m.receiveApproverRoles ?? []).filter((r) => r !== 'admin'),
     recipesEnabled: !!m.recipesEnabled,
