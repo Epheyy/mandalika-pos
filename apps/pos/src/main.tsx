@@ -15,6 +15,7 @@ import { TabBlocked } from './TabBlocked'
 import { TabGuardUnavailableNotice } from './TabGuardUnavailableNotice'
 import { sweepOrderHistoryCache } from './lib/offlineCache'
 import { dropLegacyPinLockout } from './lib/legacyPinLockout'
+import { installKeyboardInset } from './keyboardInset'
 
 // Kaca materials (packages/ui-tokens/materials.css). One constant picks the chrome material for the whole app:
 // 'static' = glass tint without blur (default), 'glass' = real blur, 'solid' = opaque. Falling back is a one-line
@@ -47,6 +48,8 @@ const TAB_BLOCKED_SHOW_MS = 800
 async function boot(): Promise<void> {
   applyBrand(brand)
   applyMaterial(brand.id)
+  // Sheets end above the Android soft keyboard (DOM only, so it can run before the first render).
+  installKeyboardInset()
   const root = createRoot(document.getElementById('root')!)
   // F22/W01: ONE live tab per browser profile, claimed before anything touches storage (OTA, journal, sync engine,
   // cart draft). A second tab waits here, shows a notice, and continues by itself when the first one closes.

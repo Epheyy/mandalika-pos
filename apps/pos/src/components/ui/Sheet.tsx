@@ -48,6 +48,9 @@ const OVERLAY_CLASSES: Record<SheetVariant, string> = {
   full: 'fixed inset-0 bg-paper-0',
 }
 
+// End above the soft keyboard (keyboardInset.ts sets --kb; 0 when closed). h-full panels shrink to what is left.
+const OVERLAY_STYLE = { bottom: 'var(--kb, 0px)' } as const
+
 const PANEL_CLASSES: Record<SheetVariant, string> = {
   center: 'surface-solid rounded-panel w-full',
   side: 'surface-solid rounded-l-panel h-full w-full',
@@ -85,7 +88,7 @@ export function Sheet({
     .filter(Boolean)
     .join(' ')
   return (
-    <div className={`${OVERLAY_CLASSES[variant]} ${Z_CLASSES[z]}`} data-testid={testId}>
+    <div className={`${OVERLAY_CLASSES[variant]} ${Z_CLASSES[z]}`} style={OVERLAY_STYLE} data-testid={testId}>
       {hasBackdrop && (
         // With the header's close control present the backdrop is a pointer-only extra: hiding it keeps one close control in the tree.
         <button
