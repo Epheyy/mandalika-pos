@@ -523,4 +523,23 @@ func TestBusinessDatePostgres(t *testing.T) {
 			t.Errorf("shifts with NULL business_date: %s", got)
 		}
 	})
+
+	// F26: the order read exposes when the tablet recorded the sale beside the server receive
+	// time. An offline sale keeps its earlier client time; a row without one reads null.
+	sub("8 orders list projects clientCreatedAt and is null for an old row", func(t *testing.T) {
+		offline := order("f26-offline", outW, "", 100, "2026-11-09T08:46:00Z", "2026-11-09T01:31:00Z")
+		old := order("f26-old", outW, "", 200, "2026-11-09T08:50:00Z", "")
+		list := get(tokAdmin, "/orders?dateFrom=2026-11-09&dateTo=2026-11-09&outletId=all")
+		got := map[string]map[string]any{}
+		for _, r := range list["data"].([]any) {
+			m := r.(map[string]any)
+			got[m["id"].(string)] = m
+		}
+		if m := got[offline]; m == nil || m["clientCreatedAt"] != "2026-11-09T01:31:00Z" || m["createdAt"] != "2026-11-09T08:46:00Z" {
+			t.Errorf("offline order times: %v", m)
+		}
+		if m := got[old]; m == nil || m["clientCreatedAt"] != nil || m["createdAt"] != "2026-11-09T08:50:00Z" {
+			t.Errorf("old order must read clientCreatedAt null: %v", m)
+		}
+	})
 }

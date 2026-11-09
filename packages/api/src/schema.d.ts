@@ -4542,8 +4542,16 @@ export interface components {
             refundShiftId?: string | null;
             refundedBy?: string | null;
             refundedByName?: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When the server received the order (list sorting uses this). For an offline sale this is later than the sale itself; see clientCreatedAt.
+             */
             createdAt: string;
+            /**
+             * Format: date-time
+             * @description When the tablet recorded the sale. Null on older rows; show createdAt then.
+             */
+            clientCreatedAt?: string | null;
         };
         DiscountComponent: {
             label: string;

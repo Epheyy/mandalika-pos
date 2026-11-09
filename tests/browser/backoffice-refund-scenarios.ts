@@ -15,7 +15,7 @@ const EMPTY_SUMMARY = {
 }
 
 // Routes every Laporan hub load needs; true when it answered the request.
-const hubRoutes = async (route: any, path: string): Promise<boolean> => {
+export const hubRoutes = async (route: any, path: string): Promise<boolean> => {
   if (path.includes('/auth/')) { await route.fulfill({ json: { data: { access: 'SYNTHETIC-NON-TOKEN', refresh: 'SYNTHETIC-NON-TOKEN', user } } }); return true }
   if (path.endsWith('/outlets')) { await route.fulfill({ json: { data: [{ id: OUTLET, name: 'MV Outlet', isActive: true, timezone: 'Asia/Jakarta' }] } }); return true }
   if (path.endsWith('/settings/app')) { await route.fulfill({ json: { data: { paymentMethods: [{ id: 'cash', label: 'Tunai' }] } } }); return true }

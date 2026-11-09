@@ -1781,7 +1781,8 @@ components:
         refundShiftId: { type: string, nullable: true }
         refundedBy: { type: string, nullable: true }
         refundedByName: { type: string, nullable: true }
-        createdAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time, description: "When the server received the order (list sorting uses this). For an offline sale this is later than the sale itself; see clientCreatedAt." }
+        clientCreatedAt: { type: string, format: date-time, nullable: true, description: "When the tablet recorded the sale. Null on older rows; show createdAt then." }
     DiscountComponent:
       type: object
       required: [label, amount]

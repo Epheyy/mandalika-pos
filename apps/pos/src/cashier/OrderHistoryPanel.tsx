@@ -14,8 +14,7 @@ import { methodCellLabel, refundSummaries, tenderLineText, visibleTenders, type 
 import type { RefundCache } from './refundSelection'
 import { LatestLoad, PAGE_SIZE, businessToday, defaultHistoryDay, historyWindowFor, orderHistoryQuery, withPinnedOrder } from './orderHistoryQuery'
 import { Sheet } from '../components/ui/Sheet'
-import { formatHistoryStamp } from './historyStamp'
-import { zoneParts } from './promoValidate'
+import { orderTimeLabels } from './orderTimes'
 import { Button } from '../components/ui/Button'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import type { Tone } from '../components/ui/tone'
@@ -82,17 +81,6 @@ export function dateModeOf(from: string, to: string, today: string): DateMode {
   if (from === today) return 'today'
   if (from === dayBefore(today)) return 'yesterday'
   return 'custom'
-}
-
-/** "Kemarin 16:42" / "Hari ini 09:05" on the outlet clock; older sales keep the full date. Display only. */
-export function historyRowStamp(iso: string, today: string, timezone?: string | null): string {
-  const at = new Date(iso)
-  if (Number.isNaN(at.getTime())) return formatHistoryStamp(iso)
-  const day = businessToday(at, timezone)
-  const word = day === today ? 'Hari ini' : day === dayBefore(today) ? 'Kemarin' : null
-  if (!word) return formatHistoryStamp(iso)
-  const { hhmm } = zoneParts(at, timezone)
-  return `${word} ${hhmm}`
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -205,7 +193,8 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
 
         {/* Filters: quick day segments like the mock; "Pilih tanggal" reveals the range boxes. */}
         <div className="px-5 py-3 border-b border-paper-2 space-y-2 flex-shrink-0">
-          <div role="group" aria-label="Tanggal hari shift" title="Menurut hari bisnis shift, bukan jam transaksi" className="grid grid-cols-3 gap-1 p-1 rounded-control bg-paper-1">
+          <p id="history-shift-day-label" className="text-xs text-ink-700 font-semibold">Hari shift</p>
+          <div role="group" aria-labelledby="history-shift-day-label" className="grid grid-cols-3 gap-1 p-1 rounded-control bg-paper-1">
             {([['today', 'Hari ini'], ['yesterday', 'Kemarin'], ['custom', 'Pilih tanggal']] as const).map(([key, label]) => (
               <button key={key} type="button" aria-pressed={mode === key}
                 onClick={() => (key === 'today' ? pickDay(today) : key === 'yesterday' ? pickDay(dayBefore(today)) : setCustomOpen(true))}
@@ -214,6 +203,7 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
               </button>
             ))}
           </div>
+          <p className="text-xs text-ink-500" data-testid="history-shift-day-hint">Transaksi masuk ke hari shift-nya, bukan jam di struk.</p>
           <div className="flex flex-wrap gap-2 items-end">
             {mode === 'custom' && (
               <>
@@ -267,6 +257,7 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
           <div className="space-y-2">
             {filtered.map((o) => {
               const expanded = expandedId === o.id
+              const times = orderTimeLabels(o, timezone)
               return (
                 <div key={o.id} className={`surface-card rounded-control overflow-hidden ${expanded ? 'ring-2 ring-brand-strong' : ''}`}>
                   <button type="button"
@@ -278,8 +269,10 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
                       <p className="font-semibold text-sm text-ink-900 truncate">
                         #{o.orderNumber} · {o.customerName || 'Tanpa pelanggan'}
                       </p>
-                      <p className="text-xs text-ink-500 truncate">
-                        {historyRowStamp(o.createdAt, today, timezone)} · {methodCellLabel(o, paymentMethods)}
+                      <p className="text-xs text-ink-500">
+                        <span data-testid="history-row-time">{times.main}</span>
+                        {times.received && <span data-testid="history-row-received"> · {times.received}</span>}
+                        {' · '}{methodCellLabel(o, paymentMethods)}
                       </p>
                     </div>
                     <StatusBadge tone={STATUS_TONES[o.status] ?? 'neutral'} label={STATUS_LABELS[o.status] ?? o.status} />

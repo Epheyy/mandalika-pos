@@ -157,7 +157,7 @@ function useDocumentBody(doc: DocRef, zone: string) {
             <Row k="Nomor" v={o.orderNumber} />
             <Row k="Status" v={o.status} />
             <Row k="Kasir" v={o.cashierName} />
-            <Row k="Waktu" v={when(o.createdAt, zone)} />
+            <Row k="Waktu" v={when(o.clientCreatedAt ?? o.createdAt, zone)} />
             <Row k="Total" v={o.total.toLocaleString('id-ID')} />
           </div>
         )

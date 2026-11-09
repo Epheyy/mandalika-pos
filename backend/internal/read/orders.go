@@ -24,7 +24,7 @@ const orderObj = `json_build_object('id',o.id,'orderNumber',o.order_number,
   'taxAmount',o.tax_amount,'total',o.total,
   'paymentMethod',o.payment_method,'amountPaid',o.amount_paid,'change',o.change,
   'status',o.status,'notes',o.notes,'refundReason',o.refund_reason,
-  'refundedAt',o.refunded_at,'refundBusinessDate',o.refund_business_date,'shiftId',o.shift_id,'createdAt',o.created_at,'businessDate',o.business_date,
+  'refundedAt',o.refunded_at,'refundBusinessDate',o.refund_business_date,'shiftId',o.shift_id,'createdAt',o.created_at,'clientCreatedAt',o.client_created_at,'businessDate',o.business_date,
   'refundShiftId',o.refund_shift_id,'refundedBy',o.refunded_by,'refundedByName',o.refunded_by_name,
   'pointsRedeemed',o.points_redeemed,'pointsRedemptionAmount',o.points_redemption_amount,
   -- C4a: sum of every refund row (SQL emits null when never refunded; Go omitempty then drops

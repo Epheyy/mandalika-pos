@@ -20,6 +20,7 @@ import { methodLabel, orderPaymentCsv, refundPayoutCsv } from '../../lib/splitPa
 import { useOrderReport } from './useOrderReport'
 import { useListState } from '../../lib/router/useListState'
 import { PAGING_SCHEMA, isAnswerFor, pageOf, pageSizeOf, pageToClamp } from './reportFilters'
+import { orderTimeCsv, orderTimeLabels } from '../orderTimes'
 
 const statusBadge = (st: string) => <Badge tone={orderStatusTone(st)}>{orderStatusLabel(st)}</Badge>
 
@@ -60,8 +61,7 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
       const rf = refundCsvFields(o)
       return {
       'No. Order': o.orderNumber,
-      Tanggal: format(parseISO(o.createdAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }),
-      'Hari Bisnis': o.businessDate ?? '',
+      ...orderTimeCsv(o),
       'Waktu Refund': rf.refundedAt ? format(parseISO(rf.refundedAt), 'dd/MM/yyyy HH:mm', { locale: idLocale }) : '',
       'Hari Refund': rf.refundBusinessDate ?? '',
       Kasir: o.cashierName,
@@ -205,7 +205,7 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900 text-sm">{o.orderNumber}</p>
                     <p className="text-xs text-ink-500">
-                      {format(parseISO(o.createdAt), 'dd MMM yyyy HH:mm', { locale: idLocale })} · {o.cashierName}
+                      {orderTimeLabels(o).main}{orderTimeLabels(o).received ? ` · ${orderTimeLabels(o).received}` : ''} · {o.cashierName}
                       {o.customerName && ` · ${o.customerName}`}
                     </p>
                   </div>

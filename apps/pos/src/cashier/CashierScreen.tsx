@@ -1026,7 +1026,7 @@ export default function CashierScreen() {
     const receipt: ReceiptData = {
       orderRef: o.orderNumber,
       pending: false,
-      dateTime: new Date(o.createdAt),
+      dateTime: new Date(o.clientCreatedAt ?? o.createdAt),
       lines: o.items.map((i) => ({
         name: i.productName,
         variant: variantLabel(i.variantSize) || undefined,
