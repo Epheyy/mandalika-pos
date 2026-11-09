@@ -4,12 +4,15 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-09 by Claude (Opus 5.5) - Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" (#132), release in progress; on-tablet check of 2.13.3-2.13.7 not done; see Progress board.
+Last updated: 2026-11-09 by Claude (Opus 5.5) - Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.3-2.13.7 not done; see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
-> 2026-11-09: **R11 OWNER DECISIONS: F22 ACCEPTED; OPEN-SHIFT "BELUM DIHITUNG" MERGED, RELEASE IN PROGRESS** (owner: "F22 : accept , Open-shift totals: \"Belum dihitung\"", then "Yes, release it").
-> - **PR #132** merged no-ff `59fe69fe` on `8b9ec184`; gate `gate/r11-decisions` running. Backoffice only: no backend, no OTA.
+> 2026-11-09: **R11 OWNER DECISIONS: F22 ACCEPTED; OPEN-SHIFT "BELUM DIHITUNG" LIVE** (owner: "F22 : accept , Open-shift totals: \"Belum dihitung\"", then "Yes, release it").
+> - **PR #132:** merged no-ff `59fe69fe` on `8b9ec184`. Gate `gate/r11-decisions` 5/5 green; pushed behind `[CF-Pages-Skip]` `f0a18ec7`.
+> - **Backoffice:** published by `81eb86eb` (`[skip actions]`, Cloudflare green). The live entry is `index-DTvG2_dj.js`; `Reports-*.js` carries the hint text.
+> - **Scope:** Backoffice only. Backend stays `00175-jos`; POS stays OTA 2.13.7.
+> - **NOT done:** the page has not been viewed with a real open shift.
 > - **Label:** Laporan > Shift shows "Belum dihitung" (hint "Shift masih buka. Angka dihitung saat shift ditutup.") for an open shift. It covers seven table cells: Transaksi, Refund penjualan shift, Penjualan, Tunai, QRIS, Transfer and Kartu.
 >   - The summary cards sum closed shifts only, with "+ N shift masih buka (belum dihitung)".
 >   - The CSV writes "Belum dihitung" in those columns plus Kas Akhir.
