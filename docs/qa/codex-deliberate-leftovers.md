@@ -1,7 +1,14 @@
 # Codex QA findings: what is deliberately left as-is
 
 For the Codex QA agent before the next retest. It covers the findings in
-`Mandalika-QA-Report-2026-11-07.md` (F01-F33, W01) and `Mandalika-QA-Retest-R10-2026-11-09.md`.
+`Mandalika-QA-Report-2026-11-07.md` (F01-F33, W01), `Mandalika-QA-Retest-R10-2026-11-09.md` and
+`Mandalika-QA-Retest-R11-2026-11-09.md` (F34-F36 added).
+
+**Corrected after R11:** two "Expected" entries in this doc were wrong:
+- F22: navigating the owning tab to another site does not hand over.
+- F20: Buka Shift drops a minus sign; it shows no error.
+
+Both rows are fixed below. R11's F22 observation was correct.
 
 - **Section A** lists behaviour we chose to keep. Please do not re-flag these as unresolved. If what you
   observe differs from the "Expected" column, that is a real finding.
@@ -15,9 +22,9 @@ Citations: `HO:n` = line n of `HANDOFF.md` at commit `f491d988` (`git show f491d
 
 | Id | Decision and why | Expected behaviour | Source |
 |---|---|---|---|
-| F22 / W01 | **Mitigated with a one-tab guard at the entry point only.**<br>- The APK is the production POS. A browser is for dev and QA only, in Chromium with Web Locks.<br>- The KV outbox (`packages/sync/src/outboxStore.ts`) still rewrites its whole array on every save. That is by design: there is a single writer.<br>- Making the guard fail closed is an owner decision, not a defect. | - A second Chromium tab shows "POS sudah terbuka di tab lain": no cashier controls, no writes, and the draft is kept.<br>- When the owning tab closes or navigates away, the waiting tab takes over by itself, with no reload.<br>- If the owning tab reloads while another tab waits, the waiting tab becomes the owner.<br>- A browser without Web Locks (for example plain-http LAN serving) has no guard and shows "Perlindungan satu tab tidak aktif di browser ini. Buka POS di satu tab saja."<br>- The APK shows no warning; it has a single WebView.<br>- Do not report the whole-array outbox store as an open bug. | HO:47; TRIAGE W01 "by design single-writer"; `docs/runbooks/browser-pos-support-policy.md` |
+| F22 / W01 | **Mitigated with a one-tab guard at the entry point only.**<br>- The APK is the production POS. A browser is for dev and QA only, in Chromium with Web Locks.<br>- The KV outbox (`packages/sync/src/outboxStore.ts`) still rewrites its whole array on every save. That is by design: there is a single writer.<br>- Making the guard fail closed is an owner decision, not a defect. | - A second Chromium tab shows "POS sudah terbuka di tab lain": no cashier controls, no writes, and the draft is kept.<br>- When the owning tab closes, the waiting tab takes over by itself, with no reload.<br>- If the owning tab reloads while another tab waits, the waiting tab becomes the owner.<br>- If the owning tab navigates to another site, the waiting tab stays blocked until that tab is closed. This is R11 F22, open in Section C.<br>- A browser without Web Locks (for example plain-http LAN serving) has no guard and shows "Perlindungan satu tab tidak aktif di browser ini. Buka POS di satu tab saja."<br>- The APK shows no warning; it has a single WebView.<br>- Do not report the whole-array outbox store as an open bug. | HO:47; TRIAGE W01 "by design single-writer"; `docs/runbooks/browser-pos-support-policy.md` |
 | F19 | **The 5-minute stock-only auto-pull floor is deliberate** (`packages/sync/src/autoPull.ts`). Only the wording changed. | - Stock can be up to 5 minutes behind.<br>- The chip changes to "Stok menunggu diperbarui" only for stock changed elsewhere, after a 60 s hold-off. It never changes for follow-ups to the tablet's own sales.<br>- Koneksi -> "Perbarui stok" pulls stock immediately. | TRIAGE F19 "DESIGN"; HO:47 |
-| F20 (sync batch) | **A queued `shift_open` with a negative opening cash is still accepted and stored as sent, but flagged.**<br>- A queued shift is never dropped.<br>- Clamping the amount would skew drawer reconciliation.<br>- The input field and a direct API call both reject a negative. A tablet on a bundle older than OTA 2.12.0 can still queue -1. | - Buka Shift refuses a negative amount.<br>- `POST /shifts` with a negative returns 400 "kas awal tidak boleh negatif".<br>- A queued negative shift lands with its value and shows a red "Kas awal negatif" badge in Laporan > Shift. | HO:59; HO:27 |
+| F20 (sync batch) | **A queued `shift_open` with a negative opening cash is still accepted and stored as sent, but flagged.**<br>- A queued shift is never dropped.<br>- Clamping the amount would skew drawer reconciliation.<br>- The Buka Shift field cannot produce a negative, and a direct API call rejects one. A tablet on a bundle older than OTA 2.12.0 can still queue -1. | - The Buka Shift opening-cash field accepts digits only, like every cash field. A typed minus sign is dropped with no error, so typing `-1` gives Rp 1.<br>- `POST /shifts` with a negative returns 400 "kas awal tidak boleh negatif".<br>- A queued negative shift lands with its value and shows a red "Kas awal negatif" badge in Laporan > Shift. | HO:59; HO:27 |
 | F07 | **The legacy `cash` id and the configured `tunai` id are not merged.** The server matches the exact id, so they are separate datasets. | Both appear in filters. The legacy one reads "Tunai (data lama)" and returns only orders with the legacy id. | HO:49; R10 F07 row |
 | F06 | **Only the filter labels changed.** Retired methods show "(nonaktif)". Stored ids and filter values are untouched. | - Report rows and CSV print the raw method ids; that is intended.<br>- `neo_bank` and `neobank` remain distinct ids. | HO:25; HO:49 |
 | F18 (edges) | **Typing now matches pasting, under a whole-rupiah rule.** Three edges are accepted:<br>- held digits are invisible while typing;<br>- nonsense input like `50.0.000` still differs between typed and pasted;<br>- a multi-character soft-keyboard key after a separator drops the held digits. | - `50.000` typed and `50.000` pasted both give Rp 50.000.<br>- A typed `.` or `,` holds the next digits: 3 digits join as a thousands group, 1-2 are dropped as a fraction, 4 or more all count.<br>- Leaving the field never changes the amount. | HO:13 |
@@ -56,18 +63,34 @@ Citations: `HO:n` = line n of `HANDOFF.md` at commit `f491d988` (`git show f491d
 
 ## C. Still open or untested (fair to report)
 
+- **R11 findings, confirmed against source at `3121c2bf`:**
+  - **F22, navigation-away handover:** the tab lock is held until the page is destroyed, and nothing releases
+    it when the tab navigates away. Fix or accept is an owner decision, still pending. The APK has one WebView
+    and is unaffected.
+  - **F34, stale ingredient-count detail after another tab saves:** a fix is in progress. It reloads the detail
+    when a count is opened, and unsaved input is kept.
+  - **F35, receipt visibility flags:** the live settings store only `showCashier: false` and `showTax: false`.
+    - Backoffice drew the six missing flags as OFF, while the printer and preview treat five of them as ON.
+    - The preview also ignored the customer-name and change flags, and never showed the phone number.
+    - A fix is in progress: one shared per-flag rule whose defaults equal what the printer prints today.
+  - **F36, preview receipt time moving on rerender:** a fix is in progress. One fixed time, the order's recorded
+    client time, will be used for the preview and the printed receipt.
+- **R11 advisory, owner decision pending:** an open shift's report totals show 0 until close, because they are
+  a close-time snapshot. This is not data loss.
+- **R11 verification gaps:**
+  - The deployed CSV/XLSX export bytes are unverified.
+  - External consumers of the old `Tanggal` column have not been inventoried.
 - **R10 gaps not covered by us:**
   - native A9/A11+ viewports, Samsung keyboard, font scale, insets, native Back, printer and scanner;
   - native offline sale and refund recovery, force-stop, power and storage pressure;
   - role-separated cashier and manager testing;
   - pinned deployed versions;
   - load.
-- **R10 and R9 probe candidates with no fix or decision yet:**
-  - ingredient detail stays stale after another tab saves;
+- **R10 and R9 probe candidates with no fix or decision yet** (stale ingredient detail and receipt parity became
+  R11 F34 and F35 above):
   - repeated ingredient field labels;
   - SKU results kept while a new search runs;
   - many-variant picker height;
-  - identifying long product names in refunds;
-  - receipt preview versus settings parity.
+  - identifying long product names in refunds.
 - **CheckoutPanel:** a stale overstock / leave confirm can remain after Back. This predates the QA work and is not fixed (HO:53).
 - **Narrow 375 px checkout horizontal scrollbar:** phone width is not a stated requirement. No owner decision is recorded.
