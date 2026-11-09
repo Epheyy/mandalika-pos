@@ -26,6 +26,7 @@ import { posStockPending, posTwoTabs } from './pos-wave-g-scenarios'
 import { posAutoPromo } from './pos-autopromo-scenarios'
 import { posGlassBand, posGlassPromoLines } from './pos-glass-scenarios'
 import { posQaCHeaderTabs } from './pos-qac-scenarios'
+import { posCashInputTypedPasted } from './pos-cashinput-scenarios'
 import { posSplitTender, posSplitOffline, posSplitRefund, posSplitOff, posSplitDraft, posBayarOverflow } from './pos-split-scenarios'
 
 test('BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate toggle', async ({ page }, info) => {
@@ -597,6 +598,7 @@ for (const [id, title, run, opts] of [
   ['POS-SPLIT-REFUND', 'a split sale is refunded with the cash payout preselected, then with the QRIS chip', posSplitRefund, { splitTender: true }],
   ['POS-SPLIT-OFF', 'no Split-Payment while the setting is off or absent', posSplitOff, {}],
   ['POS-BAYAR-OVERFLOW', 'five methods, a 246-char unbroken note and split mode never overflow the Bayar dialog sideways at 1006x601 and 602x1006', posBayarOverflow, { splitTender: true, fiveMethods: true }],
+  ['POS-CASH-TYPED-PASTED', 'the Bayar cash field gives the same amount and change for the same text typed key by key and pasted (150.000, 123.456, 12.3457, 1.000.000, 150,000, 120000.5), pending fraction digits are never shown, and blur never changes the shown amount', posCashInputTypedPasted, { splitTender: true }],
   ['POS-STOCK-PENDING', 'a foreign stock bump behind an open cart: after the hold-off the chip says Stok menunggu diperbarui instead of Tersinkron, and one pull clears it once the cart is empty', posStockPending, {}],
   ['POS-TWO-TABS', 'a second tab of the same browser profile shows the other-tab notice, writes nothing to storage, leaves the first tab cart alone and starts when the first tab closes', posTwoTabs, {}],
   ['POS-OPEN-CART', 'the open cart is restored after a reload; a draft whose sale is already queued is dropped and the paid cart never reappears', posOpenCart, {}],

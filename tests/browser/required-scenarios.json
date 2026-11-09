@@ -392,6 +392,12 @@
       "source": "tests/browser/pos-split-scenarios.ts"
     },
     {
+      "id": "POS-CASH-TYPED-PASTED",
+      "finding": "QA-F18-R10",
+      "description": "The Bayar cash field gives the same amount and change for the same text typed key by key and pasted through the clipboard (150.000, 150,000, 1.000.000, 120000.5, 150.000,00) at 1006x601 and 602x1006; pending fraction digits are never shown and blur never changes the shown amount",
+      "source": "tests/browser/pos-cashinput-scenarios.ts"
+    },
+    {
       "id": "POS-SPLIT-OFF",
       "finding": "C6b",
       "description": "With the splitTenderEnabled setting absent or false there is no Split-Payment and the single-method checkout (with the optional reference field) is unchanged",
