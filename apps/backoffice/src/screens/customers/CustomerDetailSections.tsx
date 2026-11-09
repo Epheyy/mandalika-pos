@@ -1,6 +1,7 @@
 import type { Customer, Order, RewardGrant, Tag as TagType } from '@mandalika/api'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
+import { orderTimeLabels } from '../orderTimes'
 import {
   Edit2, Trash2, Phone, Mail, Star, ShoppingBag,
   ChevronDown, ChevronUp, Cake, CalendarHeart, Tag,
@@ -179,7 +180,7 @@ export function PurchaseHistoryCard({ orders, loading, expanded, setExpanded }: 
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-ink-900 text-sm">{o.orderNumber}</p>
-                  <p className="text-xs text-ink-500">{format(parseISO(o.createdAt), 'dd MMM yyyy HH:mm', { locale: idLocale })} · {methodLabel(o.paymentMethod)}</p>
+                  <p className="text-xs text-ink-500">{orderTimeLabels(o).main}{orderTimeLabels(o).received ? ` · ${orderTimeLabels(o).received}` : ''} · {methodLabel(o.paymentMethod)}</p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <Badge tone={orderStatusTone(o.status)}>{orderStatusLabel(o.status)}</Badge>

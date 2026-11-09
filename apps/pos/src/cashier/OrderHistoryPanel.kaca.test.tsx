@@ -1,7 +1,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { OrderHistoryPanel, dateModeOf, historyRowStamp } from './OrderHistoryPanel'
+import { OrderHistoryPanel, dateModeOf } from './OrderHistoryPanel'
 
 const props = {
   isOpen: true, onClose: vi.fn(), onRefund: vi.fn(), onReprint: vi.fn(), canReprint: true, canRefund: true, hasOpenShift: true,
@@ -24,10 +24,12 @@ describe('Riwayat date segments (W4-02)', () => {
   })
 })
 
-describe('historyRowStamp (W4-03)', () => {
-  it('words today and yesterday on the outlet clock and keeps older dates in full', () => {
-    expect(historyRowStamp('2026-11-06T09:42:00Z', '2026-11-07', 'Asia/Jakarta')).toBe('Kemarin 16:42')
-    expect(historyRowStamp('2026-11-07T02:05:00Z', '2026-11-07', 'Asia/Jakarta')).toBe('Hari ini 09:05')
-    expect(historyRowStamp('2026-10-01T02:05:00Z', '2026-11-07', 'Asia/Jakarta')).toMatch(/2026/)
+describe('shift-day explanation (F12)', () => {
+  it('labels the chip group and explains shift day vs clock time without a hover title', () => {
+    const html = renderToStaticMarkup(createElement(OrderHistoryPanel, props))
+    expect(html).toContain('Hari shift')
+    expect(html).toContain('history-shift-day-hint')
+    expect(html).toContain('bukan jam di struk')
+    expect(html).not.toContain('title="Menurut hari bisnis')
   })
 })

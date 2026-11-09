@@ -155,7 +155,7 @@ function RefundDialogBody({ order, cache, methods, isProcessing, error, onConfir
       <h3 className="font-bold text-ink-900 mb-1">Refund Order</h3>
       <p className="text-sm font-semibold text-ink-900 mb-1">#{order.orderNumber}</p>
       <p className="text-xs text-ink-500 mb-1">
-        {[formatHistoryStamp(order.createdAt), `Dibayar ${paidBy}`, order.cashierName ? `Kasir ${order.cashierName}` : null, order.customerName].filter(Boolean).join(' · ')}
+        {[formatHistoryStamp(order.clientCreatedAt ?? order.createdAt), `Dibayar ${paidBy}`, order.cashierName ? `Kasir ${order.cashierName}` : null, order.customerName].filter(Boolean).join(' · ')}
       </p>
       {perLine && basis.priorAmount > 0 && (
         <StatusBadge tone="warn" label={refundPartialNote(remainingAmount(basis))} className="mb-3" />

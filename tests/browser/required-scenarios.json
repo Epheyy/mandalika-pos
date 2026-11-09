@@ -248,6 +248,18 @@
       "source": "tests/browser/backoffice-refund-scenarios.ts"
     },
     {
+      "id": "BO-ORDER-TIMES",
+      "finding": "QA-F26-R10",
+      "description": "The Backoffice order list shows the tablet time (clientCreatedAt, createdAt when missing) as the sale time, and a labelled 'Diterima server' time only for an offline sale",
+      "source": "tests/browser/order-times-scenarios.ts"
+    },
+    {
+      "id": "POS-HISTORY-TIMES",
+      "finding": "QA-F12/F26-R10",
+      "description": "POS Riwayat: the chip group is labelled Hari shift with a visible explanation (no hover-only title); an overnight sale row shows its real date and time instead of Hari ini/Kemarin; an offline sale shows the tablet time plus a labelled Diterima server time",
+      "source": "tests/browser/order-times-scenarios.ts"
+    },
+    {
       "id": "BO-REFUND-ADMIN-PARTIAL",
       "finding": "C4c",
       "description": "Admin per-line refund on Transaksi: bundle group is all-or-nothing, pick qty 1 on a line, reason preset, confirm modal states item and estimate, POST body is {reason, reasonCode, items:[{lineNo,quantity}]}, order then shows Refund ke-1 and the remaining refundable amount",

@@ -30,6 +30,7 @@ import { orderIconClasses, orderStatusLabel, orderStatusTone } from '../lib/orde
 import { OrderRefundSection } from './orders/OrderRefundSection'
 import { AdminRefundForm } from './orders/AdminRefundForm'
 import { quoteWarningTitle, receiptTotalLine } from './quoteDisplay'
+import { orderTimeCsv, orderTimeLabels } from './orderTimes'
 
 /** Payment lines of an order: one row per line with its reference and change; shown for split orders only. */
 function PaymentLines({ order, methods }: { order: Order; methods: AppSettings['paymentMethods'] | undefined }) {
@@ -142,7 +143,7 @@ export function OrdersPanel() {
       const all = await fetchAllPages((p, limit) => api.listOrders({ ...params, page: p, limit }))
       const rows = all.map((o) => ({
         'No. Order': o.orderNumber,
-        Tanggal: format(parseISO(o.createdAt), 'yyyy-MM-dd HH:mm'),
+        ...orderTimeCsv(o),
         Status: label(o.status),
         Pembayaran: orderPaymentCsv(o, payMethods),
         Kasir: o.cashierName,
@@ -273,7 +274,8 @@ export function OrdersPanel() {
                     <p className="text-xs text-ink-500">
                       {o.items.length} item · {orderMethodText(o, payMethods)}
                       {o.customerName && <> · {o.customerName}</>} · {o.cashierName} ·{' '}
-                      {format(parseISO(o.createdAt), 'dd MMM yyyy HH:mm', { locale: id })}
+                      <span data-testid="order-time">{orderTimeLabels(o).main}</span>
+                      {orderTimeLabels(o).received && <span data-testid="order-received"> · {orderTimeLabels(o).received}</span>}
                     </p>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">

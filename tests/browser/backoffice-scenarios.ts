@@ -162,7 +162,7 @@ export const transactionsChecks = async (page: ScenarioPage) => {
     const sheet = book.Sheets.Data;
     const rows = workbookReader.utils.sheet_to_json(sheet);
     const headers = workbookReader.utils.sheet_to_json(sheet,{header:1})[0];
-    const expectedHeaders = ['No. Order','Tanggal','Status','Pembayaran','Kasir','Pelanggan','Jumlah Item','Subtotal','Diskon','Sumber Diskon','Tipe Diskon','Nilai Diskon','Rincian Diskon','Pajak','Total'];
+    const expectedHeaders = ['No. Order','Waktu Transaksi','Diterima Server','Hari Bisnis','Status','Pembayaran','Kasir','Pelanggan','Jumlah Item','Subtotal','Diskon','Sumber Diskon','Tipe Diskon','Nilai Diskon','Rincian Diskon','Pajak','Total'];
     if (JSON.stringify(headers) !== JSON.stringify(expectedHeaders)) throw Error('XLSX column contract changed');
     return {sheet,rows,filename:download.suggestedFilename(),bytes:bytes.length};
   };
@@ -185,9 +185,9 @@ export const transactionsChecks = async (page: ScenarioPage) => {
       const dateParts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(source.createdAt));
       const part=(name:string)=>dateParts.find(p=>p.type===name)!.value;
       const expectedDate=`${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}`;
-      if(row['No. Order']!==textIds[i]||row.Tanggal!==expectedDate||row.Kasir!==source.cashierName||row.Pelanggan!==(source.customerName??'')||row['Jumlah Item']!==1||row['Sumber Diskon']!==source.discountLabel)throw Error('typed/Unicode/date value changed');
-      if(sheet[address].t!=='s'||sheet[address].f!==undefined||sheet[`O${i+2}`].t!=='n'||sheet[`B${i+2}`].t!=='s')throw Error('identifier/amount/date cell type changed');
-      cells.push({id:sheet[address],date:sheet[`B${i+2}`],amount:sheet[`O${i+2}`],row});
+      if(row['No. Order']!==textIds[i]||row['Waktu Transaksi']!==expectedDate||row.Kasir!==source.cashierName||row.Pelanggan!==(source.customerName??'')||row['Jumlah Item']!==1||row['Sumber Diskon']!==source.discountLabel)throw Error('typed/Unicode/date value changed');
+      if(sheet[address].t!=='s'||sheet[address].f!==undefined||sheet[`Q${i+2}`].t!=='n'||sheet[`B${i+2}`].t!=='s')throw Error('identifier/amount/date cell type changed');
+      cells.push({id:sheet[address],date:sheet[`B${i+2}`],amount:sheet[`Q${i+2}`],row});
     }
     await page.getByLabel('Filter pembayaran').selectOption('qris');
     const qris=await capture();

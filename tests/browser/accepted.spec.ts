@@ -28,6 +28,7 @@ import { posAutoPromo } from './pos-autopromo-scenarios'
 import { posGlassBand, posGlassPromoLines } from './pos-glass-scenarios'
 import { posQaCHeaderTabs } from './pos-qac-scenarios'
 import { posCashInputTypedPasted } from './pos-cashinput-scenarios'
+import { posHistoryTimes, boOrderTimes } from './order-times-scenarios'
 import { posSplitTender, posSplitOffline, posSplitRefund, posSplitOff, posSplitDraft, posBayarOverflow } from './pos-split-scenarios'
 
 test('BO-SEMANTIC authoring rejects overlap and preserves valid edit duplicate toggle', async ({ page }, info) => {
@@ -166,6 +167,18 @@ test('BO-STOCK-CARD summary row opens the kartu stok, rows page, Hadiah chip fil
 test('BO-REFUND-LIST Laporan Refund shows one row per refund with claimed amount and warning, flag and paging reach the API, per-refund CSV downloads', async ({ page }, info) => {
   const result = await refundReportFlow(page as ScenarioPage)
   expect(result).toHaveLength(4)
+  await evidence(info, result)
+})
+
+test('BO-ORDER-TIMES the order list shows the tablet time as the sale time and a labelled server time only for an offline sale', async ({ page }, info) => {
+  const result = await boOrderTimes(page as ScenarioPage)
+  expect(result).toHaveLength(1)
+  await evidence(info, result)
+})
+
+test('POS-HISTORY-TIMES Riwayat labels the shift-day chips visibly, rows show the real date and time (never Hari ini/Kemarin), and an offline sale shows a labelled server time', async ({ page }, info) => {
+  const result = await posHistoryTimes(page as ScenarioPage)
+  expect(result).toHaveLength(1)
   await evidence(info, result)
 })
 
