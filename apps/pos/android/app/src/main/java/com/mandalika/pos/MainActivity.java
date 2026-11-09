@@ -32,6 +32,7 @@ public class MainActivity extends BridgeActivity {
         // Must precede super.onCreate: the bridge loads plugins during it.
         registerPlugin(OutboxJournalPlugin.class);
         super.onCreate(savedInstanceState);
+        pinTextZoom();
         applyImmersive();
         installInsetBridge();
     }
@@ -40,6 +41,20 @@ public class MainActivity extends BridgeActivity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) applyImmersive();
+    }
+
+    /**
+     * Pin WebView text zoom to 100%. By default WebSettings.textZoom follows
+     * the system font scale, so Settings > Display > Font size at max (2.0)
+     * multiplied every CSS px and clipped the cart, the Bayar amount and the
+     * quick-amount buttons (R11 tablet run, SM-X115). The app's own SM/MD/LG
+     * font-size setting is the size control, so the system scale is ignored.
+     */
+    private void pinTextZoom() {
+        if (getBridge() == null) return;
+        final WebView web = getBridge().getWebView();
+        if (web == null) return;
+        web.getSettings().setTextZoom(100);
     }
 
     private void applyImmersive() {
