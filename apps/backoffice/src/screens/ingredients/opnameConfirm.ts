@@ -37,3 +37,14 @@ export function completeIngredientCountConfirm(name: string, location: string, s
 
 /** Unsaved quantities are not part of the count the server completes. */
 export const UNSAVED_COUNT_MESSAGE = 'Ada jumlah yang belum disimpan. Klik Simpan dulu, lalu selesaikan opname.'
+
+/** The leave question while ingredient rows are typed but not saved (leaving drops them). Danger tone starts focus on "Lanjut edit". */
+export function leaveUnsavedCountConfirm(rows: number): ConfirmOptions {
+  return {
+    title: 'Tinggalkan hitungan?',
+    consequence: `${rows} bahan punya jumlah yang belum disimpan. Kalau pindah sekarang, jumlah itu hilang.`,
+    confirmLabel: 'Tinggalkan dan buang',
+    cancelLabel: 'Lanjut edit',
+    tone: 'danger',
+  }
+}

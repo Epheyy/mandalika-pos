@@ -31,3 +31,21 @@ export function withoutSavedEntries(
   for (const s of sent) if (next[s.itemId] === s.counted) delete next[s.itemId]
   return next
 }
+
+/**
+ * How many typed-but-unsaved rows the operator would lose by leaving. Counts every draft entry (zero is a count),
+ * except those of a listed count that is no longer running: it can't be saved to anymore, so nothing is at stake.
+ */
+export function unsavedEntryCount(
+  draft: Readonly<Record<string, Readonly<Record<string, number>>>>,
+  counts: ReadonlyArray<{ id: string; status: string }>,
+): number {
+  const statusOf = new Map(counts.map((c) => [c.id, c.status]))
+  let rows = 0
+  for (const [countId, entries] of Object.entries(draft)) {
+    const status = statusOf.get(countId)
+    if (status !== undefined && status !== 'in_progress') continue
+    rows += Object.keys(entries).length
+  }
+  return rows
+}

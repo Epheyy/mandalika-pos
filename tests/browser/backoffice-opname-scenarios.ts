@@ -192,5 +192,36 @@ export const opnameConfirmFlow = async (page: ScenarioPage) => {
   check(ingredientSaves.length === 1, 'a second Simpan with no new entry sends nothing')
   results.push({ step: 'ingredient-simpan-sends-only-entered-lines' })
 
+  // (f) F33: a typed-but-unsaved quantity is not lost silently. Switching Bahan to Produk asks; "Lanjut edit" keeps the
+  // value (also across collapse/reopen), "Tinggalkan dan buang" leaves and drops it. Nothing unsaved: no question.
+  const leaveDialog = page.getByRole('alertdialog', { name: 'Tinggalkan hitungan?' })
+  const rows = page.getByLabel('Jumlah dihitung')
+  await page.locator('[data-tab-key="opname.produk"]').click()
+  await page.getByRole('heading', { name: 'Opname Produk' }).waitFor()
+  await page.locator('[data-tab-key="opname.bahan"]').click()
+  await page.getByText('Opname Bahan Uji').waitFor()
+  check((await leaveDialog.count()) === 0, 'a saved count asks nothing when the sub-tab is switched')
+  await page.getByRole('button', { name: 'Buka rincian Opname Bahan Uji', exact: true }).click()
+  await rows.nth(2).fill('2.5')
+  await page.locator('tr', { has: rows.nth(2) }).getByText('Belum disimpan').waitFor()
+  await page.locator('[data-tab-key="opname.produk"]').click()
+  await leaveDialog.waitFor()
+  check((await leaveDialog.getByText('1 bahan').count()) === 1, 'the question names the one unsaved row')
+  check(await leaveDialog.getByRole('button', { name: 'Lanjut edit', exact: true }).evaluate((el) => el === document.activeElement), 'focus starts on Lanjut edit')
+  await page.keyboard.press('Escape')
+  await leaveDialog.waitFor({ state: 'detached' })
+  check((await rows.nth(2).inputValue()) === '2.5', 'Escape keeps editing and the typed value')
+  await page.getByRole('button', { name: 'Tutup rincian Opname Bahan Uji', exact: true }).click()
+  await page.getByRole('button', { name: 'Buka rincian Opname Bahan Uji', exact: true }).click()
+  check((await rows.nth(2).inputValue()) === '2.5', 'collapse and reopen keeps the unsaved value')
+  await page.locator('[data-tab-key="opname.produk"]').click()
+  await leaveDialog.getByRole('button', { name: 'Tinggalkan dan buang', exact: true }).click()
+  await page.getByRole('heading', { name: 'Opname Produk' }).waitFor()
+  check(ingredientSaves.length === 1, 'discarding never saves the entry')
+  await page.locator('[data-tab-key="opname.bahan"]').click()
+  await page.getByRole('button', { name: 'Buka rincian Opname Bahan Uji', exact: true }).click()
+  check((await rows.nth(2).inputValue()) === '', 'the discarded entry is gone')
+  results.push({ step: 'ingredient-unsaved-leave-guard' })
+
   return results
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildIngredientCountSaveItems, parseCountInput, withCountEntry, withoutSavedEntries } from './opnameSave'
+import { buildIngredientCountSaveItems, parseCountInput, withCountEntry, withoutSavedEntries, unsavedEntryCount } from './opnameSave'
 
 const items = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
 
@@ -46,5 +46,32 @@ describe('withCountEntry', () => {
 describe('withoutSavedEntries', () => {
   it('drops sent entries but keeps one edited while the save was in flight', () => {
     expect(withoutSavedEntries({ a: 5, b: 8, c: 1 }, [{ itemId: 'a', counted: 5 }, { itemId: 'b', counted: 7 }])).toEqual({ b: 8, c: 1 })
+  })
+})
+
+describe('unsavedEntryCount', () => {
+  const running = (id: string) => ({ id, status: 'in_progress' as const })
+
+  it('is zero for an empty draft and for a count whose draft was emptied by a save', () => {
+    expect(unsavedEntryCount({}, [running('a')])).toBe(0)
+    expect(unsavedEntryCount({ a: {} }, [running('a')])).toBe(0)
+  })
+
+  it('adds up every edited row of every running count', () => {
+    const draft = { a: { i1: 2.5, i2: 0, i3: 7 }, b: { j1: 1 } }
+    expect(unsavedEntryCount(draft, [running('a'), running('b')])).toBe(4)
+  })
+
+  it('counts a zero as an entry (zero is a real count)', () => {
+    expect(unsavedEntryCount({ a: { i1: 0 } }, [running('a')])).toBe(1)
+  })
+
+  it('ignores the draft of a count that is no longer running', () => {
+    const draft = { a: { i1: 3 }, b: { j1: 1 } }
+    expect(unsavedEntryCount(draft, [{ id: 'a', status: 'completed' }, running('b')])).toBe(1)
+  })
+
+  it('still counts a draft whose count is not on the listed page', () => {
+    expect(unsavedEntryCount({ elsewhere: { i1: 3 } }, [running('a')])).toBe(1)
   })
 })
