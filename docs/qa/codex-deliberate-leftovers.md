@@ -94,14 +94,17 @@ Citations: `HO:n` = line n of `HANDOFF.md` at commit `f491d988` (`git show f491d
     - Portrait and landscape layouts at normal font: F25 gap 25 px; the 5-size picker fits.
     - Deployed export bytes (shift CSV, sales CSV, refund CSV, Transaksi XLSX), including the new time columns.
     - Laporan > Shift "Belum dihitung" with a real open shift.
+  - **Found and FIXED in APK 2.2 (versionCode 13, PRs #134 + #133), verified on the tablet:**
+    - **Landscape keyboard:** every POS sheet now ends above the soft keyboard (`--kb` from `visualViewport`).
+      - Expected: with the Samsung keyboard open on the cash field, the cash field, Kembalian and Konfirmasi are
+        all visible, in both orientations.
+      - Measured in landscape: panel ends at 299 (the visible area), Konfirmasi 239-288. Portrait: 676 / 615-664.
+    - **System font scale:** the WebView text zoom is pinned to 100%; the app's own SM/MD/LG setting is the size
+      control.
+      - Expected: Android's font size has no effect on the POS layout.
+      - Measured at `font_scale` 2.0: body 14 px, the same as at 1.0, with no clipping.
+    - Tablets still on APK 2.1 (code 12) do not have these fixes and get no further OTAs until they install 2.2.
   - **Found, open, owner to decide:**
-    - **Landscape keyboard (P3):** the Samsung keyboard covers Kembalian and Konfirmasi while the cash amount is
-      typed. The page does not resize.
-    - **System font scale 2.0 (P3):**
-      - The landscape cart clips the product name and the Bayar amount.
-      - Payment method names break mid-word.
-      - Portrait quick-amount buttons are cut ("100.00").
-      - Cause: the WebView follows Android's font size on top of the app's SM/MD/LG setting.
     - **CSV (LOW):**
       - An empty "-" cell is written as `'-` (formula guard).
       - The sales CSV mixes `2026-11-09 21:36` and `09/11/2026 21:41`.
