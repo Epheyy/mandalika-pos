@@ -37,11 +37,24 @@ func TestUpdateOutletRefusesOtherOutlet(t *testing.T) {
 	}
 }
 
+// An admin is never refused, even when the token or X-Outlet-Id carries an outlet.
+func TestUpdateOutletAdminWithOutletNotRefused(t *testing.T) {
+	for _, own := range []string{"", "outlet-a"} {
+		r := updateOutletReq("admin", own, "outlet-b")
+		r.Body = http.NoBody // empty body: fails decode (400) before any DB use
+		w := httptest.NewRecorder()
+		(&Handlers{}).UpdateOutlet(w, r)
+		if w.Code == http.StatusForbidden {
+			t.Errorf("admin with outlet %q got 403", own)
+		}
+	}
+}
+
 func TestUpdateOutletScopeAllowsOwnAndAdmin(t *testing.T) {
-	if !outletInScope(updateOutletReq("manager", "outlet-a", "outlet-a"), "outlet-a") {
+	if !canEditOutletID(updateOutletReq("manager", "outlet-a", "outlet-a"), "outlet-a") {
 		t.Error("manager should reach own outlet")
 	}
-	if !outletInScope(updateOutletReq("admin", "", "outlet-b"), "outlet-b") {
+	if !canEditOutletID(updateOutletReq("admin", "", "outlet-b"), "outlet-b") {
 		t.Error("admin should reach any outlet")
 	}
 }

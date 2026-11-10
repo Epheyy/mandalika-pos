@@ -23,6 +23,7 @@ describe('canSeeNav', () => {
 
   it('lets only the admin, or the outlet owner, edit an outlet', () => {
     expect(canEditOutlet({ role: 'admin', outletId: null }, 'o-b')).toBe(true)
+    expect(canEditOutlet({ role: 'admin', outletId: 'o-a' }, 'o-b')).toBe(true)
     expect(canEditOutlet({ role: 'manager', outletId: 'O-A' }, 'o-a')).toBe(true)
     expect(canEditOutlet({ role: 'manager', outletId: 'o-a' }, 'o-b')).toBe(false)
     expect(canEditOutlet({ role: 'manager', outletId: null }, 'o-a')).toBe(false)
