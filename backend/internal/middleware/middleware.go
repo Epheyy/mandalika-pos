@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -10,7 +11,30 @@ import (
 	"github.com/mandalika/pos-backend/internal/httpx"
 )
 
-func RequireAuth(cfg *config.Config) func(http.Handler) http.Handler {
+// RevocationChecker reports a user's current rights version (see auth.PermVersions).
+type RevocationChecker interface {
+	Current(ctx context.Context, uid string) (int64, bool, error)
+	Observe(uid string, pv int64)
+}
+
+type authOptions struct{ revocation RevocationChecker }
+
+// AuthOption configures RequireAuth.
+type AuthOption func(*authOptions)
+
+// WithRevocation makes RequireAuth refuse access tokens issued before the user's
+// rights last changed (or whose user is gone) with a refreshable 401.
+func WithRevocation(c RevocationChecker) AuthOption {
+	return func(o *authOptions) { o.revocation = c }
+}
+
+const authUnavailableRetryAfter = "2"
+
+func RequireAuth(cfg *config.Config, opts ...AuthOption) func(http.Handler) http.Handler {
+	var o authOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			h := r.Header.Get("Authorization")
@@ -22,6 +46,26 @@ func RequireAuth(cfg *config.Config) func(http.Handler) http.Handler {
 			if err != nil {
 				httpx.Err(w, http.StatusUnauthorized, "invalid or expired token")
 				return
+			}
+			// Rights version, before the outlet check: a stale token must get a
+			// refreshable 401, never the 403 below (clients do not refresh on 403).
+			// Only the middleware answers 401 here, so a client that refreshes and
+			// retries never resends a request a handler refused for a business reason.
+			// /auth/me is not refreshed by the client: a stale token there signs out.
+			if o.revocation != nil {
+				cur, exists, err := o.revocation.Current(r.Context(), claims.UserID)
+				if err != nil {
+					slog.Warn("auth_version_unavailable", "user", claims.UserID, "err", err)
+					w.Header().Set("Retry-After", authUnavailableRetryAfter)
+					httpx.Err(w, http.StatusServiceUnavailable, "auth temporarily unavailable")
+					return
+				}
+				if auth.Revoked(claims.PermVersion, cur, exists) {
+					slog.Info("access_token_revoked", "user", claims.UserID, "pv", claims.PermVersion, "current", cur)
+					httpx.Err(w, http.StatusUnauthorized, "token revoked")
+					return
+				}
+				o.revocation.Observe(claims.UserID, claims.PermVersion)
 			}
 			ctx := context.WithValue(r.Context(), auth.CtxUserID, claims.UserID)
 			ctx = context.WithValue(ctx, auth.CtxRole, claims.Role)
