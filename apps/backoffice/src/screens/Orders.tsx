@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { fetchAllPages, type AppSettings, type Order } from '@mandalika/api'
+import type { AppSettings, Order } from '@mandalika/api'
+import { exportCutoffLabel, orderExportPager } from './ordersExportPaging'
 import { variantLabel } from '@mandalika/types'
 import { format, parseISO } from 'date-fns'
 import { id } from 'date-fns/locale'
@@ -106,6 +107,7 @@ export function OrdersPanel() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [exportBusy, setExportBusy] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
+  const [exportCutoff, setExportCutoff] = useState<string | null>(null)
 
   const rangeError = allDates || debouncedQuery.trim() !== '' ? null : dateRangeError(range.dateFrom, range.dateTo)
   const filters = transaksiFilters(range, allDates, { status: fStatus, payment: fPay, q: debouncedQuery })
@@ -130,6 +132,9 @@ export function OrdersPanel() {
     await Promise.all([q.refetch(), sq.refetch()])
   }
 
+  // The cut-off belongs to the filters it was exported with: drop it as soon as they change.
+  useEffect(() => { setExportCutoff(null) }, [range.dateFrom, range.dateTo, allDates, fStatus, fPay, query, outletId])
+
   // Detailed export for analysts: one row per order with the discount source
   // (promotion name / code / manual) and structured discount fields. Pages the whole
   // filtered set on click.
@@ -140,7 +145,8 @@ export function OrdersPanel() {
       // The live search text, not the 300 ms debounced one, so Export matches what was typed.
       if (query.trim() === '' && !allDates && dateRangeError(range.dateFrom, range.dateTo)) return
       const params = orderFilterParams(transaksiFilters(range, allDates, { status: fStatus, payment: fPay, q: query }))
-      const all = await fetchAllPages((p, limit) => api.listOrders({ ...params, page: p, limit }))
+      const { rows: all, asOf } = await orderExportPager(api, params)
+      setExportCutoff(exportCutoffLabel(asOf))
       const rows = all.map((o) => ({
         'No. Order': o.orderNumber,
         ...orderTimeCsv(o),
@@ -176,6 +182,7 @@ export function OrdersPanel() {
     <div className="space-y-5">
       {(q.error || sq.error) && <p role="alert" className="text-sm text-danger">Gagal memuat data. Data sebelumnya mungkin ditampilkan. {q.error || sq.error}</p>}
       {exportError && <p role="alert" className="text-sm text-danger">{exportError}</p>}
+      {exportCutoff && !exportError && <p role="status" className="text-sm text-muted">{exportCutoff}</p>}
       <p className="text-sm text-ink-700">
         {transaksiHeader(q.data ? total : undefined, showSummary ? sq.data?.totalSales : undefined, (n) => BRAND.currency.format(n))}
         {debouncedQuery.trim() !== '' && !allDates && ' · pencarian mencakup semua tanggal'}

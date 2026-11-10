@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-import { fetchAllPages, type ListResult, type Order, type Product } from '@mandalika/api'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { fetchAllByCursor, fetchAllPages, KEYSET_PAGE_SIZE, type CursorListResult, type ListResult, type Order, type Product } from '@mandalika/api'
 import { buildTrend, cashierPerformance, completedIn, computeKpis, lowStock, paymentBreakdown, periodInterval, productRanking } from './dashboard/metrics'
 
 function pages<T>(rows: T[]) {
@@ -46,6 +46,97 @@ describe('complete pagination', () => {
   })
   it.each([{ data: [{ id: '' }] }, { data: [{ id: 'x' }, { id: 'x' }] }, { data: [null] }])('rejects missing/duplicate row identity', async ({ data }) => {
     await expect(fetchAllPages(pages(data as { id: string }[]))).rejects.toThrow()
+  })
+})
+
+/** A keyset server over `rows`: cursor = index of the next row; every page reports page 1. */
+function cursorPages<T>(rows: T[]) {
+  return vi.fn(async (cursor: string | undefined, limit: number): Promise<CursorListResult<T>> => {
+    const start = cursor ? Number(cursor.slice(1)) : 0
+    const data = rows.slice(start, start + limit)
+    return { data, meta: { total: rows.length, page: 1, limit }, ...(data.length === limit ? { nextCursor: `c${start + limit}` } : {}) }
+  })
+}
+const noFallback = vi.fn(async (): Promise<{ id: string }[]> => { throw new Error('fallback must not run') })
+
+describe('complete keyset pagination', () => {
+  // Only an old backend (clamped limit) may fall back; every other failure must fail the export.
+  beforeEach(() => { noFallback.mockClear() })
+  afterEach(() => { expect(noFallback).not.toHaveBeenCalled() })
+  it.each([0, 1, 999, 1000, 1001, 101018])('retrieves %i rows with ceil(total/1000) calls', async total => {
+    const rows = Array.from({ length: total }, (_, i) => ({ id: `id-${total - i}` }))
+    const fetch = cursorPages(rows)
+    expect(await fetchAllByCursor(fetch, noFallback)).toEqual(rows)
+    expect(fetch).toHaveBeenCalledTimes(Math.max(1, Math.ceil(total / 1000)))
+    expect(fetch.mock.calls[0]).toEqual([undefined, KEYSET_PAGE_SIZE])
+  })
+  it('stops at total without an extra request', async () => {
+    const rows = Array.from({ length: 2000 }, (_, i) => ({ id: `${i}` }))
+    const fetch = cursorPages(rows) // the last full page still carries a nextCursor
+    await fetchAllByCursor(fetch, noFallback)
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+  it.each(['empty', 'short', 'duplicate', 'changed-total', 'bad-limit', 'missing-cursor-before-complete', 'blank-id'])('fetchAllByCursor rejects %s on page 2', async kind => {
+    const rows = Array.from({ length: 2500 }, (_, i) => ({ id: `${i}` }))
+    const base = cursorPages(rows)
+    const fetch = vi.fn(async (cursor: string | undefined, limit: number) => {
+      const r = await base(cursor, limit)
+      if (cursor) {
+        if (kind === 'empty') r.data = []
+        if (kind === 'short') r.data.pop()
+        if (kind === 'duplicate') r.data[0] = rows[0]
+        if (kind === 'changed-total') r.meta!.total++
+        if (kind === 'bad-limit') r.meta!.limit = 200
+        if (kind === 'missing-cursor-before-complete') delete r.nextCursor
+        if (kind === 'blank-id') r.data[0] = { id: ' ' }
+      }
+      return r
+    })
+    await expect(fetchAllByCursor(fetch, noFallback)).rejects.toThrow()
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+  it('rejects a later failure instead of returning the successful prefix', async () => {
+    const base = cursorPages(Array.from({ length: 2500 }, (_, i) => ({ id: `${i}` })))
+    const fetch = vi.fn(async (c: string | undefined, l: number) => { if (c) throw new Error('page 2 unavailable'); return base(c, l) })
+    await expect(fetchAllByCursor(fetch, noFallback)).rejects.toThrow('page 2 unavailable')
+  })
+  it('rejects a repeated cursor instead of looping', async () => {
+    const rows = Array.from({ length: 3000 }, (_, i) => ({ id: `${i}` }))
+    const fetch = vi.fn(async (_c: string | undefined, limit: number) => ({ data: rows.slice(0, limit).map((r, i) => ({ id: `${r.id}-${fetch.mock.calls.length}-${i}` })), meta: { total: 3000, page: 1, limit }, nextCursor: 'same' }))
+    await expect(fetchAllByCursor(fetch, noFallback)).rejects.toThrow()
+  })
+  it.each(['short-no-cursor', 'full-no-cursor'])('a new backend short of its total with no cursor on page 1 fails (%s), no fallback', async kind => {
+    const rows = Array.from({ length: 2500 }, (_, i) => ({ id: `${i}` }))
+    const fetch = vi.fn(async (_c: string | undefined, limit: number) => ({
+      data: rows.slice(0, kind === 'short-no-cursor' ? 400 : limit), meta: { total: 2500, page: 1, limit },
+    }))
+    await expect(fetchAllByCursor(fetch, noFallback)).rejects.toThrow()
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+  it('reports the server cut-off of page 1 once, and never on the fallback path', async () => {
+    const rows = Array.from({ length: 1500 }, (_, i) => ({ id: `${i}` }))
+    const base = cursorPages(rows)
+    const fetch = vi.fn(async (c: string | undefined, l: number) => ({ ...(await base(c, l)), asOf: '2026-11-10T07:52:00.123456Z' }))
+    const onCutoff = vi.fn()
+    await fetchAllByCursor(fetch, noFallback, onCutoff)
+    expect(onCutoff).toHaveBeenCalledTimes(1)
+    expect(onCutoff).toHaveBeenCalledWith('2026-11-10T07:52:00.123456Z')
+    const old = vi.fn(async () => ({ data: rows.slice(0, 50), meta: { total: 1500, page: 1, limit: 50 }, asOf: 'x' }))
+    const cutoff2 = vi.fn()
+    await fetchAllByCursor(old, async () => rows, cutoff2)
+    expect(cutoff2).not.toHaveBeenCalled()
+  })
+  it('falls back to offset paging when the backend ignores paging=keyset', async () => {
+    const rows = Array.from({ length: 450 }, (_, i) => ({ id: `${i}` }))
+    const old = vi.fn(async (_c: string | undefined, _l: number) => ({ data: rows.slice(0, 50), meta: { total: 450, page: 1, limit: 50 } }))
+    const fallback = vi.fn(async () => fetchAllPages(pages(rows)))
+    expect(await fetchAllByCursor(old, fallback)).toEqual(rows)
+    expect(old).toHaveBeenCalledTimes(1)
+    expect(fallback).toHaveBeenCalledTimes(1)
+  })
+  it.each([undefined, {}, { total: -1, page: 1, limit: 1000 }, { total: 1.5, page: 1, limit: 1000 }, { total: 0, page: 2, limit: 1000 }])('rejects malformed page-1 metadata %j', async meta => {
+    const fetch = vi.fn(async () => ({ data: [], meta }) as unknown as CursorListResult<{ id: string }>)
+    await expect(fetchAllByCursor(fetch, noFallback)).rejects.toThrow()
   })
 })
 

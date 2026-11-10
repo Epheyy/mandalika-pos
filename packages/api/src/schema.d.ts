@@ -4612,6 +4612,13 @@ export interface components {
         OrderListResponse: {
             data: components["schemas"]["Order"][];
             meta?: components["schemas"]["Meta"];
+            /** @description Only with paging=keyset. Opaque cursor for the next page; absent on a short (last) page. */
+            nextCursor?: string;
+            /**
+             * Format: date-time
+             * @description Only with paging=keyset. Server time of the cut-off the export is frozen at (the first page's statement time); the same on every page of one export.
+             */
+            asOf?: string;
         };
         OrderResponse: {
             data: components["schemas"]["Order"];
@@ -9823,7 +9830,12 @@ export interface operations {
                 /** @description Admin-only explicit outlet scope; "all" for cross-outlet. */
                 outletId?: components["parameters"]["OutletQuery"];
                 page?: components["parameters"]["Page"];
-                limit?: components["parameters"]["Limit"];
+                /** @description Max 200, or 1000 when paging=keyset (400 outside 1..1000 in keyset mode). The handler is the authority; the spec is not enforced at runtime. */
+                limit?: number;
+                /** @description keyset = export mode: pages are cut by an opaque cursor, each page carries its own exact total for the set frozen at the first page. Not combinable with page > 1 or dateBasis=refund. */
+                paging?: "keyset";
+                /** @description nextCursor of the previous keyset page. Requires paging=keyset. */
+                cursor?: string;
                 shiftId?: string;
                 customerId?: string;
                 /** @description Legacy (POS) lower bound, a YYYY-MM-DD read as a UTC day. Meaning unchanged; prefer dateFrom. */

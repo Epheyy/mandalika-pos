@@ -1853,6 +1853,13 @@ components:
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/Order' } }
         meta: { $ref: '#/components/schemas/Meta' }
+        nextCursor:
+          type: string
+          description: Only with paging=keyset. Opaque cursor for the next page; absent on a short (last) page.
+        asOf:
+          type: string
+          format: date-time
+          description: Only with paging=keyset. Server time of the cut-off the export is frozen at (the first page's statement time); the same on every page of one export.
     OrderResponse:
       type: object
       required: [data]
@@ -5550,7 +5557,18 @@ paths:
         - $ref: '#/components/parameters/OutletHeader'
         - $ref: '#/components/parameters/OutletQuery'
         - $ref: '#/components/parameters/Page'
-        - $ref: '#/components/parameters/Limit'
+        - name: limit
+          in: query
+          description: Max 200, or 1000 when paging=keyset (400 outside 1..1000 in keyset mode). The handler is the authority; the spec is not enforced at runtime.
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 50 }
+        - name: paging
+          in: query
+          description: "keyset = export mode: pages are cut by an opaque cursor, each page carries its own exact total for the set frozen at the first page. Not combinable with page > 1 or dateBasis=refund."
+          schema: { type: string, enum: [keyset] }
+        - name: cursor
+          in: query
+          description: nextCursor of the previous keyset page. Requires paging=keyset.
+          schema: { type: string, maxLength: 512 }
         - name: shiftId
           in: query
           schema: { type: string, format: uuid }

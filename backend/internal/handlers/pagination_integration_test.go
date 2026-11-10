@@ -229,6 +229,7 @@ func TestPaginationPostgres(t *testing.T) {
 		// Legacy from/to keep their meaning (POS contract): UTC-day on created_at.
 		verify(t, "legacy-from-to-utc-day", "/api/v1/orders?from=2026-09-21&to=2026-09-21", 201, 201, true)
 	})
+	runListSpeedSubtests(t, ctx, pool, fetch)
 	if path := os.Getenv("MANDALIKA_A26_TEST_OUTPUT"); path != "" {
 		raw, err := json.Marshal(records)
 		if err != nil {

@@ -38,6 +38,7 @@ import { backOrNavigate, navigate, previousRouteHash } from '../lib/router/navig
 import { parseHash } from '../lib/router/hash'
 import { FilterBar } from '../ui/FilterBar'
 import { Pagination } from '../ui/Pagination'
+import { pastEndPage } from './customersPastEnd'
 import CustomerDetail from './customers/CustomerDetail'
 import DupCandidates from './customers/DupCandidates'
 import MergeReview from './customers/MergeReview'
@@ -151,8 +152,9 @@ export default function Customers() {
   // Only on the list itself, and only on an answer to THIS page (a poll hook keeps the previous answer for a render).
   const onList = !onCustomerPage && routedViewIsList(route.path)
   useEffect(() => {
-    if (!onList || cq.loading || !cq.data || cq.data.meta?.page !== page || page <= 1 || customers.length > 0) return
-    setList({ hal: Math.min(page - 1, totalPages) }, { replace: true })
+    if (!onList || cq.loading || !cq.data || cq.data.meta?.page !== page) return
+    const target = pastEndPage(page, totalPages, customers.length)
+    if (target !== null) setList({ hal: target }, { replace: true })
   }, [onList, cq.loading, cq.data, page, customers.length, totalPages, setList])
 
   const lq = usePolledQuery<LoyaltySettings>(() => api.getLoyaltySettings(), [])
