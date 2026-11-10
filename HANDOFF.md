@@ -8,7 +8,7 @@ Last updated: 2026-11-10 by Claude (Opus 5.5) - role test fixes (#137) LIVE (bac
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
-> 2026-11-10: **INSTANT PERMISSION REVOCATION BUILT (PR "Instant permission revocation (perm_version)"), NOT merged, NOT deployed.** Plan: `docs/plans/2026-11-10-instant-permission-revoke.md`.
+> 2026-11-10: **INSTANT PERMISSION REVOCATION (#138) MERGED `39ef5ec5`, RELEASE IN PROGRESS** (owner: "Use your recommendations", "Yes, release it"; gate `gate/revoke` 5/5 green). Plan: `docs/plans/2026-11-10-instant-permission-revoke.md`.
 > - **What:** `users.perm_version` (mig 0087) and access-token claim `pv`; `RequireAuth` refuses `pv < current` or a deleted user with a refreshable 401 `token revoked` (5 s memo, then Redis `authpv:<uid>`, then Postgres). Every rights write bumps it (user update when role/outlet/permissions really change, password reset, delete = tombstone, fsmigrate), guarded by a source-scan test.
 > - **Open shift:** deleting a user, or moving their outlet, is refused with 409 while they have an open shift.
 > - **Clients:** a 401 right after a successful refresh refreshes once more and never signs out (shared `packages/api` client, POS needs an OTA); the Backoffice adopts the refreshed rights.
