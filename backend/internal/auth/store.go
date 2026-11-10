@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/rules"
 )
 
@@ -25,6 +26,23 @@ type User struct {
 }
 
 var ErrNotFound = errors.New("user not found")
+
+// Open-shift refusals (409). "Open shift" is a server-side proxy: a shifts row with
+// status 'open' for the user. The server cannot see items still queued on a tablet,
+// so this narrows the stranded-queue risk without removing it.
+var (
+	ErrOpenShiftDelete = apperr.New(apperr.Conflict, "Pengguna ini masih punya shift yang buka. Tutup shift-nya dulu sebelum menghapus.")
+	ErrOpenShiftMove   = apperr.New(apperr.Conflict, "Pengguna ini masih punya shift yang buka. Tutup shift-nya dulu sebelum memindah outlet.")
+)
+
+// hasOpenShift reports whether the user has an open shift. Call it inside the
+// transaction that holds the user row lock.
+func hasOpenShift(ctx context.Context, q querier, uid string) (bool, error) {
+	var open bool
+	err := q.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM shifts WHERE cashier_id=$1 AND status='open')`, uid).Scan(&open)
+	return open, err
+}
 
 // RightsPublisher is told, after commit, that a user's rights version moved (or that
 // the user is gone) so every instance can refuse older access tokens within seconds.
@@ -152,7 +170,17 @@ func (s *Store) UpdateUser(ctx context.Context, id string, name, role, outletID,
 		if curOutlet != nil {
 			cur = *curOutlet
 		}
-		rightsChanged = rightsChanged || !strings.EqualFold(*outletID, cur)
+		if !strings.EqualFold(*outletID, cur) {
+			rightsChanged = true
+			// The whole request is refused: no partial update.
+			open, err := hasOpenShift(ctx, tx, id)
+			if err != nil {
+				return err
+			}
+			if open {
+				return ErrOpenShiftMove
+			}
+		}
 	}
 	if perms != nil && !rightsChanged {
 		have, err := permissionsOf(ctx, tx, id)
@@ -307,12 +335,31 @@ func (s *Store) ClearReceiveLockouts(ctx context.Context, userID string) error {
 
 // DeleteUser removes a user (cascades permissions/outlets/refresh tokens).
 func (s *Store) DeleteUser(ctx context.Context, id string) error {
-	ct, err := s.Pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, id)
+	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	if ct.RowsAffected() == 0 {
+	defer tx.Rollback(ctx)
+	var one int
+	err = tx.QueryRow(ctx, `SELECT 1 FROM users WHERE id=$1 FOR UPDATE`, id).Scan(&one)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	open, err := hasOpenShift(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	if open {
+		return ErrOpenShiftDelete
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM users WHERE id=$1`, id); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
 	}
 	if s.Versions != nil {
 		s.Versions.PublishDeleted(ctx, id)
