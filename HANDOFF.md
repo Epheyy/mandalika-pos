@@ -4,11 +4,11 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-10 by Claude (Opus 5.5) - Bluetooth Classic printing (#136) LIVE in APK 2.3 (versionCode 14), verified on the test tablet with the RPP02N; role test done on a local copy (fixes in progress). Earlier: LOW findings (#135) LIVE (backoffice `1043b4c4`, POS OTA 2.13.8 for APK 2.2; not yet seen on a tablet). Earlier: Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09; both P3 fixes LIVE in APK 2.2 (versionCode 13, #134 keyboard + #133 text zoom), installed and verified on the test tablet; tablets on APK 2.1 need 2.2 (OTAs now target code 13); see Progress board.
+Last updated: 2026-11-10 by Claude (Opus 5.5) - role test fixes (#137) LIVE (backend `00177-hab`, Backoffice `6456ed73`); instant-revocation plan drafted on branch `plan/instant-revoke`, waiting on owner decisions; Bluetooth Classic printing (#136) LIVE in APK 2.3 (versionCode 14), verified on the test tablet with the RPP02N; role test done on a local copy (fixes in progress). Earlier: LOW findings (#135) LIVE (backoffice `1043b4c4`, POS OTA 2.13.8 for APK 2.2; not yet seen on a tablet). Earlier: Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09; both P3 fixes LIVE in APK 2.2 (versionCode 13, #134 keyboard + #133 text zoom), installed and verified on the test tablet; tablets on APK 2.1 need 2.2 (OTAs now target code 13); see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
-> 2026-11-10: **ROLE TEST FIXES (#137) MERGED, BACKEND + BACKOFFICE RELEASE IN PROGRESS** (owner: "Use your recommendations", "Yes, release it").
+> 2026-11-10: **ROLE TEST FIXES (#137) LIVE: backend `00177-hab`, Backoffice `6456ed73`** (owner: "Use your recommendations", "Yes, release it").
 > - **Fixes:** findings 1, 3 and 6 from `docs/qa/2026-11-10-role-test-local.md`.
 >   - `PUT /outlets/{id}` refuses a non-admin whose own outlet is not `{id}` (403 "outlet not permitted"). Admin is decided by role, so an admin with an assigned outlet or `X-Outlet-Id` is unaffected.
 >   - The Backoffice shows outlet edit controls only where the server allows them.
@@ -20,6 +20,11 @@ Last updated: 2026-11-10 by Claude (Opus 5.5) - Bluetooth Classic printing (#136
 >   - Manager A → outlet B: 403. Own outlet: 200. Admin with outlet A → B: 200, also with `X-Outlet-Id`.
 >   - Permission matrix: 0 mismatches.
 >   - Manager: Pengguna gone from the nav, and a deep link shows "Akses tidak diizinkan". Only the manager's own outlet has edit controls.
+> - **Release:**
+>   - **Backend:** `deploy-backend.sh role1110` from `9c0c4c69` -> `mandalika-pos-00177-hab` (label commit-sha `9c0c4c69`), promoted to 100%. ROLLBACK `00175-jos`.
+>   - **Smokes without sign-in:** tag `/readyz` and `/livez` 200; `PUT /outlets/{id}` without auth -> 401; `/ota/check` answers; live `/readyz` 200; 0 ERROR logs on `00177-hab`.
+>   - **Backoffice:** published by `6456ed73` `[skip actions]`. The live crawl finds "Akun ini akun kasir" and no longer the English refusal.
+>   - **Not checked live:** the signed-in behaviour. Claude does not sign in with passwords on `run.app`/`pages.dev`, so that is covered by the local copy above.
 > - **No migration.** `POST /outlets` is unchanged, so a non-admin who creates an outlet cannot then edit it.
 > - **Follow-up:** `GET/PUT /outlets/{id}/giveaway` has the same pre-existing admin-with-outlet behaviour, to check separately.
 
