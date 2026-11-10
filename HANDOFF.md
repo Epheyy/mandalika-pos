@@ -8,6 +8,21 @@ Last updated: 2026-11-10 by Claude (Opus 5.5) - instant permission revocation (#
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-10: **LOAD TEST STEP 1 (LOCAL) DONE**. PR #139 (harness `loadtest/` + `docs/qa/2026-11-10-load-test-local.md`), not merged.
+> - **Setup:** 30 outlets, 500k customers, 1M orders over a year, on laptop Docker; one backend with `DB_MAX_CONNS` 10; rate limits raised for the test only.
+> - **No lost or duplicate sale: PASS.** The 60-tablet burst of 3,000 sales landed exactly once, the replay added 0, and stock was exact.
+> - **Upload p95 < 1 s: FAIL under the full burst.**
+>   - 18 s with 60 tablets + 5 Backoffice users; 8.5 s without the Backoffice users. All 3,000 were accepted in about 46 s, at about 88-179 sales/s.
+>   - 0.9 s with 1 tablet, 1.3 s with 10.
+> - **Lists and reports p95 < 2 s: lists PASS (0.4-1.4 s); reports FAIL** (summary 2.1 s, dashboard 5.8 s).
+> - **Month export < 30 s: FAIL** (1,740 s).
+> - **Root cause, confirmed by Opus in code:** `count(*) OVER()` in `read/orders.go:66` (also customers, catalog, error logs, goods receipts and others) builds every row of the window on every page.
+>   - Measured fix: page 1 3,261 ms -> 10 ms plus a separate count; page 200 2,670 ms -> 31 ms with id-first pagination.
+> - **Reports:** need a daily rollup (not prototyped).
+> - **Sale path:** about 31 statements per sale; re-measure on Neon before optimising.
+> - **Incident:** the Docker VM (3.8 GB) dropped both containers mid-run; they were restarted and the data is intact. A local artifact.
+> - **`orders.order_number` not unique:** by design since migration 0005, not a finding.
+
 > 2026-11-10: **CODEX R12 SWEEP PREPARED** (owner: "prep the follow-up docs for codex i'd want it to run another sweep round").
 > - **New:** `docs/qa/codex-r12-brief.md`, the entry point. It lists the builds under test, what changed since R11 (#132-#138), six focus areas with revocation first, ground rules, and the report format (findings from F37).
 > - **Updated** `docs/qa/codex-deliberate-leftovers.md`:
