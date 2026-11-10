@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/mandalika/pos-backend/internal/httpx"
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
@@ -21,6 +22,11 @@ func (h *Handlers) CreateOutlet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) UpdateOutlet(w http.ResponseWriter, r *http.Request) {
+	// A non-admin may only edit their own outlet (the id is a path param, so check it).
+	if !outletInScope(r, chi.URLParam(r, "id")) {
+		httpx.Err(w, http.StatusForbidden, "outlet not permitted")
+		return
+	}
 	o, ok := decodeWrite[write.Outlet](w, r)
 	if !ok {
 		return

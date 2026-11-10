@@ -103,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     const d = await api.login(email, password)
     if (!ALLOWED_ROLES.has(d.user.role)) {
-      throw new Error('This account is a cashier. Use the POS app to sign in.')
+      throw new Error('Akun ini akun kasir. Masuk lewat aplikasi POS.')
     }
     authStore.access = d.access
     authStore.refresh = d.refresh

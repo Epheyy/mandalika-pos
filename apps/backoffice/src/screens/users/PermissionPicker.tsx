@@ -6,7 +6,6 @@ const PERMS: Record<string, { label: string; desc: string }> = {
   manage_products: { label: 'Kelola Produk', desc: 'Tambah, edit, hapus produk' },
   manage_customers: { label: 'Kelola Pelanggan', desc: 'Akses data pelanggan' },
   manage_outlets: { label: 'Kelola Outlet', desc: 'Tambah dan edit outlet' },
-  manage_users: { label: 'Kelola Pengguna', desc: 'Atur role & akses' },
   process_refund: { label: 'Proses Refund', desc: 'Memproses pengembalian dana' },
   manage_promotions: { label: 'Kelola Promosi', desc: 'Buat dan edit promosi' },
   view_reports: { label: 'Lihat Laporan', desc: 'Akses laporan & export' },
