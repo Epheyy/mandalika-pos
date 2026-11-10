@@ -4614,6 +4614,11 @@ export interface components {
             meta?: components["schemas"]["Meta"];
             /** @description Only with paging=keyset. Opaque cursor for the next page; absent on a short (last) page. */
             nextCursor?: string;
+            /**
+             * Format: date-time
+             * @description Only with paging=keyset. Server time of the cut-off the export is frozen at (the first page's statement time); the same on every page of one export.
+             */
+            asOf?: string;
         };
         OrderResponse: {
             data: components["schemas"]["Order"];

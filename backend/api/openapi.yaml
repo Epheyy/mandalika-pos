@@ -1856,6 +1856,10 @@ components:
         nextCursor:
           type: string
           description: Only with paging=keyset. Opaque cursor for the next page; absent on a short (last) page.
+        asOf:
+          type: string
+          format: date-time
+          description: Only with paging=keyset. Server time of the cut-off the export is frozen at (the first page's statement time); the same on every page of one export.
     OrderResponse:
       type: object
       required: [data]

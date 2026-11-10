@@ -66,12 +66,14 @@ export async function fetchAllPages<T extends { id: string }>(
  * Key order is the server's guarantee (its keyset predicate, proven by Go tests); there is no
  * client-side key check because createdAt strings do not sort lexically (trimmed nanoseconds).
  *
- * `fallback` runs when page 1 shows an old backend that ignored paging=keyset (a different
- * limit, or rows missing with no cursor): the slower offset read, which has its own checks.
+ * `fallback` runs only when page 1 shows an old backend that ignored paging=keyset (it clamped
+ * the limit): the slower offset read, which has its own checks. `onCutoff` gets the server's
+ * asOf (page 1) once page 1 is accepted; it is never called on the fallback path.
  */
 export async function fetchAllByCursor<T extends { id: string }>(
   fetchPage: (cursor: string | undefined, limit: number) => Promise<CursorListResult<T>>,
   fallback: () => Promise<T[]>,
+  onCutoff?: (asOf: string) => void,
 ): Promise<T[]> {
   const rows: T[] = []
   const ids = new Set<string>()
@@ -84,6 +86,7 @@ export async function fetchAllByCursor<T extends { id: string }>(
     if (total === undefined) {
       total = meta.total
       if (Math.ceil(total / KEYSET_PAGE_SIZE) > MAX_PAGES) throw new Error('Data melebihi batas pengambilan lengkap.')
+      if (typeof result.asOf === 'string' && result.asOf) onCutoff?.(result.asOf)
     } else if (meta.total !== total) {
       throw new Error('Data berubah saat dimuat. Muat ulang untuk laporan lengkap.')
     }
@@ -98,10 +101,9 @@ export async function fetchAllByCursor<T extends { id: string }>(
   throw new Error('Data melebihi batas pengambilan lengkap.')
 }
 
-/** Page 1 of an old backend: it clamps limit=1000 to 50 and never sends a cursor. */
+/** Page 1 of an old backend: it clamps limit=1000 to 50, so the answered limit differs. Nothing
+ * else counts: a new backend that is short of its total without a cursor must fail the export. */
 function ignoredKeyset<T>(result: CursorListResult<T> | undefined): boolean {
-  const meta = result?.meta
-  if (!meta || !Array.isArray(result.data)) return false
-  if (meta.limit !== KEYSET_PAGE_SIZE) return true
-  return meta.total > result.data.length && !result.nextCursor
+  const limit = result?.meta?.limit
+  return typeof limit === 'number' && limit !== KEYSET_PAGE_SIZE
 }

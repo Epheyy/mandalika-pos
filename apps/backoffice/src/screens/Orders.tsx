@@ -132,6 +132,9 @@ export function OrdersPanel() {
     await Promise.all([q.refetch(), sq.refetch()])
   }
 
+  // The cut-off belongs to the filters it was exported with: drop it as soon as they change.
+  useEffect(() => { setExportCutoff(null) }, [range.dateFrom, range.dateTo, allDates, fStatus, fPay, query, outletId])
+
   // Detailed export for analysts: one row per order with the discount source
   // (promotion name / code / manual) and structured discount fields. Pages the whole
   // filtered set on click.
@@ -142,9 +145,8 @@ export function OrdersPanel() {
       // The live search text, not the 300 ms debounced one, so Export matches what was typed.
       if (query.trim() === '' && !allDates && dateRangeError(range.dateFrom, range.dateTo)) return
       const params = orderFilterParams(transaksiFilters(range, allDates, { status: fStatus, payment: fPay, q: query }))
-      const startedAt = new Date()
-      const all = await orderExportPager(api, params)
-      setExportCutoff(exportCutoffLabel(startedAt))
+      const { rows: all, asOf } = await orderExportPager(api, params)
+      setExportCutoff(exportCutoffLabel(asOf))
       const rows = all.map((o) => ({
         'No. Order': o.orderNumber,
         ...orderTimeCsv(o),

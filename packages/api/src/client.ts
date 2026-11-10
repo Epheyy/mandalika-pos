@@ -252,7 +252,7 @@ export interface ListResult<T> {
 }
 
 /** A page of a keyset list: `nextCursor` is present while the page is full (paging=keyset only). */
-export type CursorListResult<T> = ListResult<T> & { nextCursor?: string }
+export type CursorListResult<T> = ListResult<T> & { nextCursor?: string; /** Server time the export is frozen at (page 1 statement time); identical on every page. */ asOf?: string }
 export type ListOrdersResult = CursorListResult<Order>
 
 const API = '/api/v1'

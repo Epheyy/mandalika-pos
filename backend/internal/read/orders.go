@@ -64,10 +64,16 @@ const refundOrderKey = `(SELECT max(r.refunded_at) FROM order_refunds r WHERE r.
 // t LEFT JOIN pg keeps the total on an empty page (one row with a NULL object). extraCols is
 // appended to the select list (keyset columns).
 //
-// countWhere filters the count; pageWhere filters the page (the keyset cursor predicate only
-// narrows the page, never the count). materialize evaluates a filter that cannot use an index
-// once, in a CTE that feeds both the count and the page.
-func orderPageSQL(f OrderFilter, countWhere, pageWhere, limitOffset, extraCols string, materialize bool) string {
+// countWhere filters the count. cursorPred ("" for none) is the keyset position predicate over
+// the unqualified (created_at, id) columns; it narrows only the page, never the count, in both
+// forms. materialize evaluates a filter that cannot use an index once, in a CTE that feeds both
+// the count and the page.
+func orderPageSQL(f OrderFilter, countWhere, cursorPred, limitOffset, extraCols string, materialize bool) string {
+	pageWhere, matWhere := countWhere, ""
+	if cursorPred != "" {
+		pageWhere += " AND " + cursorPred
+		matWhere = "WHERE " + cursorPred
+	}
 	cols, orderBy, matOrder := "o.id, o.created_at", "o.created_at DESC, o.id DESC", "created_at DESC, id DESC"
 	matCols, outerOrder := "id, created_at", "pg.created_at DESC, pg.id DESC"
 	if f.refundBasis() {
@@ -81,8 +87,8 @@ func orderPageSQL(f OrderFilter, countWhere, pageWhere, limitOffset, extraCols s
 	if materialize {
 		ctes = fmt.Sprintf(`f AS MATERIALIZED (SELECT %s FROM orders o %s),
 	     t AS (SELECT count(*) AS n FROM f),
-	     pg AS (SELECT %s FROM f ORDER BY %s LIMIT %s)`,
-			cols, countWhere, matCols, matOrder, limitOffset)
+	     pg AS (SELECT %s FROM f %s ORDER BY %s LIMIT %s)`,
+			cols, countWhere, matCols, matWhere, matOrder, limitOffset)
 	} else {
 		ctes = fmt.Sprintf(`t AS (SELECT count(*) AS n FROM orders o %s),
 	     pg AS (SELECT %s FROM orders o %s ORDER BY %s LIMIT %s)`,
@@ -99,7 +105,7 @@ func (r *Repo) Orders(ctx context.Context, f OrderFilter, page, limit int) ([]ap
 	args = append(args, limit, off(page, limit))
 	// A q or payment-method filter has no index to walk: evaluate it once, not twice.
 	materialize := f.Q != "" || f.PaymentMethod != ""
-	sql := orderPageSQL(f, where, where, fmt.Sprintf("$%d OFFSET $%d", len(args)-1, len(args)), "", materialize)
+	sql := orderPageSQL(f, where, "", fmt.Sprintf("$%d OFFSET $%d", len(args)-1, len(args)), "", materialize)
 	return pagedCountJSON[api.Order](ctx, r.Pool, sql, args...)
 }
 

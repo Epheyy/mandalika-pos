@@ -26,11 +26,11 @@ var ErrKeysetRefundBasis = errors.New("keyset paging does not support dateBasis=
 // transaction that began before asOf and commits later (or a refund that moves a status
 // filter) still changes the count and fails the export client-side.
 //
-// next is set iff the page is full (len(rows) == limit); the client stops on total, not on
+// asOf is the frozen cut-off (server time) of the whole export; next is set iff the page is full (len(rows) == limit); the client stops on total, not on
 // next. The caller must not request a refund-basis filter.
-func (r *Repo) OrdersKeyset(ctx context.Context, f OrderFilter, after *OrderCursor, limit int) (rows []api.Order, total int, next *OrderCursor, err error) {
+func (r *Repo) OrdersKeyset(ctx context.Context, f OrderFilter, after *OrderCursor, limit int) (rows []api.Order, total int, next *OrderCursor, asOf time.Time, err error) {
 	if f.refundBasis() {
-		return nil, 0, nil, ErrKeysetRefundBasis
+		return nil, 0, nil, time.Time{}, ErrKeysetRefundBasis
 	}
 	where, args := buildOrderWhere(f)
 	add := func(v any) int {
@@ -42,17 +42,18 @@ func (r *Repo) OrdersKeyset(ctx context.Context, f OrderFilter, after *OrderCurs
 		asOfExpr = fmt.Sprintf("$%d::timestamptz", add(after.AsOf))
 	}
 	countWhere := where + " AND o.created_at <= " + asOfExpr
-	pageWhere := countWhere
+	cursorPred := ""
 	if after != nil {
 		c, i := add(after.CreatedAt), add(after.ID)
-		pageWhere += fmt.Sprintf(" AND (o.created_at, o.id) < ($%d::timestamptz, $%d::uuid)", c, i)
+		cursorPred = fmt.Sprintf("(created_at, id) < ($%d::timestamptz, $%d::uuid)", c, i)
 	}
-	// Plain (never materialized) form: the cursor predicate narrows only the page CTE.
-	sql := orderPageSQL(f, countWhere, pageWhere, fmt.Sprintf("$%d", add(limit)),
-		", pg.created_at, pg.id::text, "+asOfExpr+" AS asof", false)
+	// A q or payment-method filter has no index to walk: evaluate it once (MATERIALIZED), as the
+	// offset path does. The cursor predicate narrows only the page in both forms.
+	materialize := f.Q != "" || f.PaymentMethod != ""
+	sql := orderPageSQL(f, countWhere, cursorPred, fmt.Sprintf("$%d", add(limit)),
+		", pg.created_at, pg.id::text, "+asOfExpr+" AS asof", materialize)
 
 	rows = []api.Order{}
-	var asOf time.Time
 	var lastCreated *time.Time
 	var lastID *string
 	err = pagedBatch(ctx, r.Pool, sql, args, func(rs pgx.Rows) error {
@@ -76,10 +77,10 @@ func (r *Repo) OrdersKeyset(ctx context.Context, f OrderFilter, after *OrderCurs
 		return rs.Err()
 	})
 	if err != nil {
-		return nil, 0, nil, err
+		return nil, 0, nil, time.Time{}, err
 	}
 	if len(rows) == limit && lastCreated != nil && lastID != nil {
 		next = &OrderCursor{AsOf: asOf, CreatedAt: *lastCreated, ID: *lastID}
 	}
-	return rows, total, next, nil
+	return rows, total, next, asOf, nil
 }

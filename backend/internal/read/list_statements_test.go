@@ -24,7 +24,7 @@ func TestListStatementsHaveNoWindowCount(t *testing.T) {
 	}
 	for name, f := range orderCases {
 		where, _ := buildOrderWhere(f)
-		sql := orderPageSQL(f, where, where, "$1 OFFSET $2", "", f.Q != "" || f.PaymentMethod != "")
+		sql := orderPageSQL(f, where, "", "$1 OFFSET $2", "", f.Q != "" || f.PaymentMethod != "")
 		if overRe.MatchString(sql) {
 			t.Errorf("orders/%s: window function in list SQL", name)
 		}

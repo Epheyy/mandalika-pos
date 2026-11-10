@@ -43,6 +43,9 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
   const [exportError, setExportError] = useState<string | null>(null)
   const [exportCutoff, setExportCutoff] = useState<string | null>(null)
   const { summary: sq, list: lq } = useOrderReport(filters, page, pageSize, outletId)
+  // The cut-off belongs to the filters it was exported with: drop it as soon as they change.
+  const filterKey = JSON.stringify([filters, outletId])
+  useEffect(() => { setExportCutoff(null) }, [filterKey])
 
   const summary = sq.data
   const orders = lq.data?.data ?? []
@@ -106,9 +109,9 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
           api.listRefundReport({ dateFrom: filters.dateFrom, dateTo: filters.dateTo, outletId: outletId || undefined, page: p, limit }))
         exportToCSV(refundCsvRows(all), exportName('laporan-refund'))
       } else {
-        const startedAt = new Date()
-        const all: Order[] = await orderExportPager(api, orderFilterParams(filters))
-        setExportCutoff(exportCutoffLabel(startedAt))
+        const { rows, asOf } = await orderExportPager(api, orderFilterParams(filters))
+        const all: Order[] = rows
+        setExportCutoff(exportCutoffLabel(asOf))
         exportToCSV(csvRows(all), exportName('laporan-transaksi'))
       }
     } catch (e: unknown) {

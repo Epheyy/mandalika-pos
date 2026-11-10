@@ -140,6 +140,8 @@ func (e *speedEnv) seed() {
 func (e *speedEnv) jitOff(t *testing.T) {
 	cfg := e.pool.Config().Copy()
 	cfg.MaxConns = 1 // one connection: "the next query" is guaranteed to reuse the batch's
+	// Force the session default to on, so a no-op set_config cannot pass vacuously.
+	cfg.ConnConfig.RuntimeParams["jit"] = "on"
 	p1, err := pgxpool.NewWithConfig(e.ctx, cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -148,6 +150,9 @@ func (e *speedEnv) jitOff(t *testing.T) {
 	var baseline string
 	if err := p1.QueryRow(e.ctx, `SELECT current_setting('jit')`).Scan(&baseline); err != nil {
 		t.Fatal(err)
+	}
+	if baseline != "on" {
+		t.Fatalf("test pool must start with jit=on, got %q", baseline)
 	}
 	in, after, err := read.New(p1).JITProbe(e.ctx)
 	if err != nil {
@@ -259,19 +264,33 @@ func (e *speedEnv) ordersParity(t *testing.T) {
 			if wantTotal > 200 {
 				pageSize = 1000
 			}
+			var firstAsOf time.Time
+			pages := 0
 			for n := 0; n < 100; n++ {
-				rows, total, next, err := e.repo.OrdersKeyset(e.ctx, f, after, pageSize)
+				rows, total, next, asOf, err := e.repo.OrdersKeyset(e.ctx, f, after, pageSize)
 				if err != nil {
 					t.Fatal(err)
 				}
 				if total != wantTotal {
 					t.Fatalf("keyset total %d, legacy %d", total, wantTotal)
 				}
+				if pages == 0 {
+					firstAsOf = asOf
+				}
+				if asOf.IsZero() || !asOf.Equal(firstAsOf) {
+					t.Fatalf("asOf must be set and identical on every page: %v vs %v", asOf, firstAsOf)
+				}
+				pages++
 				gotIDs = append(gotIDs, orderIDs(rows)...)
 				if next == nil {
 					break
 				}
 				after = next
+			}
+			// q / paymentMethod run the MATERIALIZED form: its cursor predicate must be honoured too
+			// (a dropped predicate would re-serve page 1 forever and fail the id comparison below).
+			if (f.Q != "" || f.PaymentMethod != "") && wantTotal > pageSize && pages < 2 {
+				t.Fatalf("materialized keyset read %d page(s) for %d rows", pages, wantTotal)
 			}
 			if len(gotIDs) != len(wantIDs) || (len(wantIDs) > 0 && !reflect.DeepEqual(gotIDs, wantIDs)) {
 				t.Fatalf("keyset ids differ from offset ids (%d vs %d)", len(gotIDs), len(wantIDs))
@@ -279,7 +298,7 @@ func (e *speedEnv) ordersParity(t *testing.T) {
 		})
 	}
 	// Both statement forms (plain and MATERIALIZED) must be exercised: q/pay use the second.
-	if _, _, _, err := e.repo.OrdersKeyset(e.ctx, read.OrderFilter{Scope: all, DateBasis: "refund"}, nil, 5); err == nil {
+	if _, _, _, _, err := e.repo.OrdersKeyset(e.ctx, read.OrderFilter{Scope: all, DateBasis: "refund"}, nil, 5); err == nil {
 		t.Fatal("keyset must reject the refund basis")
 	}
 }
@@ -406,7 +425,7 @@ func (e *speedEnv) customersTies(t *testing.T) {
 func (e *speedEnv) keysetAll(f read.OrderFilter, limit int) (ids []string, total int, pages int) {
 	var after *read.OrderCursor
 	for {
-		rows, tot, next, err := e.repo.OrdersKeyset(e.ctx, f, after, limit)
+		rows, tot, next, _, err := e.repo.OrdersKeyset(e.ctx, f, after, limit)
 		if err != nil {
 			e.t.Fatal(err)
 		}
@@ -431,7 +450,7 @@ func (e *speedEnv) keysetTies(t *testing.T) {
 		t.Fatal("keyset pages of 1000 do not concatenate to the offset order (gap, overlap or reorder at a tie/µs boundary)")
 	}
 	// The cursor after page 1 sits on the 1000 rows 1 µs newer than the tie group.
-	_, _, next, err := e.repo.OrdersKeyset(e.ctx, f, nil, 1000)
+	_, _, next, _, err := e.repo.OrdersKeyset(e.ctx, f, nil, 1000)
 	if err != nil || next == nil {
 		t.Fatalf("no cursor: %v", err)
 	}
@@ -467,7 +486,7 @@ func (e *speedEnv) keysetDrift(t *testing.T) {
 	remove(future)
 
 	_, total1, next1 := func() ([]api.Order, int, *read.OrderCursor) {
-		r, tot, nx, err := e.repo.OrdersKeyset(e.ctx, f, nil, 10)
+		r, tot, nx, _, err := e.repo.OrdersKeyset(e.ctx, f, nil, 10)
 		if err != nil || nx == nil {
 			t.Fatalf("page 1: %v", err)
 		}
@@ -478,7 +497,7 @@ func (e *speedEnv) keysetDrift(t *testing.T) {
 	}
 	// After page 1: a sale that arrives after asOf is outside the frozen filter.
 	late := insert(2, `now()`)
-	_, total2, _, err := e.repo.OrdersKeyset(e.ctx, f, next1, 10)
+	_, total2, _, _, err := e.repo.OrdersKeyset(e.ctx, f, next1, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -489,7 +508,7 @@ func (e *speedEnv) keysetDrift(t *testing.T) {
 	// A transaction that began before asOf and commits later has created_at before asOf: the
 	// count moves, which the client check turns into a failed export.
 	back := insert(3, `$6::timestamptz - interval '1 hour'`, next1.AsOf)
-	_, total3, _, err := e.repo.OrdersKeyset(e.ctx, f, next1, 10)
+	_, total3, _, _, err := e.repo.OrdersKeyset(e.ctx, f, next1, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -501,12 +520,12 @@ func (e *speedEnv) keysetDrift(t *testing.T) {
 	// A refund that moves a row out of a status filter changes the count.
 	fs := f
 	fs.Status = "completed"
-	_, t1, n1, err := e.repo.OrdersKeyset(e.ctx, fs, nil, 10)
+	_, t1, n1, _, err := e.repo.OrdersKeyset(e.ctx, fs, nil, 10)
 	if err != nil || n1 == nil || t1 != 30 {
 		t.Fatalf("status page 1: total %d err %v", t1, err)
 	}
 	e.exec(`UPDATE orders SET status='refunded' WHERE id=$1`, speedOrder(3, 5))
-	_, t2, _, err := e.repo.OrdersKeyset(e.ctx, fs, n1, 10)
+	_, t2, _, _, err := e.repo.OrdersKeyset(e.ctx, fs, n1, 10)
 	if err != nil || t2 != 29 {
 		t.Fatalf("a refund under status=completed must change the total (29), got %d err %v", t2, err)
 	}
@@ -551,7 +570,7 @@ func (e *speedEnv) emptyAndPastEnd(t *testing.T) {
 	if err != nil || len(rows) != 0 || total != 0 || rows == nil {
 		t.Fatalf("empty offset: %d rows total %d err %v", len(rows), total, err)
 	}
-	krows, ktotal, knext, err := e.repo.OrdersKeyset(e.ctx, none, nil, 50)
+	krows, ktotal, knext, _, err := e.repo.OrdersKeyset(e.ctx, none, nil, 50)
 	if err != nil || len(krows) != 0 || ktotal != 0 || knext != nil {
 		t.Fatalf("empty keyset: %d rows total %d next %v err %v", len(krows), ktotal, knext, err)
 	}
@@ -561,15 +580,15 @@ func (e *speedEnv) emptyAndPastEnd(t *testing.T) {
 	if total != 2000 || len(ids) != 2000 || pages != 3 {
 		t.Fatalf("exact multiple: total %d rows %d pages %d (want 2000/2000/3)", total, len(ids), pages)
 	}
-	_, _, last, err := e.repo.OrdersKeyset(e.ctx, f3, nil, 1000)
+	_, _, last, _, err := e.repo.OrdersKeyset(e.ctx, f3, nil, 1000)
 	if err != nil || last == nil {
 		t.Fatal(err)
 	}
-	rows, _, next2, _ := e.repo.OrdersKeyset(e.ctx, f3, last, 1000)
+	rows, _, next2, _, _ := e.repo.OrdersKeyset(e.ctx, f3, last, 1000)
 	if len(rows) != 1000 || next2 == nil {
 		t.Fatalf("second page: %d rows", len(rows))
 	}
-	rows, total, next3, err := e.repo.OrdersKeyset(e.ctx, f3, next2, 1000)
+	rows, total, next3, _, err := e.repo.OrdersKeyset(e.ctx, f3, next2, 1000)
 	if err != nil || len(rows) != 0 || total != 2000 || next3 != nil {
 		t.Fatalf("cursor after the last row: %d rows total %d next %v err %v", len(rows), total, next3, err)
 	}

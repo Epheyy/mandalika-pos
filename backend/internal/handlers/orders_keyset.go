@@ -59,12 +59,12 @@ func (h *Handlers) ordersKeyset(w http.ResponseWriter, r *http.Request, f read.O
 		httpx.Err(w, http.StatusBadRequest, msg)
 		return
 	}
-	rows, total, next, err := h.Repo.OrdersKeyset(r.Context(), f, cursor, limit)
+	rows, total, next, asOf, err := h.Repo.OrdersKeyset(r.Context(), f, cursor, limit)
 	if err != nil {
 		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
-	resp := api.OrderListResponse{Data: rows, Meta: meta(total, 1, limit)}
+	resp := api.OrderListResponse{Data: rows, Meta: meta(total, 1, limit), AsOf: &asOf}
 	if next != nil {
 		s := read.EncodeOrderCursor(*next)
 		resp.NextCursor = &s
