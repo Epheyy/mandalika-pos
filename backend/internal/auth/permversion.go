@@ -88,9 +88,19 @@ func (p *PermVersions) memoLen() int {
 	return len(p.memo)
 }
 
-// putLocked stores an entry, clearing the memo first when it is full.
+// putLocked stores an entry, clearing the memo first when it is full. Versions
+// only grow, so a fresh entry is never replaced by a lower one and a tombstone is
+// never revived: a slow load that started before a commit cannot undo its publish.
 func (p *PermVersions) putLocked(uid string, v int64, exists bool) {
-	if _, ok := p.memo[uid]; !ok && len(p.memo) >= p.opts.MemoMax {
+	cur, ok := p.memo[uid]
+	if ok && p.opts.Now().Before(cur.expires) {
+		if !cur.exists {
+			exists, v = false, 0
+		} else if exists && v < cur.v {
+			v = cur.v
+		}
+	}
+	if !ok && len(p.memo) >= p.opts.MemoMax {
 		p.memo = map[string]memoEntry{}
 	}
 	p.memo[uid] = memoEntry{v: v, exists: exists, expires: p.opts.Now().Add(p.opts.MemoTTL)}
