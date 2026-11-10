@@ -9,7 +9,7 @@ Read `HANDOFF.md` ("Now") first for the live revision and open items.
 |-------------|-----------------------------------------|-------|
 | Backend API | Cloud Run `mandalika-pos`, `asia-southeast2` | Project `mandalika-pos`; `scripts/lib/cloudrun.sh` holds the names |
 | Postgres    | Neon, **pooled** endpoint (`-pooler`, `sslmode=require`) | `DATABASE_URL` in Secret Manager |
-| Redis       | **Optional cache** (`REDIS_URL`; set-but-empty = disabled) | Provider: see Secret Manager `REDIS_URL` (not pinned in repo; config default is localhost). A Redis outage never blocks startup or logs anyone out; Postgres is the auth authority |
+| Redis       | **Optional cache** (`REDIS_URL`; set-but-empty = disabled) | Provider: see Secret Manager `REDIS_URL` (not pinned in repo; config default is localhost). A Redis outage never blocks startup or logs anyone out; Postgres is the auth authority. Redis also holds `authpv:<userId>` (rights version, 2 min TTL; `x` = deleted user) for instant permission revocation: with Redis down or disabled the check falls back to one Postgres primary-key read per active user per instance per 5 s (in-process memo), and answers 503 (`Retry-After: 2`, never 401) only if Postgres is down too. Log keys: `access_token_revoked`, `perm_version_publish_failed`, `auth_version_unavailable` |
 | Backoffice  | Cloudflare Pages `mandalika-pos.pages.dev` | Auto-deploys on push to `prod-hardening` |
 | POS         | Signed Android APK via `android-release.yml` | Capacitor shell; OTA web-layer updates via `make ota-release` |
 

@@ -157,6 +157,43 @@ describe('401 goes through the refresh path', () => {
     expect(onUnauthorized).toHaveBeenCalledTimes(1)
   })
 
+  it('a 401 on the retry after a successful refresh refreshes once more and succeeds', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(401, { error: 'token revoked' }))
+      .mockResolvedValueOnce(json(200, { data: { access: 'a2', refresh: 'r2' } }))
+      .mockResolvedValueOnce(json(401, { error: 'token revoked' }))
+      .mockResolvedValueOnce(json(200, { data: { access: 'a3', refresh: 'r3' } }))
+      .mockResolvedValueOnce(json(200, { data: { ok: true } }))
+    const { api, onUnauthorized, onTokens } = client()
+    expect(await api.request('POST', '/x', {})).toEqual({ data: { ok: true } })
+    expect(onTokens).toHaveBeenCalledTimes(2)
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+
+  it('a 401 on the retry after a successful refresh never signs out', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(401, { error: 'token revoked' }))
+      .mockResolvedValueOnce(json(200, { data: { access: 'a2', refresh: 'r2' } }))
+      .mockResolvedValueOnce(json(401, { error: 'token revoked' }))
+      .mockResolvedValueOnce(json(200, { data: { access: 'a3', refresh: 'r3' } }))
+      .mockResolvedValueOnce(json(401, { error: 'token revoked' }))
+    const { api, onUnauthorized } = client()
+    expect(await failure(api.request('POST', '/x', {}))).toMatchObject({ status: 401, kind: 'http' })
+    expect(onUnauthorized).not.toHaveBeenCalled()
+    expect(fetch).toHaveBeenCalledTimes(5)
+  })
+
+  it('a refused second refresh ends the session', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(401, { error: 'token revoked' }))
+      .mockResolvedValueOnce(json(200, { data: { access: 'a2', refresh: 'r2' } }))
+      .mockResolvedValueOnce(json(401, { error: 'token revoked' }))
+      .mockResolvedValueOnce(json(401, { error: 'bad refresh' }))
+    const { api, onUnauthorized } = client()
+    expect(await failure(api.request('POST', '/x', {}))).toMatchObject({ status: 401 })
+    expect(onUnauthorized).toHaveBeenCalledTimes(1)
+  })
+
   // A05: only a 401 from the refresh endpoint ends the session. Any other refusal
   // (proxy 400/403/404/407, a 200 without tokens) is an outage, not a revoked credential.
   it.each([400, 403, 404, 407, 413, 422])('a refresh answered %i is no verdict: transient, session kept', async (status) => {

@@ -94,6 +94,8 @@ func newRouteHarnessCfg(t *testing.T, tweak func(*config.Config)) (http.Handler,
 	mr := miniredis.RunT(t)
 	rc := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = rc.Close() })
+	// Tests that mint their own tokens for adminUID rely on this seeded rights version.
+	_ = mr.Set("authpv:"+adminUID, "0")
 	pool, err := pgxpool.New(context.Background(), "postgres://x:x@127.0.0.1:1/x")
 	if err != nil {
 		t.Fatal(err)
@@ -107,6 +109,11 @@ func newRouteHarnessCfg(t *testing.T, tweak func(*config.Config)) (http.Handler,
 	router := New(cfg, &db.DB{Pool: pool}, cache.NewFromClient(rc), nil)
 	issue := func(role, uid string) string {
 		t.Helper()
+		// The harness pool is never dialled; the rights-version check finds the
+		// user at version 0 in Redis, which matches the pv-less token.
+		if err := mr.Set("authpv:"+uid, "0"); err != nil {
+			t.Fatal(err)
+		}
 		tok, err := auth.IssueAccess(secret, time.Hour, uid, role, "", nil)
 		if err != nil {
 			t.Fatal(err)

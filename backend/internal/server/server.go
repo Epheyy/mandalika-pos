@@ -88,6 +88,9 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	r.Use(mw.Deadline(deadlineFor))
 
 	store := auth.NewStore(database.Pool)
+	// Rights-version check: a revoked role/permission/outlet stops working within seconds.
+	pv := auth.NewPermVersions(c, store.LoadPermVersion, auth.PermVersionOptions{})
+	store.Versions = pv
 	ah := auth.NewHandler(cfg, store, c)
 	rd := read.New(database.Pool)
 	os := service.NewOrderService(database.Pool)
@@ -149,7 +152,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 		})
 
 		r.Group(func(r chi.Router) {
-			r.Use(mw.RequireAuth(cfg))
+			r.Use(mw.RequireAuth(cfg, mw.WithRevocation(pv)))
 			r.Get("/auth/me", ah.Me)
 
 			// Catalog / reference (any authenticated user; cashier sells).

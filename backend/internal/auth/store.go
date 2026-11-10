@@ -3,27 +3,62 @@ package auth
 import (
 	"context"
 	"errors"
+	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/rules"
 )
 
 type User struct {
-	ID           string   `json:"id"`
-	Email        string   `json:"email"`
-	DisplayName  string   `json:"displayName"`
-	Role         string   `json:"role"`
-	OutletID     string   `json:"outletId,omitempty"`
-	PhotoURL     string   `json:"photoURL,omitempty"`
-	Permissions  []string `json:"permissions"`
+	ID          string   `json:"id"`
+	Email       string   `json:"email"`
+	DisplayName string   `json:"displayName"`
+	Role        string   `json:"role"`
+	OutletID    string   `json:"outletId,omitempty"`
+	PhotoURL    string   `json:"photoURL,omitempty"`
+	Permissions []string `json:"permissions"`
+	// PermVersion is users.perm_version. Never serialized: it is a token claim, not API surface.
+	PermVersion  int64 `json:"-"`
 	passwordHash string
 }
 
 var ErrNotFound = errors.New("user not found")
 
-type Store struct{ Pool *pgxpool.Pool }
+// Open-shift refusals (409). "Open shift" is a server-side proxy: a shifts row with
+// status 'open' for the user. The check is atomic with a shift opening: the callers hold
+// FOR NO KEY UPDATE on the user row and service.OpenShiftTx takes FOR SHARE on it. The
+// server cannot see a shift opened offline and not yet synced, nor items still queued on
+// a tablet, so this narrows the stranded-queue risk without removing it.
+var (
+	ErrOpenShiftDelete = apperr.New(apperr.Conflict, "Pengguna ini masih punya shift yang buka. Tutup shift-nya dulu sebelum menghapus.")
+	ErrOpenShiftMove   = apperr.New(apperr.Conflict, "Pengguna ini masih punya shift yang buka. Tutup shift-nya dulu sebelum memindah outlet.")
+)
+
+// hasOpenShift reports whether the user has an open shift. Call it inside the
+// transaction that holds the user row lock.
+func hasOpenShift(ctx context.Context, q querier, uid string) (bool, error) {
+	var open bool
+	err := q.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM shifts WHERE cashier_id=$1 AND status='open')`, uid).Scan(&open)
+	return open, err
+}
+
+// RightsPublisher is told, after commit, that a user's rights version moved (or that
+// the user is gone) so every instance can refuse older access tokens within seconds.
+type RightsPublisher interface {
+	Publish(ctx context.Context, uid string, v int64)
+	PublishDeleted(ctx context.Context, uid string)
+}
+
+type Store struct {
+	Pool *pgxpool.Pool
+	// Versions, when set, receives rights-version changes after commit. Nil means none.
+	Versions RightsPublisher
+}
 
 func NewStore(p *pgxpool.Pool) *Store { return &Store{Pool: p} }
 
@@ -36,7 +71,7 @@ type querier interface {
 func scanUser(ctx context.Context, q querier, row pgx.Row, extra ...any) (*User, error) {
 	u := &User{}
 	var outlet, photo *string
-	dest := append([]any{&u.ID, &u.Email, &u.DisplayName, &u.Role, &outlet, &photo}, extra...)
+	dest := append([]any{&u.ID, &u.Email, &u.DisplayName, &u.Role, &outlet, &photo, &u.PermVersion}, extra...)
 	err := row.Scan(dest...)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -61,7 +96,7 @@ func scanUser(ctx context.Context, q querier, row pgx.Row, extra ...any) (*User,
 func (s *Store) byEmailRow(ctx context.Context, email string) (*User, error) {
 	var hash string
 	u, err := scanUser(ctx, s.Pool, s.Pool.QueryRow(ctx,
-		`SELECT id, email, display_name, role, outlet_id, photo_url, password_hash
+		`SELECT id, email, display_name, role, outlet_id, photo_url, perm_version, password_hash
 		   FROM users WHERE email = $1`, email), &hash)
 	if err != nil {
 		return nil, err
@@ -72,7 +107,7 @@ func (s *Store) byEmailRow(ctx context.Context, email string) (*User, error) {
 
 func (s *Store) ByID(ctx context.Context, id string) (*User, error) {
 	return scanUser(ctx, s.Pool, s.Pool.QueryRow(ctx,
-		`SELECT id, email, display_name, role, outlet_id, photo_url
+		`SELECT id, email, display_name, role, outlet_id, photo_url, perm_version
 		   FROM users WHERE id = $1`, id))
 }
 
@@ -122,12 +157,40 @@ func (s *Store) UpdateUser(ctx context.Context, id string, name, role, outletID,
 	}
 	defer tx.Rollback(ctx)
 
-	var exists bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE id=$1)`, id).Scan(&exists); err != nil {
+	var curRole string
+	var curOutlet *string
+	err = tx.QueryRow(ctx,
+		`SELECT role, outlet_id FROM users WHERE id=$1 FOR NO KEY UPDATE`, id).Scan(&curRole, &curOutlet)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
 		return err
 	}
-	if !exists {
-		return ErrNotFound
+	rightsChanged := role != nil && *role != curRole
+	if outletID != nil {
+		cur := ""
+		if curOutlet != nil {
+			cur = *curOutlet
+		}
+		if !strings.EqualFold(*outletID, cur) {
+			rightsChanged = true
+			// The whole request is refused: no partial update.
+			open, err := hasOpenShift(ctx, tx, id)
+			if err != nil {
+				return err
+			}
+			if open {
+				return ErrOpenShiftMove
+			}
+		}
+	}
+	if perms != nil && !rightsChanged {
+		have, err := permissionsOf(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		rightsChanged = !sameSet(have, *perms)
 	}
 	if name != nil {
 		if _, err := tx.Exec(ctx, `UPDATE users SET display_name=$1 WHERE id=$2`, *name, id); err != nil {
@@ -164,7 +227,59 @@ func (s *Store) UpdateUser(ctx context.Context, id string, name, role, outletID,
 			}
 		}
 	}
-	return tx.Commit(ctx)
+	var newVersion int64
+	if rightsChanged {
+		if newVersion, err = bumpPermVersion(ctx, tx, id); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	if rightsChanged && s.Versions != nil {
+		pctx, cancel := publishCtx(ctx)
+		defer cancel()
+		s.Versions.Publish(pctx, id, newVersion)
+	}
+	return nil
+}
+
+// publishTimeout bounds a post-commit publish.
+const publishTimeout = 2 * time.Second
+
+// publishCtx detaches a post-commit publish from the request: an aborted admin request
+// must not leave Redis stale for its whole TTL after the commit already happened.
+func publishCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), publishTimeout)
+}
+
+// bumpPermVersion raises the user's rights version inside the caller's transaction.
+func bumpPermVersion(ctx context.Context, tx pgx.Tx, id string) (int64, error) {
+	var v int64
+	err := tx.QueryRow(ctx,
+		`UPDATE users SET perm_version=perm_version+1 WHERE id=$1 RETURNING perm_version`, id).Scan(&v)
+	return v, err
+}
+
+// sameSet reports whether a and b hold the same strings, ignoring order and duplicates.
+func sameSet(a, b []string) bool {
+	ma := make(map[string]struct{}, len(a))
+	for _, x := range a {
+		ma[x] = struct{}{}
+	}
+	mb := make(map[string]struct{}, len(b))
+	for _, x := range b {
+		mb[x] = struct{}{}
+	}
+	if len(ma) != len(mb) {
+		return false
+	}
+	for x := range ma {
+		if _, ok := mb[x]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // SetReceivePin hashes and stores a user's receive-approval PIN (argon2id, same
@@ -234,12 +349,36 @@ func (s *Store) ClearReceiveLockouts(ctx context.Context, userID string) error {
 
 // DeleteUser removes a user (cascades permissions/outlets/refresh tokens).
 func (s *Store) DeleteUser(ctx context.Context, id string) error {
-	ct, err := s.Pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, id)
+	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	if ct.RowsAffected() == 0 {
+	defer tx.Rollback(ctx)
+	var one int
+	err = tx.QueryRow(ctx, `SELECT 1 FROM users WHERE id=$1 FOR UPDATE`, id).Scan(&one)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	open, err := hasOpenShift(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	if open {
+		return ErrOpenShiftDelete
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM users WHERE id=$1`, id); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	if s.Versions != nil {
+		pctx, cancel := publishCtx(ctx)
+		defer cancel()
+		s.Versions.PublishDeleted(pctx, id)
 	}
 	return nil
 }
@@ -303,9 +442,11 @@ func (s *Store) ResetPassword(ctx context.Context, id, hash string) (ResetResult
 	defer tx.Rollback(ctx)
 
 	var res ResetResult
+	var newVersion int64
 	err = tx.QueryRow(ctx,
-		`UPDATE users SET password_hash=$1, refresh_revoked_before=now() WHERE id=$2 RETURNING email, role`, hash, id,
-	).Scan(&res.Email, &res.Role)
+		`UPDATE users SET password_hash=$1, refresh_revoked_before=now(), perm_version=perm_version+1
+		  WHERE id=$2 RETURNING email, role, perm_version`, hash, id,
+	).Scan(&res.Email, &res.Role, &newVersion)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ResetResult{}, ErrNotFound
 	}
@@ -342,6 +483,11 @@ func (s *Store) ResetPassword(ctx context.Context, id, hash string) (ResetResult
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return ResetResult{}, err
+	}
+	if s.Versions != nil {
+		pctx, cancel := publishCtx(ctx)
+		defer cancel()
+		s.Versions.Publish(pctx, id, newVersion)
 	}
 	return res, nil
 }

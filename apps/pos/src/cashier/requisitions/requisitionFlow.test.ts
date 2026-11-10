@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ApiError } from '@mandalika/api'
+import { ApiError, SESSION_RENEWED_MESSAGE } from '@mandalika/api'
 import type { StockRequisition } from '@mandalika/api'
 import {
   BUSY_PREFIX, EMPTY_FORM, FEATURE_OFF_MESSAGE, KEY_CONFLICT_PREFIX, MAX_NOTE, MAX_REQUESTED_BY, MSG_TOO_LONG, formFromRequisition, splitNote, FORBIDDEN_MESSAGE, MSG_BAD_QTY, MSG_DUPLICATE, MSG_NO_LINES, NOT_FOUND_MESSAGE,
-  OFFLINE_MESSAGE, REQUEST_TIMEOUT_MS, RETRY_MESSAGE, buildInput, cancelRequisition, composeNote, createDraft,
+  OFFLINE_MESSAGE, REQUEST_TIMEOUT_MS, RETRY_MESSAGE, SESSION_RENEWING_MESSAGE, buildInput, cancelRequisition, composeNote, createDraft,
   loadRequisition, loadRequisitions, submitDraft, updateDraft,
   type FlowDeps, type RequisitionApi,
 } from './requisitionFlow'
@@ -178,6 +178,9 @@ describe("what counts as a proven refusal (M1)", () => {
     expect(await run(err(400, "request failed (400)"))).toBe("unconfirmed") // proxy page / truncated body
     expect(await run(err(400, "x", { nope: 1 }))).toBe("unconfirmed")
     expect(await run(err(401, "unauthorized"))).toBe("unauthorized")
+    // Fresh tokens refused again: the session is not over, so no "Sesi habis" and no sign-out copy.
+    const renewed = await createDraft(deps({ createRequisition: err(401, SESSION_RENEWED_MESSAGE) }).d, input, "k")
+    expect(renewed).toEqual({ kind: "retry", message: SESSION_RENEWING_MESSAGE })
     expect(await run(err(408, "timeout"))).toBe("unconfirmed")
     expect(await run(err(413, "too large"))).toBe("unconfirmed")
   })

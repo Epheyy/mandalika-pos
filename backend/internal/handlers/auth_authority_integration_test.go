@@ -54,6 +54,17 @@ func TestAuthAuthorityPostgres(t *testing.T) {
 	t.Run("8 startup without redis", g.startupWithoutRedis)
 	t.Run("9 old revision compatibility", g.oldRevision)
 	t.Run("10 cleanup", g.cleanup)
+	t.Run("11 revoke perms", g.revokePerms)
+	t.Run("12 revoke role and outlet", g.revokeRoleOutlet)
+	t.Run("13 revoke delete", g.revokeDelete)
+	t.Run("14 revoke reset", g.revokeReset)
+	t.Run("15 revoke with redis down", g.revokeRedisDown)
+	t.Run("16 second instance", g.revokeSecondInstance)
+	t.Run("17 rollout tokens without pv", g.revokeRollout)
+	t.Run("18 sync batch after revoke", g.revokeSyncBatch)
+	t.Run("19 remint after bump", g.revokeRemint)
+	t.Run("20 open shift guards", g.openShiftGuards)
+	t.Run("21 shift open vs admin write", g.shiftOpenVsAdminWrite)
 }
 
 const (

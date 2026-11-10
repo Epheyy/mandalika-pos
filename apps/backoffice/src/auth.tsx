@@ -11,14 +11,13 @@ import type { User } from '@mandalika/api'
 import { api, authStore } from './api'
 import { productCatalogue } from './lib/productCatalogue'
 import { localDay } from './lib/businessDay'
+import { ALLOWED_ROLES, applyRefreshedSession } from './lib/sessionRefresh'
 
 const REFRESH_KEY = 'mandalika.backoffice.refresh'
 // Backoffice sessions are day-bound: a new calendar day forces re-login.
 const LOGIN_DATE_KEY = 'mandalika.backoffice.loginDate'
 const today = () => localDay()
 
-// Backoffice is Admin/Manager only. Cashiers must use the POS app.
-const ALLOWED_ROLES = new Set(['admin', 'manager'])
 
 interface AuthState {
   user: User | null
@@ -46,10 +45,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     authStore.onUnauthorized = clear
     // Silent refresh keeps the admin signed in through the working day.
+    // It also adopts the refreshed user, so a rights change applies without a re-login.
     authStore.onTokens = (d) => {
-      authStore.access = d.access
-      authStore.refresh = d.refresh
-      localStorage.setItem(REFRESH_KEY, d.refresh)
+      applyRefreshedSession(d, {
+        store: authStore,
+        persist: (r) => localStorage.setItem(REFRESH_KEY, r),
+        setUser,
+        clear,
+      })
     }
     const refresh = localStorage.getItem(REFRESH_KEY)
     const loginDate = localStorage.getItem(LOGIN_DATE_KEY)

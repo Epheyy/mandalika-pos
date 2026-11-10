@@ -492,3 +492,58 @@ func TestAdoptLegacy(t *testing.T) {
 		}
 	})
 }
+
+// pvOf parses the access token of an auth response and asserts the user object
+// does not expose the rights version.
+func pvOf(t *testing.T, rec *httptest.ResponseRecorder, h *Handler) int64 {
+	t.Helper()
+	var env struct {
+		Data struct {
+			Access string                     `json:"access"`
+			User   map[string]json.RawMessage `json:"user"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode: %v body=%s", err, rec.Body)
+	}
+	body := env.Data
+	for _, k := range []string{"pv", "permVersion", "PermVersion"} {
+		if _, ok := body.User[k]; ok {
+			t.Fatalf("user object leaks %q", k)
+		}
+	}
+	c, err := ParseAccess(h.Cfg.AccessSecret, body.Access)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c.PermVersion
+}
+
+func TestRefreshAccessCarriesPermVersion(t *testing.T) {
+	fb := newFake()
+	fb.rotateRes = &RotateResult{
+		User:    &User{ID: targetID, Role: "cashier", Permissions: []string{}, PermVersion: 9},
+		Session: Session{JTI: "new-jti", IssuedAt: time.Now().Truncate(time.Second), ExpiresAt: time.Now().Add(time.Hour)},
+	}
+	h := sessionHandler(t, fb, disabledCache(t))
+	rec := post(h.Refresh, `{"refresh":"`+validRefresh(t, h)+`"}`)
+	if rec.Code != 200 {
+		t.Fatalf("status %d body=%s", rec.Code, rec.Body)
+	}
+	if got := pvOf(t, rec, h); got != 9 {
+		t.Fatalf("pv = %d, want 9", got)
+	}
+}
+
+func TestLoginAccessCarriesPermVersion(t *testing.T) {
+	fb := newFake()
+	fb.user.PermVersion = 4
+	h := sessionHandler(t, fb, disabledCache(t))
+	rec := post(h.Login, `{"email":"a@b.c","password":"x"}`)
+	if rec.Code != 200 {
+		t.Fatalf("status %d body=%s", rec.Code, rec.Body)
+	}
+	if got := pvOf(t, rec, h); got != 4 {
+		t.Fatalf("pv = %d, want 4", got)
+	}
+}

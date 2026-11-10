@@ -100,6 +100,14 @@ func (s *OrderService) OpenShiftTx(ctx context.Context, tx pgx.Tx, in OpenShiftI
 	case err != nil:
 		return "", err
 	}
+	// Share-lock the cashier's user row (no row is fine: shifts.cashier_id has no FK) so an
+	// admin's delete or outlet move, which holds FOR NO KEY UPDATE on it and then checks for
+	// an open shift, either sees this shift or runs first. FOR SHARE does not conflict with
+	// the FOR KEY SHARE other inserts take, and the order (outlets, then users) is the only one.
+	var one int
+	if err := tx.QueryRow(ctx, `SELECT 1 FROM users WHERE id=$1 FOR SHARE`, in.CashierID).Scan(&one); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", err
+	}
 	var n int
 	if err := tx.QueryRow(ctx,
 		`SELECT count(*) FROM shifts WHERE outlet_id=$1 AND status='open'`,

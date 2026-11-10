@@ -254,6 +254,10 @@ export interface ListResult<T> {
 const API = '/api/v1'
 /** The silent token refresh gets its own deadline, independent of the caller's. */
 const REFRESH_TIMEOUT_MS = 15_000
+/** Message of the non-terminal 401: fresh tokens were refused again, the session is NOT over. */
+export const SESSION_RENEWED_MESSAGE = 'sesi diperbarui, coba lagi'
+/** Refresh-then-retry rounds per request (a second one covers a rights change landing inside the first). */
+const MAX_REFRESH_ROUNDS = 2
 /** A hung per-line stock count save would stall that line's queue and Complete. */
 const STOCK_COUNT_SAVE_TIMEOUT_MS = 20_000
 
@@ -641,22 +645,37 @@ export function createClient(opts: ClientOptions): Api {
       } catch (e) {
         throw transportError(e)
       }
+      // Whether the last refresh succeeded: a 401 on a request sent with a token from a
+      // refresh that just succeeded is never a verdict on the session (an admin may have
+      // changed the user's rights again inside the refresh-then-retry window).
+      let lastRefreshOk = false
       if (res.status === 401 && !path.includes('/auth/')) {
-        // Try one silent refresh+retry before giving up the session.
-        const refreshed = await trySilentRefresh()
-        if (refreshed === 'ok') {
+        // At most two silent refresh+retry rounds before giving up the session.
+        for (let round = 0; round < MAX_REFRESH_ROUNDS && res.status === 401; round++) {
+          const refreshed = await trySilentRefresh()
+          if (refreshed === 'rejected') {
+            lastRefreshOk = false
+            break
+          }
+          if (refreshed !== 'ok') {
+            // No verdict on the session (unreachable / hung / 5xx / 429): do not log the
+            // cashier out (unsynced work may be queued); surface the real, typed cause.
+            throw refreshed
+          }
+          lastRefreshOk = true
           try {
             res = await send()
           } catch (e) {
             throw transportError(e)
           }
-        } else if (refreshed !== 'rejected') {
-          // No verdict on the session (unreachable / hung / 5xx / 429): do not log the
-          // cashier out (unsynced work may be queued); surface the real, typed cause.
-          throw refreshed
         }
       }
       if (res.status === 401) {
+        if (lastRefreshOk) {
+          // Fresh tokens were refused again: retryable, the session is not ended. The sync
+          // engine keeps queued items on a 401.
+          throw new ApiError(401, SESSION_RENEWED_MESSAGE)
+        }
         opts.onUnauthorized?.()
         throw new ApiError(401, 'unauthorized')
       }
@@ -757,6 +776,7 @@ export function createClient(opts: ClientOptions): Api {
     async logout(refresh) {
       await request<unknown>('POST', `${API}/auth/logout`, { refresh })
     },
+    // Not refreshed on 401 (the path contains /auth/): a token revoked by a rights change signs out here. No app calls me().
     me: () => data<User>('GET', `${API}/auth/me`),
 
     listOutlets: () => data<Outlet[]>('GET', `${API}/outlets`),
