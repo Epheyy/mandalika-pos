@@ -8,6 +8,21 @@ Last updated: 2026-11-10 by Claude (Opus 5.5) - Bluetooth Classic printing (#136
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-10: **ROLE TEST FIXES (#137) MERGED, BACKEND + BACKOFFICE RELEASE IN PROGRESS** (owner: "Use your recommendations", "Yes, release it").
+> - **Fixes:** findings 1, 3 and 6 from `docs/qa/2026-11-10-role-test-local.md`.
+>   - `PUT /outlets/{id}` refuses a non-admin whose own outlet is not `{id}` (403 "outlet not permitted"). Admin is decided by role, so an admin with an assigned outlet or `X-Outlet-Id` is unaffected.
+>   - The Backoffice shows outlet edit controls only where the server allows them.
+>   - Pengguna is Admin-only (nav + route), and `manage_users` leaves the permission picker.
+>   - The cashier sign-in refusal is in Indonesian.
+> - **Review:** Opus caught an admin-with-outlet regression; it was fixed and re-checked.
+> - **Merge:** `9c0c4c69` (no-ff on `f0d262ec`). Gate `gate/role-fixes` 5/5 green.
+> - **Verified on the local copy at `9c0c4c69`:**
+>   - Manager A → outlet B: 403. Own outlet: 200. Admin with outlet A → B: 200, also with `X-Outlet-Id`.
+>   - Permission matrix: 0 mismatches.
+>   - Manager: Pengguna gone from the nav, and a deep link shows "Akses tidak diizinkan". Only the manager's own outlet has edit controls.
+> - **No migration.** `POST /outlets` is unchanged, so a non-admin who creates an outlet cannot then edit it.
+> - **Follow-up:** `GET/PUT /outlets/{id}/giveaway` has the same pre-existing admin-with-outlet behaviour, to check separately.
+
 > 2026-11-10: **BLUETOOTH CLASSIC PRINTING (#136) LIVE: APK 2.3 (versionCode 14), VERIFIED ON THE TABLET** (owner: "Yes, plan it", "Yes, start it", "Yes, release it").
 > - **Why:** the owner's printer "RPPO2N" (Rongta RPP02N) is bonded DUAL with only the serial-port profile (SPP). It never answers BLE GATT service discovery (logcat `GATTC_Discover`, then `gatt_rsp_timeout` at 30 s), and the POS printed over BLE only, so it showed "Connection timeout.".
 > - **Plan:** `docs/plans/2026-11-10-bluetooth-classic-printing.md`.
