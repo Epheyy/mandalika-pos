@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -292,5 +293,74 @@ func TestRevokedTable(t *testing.T) {
 		if got := Revoked(c.token, c.cur, c.exists); got != c.want {
 			t.Errorf("%s: Revoked(%d,%d,%v) = %v, want %v", c.name, c.token, c.cur, c.exists, got, c.want)
 		}
+	}
+}
+
+func TestPermVersionsSlowLoadCannotLowerPublishedVersion(t *testing.T) {
+	disabled, _ := cache.Connect(context.Background(), "", cache.Options{})
+	started, release := make(chan struct{}), make(chan struct{})
+	load := func(context.Context, string) (int64, bool, error) {
+		close(started)
+		<-release
+		return 4, true, nil // read before the writer committed
+	}
+	p := NewPermVersions(disabled, load, PermVersionOptions{})
+	ctx := context.Background()
+	done := make(chan struct{})
+	go func() {
+		_, _, _ = p.Current(ctx, "u1")
+		close(done)
+	}()
+	<-started
+	p.Publish(ctx, "u1", 5)
+	close(release)
+	<-done
+	if v, _, _ := p.Current(ctx, "u1"); v != 5 {
+		t.Fatalf("memo = %d after a slow load of 4, want 5", v)
+	}
+	p.PublishDeleted(ctx, "u2")
+}
+
+func TestPermVersionsSharesConcurrentLookups(t *testing.T) {
+	disabled, _ := cache.Connect(context.Background(), "", cache.Options{})
+	var mu sync.Mutex
+	calls := 0
+	started, release := make(chan struct{}), make(chan struct{})
+	load := func(context.Context, string) (int64, bool, error) {
+		mu.Lock()
+		calls++
+		first := calls == 1
+		mu.Unlock()
+		if first {
+			close(started)
+		}
+		<-release
+		return 3, true, nil
+	}
+	p := NewPermVersions(disabled, load, PermVersionOptions{})
+	const n = 25
+	var wg sync.WaitGroup
+	errs := make(chan error, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if v, ok, err := p.Current(context.Background(), "u1"); err != nil || !ok || v != 3 {
+				errs <- fmt.Errorf("got %d %v %v", v, ok, err)
+			}
+		}()
+	}
+	<-started
+	time.Sleep(100 * time.Millisecond) // let the others queue behind the leader
+	close(release)
+	wg.Wait()
+	close(errs)
+	for e := range errs {
+		t.Fatal(e)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if calls != 1 {
+		t.Fatalf("loads = %d, want 1 shared lookup", calls)
 	}
 }

@@ -125,8 +125,10 @@ func (h *Handlers) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errors.Is(err, auth.ErrOpenShiftDelete) {
-		// A shift is a server-side proxy for "still working": the server cannot see
-		// items queued on a tablet, so a user with an open shift is never deleted.
+		// An open shift row is a server-side proxy for "still working". Atomic with a shift
+		// opening (OpenShiftTx share-locks the user row, this write holds it). Gap: a shift
+		// opened offline and not yet synced is invisible to the server, and so are items
+		// still queued on a tablet, so this narrows the stranded-queue risk, not removes it.
 		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 		return
 	}

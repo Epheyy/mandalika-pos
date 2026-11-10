@@ -13,3 +13,6 @@
 --
 -- Supersedes the A33 D1 note "token_version is not added".
 ALTER TABLE users ADD COLUMN IF NOT EXISTS perm_version bigint NOT NULL DEFAULT 0;
+
+-- Serves the open-shift check on a user delete / outlet move (hasOpenShift).
+CREATE INDEX IF NOT EXISTS idx_shifts_open_cashier ON shifts (cashier_id) WHERE status = 'open';

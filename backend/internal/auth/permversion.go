@@ -62,9 +62,22 @@ type PermVersions struct {
 	load VersionLoader
 	opts PermVersionOptions
 
-	mu   sync.Mutex
-	memo map[string]memoEntry
+	mu     sync.Mutex
+	memo   map[string]memoEntry
+	flight map[string]*flightCall // in-flight memo-miss lookups, one per user
 }
+
+// flightCall is one in-flight lookup that concurrent callers for the same user share.
+type flightCall struct {
+	done   chan struct{}
+	v      int64
+	exists bool
+	err    error
+}
+
+// fetchTimeout bounds a shared lookup. It runs detached from any one request, so the
+// caller that started it aborting cannot fail the callers waiting on it.
+const fetchTimeout = 3 * time.Second
 
 func NewPermVersions(c *cache.Cache, load VersionLoader, opts PermVersionOptions) *PermVersions {
 	if opts.MemoTTL <= 0 {
@@ -79,7 +92,7 @@ func NewPermVersions(c *cache.Cache, load VersionLoader, opts PermVersionOptions
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
-	return &PermVersions{c: c, load: load, opts: opts, memo: map[string]memoEntry{}}
+	return &PermVersions{c: c, load: load, opts: opts, memo: map[string]memoEntry{}, flight: map[string]*flightCall{}}
 }
 
 func (p *PermVersions) memoLen() int {
@@ -122,6 +135,38 @@ func (p *PermVersions) Current(ctx context.Context, uid string) (int64, bool, er
 	}
 	p.mu.Unlock()
 
+	return p.shared(ctx, uid)
+}
+
+// shared runs the Redis-then-Postgres lookup once per user at a time: a burst of requests
+// after a memo expiry costs one Postgres read per instance, not one per request.
+func (p *PermVersions) shared(ctx context.Context, uid string) (int64, bool, error) {
+	p.mu.Lock()
+	if c, ok := p.flight[uid]; ok {
+		p.mu.Unlock()
+		select {
+		case <-c.done:
+			return c.v, c.exists, c.err
+		case <-ctx.Done():
+			return 0, false, ctx.Err()
+		}
+	}
+	c := &flightCall{done: make(chan struct{})}
+	p.flight[uid] = c
+	p.mu.Unlock()
+
+	fctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), fetchTimeout)
+	c.v, c.exists, c.err = p.fetch(fctx, uid)
+	cancel()
+	p.mu.Lock()
+	delete(p.flight, uid)
+	p.mu.Unlock()
+	close(c.done)
+	return c.v, c.exists, c.err
+}
+
+// fetch reads Redis, then Postgres, and memoizes the answer.
+func (p *PermVersions) fetch(ctx context.Context, uid string) (int64, bool, error) {
 	key := permVersionKey(uid)
 	if raw, found, err := p.c.GetE(ctx, key); err == nil && found {
 		if raw == permKeyDeleted {

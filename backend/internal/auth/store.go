@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -28,8 +29,10 @@ type User struct {
 var ErrNotFound = errors.New("user not found")
 
 // Open-shift refusals (409). "Open shift" is a server-side proxy: a shifts row with
-// status 'open' for the user. The server cannot see items still queued on a tablet,
-// so this narrows the stranded-queue risk without removing it.
+// status 'open' for the user. The check is atomic with a shift opening: the callers hold
+// FOR NO KEY UPDATE on the user row and service.OpenShiftTx takes FOR SHARE on it. The
+// server cannot see a shift opened offline and not yet synced, nor items still queued on
+// a tablet, so this narrows the stranded-queue risk without removing it.
 var (
 	ErrOpenShiftDelete = apperr.New(apperr.Conflict, "Pengguna ini masih punya shift yang buka. Tutup shift-nya dulu sebelum menghapus.")
 	ErrOpenShiftMove   = apperr.New(apperr.Conflict, "Pengguna ini masih punya shift yang buka. Tutup shift-nya dulu sebelum memindah outlet.")
@@ -234,9 +237,20 @@ func (s *Store) UpdateUser(ctx context.Context, id string, name, role, outletID,
 		return err
 	}
 	if rightsChanged && s.Versions != nil {
-		s.Versions.Publish(ctx, id, newVersion)
+		pctx, cancel := publishCtx(ctx)
+		defer cancel()
+		s.Versions.Publish(pctx, id, newVersion)
 	}
 	return nil
+}
+
+// publishTimeout bounds a post-commit publish.
+const publishTimeout = 2 * time.Second
+
+// publishCtx detaches a post-commit publish from the request: an aborted admin request
+// must not leave Redis stale for its whole TTL after the commit already happened.
+func publishCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), publishTimeout)
 }
 
 // bumpPermVersion raises the user's rights version inside the caller's transaction.
@@ -362,7 +376,9 @@ func (s *Store) DeleteUser(ctx context.Context, id string) error {
 		return err
 	}
 	if s.Versions != nil {
-		s.Versions.PublishDeleted(ctx, id)
+		pctx, cancel := publishCtx(ctx)
+		defer cancel()
+		s.Versions.PublishDeleted(pctx, id)
 	}
 	return nil
 }
@@ -469,7 +485,9 @@ func (s *Store) ResetPassword(ctx context.Context, id, hash string) (ResetResult
 		return ResetResult{}, err
 	}
 	if s.Versions != nil {
-		s.Versions.Publish(ctx, id, newVersion)
+		pctx, cancel := publishCtx(ctx)
+		defer cancel()
+		s.Versions.Publish(pctx, id, newVersion)
 	}
 	return res, nil
 }

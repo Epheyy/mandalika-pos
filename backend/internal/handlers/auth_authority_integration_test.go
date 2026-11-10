@@ -64,6 +64,7 @@ func TestAuthAuthorityPostgres(t *testing.T) {
 	t.Run("18 sync batch after revoke", g.revokeSyncBatch)
 	t.Run("19 remint after bump", g.revokeRemint)
 	t.Run("20 open shift guards", g.openShiftGuards)
+	t.Run("21 shift open vs admin write", g.shiftOpenVsAdminWrite)
 }
 
 const (

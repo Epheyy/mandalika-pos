@@ -254,6 +254,8 @@ export interface ListResult<T> {
 const API = '/api/v1'
 /** The silent token refresh gets its own deadline, independent of the caller's. */
 const REFRESH_TIMEOUT_MS = 15_000
+/** Message of the non-terminal 401: fresh tokens were refused again, the session is NOT over. */
+export const SESSION_RENEWED_MESSAGE = 'sesi diperbarui, coba lagi'
 /** Refresh-then-retry rounds per request (a second one covers a rights change landing inside the first). */
 const MAX_REFRESH_ROUNDS = 2
 /** A hung per-line stock count save would stall that line's queue and Complete. */
@@ -672,7 +674,7 @@ export function createClient(opts: ClientOptions): Api {
         if (lastRefreshOk) {
           // Fresh tokens were refused again: retryable, the session is not ended. The sync
           // engine keeps queued items on a 401.
-          throw new ApiError(401, 'sesi diperbarui, coba lagi')
+          throw new ApiError(401, SESSION_RENEWED_MESSAGE)
         }
         opts.onUnauthorized?.()
         throw new ApiError(401, 'unauthorized')

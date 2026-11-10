@@ -1,4 +1,4 @@
-import { ApiError } from '@mandalika/api'
+import { ApiError, SESSION_RENEWED_MESSAGE } from '@mandalika/api'
 import type { Api, ListRequisitionsParams, ListResult, RequestOptions, StockRequisition, StockRequisitionInput } from '@mandalika/api'
 
 // Permintaan Barang is online-only: every call goes straight through api.* and is never queued
@@ -15,6 +15,7 @@ export const NO_OUTLET_MESSAGE = 'Outlet belum dipilih di tablet ini.'
 export const NOT_FOUND_MESSAGE = 'Permintaan tidak ditemukan.'
 export const FEATURE_OFF_MESSAGE = 'Fitur Permintaan Barang belum aktif di server.'
 export const STALE_MESSAGE = 'Status permintaan sudah berubah. Menampilkan data terbaru.'
+export const SESSION_RENEWING_MESSAGE = 'Sesi sedang diperbarui. Coba lagi.'
 export const UNAUTHORIZED_MESSAGE = 'Sesi habis. Masuk lagi, lalu simpan ulang; isian tidak hilang.'
 export const KEY_CONFLICT_MESSAGE = 'Permintaan ini berubah saat dikirim. Simpan lagi.'
 
@@ -58,6 +59,8 @@ export function mapFailure(e: unknown, op: Op): { kind: FlowKind; message: strin
   }
   if (e.status === 404) return { kind: 'gone', message: op === 'list' ? FEATURE_OFF_MESSAGE : NOT_FOUND_MESSAGE }
   if (e.status === 403) return { kind: 'forbidden', message: FORBIDDEN_MESSAGE }
+  // Fresh tokens refused again (rights changed twice in a row): not a sign-out, just retry.
+  if (e.status === 401 && e.message === SESSION_RENEWED_MESSAGE) return { kind: 'retry', message: SESSION_RENEWING_MESSAGE }
   if (e.status === 401) return { kind: 'unauthorized', message: UNAUTHORIZED_MESSAGE }
   if ((e.status === 400 || e.status === 422) && isDomainRefusal(e.body)) return { kind: 'invalid', message: e.message }
   return { kind: 'unconfirmed', message: e.message }

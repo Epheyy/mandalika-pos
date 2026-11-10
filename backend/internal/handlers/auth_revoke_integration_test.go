@@ -3,6 +3,8 @@ package handlers_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"time"
 
 	"github.com/mandalika/pos-backend/internal/auth"
+	"github.com/mandalika/pos-backend/internal/service"
 )
 
 // Subtests 11-20 of TestAuthAuthorityPostgres: instant permission revocation
@@ -482,5 +485,62 @@ func (g *auGate) openShiftGuards(t *testing.T) {
 	}
 	if g.permVersion(rs) != v+1 {
 		t.Fatalf("reset: version %d want %d", g.permVersion(rs), v+1)
+	}
+}
+
+// ---- 21: a shift opening vs an admin delete / outlet move ---------------------
+
+// A shift opened in an uncommitted transaction must block the admin write on the user row,
+// which then sees the shift and refuses. Without the FOR SHARE in OpenShiftTx the admin write
+// would commit and leave a moved or deleted cashier with an open shift.
+func (g *auGate) shiftOpenVsAdminWrite(t *testing.T) {
+	g.ensureOutletB()
+	svc := service.NewOrderService(g.pool)
+	st := auth.NewStore(g.pool)
+	for i, c := range []struct {
+		name string
+		do   func(uid string) error
+		want error
+	}{
+		{"delete", func(uid string) error { return st.DeleteUser(g.ctx, uid) }, auth.ErrOpenShiftDelete},
+		{"outlet move", func(uid string) error {
+			o := auOutletB
+			return st.UpdateUser(g.ctx, uid, nil, nil, &o, nil, nil)
+		}, auth.ErrOpenShiftMove},
+	} {
+		outlet := fmt.Sprintf("00000000-0000-4000-8f00-0000000000a%d", i+1)
+		g.exec(`INSERT INTO outlets(id,name) VALUES($1,'AU shift race')`, outlet)
+		uid, _ := g.newUser("cashier")
+
+		tx, err := g.pool.Begin(g.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.OpenShiftTx(g.ctx, tx, service.OpenShiftInput{OutletID: outlet, CashierID: uid, CashierName: "AU user"}); err != nil {
+			_ = tx.Rollback(g.ctx)
+			t.Fatalf("[%s] open shift: %v", c.name, err)
+		}
+		done := make(chan error, 1)
+		go func() { done <- c.do(uid) }()
+		select {
+		case err := <-done:
+			_ = tx.Rollback(g.ctx)
+			t.Fatalf("[%s] the admin write did not wait for the opening shift (returned %v)", c.name, err)
+		case <-time.After(400 * time.Millisecond):
+		}
+		if err := tx.Commit(g.ctx); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case err := <-done:
+			if !errors.Is(err, c.want) {
+				t.Fatalf("[%s] got %v, want %v", c.name, err, c.want)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("[%s] the admin write never finished", c.name)
+		}
+		if g.count(`SELECT count(*) FROM users WHERE id=$1 AND outlet_id=$2`, uid, auOutlet) != 1 {
+			t.Fatalf("[%s] a refused write must leave the user as it was", c.name)
+		}
 	}
 }
