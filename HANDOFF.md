@@ -8,6 +8,21 @@ Last updated: 2026-11-10 by Claude (Opus 5.5) - instant permission revocation (#
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-10: **LIST AND EXPORT SPEED (#140) MERGED `d60ffd09`, BACKEND + BACKOFFICE RELEASE IN PROGRESS** (owner: "Yes, fix it", "Yes, release it").
+> - **Plan:** `docs/plans/2026-11-10-list-export-speed.md` (Opus, measured on the 1M-order load database).
+> - **Change:**
+>   - Orders and customers pages fetch ids first and count in the same statement (A26 totals unchanged).
+>   - JIT is off per statement for these reads.
+>   - Customers get an `id DESC` tie-break.
+>   - `GET /orders` gains keyset export (`paging=keyset`, `cursor`, `nextCursor`, `asOf`), used by the Backoffice `fetchAllByCursor` with checks equivalent to A26 within the asOf snapshot. "Data s.d." shows the server asOf.
+> - **Review:** Opus approve-with-fixes; 5 fixes in `47ef825d`, re-checked. Gate `gate/list-speed` 5/5 green. No migration, no POS change.
+> - **Measured locally:**
+>   - Orders page 1: 0.71 -> 0.04 s. Page 200: 0.93 -> 0.05 s.
+>   - Customers: 0.6-0.9 -> 0.08-0.09 s.
+>   - Month export (about 100k orders): about 12 min -> 28 s.
+>   - Order text search unchanged at about 1 s (trigram follow-up).
+> - **Not proven:** JIT-off behind Neon's pooled endpoint. A failure would cost speed, not correctness.
+
 > 2026-11-10: **LOAD TEST STEP 1 (LOCAL) DONE**. PR #139 (harness `loadtest/` + `docs/qa/2026-11-10-load-test-local.md`), not merged.
 > - **Setup:** 30 outlets, 500k customers, 1M orders over a year, on laptop Docker; one backend with `DB_MAX_CONNS` 10; rate limits raised for the test only.
 > - **No lost or duplicate sale: PASS.** The 60-tablet burst of 3,000 sales landed exactly once, the replay added 0, and stock was exact.
