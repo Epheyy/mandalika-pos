@@ -4,11 +4,11 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-10 by Claude (Opus 5.5) - instant permission revocation (#138) LIVE (backend `00179-duv`, mig 0087, Backoffice `01b98f0e`, POS OTA 2.13.9 on the test tablet); role test fixes (#137) LIVE (backend `00177-hab`, Backoffice `6456ed73`); instant-revocation plan drafted on branch `plan/instant-revoke`, waiting on owner decisions; Bluetooth Classic printing (#136) LIVE in APK 2.3 (versionCode 14), verified on the test tablet with the RPP02N; role test done on a local copy (fixes in progress). Earlier: LOW findings (#135) LIVE (backoffice `1043b4c4`, POS OTA 2.13.8 for APK 2.2; not yet seen on a tablet). Earlier: Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09; both P3 fixes LIVE in APK 2.2 (versionCode 13, #134 keyboard + #133 text zoom), installed and verified on the test tablet; tablets on APK 2.1 need 2.2 (OTAs now target code 13); see Progress board.
+Last updated: 2026-11-10 by Claude (Opus 5.5) - list and export speed (#140) LIVE (backend `00181-yus`, Backoffice `685633a1`); instant permission revocation (#138) LIVE (backend `00179-duv`, mig 0087, Backoffice `01b98f0e`, POS OTA 2.13.9 on the test tablet); role test fixes (#137) LIVE (backend `00177-hab`, Backoffice `6456ed73`); instant-revocation plan drafted on branch `plan/instant-revoke`, waiting on owner decisions; Bluetooth Classic printing (#136) LIVE in APK 2.3 (versionCode 14), verified on the test tablet with the RPP02N; role test done on a local copy (fixes in progress). Earlier: LOW findings (#135) LIVE (backoffice `1043b4c4`, POS OTA 2.13.8 for APK 2.2; not yet seen on a tablet). Earlier: Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09; both P3 fixes LIVE in APK 2.2 (versionCode 13, #134 keyboard + #133 text zoom), installed and verified on the test tablet; tablets on APK 2.1 need 2.2 (OTAs now target code 13); see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
-> 2026-11-10: **LIST AND EXPORT SPEED (#140) MERGED `d60ffd09`, BACKEND + BACKOFFICE RELEASE IN PROGRESS** (owner: "Yes, fix it", "Yes, release it").
+> 2026-11-10: **LIST AND EXPORT SPEED (#140) LIVE: backend `00181-yus`, Backoffice `685633a1`** (owner: "Yes, fix it", "Yes, release it").
 > - **Plan:** `docs/plans/2026-11-10-list-export-speed.md` (Opus, measured on the 1M-order load database).
 > - **Change:**
 >   - Orders and customers pages fetch ids first and count in the same statement (A26 totals unchanged).
@@ -21,6 +21,10 @@ Last updated: 2026-11-10 by Claude (Opus 5.5) - instant permission revocation (#
 >   - Customers: 0.6-0.9 -> 0.08-0.09 s.
 >   - Month export (about 100k orders): about 12 min -> 28 s.
 >   - Order text search unchanged at about 1 s (trigram follow-up).
+> - **Release:**
+>   - **Backend:** `deploy-backend.sh speed1110` from `d60ffd09` -> `mandalika-pos-00181-yus`, promoted to 100%. ROLLBACK `00179-duv`. Tag and live `/readyz` 200; `GET /orders` without auth -> 401; 0 ERROR logs.
+>   - **Backoffice:** published by `685633a1` `[skip actions]`. The live crawl finds the keyset-export guard copy "kursor berikutnya tidak tersedia".
+>   - **Not checked live:** the signed-in export timing.
 > - **Not proven:** JIT-off behind Neon's pooled endpoint. A failure would cost speed, not correctness.
 
 > 2026-11-10: **LOAD TEST STEP 1 (LOCAL) DONE**. PR #139 (harness `loadtest/` + `docs/qa/2026-11-10-load-test-local.md`), not merged.
