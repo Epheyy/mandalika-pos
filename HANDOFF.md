@@ -8,6 +8,12 @@ Last updated: 2026-11-10 by Claude (Opus 5.5) - role test fixes (#137) LIVE (bac
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-10: **INSTANT PERMISSION REVOCATION BUILT (PR "Instant permission revocation (perm_version)"), NOT merged, NOT deployed.** Plan: `docs/plans/2026-11-10-instant-permission-revoke.md`.
+> - **What:** `users.perm_version` (mig 0087) and access-token claim `pv`; `RequireAuth` refuses `pv < current` or a deleted user with a refreshable 401 `token revoked` (5 s memo, then Redis `authpv:<uid>`, then Postgres). Every rights write bumps it (user update when role/outlet/permissions really change, password reset, delete = tombstone, fsmigrate), guarded by a source-scan test.
+> - **Open shift:** deleting a user, or moving their outlet, is refused with 409 while they have an open shift.
+> - **Clients:** a 401 right after a successful refresh refreshes once more and never signs out (shared `packages/api` client, POS needs an OTA); the Backoffice adopts the refreshed rights.
+> - **Release order:** backend first (old clients already refresh on a 401), then Backoffice, then the POS OTA (it can wait: without it a cashier can be signed out only by two admin edits inside one refresh-retry window).
+
 > 2026-11-10: **ROLE TEST FIXES (#137) LIVE: backend `00177-hab`, Backoffice `6456ed73`** (owner: "Use your recommendations", "Yes, release it").
 > - **Fixes:** findings 1, 3 and 6 from `docs/qa/2026-11-10-role-test-local.md`.
 >   - `PUT /outlets/{id}` refuses a non-admin whose own outlet is not `{id}` (403 "outlet not permitted"). Admin is decided by role, so an admin with an assigned outlet or `X-Outlet-Id` is unaffected.
@@ -855,6 +861,7 @@ sleeps** (`adb emu kill`, then stop leftover `emulator.exe`). APK 1.8 installed,
 
 ## Decisions (owner)
 
+- 2026-11-10 (instant permission revocation, "Use your recommendations"): **supersedes A33 D1 ("token_version is not added") and the "role change within 15 min" note.** (1) Deleting a user with an open shift is refused (409); a "nonaktifkan" state is a later slice. (2) A password reset signs the user out at once (it bumps `perm_version`). (3) Moving a user to another outlet while they have an open shift is refused (409). (4) Refund authority is unchanged: the A06 send-time rule stays (judging at capture time would trust a tablet clock and weaken a refund guard). Also: 5 s memo + 2 min Redis TTL accepted; logout does not bump; fsmigrate bumps.
 - 2026-10-10: shared terminal account; no POS outlet switcher/logout; never wipe an unsynced queue; old-format events
   accepted one release / 14 days then review; cash below total = reject online / accept-and-flag offline; denied offline
   refund = visible review item, never deleted; competing transfer receipt = first wins; tablets at 0 pending before
