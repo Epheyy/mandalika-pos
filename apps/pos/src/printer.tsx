@@ -62,7 +62,7 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
     () => kv.get(PRINTER_NAME_KEY),
   )
 
-  const supported = transportRef.current.kind === 'capacitor-ble'
+  const supported = transportRef.current.kind !== 'none'
 
   const pair = useCallback(async (): Promise<boolean> => {
     const dev = await transportRef.current.pickDevice()

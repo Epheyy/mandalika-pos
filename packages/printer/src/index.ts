@@ -6,5 +6,8 @@ export type { ReceiptData, ReceiptDiscountRow, ReceiptLine, RecapData, RecapMeth
 export { NoopTransport } from './transport'
 export type { PrinterTransport, PrinterDevice, PrinterKind } from './transport'
 export { CapacitorBleTransport } from './ble'
+export { AutoBluetoothTransport } from './autoTransport'
+export { ClassicSppTransport } from './classic'
+export { printerErrorMessage } from './printerError'
 export { createTransport, printReceipt, printRecap, printTandaTerima } from './print'
 export type { PrintJob, RecapJob, TandaTerimaJob } from './print'

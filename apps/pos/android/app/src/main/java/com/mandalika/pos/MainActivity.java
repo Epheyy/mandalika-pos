@@ -31,6 +31,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // Must precede super.onCreate: the bridge loads plugins during it.
         registerPlugin(OutboxJournalPlugin.class);
+        registerPlugin(ClassicPrinterPlugin.class);
         super.onCreate(savedInstanceState);
         pinTextZoom();
         applyImmersive();
