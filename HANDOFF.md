@@ -4,9 +4,36 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-10 by Claude (Opus 5.5) - LOW findings (#135) LIVE (backoffice `1043b4c4`, POS OTA 2.13.8 for APK 2.2; not yet seen on a tablet). Earlier: Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09; both P3 fixes LIVE in APK 2.2 (versionCode 13, #134 keyboard + #133 text zoom), installed and verified on the test tablet; tablets on APK 2.1 need 2.2 (OTAs now target code 13); see Progress board.
+Last updated: 2026-11-10 by Claude (Opus 5.5) - Bluetooth Classic printing (#136) merged, APK 2.3 release in progress; role test done on a local copy (fixes in progress). Earlier: LOW findings (#135) LIVE (backoffice `1043b4c4`, POS OTA 2.13.8 for APK 2.2; not yet seen on a tablet). Earlier: Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09; both P3 fixes LIVE in APK 2.2 (versionCode 13, #134 keyboard + #133 text zoom), installed and verified on the test tablet; tablets on APK 2.1 need 2.2 (OTAs now target code 13); see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
+
+> 2026-11-10: **BLUETOOTH CLASSIC PRINTING (#136) MERGED, APK 2.3 RELEASE IN PROGRESS** (owner: "Yes, plan it", "Yes, start it", "Yes, release it").
+> - **Why:** the owner's printer "RPPO2N" (Rongta RPP02N) is bonded DUAL with only the serial-port profile (SPP). It never answers BLE GATT service discovery (logcat `GATTC_Discover`, then `gatt_rsp_timeout` at 30 s), and the POS printed over BLE only, so it showed "Connection timeout.".
+> - **Plan:** `docs/plans/2026-11-10-bluetooth-classic-printing.md`.
+> - **Change:**
+>   - `ClassicPrinter` Java plugin: RFCOMM on its own executor, with deadlines on connect and write.
+>   - `AutoBluetoothTransport` routes each bonded printer to SPP or BLE at connect time, so there's no re-pairing. BT_OFF and PERMISSION_DENIED surface as Indonesian copy.
+>   - Print jobs are serialized (`runExclusive`).
+>   - Print errors are Indonesian and start with "Gagal".
+>   - `printer.tsx` `supported` = kind != none.
+>   - APK 2.3 / versionCode 14.
+> - **Review:** Opus approve-with-fixes; all 6 fixes were applied in `82401deb` and checked by Opus.
+>   - Capacitor 8.5.3 API use was verified against the real sources.
+>   - Gradle cannot run locally (sandbox loopback), so the APK build is the first real Java compile.
+> - **Merge:** `e401ec70` (no-ff on `fe40c69c`). Gate `gate/bt-classic`.
+> - **After this:** OTAs target versionCode 14, so tablets on APK 2.2 get no further OTAs until they install 2.3.
+> - **Not covered:** a BLE printer (none available) and iOS.
+
+> 2026-11-10: **ROLE TEST ON A LOCAL COPY DONE** (owner authorized one test account per role, then "Yes, local copy"). Accounts can't be created on `run.app`/`pages.dev`, so it ran on localhost. Report: `docs/qa/2026-11-10-role-test-local.md`.
+> - **Passed:** 28/28 API permission checks and outlet isolation (admin, manager with all perms, custom "Supervisor Uji", cashier). Backoffice and POS screens gate correctly.
+> - **Findings and owner decisions** ("Use your recommendations"):
+>   1. A manager can edit another outlet → scope `PUT /outlets/{id}` (fix in progress).
+>   2. A removed permission lives up to 15 min on issued tokens → instant revocation via Redis (plan in progress).
+>   3. Pengguna shown to non-admin managers but the API is admin-only → Admin-only in the Backoffice (fix in progress).
+>   4. Backoffice refunds stay admin-only (no change).
+>   5. Cashier tokens reading own-outlet data stays as designed (no change).
+>   6. The English cashier refusal → Indonesian (fix in progress).
 
 > 2026-11-10: **LOW FINDINGS (#135) LIVE: Backoffice `1043b4c4` + POS OTA 2.13.8** (owner: "go ahead work on low findings", "Yes, release it").
 > - **First gate failed:** BO-PAGES-XLSX pins the exact XLSX header row ("XLSX column contract changed"); the PR had only run unit tests locally, not the browser gate.
