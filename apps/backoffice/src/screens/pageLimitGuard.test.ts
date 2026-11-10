@@ -29,6 +29,20 @@ describe('backoffice list limits', () => {
     expect(offenders).toEqual([])
   })
 
+  // The keyset page size (1000) is a backend contract for paging=keyset only. Screens never
+  // spell it out: they reach it through fetchAllByCursor (orderExportPager).
+  it('keyset page size is only used through fetchAllByCursor', () => {
+    const offenders: string[] = []
+    for (const file of sources(decodeURIComponent(SRC))) {
+      readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
+        if (/paging\s*:\s*['"]keyset['"]/.test(line) && !file.endsWith('ordersExportPaging.ts')) {
+          offenders.push(`${file}:${i + 1}: ${line.trim()}`)
+        }
+      })
+    }
+    expect(offenders).toEqual([])
+  })
+
   // These endpoints return one page of at most 200 rows. Called with no arguments they
   // silently drop everything past the first page, so they must go through fetchAllPages
   // (which always passes page/limit) unless the line is deliberately single-page.

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchAllPages } from '@mandalika/api'
 import type { Order, Outlet } from '@mandalika/api'
+import { exportCutoffLabel, orderExportPager } from '../ordersExportPaging'
 import { Download, ShoppingBag, TrendingUp, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '../../api'
 import { exportToCSV, buildExportName } from '../../lib/csvUtils'
@@ -40,6 +41,7 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
   const [expanded, setExpanded] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
+  const [exportCutoff, setExportCutoff] = useState<string | null>(null)
   const { summary: sq, list: lq } = useOrderReport(filters, page, pageSize, outletId)
 
   const summary = sq.data
@@ -104,7 +106,9 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
           api.listRefundReport({ dateFrom: filters.dateFrom, dateTo: filters.dateTo, outletId: outletId || undefined, page: p, limit }))
         exportToCSV(refundCsvRows(all), exportName('laporan-refund'))
       } else {
-        const all: Order[] = await fetchAllPages((p, limit) => api.listOrders({ ...orderFilterParams(filters), page: p, limit }))
+        const startedAt = new Date()
+        const all: Order[] = await orderExportPager(api, orderFilterParams(filters))
+        setExportCutoff(exportCutoffLabel(startedAt))
         exportToCSV(csvRows(all), exportName('laporan-transaksi'))
       }
     } catch (e: unknown) {
@@ -125,6 +129,7 @@ export function ExportTab({ filters, outletId, outlets, paymentMethods }: Export
         </p>
       )}
       {exportError && <p role="alert" className="text-sm text-danger">{exportError}</p>}
+      {exportCutoff && !exportError && <p role="status" className="text-sm text-muted">{exportCutoff}</p>}
       {(sq.loading || lq.loading) && <p role="status">Memuat data…</p>}
       <div className="flex justify-end items-center gap-2">
         <span className="text-xs text-ink-500">CSV refund memakai rentang tanggal dan outlet saja.</span>

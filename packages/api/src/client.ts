@@ -251,6 +251,10 @@ export interface ListResult<T> {
   meta?: Meta
 }
 
+/** A page of a keyset list: `nextCursor` is present while the page is full (paging=keyset only). */
+export type CursorListResult<T> = ListResult<T> & { nextCursor?: string }
+export type ListOrdersResult = CursorListResult<Order>
+
 const API = '/api/v1'
 /** The silent token refresh gets its own deadline, independent of the caller's. */
 const REFRESH_TIMEOUT_MS = 15_000
@@ -373,7 +377,7 @@ export interface Api {
   deleteDiscountCode: (id: string) => Promise<void>
 
   // orders / shifts
-  listOrders: (params?: ListOrdersParams) => Promise<ListResult<Order>>
+  listOrders: (params?: ListOrdersParams) => Promise<ListOrdersResult>
   getOrder: (id: string) => Promise<Order>
   /** Whole order when `items` is omitted (only while it has no earlier refund); else a per-line refund (admin, C4c).
    *  `clientRefundUuid` is the replay key: the same uuid returns the earlier refund instead of paying out twice. */
@@ -918,7 +922,7 @@ export function createClient(opts: ClientOptions): Api {
       await request('DELETE', `${API}/discount-codes/${id}`)
     },
 
-    listOrders: (params) => list<Order>(`${API}/orders`, params),
+    listOrders: (params) => list<Order>(`${API}/orders`, params) as Promise<ListOrdersResult>,
     getOrder: (id) => data<Order>('GET', `${API}/orders/${id}`),
     refundOrder: (id, reason, opts) =>
       data<Order>('POST', `${API}/orders/${id}/refund`, { reason, ...(opts?.reasonCode ? { reasonCode: opts.reasonCode } : {}), ...(opts?.items ? { items: opts.items } : {}), ...(opts?.clientRefundUuid ? { clientRefundUuid: opts.clientRefundUuid } : {}), ...(opts?.payoutMethod ? { payoutMethod: opts.payoutMethod } : {}) }),

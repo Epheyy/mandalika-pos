@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { ApiError, fetchAllPages, type Customer, type Order, type RewardGrant } from '@mandalika/api'
+import { ApiError, type Customer, type Order, type RewardGrant } from '@mandalika/api'
+import { orderExportPager } from '../ordersExportPaging'
 import { format, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 import {
@@ -54,7 +55,7 @@ export default function CustomerDetail({
     [customerId],
   )
   const oq = usePolledQuery<Order[]>(
-    () => fetchAllPages((page, limit) => api.listOrders({ customerId, page, limit })),
+    () => orderExportPager(api, { customerId }),
     [customerId, outletId],
   )
   const tagsQ = usePolledQuery<TagType[]>(() => api.listTags(), [])
