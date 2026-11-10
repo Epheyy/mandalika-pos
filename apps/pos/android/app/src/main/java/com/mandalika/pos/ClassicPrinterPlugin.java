@@ -53,6 +53,9 @@ public class ClassicPrinterPlugin extends Plugin {
 
     private static final UUID SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
     private static final long DEFAULT_TIMEOUT_MS = 10000L;
+    // Write budget in ms: max(5000, bytes / 2), i.e. a 2 KB/s worst case.
+    private static final long WRITE_MIN_TIMEOUT_MS = 5000L;
+    private static final long WRITE_MIN_BYTES_PER_MS = 2L;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "ClassicPrinter-io");
@@ -202,8 +205,8 @@ public class ClassicPrinterPlugin extends Plugin {
     private void doConnect(PluginCall call) throws IOException {
         closeQuietly();
         String address = call.getString("address");
-        Long timeoutOpt = call.getLong("timeoutMs");
-        long timeoutMs = timeoutOpt == null ? DEFAULT_TIMEOUT_MS : timeoutOpt;
+        // getLong() is null for a JSON int; read it through org.json instead.
+        long timeoutMs = call.getData().optLong("timeoutMs", DEFAULT_TIMEOUT_MS);
         if (address == null) {
             call.reject("address is required", "NOT_BONDED");
             return;
@@ -245,6 +248,7 @@ public class ClassicPrinterPlugin extends Plugin {
 
         BluetoothSocket connected = null;
         boolean secure = true;
+        boolean deadlineLost = false;
         try {
             while (connected == null) {
                 BluetoothSocket s = secure
@@ -268,20 +272,36 @@ public class ClassicPrinterPlugin extends Plugin {
                     secure = false; // retry once with the insecure record, within the remaining time
                 }
             }
+            // A socket the deadline already closed (or is closing) must never resolve as connected.
+            if (!deadline.cancel(false) || timedOut) {
+                deadlineLost = true;
+                try {
+                    connected.close();
+                } catch (IOException ignored) {
+                    // being discarded
+                }
+                throw new IOException("deadline");
+            }
             socket = connected;
             out = connected.getOutputStream();
         } catch (IOException e) {
-            attempt = null;
-            deadline.cancel(false);
-            call.reject(timedOut ? "Connect timeout" : String.valueOf(e.getMessage()),
-                    timedOut ? "CONNECT_TIMEOUT" : "CONNECT_FAILED");
+            boolean timeout = deadlineLost || timedOut;
+            call.reject(timeout ? "Connect timeout" : String.valueOf(e.getMessage()),
+                    timeout ? "CONNECT_TIMEOUT" : "CONNECT_FAILED");
             return;
+        } catch (SecurityException e) {
+            call.reject("Bluetooth permission denied", "PERMISSION_DENIED");
+            return;
+        } catch (RuntimeException e) {
+            call.reject(String.valueOf(e.getMessage()), "CONNECT_FAILED");
+            return;
+        } finally {
+            // A stale deadline must never close a later connection's socket.
+            deadline.cancel(false);
+            attempt = null;
         }
-        deadline.cancel(false);
-        attempt = null;
         call.resolve();
     }
-
     private void cancelDiscoveryIfAllowed(BluetoothAdapter adapter) {
         boolean mayCancel = Build.VERSION.SDK_INT < Build.VERSION_CODES.S
                 || getContext().checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN)
@@ -304,17 +324,29 @@ public class ClassicPrinterPlugin extends Plugin {
             call.reject("data is required", "WRITE_FAILED");
             return;
         }
+        final BluetoothSocket target = socket;
+        ScheduledFuture<?> stall = null;
         try {
             byte[] bytes = Base64.decode(data, Base64.DEFAULT);
+            // out.write blocks forever if the RFCOMM link stalls; closing the socket unblocks it.
+            long budgetMs = Math.max(WRITE_MIN_TIMEOUT_MS, bytes.length / WRITE_MIN_BYTES_PER_MS);
+            stall = deadlines.schedule(() -> {
+                try {
+                    target.close();
+                } catch (IOException ignored) {
+                    // closing only to unblock write()
+                }
+            }, budgetMs, TimeUnit.MILLISECONDS);
             out.write(bytes);
             out.flush();
             call.resolve();
         } catch (IOException | IllegalArgumentException e) {
             closeQuietly();
             call.reject(String.valueOf(e.getMessage()), "WRITE_FAILED");
+        } finally {
+            if (stall != null) stall.cancel(false);
         }
     }
-
     private void doDisconnect(PluginCall call) {
         Integer drain = call.getInt("drainMs");
         if (drain != null && drain > 0 && socket != null) {

@@ -33,7 +33,11 @@ export class AutoBluetoothTransport implements PrinterTransport {
     let list: ClassicBondedDevice[] = []
     try {
       list = await this.lookupBonded()
-    } catch {
+    } catch (e) {
+      // Bluetooth off / permission denied must reach the user as their own copy;
+      // anything else (plugin missing on an APK 2.2 tablet) falls back to BLE.
+      const code = (e as { code?: unknown } | null)?.code
+      if (code === 'BT_OFF' || code === 'PERMISSION_DENIED') throw e
       list = []
     }
     const delegate = chooseLink(findBonded(list, deviceId)) === 'spp' ? this.spp : this.ble

@@ -54,6 +54,25 @@ describe('AutoBluetoothTransport', () => {
     expect(ble.connect).toHaveBeenCalled()
   })
 
+  it.each(['BT_OFF', 'PERMISSION_DENIED'])('rethrows %s from the lookup without connecting', async (code) => {
+    const ble = fake('capacitor-ble')
+    const spp = fake('android-spp')
+    const t = new AutoBluetoothTransport(ble, spp, async () => {
+      throw Object.assign(new Error(code), { code })
+    })
+    await expect(t.connect(rpp.address)).rejects.toMatchObject({ code })
+    expect(ble.connect).not.toHaveBeenCalled()
+    expect(spp.connect).not.toHaveBeenCalled()
+  })
+
+  it('falls back to BLE for an UNIMPLEMENTED plugin error', async () => {
+    const ble = fake('capacitor-ble')
+    await new AutoBluetoothTransport(ble, fake('android-spp'), async () => {
+      throw Object.assign(new Error('not implemented'), { code: 'UNIMPLEMENTED' })
+    }).connect(rpp.address)
+    expect(ble.connect).toHaveBeenCalled()
+  })
+
   it('re-runs the lookup after disconnect', async () => {
     const lookup = vi.fn(async () => [rpp])
     const t = new AutoBluetoothTransport(fake('capacitor-ble'), fake('android-spp'), lookup)

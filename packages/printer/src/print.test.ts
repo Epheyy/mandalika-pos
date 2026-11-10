@@ -61,13 +61,49 @@ describe('print jobs', () => {
   })
 
   it('runs the next job after a failed one', async () => {
-    const bad = recorder({ connectFail: new Error('x') })
-    const good = recorder()
-    await expect(
-      printReceipt({ transport: bad.t, deviceId: 'AA', data, settings }),
-    ).rejects.toThrow(/^Gagal/)
-    await printReceipt({ transport: good.t, deviceId: 'AA', data, settings })
-    expect(good.calls).toEqual(['connect', 'write', 'disconnect'])
+    const order: string[] = []
+    let firstSettled = false
+    let rejectFirst!: (e: Error) => void
+    const first: PrinterTransport = {
+      ...recorder().t,
+      connect: () =>
+        new Promise<void>((_, reject) => {
+          order.push('first:connect')
+          rejectFirst = reject
+        }),
+    }
+    const second: PrinterTransport = {
+      ...recorder().t,
+      connect: async () => {
+        order.push('second:connect')
+      },
+      write: async () => {
+        order.push(`second:write firstSettled=${firstSettled}`)
+      },
+    }
+    const p1 = printReceipt({ transport: first, deviceId: 'AA', data, settings })
+    const p1Result = p1.then(
+      () => 'resolved',
+      (e: Error) => {
+        firstSettled = true
+        return e.message
+      },
+    )
+    const p2 = printReceipt({ transport: second, deviceId: 'AA', data, settings })
+    await new Promise((r) => setTimeout(r, 20))
+    // The second job must not start while the first is still pending.
+    expect(order).toEqual(['first:connect'])
+    order.push('first:reject')
+    rejectFirst(new Error('x'))
+    await p2
+    // The first rejection reaches its own caller; job two starts only after it was issued.
+    expect(await p1Result).toMatch(/^Gagal/)
+    expect(order).toEqual([
+      'first:connect',
+      'first:reject',
+      'second:connect',
+      'second:write firstSettled=true',
+    ])
   })
 
   it('reports a missing printer in Indonesian', async () => {
