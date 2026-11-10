@@ -2,7 +2,11 @@
 
 For the Codex QA agent before the next retest. It covers the findings in
 `Mandalika-QA-Report-2026-11-07.md` (F01-F33, W01), `Mandalika-QA-Retest-R10-2026-11-09.md` and
-`Mandalika-QA-Retest-R11-2026-11-09.md` (F34-F36 added).
+`Mandalika-QA-Retest-R11-2026-11-09.md` (F34-F36 added). It also covers what Claude found and fixed on
+2026-11-09 and 2026-11-10, after R11: the tablet run, the role test and printing.
+
+**For R12, read `docs/qa/codex-r12-brief.md` first.** It gives the builds to test, what changed and the
+focus areas. This doc is the "don't re-flag" and "expected now" reference.
 
 **Corrected after R11:** two "Expected" entries in this doc were wrong:
 - F22: navigating the owning tab to another site does not hand over.
@@ -38,6 +42,12 @@ Citations: `HO:n` = line n of `HANDOFF.md` at commit `f491d988` (`git show f491d
 | F21 | **The POS Sheet focus trap is fixed.** Android Back (`native.ts`/`backGuard`) is deliberately untouched. Hardware Esc is suppressed so it never also acts as Back. | Tab stays in the top sheet, Escape closes only the top sheet, and focus returns to the opener. | HO:53 |
 | Split refund payout (D-56, from owner screenshots) | **A split-paid order refunds through one method.** The default is cash if the sale took cash, otherwise the largest method. The audit flag `payoutPicked` records whether the cashier chose it. The printed slip is unchanged on purpose. | - An amber warning shows when the payout exceeds what that method took.<br>- The recap shows "Refund split lewat X melebihi bagian X".<br>- Labels "otomatis" and "dipilih saat refund" are the intended record. | HO:68; HO:27 |
 | Outbox status `'sent'` (code scan only) | **Dead type value, deferred.** It is never written. It will be removed with the next real sync change, because `outbox.ts` is on the OTA journal-guard list. | The type value is still present. | HO:70 |
+| Role test 4 (2026-11-10) | **Backoffice refunds stay Admin-only** (`Orders.tsx` canRefund). A manager holding `process_refund` refunds on the POS only. Owner decision 2026-11-10. | No refund action in Backoffice Laporan > Transaksi for non-admins, even with `process_refund`. `POST /orders/{id}/refund` accepts holders of `process_refund`. | `docs/qa/2026-11-10-role-test-local.md` |
+| Role test 5 (2026-11-10) | **Any signed-in role can read its own outlet's data through the API**, cashier included. The Backoffice refuses cashier sign-in, so a cashier never sees these screens. The dashboard is deliberately sign-in-only (`server.go`). Owner decision 2026-11-10. | A cashier token gets 200, own outlet only, on: `GET /reports/dashboard`, `/orders`, `/settings/app`, `/shifts`, `/stock-counts`, `/cash-flows` and `/discount-codes`. Other outlets are refused (403/404). | role-test report |
+| Custom roles | **Custom roles are templates.** Assigning one copies its permissions onto the user, and the user table has no link back to the role. | Editing a custom role later does not change the users who were given it. | role-test report, finding 7 |
+| `POST /outlets` | **Creating outlets stays open to `manage_outlets` holders.** Only editing is limited to the caller's own outlet. | A non-admin with `manage_outlets` can create an outlet but then cannot edit it (403 "outlet not permitted"). | #137 |
+| Queued offline refund without permission | **Refund authority stays the A06 send-time rule** (`backend/internal/sync/sync.go` ~416). It is not judged at capture time, because capture time comes from the tablet and could be backdated. Owner decision 2026-11-10. | A refund that already committed replays as ok. An uncommitted refund sent by someone without `process_refund` is refused and stays stored on the tablet, unresolved, until someone allowed sends it. Nothing is dropped. | `docs/plans/2026-11-10-instant-permission-revoke.md`, Decisions 4 |
+| Printer connect time | **Each print opens a fresh Bluetooth connection** and closes it after a short drain. | Bluetooth Classic printers take about 2-6 s to start a print from cold, and about 0.2 s right after another print. A slower first print is not a defect. | HANDOFF 2026-11-10 (#136) |
 
 ## B. Fixed
 
@@ -93,8 +103,40 @@ Citations: `HO:n` = line n of `HANDOFF.md` at commit `f491d988` (`git show f491d
   - **Kartu Stok SKU search:** starting a new search clears the previous results, so a stale SKU cannot be
     picked.
   - **POS refund dialog:** long product names wrap to two lines, and the full name shows on hover (title).
+- **Bluetooth Classic receipt printing** (PR #136, **APK 2.3 / versionCode 14**). Expected now:
+  - Serial-port (SPP) printers such as the Rongta RPP02N print. A printer chosen before the update keeps working without re-pairing.
+  - BLE printers still go through BLE: the route is chosen per bonded printer at each print.
+  - Tes Cetak, auto-print after a sale, Cetak Ulang Struk, History reprint, the shift recap and the tanda terima all print.
+  - Two prints started back to back run one after the other, and neither is cut short.
+  - Printer off or out of range: after about 10 s, a red "Gagal mencetak: printer tidak menjawab. Pastikan printer menyala, ada kertas, dan dekat dengan tablet."
+  - Tablet Bluetooth off: at once, a red "Gagal mencetak: Bluetooth tablet mati. Nyalakan Bluetooth lalu coba lagi."
+  - Bluetooth permission denied: "Gagal mencetak: izin Bluetooth ditolak. …". Every print error starts with "Gagal".
+  - The rest of the app stays responsive while a print waits.
+  - Verified on the test tablet on 2026-11-10 with the RPP02N.
+- **Role test fixes** (PR #137; backend `00177-hab`, Backoffice `6456ed73`). Expected now:
+  - **Outlet edits:** `PUT /outlets/{id}` from a non-admin whose own outlet is not `{id}` → 403 "outlet not permitted". Admin can edit any outlet, even when assigned to one or sending `X-Outlet-Id`.
+  - **Outlet & Gudang in Pengaturan:** for non-admins, edit and active controls show only on their own outlet.
+  - **Pengguna:** Admin-only in the nav and on deep links ("Akses tidak diizinkan"). `manage_users` is no longer offered in the permission picker.
+  - **Cashier sign-in:** the Backoffice refusal reads "Akun ini akun kasir. Masuk lewat aplikasi POS."
+- **Instant permission revocation** (PR #138; backend `00179-duv` with migration 0087; Backoffice `01b98f0e`; POS OTA 2.13.9 for APK 2.3). Expected now:
+  - **Revocation takes seconds, not 15 minutes.** Changing a user's role, outlet or permissions, resetting their password, or deleting them makes their older access tokens fail within about 5 s.
+    - The user keeps working with the new rights after one silent refresh, in the Backoffice and the POS.
+    - A user demoted to cashier is signed out of the Backoffice. A deleted user is signed out.
+    - A 401 right after a successful refresh never signs anyone out, and nothing queued on the tablet is dropped or parked.
+    - The owner verified a live round trip on 2026-11-10.
+  - **Open-shift guard:** deleting a user, or moving them to another outlet, while they have an open shift returns 409. The Backoffice shows the message in red:
+    - "Pengguna ini masih punya shift yang buka. Tutup shift-nya dulu sebelum menghapus."
+    - "… sebelum memindah outlet."
+    - The refused request changes nothing. Permission-only changes are still allowed mid-shift.
+  - **Copy:** the POS shows "Sesi sedang diperbarui. Coba lagi." for a refresh-in-progress 401, and keeps "Sesi habis…" for a real sign-out.
 
 ## C. Still open or untested (fair to report)
+
+- **Builds:** tablets still on APK 2.1 (code 12) or 2.2 (code 13) have no Bluetooth Classic printing and get no further OTAs. Only APK 2.3 (code 14) receives OTA 2.13.9 and later.
+- **Giveaway endpoints:** `GET/PUT /outlets/{id}/giveaway` refuse an admin who is assigned to an outlet, for other outlets, unless `?outletId=` is passed. Pre-existing, unchecked.
+- **No "disable user" state yet:** delete is refused while a shift is open. A disable option is a later slice.
+- **Load:** a local step-1 run (1M orders, 500k customers) is in progress. Results will be in `docs/qa/2026-11-10-load-test-local.md`. Production-scale load is untested.
+- **BLE printer path after #136:** untested, because no BLE printer was available. iOS does not apply.
 
 - **Covered by our own run on 2026-11-09** (SM-X115, Android 16, APK 2.1 + OTA 2.13.7, live Backoffice; details
   in HANDOFF):
@@ -123,8 +165,8 @@ Citations: `HO:n` = line n of `HANDOFF.md` at commit `f491d988` (`git show f491d
   - **Not covered:**
     - Printer: now covered (2026-11-10, APK 2.3, Rongta RPP02N over Bluetooth Classic). Scanner not tried.
     - Power and storage pressure.
-    - Role-separated cashier and manager testing (needs other logins).
-    - Load.
+    - Role-separated testing: now covered on a local copy on 2026-11-10 (`docs/qa/2026-11-10-role-test-local.md`, 28/28 API checks). Live role tests with real cashier and manager accounts on a tablet remain fair game.
+    - Load: see the load item at the top of this section.
     - Real finger typing on the soft keyboard.
 - **External consumers of the old `Tanggal` column** have not been inventoried (outside the repo).
 - **R10 and R9 probe candidates, now settled:**

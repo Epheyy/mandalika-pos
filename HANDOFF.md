@@ -8,6 +8,13 @@ Last updated: 2026-11-10 by Claude (Opus 5.5) - instant permission revocation (#
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-10: **CODEX R12 SWEEP PREPARED** (owner: "prep the follow-up docs for codex i'd want it to run another sweep round").
+> - **New:** `docs/qa/codex-r12-brief.md`, the entry point. It lists the builds under test, what changed since R11 (#132-#138), six focus areas with revocation first, ground rules, and the report format (findings from F37).
+> - **Updated** `docs/qa/codex-deliberate-leftovers.md`:
+>   - A gains the role-test decisions 4 and 5, custom-role templates, `POST /outlets`, refund authority at send time (A06) and the printer connect time.
+>   - B gains #136, #137 and #138 with their expected behaviour.
+>   - C gains the APK version split, the giveaway admin-with-outlet quirk, no "disable user" state, the load test in progress and the untested BLE printer path.
+
 > 2026-11-10: **INSTANT PERMISSION REVOCATION (#138) LIVE: backend `00179-duv` (mig 0087), Backoffice `01b98f0e`, POS OTA 2.13.9** (owner: "Use your recommendations", "Yes, release it").
 > - **Release:**
 >   - **Merge and gate:** merge `39ef5ec5`; gate `gate/revoke` 5/5 green.
