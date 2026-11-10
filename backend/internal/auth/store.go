@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -25,7 +26,18 @@ type User struct {
 
 var ErrNotFound = errors.New("user not found")
 
-type Store struct{ Pool *pgxpool.Pool }
+// RightsPublisher is told, after commit, that a user's rights version moved (or that
+// the user is gone) so every instance can refuse older access tokens within seconds.
+type RightsPublisher interface {
+	Publish(ctx context.Context, uid string, v int64)
+	PublishDeleted(ctx context.Context, uid string)
+}
+
+type Store struct {
+	Pool *pgxpool.Pool
+	// Versions, when set, receives rights-version changes after commit. Nil means none.
+	Versions RightsPublisher
+}
 
 func NewStore(p *pgxpool.Pool) *Store { return &Store{Pool: p} }
 
@@ -124,12 +136,30 @@ func (s *Store) UpdateUser(ctx context.Context, id string, name, role, outletID,
 	}
 	defer tx.Rollback(ctx)
 
-	var exists bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE id=$1)`, id).Scan(&exists); err != nil {
+	var curRole string
+	var curOutlet *string
+	err = tx.QueryRow(ctx,
+		`SELECT role, outlet_id FROM users WHERE id=$1 FOR NO KEY UPDATE`, id).Scan(&curRole, &curOutlet)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
 		return err
 	}
-	if !exists {
-		return ErrNotFound
+	rightsChanged := role != nil && *role != curRole
+	if outletID != nil {
+		cur := ""
+		if curOutlet != nil {
+			cur = *curOutlet
+		}
+		rightsChanged = rightsChanged || !strings.EqualFold(*outletID, cur)
+	}
+	if perms != nil && !rightsChanged {
+		have, err := permissionsOf(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		rightsChanged = !sameSet(have, *perms)
 	}
 	if name != nil {
 		if _, err := tx.Exec(ctx, `UPDATE users SET display_name=$1 WHERE id=$2`, *name, id); err != nil {
@@ -166,7 +196,48 @@ func (s *Store) UpdateUser(ctx context.Context, id string, name, role, outletID,
 			}
 		}
 	}
-	return tx.Commit(ctx)
+	var newVersion int64
+	if rightsChanged {
+		if newVersion, err = bumpPermVersion(ctx, tx, id); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	if rightsChanged && s.Versions != nil {
+		s.Versions.Publish(ctx, id, newVersion)
+	}
+	return nil
+}
+
+// bumpPermVersion raises the user's rights version inside the caller's transaction.
+func bumpPermVersion(ctx context.Context, tx pgx.Tx, id string) (int64, error) {
+	var v int64
+	err := tx.QueryRow(ctx,
+		`UPDATE users SET perm_version=perm_version+1 WHERE id=$1 RETURNING perm_version`, id).Scan(&v)
+	return v, err
+}
+
+// sameSet reports whether a and b hold the same strings, ignoring order and duplicates.
+func sameSet(a, b []string) bool {
+	ma := make(map[string]struct{}, len(a))
+	for _, x := range a {
+		ma[x] = struct{}{}
+	}
+	mb := make(map[string]struct{}, len(b))
+	for _, x := range b {
+		mb[x] = struct{}{}
+	}
+	if len(ma) != len(mb) {
+		return false
+	}
+	for x := range ma {
+		if _, ok := mb[x]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // SetReceivePin hashes and stores a user's receive-approval PIN (argon2id, same
@@ -243,6 +314,9 @@ func (s *Store) DeleteUser(ctx context.Context, id string) error {
 	if ct.RowsAffected() == 0 {
 		return ErrNotFound
 	}
+	if s.Versions != nil {
+		s.Versions.PublishDeleted(ctx, id)
+	}
 	return nil
 }
 
@@ -305,9 +379,11 @@ func (s *Store) ResetPassword(ctx context.Context, id, hash string) (ResetResult
 	defer tx.Rollback(ctx)
 
 	var res ResetResult
+	var newVersion int64
 	err = tx.QueryRow(ctx,
-		`UPDATE users SET password_hash=$1, refresh_revoked_before=now() WHERE id=$2 RETURNING email, role`, hash, id,
-	).Scan(&res.Email, &res.Role)
+		`UPDATE users SET password_hash=$1, refresh_revoked_before=now(), perm_version=perm_version+1
+		  WHERE id=$2 RETURNING email, role, perm_version`, hash, id,
+	).Scan(&res.Email, &res.Role, &newVersion)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ResetResult{}, ErrNotFound
 	}
@@ -344,6 +420,9 @@ func (s *Store) ResetPassword(ctx context.Context, id, hash string) (ResetResult
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return ResetResult{}, err
+	}
+	if s.Versions != nil {
+		s.Versions.Publish(ctx, id, newVersion)
 	}
 	return res, nil
 }

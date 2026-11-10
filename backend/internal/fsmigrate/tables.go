@@ -255,7 +255,8 @@ func (m *mig) users(ds []doc) {
 		        ON CONFLICT (id) DO UPDATE SET
 		          email=EXCLUDED.email, display_name=EXCLUDED.display_name,
 		          role=EXCLUDED.role, outlet_id=EXCLUDED.outlet_id,
-		          photo_url=EXCLUDED.photo_url`,
+		          photo_url=EXCLUDED.photo_url,
+		          perm_version=users.perm_version+1`,
 			uid, reqStr(d, "email", docID(d)+"@migrated.local"),
 			firebaseMigratedHash, reqStr(d, "displayName", "User"),
 			role, outletID, str(d, "photoURL"), ts(d, "createdAt"))
