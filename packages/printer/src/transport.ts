@@ -2,7 +2,7 @@
 // `capacitor-ble | none`). Keeps ESC/POS output independent of the link so
 // the no-hardware fallback (HTML preview) degrades cleanly.
 
-export type PrinterKind = 'capacitor-ble' | 'none'
+export type PrinterKind = 'capacitor-ble' | 'android-spp' | 'bluetooth-auto' | 'none'
 
 export interface PrinterDevice {
   deviceId: string
