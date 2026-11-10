@@ -51,36 +51,53 @@ const customerObjWithTags = `json_build_object('id',id,'name',name,'phone',phone
                     WHERE ct.customer_id = customers.id), '[]'::json))`
 
 func (r *Repo) Customers(ctx context.Context, page, limit int, q, sort, tagId, segmentId string) ([]api.Customer, int, error) {
-	// `order` is a fixed internal string (never user input) — safe to concatenate.
-	order := `ORDER BY total_spent DESC, created_at DESC`
+	sql, args := customersPageSQL(page, limit, q, sort, tagId, segmentId)
+	return pagedCountJSON[api.Customer](ctx, r.Pool, sql, args...)
+}
+
+// customersPageSQL builds the id-first customers list statement and its args.
+func customersPageSQL(page, limit int, q, sort, tagId, segmentId string) (string, []any) {
+	// `order` and `outer` are fixed internal strings (never user input) — safe to concatenate.
+	// Every sort ends in a unique id key: a CSV import gives many rows the same created_at
+	// and total_spent 0, so without it offset pages can overlap or skip rows.
+	order, outer := `total_spent DESC, created_at DESC, id DESC`, `pg.k1 DESC, pg.k2 DESC, pg.pid DESC`
 	if sort == "terbaru" {
-		order = `ORDER BY created_at DESC`
+		order, outer = `created_at DESC, id DESC`, `pg.k2 DESC, pg.pid DESC`
 	}
-	args := []any{off(page, limit), limit, q} // $1 offset, $2 limit, $3 q
-	tagFilter := ""
+	args := []any{off(page, limit), limit} // $1 offset, $2 limit
+	add := func(v any) int {
+		args = append(args, v)
+		return len(args)
+	}
+	where := `merged_into IS NULL`
+	if q != "" {
+		// Added only for a real term: under a generic plan a `$3 = '' OR ...` form scans the
+		// whole spend index even for a no-match term.
+		n := add(q)
+		textMatch := fmt.Sprintf(`name ILIKE '%%' || $%[1]d || '%%' OR phone ILIKE '%%' || $%[1]d || '%%' OR email ILIKE '%%' || $%[1]d || '%%'`, n)
+		if _, like := phone.SearchKeys(q); like != "" {
+			textMatch += fmt.Sprintf(` OR phone_norm LIKE $%d`, add(like))
+		}
+		where += ` AND (` + textMatch + `)`
+	}
 	if tagId != "" {
-		args = append(args, tagId)
-		tagFilter = fmt.Sprintf(` AND EXISTS (SELECT 1 FROM customer_tags ct
-			WHERE ct.customer_id = customers.id AND ct.tag_id = $%d::uuid)`, len(args))
+		where += fmt.Sprintf(` AND EXISTS (SELECT 1 FROM customer_tags ct
+			WHERE ct.customer_id = customers.id AND ct.tag_id = $%d::uuid)`, add(tagId))
 	}
-	segFilter := ""
 	if segmentId != "" {
-		args = append(args, segmentId)
-		segFilter = fmt.Sprintf(` AND `+segmentIdSel+` = $%d::uuid`, len(args))
+		where += fmt.Sprintf(` AND `+segmentIdSel+` = $%d::uuid`, add(segmentId))
 	}
-	textMatch := `name ILIKE '%' || $3 || '%' OR phone ILIKE '%' || $3 || '%' OR email ILIKE '%' || $3 || '%'`
-	if _, like := phone.SearchKeys(q); like != "" {
-		args = append(args, like)
-		textMatch += fmt.Sprintf(` OR phone_norm LIKE $%d`, len(args))
-	}
-	sql := `SELECT ` + customerObjWithTags + `, count(*) OVER() AS total
-		   FROM customers
-		  WHERE ($3 = '' OR ` + textMatch + `)
-		    AND merged_into IS NULL` +
-		tagFilter + segFilter + `
-		  ` + order + `
-		  OFFSET $1 LIMIT $2`
-	return listJSON[api.Customer](ctx, r.Pool, sql, args...)
+	// Id-first (see orderPageSQL): the inner CTEs stay on the UNALIASED customers table because
+	// the tag filter and segmentIdSel correlate through bare columns; pg renames its columns so
+	// the bare columns of customerObjWithTags stay unambiguous.
+	sql := `WITH t AS (SELECT count(*) AS n FROM customers WHERE ` + where + `),
+	     pg AS (SELECT id AS pid, total_spent AS k1, created_at AS k2 FROM customers
+	             WHERE ` + where + `
+	             ORDER BY ` + order + ` OFFSET $1 LIMIT $2)
+	SELECT CASE WHEN pg.pid IS NULL THEN NULL ELSE ` + customerObjWithTags + ` END, t.n
+	  FROM t LEFT JOIN pg ON true LEFT JOIN customers ON customers.id = pg.pid
+	 ORDER BY ` + outer
+	return sql, args
 }
 
 // CustomerByPhone returns 0+ live customers whose phone matches this one in any

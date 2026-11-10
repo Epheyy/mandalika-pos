@@ -55,18 +55,52 @@ const orderObj = `json_build_object('id',o.id,'orderNumber',o.order_number,
      'refundedQty',COALESCE((SELECT sum(ri.quantity) FROM order_refund_items ri WHERE ri.order_item_id=it.id),0)))
      FROM order_items it WHERE it.order_id=o.id),'[]'::json))`
 
+// refundOrderKey is the refund-basis sort key: the latest refund row (C4a), because a part
+// refund leaves orders.refunded_at NULL. Computed once per candidate row in the id-first CTE.
+const refundOrderKey = `(SELECT max(r.refunded_at) FROM order_refunds r WHERE r.order_id=o.id)`
+
+// orderPageSQL builds the id-first list statement: one statement, so the total and the page
+// share a snapshot (A26), and the heavy orderObj sub-selects only run for the page's rows.
+// t LEFT JOIN pg keeps the total on an empty page (one row with a NULL object). extraCols is
+// appended to the select list (keyset columns).
+//
+// countWhere filters the count; pageWhere filters the page (the keyset cursor predicate only
+// narrows the page, never the count). materialize evaluates a filter that cannot use an index
+// once, in a CTE that feeds both the count and the page.
+func orderPageSQL(f OrderFilter, countWhere, pageWhere, limitOffset, extraCols string, materialize bool) string {
+	cols, orderBy, matOrder := "o.id, o.created_at", "o.created_at DESC, o.id DESC", "created_at DESC, id DESC"
+	matCols, outerOrder := "id, created_at", "pg.created_at DESC, pg.id DESC"
+	if f.refundBasis() {
+		cols += ", " + refundOrderKey + " AS k"
+		orderBy = "k DESC NULLS LAST, o.id DESC"
+		matOrder = "k DESC NULLS LAST, id DESC"
+		matCols += ", k"
+		outerOrder = "pg.k DESC NULLS LAST, pg.id DESC"
+	}
+	var ctes string
+	if materialize {
+		ctes = fmt.Sprintf(`f AS MATERIALIZED (SELECT %s FROM orders o %s),
+	     t AS (SELECT count(*) AS n FROM f),
+	     pg AS (SELECT %s FROM f ORDER BY %s LIMIT %s)`,
+			cols, countWhere, matCols, matOrder, limitOffset)
+	} else {
+		ctes = fmt.Sprintf(`t AS (SELECT count(*) AS n FROM orders o %s),
+	     pg AS (SELECT %s FROM orders o %s ORDER BY %s LIMIT %s)`,
+			countWhere, cols, pageWhere, orderBy, limitOffset)
+	}
+	return fmt.Sprintf(`WITH %s
+	SELECT CASE WHEN pg.id IS NULL THEN NULL ELSE %s END, t.n%s
+	  FROM t LEFT JOIN pg ON true LEFT JOIN orders o ON o.id = pg.id
+	 ORDER BY %s`, ctes, orderObj, extraCols, outerOrder)
+}
+
 func (r *Repo) Orders(ctx context.Context, f OrderFilter, page, limit int) ([]api.Order, int, error) {
 	where, args := buildOrderWhere(f)
 	args = append(args, limit, off(page, limit))
-	order := "o.created_at DESC, o.id DESC"
-	if f.refundBasis() {
-		// C4a: the latest refund row, because a part refund leaves orders.refunded_at NULL.
-		order = "(SELECT max(r.refunded_at) FROM order_refunds r WHERE r.order_id=o.id) DESC NULLS LAST, o.id DESC"
-	}
-	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM orders o %s
-	  ORDER BY %s LIMIT $%d OFFSET $%d`,
-		orderObj, where, order, len(args)-1, len(args))
-	return listJSON[api.Order](ctx, r.Pool, sql, args...)
+	// A q or payment-method filter has no index to walk: evaluate it once, not twice.
+	materialize := f.Q != "" || f.PaymentMethod != ""
+	sql := orderPageSQL(f, where, where, fmt.Sprintf("$%d OFFSET $%d", len(args)-1, len(args)), "", materialize)
+	return pagedCountJSON[api.Order](ctx, r.Pool, sql, args...)
 }
 
 func (r *Repo) Order(ctx context.Context, sc Scope, id string) (api.Order, error) {

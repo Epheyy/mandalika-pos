@@ -359,6 +359,10 @@ func (h *Handlers) Orders(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if isKeysetRequest(r.URL.Query()) {
+		h.ordersKeyset(w, r, f)
+		return
+	}
 	h.cached(w, r, ordersCacheKey(r), func() (any, int, error) {
 		p, l := pageLimit(r)
 		rows, total, err := h.Repo.Orders(r.Context(), f, p, l)
