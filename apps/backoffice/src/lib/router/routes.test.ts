@@ -46,6 +46,14 @@ describe('sections', () => {
     ])
   })
 
+  it('hides Pengguna from a manager holding manage_users and keeps it for the admin', () => {
+    const m = { role: 'manager', permissions: ['manage_users', 'view_reports'] }
+    expect(visibleRoutes(m).map((r) => r.id)).not.toContain('users')
+    expect(visibleRoutes(admin).map((r) => r.id)).toContain('users')
+    const r = resolveLocation(parseHash('#/pengguna'), visibleRoutes(m))
+    expect(r.kind === 'forbidden' && r.route.id).toBe('users')
+  })
+
   it('leaves out a section with nothing visible', () => {
     const groups = groupBySection(visibleRoutes(manager))
     expect(groups.map((g) => g.section.id)).toEqual(['penjualan', 'produk-stok'])

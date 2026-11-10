@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 import { api } from '../../api'
 import { useOutlet } from '../../outlet'
+import { useAuth } from '../../auth'
+import { canEditOutlet } from '../../lib/navAccess'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { Button } from '../../ui/Button'
 import { ConfirmDialog } from '../../ui/ConfirmDialog'
@@ -23,6 +25,7 @@ import { WarehouseFormModal } from '../inventory/WarehouseFormModal'
 
 export function LocationsSection() {
   const { refreshOutlets } = useOutlet()
+  const { user } = useAuth()
   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
   const outlets = ouq.data ?? []
@@ -141,7 +144,7 @@ export function LocationsSection() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-1">
+                {canEditOutlet(user, o.id) && <div className="flex items-center gap-1">
                   <IconButton onClick={() => openEditOutlet(o)} label={`Edit outlet ${o.name}`}>
                     <Edit2 className="w-3.5 h-3.5" />
                   </IconButton>
@@ -151,7 +154,7 @@ export function LocationsSection() {
                     size="sm"
                     onChange={() => (o.isActive ? setDeactivating(o) : void toggleOutlet(o))}
                   />
-                </div>
+                </div>}
               </div>
             ))}
           </div>
