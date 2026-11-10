@@ -131,7 +131,7 @@ func (s *Store) rotateTx(ctx context.Context, in RotateInput, adopt bool) (*Rota
 
 	var revokedBefore *time.Time
 	u, err := scanUser(ctx, tx, tx.QueryRow(ctx,
-		`SELECT id, email, display_name, role, outlet_id, photo_url, refresh_revoked_before
+		`SELECT id, email, display_name, role, outlet_id, photo_url, perm_version, refresh_revoked_before
 		   FROM users WHERE id=$1 FOR SHARE`, rc.UserID), &revokedBefore)
 	if err != nil {
 		return nil, err // ErrNotFound -> 401, anything else -> 503

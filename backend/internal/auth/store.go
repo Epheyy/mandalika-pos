@@ -11,13 +11,15 @@ import (
 )
 
 type User struct {
-	ID           string   `json:"id"`
-	Email        string   `json:"email"`
-	DisplayName  string   `json:"displayName"`
-	Role         string   `json:"role"`
-	OutletID     string   `json:"outletId,omitempty"`
-	PhotoURL     string   `json:"photoURL,omitempty"`
-	Permissions  []string `json:"permissions"`
+	ID          string   `json:"id"`
+	Email       string   `json:"email"`
+	DisplayName string   `json:"displayName"`
+	Role        string   `json:"role"`
+	OutletID    string   `json:"outletId,omitempty"`
+	PhotoURL    string   `json:"photoURL,omitempty"`
+	Permissions []string `json:"permissions"`
+	// PermVersion is users.perm_version. Never serialized: it is a token claim, not API surface.
+	PermVersion  int64 `json:"-"`
 	passwordHash string
 }
 
@@ -36,7 +38,7 @@ type querier interface {
 func scanUser(ctx context.Context, q querier, row pgx.Row, extra ...any) (*User, error) {
 	u := &User{}
 	var outlet, photo *string
-	dest := append([]any{&u.ID, &u.Email, &u.DisplayName, &u.Role, &outlet, &photo}, extra...)
+	dest := append([]any{&u.ID, &u.Email, &u.DisplayName, &u.Role, &outlet, &photo, &u.PermVersion}, extra...)
 	err := row.Scan(dest...)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -61,7 +63,7 @@ func scanUser(ctx context.Context, q querier, row pgx.Row, extra ...any) (*User,
 func (s *Store) byEmailRow(ctx context.Context, email string) (*User, error) {
 	var hash string
 	u, err := scanUser(ctx, s.Pool, s.Pool.QueryRow(ctx,
-		`SELECT id, email, display_name, role, outlet_id, photo_url, password_hash
+		`SELECT id, email, display_name, role, outlet_id, photo_url, perm_version, password_hash
 		   FROM users WHERE email = $1`, email), &hash)
 	if err != nil {
 		return nil, err
@@ -72,7 +74,7 @@ func (s *Store) byEmailRow(ctx context.Context, email string) (*User, error) {
 
 func (s *Store) ByID(ctx context.Context, id string) (*User, error) {
 	return scanUser(ctx, s.Pool, s.Pool.QueryRow(ctx,
-		`SELECT id, email, display_name, role, outlet_id, photo_url
+		`SELECT id, email, display_name, role, outlet_id, photo_url, perm_version
 		   FROM users WHERE id = $1`, id))
 }
 

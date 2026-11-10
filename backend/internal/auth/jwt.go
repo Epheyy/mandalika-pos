@@ -12,6 +12,9 @@ type Claims struct {
 	Role        string   `json:"role"`
 	OutletID    string   `json:"outlet_id,omitempty"`
 	Permissions []string `json:"perms,omitempty"`
+	// PermVersion is users.perm_version at issue time. Absent (every token issued
+	// before the column existed) reads as 0, the column default.
+	PermVersion int64 `json:"pv,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -25,10 +28,16 @@ type Tokens struct {
 	Refresh string `json:"refresh"`
 }
 
+// IssueAccess issues a token with rights version 0 (tests and legacy callers).
 func IssueAccess(secret []byte, ttl time.Duration, uid, role, outletID string, perms []string) (string, error) {
+	return IssueAccessV(secret, ttl, uid, role, outletID, perms, 0)
+}
+
+// IssueAccessV issues an access token carrying the user's rights version.
+func IssueAccessV(secret []byte, ttl time.Duration, uid, role, outletID string, perms []string, pv int64) (string, error) {
 	now := time.Now()
 	c := Claims{
-		UserID: uid, Role: role, OutletID: outletID, Permissions: perms,
+		UserID: uid, Role: role, OutletID: outletID, Permissions: perms, PermVersion: pv,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   uid,
 			IssuedAt:  jwt.NewNumericDate(now),

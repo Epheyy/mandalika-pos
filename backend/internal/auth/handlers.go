@@ -74,7 +74,7 @@ func (h *Handler) newSession() Session {
 
 // respond signs the token pair for a session that is already durable.
 func (h *Handler) respond(u *User, s Session) (*authResp, error) {
-	access, err := IssueAccess(h.Cfg.AccessSecret, h.Cfg.AccessTTL, u.ID, u.Role, u.OutletID, u.Permissions)
+	access, err := IssueAccessV(h.Cfg.AccessSecret, h.Cfg.AccessTTL, u.ID, u.Role, u.OutletID, u.Permissions, u.PermVersion)
 	if err != nil {
 		return nil, err
 	}
