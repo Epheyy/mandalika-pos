@@ -121,7 +121,7 @@ Citations: `HO:n` = line n of `HANDOFF.md` at commit `f491d988` (`git show f491d
     point-redemption column. Still open: rounded orders can differ from Total by the rounding amount (no
     stored rounding field; closing it needs a backend change).
   - **Not covered:**
-    - No paired printer; scanner not tried.
+    - Printer: now covered (2026-11-10, APK 2.3, Rongta RPP02N over Bluetooth Classic). Scanner not tried.
     - Power and storage pressure.
     - Role-separated cashier and manager testing (needs other logins).
     - Load.

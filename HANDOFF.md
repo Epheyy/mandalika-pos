@@ -4,11 +4,11 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-10 by Claude (Opus 5.5) - Bluetooth Classic printing (#136) merged, APK 2.3 release in progress; role test done on a local copy (fixes in progress). Earlier: LOW findings (#135) LIVE (backoffice `1043b4c4`, POS OTA 2.13.8 for APK 2.2; not yet seen on a tablet). Earlier: Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09; both P3 fixes LIVE in APK 2.2 (versionCode 13, #134 keyboard + #133 text zoom), installed and verified on the test tablet; tablets on APK 2.1 need 2.2 (OTAs now target code 13); see Progress board.
+Last updated: 2026-11-10 by Claude (Opus 5.5) - Bluetooth Classic printing (#136) LIVE in APK 2.3 (versionCode 14), verified on the test tablet with the RPP02N; role test done on a local copy (fixes in progress). Earlier: LOW findings (#135) LIVE (backoffice `1043b4c4`, POS OTA 2.13.8 for APK 2.2; not yet seen on a tablet). Earlier: Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09; both P3 fixes LIVE in APK 2.2 (versionCode 13, #134 keyboard + #133 text zoom), installed and verified on the test tablet; tablets on APK 2.1 need 2.2 (OTAs now target code 13); see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
-> 2026-11-10: **BLUETOOTH CLASSIC PRINTING (#136) MERGED, APK 2.3 RELEASE IN PROGRESS** (owner: "Yes, plan it", "Yes, start it", "Yes, release it").
+> 2026-11-10: **BLUETOOTH CLASSIC PRINTING (#136) LIVE: APK 2.3 (versionCode 14), VERIFIED ON THE TABLET** (owner: "Yes, plan it", "Yes, start it", "Yes, release it").
 > - **Why:** the owner's printer "RPPO2N" (Rongta RPP02N) is bonded DUAL with only the serial-port profile (SPP). It never answers BLE GATT service discovery (logcat `GATTC_Discover`, then `gatt_rsp_timeout` at 30 s), and the POS printed over BLE only, so it showed "Connection timeout.".
 > - **Plan:** `docs/plans/2026-11-10-bluetooth-classic-printing.md`.
 > - **Change:**
@@ -21,7 +21,21 @@ Last updated: 2026-11-10 by Claude (Opus 5.5) - Bluetooth Classic printing (#136
 > - **Review:** Opus approve-with-fixes; all 6 fixes were applied in `82401deb` and checked by Opus.
 >   - Capacitor 8.5.3 API use was verified against the real sources.
 >   - Gradle cannot run locally (sandbox loopback), so the APK build is the first real Java compile.
-> - **Merge:** `e401ec70` (no-ff on `fe40c69c`). Gate `gate/bt-classic`.
+> - **Merge:** `e401ec70` (no-ff on `fe40c69c`). Gate `gate/bt-classic` 5/5 green; pushed behind `[CF-Pages-Skip]` `cdcfa44e`. No backend or Backoffice change.
+> - **APK:** `android-release.yml` run `42754707726` (test). The build compiled the new Java against the real Capacitor 8.5.3.
+>   - Artifact `mandalika-pos-2.3-build14-test-cdcfa44`; the manifest (commit `cdcfa44e`, 2.3 / 14) sha256 `11fb7cbf...` matches the download.
+>   - Installed with `adb install -r` on SM-X115 (0 unsent, empty cart): 2.2/13 → 2.3/14. Login and shift were kept; the updater shows builtin 2.3.
+>   - Before the install the tablet showed OTA 2.13.8 `success`, so #135 is confirmed on a device.
+> - **Verified on the device with the RPP02N** (the owner confirmed the paper):
+>   - **Tes Cetak:** logcat shows an RFCOMM socket on UUID 0x1101 and no BLE GATT attempt. The Bluetooth Classic link plus service lookup take about 6 s cold; the next print is about 0.2 s.
+>   - **Reprint** of AP0005 from History.
+>   - **Test sale BSD-AP0009:** 8 lines of test products, Rp 710.000 cash. It auto-printed; "Cetak Ulang Struk" pressed twice ran strictly one after the other.
+>   - 5 receipts printed in full.
+>   - **Printer off:** after 10.2 s, "Gagal mencetak: printer tidak menjawab…" in red. Meanwhile other native plugin calls answered in 7–13 ms, so the plugin thread is not blocked.
+>   - **Bluetooth off:** "Gagal mencetak: Bluetooth tablet mati…" in red, 0.2 s after the tap.
+>   - **Recovery:** Bluetooth and the printer back on, and Tes Cetak printed in 2.1 s.
+>   - **Cleanup:** AP0009 fully refunded ("QA-APK23-print test sale cleanup"). History shows Refund, QA stock is back to 16, and the tablet is synced. This was checked on the tablet, not through the live API.
+> - **NOT done:** other tablets are still on APK 2.1/2.2 and need 2.3 for printing and future OTAs.
 > - **After this:** OTAs target versionCode 14, so tablets on APK 2.2 get no further OTAs until they install 2.3.
 > - **Not covered:** a BLE printer (none available) and iOS.
 
