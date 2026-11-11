@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { PackagePlus } from 'lucide-react'
 import type { GoodsReceiptListItem, Outlet, Warehouse } from '@mandalika/api'
 import { api } from '../../api'
@@ -6,6 +7,7 @@ import { GOODS_RECEIPT_SOURCE } from '../../lib/labels/goodsReceipt'
 import { useListState, type ListSchema } from '../../lib/router/useListState'
 import { useResetPageOnChange } from '../../lib/useResetPageOnChange'
 import { useOutlet } from '../../outlet'
+import { pastEndPage } from '../customersPastEnd'
 import { DataTable, type Column } from '../../ui/DataTable'
 import { EmptyState } from '../../ui/EmptyState'
 import { FilterBar } from '../../ui/FilterBar'
@@ -79,6 +81,12 @@ export function GoodsReceiptsList() {
   const rows = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  // A page past the end (rows swept or deleted meanwhile) comes back empty with the real total: land on the last page.
+  useEffect(() => {
+    if (q.loading || !q.data || q.data.meta?.page !== page) return
+    const target = pastEndPage(page, totalPages, rows.length)
+    if (target !== null) setState({ hal: target }, { replace: true })
+  }, [q.loading, q.data, page, rows.length, totalPages, setState])
 
   const setFilter = (patch: Partial<GoodsReceiptListState>, replace = false) => setState({ ...patch, hal: 1 }, { replace })
   const reset = () => setState({ lokasi: '', dari: '', sampai: '', q: '', sumber: '', hal: 1 })
