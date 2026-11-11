@@ -69,31 +69,46 @@ const refundOrderKey = `(SELECT max(r.refunded_at) FROM order_refunds r WHERE r.
 // forms. materialize evaluates a filter that cannot use an index once, in a CTE that feeds both
 // the count and the page.
 func orderPageSQL(f OrderFilter, countWhere, cursorPred, limitOffset, extraCols string, materialize bool) string {
-	pageWhere, matWhere := countWhere, ""
+	if materialize {
+		return orderPageSQLFromSet(f, "SELECT "+orderSetCols(f)+" FROM orders o "+countWhere, cursorPred, limitOffset, extraCols)
+	}
+	pageWhere := countWhere
 	if cursorPred != "" {
 		pageWhere += " AND " + cursorPred
-		matWhere = "WHERE " + cursorPred
 	}
-	cols, orderBy, matOrder := "o.id, o.created_at", "o.created_at DESC, o.id DESC", "created_at DESC, id DESC"
-	matCols, outerOrder := "id, created_at", "pg.created_at DESC, pg.id DESC"
+	cols, orderBy, outerOrder := "o.id, o.created_at", "o.created_at DESC, o.id DESC", "pg.created_at DESC, pg.id DESC"
 	if f.refundBasis() {
 		cols += ", " + refundOrderKey + " AS k"
 		orderBy = "k DESC NULLS LAST, o.id DESC"
-		matOrder = "k DESC NULLS LAST, id DESC"
-		matCols += ", k"
 		outerOrder = "pg.k DESC NULLS LAST, pg.id DESC"
 	}
-	var ctes string
-	if materialize {
-		ctes = fmt.Sprintf(`f AS MATERIALIZED (SELECT %s FROM orders o %s),
+	ctes := fmt.Sprintf(`t AS (SELECT count(*) AS n FROM orders o %s),
+	     pg AS (SELECT %s FROM orders o %s ORDER BY %s LIMIT %s)`,
+		countWhere, cols, pageWhere, orderBy, limitOffset)
+	return orderPageOuter(ctes, extraCols, outerOrder)
+}
+
+// orderPageSQLFromSet is the MATERIALIZED form over an arbitrary filtered set (setBody selects
+// orderSetCols): the set is evaluated once and feeds both the count and the page.
+func orderPageSQLFromSet(f OrderFilter, setBody, cursorPred, limitOffset, extraCols string) string {
+	matWhere := ""
+	if cursorPred != "" {
+		matWhere = "WHERE " + cursorPred
+	}
+	matCols, matOrder, outerOrder := "id, created_at", "created_at DESC, id DESC", "pg.created_at DESC, pg.id DESC"
+	if f.refundBasis() {
+		matCols += ", k"
+		matOrder = "k DESC NULLS LAST, id DESC"
+		outerOrder = "pg.k DESC NULLS LAST, pg.id DESC"
+	}
+	ctes := fmt.Sprintf(`f AS MATERIALIZED (%s),
 	     t AS (SELECT count(*) AS n FROM f),
 	     pg AS (SELECT %s FROM f %s ORDER BY %s LIMIT %s)`,
-			cols, countWhere, matCols, matWhere, matOrder, limitOffset)
-	} else {
-		ctes = fmt.Sprintf(`t AS (SELECT count(*) AS n FROM orders o %s),
-	     pg AS (SELECT %s FROM orders o %s ORDER BY %s LIMIT %s)`,
-			countWhere, cols, pageWhere, orderBy, limitOffset)
-	}
+		setBody, matCols, matWhere, matOrder, limitOffset)
+	return orderPageOuter(ctes, extraCols, outerOrder)
+}
+
+func orderPageOuter(ctes, extraCols, outerOrder string) string {
 	return fmt.Sprintf(`WITH %s
 	SELECT CASE WHEN pg.id IS NULL THEN NULL ELSE %s END, t.n%s
 	  FROM t LEFT JOIN pg ON true LEFT JOIN orders o ON o.id = pg.id
@@ -101,6 +116,12 @@ func orderPageSQL(f OrderFilter, countWhere, cursorPred, limitOffset, extraCols 
 }
 
 func (r *Repo) Orders(ctx context.Context, f OrderFilter, page, limit int) ([]api.Order, int, error) {
+	if useSearchIndex(f) {
+		body, args := orderSearchSet(f, orderSetCols(f), "", nil)
+		args = append(args, limit, off(page, limit))
+		sql := orderPageSQLFromSet(f, body, "", fmt.Sprintf("$%d OFFSET $%d", len(args)-1, len(args)), "")
+		return pagedSearchJSON[api.Order](ctx, r.Pool, sql, args...)
+	}
 	where, args := buildOrderWhere(f)
 	args = append(args, limit, off(page, limit))
 	// A q or payment-method filter has no index to walk: evaluate it once, not twice.
