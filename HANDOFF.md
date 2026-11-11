@@ -8,6 +8,12 @@ Last updated: 2026-11-10 by Claude (Opus 5.5) - list and export speed (#140) LIV
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-11: **LOAD TEST HARNESS (#139) MERGED** (owner: "merge the step 1").
+> - **Merge:** `dad79ffa`, scripts and docs only (`loadtest/`, `docs/qa/2026-11-10-load-test-local.md`).
+> - **Gate:** `gate/loadtest`: quality, backend, postgres and browser green.
+>   - dependency-security FAILED on a new repo-wide advisory, not on this change: **GO-2026-6859 / CVE-2026-97054**, an HTTP/1 server crash via a `MaxBytesReader` header race. The fix is in Go **1.26.11**.
+>   - The backend uses `MaxBytesReader` (auth/handlers.go login and refresh, batch_envelope.go), so the Go upgrade needs a backend redeploy.
+
 > 2026-11-10: **LIST AND EXPORT SPEED (#140) LIVE: backend `00181-yus`, Backoffice `685633a1`** (owner: "Yes, fix it", "Yes, release it").
 > - **Plan:** `docs/plans/2026-11-10-list-export-speed.md` (Opus, measured on the 1M-order load database).
 > - **Change:**
