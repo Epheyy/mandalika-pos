@@ -4,7 +4,7 @@
 # backend/Dockerfile and the stub catalog copied to backend/erpstub-seed.json; see
 # docs/runbooks/erp-standin-demo.md §2 (the runbook stages a clean `git archive`).
 # ---- build ----
-FROM golang:1.26.10 AS build
+FROM golang:1.26.11 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download

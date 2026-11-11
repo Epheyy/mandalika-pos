@@ -66,7 +66,7 @@ docker run -d --name rh-pg -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_USER=r
   -c listen_addresses=127.0.0.1 && sleep 6
 MSYS_NO_PATHCONV=1 docker run --rm --network container:rh-pg --mount "type=bind,source=$(pwd -W),target=/src" \
   --mount type=volume,source=mandalika-ci-gomod,target=/go/pkg/mod \
-  --mount type=volume,source=mandalika-ci-gocache,target=/root/.cache/go-build --workdir /src golang:1.26.10 \
+  --mount type=volume,source=mandalika-ci-gocache,target=/root/.cache/go-build --workdir /src golang:1.26.11 \
   bash -c 'apt-get update -qq && apt-get install -y -qq postgresql-client >/dev/null &&
     LOCAL_PG_URL="postgres://rehearsal@127.0.0.1:5432/postgres?sslmode=disable" bash scripts/erp-rehearsal-local.sh'
 docker rm -f rh-pg

@@ -22,8 +22,8 @@ def synthetic_go_evidence(root, raw):
     (root / "backend/go.sum").write_text("")
     write(raw / "go-modules.json", {"Main": True, "Path": "synthetic/replay"})
     targets = required_targets(root)
-    config = {"scanner_name": "govulncheck", "scanner_version": "v1.8.0", "go_version": "go1.26.10", "scan_level": "symbol", "scan_mode": "source"}
-    messages = [{"config": config}, {"SBOM": {"go_version": "go1.26.10", "modules": [{"path": "synthetic/replay"}, {"path": "stdlib", "version": "v1.26.10"}]}},
+    config = {"scanner_name": "govulncheck", "scanner_version": "v1.8.0", "go_version": "go1.26.11", "scan_level": "symbol", "scan_mode": "source"}
+    messages = [{"config": config}, {"SBOM": {"go_version": "go1.26.11", "modules": [{"path": "synthetic/replay"}, {"path": "stdlib", "version": "v1.26.11"}]}},
                 {"progress": {"message": "Checking the code against the vulnerabilities..."}}]
     runs = []
     for t in targets:

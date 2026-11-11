@@ -67,5 +67,5 @@ a budget again: `git remote remove ci`, then delete the mirror repo in the brows
 ## Related
 
 - Local race coverage without CI: `python scripts/ci/postgres_gate.py --go-runner docker --output artifacts/postgres/result.json`
-  runs every Postgres gate with `go test -race` inside the pinned `golang:1.26.10` Linux image (Docker Desktop must be running).
+  runs every Postgres gate with `go test -race` inside the pinned `golang:1.26.11` Linux image (Docker Desktop must be running).
   `--only ST,RA` limits the run to the listed gates.

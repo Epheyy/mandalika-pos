@@ -391,7 +391,7 @@ def save(path: Path, report):
     path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
 
-GO_IMAGE_DEFAULT = "golang:1.26.10"
+GO_IMAGE_DEFAULT = "golang:1.26.11"
 
 
 def docker_go_cmd(args, go_cmd: list, prefix: str, container: str | None = None) -> list:

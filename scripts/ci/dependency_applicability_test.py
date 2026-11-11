@@ -85,7 +85,7 @@ class Applicability(unittest.TestCase):
             (self.raw / name).write_text("")
         for name in ("go-license-classifier.json", "go-license-files.json"):
             write(self.raw / name, [])
-        write(self.raw / "toolchain.json", {"version": "go1.26.10"})
+        write(self.raw / "toolchain.json", {"version": "go1.26.11"})
         from dependency_go_targets_test import synthetic_go_evidence
         synthetic_go_evidence(self.root, self.raw)
         write(self.raw / "pnpm-audit.json", {"advisories": {}, "metadata": {}})
