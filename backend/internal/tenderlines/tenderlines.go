@@ -31,21 +31,29 @@ CROSS JOIN LATERAL (
 ) tl`
 
 // SetLines renders the payment lines of every row of `base` (a table or CTE with the columns
-// id, payment_method, total and every column named in keep) as one set: a hash join on
-// order_tenders plus an anti-join giving the synthetic line of a row without stored lines. It
-// yields the same (id, method, amount, synthetic) rows as Lateral, in the columns
-// `id, <keep...>, method, amount, synthetic`. A method filter belongs on the caller's side:
-// pushing it into both branches measured slower (more buffers, no time gain) on a 200k-order seed.
+// id, payment_method, total and every column named in keep) as one set: a LEFT JOIN LATERAL that
+// probes order_tenders_pkey once per base row. A row with stored lines yields one row per line;
+// a row without yields ONE synthetic row (payment_method, total, true), keyed on the lateral
+// side's order_id being NULL (method and amount are NOT NULL in order_tenders). It yields the
+// same (id, method, amount, synthetic) rows as Lateral, in the columns
+// `id, <keep...>, method, amount, synthetic`.
+//
+// Why LATERAL and not a hash join plus anti-join: that form scanned all of order_tenders twice,
+// so a report's cost grew with the table, not the window. The probe cost follows the window. A
+// plain LEFT JOIN measured 5-10% faster at 1M orders but still scans the whole table.
+// A method filter belongs on the caller's side: pushing it into the join measured slower (more
+// buffers, no time gain) on a 200k-order seed.
 func SetLines(base string, keep []string) string {
 	cols := ""
 	for _, c := range keep {
 		cols += ", o." + c
 	}
 	return strings.TrimSpace(fmt.Sprintf(`
-SELECT o.id%[2]s, t.method, t.amount, false AS synthetic
-  FROM %[1]s o JOIN order_tenders t ON t.order_id = o.id
-UNION ALL
-SELECT o.id%[2]s, o.payment_method, o.total, true
-  FROM %[1]s o WHERE NOT EXISTS (SELECT 1 FROM order_tenders t2 WHERE t2.order_id = o.id)`,
+SELECT o.id%[2]s,
+       CASE WHEN t.order_id IS NULL THEN o.payment_method ELSE t.method END AS method,
+       CASE WHEN t.order_id IS NULL THEN o.total ELSE t.amount END AS amount,
+       t.order_id IS NULL AS synthetic
+  FROM %[1]s o LEFT JOIN LATERAL (SELECT t.order_id, t.method, t.amount
+                                    FROM order_tenders t WHERE t.order_id = o.id) t ON true`,
 		base, cols))
 }
