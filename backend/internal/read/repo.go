@@ -98,13 +98,19 @@ const jitOffSQL = `SELECT set_config('jit','off',true)`
 // transaction, so the local setting reaches the statement and resets afterwards) and hands the
 // statement's rows to read. The caller must fully consume rows inside read.
 func pagedBatch(ctx context.Context, p *pgxpool.Pool, sql string, args []any, read func(pgx.Rows) error) error {
+	return pagedBatchPrelude(ctx, p, jitOffSQL, sql, args, read)
+}
+
+// pagedBatchPrelude is pagedBatch with a caller-chosen prelude statement (transaction-local
+// set_config calls) queued ahead of sql in the same batch.
+func pagedBatchPrelude(ctx context.Context, p *pgxpool.Pool, prelude, sql string, args []any, read func(pgx.Rows) error) error {
 	b := &pgx.Batch{}
-	b.Queue(jitOffSQL)
+	b.Queue(prelude)
 	b.Queue(sql, args...)
 	br := p.SendBatch(ctx, b)
 	defer br.Close()
 	if _, err := br.Exec(); err != nil {
-		return fmt.Errorf("jit off: %w", err)
+		return fmt.Errorf("prelude: %w", err)
 	}
 	rows, err := br.Query()
 	if err != nil {

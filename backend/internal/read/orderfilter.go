@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/mandalika/pos-backend/internal/phone"
 )
@@ -44,6 +45,9 @@ type OrderFilter struct {
 	// that method) instead of the list reading (orders that contain the method). Only
 	// ReportSummary sets it, on its own copies of the filter.
 	summary bool
+	// searchForm picks the list's q statement shape: 0 = by the useSearchIndex gate, 1 = the
+	// single-WHERE (legacy) form, 2 = the indexed UNION form. Only the test seam sets it.
+	searchForm int8
 }
 
 // splitMethodValue is the order-level sentinel (orders.payment_method) of a sale paid with
@@ -130,7 +134,7 @@ func appendOrderWhere(f OrderFilter, args []any, refundRows bool) (string, []any
 		where += " AND " + paymentMethodRule(f, n, refundRows)
 	}
 	if f.Q != "" {
-		n := add("%" + f.Q + "%")
+		n := add(qPattern(f.Q))
 		if f.CustomerSearch {
 			// Order number, cashier name, the order's stored customer name, or the
 			// linked customer's phone/name.
@@ -139,7 +143,14 @@ func appendOrderWhere(f OrderFilter, args []any, refundRows bool) (string, []any
 		  OR EXISTS (SELECT 1 FROM customers c WHERE c.id = o.customer_id
 		    AND (c.phone ILIKE $N OR c.name ILIKE $N)))`, "$N", fmt.Sprintf("$%d", n))
 		} else {
-			clause := ` AND (o.order_number ILIKE $N OR o.cashier_name ILIKE $N`
+			// A term too short for a trigram would make the planner scan the whole GIN index
+			// (measured 0.6 -> 2.1 s for "ab"). `x || ''` equals x (NULL stays NULL) but the
+			// index cannot match the expression, so the plan stays the sequential scan.
+			orderNo, cashier := "o.order_number", "o.cashier_name"
+			if !trigramUsable(f.Q) {
+				orderNo, cashier = "(o.order_number || '')", "(o.cashier_name || '')"
+			}
+			clause := ` AND (` + orderNo + ` ILIKE $N OR ` + cashier + ` ILIKE $N`
 			if norm := phone.Normalize(f.Q); norm != "" {
 				clause += fmt.Sprintf(` OR EXISTS (SELECT 1 FROM customers c WHERE c.id = o.customer_id
 		    AND c.phone_norm = $%d)`, add(norm))
@@ -148,6 +159,28 @@ func appendOrderWhere(f OrderFilter, args []any, refundRows bool) (string, []any
 		}
 	}
 	return where, args
+}
+
+// qPattern is the ILIKE pattern of a search term. LIKE wildcards in q stay unescaped (as they
+// always were), so the list, the summary and the indexed search statement all match alike.
+func qPattern(q string) string { return "%" + q + "%" }
+
+// trigramUsable reports whether pg_trgm can extract a trigram from a term: it needs a run of 3
+// or more letters or digits (anything else breaks a run). Shorter terms make a trigram index
+// fall back to a full index scan.
+func trigramUsable(q string) bool {
+	run := 0
+	for _, r := range q {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			run++
+			if run >= 3 {
+				return true
+			}
+			continue
+		}
+		run = 0
+	}
+	return false
 }
 
 // paymentMethodRule renders the payment-method condition for placeholder $n (C6a, plan 2.4 R4).

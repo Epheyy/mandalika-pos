@@ -53,6 +53,11 @@ func runListSpeedSubtests(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
 	t.Run("keyset-drift", e.keysetDrift)
 	t.Run("keyset-scope", e.keysetScope)
 	t.Run("empty-and-past-end", e.emptyAndPastEnd)
+	t.Run("orders-search-indexes-exist", e.searchIndexesExist)
+	t.Run("orders-search-parity", e.ordersSearchParity)
+	t.Run("orders-search-keyset", e.ordersSearchKeyset)
+	t.Run("restricted-short-term-parity", e.restrictedShortTermParity)
+	t.Run("search-custom-plan-is-statement-local", e.searchPlanLocal)
 }
 
 func (e *speedEnv) cleanup() {

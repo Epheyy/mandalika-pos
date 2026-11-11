@@ -32,7 +32,7 @@ func (r *Repo) OrdersKeyset(ctx context.Context, f OrderFilter, after *OrderCurs
 	if f.refundBasis() {
 		return nil, 0, nil, time.Time{}, ErrKeysetRefundBasis
 	}
-	where, args := buildOrderWhere(f)
+	args := []any{}
 	add := func(v any) int {
 		args = append(args, v)
 		return len(args)
@@ -41,22 +41,39 @@ func (r *Repo) OrdersKeyset(ctx context.Context, f OrderFilter, after *OrderCurs
 	if after != nil {
 		asOfExpr = fmt.Sprintf("$%d::timestamptz", add(after.AsOf))
 	}
-	countWhere := where + " AND o.created_at <= " + asOfExpr
+	asOfBound := " AND o.created_at <= " + asOfExpr
 	cursorPred := ""
+	var sql string
+	var setBody string
+	indexed := useSearchIndex(f)
+	if indexed {
+		setBody, args = orderSearchSet(f, orderSetCols(f), asOfBound, args)
+	}
+	var where string
+	if !indexed {
+		where, args = appendOrderWhere(f, args, false)
+	}
 	if after != nil {
 		c, i := add(after.CreatedAt), add(after.ID)
 		cursorPred = fmt.Sprintf("(created_at, id) < ($%d::timestamptz, $%d::uuid)", c, i)
 	}
-	// A q or payment-method filter has no index to walk: evaluate it once (MATERIALIZED), as the
-	// offset path does. The cursor predicate narrows only the page in both forms.
-	materialize := f.Q != "" || f.PaymentMethod != ""
-	sql := orderPageSQL(f, countWhere, cursorPred, fmt.Sprintf("$%d", add(limit)),
-		", pg.created_at, pg.id::text, "+asOfExpr+" AS asof", materialize)
+	limitOffset := fmt.Sprintf("$%d", add(limit))
+	extraCols := ", pg.created_at, pg.id::text, " + asOfExpr + " AS asof"
+	prelude := jitOffSQL
+	if indexed {
+		prelude = searchPreludeSQL
+		sql = orderPageSQLFromSet(f, setBody, cursorPred, limitOffset, extraCols)
+	} else {
+		// A q or payment-method filter has no index to walk: evaluate it once (MATERIALIZED), as
+		// the offset path does. The cursor predicate narrows only the page in both forms.
+		materialize := f.Q != "" || f.PaymentMethod != ""
+		sql = orderPageSQL(f, where+asOfBound, cursorPred, limitOffset, extraCols, materialize)
+	}
 
 	rows = []api.Order{}
 	var lastCreated *time.Time
 	var lastID *string
-	err = pagedBatch(ctx, r.Pool, sql, args, func(rs pgx.Rows) error {
+	err = pagedBatchPrelude(ctx, r.Pool, prelude, sql, args, func(rs pgx.Rows) error {
 		for rs.Next() {
 			var raw []byte
 			var created *time.Time
