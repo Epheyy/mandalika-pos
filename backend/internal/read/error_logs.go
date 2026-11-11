@@ -20,6 +20,13 @@ const ErrorLogRetentionDays = 60
 
 // ErrorLogs lists captured errors (admin; cross-outlet), newest first, within the retention window.
 func (r *Repo) ErrorLogs(ctx context.Context, outletID, source, from, to string, page, limit int) ([]api.ErrorLog, int, error) {
+	sql, args := errorLogsPageSQL(outletID, source, from, to, page, limit)
+	return pagedCountJSON[api.ErrorLog](ctx, r.Pool, sql, args...)
+}
+
+// errorLogsPageSQL builds the id-first statement (see orderPageSQL): the payload and breadcrumbs
+// JSON is only built for the page's rows, and the total comes from the same statement.
+func errorLogsPageSQL(outletID, source, from, to string, page, limit int) (string, []any) {
 	args := []any{}
 	cond := fmt.Sprintf(" WHERE e.created_at >= now() - interval '%d days'", ErrorLogRetentionDays)
 	add := func(clause string, val any) {
@@ -39,8 +46,12 @@ func (r *Repo) ErrorLogs(ctx context.Context, outletID, source, from, to string,
 		add("e.created_at <= $%d", to)
 	}
 	args = append(args, limit, off(page, limit))
-	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM error_logs e%s
-	  ORDER BY e.created_at DESC, e.id DESC LIMIT $%d OFFSET $%d`,
-		errorLogObj, cond, len(args)-1, len(args))
-	return listJSON[api.ErrorLog](ctx, r.Pool, sql, args...)
+	sql := fmt.Sprintf(`WITH t AS (SELECT count(*) AS n FROM error_logs e%[1]s),
+	     pg AS (SELECT e.id, e.created_at FROM error_logs e%[1]s
+	             ORDER BY e.created_at DESC, e.id DESC LIMIT $%[2]d OFFSET $%[3]d)
+	SELECT CASE WHEN pg.id IS NULL THEN NULL ELSE %[4]s END, t.n
+	  FROM t LEFT JOIN pg ON true LEFT JOIN error_logs e ON e.id = pg.id
+	 ORDER BY pg.created_at DESC, pg.id DESC`,
+		cond, len(args)-1, len(args), errorLogObj)
+	return sql, args
 }
