@@ -9,7 +9,7 @@ import (
 
 // jsonCompressLevel is the gzip level for JSON responses, from BenchmarkCompressOrderPage (synthetic
 // 1000-order page, 1.0 MB, Ryzen 5 5500U): level 1 ~20 ms (ratio 3.65), level 5 ~33 ms (ratio 4.67).
-// Level 5 costs more than the 15 ms a page the plan allows, so level 1.
+// A real 2.5 MB page is about 2.5x that (level 1 ~50 ms): level 5 is over the plan limit of 15 ms, so level 1.
 const jsonCompressLevel = 1
 
 // compressSkipPrefixes are never compressed: the OTA path is read by a native updater plugin
