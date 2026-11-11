@@ -176,8 +176,8 @@ FROM agg, ragg, pay, gpay, rpay, prod, daily`, sbSQL, refundWhere, lineSrc)
 // saleWhere is rendered once as a MATERIALIZED base CTE (sb unfiltered, so under a method
 // filter) that sbl reads for both its payment lines and its refund rows, so the filter scan of
 // orders is not repeated per sbl branch. (The unfiltered sb renders it a second time inside the
-// refund-aggregate semi-join below; that second copy must never reference `r`.) The payment lines come from tenderlines.SetLines (a hash join over the
-// sale set) instead of the per-order Lateral; SP subtest 14 gates that they agree. Unfiltered,
+// refund-aggregate semi-join below; that second copy must never reference `r`.) The payment lines come from tenderlines.SetLines (one LATERAL probe of
+// order_tenders per sale-set row) instead of the per-order Lateral; SP subtest 14 gates that they agree. Unfiltered,
 // sb's refund total is one grouped LEFT JOIN over the refunds of the sale set (a semi-join on
 // the same filter keeps the aggregate small on a narrow window), not a per-order subquery.
 // A method filter appends its own argument for the CTE comparison.
