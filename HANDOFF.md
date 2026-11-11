@@ -8,6 +8,21 @@ Last updated: 2026-11-11 by Claude (Opus 5.5) - Go 1.26.11 security fix LIVE (ba
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-11: **PERF WAVE 2 (#142 + #141 + #143) MERGED, BACKEND + BACKOFFICE RELEASE IN PROGRESS** (owner: "let's work on the next follow-ups", "Yes, release all three").
+> - **Plan:** `docs/plans/2026-11-11-perf-followups-wave2.md` (Opus, measured on the 1M-order load database). Decisions recorded: the report rollup is deferred until measured on Neon.
+> - **#142, order search:**
+>   - Migration **0088**: three GIN trigram indexes on `orders` (order number, cashier name, customer name), `lock_timeout` 5 s, and a CONCURRENTLY runbook with a mandatory `indisvalid` check for later, larger databases.
+>   - A UNION search form, used only for 3+ character terms without a shift or customer filter.
+>   - Measured: order number 2.8 -> 0.15 s, phone about 3 -> 0.26 s, name 6.7 -> 0.09 s. Real sale-path cost about +1.2 ms DB time per sale (accepted).
+> - **#141, quick wins:**
+>   - Error logs, duplicate candidates, goods receipts and ingredient transfers move to the id-first pattern.
+>   - gzip level 1 for JSON (`/ota/*` and `/auth/*` excluded): a 200-order page goes from 404 KB to 63 KB.
+>   - The customer export sorted by spend pages in creation order and sorts in the browser.
+> - **#143, reports B1:** `tenderlines.SetLines` becomes a LEFT JOIN LATERAL. Summary 2.4 -> 2.1 s, dashboard 4.4 -> 4.1 s, responses byte-identical.
+> - **Reviews:** all three Opus-reviewed, with fixes applied; Opus checked #143's equivalence directly.
+> - **Merges:** `36766a72` / `ffcb8daa` / `6d440e1f` (stacked no-ff). Gate `gate/wave2` 5/5 green. No POS or package change.
+> - **Still slow:** the 365-day all-outlet summary exceeds the 15 s deadline (needs the rollup), and the Orders-screen summary with `q` is about 3-4 s.
+
 > 2026-11-11: **GO 1.26.11 SECURITY FIX (GO-2026-6859 / CVE-2026-97054) LIVE: backend `00183-nep`** (owner: "Yes, release it").
 > - **Deploy:** `deploy-backend.sh go12611` from `356dab61`. Cloud Build `8b401057` ran `FROM golang:1.26.11` -> `mandalika-pos-00183-nep`, promoted to 100%. ROLLBACK `00181-yus`.
 > - **Smokes:** tag and live `/readyz` 200, `/livez` 200. A 70 KB login body -> 400, so the `MaxBytesReader` path refuses rather than crashing. 0 ERROR logs after promote.
