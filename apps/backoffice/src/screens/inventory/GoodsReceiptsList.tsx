@@ -6,6 +6,7 @@ import { GOODS_RECEIPT_SOURCE } from '../../lib/labels/goodsReceipt'
 import { useListState, type ListSchema } from '../../lib/router/useListState'
 import { useResetPageOnChange } from '../../lib/useResetPageOnChange'
 import { useOutlet } from '../../outlet'
+import { usePastEndRedirect } from '../../lib/pastEndRedirect'
 import { DataTable, type Column } from '../../ui/DataTable'
 import { EmptyState } from '../../ui/EmptyState'
 import { FilterBar } from '../../ui/FilterBar'
@@ -79,6 +80,8 @@ export function GoodsReceiptsList() {
   const rows = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  // A page past the end (rows swept or deleted meanwhile) comes back empty with the real total: land on the last page.
+  usePastEndRedirect(q, page, rows.length, totalPages, (hal) => setState({ hal }, { replace: true }))
 
   const setFilter = (patch: Partial<GoodsReceiptListState>, replace = false) => setState({ ...patch, hal: 1 }, { replace })
   const reset = () => setState({ lokasi: '', dari: '', sampai: '', q: '', sumber: '', hal: 1 })

@@ -62,18 +62,25 @@ func (r *Repo) GoodsReceipts(ctx context.Context, s Scope, f GoodsReceiptFilter,
 	   LEFT JOIN product_variants qv ON qv.product_id = qi.product_id AND qv.size = qi.variant_size
 	   WHERE qi.receipt_id = gr.id AND (qp.name ILIKE $%[1]d OR qv.sku ILIKE $%[1]d)))`, n)
 	}
-	from := `goods_receipts gr
+	sql, qargs := goodsReceiptsPageSQL(where, args, page, limit)
+	return pagedCountJSON[api.GoodsReceiptListItem](ctx, r.Pool, sql, qargs...)
+}
+
+// goodsReceiptsPageSQL builds the id-first statement (see orderPageSQL) from the filter's WHERE
+// and args: one statement gives the page and the real total, also for a page past the end. The
+// count and the page ids read goods_receipts alone (the joins below are 1:1 lookups).
+func goodsReceiptsPageSQL(where string, args []any, page, limit int) (string, []any) {
+	n := len(args)
+	sql := fmt.Sprintf(`WITH t AS (SELECT count(*) AS n FROM goods_receipts gr WHERE %[1]s),
+	     pg AS (SELECT gr.id, gr.created_at FROM goods_receipts gr WHERE %[1]s
+	             ORDER BY gr.created_at DESC, gr.id DESC LIMIT $%[2]d OFFSET $%[3]d)
+	SELECT CASE WHEN pg.id IS NULL THEN NULL ELSE %[4]s END, t.n
+	  FROM t LEFT JOIN pg ON true
+	  LEFT JOIN goods_receipts gr ON gr.id = pg.id
 	  LEFT JOIN warehouses w ON w.id = gr.warehouse_id
 	  LEFT JOIN outlets o ON o.id = gr.outlet_id
-	  LEFT JOIN users u ON u.id = gr.created_by`
-	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total FROM %s WHERE %s
-	  ORDER BY gr.created_at DESC, gr.id DESC LIMIT $%d OFFSET $%d`,
-		goodsReceiptListObj, from, where, len(args)+1, len(args)+2)
-	rows, total, err := listJSON[api.GoodsReceiptListItem](ctx, r.Pool, sql,
-		append(append([]any{}, args...), limit, off(page, limit))...)
-	if err != nil || len(rows) > 0 || page <= 1 {
-		return rows, total, err
-	}
-	err = r.Pool.QueryRow(ctx, fmt.Sprintf(`SELECT count(*) FROM %s WHERE %s`, from, where), args...).Scan(&total)
-	return rows, total, err
+	  LEFT JOIN users u ON u.id = gr.created_by
+	 ORDER BY pg.created_at DESC, pg.id DESC`,
+		where, n+1, n+2, goodsReceiptListObj)
+	return sql, append(append([]any{}, args...), limit, off(page, limit))
 }

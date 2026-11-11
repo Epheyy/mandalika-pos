@@ -51,6 +51,14 @@ const ingTransferFrom = `FROM ingredient_transfers t
 // IngredientTransfers lists ingredient transfers newest-first with optional filters:
 // status, date range, and location (any side — source OR dest).
 func (r *Repo) IngredientTransfers(ctx context.Context, page, limit int, status, from, to, locKind, locID string) ([]api.IngredientTransfer, int, error) {
+	sql, args := ingredientTransfersPageSQL(page, limit, status, from, to, locKind, locID)
+	return pagedCountJSON[api.IngredientTransfer](ctx, r.Pool, sql, args...)
+}
+
+// ingredientTransfersPageSQL builds the id-first statement (see orderPageSQL): the items JSON is
+// built only for the page's rows, and the total comes from the same statement. The count and
+// the page ids read ingredient_transfers alone (the location joins are 1:1 lookups).
+func ingredientTransfersPageSQL(page, limit int, status, from, to, locKind, locID string) (string, []any) {
 	where := "WHERE 1=1"
 	args := []any{}
 	if status != "" {
@@ -74,10 +82,19 @@ func (r *Repo) IngredientTransfers(ctx context.Context, page, limit int, status,
 		}
 	}
 	args = append(args, limit, off(page, limit))
-	sql := fmt.Sprintf(`SELECT %s, count(*) OVER() AS total %s %s
-	  ORDER BY t.created_at DESC, t.id DESC LIMIT $%d OFFSET $%d`,
-		ingTransferObj, ingTransferFrom, where, len(args)-1, len(args))
-	return listJSON[api.IngredientTransfer](ctx, r.Pool, sql, args...)
+	sql := fmt.Sprintf(`WITH cnt AS (SELECT count(*) AS n FROM ingredient_transfers t %[1]s),
+	     pg AS (SELECT t.id, t.created_at FROM ingredient_transfers t %[1]s
+	             ORDER BY t.created_at DESC, t.id DESC LIMIT $%[2]d OFFSET $%[3]d)
+	SELECT CASE WHEN pg.id IS NULL THEN NULL ELSE %[4]s END, cnt.n
+	  FROM cnt LEFT JOIN pg ON true
+	  LEFT JOIN ingredient_transfers t ON t.id = pg.id
+	  LEFT JOIN outlets    so  ON so.id  = t.source_outlet_id
+	  LEFT JOIN warehouses sw  ON sw.id  = t.source_warehouse_id
+	  LEFT JOIN outlets    do2 ON do2.id = t.dest_outlet_id
+	  LEFT JOIN warehouses dw  ON dw.id  = t.dest_warehouse_id
+	 ORDER BY pg.created_at DESC, pg.id DESC`,
+		where, len(args)-1, len(args), ingTransferObj)
+	return sql, args
 }
 
 // IngredientTransfer returns a single ingredient transfer with sender/receiver

@@ -522,4 +522,182 @@ func TestListParamsPostgres(t *testing.T) {
 		}
 		bad("/ingredients?categoryId=not-a-uuid", tokAdmin)
 	})
+
+	// Wave 2 slice C1: id-first parity against the retired count(*) OVER() statements, which are
+	// kept here as id/total-only SQL over the same filter. Order, ids and total must be equal,
+	// including a page past the end (the retired statement had no total there).
+	legacy := func(sql string, args ...any) (ids []string, total int) {
+		t.Helper()
+		rows, err := pool.Query(ctx, sql, args...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id, &total); err != nil {
+				t.Fatal(err)
+			}
+			ids = append(ids, id)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		return ids, total
+	}
+	sameIDs := func(t *testing.T, what string, got, want []string, gotTotal, wantTotal int) {
+		t.Helper()
+		if strings.Join(got, "|") != strings.Join(want, "|") || gotTotal != wantTotal {
+			t.Errorf("%s: id-first %v total %d, retired %v total %d", what, got, gotTotal, want, wantTotal)
+		}
+	}
+
+	t.Run("15 goods receipts: id-first parity and past-end total", func(t *testing.T) {
+		// Two more receipts share one created_at with an existing one: the id DESC tie-break decides.
+		receipt(outA, false, "Kembar 1", "", "supply", "2026-10-13T03:00:00Z", [3]any{pid(1), "M", 1})
+		receipt(outA, false, "Kembar 2", "", "supply", "2026-10-13T03:00:00Z", [3]any{pid(1), "M", 1})
+		const retired = `SELECT gr.id::text, count(*) OVER() FROM goods_receipts gr WHERE %s
+		  ORDER BY gr.created_at DESC, gr.id DESC LIMIT %d OFFSET %d`
+		for _, c := range []struct {
+			name, where string
+			f           read.GoodsReceiptFilter
+			sc          read.Scope
+		}{
+			{"admin", `true`, read.GoodsReceiptFilter{}, read.Scope{CrossAll: true}},
+			{"supply only", `gr.source = 'supply'`, read.GoodsReceiptFilter{Source: "supply"}, read.Scope{CrossAll: true}},
+			{"q by supplier", `(gr.supplier ILIKE '%sumber%' OR gr.note ILIKE '%sumber%')`, read.GoodsReceiptFilter{Q: "sumber"}, read.Scope{CrossAll: true}},
+			{"location", `COALESCE(gr.warehouse_id,gr.outlet_id) = '` + outA + `'::uuid`, read.GoodsReceiptFilter{LocationID: outA}, read.Scope{CrossAll: true}},
+			{"manager A scope", `(gr.warehouse_id IS NOT NULL OR gr.outlet_id = '` + outA + `')`, read.GoodsReceiptFilter{}, read.Scope{OutletID: outA}},
+		} {
+			for _, pg := range [][2]int{{1, 3}, {2, 3}, {3, 3}, {9, 3}} {
+				page, limit := pg[0], pg[1]
+				got, total, err := rd.GoodsReceipts(ctx, c.sc, c.f, page, limit)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var gotIDs []string
+				for _, r := range got {
+					gotIDs = append(gotIDs, r.Id.String())
+				}
+				wantIDs, wantTotal := legacy(fmt.Sprintf(retired, c.where, limit, (page-1)*limit))
+				if len(wantIDs) == 0 { // past the end: the retired code ran a second count
+					_, wantTotal = legacy(fmt.Sprintf(`SELECT gr.id::text, count(*) OVER() FROM goods_receipts gr WHERE %s LIMIT 1`, c.where))
+				}
+				sameIDs(t, fmt.Sprintf("%s page %d", c.name, page), gotIDs, wantIDs, total, wantTotal)
+			}
+		}
+	})
+
+	t.Run("16 ingredient transfers: id-first parity, filters, past-end total", func(t *testing.T) {
+		const (
+			whX  = "00000000-0000-4000-8d05-000000000001"
+			ingT = "00000000-0000-4000-8d05-000000000002"
+		)
+		exec(`INSERT INTO warehouses(id,name) VALUES($1,'LP Gudang 2')`, whX)
+		exec(`INSERT INTO ingredients(id,name,unit) VALUES($1,'LP Bahan Transfer','g')`, ingT)
+		for i, c := range []struct{ status, src, dst, at string }{
+			{"draft", "w", "w2", "2026-10-01T00:00:00Z"},
+			{"completed", "a", "w", "2026-10-02T00:00:00Z"},
+			{"completed", "w", "b", "2026-10-02T00:00:00Z"}, // same created_at: id tie-break
+			{"completed", "a", "b", "2026-10-02T00:00:00Z"},
+			{"cancelled", "w2", "a", "2026-10-03T00:00:00Z"},
+		} {
+			loc := func(k string, source bool) (string, string) {
+				switch k {
+				case "a":
+					return map[bool]string{true: "source_outlet_id", false: "dest_outlet_id"}[source], outA
+				case "b":
+					return map[bool]string{true: "source_outlet_id", false: "dest_outlet_id"}[source], outB
+				}
+				id := whW
+				if k == "w2" {
+					id = whX
+				}
+				return map[bool]string{true: "source_warehouse_id", false: "dest_warehouse_id"}[source], id
+			}
+			sc, sid := loc(c.src, true)
+			dc, did := loc(c.dst, false)
+			var id string
+			if err := pool.QueryRow(ctx, fmt.Sprintf(`INSERT INTO ingredient_transfers(status,%s,%s,created_at)
+			  VALUES($1,$2,$3,$4::timestamptz) RETURNING id::text`, sc, dc), c.status, sid, did, c.at).Scan(&id); err != nil {
+				t.Fatalf("transfer %d: %v", i, err)
+			}
+			exec(`INSERT INTO ingredient_transfer_items(transfer_id,ingredient_id,sent_qty) VALUES($1,$2,$3)`, id, ingT, 5+i)
+		}
+		const retired = `SELECT t.id::text, count(*) OVER() FROM ingredient_transfers t %s
+		  ORDER BY t.created_at DESC, t.id DESC LIMIT %d OFFSET %d`
+		for _, c := range []struct {
+			name, where                   string
+			status, from, to, kind, locID string
+		}{
+			{"all", `WHERE 1=1`, "", "", "", "", ""},
+			{"status", `WHERE 1=1 AND t.status='completed'`, "completed", "", "", "", ""},
+			{"date range", `WHERE 1=1 AND t.created_at >= '2026-10-02T00:00:00Z' AND t.created_at < '2026-10-03T00:00:00Z'`, "", "2026-10-02T00:00:00Z", "2026-10-03T00:00:00Z", "", ""},
+			{"outlet leg", `WHERE 1=1 AND (t.source_outlet_id='` + outA + `' OR t.dest_outlet_id='` + outA + `')`, "", "", "", "outlet", outA},
+			{"warehouse leg", `WHERE 1=1 AND (t.source_warehouse_id='` + whW + `' OR t.dest_warehouse_id='` + whW + `')`, "", "", "", "warehouse", whW},
+		} {
+			for _, pg := range [][2]int{{1, 2}, {2, 2}, {3, 2}, {9, 2}} {
+				page, limit := pg[0], pg[1]
+				got, total, err := rd.IngredientTransfers(ctx, page, limit, c.status, c.from, c.to, c.kind, c.locID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var gotIDs []string
+				for _, r := range got {
+					gotIDs = append(gotIDs, r.Id.String())
+					if len(r.Items) != 1 {
+						t.Errorf("%s: transfer %s lost its items (%d)", c.name, r.Id.String(), len(r.Items))
+					}
+				}
+				wantIDs, wantTotal := legacy(fmt.Sprintf(retired, c.where, limit, (page-1)*limit))
+				if len(wantIDs) == 0 {
+					_, wantTotal = legacy(fmt.Sprintf(`SELECT t.id::text, count(*) OVER() FROM ingredient_transfers t %s LIMIT 1`, c.where))
+				}
+				sameIDs(t, fmt.Sprintf("%s page %d", c.name, page), gotIDs, wantIDs, total, wantTotal)
+			}
+		}
+	})
+
+	t.Run("17 dup candidates: id-first parity, limit-1 badge total", func(t *testing.T) {
+		const custD = "00000000-0000-4000-8d06-%012d"
+		for i := 1; i <= 5; i++ {
+			exec(`INSERT INTO customers(id,name,phone) VALUES($1,$2,$3)`, fmt.Sprintf(custD, i), fmt.Sprintf("Dup %d", i), fmt.Sprintf("08120000000%d", i))
+			status, at := "pending", "2026-10-05T00:00:00Z" // equal created_at for 1..3
+			if i == 4 {
+				status = "merged"
+			}
+			if i == 5 {
+				at = "2026-10-06T00:00:00Z"
+			}
+			exec(`INSERT INTO customer_dup_candidates(new_customer_id,existing_customer_id,phone,status,created_at)
+			  VALUES($1,$2,$3,$4,$5::timestamptz)`, fmt.Sprintf(custD, i), custC, "0811000000", status, at)
+		}
+		const retired = `SELECT dc.id::text, count(*) OVER() FROM customer_dup_candidates dc WHERE dc.status = $1
+		  ORDER BY dc.created_at DESC, dc.id DESC OFFSET $2 LIMIT $3`
+		for _, status := range []string{"pending", "merged", "dismissed"} {
+			for _, pg := range [][2]int{{1, 2}, {2, 2}, {3, 2}, {1, 1}, {9, 2}} {
+				page, limit := pg[0], pg[1]
+				got, total, err := rd.DupCandidates(ctx, status, page, limit)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var gotIDs []string
+				for _, r := range got {
+					gotIDs = append(gotIDs, r.Id.String())
+					if r.NewCustomer.Id.String() == "" || r.ExistingCustomer.Id.String() != custC {
+						t.Errorf("%s: customers not embedded: %+v", status, r)
+					}
+				}
+				wantIDs, wantTotal := legacy(retired, status, (page-1)*limit, limit)
+				if len(wantIDs) == 0 {
+					_, wantTotal = legacy(`SELECT dc.id::text, count(*) OVER() FROM customer_dup_candidates dc WHERE dc.status = $1 LIMIT 1`, status)
+				}
+				sameIDs(t, fmt.Sprintf("%s page %d limit %d", status, page, limit), gotIDs, wantIDs, total, wantTotal)
+			}
+		}
+		// The Customers badge: limit 1 still reports every pending row.
+		if rows, total, _ := rd.DupCandidates(ctx, "pending", 1, 1); len(rows) != 1 || total != 4 {
+			t.Errorf("badge: %d rows total %d, want 1 and 4", len(rows), total)
+		}
+	})
 }

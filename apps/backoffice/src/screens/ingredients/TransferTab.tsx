@@ -20,6 +20,7 @@ import { IngredientReceiveModal } from './IngredientReceiveModal'
 import { SuratJalanIngredientPanel } from './SuratJalanIngredientPanel'
 import { cancelIngredientTransferConfirm, cancelReason, sendIngredientTransferConfirm } from './ingredientTransferConfirm'
 import { useListState } from '../../lib/router/useListState'
+import { usePastEndRedirect } from '../../lib/pastEndRedirect'
 import {
   BAHAN_TRANSFER_SCHEMA,
   bahanDayOf,
@@ -83,6 +84,8 @@ export default function TransferTab() {
   const rows = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  // A page past the end (rows swept or deleted meanwhile) comes back empty with the real total: land on the last page.
+  usePastEndRedirect(q, page, rows.length, totalPages, (hal) => setFilters({ hal }, { replace: true }))
 
   const selected = rows.find((t) => t.id === selectedId) ?? null
 

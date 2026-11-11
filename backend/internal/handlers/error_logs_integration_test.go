@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/handlers"
@@ -199,6 +200,64 @@ func TestErrorLogsPostgres(t *testing.T) {
 		}
 		if n, skipped, err = wr.SweepErrorLogs(ctx, 1000, 20); err != nil || skipped || n != 1 {
 			t.Fatalf("after unlock: n=%d skipped=%v err=%v", n, skipped, err)
+		}
+	})
+
+	t.Run("id-first parity and past-end total", func(t *testing.T) {
+		// Wave 2 C1: rows sharing one created_at, ordered by id DESC, against the retired
+		// count(*) OVER() statement (ids and total only).
+		tie := time.Now().UTC().Add(-72 * time.Hour).Truncate(time.Microsecond) // one instant for all five rows
+		for i := 0; i < 5; i++ {
+			src := "parity-a"
+			if i >= 3 {
+				src = "parity-b"
+			}
+			g.exec(`INSERT INTO error_logs(source,message,created_at) VALUES($1,$2,$3)`, src, fmt.Sprintf("parity-%d", i), tie)
+		}
+		if n := rows(`created_at = '` + tie.Format(time.RFC3339Nano) + `'`); n != 5 {
+			t.Fatalf("expected 5 rows sharing one created_at so the id tie-break is exercised, got %d", n)
+		}
+		rd := read.New(pool)
+		for _, c := range []struct{ name, source, cond string }{
+			{"all", "", ""},
+			{"source", "parity-a", " AND e.source='parity-a'"},
+			{"none", "parity-zzz", " AND e.source='parity-zzz'"},
+		} {
+			for _, pg := range [][2]int{{1, 2}, {2, 2}, {3, 2}, {9, 2}} {
+				page, limit := pg[0], pg[1]
+				got, total, err := rd.ErrorLogs(ctx, "", c.source, "", "", page, limit)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var gotIDs []string
+				for _, r := range got {
+					gotIDs = append(gotIDs, r.Id.String())
+				}
+				where := ` WHERE e.created_at >= now() - interval '60 days'` + c.cond
+				var wantIDs []string
+				wantTotal := 0
+				q, err := pool.Query(ctx, fmt.Sprintf(`SELECT e.id::text, count(*) OVER() FROM error_logs e%s
+				  ORDER BY e.created_at DESC, e.id DESC LIMIT %d OFFSET %d`, where, limit, (page-1)*limit))
+				if err != nil {
+					t.Fatal(err)
+				}
+				for q.Next() {
+					var id string
+					if err := q.Scan(&id, &wantTotal); err != nil {
+						t.Fatal(err)
+					}
+					wantIDs = append(wantIDs, id)
+				}
+				q.Close()
+				if len(wantIDs) == 0 { // past the end: the retired statement had no total
+					if err := pool.QueryRow(ctx, `SELECT count(*) FROM error_logs e`+where).Scan(&wantTotal); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if strings.Join(gotIDs, "|") != strings.Join(wantIDs, "|") || total != wantTotal {
+					t.Errorf("%s page %d: id-first %v total %d, retired %v total %d", c.name, page, gotIDs, total, wantIDs, wantTotal)
+				}
+			}
 		}
 	})
 

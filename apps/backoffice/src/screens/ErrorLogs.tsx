@@ -9,6 +9,7 @@ import { exportToCSV, exportToXLSX, buildExportName } from '../lib/csvUtils'
 import { ERROR_KIND, ERROR_SOURCE } from '../lib/labels/errorSource'
 import { errorMessageText } from '../lib/labels/errorMessage'
 import { labelOf } from '../lib/labels/types'
+import { usePastEndRedirect } from '../lib/pastEndRedirect'
 import { Button } from '../ui/Button'
 import { DataTable, type Column } from '../ui/DataTable'
 import { EmptyState } from '../ui/EmptyState'
@@ -55,6 +56,8 @@ export default function ErrorLogs() {
   const rows = q.data?.data ?? []
   const total = q.data?.meta?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  // A page past the end (rows swept or deleted meanwhile) comes back empty with the real total: land on the last page.
+  usePastEndRedirect(q, page, rows.length, totalPages, setPage)
 
   const exportErrorLogs = async (fmt: ExportFormat) => {
     const all = await fetchAllPages((page, limit) =>

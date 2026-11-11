@@ -45,7 +45,7 @@ import MergeReview from './customers/MergeReview'
 import { SegmentManager } from './customers/SegmentManager'
 import { CustomerEditorHost } from './customers/CustomerEditorHost'
 import { CustomersTable } from './customers/CustomersTable'
-import { customerExportRows, describeCustomerFilters } from './customers/customerExport'
+import { customerExportRows, describeCustomerFilters, exportPageSort, sortBySpend } from './customers/customerExport'
 import { ProductVariantPicker } from './customers/ProductVariantPicker'
 import {
   CUSTOMER_LIST_SCHEMA,
@@ -141,8 +141,11 @@ export default function Customers() {
   )
   // Every customer that matches the filters, not just the visible page.
   const exportCustomers = async (fmt: 'csv' | 'xlsx') => {
-    const all = await fetchAllPages((p, l) => api.listCustomers(p, l, search, sort, tagId, segmentId))
-    if (all.length === 0) return
+    // Spend changes with every sale, so the pages follow creation order and the browser sorts by
+    // spend after a complete, validated fetch (see exportPageSort).
+    const fetched = await fetchAllPages((p, l) => api.listCustomers(p, l, search, exportPageSort(sort), tagId, segmentId))
+    if (fetched.length === 0) return
+    const all = sort === 'belanja' ? sortBySpend(fetched) : fetched
     const rows = customerExportRows(all)
     const name = buildExportName('pelanggan', filterSummary)
     if (fmt === 'csv') exportToCSV(rows, name)
