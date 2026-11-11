@@ -4,11 +4,11 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-11 by Claude (Opus 5.5) - Go 1.26.11 security fix LIVE (backend `00183-nep`); load-test harness (#139) merged; list and export speed (#140) LIVE (backend `00181-yus`, Backoffice `685633a1`); instant permission revocation (#138) LIVE (backend `00179-duv`, mig 0087, Backoffice `01b98f0e`, POS OTA 2.13.9 on the test tablet); role test fixes (#137) LIVE (backend `00177-hab`, Backoffice `6456ed73`); instant-revocation plan drafted on branch `plan/instant-revoke`, waiting on owner decisions; Bluetooth Classic printing (#136) LIVE in APK 2.3 (versionCode 14), verified on the test tablet with the RPP02N; role test done on a local copy (fixes in progress). Earlier: LOW findings (#135) LIVE (backoffice `1043b4c4`, POS OTA 2.13.8 for APK 2.2; not yet seen on a tablet). Earlier: Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09; both P3 fixes LIVE in APK 2.2 (versionCode 13, #134 keyboard + #133 text zoom), installed and verified on the test tablet; tablets on APK 2.1 need 2.2 (OTAs now target code 13); see Progress board.
+Last updated: 2026-11-11 by Claude (Opus 5.5) - perf wave 2 (#142 search + mig 0088, #141 lists/gzip/export order, #143 report tender lines) LIVE (backend `00185-yux`, Backoffice `df62e00d`); Go 1.26.11 security fix LIVE (backend `00183-nep`); load-test harness (#139) merged; list and export speed (#140) LIVE (backend `00181-yus`, Backoffice `685633a1`); instant permission revocation (#138) LIVE (backend `00179-duv`, mig 0087, Backoffice `01b98f0e`, POS OTA 2.13.9 on the test tablet); role test fixes (#137) LIVE (backend `00177-hab`, Backoffice `6456ed73`); instant-revocation plan drafted on branch `plan/instant-revoke`, waiting on owner decisions; Bluetooth Classic printing (#136) LIVE in APK 2.3 (versionCode 14), verified on the test tablet with the RPP02N; role test done on a local copy (fixes in progress). Earlier: LOW findings (#135) LIVE (backoffice `1043b4c4`, POS OTA 2.13.8 for APK 2.2; not yet seen on a tablet). Earlier: Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09; both P3 fixes LIVE in APK 2.2 (versionCode 13, #134 keyboard + #133 text zoom), installed and verified on the test tablet; tablets on APK 2.1 need 2.2 (OTAs now target code 13); see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
-> 2026-11-11: **PERF WAVE 2 (#142 + #141 + #143) MERGED, BACKEND + BACKOFFICE RELEASE IN PROGRESS** (owner: "let's work on the next follow-ups", "Yes, release all three").
+> 2026-11-11: **PERF WAVE 2 (#142 + #141 + #143) LIVE: backend `00185-yux` (mig 0088), Backoffice `df62e00d`** (owner: "let's work on the next follow-ups", "Yes, release all three").
 > - **Plan:** `docs/plans/2026-11-11-perf-followups-wave2.md` (Opus, measured on the 1M-order load database). Decisions recorded: the report rollup is deferred until measured on Neon.
 > - **#142, order search:**
 >   - Migration **0088**: three GIN trigram indexes on `orders` (order number, cashier name, customer name), `lock_timeout` 5 s, and a CONCURRENTLY runbook with a mandatory `indisvalid` check for later, larger databases.
@@ -21,6 +21,11 @@ Last updated: 2026-11-11 by Claude (Opus 5.5) - Go 1.26.11 security fix LIVE (ba
 > - **#143, reports B1:** `tenderlines.SetLines` becomes a LEFT JOIN LATERAL. Summary 2.4 -> 2.1 s, dashboard 4.4 -> 4.1 s, responses byte-identical.
 > - **Reviews:** all three Opus-reviewed, with fixes applied; Opus checked #143's equivalence directly.
 > - **Merges:** `36766a72` / `ffcb8daa` / `6d440e1f` (stacked no-ff). Gate `gate/wave2` 5/5 green. No POS or package change.
+> - **Release:**
+>   - **Backend:** `deploy-backend.sh wave21111` from `6d440e1f` -> `mandalika-pos-00185-yux`, promoted to 100%. ROLLBACK `00183-nep`.
+>   - **Startup:** logged "migrations applied" (0088). Tag and live `/readyz` 200. JSON answers carry `Content-Encoding: gzip`; `/ota/check` is uncompressed. 0 ERROR logs and 0 5xx after promote.
+>   - **Backoffice:** published by `df62e00d` `[skip actions]`. Cloudflare green; the live entry changed from `index-oK8U5Sx7` to `index-DfNrFhYs` (70 -> 72 chunks).
+>   - **Not checked live:** signed-in search and export timing (owner devtools).
 > - **Still slow:** the 365-day all-outlet summary exceeds the 15 s deadline (needs the rollup), and the Orders-screen summary with `q` is about 3-4 s.
 
 > 2026-11-11: **GO 1.26.11 SECURITY FIX (GO-2026-6859 / CVE-2026-97054) LIVE: backend `00183-nep`** (owner: "Yes, release it").
