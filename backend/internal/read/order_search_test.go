@@ -112,6 +112,16 @@ func TestRestrictedShortTermHidesIndex(t *testing.T) {
 			t.Errorf("q=%q: || '' present = %v, want %v\n%s", q, got, hidden, where)
 		}
 	}
+	// POS cashier / CustomerDetail searches keep today's plan (shift or customer index), so the
+	// wrap also applies to a trigram-usable term when a shift or customer filter is present.
+	for name, f := range map[string]OrderFilter{
+		"shift":    {Scope: Scope{CrossAll: true}, Q: "Budi", ShiftID: "s1"},
+		"customer": {Scope: Scope{CrossAll: true}, Q: "Budi", CustomerID: "c1"},
+	} {
+		if where, _ := buildOrderWhere(f); !strings.Contains(where, "(o.order_number || '')") || !strings.Contains(where, "(o.cashier_name || '')") {
+			t.Errorf("%s + q=Budi must hide the trigram indexes:\n%s", name, where)
+		}
+	}
 	where, _ := buildOrderWhere(OrderFilter{Scope: Scope{CrossAll: true}, Q: "ab", CustomerSearch: true})
 	if strings.Contains(where, "|| ''") {
 		t.Error("the CustomerSearch clause must be unchanged")

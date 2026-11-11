@@ -29,6 +29,7 @@ func (e *speedEnv) seedSearchOrders() {
 		{"SRCH-Budi", budi, "SPD Budi Santoso", "Kasir M", "cash", "completed", 1, 4}, // matches both arms
 		{"SRCH-W1", "", "Budi Walkin", "Kasir M", "split", "refunded", 2, 5},          // NULL customer_id, stored name
 		{"SRCH-X1", "", "", "Kasir ab", "cash", "completed", 1, 6},                    // short-term cashier match
+		{"SRCH-O2B", budi, "", "Kasir M", "cash", "completed", 2, 7},                  // outlet 2, linked to Budi, NULL customer_name: only the customer arm matches it
 	}
 	for i, r := range rows {
 		var cust any
@@ -61,11 +62,12 @@ func searchFilters() map[string]read.OrderFilter {
 	out := map[string]read.OrderFilter{}
 	// Selective terms get every filter crossed; broad ones (matching most of the table) only
 	// the bare filter, to keep the 90 s fixture budget.
-	crossed := map[string]bool{"SRCH": true, "Budi": true, "0815000444": true, "0812000111": true, "50%": true, "a_b": true, "ab": true, "walkin": true, "%": true, "_": true}
+	crossed := map[string]bool{"SRCH": true, "Budi": true, "0815000444": true, "0812000111": true, "50%": true, "a_b": true, "ab": true, "walkin": true, "%": true, "_": true, `\`: true, `a\%`: true, "José": true, strings.Repeat("x", 200): true}
 	for _, cs := range []bool{true, false} {
 		for _, q := range []string{
 			"SRCH", "Budi", "0815000444", "0812000111", "+62 812 000 111", "50%", "a_b", "%", "_", "Kasir",
 			"Sari", "walkin", "PX-1", "PX", "ab", "12", "a_", "no-such-zzz", "Kasir M",
+			`\`, `a\%`, "José", strings.Repeat("x", 200),
 		} {
 			tag := fmt.Sprintf("cs=%v/q=%s", cs, q)
 			out[tag] = read.OrderFilter{Scope: all, Q: q, CustomerSearch: cs}
@@ -80,6 +82,8 @@ func searchFilters() map[string]read.OrderFilter {
 			out[tag+"/pay-tender"] = read.OrderFilter{Scope: all, Q: q, CustomerSearch: cs, PaymentMethod: " QRIS"}
 			out[tag+"/refund"] = read.OrderFilter{Scope: all, Q: q, CustomerSearch: cs, DateBasis: "refund"}
 			out[tag+"/refund-days"] = read.OrderFilter{Scope: all, Q: q, CustomerSearch: cs, DateBasis: "refund", DateFrom: "2026-10-03", DateTo: "2026-10-12"}
+			out[tag+"/shift"] = read.OrderFilter{Scope: all, Q: q, CustomerSearch: cs, ShiftID: speedShift(1)}
+			out[tag+"/customer"] = read.OrderFilter{Scope: all, Q: q, CustomerSearch: cs, CustomerID: "00000000-0000-4000-8703-000000000001"}
 			out[tag+"/legacy"] = read.OrderFilter{Scope: all, Q: q, CustomerSearch: cs, LegacyFrom: "2026-10-02", LegacyTo: "2026-10-08"}
 		}
 	}

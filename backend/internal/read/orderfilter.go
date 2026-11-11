@@ -144,10 +144,12 @@ func appendOrderWhere(f OrderFilter, args []any, refundRows bool) (string, []any
 		    AND (c.phone ILIKE $N OR c.name ILIKE $N)))`, "$N", fmt.Sprintf("$%d", n))
 		} else {
 			// A term too short for a trigram would make the planner scan the whole GIN index
-			// (measured 0.6 -> 2.1 s for "ab"). `x || ''` equals x (NULL stays NULL) but the
-			// index cannot match the expression, so the plan stays the sequential scan.
+			// (measured 0.6 -> 2.1 s for "ab"), and a shift- or customer-filtered search (POS
+			// recap, CustomerDetail) must keep driving from idx_orders_shift / the customer
+			// index. `x || ''` equals x (NULL stays NULL) but the trigram index cannot match the
+			// expression, so those plans stay as they were before 0088.
 			orderNo, cashier := "o.order_number", "o.cashier_name"
-			if !trigramUsable(f.Q) {
+			if !trigramUsable(f.Q) || f.ShiftID != "" || f.CustomerID != "" {
 				orderNo, cashier = "(o.order_number || '')", "(o.cashier_name || '')"
 			}
 			clause := ` AND (` + orderNo + ` ILIKE $N OR ` + cashier + ` ILIKE $N`

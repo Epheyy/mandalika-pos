@@ -18,13 +18,20 @@
 --   CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_orders_order_number_trgm  ON orders USING gin (order_number  gin_trgm_ops) WITH (fastupdate = off);
 --   CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_orders_cashier_name_trgm  ON orders USING gin (cashier_name  gin_trgm_ops) WITH (fastupdate = off);
 --   CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_orders_customer_name_trgm ON orders USING gin (customer_name gin_trgm_ops) WITH (fastupdate = off);
--- then confirm pg_index.indisvalid is true for all three (drop and retry any invalid one). The
--- statements below are then no-ops (IF NOT EXISTS).
+-- then CHECK, before deploying (mandatory):
+--   SELECT c.relname, i.indisvalid FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+--    WHERE c.relname IN ('idx_orders_order_number_trgm','idx_orders_cashier_name_trgm','idx_orders_customer_name_trgm');
+-- all three rows must show indisvalid = true. A failed or cancelled CONCURRENTLY build leaves an
+-- INVALID index behind, and the IF NOT EXISTS statements below would silently skip it, so the
+-- search would run without it. Drop any invalid index (DROP INDEX CONCURRENTLY <name>) and
+-- rebuild it, then re-check, before deploying 0088. With all three valid, the statements below
+-- are no-ops.
 --
--- lock_timeout: if a long transaction holds orders, this fails fast instead of queueing behind it
--- (and blocking every later write); the new revision does not become ready and the old one keeps
--- serving. Retry the deploy.
-SET LOCAL lock_timeout = '10s';
+-- lock_timeout: CREATE INDEX needs a SHARE lock on orders. While it waits behind a long
+-- transaction, every new sale/refund INSERT or UPDATE queues behind this request too, so the wait
+-- is capped: after 5 s the statement fails, the new revision does not become ready and the old one
+-- keeps serving. Retry the deploy when no long transaction is open.
+SET LOCAL lock_timeout = '5s';
 CREATE INDEX IF NOT EXISTS idx_orders_order_number_trgm  ON orders USING gin (order_number  gin_trgm_ops) WITH (fastupdate = off);
 CREATE INDEX IF NOT EXISTS idx_orders_cashier_name_trgm  ON orders USING gin (cashier_name  gin_trgm_ops) WITH (fastupdate = off);
 CREATE INDEX IF NOT EXISTS idx_orders_customer_name_trgm ON orders USING gin (customer_name gin_trgm_ops) WITH (fastupdate = off);
