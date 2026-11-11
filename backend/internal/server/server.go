@@ -86,6 +86,9 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	// Server-side context deadline (15 s default, 28 s for long routes, exempt imports);
 	// documented per path in deadlineExceptions.
 	r.Use(mw.Deadline(deadlineFor))
+	// JSON responses (sync pull included) are gzipped for clients that accept it; OTA and auth are
+	// exempt, CSV streams pass through. Remove this line to roll back.
+	r.Use(compressJSON(jsonCompressLevel))
 
 	store := auth.NewStore(database.Pool)
 	// Rights-version check: a revoked role/permission/outlet stops working within seconds.

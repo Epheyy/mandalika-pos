@@ -95,3 +95,39 @@ func TestAbortedStreamReachesTheClientThroughTheMiddlewareChain(t *testing.T) {
 		t.Fatalf("the aborted request has no access-log line:\n%s", out)
 	}
 }
+
+// With the JSON compressor installed, a stream that aborts after its headers and first flushed
+// bytes must still drop the connection: the compressor's deferred Close must not turn the abort
+// into a cleanly finished chunked body.
+func TestAbortedCompressedStreamStillDropsTheConnection(t *testing.T) {
+	sentry, err := observability.NewSentry("", "test", "r")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := chi.NewRouter()
+	useRequestObservers(r, &config.Config{}, sentry, &fakeSink{})
+	r.Use(mw.Deadline(deadlineFor))
+	r.Use(compressJSON(jsonCompressLevel))
+	r.Get("/api/v1/inventory/movements/export", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[1,2,`))
+		w.(http.Flusher).Flush()
+		panic(http.ErrAbortHandler)
+	})
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/inventory/movements/export", nil)
+	req.Header.Set("Accept-Encoding", "gzip")
+	resp, err := (&http.Client{Transport: &http.Transport{DisableCompression: true}}).Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.Header.Get("Content-Encoding") != "gzip" {
+		t.Fatalf("expected a gzip response, got %v", resp.Header)
+	}
+	if body, err := io.ReadAll(resp.Body); err == nil {
+		t.Fatalf("client read %d bytes cleanly: a truncated compressed 200 must fail", len(body))
+	}
+}
