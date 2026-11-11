@@ -8,6 +8,11 @@ Last updated: 2026-11-10 by Claude (Opus 5.5) - list and export speed (#140) LIV
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-11: **GO 1.26.11 SECURITY FIX (GO-2026-6859 / CVE-2026-97054) PUSHED, BACKEND REDEPLOY IN PROGRESS** (owner: "Yes, release it").
+> - **Change:** `356dab61` bumps all 15 Go 1.26.10 pins: go.mod toolchain, both Dockerfiles, the backend/postgres/dependency-security workflows, the CI gate scripts and tests, two runbooks.
+> - **Gate:** `gate/go-1.26.11` 5/5 green. dependency-security first hit a scanner network error (`invalid-scan`, URLError) and passed on re-run.
+> - **No code change, no Backoffice or POS change.** The ERP stub image (`backend/cmd/erpstub/Dockerfile`) is bumped in source but not redeployed.
+
 > 2026-11-11: **LOAD TEST HARNESS (#139) MERGED** (owner: "merge the step 1").
 > - **Merge:** `dad79ffa`, scripts and docs only (`loadtest/`, `docs/qa/2026-11-10-load-test-local.md`).
 > - **Gate:** `gate/loadtest`: quality, backend, postgres and browser green.
