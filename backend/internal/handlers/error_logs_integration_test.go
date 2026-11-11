@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/handlers"
@@ -205,12 +206,16 @@ func TestErrorLogsPostgres(t *testing.T) {
 	t.Run("id-first parity and past-end total", func(t *testing.T) {
 		// Wave 2 C1: rows sharing one created_at, ordered by id DESC, against the retired
 		// count(*) OVER() statement (ids and total only).
+		tie := time.Now().UTC().Add(-72 * time.Hour).Truncate(time.Microsecond) // one instant for all five rows
 		for i := 0; i < 5; i++ {
 			src := "parity-a"
 			if i >= 3 {
 				src = "parity-b"
 			}
-			g.exec(`INSERT INTO error_logs(source,message,created_at) VALUES($1,$2,now() - interval '3 days')`, src, fmt.Sprintf("parity-%d", i))
+			g.exec(`INSERT INTO error_logs(source,message,created_at) VALUES($1,$2,$3)`, src, fmt.Sprintf("parity-%d", i), tie)
+		}
+		if n := rows(`created_at = '` + tie.Format(time.RFC3339Nano) + `'`); n != 5 {
+			t.Fatalf("expected 5 rows sharing one created_at so the id tie-break is exercised, got %d", n)
 		}
 		rd := read.New(pool)
 		for _, c := range []struct{ name, source, cond string }{

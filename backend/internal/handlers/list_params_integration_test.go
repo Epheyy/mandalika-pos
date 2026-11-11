@@ -565,6 +565,8 @@ func TestListParamsPostgres(t *testing.T) {
 		}{
 			{"admin", `true`, read.GoodsReceiptFilter{}, read.Scope{CrossAll: true}},
 			{"supply only", `gr.source = 'supply'`, read.GoodsReceiptFilter{Source: "supply"}, read.Scope{CrossAll: true}},
+			{"q by supplier", `(gr.supplier ILIKE '%sumber%' OR gr.note ILIKE '%sumber%')`, read.GoodsReceiptFilter{Q: "sumber"}, read.Scope{CrossAll: true}},
+			{"location", `COALESCE(gr.warehouse_id,gr.outlet_id) = '` + outA + `'::uuid`, read.GoodsReceiptFilter{LocationID: outA}, read.Scope{CrossAll: true}},
 			{"manager A scope", `(gr.warehouse_id IS NOT NULL OR gr.outlet_id = '` + outA + `')`, read.GoodsReceiptFilter{}, read.Scope{OutletID: outA}},
 		} {
 			for _, pg := range [][2]int{{1, 3}, {2, 3}, {3, 3}, {9, 3}} {
