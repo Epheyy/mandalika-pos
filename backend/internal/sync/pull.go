@@ -77,8 +77,11 @@ type PullBundle struct {
 	LoyaltyConditions any                `json:"loyaltyConditions"`
 	LoyaltySettings   any                `json:"loyaltySettings"`
 	AppSettings       any                `json:"appSettings"`
-	Users             any                `json:"users"`
-	ReceiveApprovers  any                `json:"receiveApprovers"`
+	// BundleCatalog is the derived bundle catalog (large + atomizer + vial offers and each piece's
+	// role and line). Go derives it; the POS never does. Omitted by older servers.
+	BundleCatalog    *api.BundleCatalog `json:"bundleCatalog,omitempty"`
+	Users            any                `json:"users"`
+	ReceiveApprovers any                `json:"receiveApprovers"`
 }
 
 func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (PullBundle, error) {
@@ -147,6 +150,12 @@ func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (Pull
 	if b.AppSettings, err = e.Read.AppSettings(ctx); err != nil {
 		return b, err
 	}
+	// Bundle offers for this outlet, derived from the same sellable variants the pull sends.
+	cat, err := e.Read.BundleCatalog(ctx, sc)
+	if err != nil {
+		return b, err
+	}
+	b.BundleCatalog = &cat
 	// Staff list for the salesman picker (offline-capable; small table).
 	if b.Users, _, err = e.Read.Users(ctx, 1, 100000); err != nil {
 		return b, err
