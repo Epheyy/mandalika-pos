@@ -74,6 +74,7 @@ import { giveawayLine, giveawayStock } from './giveaway'
 import { isLineInBundle, planSizeSwitch, SIZE_SWITCH_BUNDLE_MESSAGE } from './lineSizes'
 import { decideApplyCode } from './promoValidate'
 import { BundleSwapSheet } from './BundleSwapSheet'
+import { bundleReceiptLine, collapseBundleLines, fromOrderItem } from './bundleReceipt'
 import { advanceSwapFlow, buildBundleLines, nextBundleGroup, offerLabel, pieceOut, swapCandidates, type BundleOffer, type SwapFlow, type SwapOption } from './setBundles'
 import { resolveConfirmGuard } from './confirmGuard'
 import { cashierBackLayer } from './backGuard'
@@ -988,7 +989,7 @@ export default function CashierScreen() {
         customerName: state.selectedCustomer?.name ?? null,
         customerPhone: state.selectedCustomer?.phone ?? null,
         cashierName: user?.displayName ?? 'Kasir',
-      })
+      }, (id) => promotions.find((p) => p.id === id)?.name)
       lastReceipt.current = receipt
       lastPayment.current = { paymentMethod: plan.paymentMethod, amountPaid: plan.amountPaid, change: plan.change }
       setPrintError(null)
@@ -1062,13 +1063,17 @@ export default function CashierScreen() {
       orderRef: o.orderNumber,
       pending: false,
       dateTime: new Date(o.clientCreatedAt ?? o.createdAt),
-      lines: o.items.map((i) => ({
-        name: i.productName,
-        variant: variantLabel(i.variantSize) || undefined,
-        qty: i.quantity,
-        unitPrice: i.price,
-        amount: i.subtotal,
-      })),
+      lines: collapseBundleLines(o.items.map((i) => ({ ...fromOrderItem(i), item: i })), (id) => promotions.find((p) => p.id === id)?.name).map((e) =>
+        e.kind === 'bundle'
+          ? bundleReceiptLine(e)
+          : {
+              name: e.line.item.productName,
+              variant: variantLabel(e.line.item.variantSize) || undefined,
+              qty: e.line.item.quantity,
+              unitPrice: e.line.item.price,
+              amount: e.line.item.subtotal,
+            },
+      ),
       subtotal: o.subtotal,
       discountAmount: o.discountAmount,
       taxAmount: o.taxAmount,

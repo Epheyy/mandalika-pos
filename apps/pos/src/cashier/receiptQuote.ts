@@ -1,5 +1,6 @@
 import type { ReceiptData } from '@mandalika/printer'
 import { variantLabel } from '@mandalika/types'
+import { bundleReceiptLine, collapseBundleLines, fromSnapshotLine, type BundleLineSource } from './bundleReceipt'
 
 // A10: the money and lines the cashier showed. Built ONCE inside the sale gate and
 // used twice: embedded in the order payload (quotedTotal + receiptSnapshot) and
@@ -16,6 +17,12 @@ export interface QuoteLineInput {
   subtotal: number
   isBundle?: boolean
   isReward?: boolean
+  bundleGroup?: number
+  bundleRole?: BundleLineSource['bundleRole']
+  bundleLine?: string
+  bundleSize?: string
+  bundleDiscount?: number
+  bundlePromotionId?: string
 }
 
 export interface ReceiptSnapshotLine {
@@ -27,6 +34,13 @@ export interface ReceiptSnapshotLine {
   amount: number
   isReward?: boolean
   isBundle?: boolean
+  /** Bundles: optional, no version bump. The snapshot keeps one line per cart line; the printed slip collapses a group. */
+  bundleGroup?: number
+  bundleRole?: BundleLineSource['bundleRole']
+  bundleLine?: string
+  bundleSize?: string
+  bundleDiscount?: number
+  bundlePromotionId?: string
 }
 
 /** One named deduction on the slip (C1). Same shape the printer takes. */
@@ -118,6 +132,14 @@ export function buildReceiptQuote(input: {
         amount: c.subtotal,
         ...(c.isReward ? { isReward: true as const } : {}),
         ...(c.isBundle ? { isBundle: true as const } : {}),
+        ...(c.bundleGroup != null ? {
+          bundleGroup: c.bundleGroup,
+          ...(c.bundleRole ? { bundleRole: c.bundleRole } : {}),
+          ...(c.bundleLine !== undefined ? { bundleLine: c.bundleLine } : {}),
+          ...(c.bundleSize ? { bundleSize: c.bundleSize } : {}),
+          ...(c.bundleDiscount ? { bundleDiscount: c.bundleDiscount } : {}),
+          ...(c.bundlePromotionId ? { bundlePromotionId: c.bundlePromotionId } : {}),
+        } : {}),
       })),
       ...(tenders && tenders.length > 0 ? { tenders } : {}),
     },
@@ -142,20 +164,26 @@ export function receiptAddsUp(data: ReceiptData): boolean {
 export function receiptFromQuote(
   quote: ReceiptQuote,
   extras: Pick<ReceiptData, 'orderRef' | 'dateTime' | 'paymentLabel' | 'customerName' | 'customerPhone' | 'cashierName'>,
+  /** Name of a promotion by id, for a Diskon Bundle row; absent or unknown prints "Diskon Bundle". */
+  promotionName: (id: string) => string | undefined = () => undefined,
 ): ReceiptData {
   const s = quote.receiptSnapshot
   const itemised = s.v >= 2
   const data: ReceiptData = {
     ...extras,
     pending: false, // client-authoritative number; matches history
-    lines: s.lines.map((l) => ({
-      name: l.name,
-      variant: variantLabel(l.variantSize) || undefined,
-      qty: l.qty,
-      unitPrice: l.unitPrice,
-      amount: l.amount,
-      ...(itemised ? { isReward: l.isReward === true } : {}),
-    })),
+    lines: collapseBundleLines(s.lines.map((l) => ({ ...l, ...fromSnapshotLine(l) })), promotionName).map((e) =>
+      e.kind === 'bundle'
+        ? bundleReceiptLine(e)
+        : {
+            name: e.line.name,
+            variant: variantLabel(e.line.variantSize) || undefined,
+            qty: e.line.qty,
+            unitPrice: e.line.unitPrice,
+            amount: e.line.amount,
+            ...(itemised ? { isReward: e.line.isReward === true } : {}),
+          },
+    ),
     subtotal: s.subtotal,
     discountAmount: s.discountAmount,
     // v1 archives lack these: leave them undefined so the printer falls back to its legacy rows.
