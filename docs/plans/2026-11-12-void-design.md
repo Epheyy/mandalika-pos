@@ -1,6 +1,6 @@
 # Void ("Batalkan transaksi") — design
 
-Date: 2026-11-12. Status: draft, waiting for the owner's approval.
+Date: 2026-11-12. Status: **approved by the owner 2026-11-12**. The ERP part waits on the ERP developer's answers (see the ERP section).
 
 Build order (owner): bundles, then Void, then the receipt designer.
 

@@ -32,7 +32,7 @@ Last updated: 2026-11-12 by Claude (Opus 5.5) - bundles design approved + plan w
 >   - Design `docs/plans/2026-11-12-void-design.md`: "Batalkan & perbaiki" (void and replacement), fully audited, counted on the original day and shift.
 >   - Closed-shift snapshots are never recomputed; corrections are stored as deltas.
 >   - Void gets its own write path, not refund rows, and permissions `void_own_shift` / `void_any`.
->   - The owner confirmed the flow ("use your recommendations"); approval of the written doc is pending.
+>   - The owner confirmed the flow ("use your recommendations") and **approved the written design** (2026-11-12).
 >   - **PREREQUISITE:** the ERP developer must answer three questions (a stockless multi-tender reversal and its document kind, the document date, period closing) before Void's ERP slice.
 > - **Receipt designer:** design `docs/plans/2026-11-12-receipt-designer-design.md` plus its mockup, accepted. Block-based templates, a live preview from the same renderer as the printer, per-outlet templates, 58/80mm paper, and logo/QR codes (to be confirmed on the printer).
 
