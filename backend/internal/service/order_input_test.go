@@ -581,9 +581,7 @@ func TestValidateBundleFields(t *testing.T) {
 		{"reward", mut(func(i *OrderItem) { i.IsReward = true }), "isReward"},
 		{"legacy bundle", mut(func(i *OrderItem) { i.IsBundle = true }), "isBundle"},
 		{"price negative", mut(func(i *OrderItem) { i.BundlePrice = -5 }), "bundlePrice"},
-		{"price fraction", mut(func(i *OrderItem) { i.BundlePrice = 850000.5 }), "bundlePrice"},
 		{"price over max", mut(func(i *OrderItem) { i.BundlePrice = 1_000_000_001 }), "bundlePrice"},
-		{"basis fraction", mut(func(i *OrderItem) { i.BundleBasisPrice = 10.25 }), "bundleBasisPrice"},
 		{"basis over max", mut(func(i *OrderItem) { i.BundleBasisPrice = 2_000_000_000 }), "bundleBasisPrice"},
 		{"role without group", mut(func(i *OrderItem) { i.BundleGroup = 0 }), "bundleRole"},
 		{"price without group", mut(func(i *OrderItem) { i.BundleGroup = 0; i.BundleRole = "" }), "bundlePrice"},
@@ -618,5 +616,27 @@ func TestOrderItemDecodesBundleFields(t *testing.T) {
 	}
 	if it.BundleGroup != 2 || it.BundleRole != "atomizer" || it.BundlePrice != 850000 || it.BundleBasisPrice != 250000 {
 		t.Fatalf("decoded %+v", it)
+	}
+}
+
+func TestOfflineBundleFieldsNeverRejectTheSale(t *testing.T) {
+	bad := bundleLine("box", 1) // invalid role
+	in := CreateOrderInput{PaymentMethod: "cash", Offline: true, Items: []OrderItem{bad}}
+	if err := ValidateSaleInput(in); err != nil {
+		t.Fatalf("a synced sale was rejected for a bundle field: %v", err)
+	}
+	if w := sanitizeOfflineBundleFields(&in); w != string(ViolationBundleInvalid) {
+		t.Fatalf("warn = %q", w)
+	}
+	if it := in.Items[0]; it.BundleGroup != 0 || it.BundleRole != "" || it.BundlePrice != 0 || it.BundleBasisPrice != 0 {
+		t.Fatalf("bundle fields not stripped: %+v", it)
+	}
+	if w := sanitizeOfflineBundleFields(&in); w != "" {
+		t.Fatalf("a clean sale was flagged: %q", w)
+	}
+	frac := bundleLine("large", 1)
+	frac.BundleBasisPrice = 125000.5
+	if err := validateBundleFields([]OrderItem{frac}); err != nil {
+		t.Fatalf("fractional basis refused: %v", err)
 	}
 }

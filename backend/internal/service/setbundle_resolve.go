@@ -96,6 +96,7 @@ func buildSetBundleGroups(items []OrderItem, variants map[variantRef]bundles.Var
 // already happened) and flagged; the pieces keep their group so the refund group still forms.
 // The returned warn reason is joined into the order's discount_warning_reason.
 func (s *OrderService) resolveSetBundles(ctx context.Context, tx pgx.Tx, in *CreateOrderInput) (string, error) {
+	warnStripped := sanitizeOfflineBundleFields(in)
 	var refs []variantRef
 	has := false
 	for _, it := range in.Items {
@@ -105,7 +106,7 @@ func (s *OrderService) resolveSetBundles(ctx context.Context, tx pgx.Tx, in *Cre
 		}
 	}
 	if !has {
-		return "", nil
+		return warnStripped, nil
 	}
 	prices, err := bundles.LoadPrices(ctx, tx)
 	if err != nil {
@@ -136,6 +137,10 @@ func (s *OrderService) resolveSetBundles(ctx context.Context, tx pgx.Tx, in *Cre
 			line, size := keptBundleLineSize(g)
 			for _, p := range g.pieces {
 				in.Items[p.idx].bundle = &setBundleInfo{line: line, size: size}
+				if in.Items[p.idx].Price <= 0 {
+					// the tablet's own price is kept, but a free piece must be visible to the ERP owner
+					addWarns([]PromoViolation{ViolationBundleZeroPiece})
+				}
 			}
 			continue
 		}
@@ -151,7 +156,27 @@ func (s *OrderService) resolveSetBundles(ctx context.Context, tx pgx.Tx, in *Cre
 			}
 		}
 	}
-	return JoinViolations(warns), nil
+	if w := JoinViolations(warns); w != "" {
+		if warnStripped != "" {
+			return warnStripped + "," + w, nil
+		}
+		return w, nil
+	}
+	return warnStripped, nil
+}
+
+// sanitizeOfflineBundleFields keeps a synced sale whose bundle fields fail the structural check:
+// the bundle fields are removed from every line (the sale is kept as the tablet captured it) and
+// the sale is flagged bundle_invalid. Online sales are rejected earlier, in ValidateSaleInput.
+func sanitizeOfflineBundleFields(in *CreateOrderInput) string {
+	if !in.Offline || validateBundleFields(in.Items) == nil {
+		return ""
+	}
+	for i := range in.Items {
+		in.Items[i].BundleGroup, in.Items[i].BundleRole = 0, ""
+		in.Items[i].BundlePrice, in.Items[i].BundleBasisPrice = 0, 0
+	}
+	return string(ViolationBundleInvalid)
 }
 
 // keptBundleLineSize is the line and size of an unvalidated group, from whatever classified.

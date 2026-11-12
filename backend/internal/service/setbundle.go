@@ -14,6 +14,9 @@ const (
 	// ViolationBundleBasisReplaced: a synced sale's split basis failed the MinNet rule, so the
 	// catalog basis was used instead. A warning only, never a 422.
 	ViolationBundleBasisReplaced PromoViolation = "bundle_basis_replaced"
+	// ViolationBundleZeroPiece: a kept (invalid, synced) bundle has a piece at Rp0, which would
+	// reach the ERP as a free line. A flag only.
+	ViolationBundleZeroPiece PromoViolation = "bundle_zero_piece"
 )
 
 // setBundlePiece is one sale line of a bundle group as the pricing core needs it.

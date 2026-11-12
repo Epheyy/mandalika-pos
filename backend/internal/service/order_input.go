@@ -95,8 +95,12 @@ func ValidateSaleInput(in CreateOrderInput) error {
 	if err := validateSaleItems(in.Items, true); err != nil {
 		return err
 	}
-	if err := validateBundleFields(in.Items); err != nil {
-		return err
+	// A synced (offline) sale already happened: a bad bundle field never rejects it. The sale path
+	// strips the bundle fields and flags it instead (sanitizeOfflineBundleFields).
+	if !in.Offline {
+		if err := validateBundleFields(in.Items); err != nil {
+			return err
+		}
 	}
 	_, hasTenders, err := parseTenders(in.Tenders)
 	if err != nil {
@@ -204,8 +208,9 @@ func validateBundleFields(items []OrderItem) error {
 			if err := saleMoney(field+"."+m.name, m.v); err != nil {
 				return err
 			}
-			if m.v != math.Trunc(m.v) || m.v > float64(bundles.MaxBundleMoney) {
-				return saleInputError(field+"."+m.name, "harus rupiah utuh dalam batas yang didukung")
+			// Fractional rupiah (a numeric(14,2) catalog price) is rounded by the server, not refused.
+			if m.v > float64(bundles.MaxBundleMoney) {
+				return saleInputError(field+"."+m.name, "melebihi batas yang didukung")
 			}
 		}
 	}
