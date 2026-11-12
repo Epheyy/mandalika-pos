@@ -197,6 +197,15 @@ describe('decideApplyCode — linked codes', () => {
     expect(result.code.promotion).toBeUndefined()
   })
 
+  it('unlinked code carries its own combinable flag (missing flag = exclusive)', () => {
+    const base: DiscountCode = { id: 'u1', code: 'FLAT', type: 'fixed', value: 5000, usageCount: 0, isActive: true, createdAt: '2026-01-01T00:00:00Z' } as DiscountCode
+    const yes = decideApplyCode('FLAT', [{ ...base, combinable: true }], baseCtx, [])
+    const no = decideApplyCode('FLAT', [{ ...base, combinable: false }], baseCtx, [])
+    const unset = decideApplyCode('FLAT', [base], baseCtx, [])
+    if (!yes.ok || !no.ok || !unset.ok) throw new Error('expected ok')
+    expect([yes.code.combinable, no.code.combinable, unset.code.combinable]).toEqual([true, false, false])
+  })
+
   it('code search is case-insensitive for linked codes', () => {
     const result = decideApplyCode('atm100', [linkedCode], baseCtx, [linkedPromo])
     expect(result.ok).toBe(true)

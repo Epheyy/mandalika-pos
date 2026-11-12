@@ -340,6 +340,14 @@ describe('Diskon Bundle auto-apply', () => {
     expect(r.next.cart.reduce((n, c) => n + c.subtotal, 0)).toBe(850000)
   })
 
+  it('reconcileAutoPromos keeps Diskon Bundle beside a combinable standalone code', () => {
+    const s = stateWith(bundleCart(), { appliedPromoCodes: [{ code: 'X', value: 5, type: 'percentage', combinable: true }] })
+    const r = run(s, [diskon('d', 'percentage', 10)])
+    expect(ids(r)).toEqual(['d'])
+    expect(r.next.appliedPromoCodes).toHaveLength(1)
+    expect(r.next.cart.reduce((n, c) => n + c.subtotal, 0)).toBe(765000)
+  })
+
   it('settle drops a Diskon Bundle that wins no bundle', () => {
     const r = run(base(), [diskon('small', 'percentage', 10), diskon('big', 'fixed', 100000)])
     expect(ids(r)).toEqual(['big'])

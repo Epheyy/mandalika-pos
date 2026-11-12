@@ -197,5 +197,6 @@ export function decideApplyCode(
 
   // Unlinked code: today's behavior unchanged
   if (codeViolations.length > 0) return { ok: false, reason: violationMessage(codeViolations[0]) }
-  return { ok: true, code: { code: dc.code, value: dc.value, type: dc.type } }
+  // Twin of the server's unlinked-code branch: the code's own flag gates stacking (a missing flag is exclusive).
+  return { ok: true, code: { code: dc.code, value: dc.value, type: dc.type, combinable: dc.combinable ?? false } }
 }
