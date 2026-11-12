@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import type { components } from '@mandalika/api'
 import { calcPromoDiscount, formatRupiah, linkedPromoShape } from './pricing'
-import { tieredOneLiner } from './promoCopy'
+import { BUNDLE_DISCOUNT_LABEL, tieredOneLiner } from './promoCopy'
 import type { BundleFreedUnit } from './bundle'
 import { validatePromo, violationMessage, type AppliedPromoCode } from './promoValidate'
 import { Button } from '../components/ui/Button'
@@ -73,6 +73,8 @@ function promoRuleLabel(p: Promotion): string {
     base = 'Beli lebih, hemat lebih'
   } else if (p.type === 'bundle') {
     base = 'Paket Bundel'
+  } else if (p.type === 'bundle_discount') {
+    base = `${BUNDLE_DISCOUNT_LABEL} ${p.bundleDiscountConfig?.kind === 'percentage' ? `${p.value}%` : formatRupiah(p.value)}`
   } else base = 'Beli 1 gratis 1'
   return p.minPurchase ? `${base} · Min. ${formatRupiah(p.minPurchase)}` : base
 }
@@ -80,6 +82,7 @@ function promoRuleLabel(p: Promotion): string {
 // Rule label for an applied code chip
 const codeRuleLabel = (c: AppliedPromoCode): string => {
     if (c.promotion) {
+      if (c.promotion.type === 'bundle_discount') return `${BUNDLE_DISCOUNT_LABEL} (via promo)`
       return c.promotion.isBOGO
         ? 'Beli 1 gratis 1 (via promo)'
         : c.promotion.type === 'percentage'
@@ -139,6 +142,7 @@ export const PromoPanel = memo(function PromoPanel({
       const freed = bundleFreed[p.id] ?? []
       return freed.reduce((sum, f) => sum + (f.fullPrice - f.net) * f.quantity, 0)
     }
+    if (p.type === 'bundle_discount') return cart.reduce((sum, c) => (c.bundlePromotionId === p.id ? sum + (c.bundleDiscount ?? 0) : sum), 0)
     return calcPromoDiscount(p, cart, subtotal)
   }
 

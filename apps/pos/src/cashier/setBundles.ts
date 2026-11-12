@@ -8,9 +8,12 @@
 import type { components } from '@mandalika/api'
 import type { CashierState } from './state/cashierReducer'
 import { stockFor } from './stock'
+import { linkedPromoShape } from './pricing'
+import { effectivePromotionSelection } from './promotionSelection'
 
 type CartItem = components['schemas']['CartItem']
 type Product = components['schemas']['Product']
+type Promotion = components['schemas']['Promotion']
 export type BundleCatalog = components['schemas']['BundleCatalog']
 export type BundleOffer = components['schemas']['BundleOffer']
 export type BundleRole = 'large' | 'atomizer' | 'vial'
@@ -174,41 +177,113 @@ export function swapCandidates(
   return out.sort((a, b) => a.productName.localeCompare(b.productName))
 }
 
-/** Reprices every bundle group to `bundlePrice` split over the pieces' basis prices (Diskon Bundle is 0 in
- *  Phase 3). Never throws: a group that is incomplete, has a basis of 0 or less, or a net under `minNet`
- *  keeps its prices. Returns the same object when nothing changed. */
-export function repriceBundles(state: CashierState): CashierState {
+/** Twin of Go `bestBundleDiscount`: the biggest Diskon Bundle for one bundle (a tie goes to the smaller promotion
+ *  id), clamped to `price - minNet(basis)` and floored at 0. Line '' matches only an empty `lines` list. */
+export function bestBundleDiscount(
+  price: number,
+  line: string,
+  size: string,
+  basis: Basis,
+  promos: readonly Promotion[],
+): { amount: number; promotionId?: string } {
+  const limit = price - minNet(basis)
+  let amount = 0
+  let promotionId: string | undefined
+  for (const p of promos) {
+    const c = p.type === 'bundle_discount' ? p.bundleDiscountConfig : null
+    if (!c) continue
+    if ((c.lines ?? []).length > 0 && !(c.lines ?? []).includes(line)) continue
+    if ((c.sizes ?? []).length > 0 && !(c.sizes ?? []).includes(size)) continue
+    const raw = c.kind === 'percentage' ? Math.round((price * p.value) / 100) : Math.round(p.value)
+    const d = Math.max(Math.min(raw, limit), 0)
+    if (d > amount || (d === amount && d > 0 && promotionId !== undefined && p.id < promotionId)) {
+      amount = d
+      promotionId = p.id
+    }
+  }
+  return promotionId === undefined ? { amount: 0 } : { amount, promotionId }
+}
+
+/** Every Diskon Bundle in force: direct promotions plus the promotions behind linked codes. */
+function effectiveBundleDiscounts(state: Pick<CashierState, 'appliedPromotions' | 'appliedPromoCodes'>): Promotion[] {
+  const sel = effectivePromotionSelection(state.appliedPromotions, state.appliedPromoCodes)
+  return [
+    ...sel.appliedPromotions.filter((p) => p.type === 'bundle_discount'),
+    ...sel.appliedPromoCodes.filter((c) => c.promotion?.type === 'bundle_discount').map(linkedPromoShape),
+  ]
+}
+
+interface BundleGroupInfo {
+  lines: { L: CartItem; A: CartItem; V: CartItem }
+  price: number
+  line: string
+  size: string
+  basis: Basis
+}
+
+/** The complete, priceable bundle groups of a cart (same guards as `repriceBundles`). */
+function bundleGroupInfos(cart: CartItem[]): BundleGroupInfo[] {
   const groups = new Map<number, CartItem[]>()
-  for (const c of state.cart) {
+  for (const c of cart) {
     if (c.bundleGroup == null) continue
     groups.set(c.bundleGroup, [...(groups.get(c.bundleGroup) ?? []), c])
   }
-  if (groups.size === 0) return state
-  const shareOf = new Map<CartItem, number>()
+  const out: BundleGroupInfo[] = []
   for (const lines of groups.values()) {
     const by = (role: BundleRole) => lines.find((l) => l.bundleRole === role)
     const L = by('large')
     const A = by('atomizer')
     const V = by('vial')
     if (lines.length !== 3 || !L || !A || !V) continue
-    const net = L.bundlePrice ?? 0
+    const price = L.bundlePrice ?? 0
     const basis: Basis = [L.bundleBasisPrice ?? 0, A.bundleBasisPrice ?? 0, V.bundleBasisPrice ?? 0]
+    if (basis.some((b) => !(b > 0)) || price < minNet(basis)) continue
+    out.push({ lines: { L, A, V }, price, line: L.bundleLine ?? '', size: L.bundleSize ?? '', basis })
+  }
+  return out
+}
+
+/** True when `promo` would give at least one bundle in the cart a discount (it ignores other promotions). */
+export function bundleDiscountMatches(promo: Promotion, cart: CartItem[]): boolean {
+  return bundleGroupInfos(cart).some((g) => bestBundleDiscount(g.price, g.line, g.size, g.basis, [promo]).amount > 0)
+}
+
+/** Σ per bundle of max(0, best(applied + promo) - current discount): what adding `promo` would save. */
+export function bundleDiscountGain(promo: Promotion, state: CashierState): number {
+  const applied = effectiveBundleDiscounts(state)
+  const withPromo = applied.some((p) => p.id === promo.id) ? applied : [...applied, promo]
+  return bundleGroupInfos(state.cart).reduce((n, g) => {
+    const current = g.lines.L.bundleDiscount ?? 0
+    return n + Math.max(0, bestBundleDiscount(g.price, g.line, g.size, g.basis, withPromo).amount - current)
+  }, 0)
+}
+
+/** Reprices every bundle group to `bundlePrice` less the biggest applicable Diskon Bundle, split over the pieces'
+ *  basis prices. Never throws: a group that is incomplete, has a basis of 0 or less, or a net under `minNet`
+ *  keeps its prices. Returns the same object when nothing changed. */
+export function repriceBundles(state: CashierState): CashierState {
+  const groups = bundleGroupInfos(state.cart)
+  if (groups.length === 0) return state
+  const promos = effectiveBundleDiscounts(state)
+  const target = new Map<CartItem, { share: number; disc: number; promoId?: string }>()
+  for (const g of groups) {
     try {
-      if (basis.some((b) => !(b > 0)) || net < minNet(basis)) continue
-      const shares = splitBundleAmount(net, basis)
-      shareOf.set(L, shares[0])
-      shareOf.set(A, shares[1])
-      shareOf.set(V, shares[2])
+      const { amount, promotionId } = bestBundleDiscount(g.price, g.line, g.size, g.basis, promos)
+      const shares = splitBundleAmount(g.price - amount, g.basis)
+      const discs = amount > 0 ? splitBundleAmount(amount, g.basis) : [0, 0, 0]
+      ;[g.lines.L, g.lines.A, g.lines.V].forEach((l, i) => target.set(l, { share: shares[i], disc: discs[i], promoId: amount > 0 ? promotionId : undefined }))
     } catch {
       // a bad basis or price: keep the group as it is
     }
   }
   let changed = false
   const cart = state.cart.map((c) => {
-    const share = shareOf.get(c)
-    if (share === undefined || (c.price === share && c.subtotal === share && c.bundleDiscount === 0)) return c
+    const t = target.get(c)
+    if (!t) return c
+    if (c.price === t.share && c.subtotal === t.share && (c.bundleDiscount ?? 0) === t.disc && c.bundlePromotionId === t.promoId) return c
     changed = true
-    return { ...c, price: share, subtotal: share, bundleDiscount: 0 }
+    const { bundlePromotionId: _old, ...rest } = c
+    return { ...rest, price: t.share, subtotal: t.share, bundleDiscount: t.disc, ...(t.promoId ? { bundlePromotionId: t.promoId } : {}) }
   })
   return changed ? { ...state, cart } : state
 }

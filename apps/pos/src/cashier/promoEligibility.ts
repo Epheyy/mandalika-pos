@@ -1,11 +1,13 @@
 import type { components } from '@mandalika/api'
 import { bundleApplications, bxgyRewardDue } from './pricing'
+import { bundleDiscountMatches } from './setBundles'
+import { BUNDLE_DISCOUNT_UNMET } from './promoCopy'
 
 type Promotion = components['schemas']['Promotion']
 type CartItem = components['schemas']['CartItem']
 
 /** Which cart precondition (beyond date/min/day/hours gating) a promo fails. */
-export type UnmetPrecondition = 'bxgy' | 'bundle'
+export type UnmetPrecondition = 'bxgy' | 'bundle' | 'bundle-discount'
 
 /** SEPARATE-SET buy_x_get_y (non-empty getProductIds) is a reward giveaway. */
 export function isSeparateSetBxgy(promo: Promotion): boolean {
@@ -19,6 +21,7 @@ export function isSeparateSetBxgy(promo: Promotion): boolean {
  * - buy_x_get_y separate-set: the buy criteria must earn at least one reward
  *   unit. SAME-SET discounts in place, so it needs `savings > 0`.
  * - bundle: at least one complete set must be buildable from the paid lines.
+ * - bundle_discount: at least one bundle in the cart must match its lines/sizes.
  *
  * `candidateCart` is the cart as it will be once the promo is selected
  * (takeover / exclusive restoration already applied); `savings` is
@@ -36,6 +39,7 @@ export function unmetCartPrecondition(
       : savings <= 0
     return unmet ? 'bxgy' : null
   }
+  if (promo.type === 'bundle_discount') return bundleDiscountMatches(promo, candidateCart) ? null : 'bundle-discount'
   if (
     promo.type === 'bundle' &&
     bundleApplications(promo.bundleConfig, candidateCart.filter((c) => !c.isReward && c.bundleGroup == null)) < 1
@@ -46,5 +50,6 @@ export function unmetCartPrecondition(
 }
 
 export function unmetPreconditionLabel(unmet: UnmetPrecondition): string {
+  if (unmet === 'bundle-discount') return BUNDLE_DISCOUNT_UNMET
   return unmet === 'bxgy' ? 'Syarat beli belum terpenuhi' : 'Syarat bundle belum terpenuhi'
 }
