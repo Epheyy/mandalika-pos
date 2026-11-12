@@ -158,6 +158,12 @@ func bundleReportSubtests(
 		}
 	})
 
+	t.Run("bundle_report_no_outlet_fails_closed", func(t *testing.T) {
+		if code, _ := report("manager", "", []string{"view_reports"}, ""); code != 403 {
+			t.Errorf("non-admin with no outlet = %d, want 403", code)
+		}
+	})
+
 	t.Run("bundle_report_bad_date", func(t *testing.T) {
 		if code, _ := report("admin", "", []string{"view_reports"}, "?dateFrom=nope"); code != 400 {
 			t.Errorf("bad date = %d, want 400", code)

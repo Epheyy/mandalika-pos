@@ -547,10 +547,16 @@ func (h *Handlers) BundleReport(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), bundleReportTimeout)
 	defer cancel()
+	sc := scope(r)
+	if !sc.CrossAll && sc.OutletID == "" {
+		// A non-admin with no outlet must never read as "all outlets": fail closed.
+		httpx.Err(w, http.StatusForbidden, "Outlet aktif belum dipilih untuk akun ini.")
+		return
+	}
 	out, err := h.Repo.BundleReport(ctx, read.BundleReportFilters{
 		DateFrom: q.Get("dateFrom"),
 		DateTo:   q.Get("dateTo"),
-		OutletID: scope(r).OutletID, // scope-clamped: non-admin → their outlet; admin → ?outletId/all/header
+		OutletID: sc.OutletID, // scope-clamped; "" only for an admin on all outlets
 	})
 	if err != nil {
 		writeErr(w, r, 500, err)
