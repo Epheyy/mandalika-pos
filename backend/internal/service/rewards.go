@@ -76,7 +76,7 @@ func (s *OrderService) resolveRewardLines(ctx context.Context, tx pgx.Tx, in *Cr
 	// lines must NOT count as buy units).
 	var paid []LineItem
 	for _, it := range in.Items {
-		if it.IsReward {
+		if it.IsReward || it.BundleGroup > 0 { // bundle pieces never earn or anchor a reward
 			continue
 		}
 		paid = append(paid, LineItem{ProductID: it.ProductID, VariantSize: it.VariantSize, Price: it.Price, Quantity: it.Quantity, Subtotal: it.Subtotal})
@@ -225,7 +225,7 @@ func (s *OrderService) resolveBundleLines(ctx context.Context, tx pgx.Tx, in *Cr
 	// Paid (non-reward) lines are shared across all bundle promos in this order.
 	var paid []LineItem
 	for _, it := range in.Items {
-		if it.IsReward {
+		if it.IsReward || it.BundleGroup > 0 { // bundle pieces never earn or anchor a reward
 			continue
 		}
 		paid = append(paid, LineItem{ProductID: it.ProductID, VariantSize: it.VariantSize, Price: it.Price, Quantity: it.Quantity})

@@ -547,3 +547,96 @@ func TestSaleBumpsOutletStockSeqOnceAndLast(t *testing.T) {
 		}
 	}
 }
+
+func bundleLine(role string, group int) OrderItem {
+	return OrderItem{
+		ProductID: "p1", ProductName: "CHAMPION", VariantSize: "120ml", Price: 675498, Quantity: 1, Subtotal: 675498,
+		BundleGroup: group, BundleRole: role, BundlePrice: 850000, BundleBasisPrice: 1200000,
+	}
+}
+
+func TestValidateBundleFields(t *testing.T) {
+	valid := []OrderItem{bundleLine("large", 1), bundleLine("atomizer", 1), bundleLine("vial", 1)}
+	if err := validateBundleFields(valid); err != nil {
+		t.Fatalf("valid group rejected: %v", err)
+	}
+	if err := validateBundleFields([]OrderItem{{ProductID: "p", Price: 1, Quantity: 2, Subtotal: 2}}); err != nil {
+		t.Fatalf("plain line rejected: %v", err)
+	}
+	mut := func(f func(*OrderItem)) []OrderItem {
+		it := bundleLine("large", 1)
+		f(&it)
+		return []OrderItem{it}
+	}
+	cases := []struct {
+		name  string
+		items []OrderItem
+		field string
+	}{
+		{"group negative", mut(func(i *OrderItem) { i.BundleGroup = -1 }), "bundleGroup"},
+		{"group too big", mut(func(i *OrderItem) { i.BundleGroup = 32768 }), "bundleGroup"},
+		{"bad role", mut(func(i *OrderItem) { i.BundleRole = "box" }), "bundleRole"},
+		{"empty role", mut(func(i *OrderItem) { i.BundleRole = "" }), "bundleRole"},
+		{"qty 2", mut(func(i *OrderItem) { i.Quantity = 2; i.Subtotal = 1350996 }), "quantity"},
+		{"reward", mut(func(i *OrderItem) { i.IsReward = true }), "isReward"},
+		{"legacy bundle", mut(func(i *OrderItem) { i.IsBundle = true }), "isBundle"},
+		{"price negative", mut(func(i *OrderItem) { i.BundlePrice = -5 }), "bundlePrice"},
+		{"price over max", mut(func(i *OrderItem) { i.BundlePrice = 1_000_000_001 }), "bundlePrice"},
+		{"basis over max", mut(func(i *OrderItem) { i.BundleBasisPrice = 2_000_000_000 }), "bundleBasisPrice"},
+		{"role without group", mut(func(i *OrderItem) { i.BundleGroup = 0 }), "bundleRole"},
+		{"price without group", mut(func(i *OrderItem) { i.BundleGroup = 0; i.BundleRole = "" }), "bundlePrice"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := validateBundleFields(c.items)
+			if err == nil {
+				t.Fatal("accepted, want a 400")
+			}
+			if !errors.Is(err, ErrSaleInput) || !strings.Contains(err.Error(), c.field) {
+				t.Fatalf("error %q: want ErrSaleInput naming %s", err, c.field)
+			}
+		})
+	}
+}
+
+func TestValidateSaleInputChecksBundleFields(t *testing.T) {
+	in := CreateOrderInput{PaymentMethod: "cash", Items: []OrderItem{bundleLine("large", 1)}}
+	in.Items[0].BundleRole = "box"
+	if err := ValidateSaleInput(in); !errors.Is(err, ErrSaleInput) {
+		t.Fatalf("ValidateSaleInput = %v, want ErrSaleInput", err)
+	}
+}
+
+func TestOrderItemDecodesBundleFields(t *testing.T) {
+	raw := `{"productId":"p1","productName":"X","variantSize":"120ml","price":675498,"quantity":1,"subtotal":675498,
+		"bundleGroup":2,"bundleRole":"atomizer","bundlePrice":850000,"bundleBasisPrice":250000}`
+	var it OrderItem
+	if err := json.Unmarshal([]byte(raw), &it); err != nil {
+		t.Fatal(err)
+	}
+	if it.BundleGroup != 2 || it.BundleRole != "atomizer" || it.BundlePrice != 850000 || it.BundleBasisPrice != 250000 {
+		t.Fatalf("decoded %+v", it)
+	}
+}
+
+func TestOfflineBundleFieldsNeverRejectTheSale(t *testing.T) {
+	bad := bundleLine("box", 1) // invalid role
+	in := CreateOrderInput{PaymentMethod: "cash", Offline: true, Items: []OrderItem{bad}}
+	if err := ValidateSaleInput(in); err != nil {
+		t.Fatalf("a synced sale was rejected for a bundle field: %v", err)
+	}
+	if w := sanitizeOfflineBundleFields(&in); w != string(ViolationBundleInvalid) {
+		t.Fatalf("warn = %q", w)
+	}
+	if it := in.Items[0]; it.BundleGroup != 0 || it.BundleRole != "" || it.BundlePrice != 0 || it.BundleBasisPrice != 0 {
+		t.Fatalf("bundle fields not stripped: %+v", it)
+	}
+	if w := sanitizeOfflineBundleFields(&in); w != "" {
+		t.Fatalf("a clean sale was flagged: %q", w)
+	}
+	frac := bundleLine("large", 1)
+	frac.BundleBasisPrice = 125000.5
+	if err := validateBundleFields([]OrderItem{frac}); err != nil {
+		t.Fatalf("fractional basis refused: %v", err)
+	}
+}

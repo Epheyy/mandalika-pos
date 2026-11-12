@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/mandalika/pos-backend/internal/apperr"
+	"github.com/mandalika/pos-backend/internal/bundles"
 	"math"
 	"strings"
 )
@@ -94,6 +95,13 @@ func ValidateSaleInput(in CreateOrderInput) error {
 	if err := validateSaleItems(in.Items, true); err != nil {
 		return err
 	}
+	// A synced (offline) sale already happened: a bad bundle field never rejects it. The sale path
+	// strips the bundle fields and flags it instead (sanitizeOfflineBundleFields).
+	if !in.Offline {
+		if err := validateBundleFields(in.Items); err != nil {
+			return err
+		}
+	}
 	_, hasTenders, err := parseTenders(in.Tenders)
 	if err != nil {
 		return err
@@ -158,6 +166,53 @@ func validateSalePricing(res PricingResult) error {
 func salePoints(field string, value float64) error {
 	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 || value > math.MaxInt32 {
 		return saleInputError(field, "di luar rentang integer nonnegatif")
+	}
+	return nil
+}
+
+// validateBundleFields is the structural check of the bundle fields on sale lines. Whether the
+// three pieces really form a valid bundle is semantic and decided by resolveSetBundles.
+func validateBundleFields(items []OrderItem) error {
+	for i, it := range items {
+		field := fmt.Sprintf("items[%d]", i)
+		if it.BundleGroup < 0 || it.BundleGroup > 32767 {
+			return saleInputError(field+".bundleGroup", "harus 1 sampai 32767")
+		}
+		if it.BundleGroup == 0 {
+			if it.BundleRole != "" {
+				return saleInputError(field+".bundleRole", "hanya boleh diisi pada baris bundle")
+			}
+			if it.BundlePrice != 0 || it.BundleBasisPrice != 0 {
+				return saleInputError(field+".bundlePrice", "hanya boleh diisi pada baris bundle")
+			}
+			continue
+		}
+		switch it.BundleRole {
+		case "large", "atomizer", "vial":
+		default:
+			return saleInputError(field+".bundleRole", "harus large, atomizer atau vial")
+		}
+		if it.Quantity != 1 {
+			return saleInputError(field+".quantity", "baris bundle harus berjumlah 1")
+		}
+		if it.IsReward {
+			return saleInputError(field+".isReward", "tidak boleh pada baris bundle")
+		}
+		if it.IsBundle {
+			return saleInputError(field+".isBundle", "tidak boleh pada baris bundle")
+		}
+		for _, m := range []struct {
+			name string
+			v    float64
+		}{{"bundlePrice", it.BundlePrice}, {"bundleBasisPrice", it.BundleBasisPrice}} {
+			if err := saleMoney(field+"."+m.name, m.v); err != nil {
+				return err
+			}
+			// Fractional rupiah (a numeric(14,2) catalog price) is rounded by the server, not refused.
+			if m.v > float64(bundles.MaxBundleMoney) {
+				return saleInputError(field+"."+m.name, "melebihi batas yang didukung")
+			}
+		}
 	}
 	return nil
 }

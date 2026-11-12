@@ -268,18 +268,32 @@ func promoEligibleLines(p *PromoSpec, items []LineItem) []int {
 	switch p.Kind {
 	case DiscountBuyXGetY:
 		if p.BXGY == nil || len(p.BXGY.BuyProductIDs) == 0 {
-			return nil
+			return nonBundleLinesIfAny(items)
 		}
 		return matchingLines(items, func(i LineItem) bool {
-			return keyMatchesLine(p.BXGY.BuyProductIDs, i.ProductID, i.VariantSize)
+			return !i.InBundle && keyMatchesLine(p.BXGY.BuyProductIDs, i.ProductID, i.VariantSize)
 		})
 	case DiscountTiered, DiscountBundle:
 		return nil
 	}
 	if len(p.ApplicableProductIDs) == 0 {
+		if p.IsBOGO {
+			return nonBundleLinesIfAny(items)
+		}
 		return nil
 	}
-	return matchingLines(items, func(i LineItem) bool { return contains(p.ApplicableProductIDs, i.ProductID) })
+	return matchingLines(items, func(i LineItem) bool { return !i.InBundle && contains(p.ApplicableProductIDs, i.ProductID) })
+}
+
+// nonBundleLinesIfAny is nil ("every line") when no line is a bundle piece, else the indices of
+// the lines that are not. Used by the unscoped product-keyed promos, which never count a piece.
+func nonBundleLinesIfAny(items []LineItem) []int {
+	for _, i := range items {
+		if i.InBundle {
+			return matchingLines(items, func(l LineItem) bool { return !l.InBundle })
+		}
+	}
+	return nil
 }
 
 func matchingLines(items []LineItem, match func(LineItem) bool) []int {
@@ -365,6 +379,13 @@ type refundGroupInfo struct {
 // reward lines carry no group and stay independent (D-35); the C3 giveaway is not a line.
 func refundGroups(items []OrderItem) []string {
 	out := make([]string, len(items))
+	// A bundle is its own all-or-nothing group, keyed by its per-order number. Set before the
+	// promo groups so the early return below keeps it.
+	for i, it := range items {
+		if it.BundleGroup > 0 {
+			out[i] = fmt.Sprintf("set:%d", it.BundleGroup)
+		}
+	}
 	var groups []*refundGroupInfo
 	byPromo := map[string]int{} // promoID -> index into groups
 	for _, it := range items {
@@ -398,7 +419,7 @@ func refundGroups(items []OrderItem) []string {
 	// matches[i] = groups a paid line i belongs to; union every group it touches.
 	matches := make([][]int, len(items))
 	for i, it := range items {
-		if it.IsReward {
+		if it.IsReward || it.BundleGroup > 0 {
 			continue
 		}
 		for gi, g := range groups {

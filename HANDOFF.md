@@ -8,6 +8,12 @@ Last updated: 2026-11-12 by Claude (Opus 5.5) - bundles phase 1 (#144) LIVE (bac
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-12: **BUNDLES PHASE 2 built, PR open, PR open, NOT merged** (branch `feat/bundles-2-sale-server`, migration **0090**, backend only; nothing deployed). Phase 1 (#144) is live (backend `00187-xew`, mig 0089).
+> - **Built:** `bundles.Split`/`MinNet` with a shared golden (`bundles/testdata/split_golden.json`, Phase 3's TS twin reads it); sale fields `bundleGroup/bundleRole/bundlePrice/bundleBasisPrice` (OpenAPI, `OrderItem`, `validateBundleFields`); `order_items` bundle columns; `resolveSetBundles`/`priceSetBundle` (3 pieces, same line, standard or line price, split with the remainder on the large bottle, MinNet floor so no piece is Rp0); pieces skipped by every product-keyed promo; refund group `set:<n>`; order read carries the bundle keys.
+> - **Rules kept:** tablet (sync) sale keeps its captured price and is flagged `bundle_price_changed`; an invalid synced bundle is kept, flagged `bundle_invalid` and still refund-grouped; online invalid is 422. `erp/payload.go` untouched (a test pins that the three line prices add up). Legacy `isBundle` is not reused.
+> - **Tests:** Go unit, `TestBundlesPostgres` subtests (sync sale, stale price, online 422, kept+flagged, one-piece refund refused + whole refund restocks, order read), `gen:check`, `quality:ci`.
+> - **Release:** backend first; Phase 3 (POS OTA) must not ship before this is live. **NEXT:** owner merges Phase 1 then Phase 2; then Phase 3.
+
 > 2026-11-12: **BUNDLES PHASE 1 (#144) LIVE: backend `00187-xew` (migration 0089), Backoffice `d15bd5ee`** (owner: "Yes, release it").
 > - **Release:**
 >   - **Merge:** no-ff `3d5b0d42` onto `7ebb20be`. Gate `gate/bundles-p1` passed 5/5. The Void approval docs commit was cherry-picked as `e5dc68ce`. Pushed to origin and the CI mirror. GitHub marked #144 merged.

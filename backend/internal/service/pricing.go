@@ -33,6 +33,20 @@ type LineItem struct {
 	Price       float64
 	Quantity    int
 	Subtotal    float64
+	// InBundle marks a bundle piece (BundleGroup > 0). Product-keyed promotions never count one,
+	// to qualify or as a reward; cart-wide discounts still see it in the subtotal.
+	InBundle bool
+}
+
+// promoLines is the lines a product-keyed promotion may see: everything except bundle pieces.
+func promoLines(items []LineItem) []LineItem {
+	out := make([]LineItem, 0, len(items))
+	for _, i := range items {
+		if !i.InBundle {
+			out = append(out, i)
+		}
+	}
+	return out
 }
 
 // Tier is one threshold step in a tiered discount promotion.
@@ -501,7 +515,7 @@ func calcPromotionDiscount(p *PromoSpec, items []LineItem, sub float64) float64 
 		if p.BXGY != nil && len(p.BXGY.GetProductIDs) > 0 {
 			return 0
 		}
-		return calcBXGY(p.BXGY, items)
+		return calcBXGY(p.BXGY, promoLines(items))
 	}
 	if p.Kind == DiscountTiered {
 		t := pickTier(p.Tiered, sub)
@@ -524,9 +538,13 @@ func calcPromotionDiscount(p *PromoSpec, items []LineItem, sub float64) float64 
 	}
 	scoped := len(p.ApplicableProductIDs) > 0
 	matching := items
+	if scoped || p.IsBOGO {
+		matching = promoLines(items) // product-keyed: bundle pieces never count
+	}
 	if scoped {
+		src := matching
 		matching = nil
-		for _, i := range items {
+		for _, i := range src {
 			if contains(p.ApplicableProductIDs, i.ProductID) {
 				matching = append(matching, i)
 			}

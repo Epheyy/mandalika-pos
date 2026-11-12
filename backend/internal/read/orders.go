@@ -47,12 +47,16 @@ const orderObj = `json_build_object('id',o.id,'orderNumber',o.order_number,
         FROM order_refund_items ri JOIN order_items oi ON oi.id=ri.order_item_id
         WHERE ri.refund_id=r.id),'[]'::json)) ORDER BY r.seq)
      FROM order_refunds r WHERE r.order_id=o.id),
-  'items',COALESCE((SELECT json_agg(json_build_object(
+  'items',COALESCE((SELECT json_agg((json_build_object(
      'id',it.id,'productId',it.product_id,'productName',it.product_name,
      'variantSize',it.variant_size,'price',it.price,'quantity',it.quantity,
      'subtotal',it.subtotal,'isBundle',it.is_bundle,
      'lineNo',it.line_no,'netAmount',it.net_amount,'refundGroup',it.refund_group,
-     'refundedQty',COALESCE((SELECT sum(ri.quantity) FROM order_refund_items ri WHERE ri.order_item_id=it.id),0)))
+     'refundedQty',COALESCE((SELECT sum(ri.quantity) FROM order_refund_items ri WHERE ri.order_item_id=it.id),0))::jsonb
+     || CASE WHEN it.bundle_group IS NULL THEN '{}'::jsonb ELSE jsonb_strip_nulls(jsonb_build_object(
+          'bundleGroup',it.bundle_group,'bundleRole',it.bundle_role,'bundleLine',it.bundle_line,
+          'bundleSize',it.bundle_size,'bundleDiscount',it.bundle_discount,
+          'bundlePromotionId',it.bundle_promotion_id)) END))
      FROM order_items it WHERE it.order_id=o.id),'[]'::json))`
 
 // refundOrderKey is the refund-basis sort key: the latest refund row (C4a), because a part

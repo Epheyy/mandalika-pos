@@ -4423,6 +4423,30 @@ export interface components {
             isReward?: boolean;
             rewardConditionId?: string;
             rewardPromotionId?: string;
+            /** @description Bundle instance number, unique per order; the three pieces of one bundle share it. */
+            bundleGroup?: number;
+            /** @enum {string} */
+            bundleRole?: "large" | "atomizer" | "vial";
+            /**
+             * Format: double
+             * @description Bundle list price before any Diskon Bundle; the same on all three pieces.
+             */
+            bundlePrice?: number;
+            /**
+             * Format: double
+             * @description This piece's single price when it entered the cart (split basis).
+             */
+            bundleBasisPrice?: number;
+            /** @description Resolved by the server: ERP line of the bundle (empty when the bundle has no line). */
+            bundleLine?: string;
+            /** @description Resolved by the server: the large size of the bundle, e.g. 120ml. */
+            bundleSize?: string;
+            /**
+             * Format: double
+             * @description This piece's share of the Diskon Bundle.
+             */
+            bundleDiscount?: number;
+            bundlePromotionId?: string;
             promotionIds?: string[] | null;
             discountCodes?: string[] | null;
             /** Format: uuid */
@@ -5133,6 +5157,20 @@ export interface components {
             isReward?: boolean;
             rewardConditionId?: string;
             rewardPromotionId?: string;
+            /** @description Bundle instance number, unique per order; the three pieces of one bundle share it. */
+            bundleGroup?: number;
+            /** @enum {string} */
+            bundleRole?: "large" | "atomizer" | "vial";
+            /**
+             * Format: double
+             * @description Bundle list price before any Diskon Bundle; the same on all three pieces.
+             */
+            bundlePrice?: number;
+            /**
+             * Format: double
+             * @description This piece's single price when it entered the cart (split basis).
+             */
+            bundleBasisPrice?: number;
         };
         /** @description Server recomputes all money/stock/loyalty (plan §9); client values are provisional. Outlet + cashier come from the JWT. The Idempotency-Key header is required. */
         CreateOrderRequest: {

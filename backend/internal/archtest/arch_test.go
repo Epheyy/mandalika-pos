@@ -46,7 +46,7 @@ var allowed = map[string][]string{
 	"ledger":          {"db"},
 	"read":            {"db", "ledger", "bundles"},
 	"write":           {"db", "ledger"},
-	"service":         {"db", "ledger"},
+	"service":         {"db", "ledger", "bundles"},
 	"integration/erp": {"db", "ledger"},
 	"sync":            {"db", "ledger", "read", "write", "service", "integration/erp", "auth", "cache"},
 	"handlers":        {"db", "ledger", "read", "write", "service", "sync", "integration/erp", "auth", "cache", "config", "middleware"},

@@ -1695,6 +1695,14 @@ components:
         isReward: { type: boolean }
         rewardConditionId: { type: string }
         rewardPromotionId: { type: string }
+        bundleGroup: { type: integer, minimum: 1, maximum: 32767, description: "Bundle instance number, unique per order; the three pieces of one bundle share it." }
+        bundleRole: { type: string, enum: [large, atomizer, vial] }
+        bundlePrice: { type: number, format: double, description: "Bundle list price before any Diskon Bundle; the same on all three pieces." }
+        bundleBasisPrice: { type: number, format: double, description: "This piece's single price when it entered the cart (split basis)." }
+        bundleLine: { type: string, description: "Resolved by the server: ERP line of the bundle (empty when the bundle has no line)." }
+        bundleSize: { type: string, description: "Resolved by the server: the large size of the bundle, e.g. 120ml." }
+        bundleDiscount: { type: number, format: double, description: "This piece's share of the Diskon Bundle." }
+        bundlePromotionId: { type: string }
         promotionIds: { type: array, items: { type: string }, nullable: true }
         discountCodes: { type: array, items: { type: string }, nullable: true }
         # C4a response-only fields (Order.items). Ignored by the server when sent as sale input.
@@ -2367,6 +2375,10 @@ components:
         isReward: { type: boolean }
         rewardConditionId: { type: string }
         rewardPromotionId: { type: string }
+        bundleGroup: { type: integer, minimum: 1, maximum: 32767, description: "Bundle instance number, unique per order; the three pieces of one bundle share it." }
+        bundleRole: { type: string, enum: [large, atomizer, vial] }
+        bundlePrice: { type: number, format: double, description: "Bundle list price before any Diskon Bundle; the same on all three pieces." }
+        bundleBasisPrice: { type: number, format: double, description: "This piece's single price when it entered the cart (split basis)." }
     CreateOrderRequest:
       type: object
       required: [orderUuid, items, paymentMethod]
