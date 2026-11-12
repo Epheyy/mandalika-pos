@@ -292,6 +292,8 @@ func discountRejectMessage(v []service.PromoViolation) string {
 		return "Hadiah promo tidak valid atau melebihi kuota"
 	case service.ViolationBundleInvalid:
 		return "Bundel tidak valid atau syaratnya tidak terpenuhi"
+	case service.ViolationBundlePriceChanged:
+		return "Harga bundle sudah berubah. Tunggu katalog tersinkron lalu ulangi."
 	case service.ViolationRequiresCustomer:
 		return "Kode ini butuh pelanggan terdaftar"
 	case service.ViolationPerCustomerCapReached:

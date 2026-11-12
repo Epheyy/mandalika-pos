@@ -374,6 +374,20 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 			discountWarnReason += "," + bundleWarnReason
 		}
 	}
+	// Bundles (migration 0090): validate each three-piece bundle, reprice its pieces to their
+	// share of the bundle price. Before pricing/stock/order_items so all of them see the shares.
+	setBundleWarn, err := s.resolveSetBundles(ctx, tx, &in)
+	if err != nil {
+		return "", false, false, err
+	}
+	if setBundleWarn != "" {
+		discountWarning = true
+		if discountWarnReason == "" {
+			discountWarnReason = setBundleWarn
+		} else {
+			discountWarnReason += "," + setBundleWarn
+		}
+	}
 	rewardGrants = append(rewardGrants, bundleGrants...)
 	if err := validateSaleItems(in.Items, false); err != nil {
 		return "", false, false, err
@@ -649,6 +663,7 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 		itemIDs[i] = uuid.NewString()
 		var lineNoArg, netArg any
 		groupArg := any(nil)
+		bundleCols := it.bundleColumns()
 		if allocOK {
 			lineNoArg, netArg = allocLines[i].lineNo, float64(allocLines[i].net)
 			groupArg = nullStr(groupKeys[i])
@@ -656,11 +671,13 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 		if _, e := tx.Exec(ctx, `
 			INSERT INTO order_items (id, order_id, product_id, product_name,
 			  variant_size, price, quantity, subtotal, is_bundle,
-			  line_no, net_amount, refund_group)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+			  line_no, net_amount, refund_group,
+			  bundle_group, bundle_role, bundle_line, bundle_size, bundle_discount, bundle_promotion_id)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
 			itemIDs[i], orderID, it.ProductID, it.ProductName, it.VariantSize,
 			it.Price, it.Quantity, it.Subtotal, it.IsBundle,
-			lineNoArg, netArg, groupArg); e != nil {
+			lineNoArg, netArg, groupArg, bundleCols[0], bundleCols[1], bundleCols[2],
+			bundleCols[3], bundleCols[4], bundleCols[5]); e != nil {
 			return "", false, false, fmt.Errorf("insert item: %w", e)
 		}
 	}
