@@ -95,7 +95,7 @@ func buildSetBundleGroups(items []OrderItem, variants map[variantRef]bundles.Var
 // For a synced sale an invalid group is kept as the tablet captured it (a physical sale that
 // already happened) and flagged; the pieces keep their group so the refund group still forms.
 // The returned warn reason is joined into the order's discount_warning_reason.
-func (s *OrderService) resolveSetBundles(ctx context.Context, tx pgx.Tx, in *CreateOrderInput) (string, error) {
+func (s *OrderService) resolveSetBundles(ctx context.Context, tx pgx.Tx, in *CreateOrderInput, promos []PromoSpec) (string, error) {
 	warnStripped := sanitizeOfflineBundleFields(in)
 	var refs []variantRef
 	has := false
@@ -127,7 +127,7 @@ func (s *OrderService) resolveSetBundles(ctx context.Context, tx pgx.Tx, in *Cre
 		}
 	}
 	for _, g := range buildSetBundleGroups(in.Items, variants, prices) {
-		priced, vios := priceSetBundle(g, prices, in.Offline)
+		priced, vios := priceSetBundle(g, prices, in.Offline, promos)
 		if !priced.ok {
 			if !in.Offline {
 				return "", &ErrDiscountRejected{Violations: vios}

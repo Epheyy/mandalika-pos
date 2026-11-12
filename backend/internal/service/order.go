@@ -376,7 +376,7 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 	}
 	// Bundles (migration 0090): validate each three-piece bundle, reprice its pieces to their
 	// share of the bundle price. Before pricing/stock/order_items so all of them see the shares.
-	setBundleWarn, err := s.resolveSetBundles(ctx, tx, &in)
+	setBundleWarn, err := s.resolveSetBundles(ctx, tx, &in, promos)
 	if err != nil {
 		return "", false, false, err
 	}
