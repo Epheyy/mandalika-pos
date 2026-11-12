@@ -4,9 +4,32 @@ Short, living handoff for Claude sessions. **Overwrite "Now" and "Next" at each 
 ~150 lines.** History: git log, `docs/plans/`, and earlier versions of this file (`git log -p HANDOFF.md`).
 `SESSION_HANDOFF.md` (Codex era) is historical — read by section only.
 
-Last updated: 2026-11-11 by Claude (Opus 5.5) - perf wave 2 (#142 search + mig 0088, #141 lists/gzip/export order, #143 report tender lines) LIVE (backend `00185-yux`, Backoffice `df62e00d`); Go 1.26.11 security fix LIVE (backend `00183-nep`); load-test harness (#139) merged; list and export speed (#140) LIVE (backend `00181-yus`, Backoffice `685633a1`); instant permission revocation (#138) LIVE (backend `00179-duv`, mig 0087, Backoffice `01b98f0e`, POS OTA 2.13.9 on the test tablet); role test fixes (#137) LIVE (backend `00177-hab`, Backoffice `6456ed73`); instant-revocation plan drafted on branch `plan/instant-revoke`, waiting on owner decisions; Bluetooth Classic printing (#136) LIVE in APK 2.3 (versionCode 14), verified on the test tablet with the RPP02N; role test done on a local copy (fixes in progress). Earlier: LOW findings (#135) LIVE (backoffice `1043b4c4`, POS OTA 2.13.8 for APK 2.2; not yet seen on a tablet). Earlier: Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09; both P3 fixes LIVE in APK 2.2 (versionCode 13, #134 keyboard + #133 text zoom), installed and verified on the test tablet; tablets on APK 2.1 need 2.2 (OTAs now target code 13); see Progress board.
+Last updated: 2026-11-12 by Claude (Opus 5.5) - bundles design approved + plan written, Void and receipt designer designed (docs only, branch `docs/bundles-plan`); earlier: perf wave 2 (#142 search + mig 0088, #141 lists/gzip/export order, #143 report tender lines) LIVE (backend `00185-yux`, Backoffice `df62e00d`); Go 1.26.11 security fix LIVE (backend `00183-nep`); load-test harness (#139) merged; list and export speed (#140) LIVE (backend `00181-yus`, Backoffice `685633a1`); instant permission revocation (#138) LIVE (backend `00179-duv`, mig 0087, Backoffice `01b98f0e`, POS OTA 2.13.9 on the test tablet); role test fixes (#137) LIVE (backend `00177-hab`, Backoffice `6456ed73`); instant-revocation plan drafted on branch `plan/instant-revoke`, waiting on owner decisions; Bluetooth Classic printing (#136) LIVE in APK 2.3 (versionCode 14), verified on the test tablet with the RPP02N; role test done on a local copy (fixes in progress). Earlier: LOW findings (#135) LIVE (backoffice `1043b4c4`, POS OTA 2.13.8 for APK 2.2; not yet seen on a tablet). Earlier: Codex R11 closed out: F34 + F35 + F36 live (backoffice `82103714`, POS OTA 2.13.7); F22 accepted by the owner; open-shift totals labelled "Belum dihitung" LIVE (backoffice `81eb86eb`, #132); on-tablet check of 2.13.7 + Backoffice live checks DONE 2026-11-09; both P3 fixes LIVE in APK 2.2 (versionCode 13, #134 keyboard + #133 text zoom), installed and verified on the test tablet; tablets on APK 2.1 need 2.2 (OTAs now target code 13); see Progress board.
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
+
+> 2026-11-12: **BUNDLES design approved and plan written; VOID and RECEIPT DESIGNER designed** (docs only, branch `docs/bundles-plan`, no code).
+> - **Build order (owner):** bundles, then Void, then the receipt designer. Configurable POS layouts are parked (owner: "cosmetic"); the GCP move is "not yet".
+> - **Bundles:**
+>   - Design `docs/plans/2026-11-12-bundles-design.md`, **approved** by the owner. Mockups are in `docs/plans/2026-11-12-bundles-mockups/`.
+>   - A bundle is a large bottle (100/110/120ml, Extrait or Parfum Intense), the fragrance's ATOMIZER 10ml and the same line's 2ml.
+>   - Bundles are automatic. Prices are a standard price per large size plus optional ERP-line prices.
+>   - POS: a gold Bundle button on each card (option A) and a cart line with Ganti (option Y). The atomizer can swap to any fragrance's atomizer; the 2ml only to the same line.
+>   - The ERP gets the 3 items, with the price split by single price and the remainder on the large bottle.
+>   - "Diskon Bundle" is a new promotion type.
+> - **Bundles plan:**
+>   - `docs/plans/2026-11-12-bundles-plan.md`: 5 phases, 20 tasks, migrations 0089-0091.
+>   - The order is settings and Bundle tab, then server sale path, then POS (OTA), then Diskon Bundle, then reports. The server ships before the POS.
+>   - Written by Opus; builder-checked; independently reviewed as sound, with 9 fixes applied.
+>   - Defaults O1 (stock) and O2 (Diskon Bundle limits) are built unless the owner says otherwise.
+>   - **NEXT:** the owner reviews the plan, then session-per-slice execution starting with Phase 1.
+> - **Void:**
+>   - Design `docs/plans/2026-11-12-void-design.md`: "Batalkan & perbaiki" (void and replacement), fully audited, counted on the original day and shift.
+>   - Closed-shift snapshots are never recomputed; corrections are stored as deltas.
+>   - Void gets its own write path, not refund rows, and permissions `void_own_shift` / `void_any`.
+>   - The owner confirmed the flow ("use your recommendations"); approval of the written doc is pending.
+>   - **PREREQUISITE:** the ERP developer must answer three questions (a stockless multi-tender reversal and its document kind, the document date, period closing) before Void's ERP slice.
+> - **Receipt designer:** design `docs/plans/2026-11-12-receipt-designer-design.md` plus its mockup, accepted. Block-based templates, a live preview from the same renderer as the printer, per-outlet templates, 58/80mm paper, and logo/QR codes (to be confirmed on the printer).
 
 > 2026-11-11: **PERF WAVE 2 (#142 + #141 + #143) LIVE: backend `00185-yux` (mig 0088), Backoffice `df62e00d`** (owner: "let's work on the next follow-ups", "Yes, release all three").
 > - **Plan:** `docs/plans/2026-11-11-perf-followups-wave2.md` (Opus, measured on the 1M-order load database). Decisions recorded: the report rollup is deferred until measured on Neon.
