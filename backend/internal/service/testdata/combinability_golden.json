@@ -1,0 +1,8 @@
+[
+  { "name": "Diskon Bundle + combinable standalone code stack", "items": [{ "source": "bundle_discount", "combinable": true }, { "source": "unlinked_code", "combinable": true }], "allowed": true },
+  { "name": "Diskon Bundle + exclusive standalone code is refused", "items": [{ "source": "bundle_discount", "combinable": true }, { "source": "unlinked_code", "combinable": false }], "allowed": false },
+  { "name": "exclusive Diskon Bundle + combinable standalone code is refused", "items": [{ "source": "bundle_discount", "combinable": false }, { "source": "unlinked_code", "combinable": true }], "allowed": false },
+  { "name": "exclusive standalone code alone is fine", "items": [{ "source": "unlinked_code", "combinable": false }], "allowed": true },
+  { "name": "two combinable standalone codes stack", "items": [{ "source": "unlinked_code", "combinable": true }, { "source": "unlinked_code", "combinable": true }], "allowed": true },
+  { "name": "Diskon Bundle + combinable code + combinable promotion stack", "items": [{ "source": "bundle_discount", "combinable": true }, { "source": "unlinked_code", "combinable": true }, { "source": "promotion", "combinable": true }], "allowed": true }
+]

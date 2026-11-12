@@ -37,6 +37,6 @@ describe('decideApplyCode', () => {
   it('accepts an eligible code (case-insensitive match)', () => {
     const r = decideApplyCode('save', [code({ code: 'SAVE', value: 5000 })], ctx)
     expect(r.ok).toBe(true)
-    if (r.ok) expect(r.code).toEqual({ code: 'SAVE', value: 5000, type: 'fixed' })
+    if (r.ok) expect(r.code).toEqual({ code: 'SAVE', value: 5000, type: 'fixed', combinable: false })
   })
 })
