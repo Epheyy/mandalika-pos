@@ -489,7 +489,7 @@ export default function CashierScreen() {
   // Returns true only when the line moved.
   const handleSwitchSize = (productId: string, fromSize: string, toSize: string): boolean => {
     const product = displayProducts.find((p) => p.id === productId)
-    const line = state.cart.find((i) => i.productId === productId && i.variantSize === fromSize && !i.isReward)
+    const line = state.cart.find((i) => i.productId === productId && i.variantSize === fromSize && !i.isReward && i.bundleGroup == null)
     if (!product || !line) return false
     const plan = planSizeSwitch(line, product, toSize)
     if (!plan) return false

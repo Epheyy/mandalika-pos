@@ -27,6 +27,13 @@ export interface CartActions {
   ) => void
   removeItem: (productId: string, variantSize: string) => void
   setQty: (productId: string, variantSize: string, qty: number) => void
+  addSetBundle: (lines: CartItem[]) => void
+  removeSetBundle: (bundleGroup: number) => void
+  swapBundlePiece: (
+    bundleGroup: number,
+    role: 'atomizer' | 'vial',
+    piece: { productId: string; productName: string; variantSize: string; basisPrice: number },
+  ) => void
   clearCart: () => void
   applyDiscount: () => void
   applySurcharge: () => void
@@ -105,6 +112,19 @@ export function useCart(opts: UseCartOptions): {
     [dispatch],
   )
 
+  const addSetBundle = useCallback(
+    (lines: CartItem[]) => dispatch({ type: 'CART_ADD_SET_BUNDLE', lines }),
+    [dispatch],
+  )
+  const removeSetBundle = useCallback(
+    (bundleGroup: number) => dispatch({ type: 'CART_REMOVE_SET_BUNDLE', bundleGroup }),
+    [dispatch],
+  )
+  const swapBundlePiece = useCallback<CartActions['swapBundlePiece']>(
+    (bundleGroup, role, piece) => dispatch({ type: 'CART_SWAP_BUNDLE_PIECE', bundleGroup, role, piece }),
+    [dispatch],
+  )
+
   const clearCart = useCallback(() => {
     dispatch({ type: 'CART_CLEAR' })
   }, [dispatch])
@@ -126,6 +146,9 @@ export function useCart(opts: UseCartOptions): {
       addVariants,
       removeItem,
       setQty,
+      addSetBundle,
+      removeSetBundle,
+      swapBundlePiece,
       clearCart,
       applyDiscount,
       applySurcharge,

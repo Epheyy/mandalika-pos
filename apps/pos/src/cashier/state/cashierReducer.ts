@@ -14,6 +14,7 @@ import { upsertCartItem, reducePaidQty, restoreBundle, restoreAllBundles, omitKe
 import { planPromotionFulfillment, type PromotionOwner, type FulfillmentChoice } from '../promotionFulfillment'
 import { effectivePromotionSelection, isRedundantPromoCode } from '../promotionSelection'
 import { reconcileAutoPromos, type AutoPrompt, type AutoPromoContext } from '../autoPromos'
+import { repriceBundles } from '../setBundles'
 
 type CartItem = components['schemas']['CartItem']
 type Customer = components['schemas']['Customer']
@@ -91,6 +92,10 @@ export interface CashierState {
 export type CashierAction =
   | { type: 'CART_ADD_ITEM'; item: CartItem }
   | { type: 'CART_REMOVE_ITEM'; productId: string; variantSize: string }
+  /** Bundles: the three pieces of one bundle (built by `buildBundleLines`), added as their own group. */
+  | { type: 'CART_ADD_SET_BUNDLE'; lines: CartItem[] }
+  | { type: 'CART_REMOVE_SET_BUNDLE'; bundleGroup: number }
+  | { type: 'CART_SWAP_BUNDLE_PIECE'; bundleGroup: number; role: 'atomizer' | 'vial'; piece: { productId: string; productName: string; variantSize: string; basisPrice: number } }
   | { type: 'CART_SET_QTY'; productId: string; variantSize: string; quantity: number }
   | { type: 'CART_ADD_REWARD'; item: CartItem & { isReward: true; rewardConditionId?: string; rewardPromotionId?: string } }
   | { type: 'CART_REMOVE_REWARD'; rewardConditionId: string }
@@ -268,7 +273,7 @@ function withAutoBookkeeping(prev: CashierState, next: CashierState, action: Cas
 }
 
 export function cashierReducer(state: CashierState, action: CashierAction): CashierState {
-  return withAutoBookkeeping(state, baseReducer(state, action), action)
+  return repriceBundles(withAutoBookkeeping(state, baseReducer(state, action), action))
 }
 
 function baseReducer(
@@ -288,6 +293,30 @@ function baseReducer(
     }
     case 'CART_ADD_ITEM':
       return { ...state, cart: upsertCartItem(state.cart, action.item) }
+
+    case 'CART_ADD_SET_BUNDLE': {
+      // Only a complete, fresh group of three pieces is accepted; a group number already in the cart is refused.
+      const group = action.lines[0]?.bundleGroup
+      const roles = action.lines.map((l) => l.bundleRole).sort().join(',')
+      if (group == null || roles !== 'atomizer,large,vial' || action.lines.some((l) => l.bundleGroup !== group || l.quantity !== 1)) return state
+      if (state.cart.some((c) => c.bundleGroup === group)) return state
+      return { ...state, cart: [...state.cart, ...action.lines] }
+    }
+
+    case 'CART_REMOVE_SET_BUNDLE':
+      return { ...state, cart: state.cart.filter((c) => c.bundleGroup !== action.bundleGroup) }
+
+    case 'CART_SWAP_BUNDLE_PIECE': {
+      const { piece } = action
+      if (!(piece.basisPrice > 0)) return state
+      let hit = false
+      const cart = state.cart.map((c) => {
+        if (c.bundleGroup !== action.bundleGroup || c.bundleRole !== action.role) return c
+        hit = true
+        return { ...c, productId: piece.productId, productName: piece.productName, variantSize: piece.variantSize, bundleBasisPrice: Math.round(piece.basisPrice) }
+      })
+      return hit ? { ...state, cart } : state
+    }
 
     case 'CART_ADD_REWARD': {
       const { rewardConditionId, rewardPromotionId } = action.item
@@ -392,7 +421,8 @@ function baseReducer(
             !(
               c.productId === action.productId &&
               c.variantSize === action.variantSize &&
-              !c.isReward
+              !c.isReward &&
+              c.bundleGroup == null
             ),
         ),
       }
@@ -410,7 +440,8 @@ function baseReducer(
               !(
                 c.productId === action.productId &&
                 c.variantSize === action.variantSize &&
-                !c.isReward
+                !c.isReward &&
+                c.bundleGroup == null
               ),
           ),
         }
@@ -421,7 +452,8 @@ function baseReducer(
         cart: base.cart.map((c) =>
           c.productId === action.productId &&
           c.variantSize === action.variantSize &&
-          !c.isReward
+          !c.isReward &&
+          c.bundleGroup == null
             ? {
                 ...c,
                 quantity: action.quantity,

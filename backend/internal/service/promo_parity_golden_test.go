@@ -24,6 +24,7 @@ type parityCase struct {
 		Price       float64 `json:"price"`
 		Quantity    int     `json:"quantity"`
 		Subtotal    float64 `json:"subtotal"`
+		BundleGroup int     `json:"bundleGroup"`
 	} `json:"cart"`
 	Promotions []parityPromotion `json:"promotions"`
 	Manual     struct {
@@ -74,7 +75,7 @@ func TestPromoParityGolden(t *testing.T) {
 	if err = json.Unmarshal(raw, &cases); err != nil {
 		t.Fatal(err)
 	}
-	if len(cases) != 21 {
+	if len(cases) != 26 {
 		t.Fatal("golden fixture count changed", len(cases))
 	}
 	for _, tc := range cases {
@@ -86,7 +87,7 @@ func TestPromoParityGolden(t *testing.T) {
 				RoundingEnabled: tc.Settings.RoundingEnabled, RoundingType: tc.Settings.RoundingType,
 			}
 			for _, l := range tc.Cart {
-				in.Items = append(in.Items, LineItem{ProductID: l.ProductID, VariantSize: l.VariantSize, Price: l.Price, Quantity: l.Quantity, Subtotal: l.Subtotal})
+				in.Items = append(in.Items, LineItem{ProductID: l.ProductID, VariantSize: l.VariantSize, Price: l.Price, Quantity: l.Quantity, Subtotal: l.Subtotal, InBundle: l.BundleGroup > 0})
 			}
 			for _, p := range tc.Promotions {
 				in.Promos = append(in.Promos, paritySpec(p))

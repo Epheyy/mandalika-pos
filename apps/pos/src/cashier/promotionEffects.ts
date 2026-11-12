@@ -22,7 +22,8 @@ export function upsertCartItem(cart: CartItem[], item: CartItem): CartItem[] {
     (c) =>
       c.productId === item.productId &&
       c.variantSize === item.variantSize &&
-      !c.isReward,
+      !c.isReward &&
+      c.bundleGroup == null,
   )
   if (idx >= 0) {
     const existing = cart[idx]
@@ -48,7 +49,7 @@ export function reducePaidQty(
   dec: number,
 ): CartItem[] {
   return cart.flatMap((c) => {
-    if (c.isReward || c.productId !== productId || c.variantSize !== variantSize) return [c]
+    if (c.isReward || c.bundleGroup != null || c.productId !== productId || c.variantSize !== variantSize) return [c]
     const newQty = c.quantity - dec
     if (newQty <= 0) return []
     return [{ ...c, quantity: newQty, subtotal: Math.round(newQty * c.price) }]

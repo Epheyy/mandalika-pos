@@ -140,7 +140,7 @@ export const Cart = memo(function Cart({
   // quantity and subtotal follow the reducer, and the sheet is simply gone once the line is.
   const [lineKey, setLineKey] = useState<LineKey | null>(null)
   const openLine = lineKey
-    ? cart.find((i) => i.productId === lineKey.productId && i.variantSize === lineKey.variantSize && !i.isReward) ?? null
+    ? cart.find((i) => i.productId === lineKey.productId && i.variantSize === lineKey.variantSize && !i.isReward && i.bundleGroup == null) ?? null
     : null
   // A key whose line is gone is dropped at once (state adjusted during render, no effect),
   // so re-adding that product+size later can never pop the sheet open by itself.

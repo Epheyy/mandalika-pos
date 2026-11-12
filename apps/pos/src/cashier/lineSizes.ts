@@ -47,7 +47,7 @@ export interface SizeSwitchPlan {
  *  reducer action. Null when there is nothing valid to do: the current size, a size the
  *  product does not have, a reward line, or a line of another product. */
 export function planSizeSwitch(line: CartItem, product: Product, toSize: string): SizeSwitchPlan | null {
-  if (line.isReward || line.productId !== product.id) return null
+  if (line.isReward || line.bundleGroup != null || line.productId !== product.id) return null
   if (toSize === line.variantSize) return null
   if (!product.variants.some((v) => v.size === toSize)) return null
   return {

@@ -212,3 +212,28 @@ export function repriceBundles(state: CashierState): CashierState {
   })
   return changed ? { ...state, cart } : state
 }
+
+export type HeldBundleRebuild = { ok: true; lines: CartItem[] } | { ok: false; label: string }
+
+/** A held bundle's three pieces, re-priced for a restore: `bundlePrice` from the current offer (matching the large
+ *  piece's product, `bundleLine` and `bundleSize`), each basis from the piece variant's current price. Not ok
+ *  (with a label for the note) when the offer, a piece variant or its price is gone. */
+export function rebuildHeldBundle(lines: CartItem[], products: Product[], catalog: BundleCatalog | undefined): HeldBundleRebuild {
+  const large = lines.find((l) => l.bundleRole === 'large')
+  const label = large ? `${large.productName} ${bundleLabel(large.bundleLine ?? '', large.bundleSize ?? '')}`.trim() : 'bundle'
+  if (!large || lines.length !== 3) return { ok: false, label }
+  const offer = cardOffers(catalog, large.productId).find((o) => o.line === (large.bundleLine ?? '') && o.size === large.bundleSize)
+  if (!offer || !(Math.round(offer.price) > 0)) return { ok: false, label }
+  const out: CartItem[] = []
+  for (const role of ['large', 'atomizer', 'vial'] as const) {
+    const l = lines.find((x) => x.bundleRole === role)
+    const price = variantOf(products.find((p) => p.id === l?.productId), l?.variantSize ?? '')?.price ?? 0
+    if (!l || !(Math.round(price) > 0)) return { ok: false, label }
+    out.push({ ...l, quantity: 1, bundlePrice: Math.round(offer.price), bundleBasisPrice: Math.round(price) })
+  }
+  const basis = out.map((l) => l.bundleBasisPrice ?? 0) as Basis
+  const net = out[0].bundlePrice ?? 0
+  if (net < minNet(basis)) return { ok: false, label }
+  const shares = splitBundleAmount(net, basis)
+  return { ok: true, lines: out.map((l, i) => ({ ...l, price: shares[i], subtotal: shares[i], bundleDiscount: 0 })) }
+}

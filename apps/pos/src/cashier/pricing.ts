@@ -99,6 +99,10 @@ function bxgyVariantKey(productId: string, size: string): string {
 export function keyMatchesLine(keys: string[], productId: string, size: string): boolean {
   return keys.includes(productId) || (size !== '' && keys.includes(bxgyVariantKey(productId, size)))
 }
+/** The lines a product-keyed promotion may see: everything except bundle pieces (twin of Go promoLines). */
+export function promoLines(items: CartItem[]): CartItem[] {
+  return items.some((i) => i.bundleGroup != null) ? items.filter((i) => i.bundleGroup == null) : items
+}
 function bxgyExpand(items: CartItem[], keys: string[], emptyMatchesAll: boolean): number[] {
   const prices: number[] = []
   for (const i of items) {
@@ -175,7 +179,7 @@ export function bxgyRewardDue(cfg: BXGYConfig | null | undefined, items: CartIte
   if (!cfg || (cfg.getProductIds ?? []).length === 0 || cfg.buyQuantity < 1 || cfg.getQuantity < 1 || promotionKeySetsOverlap(cfg.buyProductIds ?? [], cfg.getProductIds ?? []))
     return 0
   const maxApp = cfg.maxApplications ?? 0
-  let nApp = Math.floor(bxgyBuyUnits(cfg, items) / cfg.buyQuantity)
+  let nApp = Math.floor(bxgyBuyUnits(cfg, promoLines(items)) / cfg.buyQuantity)
   if (maxApp > 0 && nApp > maxApp) nApp = maxApp
   return Math.max(0, nApp) * cfg.getQuantity
 }
@@ -255,7 +259,7 @@ export function calcPromoDiscount(
     // separate-set is a reward giveaway: the saving lives in the reward line's
     // reduced price, so it contributes 0 here. same-set discounts in place.
     if (cfg && (cfg.getProductIds ?? []).length > 0) return 0
-    return calcBXGY(cfg, items)
+    return calcBXGY(cfg, promoLines(items))
   }
   if (promo.type === 'tiered') {
     const t = pickTier(promo.tieredConfig, sub)
@@ -269,10 +273,10 @@ export function calcPromoDiscount(
     // promo contributes 0 to the additive stack — mirrors buy_x_get_y separate-set.
     return 0
   }
-  const matchingItems =
-    promo.applicableProductIds && promo.applicableProductIds.length > 0
-      ? items.filter((i) => promo.applicableProductIds!.includes(i.productId))
-      : items
+  const scoped = !!promo.applicableProductIds && promo.applicableProductIds.length > 0
+  // Product-keyed (scoped or BOGO): bundle pieces never count. Unscoped percent/fixed keep the whole cart.
+  const keyed = scoped || promo.type === 'bogo' ? promoLines(items) : items
+  const matchingItems = scoped ? keyed.filter((i) => promo.applicableProductIds!.includes(i.productId)) : keyed
   const matchingSubtotal = matchingItems.reduce((s, i) => s + i.subtotal, 0)
   if (
     matchingItems.length === 0 &&

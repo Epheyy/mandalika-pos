@@ -32,13 +32,13 @@ export function unmetCartPrecondition(
 ): UnmetPrecondition | null {
   if (promo.type === 'buy_x_get_y') {
     const unmet = isSeparateSetBxgy(promo)
-      ? bxgyRewardDue(promo.bxgyConfig, candidateCart.filter((c) => !c.isReward)) < 1
+      ? bxgyRewardDue(promo.bxgyConfig, candidateCart.filter((c) => !c.isReward && c.bundleGroup == null)) < 1
       : savings <= 0
     return unmet ? 'bxgy' : null
   }
   if (
     promo.type === 'bundle' &&
-    bundleApplications(promo.bundleConfig, candidateCart.filter((c) => !c.isReward)) < 1
+    bundleApplications(promo.bundleConfig, candidateCart.filter((c) => !c.isReward && c.bundleGroup == null)) < 1
   ) {
     return 'bundle'
   }

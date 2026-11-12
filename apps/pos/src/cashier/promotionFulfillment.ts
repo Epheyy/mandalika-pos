@@ -70,7 +70,7 @@ export function planPromotionFulfillment(
   if (promo && promotionHasKeyOverlap(promo)) return { kind: 'none' }
   const separate = promo?.type === 'buy_x_get_y' && (promo.bxgyConfig?.getProductIds ?? []).length > 0
   if (!promo || (promo.type !== 'bundle' && !separate)) return { kind: 'simple', owner }
-  const base = prepare(state, owner, promo), paid = base.cart.filter(c => !c.isReward)
+  const base = prepare(state, owner, promo), paid = base.cart.filter(c => !c.isReward && c.bundleGroup == null)
   if (promo.type === 'bundle') {
     const cfg = promo.bundleConfig
     if (!cfg) return { kind: 'none' }
@@ -132,7 +132,7 @@ export function planPromotionFulfillment(
 // Used by the reactive screen path and immediately before checkout capture.
 // Return whole owner IDs: removing only lines would leave a ghost linked code.
 export function invalidPhysicalPromotionIds(state: CashierState): string[] {
-  const invalid: string[] = [], paid = state.cart.filter(c => !c.isReward)
+  const invalid: string[] = [], paid = state.cart.filter(c => !c.isReward && c.bundleGroup == null)
   for (const promo of effectiveMechanics(state)) {
     if (promotionHasKeyOverlap(promo)) { invalid.push(promo.id); continue }
     if (promo.type === 'bundle') {

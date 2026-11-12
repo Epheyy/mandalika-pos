@@ -5,9 +5,12 @@ import { heldCustomerRecord, type HeldAdjustment, type HeldOrder } from './heldO
 import { invalidPhysicalPromotionIds, ownerMechanics, planPromotionFulfillment, type FulfillmentChoice, type PromotionOwner } from './promotionFulfillment'
 import { decideApplyCode, type PromoEvalContext } from './promoValidate'
 import { isRedundantPromoCode } from './promotionSelection'
+import { rebuildHeldBundle } from './setBundles'
+import type { BundleCatalog } from './setBundles'
 import { CASHIER_INITIAL_STATE, cashierReducer, type CashierAction, type CashierState } from './state/cashierReducer'
 
 type Product = components['schemas']['Product']
+type CartItem = components['schemas']['CartItem']
 type Promotion = components['schemas']['Promotion']
 type DiscountCode = components['schemas']['DiscountCode']
 
@@ -16,6 +19,8 @@ export interface HeldRestoreEnv {
   products: Product[]
   promotions: Promotion[]
   discountCodes: DiscountCode[]
+  /** Current bundle catalog: a held bundle is re-priced from its offer; one whose offer is gone is left out with a note. */
+  bundleCatalog?: BundleCatalog
   /** Promo clock and outlet; the subtotal and customer fields are filled in here. */
   ctx: Pick<PromoEvalContext, 'now' | 'outletId' | 'timezone'>
 }
@@ -66,7 +71,22 @@ export function planHeldRestore(held: HeldOrder, env: HeldRestoreEnv): HeldResto
   if (held.salesman) push({ type: 'SET_SALESMAN', salesman: held.salesman })
 
   const retired: string[] = []
+  const retiredBundles: string[] = []
+  // Bundle pieces come back per group (CART_ADD_SET_BUNDLE), re-priced from today's offer and variant prices.
+  const pieceGroups = new Map<number, CartItem[]>()
   for (const line of held.lines) {
+    if (line.bundleGroup != null) pieceGroups.set(line.bundleGroup, [...(pieceGroups.get(line.bundleGroup) ?? []), line])
+  }
+  for (const lines of pieceGroups.values()) {
+    const rebuilt = rebuildHeldBundle(lines, env.products, env.bundleCatalog)
+    if (rebuilt.ok) push({ type: 'CART_ADD_SET_BUNDLE', lines: rebuilt.lines })
+    else {
+      retiredBundles.push(rebuilt.label)
+      notes.push(`Bundle ${rebuilt.label} tidak bisa dipulihkan`)
+    }
+  }
+  for (const line of held.lines) {
+    if (line.bundleGroup != null) continue
     const variant = env.products.find((p) => p.id === line.productId)?.variants.find((v) => v.size === line.variantSize)
     if (!variant) {
       if (!retired.includes(line.productName)) retired.push(line.productName)
@@ -133,5 +153,5 @@ export function planHeldRestore(held: HeldOrder, env: HeldRestoreEnv): HeldResto
   if (hasAutoPromotions(env.promotions)) push({ type: 'RECONCILE_AUTO_PROMOS', promotions: env.promotions, products: env.products, ctx: env.ctx })
   if (held.loyaltyDropped) notes.push('Poin dan Hadiah loyalti perlu dipilih ulang')
 
-  return { actions, notes, result: state, lossless: retired.length === 0 }
+  return { actions, notes, result: state, lossless: retired.length === 0 && retiredBundles.length === 0 }
 }

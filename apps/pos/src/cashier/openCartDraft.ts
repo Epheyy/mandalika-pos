@@ -77,7 +77,7 @@ export function revalidationDelta(held: HeldOrder, products: readonly Product[])
   for (const line of held.lines) {
     const variant = products.find((p) => p.id === line.productId)?.variants.find((v) => v.size === line.variantSize)
     if (!variant) unavailable += 1
-    else if (variant.price !== line.price) repriced += 1
+    else if (variant.price !== (line.bundleGroup != null ? line.bundleBasisPrice : line.price)) repriced += 1
   }
   return { unavailable, repriced }
 }
