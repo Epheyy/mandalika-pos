@@ -789,6 +789,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bundle-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bundles sold per fragrance, line and size (view_reports; outlet-scoped like the other reports) */
+        get: operations["getBundleReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/refund-report": {
         parameters: {
             query?: never;
@@ -4153,6 +4170,39 @@ export interface components {
             usageCount?: number;
             remaining?: number | null;
             status?: string;
+        };
+        BundleReportRow: {
+            /** Format: uuid */
+            productId: string;
+            productName: string;
+            /** @description ERP line key (EXTRAIT DE PARFUM, PARFUM INTENSE); empty for a no-line test bundle. */
+            line: string;
+            /** @description Display label (Extrait, Parfum Intense); empty when line is empty. */
+            lineLabel: string;
+            /** @description Large bottle size, e.g. 120ml. */
+            size: string;
+            bundles: number;
+            /**
+             * Format: double
+             * @description Sum of the three pieces' subtotals.
+             */
+            revenue: number;
+            /**
+             * Format: double
+             * @description Sum of the pieces' Diskon Bundle shares.
+             */
+            discount: number;
+        };
+        BundleReportTotals: {
+            bundles: number;
+            /** Format: double */
+            revenue: number;
+            /** Format: double */
+            discount: number;
+        };
+        BundleReport: {
+            data: components["schemas"]["BundleReportRow"][];
+            totals: components["schemas"]["BundleReportTotals"];
         };
         DiscountCodeReportSummary: {
             totalRedemptions?: number;
@@ -8151,6 +8201,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiscountCodeReport"];
+                };
+            };
+        };
+    };
+    getBundleReport: {
+        parameters: {
+            query?: {
+                /** @description Inclusive business day (YYYY-MM-DD). 400 when unparseable. */
+                dateFrom?: string;
+                /** @description Inclusive business day (YYYY-MM-DD). 400 when unparseable. */
+                dateTo?: string;
+                outletId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BundleReport"];
                 };
             };
         };

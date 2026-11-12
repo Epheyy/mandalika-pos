@@ -1384,6 +1384,31 @@ components:
         usageCount: { type: integer }
         remaining: { type: integer, nullable: true }
         status: { type: string }
+    BundleReportRow:
+      type: object
+      required: [productId, productName, line, lineLabel, size, bundles, revenue, discount]
+      properties:
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        line: { type: string, description: "ERP line key (EXTRAIT DE PARFUM, PARFUM INTENSE); empty for a no-line test bundle." }
+        lineLabel: { type: string, description: "Display label (Extrait, Parfum Intense); empty when line is empty." }
+        size: { type: string, description: "Large bottle size, e.g. 120ml." }
+        bundles: { type: integer }
+        revenue: { type: number, format: double, description: "Sum of the three pieces' subtotals." }
+        discount: { type: number, format: double, description: "Sum of the pieces' Diskon Bundle shares." }
+    BundleReportTotals:
+      type: object
+      required: [bundles, revenue, discount]
+      properties:
+        bundles: { type: integer }
+        revenue: { type: number, format: double }
+        discount: { type: number, format: double }
+    BundleReport:
+      type: object
+      required: [data, totals]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/BundleReportRow' } }
+        totals: { $ref: '#/components/schemas/BundleReportTotals' }
     DiscountCodeReportSummary:
       type: object
       properties:
@@ -4656,6 +4681,21 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DiscountCodeReport' }
+  /api/v1/bundle-report:
+    get:
+      operationId: getBundleReport
+      tags: [reports]
+      summary: Bundles sold per fragrance, line and size (view_reports; outlet-scoped like the other reports)
+      parameters:
+        - { name: dateFrom, in: query, description: "Inclusive business day (YYYY-MM-DD). 400 when unparseable.", schema: { type: string } }
+        - { name: dateTo, in: query, description: "Inclusive business day (YYYY-MM-DD). 400 when unparseable.", schema: { type: string } }
+        - { name: outletId, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BundleReport' }
   /api/v1/refund-report:
     get:
       operationId: listRefundReport

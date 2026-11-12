@@ -25,6 +25,8 @@ export type AppSettings = S['AppSettings']
 export type BundleSettings = S['BundleSettings']
 export type BundleSettingsInput = S['BundleSettingsInput']
 export type BundleCatalog = S['BundleCatalog']
+export type BundleReport = S['BundleReport']
+export type BundleReportRow = S['BundleReportRow']
 export type BundleSettingsResponse = S['BundleSettingsResponse']
 export type BundleCatalogResponse = S['BundleCatalogResponse']
 export type Order = S['Order']
@@ -510,6 +512,7 @@ export interface Api {
 
   // discount code usage report (SP-Code-2)
   listRefundReport: (opts?: { dateFrom?: string; dateTo?: string; outletId?: string; flag?: 'any' | 'amount_mismatch' | 'over_total'; page?: number; limit?: number }) => Promise<RefundReport>
+  getBundleReport: (opts?: { dateFrom?: string; dateTo?: string; outletId?: string }) => Promise<BundleReport>
   listDiscountCodeReport: (opts?: { dateFrom?: string; dateTo?: string; page?: number; limit?: number }) => Promise<DiscountCodeReport>
 
   // oversold sale lines "Stok Minus" (A44)
@@ -1172,6 +1175,15 @@ export function createClient(opts: ClientOptions): Api {
       if (outletId) params.outletId = outletId
       if (flag) params.flag = flag
       return request<RefundReport>('GET', `${API}/refund-report` + qs(params))
+    },
+
+    getBundleReport: (opts) => {
+      const { dateFrom, dateTo, outletId } = opts ?? {}
+      const params: Record<string, string> = {}
+      if (dateFrom) params.dateFrom = dateFrom
+      if (dateTo) params.dateTo = dateTo
+      if (outletId) params.outletId = outletId
+      return request<BundleReport>('GET', `${API}/bundle-report` + qs(params))
     },
 
     listDiscountCodeReport: (opts) => {

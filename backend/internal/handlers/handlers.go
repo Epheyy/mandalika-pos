@@ -535,6 +535,30 @@ func (h *Handlers) DiscountCodeReport(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, api.DiscountCodeReport{Summary: summary, Data: rows, Meta: *meta(total, p, l)})
 }
 
+// bundleReportTimeout bounds the one aggregate query of the bundle report.
+const bundleReportTimeout = 15 * time.Second
+
+// BundleReport returns bundles sold per fragrance, line and size for a business-day range, outlet
+// scope-clamped like the other reports. Gated on view_reports.
+func (h *Handlers) BundleReport(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	if !dayRange(w, q.Get("dateFrom"), q.Get("dateTo")) {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), bundleReportTimeout)
+	defer cancel()
+	out, err := h.Repo.BundleReport(ctx, read.BundleReportFilters{
+		DateFrom: q.Get("dateFrom"),
+		DateTo:   q.Get("dateTo"),
+		OutletID: scope(r).OutletID, // scope-clamped: non-admin → their outlet; admin → ?outletId/all/header
+	})
+	if err != nil {
+		writeErr(w, r, 500, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 // RefundReport returns one row per refund with its lines, filterable by refund business day,
 // outlet (scope-clamped) and amount flag. Gated on view_reports.
 func (h *Handlers) RefundReport(w http.ResponseWriter, r *http.Request) {

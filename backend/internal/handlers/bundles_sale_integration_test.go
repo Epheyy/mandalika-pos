@@ -317,4 +317,5 @@ func bundleSaleSubtests(t *testing.T, pool *pgxpool.Pool, ctx context.Context, r
 	})
 
 	bundleDiscountSubtests(t, pool, ctx, wr, str, exec, bundleItems, sale, syncSale, orderID, champ, extFull)
+	bundleReportSubtests(t, pool, ctx, rd, h, secret, outlet, champ, swapP, call, bundleItems, sale, syncSale, orderID, exec)
 }
