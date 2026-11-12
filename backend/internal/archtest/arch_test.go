@@ -33,7 +33,7 @@ var tiers = map[string]tier{
 	"clientip": leaf, "rules": leaf, "tenderlines": leaf,
 	"db": infra, "ledger": infra, "cache": infra, "config": infra, "observability": infra,
 	"auth": platform, "middleware": platform,
-	"read": domain, "write": domain, "service": domain,
+	"read": domain, "write": domain, "service": domain, "bundles": domain,
 	"integration/erp": adapter, "integration/erp/erpapi": leaf, "integration/erp/erpstub": leaf, "integration/erp/erpmap": leaf,
 	"handlers": transport, "sync": transport,
 	"server":  root,
@@ -44,7 +44,7 @@ var tiers = map[string]tier{
 var allowed = map[string][]string{
 	"db":              {},
 	"ledger":          {"db"},
-	"read":            {"db", "ledger"},
+	"read":            {"db", "ledger", "bundles"},
 	"write":           {"db", "ledger"},
 	"service":         {"db", "ledger"},
 	"integration/erp": {"db", "ledger"},

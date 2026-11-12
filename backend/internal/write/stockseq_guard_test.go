@@ -37,6 +37,7 @@ var stockSeqAllowlist = map[string]bool{
 	"internal/write/stock_guard.go":      false,
 	"internal/read/oversell.go":          false,
 	"internal/read/catalog.go":           false,
+	"internal/read/bundles.go":           false, // read-only: the bundle catalog joins the stock row only for availability
 	"internal/read/products_filtered.go": false,
 	"internal/read/outlet_giveaway.go":   false, // read-only: the giveaway pull lookup joins the stock row
 	"internal/read/inventory.go":         false,

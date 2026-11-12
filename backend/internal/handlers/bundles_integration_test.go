@@ -58,13 +58,14 @@ func TestBundlesPostgres(t *testing.T) {
 	rd, wr := read.New(pool), write.New(pool)
 	h := New(rd, nil, nil, wr, nil, nil, nil)
 	key := []byte(secret)
-	tokFor := func(perms []string) string {
-		tok, err := auth.IssueAccess(key, time.Hour, adminU, "admin", "", perms)
+	tokForRole := func(role string, perms []string) string {
+		tok, err := auth.IssueAccess(key, time.Hour, adminU, role, "", perms)
 		if err != nil {
 			t.Fatal(err)
 		}
 		return tok
 	}
+	tokFor := func(perms []string) string { return tokForRole("admin", perms) }
 	router := chi.NewRouter()
 	router.Use(mw.RequireAuth(&config.Config{AccessSecret: key}))
 	router.Get("/settings/bundles", h.GetBundleSettings)
@@ -104,20 +105,23 @@ func TestBundlesPostgres(t *testing.T) {
 	}
 
 	t.Run("settings_forbidden", func(t *testing.T) {
-		if code, _ := do(tokFor([]string{"view_reports"}), http.MethodPut, "/settings/bundles", valid); code != http.StatusForbidden {
+		if code, _ := do(tokForRole("cashier", nil), http.MethodPut, "/settings/bundles", valid); code != http.StatusForbidden {
 			t.Fatalf("PUT without manage_products = %d, want 403", code)
 		}
 	})
 
-	t.Run("settings_roundtrip_and_version_bumps", func(t *testing.T) {
-		tok := tokFor([]string{"manage_products"})
+	t.Run("version_bumps", func(t *testing.T) {
 		before := version()
-		if code, body := do(tok, http.MethodPut, "/settings/bundles", valid); code != http.StatusOK {
+		if code, body := do(tokFor([]string{"manage_products"}), http.MethodPut, "/settings/bundles", valid); code != http.StatusOK {
 			t.Fatalf("PUT = %d %v", code, body)
 		}
 		if after := version(); after <= before {
 			t.Fatalf("content version %d did not increase from %d", after, before)
 		}
+	})
+
+	t.Run("settings_roundtrip", func(t *testing.T) {
+		tok := tokFor([]string{"manage_products"})
 		code, body := do(tok, http.MethodGet, "/settings/bundles", nil)
 		if code != http.StatusOK {
 			t.Fatalf("GET = %d %v", code, body)
