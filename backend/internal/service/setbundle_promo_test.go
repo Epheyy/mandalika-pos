@@ -60,7 +60,9 @@ func TestPromoEligibleLinesSkipsBundlePieces(t *testing.T) {
 }
 
 func TestRefundGroupsSetBundles(t *testing.T) {
-	mk := func(g int) OrderItem { return OrderItem{ProductID: "A", Quantity: 1, BundleGroup: g, BundleRole: "large"} }
+	mk := func(g int) OrderItem {
+		return OrderItem{ProductID: "A", Quantity: 1, BundleGroup: g, BundleRole: "large"}
+	}
 	items := []OrderItem{mk(1), mk(1), mk(1), mk(2), mk(2), mk(2), {ProductID: "A", Quantity: 1}}
 	got := refundGroups(items)
 	want := []string{"set:1", "set:1", "set:1", "set:2", "set:2", "set:2", ""}

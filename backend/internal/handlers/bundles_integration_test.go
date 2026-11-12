@@ -235,4 +235,6 @@ func TestBundlesPostgres(t *testing.T) {
 		}
 		t.Fatal("NO1 not in the backoffice catalog")
 	})
+
+	bundleSaleSubtests(t, pool, ctx, rd, wr, outlet, champ, key)
 }

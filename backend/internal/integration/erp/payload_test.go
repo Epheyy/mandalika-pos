@@ -308,3 +308,30 @@ func TestLegacyRefundKeyOnlyForWholeOrderKey(t *testing.T) {
 		t.Error("ErrRefundRowMissing must be wrappable")
 	}
 }
+
+// A bundle is three ordinary sale lines whose order line prices are the pieces' shares. The ERP
+// payload needs no bundle logic: the three unit prices add up to the bundle net and none is 0.
+func TestBuildDocumentBundlePiecesSumToBundleNet(t *testing.T) {
+	large, atomizer, vial := movement("L", -1), movement("A", -1), movement("V", -1)
+	in := input("sale", large, atomizer, vial)
+	in.Order = &OrderInfo{PaymentMethod: "cash", Total: 850000, LinePrice: map[string]int64{
+		"item-L": 675498, "item-A": 140728, "item-V": 33774,
+	}}
+	doc := mustBuild(t, in)
+	if len(doc.Lines) != 3 {
+		t.Fatalf("lines = %d, want 3", len(doc.Lines))
+	}
+	var sum int64
+	for _, l := range doc.Lines {
+		if l.Qty != 1 && l.Qty != -1 {
+			t.Errorf("line qty = %d", l.Qty)
+		}
+		if l.UnitPrice == nil || *l.UnitPrice <= 0 {
+			t.Fatalf("a bundle piece reached the ERP at no price: %+v", l)
+		}
+		sum += *l.UnitPrice
+	}
+	if sum != 850000 {
+		t.Fatalf("unit prices add up to %d, want 850000", sum)
+	}
+}
