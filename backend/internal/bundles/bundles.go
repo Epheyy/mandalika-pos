@@ -28,6 +28,9 @@ const (
 	atomizerCategory = "ATOMIZER"
 )
 
+// DefaultLargeSizes are the large sizes the Backoffice always offers a standard price for.
+var DefaultLargeSizes = []string{"100ml", "110ml", "120ml"}
+
 var sizeRe = regexp.MustCompile(`(?i)^\s*(\d+)\s*ml\b`)
 
 // ParseSizeML reads the leading "<n>ml" of a variant label ("120ml EXTRAIT DE PARFUM" ->

@@ -104,6 +104,18 @@ func TestBundlesPostgres(t *testing.T) {
 		return v
 	}
 
+	t.Run("lines_before_any_price", func(t *testing.T) {
+		// A fresh install has no bundle price yet: its ERP lines must still be listed so they can be priced.
+		code, body := do(tokFor([]string{"manage_products"}), http.MethodGet, "/settings/bundles", nil)
+		if code != http.StatusOK {
+			t.Fatalf("GET = %d %v", code, body)
+		}
+		data := body["data"].(map[string]any)
+		if len(data["standard"].([]any)) != 0 || len(data["lines"].([]any)) != 2 {
+			t.Fatalf("settings = %v, want no prices and the 2 ERP lines", data)
+		}
+	})
+
 	t.Run("settings_forbidden", func(t *testing.T) {
 		if code, _ := do(tokForRole("cashier", nil), http.MethodPut, "/settings/bundles", valid); code != http.StatusForbidden {
 			t.Fatalf("PUT without manage_products = %d, want 403", code)

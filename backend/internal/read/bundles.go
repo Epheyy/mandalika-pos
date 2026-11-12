@@ -25,7 +25,16 @@ func (r *Repo) BundleSettings(ctx context.Context) (api.BundleSettings, error) {
 	if err != nil {
 		return api.BundleSettings{}, err
 	}
-	cat, err := r.deriveBundles(ctx, Scope{CrossAll: true}, p)
+	// The lines to price are those of every large-size candidate, so a fresh install (no standard
+	// price yet) still shows its ERP lines: price the default sizes at 1 for this lookup only.
+	lookup := bundles.Prices{Standard: map[string]float64{}}
+	for _, size := range bundles.DefaultLargeSizes {
+		lookup.Standard[size] = 1
+	}
+	for size, price := range p.Standard {
+		lookup.Standard[size] = price
+	}
+	cat, err := r.deriveBundles(ctx, Scope{CrossAll: true}, lookup)
 	if err != nil {
 		return api.BundleSettings{}, err
 	}

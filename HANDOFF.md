@@ -8,6 +8,11 @@ Last updated: 2026-11-12 by Claude (Opus 5.5) - bundles design approved + plan w
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-12: **BUNDLES PHASE 1 built, PR open, NOT merged** (branch `feat/bundles-1-settings`, migration **0089**, backend + Backoffice; nothing deployed).
+> - **Built:** `internal/bundles` (pure derivation: large 100/110/120ml EXT or PI + 10ml ATOMIZER + same-line 2ml), table `bundle_prices`, `GET/PUT /settings/bundles` (PUT needs manage_products), `GET /bundles/catalog`, `bundleCatalog` in `/sync/pull`, and the Backoffice Produk > Bundle tab (replaces the read-only list).
+> - **Tests:** Go unit + new Postgres gate `TestBundlesPostgres` (port 26481, range now 26439-26481), Backoffice vitest, `gen:check`, `quality:ci`. Tab checked live on a local stack against the mockup.
+> - **Release:** backend first (then Backoffice); no POS change, tablets ignore the new pull field. **NEXT:** Phase 2 (server sale path, migration 0090) after the owner merges this.
+
 > 2026-11-12: **BUNDLES design approved and plan written; VOID and RECEIPT DESIGNER designed** (docs only, branch `docs/bundles-plan`, no code).
 > - **Build order (owner):** bundles, then Void, then the receipt designer. Configurable POS layouts are parked (owner: "cosmetic"); the GCP move is "not yet".
 > - **Bundles:**
