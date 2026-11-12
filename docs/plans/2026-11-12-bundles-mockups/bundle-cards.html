@@ -1,0 +1,47 @@
+<style>
+  .pc-pos { background:#FBF7EF; border:1px solid #E6DCC8; border-radius:14px; padding:12px; font-family: system-ui, sans-serif; color:#2B2620; font-size:12px; }
+  .pc-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; align-items:start; }
+  .pc-card { background:#fff; border:1px solid #E6DCC8; border-radius:12px; padding:10px; }
+  .pc-card h5 { margin:0 0 2px; font-size:13px; letter-spacing:.2px; }
+  .pc-muted { color:#6E6455; font-size:11px; }
+  .pc-g { display:block; margin-top:7px; background:#8F6A1E; color:#fff; border-radius:9px; padding:7px 8px; font-weight:600; font-size:11.5px; text-align:center; }
+  .pc-g small { display:block; font-weight:400; opacity:.9; font-size:10px; }
+  .pc-split { display:flex; gap:6px; }
+  .pc-split .pc-g { flex:1; }
+  .pc-l { display:block; margin-top:5px; text-align:center; font-size:11px; color:#6E6455; text-decoration:underline; }
+  .pc-sheet { background:#fff; border:1px solid #E6DCC8; border-radius:12px; padding:10px; margin-top:8px; box-shadow:0 8px 22px rgba(43,38,32,.10); }
+  .pc-row { display:flex; justify-content:space-between; align-items:center; padding:7px 9px; border:2px solid #8F6A1E; background:#FFF8EA; border-radius:10px; margin-top:6px; }
+  .pc-row.off { border:1px solid #E6DCC8; background:#F6F3EC; color:#7D7262; }
+  .pc-sec { font-size:10.5px; letter-spacing:.6px; text-transform:uppercase; color:#6E6455; margin-top:6px; }
+  .pc-badge { display:inline-block; background:#F3E7CD; color:#7A5A16; border-radius:6px; padding:1px 6px; font-size:10px; font-weight:600; }
+</style>
+
+<h2>POS cards: bundle buttons by line and size</h2>
+<p class="subtitle">A bundle keeps to one line: the large bottle, the fragrance's 10ml atomizer, and the 2ml of the same line. On buttons, "EXT" means Extrait and "PI" means Parfum Intense. Prices are examples.</p>
+
+<div class="pc-pos">
+  <div class="pc-grid">
+    <div class="pc-card"><h5>HOLY SWEET</h5><span class="pc-muted">WOMAN · 1 bundle</span>
+      <span class="pc-g">Bundle EXT 110ml · Rp 725.000<small>110ml + atomizer 10ml + 2ml</small></span>
+      <span class="pc-l">Satuan (pilih ukuran)</span></div>
+
+    <div class="pc-card"><h5>CHAMPION</h5><span class="pc-muted">MAN · 2 bundle</span>
+      <div class="pc-split"><span class="pc-g">Bundle EXT 120ml<small>Rp 850.000</small></span><span class="pc-g">Bundle PI 120ml<small>Rp 795.000</small></span></div>
+      <span class="pc-l">Satuan (pilih ukuran)</span></div>
+
+    <div class="pc-card"><h5>24HOURS</h5><span class="pc-muted">MAN · 4 bundle</span>
+      <span class="pc-g">Bundle · 4 pilihan<small>mulai Rp 650.000</small></span>
+      <span class="pc-l">Satuan (pilih ukuran)</span>
+      <div class="pc-sheet">
+        <div style="font-weight:600">24HOURS: pilih bundle</div>
+        <div class="pc-sec">Extrait de Parfum</div>
+        <div class="pc-row"><span><b>100ml</b> <span class="pc-muted">+ 10ml + 2ml</span></span><b>Rp 650.000</b></div>
+        <div class="pc-row"><span><b>120ml</b> <span class="pc-muted">+ 10ml + 2ml</span></span><b>Rp 850.000</b></div>
+        <div class="pc-sec">Parfum Intense</div>
+        <div class="pc-row off"><span><b>100ml</b> <span class="pc-badge">Habis</span></span><b>Rp 650.000</b></div>
+        <div class="pc-row"><span><b>120ml</b> <span class="pc-muted">+ 10ml + 2ml</span></span><b>Rp 795.000</b></div>
+      </div>
+    </div>
+  </div>
+</div>
+<p class="subtitle" style="margin-top:8px">With one or two bundles, each is its own button on the card. With three or more, one button opens the list. A bundle whose large bottle is out of stock shows "Habis" and can't be tapped.</p>

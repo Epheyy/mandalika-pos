@@ -170,6 +170,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Get("/discount-codes", h.DiscountCodes)
 			r.Get("/loyalty-conditions", h.LoyaltyConditions)
 			r.Get("/settings/app", h.AppSettings)
+			r.Get("/settings/bundles", h.GetBundleSettings)
+			r.Get("/bundles/catalog", h.GetBundleCatalog)
 			r.Get("/settings/loyalty", h.LoyaltySettings)
 
 			// Sales (outlet-scoped in repo via resolved Scope).
@@ -233,6 +235,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Put("/categories/{id}", h.UpdateCategory)
 				r.Delete("/categories/{id}", h.DeleteCategory)
 				r.Post("/uploads/sign", h.SignUpload)
+				r.Put("/settings/bundles", h.UpdateBundleSettings)
 			})
 			r.Group(func(r chi.Router) {
 				// A30: customer data beyond an exact phone lookup. Admin, or manage_customers for a

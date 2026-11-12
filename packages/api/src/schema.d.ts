@@ -256,6 +256,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bundles/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Derived bundle catalog (offers per product, missing reasons, pieces) */
+        get: operations["getBundleCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/bundles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bundle price settings */
+        get: operations["getBundleSettings"];
+        /** Replace the bundle price settings (manage_products) */
+        put: operations["updateBundleSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/customers": {
         parameters: {
             query?: never;
@@ -4239,6 +4274,77 @@ export interface components {
             bundlePrice: number;
             maxApplications?: number;
         };
+        BundlePriceEntry: {
+            /** @description Large size key such as 120ml. */
+            size: string;
+            /** Format: double */
+            price: number;
+        };
+        BundleLinePriceEntry: {
+            /** @description ERP line, EXTRAIT DE PARFUM or PARFUM INTENSE. */
+            line: string;
+            size: string;
+            /** Format: double */
+            price: number;
+        };
+        BundleLine: {
+            line: string;
+            label: string;
+            short: string;
+        };
+        BundleSettings: {
+            standard: components["schemas"]["BundlePriceEntry"][];
+            linePrices: components["schemas"]["BundleLinePriceEntry"][];
+            lines: components["schemas"]["BundleLine"][];
+        };
+        BundleSettingsInput: {
+            standard: components["schemas"]["BundlePriceEntry"][];
+            linePrices: components["schemas"]["BundleLinePriceEntry"][];
+        };
+        BundleSettingsResponse: {
+            data: components["schemas"]["BundleSettings"];
+        };
+        BundleOffer: {
+            /** @description Empty for a variant without ERP data (test catalog). */
+            line: string;
+            lineLabel: string;
+            lineShort: string;
+            size: string;
+            /** Format: double */
+            price: number;
+            largeVariantSize: string;
+            atomizerVariantSize: string;
+            vialVariantSize: string;
+        };
+        BundleMissing: {
+            line: string;
+            size: string;
+            /** @enum {string} */
+            reason: "no_atomizer" | "no_vial";
+            text: string;
+        };
+        BundleCatalogProduct: {
+            productId: string;
+            productName: string;
+            offers: components["schemas"]["BundleOffer"][];
+            missing: components["schemas"]["BundleMissing"][];
+        };
+        BundlePiece: {
+            productId: string;
+            variantSize: string;
+            /** @enum {string} */
+            role: "large" | "atomizer" | "vial";
+            line: string;
+            size: string;
+        };
+        BundleCatalog: {
+            lines: components["schemas"]["BundleLine"][];
+            products: components["schemas"]["BundleCatalogProduct"][];
+            pieces: components["schemas"]["BundlePiece"][];
+        };
+        BundleCatalogResponse: {
+            data: components["schemas"]["BundleCatalog"];
+        };
         Promotion: {
             /** Format: uuid */
             id: string;
@@ -5184,6 +5290,7 @@ export interface components {
             loyaltyConditions?: components["schemas"]["LoyaltyCondition"][];
             loyaltySettings?: components["schemas"]["LoyaltySettings"];
             appSettings?: components["schemas"]["AppSettings"];
+            bundleCatalog?: components["schemas"]["BundleCatalog"];
             users?: components["schemas"]["User"][];
             /** @description Always empty since A08 (kept so older bundles still parse). Approvers come from GET /sync/receive-approvers and no PIN hash is shipped. */
             receiveApprovers?: components["schemas"]["ReceiveApprover"][];
@@ -6874,6 +6981,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BundleListResponse"];
+                };
+            };
+        };
+    };
+    getBundleCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description bundle catalog */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BundleCatalogResponse"];
+                };
+            };
+        };
+    };
+    getBundleSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description bundle settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BundleSettingsResponse"];
+                };
+            };
+        };
+    };
+    updateBundleSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BundleSettingsInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description invalid bundle prices */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
         };

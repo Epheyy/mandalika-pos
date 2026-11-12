@@ -1,0 +1,105 @@
+<style>
+  .rd { background:#F7F8FA; border:1px solid #E3E6EB; border-radius:14px; padding:14px; font-family: system-ui, sans-serif; color:#1F2430; font-size:12.5px; }
+  .rd-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px; }
+  .rd-title { font-size:17px; font-weight:700; }
+  .rd-hint { color:#5B6472; font-size:11.5px; }
+  .rd-grid { display:grid; grid-template-columns: 1.15fr 1fr; gap:14px; align-items:start; }
+  .rd-card { background:#fff; border:1px solid #E3E6EB; border-radius:12px; padding:12px; }
+  .rd-sel { border:1px solid #D5D9E0; border-radius:8px; padding:5px 9px; background:#fff; font-size:12px; display:inline-block; }
+  .rd-block { display:flex; align-items:center; gap:8px; border:1px solid #E3E6EB; border-radius:10px; padding:7px 9px; margin-top:6px; background:#fff; }
+  .rd-block.on-edit { border:2px solid #8F6A1E; background:#FFF8EA; }
+  .rd-block.off { background:#F3F4F6; color:#5B6472; }
+  .rd-grip { color:#5B6472; font-size:13px; cursor:grab; }
+  .rd-name { flex:1; font-weight:600; }
+  .rd-sw { width:28px; height:16px; border-radius:999px; background:#8F6A1E; position:relative; flex:none; }
+  .rd-sw::after { content:""; position:absolute; top:2px; right:2px; width:12px; height:12px; border-radius:50%; background:#fff; }
+  .rd-sw.off { background:#C4C9D2; }
+  .rd-sw.off::after { right:auto; left:2px; }
+  .rd-lock { font-size:10.5px; color:#5B6472; border:1px solid #D5D9E0; border-radius:6px; padding:1px 6px; }
+  .rd-edit { margin:6px 0 2px 26px; padding:9px; border-left:2px solid #8F6A1E; background:#FFFCF5; border-radius:0 8px 8px 0; }
+  .rd-row { display:flex; gap:8px; align-items:center; margin-top:5px; flex-wrap:wrap; }
+  .rd-seg { display:inline-flex; border:1px solid #D5D9E0; border-radius:8px; overflow:hidden; }
+  .rd-seg span { padding:4px 9px; font-size:11.5px; }
+  .rd-seg span.on { background:#1F2430; color:#fff; }
+  .rd-add { margin-top:8px; border:1px dashed #8F6A1E; color:#6B4E12; border-radius:10px; padding:7px; text-align:center; font-weight:600; }
+  .rd-paper { background:#fff; width:260px; margin:0 auto; padding:14px 12px 22px; box-shadow:0 10px 26px rgba(20,24,40,.14); border-radius:2px;
+              font-family: "Courier New", ui-monospace, monospace; font-size:11px; line-height:1.35; color:#111; white-space:pre; overflow:hidden; }
+  .rd-paper .c { text-align:center; display:block; }
+  .rd-paper .b { font-weight:700; }
+  .rd-paper .big { font-size:15px; font-weight:700; }
+  .rd-logo { width:120px; height:36px; margin:0 auto 4px; border:1.5px solid #111; display:flex; align-items:center; justify-content:center; font-family: Georgia, serif; font-size:13px; letter-spacing:2px; }
+  .rd-qr { width:64px; height:64px; margin:4px auto; background:
+            repeating-linear-gradient(90deg,#111 0 4px,#fff 4px 8px), repeating-linear-gradient(0deg,#111 0 4px,#fff 4px 8px);
+            background-blend-mode: difference; border:3px solid #111; }
+  .rd-btns { display:flex; gap:8px; justify-content:center; margin-top:10px; }
+  .rd-btn { border:1px solid #8F6A1E; color:#6B4E12; background:#FFF8EA; border-radius:8px; padding:5px 11px; font-weight:600; font-size:12px; }
+  .rd-btn.solid { background:#8F6A1E; color:#fff; }
+</style>
+
+<h2>Proposal: a receipt designer in the Backoffice</h2>
+<p class="subtitle">On the left, the receipt is a list of blocks you switch on, reorder and style. On the right, a preview drawn by the same code the printer uses, so the preview matches the printout. Data is a sample sale with a bundle.</p>
+
+<div class="rd">
+  <div class="rd-top">
+    <div><div class="rd-title">Desain Struk</div><div class="rd-hint">Pengaturan › Struk</div></div>
+    <div>Template <span class="rd-sel">Standar ▾</span> &nbsp; Kertas <span class="rd-seg"><span class="on">58mm</span><span>80mm</span></span> &nbsp; Dipakai di <span class="rd-sel">38 outlet</span></div>
+  </div>
+
+  <div class="rd-grid">
+    <div class="rd-card">
+      <div style="font-weight:700">Blok struk</div>
+      <div class="rd-hint">Seret untuk mengubah urutan. Blok bergembok selalu dicetak.</div>
+
+      <div class="rd-block"><span class="rd-grip">⋮⋮</span><span class="rd-name">Logo</span><span class="rd-hint">dari outlet / unggah</span><span class="rd-sw"></span></div>
+      <div class="rd-block on-edit"><span class="rd-grip">⋮⋮</span><span class="rd-name">Judul &amp; info outlet</span><span class="rd-sw"></span></div>
+      <div class="rd-edit">
+        <div class="rd-row">Judul <span class="rd-sel" style="min-width:150px">MANDALIKA PERFUME</span> <span class="rd-seg"><span>Normal</span><span class="on">Besar</span></span></div>
+        <div class="rd-row">Tampilkan: <span class="rd-sel">☑ Nama outlet</span><span class="rd-sel">☑ Alamat</span><span class="rd-sel">☑ Telepon</span></div>
+      </div>
+      <div class="rd-block"><span class="rd-grip">⋮⋮</span><span class="rd-name">Info transaksi</span><span class="rd-hint">no., tanggal, kasir, pelanggan</span><span class="rd-sw"></span></div>
+      <div class="rd-block"><span class="rd-grip">⋮⋮</span><span class="rd-name">Daftar barang</span><span class="rd-lock">🔒 wajib</span></div>
+      <div class="rd-block"><span class="rd-grip">⋮⋮</span><span class="rd-name">Diskon &amp; total</span><span class="rd-lock">🔒 total wajib</span></div>
+      <div class="rd-block"><span class="rd-grip">⋮⋮</span><span class="rd-name">Pembayaran &amp; kembalian</span><span class="rd-lock">🔒 wajib</span></div>
+      <div class="rd-block"><span class="rd-grip">⋮⋮</span><span class="rd-name">Poin member</span><span class="rd-hint">poin didapat &amp; saldo</span><span class="rd-sw"></span></div>
+      <div class="rd-block"><span class="rd-grip">⋮⋮</span><span class="rd-name">Teks: kebijakan retur</span><span class="rd-sw"></span></div>
+      <div class="rd-block"><span class="rd-grip">⋮⋮</span><span class="rd-name">QR code</span><span class="rd-hint">instagram.com/…</span><span class="rd-sw"></span></div>
+      <div class="rd-block off"><span class="rd-grip">⋮⋮</span><span class="rd-name">Teks: NPWP</span><span class="rd-sw off"></span></div>
+      <div class="rd-block"><span class="rd-grip">⋮⋮</span><span class="rd-name">Penutup</span><span class="rd-hint">"Terima kasih…"</span><span class="rd-sw"></span></div>
+      <div class="rd-add">+ Tambah blok (teks, garis, QR, gambar)</div>
+    </div>
+
+    <div>
+      <div class="rd-paper"><div class="rd-logo">MANDALIKA</div><span class="c big">MANDALIKA PERFUME</span><span class="c">Outlet Grand Indonesia</span><span class="c">Jl. M.H. Thamrin No.1, Jakarta</span><span class="c">0812-0000-0000</span>
+--------------------------------
+No      MDL-GI-20261112-0042
+Tanggal     12/11/2026 14:05
+Kasir                   Rina
+Pelanggan          Budi S.
+--------------------------------
+<span class="b">BUNDLE EXT 120ml</span>
+CHAMPION
+1 x                  850.000
+  - 120ml Extrait  CHAMPION
+  - 10ml Atomizer  24HOURS
+  - 2ml Extrait    CHAMPION
+  Diskon Akhir Tahun -85.000
+2ml PI · HOLY SWEET
+1 x                   35.000
+--------------------------------
+Subtotal             885.000
+- Diskon bundle      -85.000
+<span class="b">TOTAL                800.000</span>
+QRIS                 800.000
+--------------------------------
+Poin didapat              +80
+Saldo poin             1.240
+--------------------------------
+<span class="c">Barang yang sudah dibeli tidak
+dapat dikembalikan kecuali
+cacat produksi (maks. 3 hari).</span>
+<div class="rd-qr"></div><span class="c">Ikuti kami @mandalikaperfume</span>
+<span class="c">Terima kasih!</span></div>
+      <div class="rd-btns"><span class="rd-btn">Cetak tes di tablet</span><span class="rd-btn solid">Simpan</span></div>
+    </div>
+  </div>
+</div>

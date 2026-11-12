@@ -1,0 +1,70 @@
+<style>
+  .pos { background:#FBF7EF; border:1px solid #E6DCC8; border-radius:14px; padding:12px; font-family: system-ui, sans-serif; color:#2B2620; font-size:12px; }
+  .line { background:#fff; border:1px solid #E6DCC8; border-radius:12px; padding:10px; }
+  .head { display:flex; justify-content:space-between; font-weight:600; font-size:13px; }
+  .badge { display:inline-block; background:#F3E7CD; color:#7A5A16; border-radius:6px; padding:1px 6px; font-size:10px; font-weight:600; margin-left:4px; }
+  .comp { display:flex; justify-content:space-between; align-items:center; padding:5px 0 5px 10px; border-left:2px solid #E6DCC8; margin-top:4px; }
+  .muted { color:#8A7F6E; font-size:11px; }
+  .ok { color:#2E7D4F; font-size:11px; }
+  .bad { color:#B42318; font-size:11px; font-weight:600; }
+  .swap { border:1px solid #B8892B; color:#7A5A16; border-radius:8px; padding:3px 9px; font-size:11px; font-weight:600; background:#FFF8EA; }
+  .swap.hot { background:#B8892B; color:#fff; }
+  .picker { background:#fff; border:1px solid #E6DCC8; border-radius:12px; padding:10px; margin-top:8px; }
+  .prow { display:flex; justify-content:space-between; padding:6px 8px; border:1px solid #E6DCC8; border-radius:9px; margin-top:5px; }
+  .split { display:flex; gap:6px; margin-top:8px; }
+  .gbtn { flex:1; background:#B8892B; color:#fff; border-radius:9px; padding:7px 8px; font-weight:600; font-size:11.5px; text-align:center; }
+  .gbtn small { display:block; font-weight:400; opacity:.9; font-size:10px; }
+</style>
+
+<h2>In the cart: when may the cashier swap the atomizer or vial?</h2>
+<p class="subtitle">The bundle shows as one line with its three pieces underneath; the price never changes when a piece is swapped. Pick when swapping is allowed.</p>
+
+<div class="options">
+  <div class="option" data-choice="x" onclick="toggleSelect(this)">
+    <div class="letter">X</div>
+    <div class="content">
+      <h3>Swap only when a piece is out of stock</h3>
+      <p>A "Ganti" button appears only on a piece the outlet doesn't have. If that piece is out of stock when the bundle is added, the swap list opens straight away.</p>
+      <div class="pos" style="margin-top:10px">
+        <div class="line">
+          <div class="head"><span>GORGEOUS TUBEROSE <span class="badge">BUNDLE 110ML</span></span><span>Rp 725.000</span></div>
+          <div class="comp"><span>110ml · Gorgeous Tuberose</span><span class="ok">Stok 12</span></div>
+          <div class="comp"><span>10ml · Gorgeous Tuberose</span><span class="bad">Habis</span><span class="swap hot">Ganti</span></div>
+          <div class="comp"><span>2ml · Gorgeous Tuberose</span><span class="ok">Stok 30</span></div>
+        </div>
+        <div class="picker">
+          <div style="font-weight:600">Pilih atomizer 10ml pengganti</div>
+          <div class="prow"><span>10ml · Holy Sweet</span><span class="muted">Stok 22</span></div>
+          <div class="prow"><span>10ml · Unstoppable</span><span class="muted">Stok 9</span></div>
+          <div class="prow"><span>10ml · Only The Brave</span><span class="muted">Stok 4</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="y" onclick="toggleSelect(this)">
+    <div class="letter">Y</div>
+    <div class="content">
+      <h3>Swap any time, if the customer wants</h3>
+      <p>Every small piece always has a "Ganti" button, so the customer can pick a different fragrance's atomizer or vial even when the matching one is in stock. Out-of-stock pieces still open the swap list automatically.</p>
+      <div class="pos" style="margin-top:10px">
+        <div class="line">
+          <div class="head"><span>GORGEOUS TUBEROSE <span class="badge">BUNDLE 110ML</span></span><span>Rp 725.000</span></div>
+          <div class="comp"><span>110ml · Gorgeous Tuberose</span><span class="ok">Stok 12</span></div>
+          <div class="comp"><span>10ml · Holy Sweet <span class="muted">(diganti)</span></span><span class="ok">Stok 22</span><span class="swap">Ganti</span></div>
+          <div class="comp"><span>2ml · Gorgeous Tuberose</span><span class="ok">Stok 30</span><span class="swap">Ganti</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:22px">Also check: a fragrance that comes in both 110ml and 120ml</h3>
+<p class="subtitle">My guess: the gold button splits into two, one per size. Tell me if some fragrances only ever have one of the two sizes.</p>
+<div class="pos" style="max-width:320px">
+  <div class="line">
+    <div style="font-weight:600;font-size:13px">GORGEOUS TUBEROSE</div><span class="muted">WOMAN · Stok 68</span>
+    <div class="split"><span class="gbtn">Bundle 110ml<small>Rp 725.000</small></span><span class="gbtn">Bundle 120ml<small>Rp 795.000</small></span></div>
+    <div style="text-align:center;margin-top:5px;font-size:11px;color:#8A7F6E;text-decoration:underline">Satuan (pilih ukuran)</div>
+  </div>
+</div>

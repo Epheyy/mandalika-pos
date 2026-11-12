@@ -1,0 +1,87 @@
+<style>
+  .bo { background:#F7F8FA; border:1px solid #E3E6EB; border-radius:14px; padding:14px; font-family: system-ui, sans-serif; color:#1F2430; font-size:12px; }
+  .crumb { color:#6B7280; font-size:11px; margin-bottom:4px; }
+  .ptitle { font-size:17px; font-weight:700; margin:0 0 8px; }
+  .tabs { display:flex; gap:4px; border-bottom:1px solid #E3E6EB; margin-bottom:12px; }
+  .tab { padding:6px 12px; font-size:12px; color:#6B7280; }
+  .tab.on { color:#1F2430; font-weight:600; border-bottom:2px solid #8F6A1E; }
+  .card { background:#fff; border:1px solid #E3E6EB; border-radius:12px; padding:12px; margin-bottom:10px; }
+  .card h4 { margin:0 0 2px; font-size:13px; }
+  .hint { color:#6B7280; font-size:11px; }
+  .row { display:flex; gap:10px; align-items:center; margin-top:8px; }
+  .field { border:1px solid #D5D9E0; border-radius:8px; padding:6px 9px; background:#fff; min-width:110px; font-size:12px; display:inline-block; }
+  .field.empty { color:#6B7280; font-style:italic; }
+  .lbl { width:70px; color:#4B5563; }
+  table { width:100%; border-collapse:collapse; margin-top:8px; }
+  th { text-align:left; font-size:10.5px; letter-spacing:.4px; text-transform:uppercase; color:#6B7280; padding:6px; border-bottom:1px solid #E3E6EB; }
+  td { padding:7px 6px; border-bottom:1px solid #F0F2F5; vertical-align:middle; }
+  .chip { display:inline-block; border-radius:6px; padding:1px 6px; font-size:10.5px; font-weight:600; margin:1px 3px 1px 0; }
+  .ok { background:#E6F4EC; color:#1E6B41; }
+  .no { background:#FDECEA; color:#A12B1F; }
+  .grey { background:#EEF0F3; color:#4B5563; }
+  .box { display:inline-block; width:9px; height:9px; border:1.5px solid #9AA1AC; border-radius:3px; margin-right:4px; vertical-align:-1px; }
+  .box.on { background:#8F6A1E; border-color:#8F6A1E; }
+  .seg { display:inline-flex; border:1px solid #D5D9E0; border-radius:8px; overflow:hidden; }
+  .seg span { padding:5px 10px; font-size:11.5px; }
+  .seg span.on { background:#1F2430; color:#fff; }
+  .note { background:#FFF8EA; border:1px solid #F0DDB0; border-radius:9px; padding:7px 9px; font-size:11px; color:#5E4714; margin-top:8px; }
+</style>
+
+<h2>Backoffice: bundle prices and the bundle promotion</h2>
+<p class="subtitle">These mockups show the layout only; the final look follows the Backoffice's current style. Lines come from the ERP. Prices are examples.</p>
+
+<h3>1 · Produk › Bundle</h3>
+<div class="bo">
+  <div class="crumb">Produk</div>
+  <div class="ptitle">Produk</div>
+  <div class="tabs"><span class="tab">Produk</span><span class="tab">Kategori</span><span class="tab on">Bundle</span></div>
+
+  <div class="card">
+    <h4>Harga bundle standar</h4>
+    <div class="hint">Isi bundle: 1 botol besar + atomizer 10ml + vial 2ml dari lini yang sama. Harga tidak berubah bila 10ml/2ml diganti aroma lain.</div>
+    <div class="row"><span class="lbl">100ml</span><span class="field">Rp 650.000</span></div>
+    <div class="row"><span class="lbl">110ml</span><span class="field">Rp 725.000</span></div>
+    <div class="row"><span class="lbl">120ml</span><span class="field">Rp 795.000</span></div>
+  </div>
+
+  <div class="card">
+    <h4>Harga per lini</h4>
+    <div class="hint">Lini diambil dari ERP. Kosong = pakai harga standar.</div>
+    <table>
+      <tr><th>Lini</th><th>Bundle 100ml</th><th>Bundle 110ml</th><th>Bundle 120ml</th></tr>
+      <tr><td><b>Extrait de Parfum</b></td><td><span class="field empty">standar</span></td><td><span class="field empty">standar</span></td><td><span class="field">Rp 850.000</span></td></tr>
+      <tr><td><b>Parfum Intense</b></td><td><span class="field empty">standar</span></td><td><span class="field empty">standar</span></td><td><span class="field empty">standar</span></td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h4>Aroma yang punya bundle</h4><span class="hint">Filter: <span class="chip grey">Semua</span><span class="chip grey">Ada yang kurang</span></span></div>
+    <div class="hint">Otomatis dari katalog: satu bundle per lini dan ukuran besar, bila atomizer 10ml dan 2ml lini itu ada.</div>
+    <table>
+      <tr><th>Aroma</th><th>Bundle</th><th>Catatan</th></tr>
+      <tr><td><b>CHAMPION</b></td><td><span class="chip ok">EXT 120ml · Rp 850.000</span><span class="chip ok">PI 120ml · Rp 795.000</span></td><td class="hint">—</td></tr>
+      <tr><td><b>24HOURS</b></td><td><span class="chip ok">EXT 100ml</span><span class="chip ok">PI 100ml</span><span class="chip ok">EXT 120ml</span><span class="chip ok">PI 120ml</span></td><td class="hint">—</td></tr>
+      <tr><td><b>ONLY THE BRAVE</b></td><td><span class="chip ok">EXT 120ml · Rp 850.000</span></td><td><span class="chip no">PI: 2ml Parfum Intense belum ada</span></td></tr>
+      <tr><td><b>NO1</b></td><td class="hint">Tidak ada bundle</td><td><span class="chip no">atomizer 10ml belum ada</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<h3 style="margin-top:22px">2 · Promosi › new type "Diskon Bundle"</h3>
+<p class="subtitle">This is a new promotion type in the existing promotion editor. Schedule, outlets, days and hours, and auto-apply work like they do for every promo.</p>
+<div class="bo">
+  <div class="card">
+    <h4>Diskon Bundle: Promo Akhir Tahun</h4>
+    <div class="row"><span class="lbl">Diskon</span><span class="seg"><span class="on">Persen</span><span>Nominal</span></span><span class="field">10 %</span><span class="hint">per bundle</span></div>
+    <div class="row" style="align-items:flex-start"><span class="lbl">Berlaku</span>
+      <span>
+        <span class="seg"><span>Semua bundle</span><span class="on">Pilih</span></span>
+        <div style="margin-top:6px">Lini: <span class="chip grey"><span class="box on"></span>Extrait de Parfum</span><span class="chip grey"><span class="box"></span>Parfum Intense</span></div>
+        <div style="margin-top:4px">Ukuran: <span class="chip grey"><span class="box"></span>100ml</span><span class="chip grey"><span class="box on"></span>110ml</span><span class="chip grey"><span class="box"></span>120ml</span></div>
+      </span>
+    </div>
+    <div class="row"><span class="lbl">Periode</span><span class="field">1 Des 2026</span>–<span class="field">31 Des 2026</span></div>
+    <div class="row"><span class="lbl">Outlet</span><span class="field">Semua outlet</span></div>
+    <div class="note">Bisa digabung dengan kode promo dan penukaran poin. Bila dua Diskon Bundle berlaku pada bundle yang sama, hanya diskon terbesar yang dipakai.</div>
+  </div>
+</div>

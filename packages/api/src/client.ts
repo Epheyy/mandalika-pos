@@ -22,6 +22,11 @@ export type DiscountCode = S['DiscountCode']
 export type LoyaltyCondition = S['LoyaltyCondition']
 export type LoyaltySettings = S['LoyaltySettings']
 export type AppSettings = S['AppSettings']
+export type BundleSettings = S['BundleSettings']
+export type BundleSettingsInput = S['BundleSettingsInput']
+export type BundleCatalog = S['BundleCatalog']
+export type BundleSettingsResponse = S['BundleSettingsResponse']
+export type BundleCatalogResponse = S['BundleCatalogResponse']
 export type Order = S['Order']
 export type CartItem = S['CartItem']
 export type Shift = S['Shift']
@@ -293,6 +298,9 @@ export interface Api {
   updateCategory: (id: string, input: CategoryInput) => Promise<Category>
   deleteCategory: (id: string) => Promise<void>
   listBundles: () => Promise<Bundle[]>
+  getBundleSettings: () => Promise<BundleSettingsResponse>
+  updateBundleSettings: (body: BundleSettingsInput) => Promise<void>
+  getBundleCatalog: () => Promise<BundleCatalogResponse>
 
   // customers
   listCustomers: (page?: number, limit?: number, q?: string, sort?: string, tagId?: string, segmentId?: string) => Promise<ListResult<Customer>>
@@ -807,6 +815,11 @@ export function createClient(opts: ClientOptions): Api {
       await request('DELETE', `${API}/categories/${id}`)
     },
     listBundles: () => data<Bundle[]>('GET', `${API}/bundles`),
+    getBundleSettings: () => request<BundleSettingsResponse>('GET', `${API}/settings/bundles`),
+    updateBundleSettings: async (body) => {
+      await request('PUT', `${API}/settings/bundles`, body)
+    },
+    getBundleCatalog: () => request<BundleCatalogResponse>('GET', `${API}/bundles/catalog`),
 
     listCustomers: (page = 1, limit = 50, q = '', sort = '', tagId = '', segmentId = '') =>
       list<Customer>(`${API}/customers`, {

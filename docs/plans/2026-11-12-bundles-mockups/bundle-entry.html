@@ -1,0 +1,80 @@
+<style>
+  .pos { background:#FBF7EF; border:1px solid #E6DCC8; border-radius:14px; padding:12px; font-family: system-ui, sans-serif; color:#2B2620; }
+  .tabs { display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+  .tab { padding:5px 11px; border-radius:999px; background:#fff; border:1px solid #E6DCC8; font-size:12px; }
+  .tab.on { background:#2B2620; color:#FBF7EF; border-color:#2B2620; }
+  .tab.gold { background:#B8892B; color:#fff; border-color:#B8892B; font-weight:600; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .card { background:#fff; border:1px solid #E6DCC8; border-radius:12px; padding:10px; font-size:12px; }
+  .card h5 { margin:0 0 2px; font-size:13px; letter-spacing:.2px; }
+  .muted { color:#8A7F6E; font-size:11px; }
+  .gbtn { display:block; margin-top:8px; background:#B8892B; color:#fff; border-radius:9px; padding:7px 8px; font-weight:600; font-size:12px; text-align:center; }
+  .gbtn small { display:block; font-weight:400; opacity:.9; font-size:10.5px; }
+  .lbtn { display:block; margin-top:5px; text-align:center; font-size:11px; color:#8A7F6E; text-decoration:underline; }
+  .badge { display:inline-block; background:#F3E7CD; color:#7A5A16; border-radius:6px; padding:1px 6px; font-size:10px; font-weight:600; margin-left:4px; }
+  .sheet { background:#fff; border:1px solid #E6DCC8; border-radius:14px; padding:10px; font-size:12px; }
+  .row { display:flex; justify-content:space-between; align-items:center; padding:8px 10px; border:1px solid #E6DCC8; border-radius:10px; margin-top:6px; }
+  .row.best { border:2px solid #B8892B; background:#FFF8EA; }
+  .sec { font-size:10.5px; letter-spacing:.6px; text-transform:uppercase; color:#8A7F6E; margin-top:10px; }
+</style>
+
+<h2>Where should the bundle sit so cashiers offer it first?</h2>
+<p class="subtitle">Three ways to make the bundle the first option. Example: Gorgeous Tuberose. The prices are examples only. Click one, or tell me what to mix.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Bundle button on every fragrance card</h3>
+      <p>The main screen stays the same, but each fragrance card gets a big gold "Bundle" button with its price. Single sizes sit behind a small link. One tap adds the bundle.</p>
+      <div class="pos" style="margin-top:10px">
+        <div class="tabs"><span class="tab on">Semua</span><span class="tab">WOMAN</span><span class="tab">MAN</span><span class="tab">UNISEX</span></div>
+        <div class="grid">
+          <div class="card"><h5>GORGEOUS TUBEROSE</h5><span class="muted">WOMAN · Stok 68</span>
+            <span class="gbtn">Bundle 110ml · Rp 725.000<small>110ml + 10ml + 2ml</small></span>
+            <span class="lbtn">Satuan (pilih ukuran)</span></div>
+          <div class="card"><h5>HOLY SWEET</h5><span class="muted">WOMAN · Stok 90</span>
+            <span class="gbtn">Bundle 110ml · Rp 725.000<small>110ml + 10ml + 2ml</small></span>
+            <span class="lbtn">Satuan (pilih ukuran)</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>"Bundle" tab first, open by default</h3>
+      <p>The category bar opens on a Bundle tab that lists one card per fragrance and size. The cashier sees bundles before anything else, and singles are in the usual tabs.</p>
+      <div class="pos" style="margin-top:10px">
+        <div class="tabs"><span class="tab gold">Bundle</span><span class="tab">Semua</span><span class="tab">WOMAN</span><span class="tab">MAN</span></div>
+        <div class="grid">
+          <div class="card"><h5>GORGEOUS TUBEROSE <span class="badge">BUNDLE</span></h5><span class="muted">110ml + 10ml + 2ml</span><div style="margin-top:6px;font-weight:600">Rp 725.000</div></div>
+          <div class="card"><h5>GORGEOUS TUBEROSE <span class="badge">BUNDLE</span></h5><span class="muted">120ml + 10ml + 2ml</span><div style="margin-top:6px;font-weight:600">Rp 795.000</div></div>
+          <div class="card"><h5>HOLY SWEET <span class="badge">BUNDLE</span></h5><span class="muted">110ml + 10ml + 2ml</span><div style="margin-top:6px;font-weight:600">Rp 725.000</div></div>
+          <div class="card"><h5>HOLY SWEET <span class="badge">BUNDLE</span></h5><span class="muted">120ml + 10ml + 2ml</span><div style="margin-top:6px;font-weight:600">Rp 795.000</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Bundle first in the size picker</h3>
+      <p>The main screen stays exactly as it is today. Tapping a fragrance opens the size picker with the bundles at the top, highlighted, and single sizes below, so the cashier passes the bundle on every sale.</p>
+      <div class="pos" style="margin-top:10px">
+        <div class="sheet">
+          <div style="font-weight:600;font-size:13px">GORGEOUS TUBEROSE</div>
+          <div class="sec">Paket Bundle</div>
+          <div class="row best"><span><b>Bundle 110ml</b> <span class="muted">· 110ml + 10ml + 2ml</span></span><b>Rp 725.000</b></div>
+          <div class="row best"><span><b>Bundle 120ml</b> <span class="muted">· 120ml + 10ml + 2ml</span></span><b>Rp 795.000</b></div>
+          <div class="sec">Satuan</div>
+          <div class="row"><span>110ml</span><span>Rp 675.000</span></div>
+          <div class="row"><span>10ml</span><span>Rp 95.000</span></div>
+          <div class="row"><span>2ml</span><span>Rp 25.000</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

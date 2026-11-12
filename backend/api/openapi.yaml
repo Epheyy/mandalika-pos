@@ -1519,6 +1519,93 @@ components:
         slots: { type: array, items: { $ref: '#/components/schemas/BundleSlot' } }
         bundlePrice: { type: number, format: double }
         maxApplications: { type: integer }
+    BundlePriceEntry:
+      type: object
+      required: [size, price]
+      properties:
+        size: { type: string, description: 'Large size key such as 120ml.' }
+        price: { type: number, format: double }
+    BundleLinePriceEntry:
+      type: object
+      required: [line, size, price]
+      properties:
+        line: { type: string, description: 'ERP line, EXTRAIT DE PARFUM or PARFUM INTENSE.' }
+        size: { type: string }
+        price: { type: number, format: double }
+    BundleLine:
+      type: object
+      required: [line, label, short]
+      properties:
+        line: { type: string }
+        label: { type: string }
+        short: { type: string }
+    BundleSettings:
+      type: object
+      required: [standard, linePrices, lines]
+      properties:
+        standard: { type: array, items: { $ref: '#/components/schemas/BundlePriceEntry' } }
+        linePrices: { type: array, items: { $ref: '#/components/schemas/BundleLinePriceEntry' } }
+        lines: { type: array, items: { $ref: '#/components/schemas/BundleLine' } }
+    BundleSettingsInput:
+      type: object
+      required: [standard, linePrices]
+      properties:
+        standard: { type: array, items: { $ref: '#/components/schemas/BundlePriceEntry' } }
+        linePrices: { type: array, items: { $ref: '#/components/schemas/BundleLinePriceEntry' } }
+    BundleSettingsResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/BundleSettings' }
+    BundleOffer:
+      type: object
+      required: [line, lineLabel, lineShort, size, price, largeVariantSize, atomizerVariantSize, vialVariantSize]
+      properties:
+        line: { type: string, description: 'Empty for a variant without ERP data (test catalog).' }
+        lineLabel: { type: string }
+        lineShort: { type: string }
+        size: { type: string }
+        price: { type: number, format: double }
+        largeVariantSize: { type: string }
+        atomizerVariantSize: { type: string }
+        vialVariantSize: { type: string }
+    BundleMissing:
+      type: object
+      required: [line, size, reason, text]
+      properties:
+        line: { type: string }
+        size: { type: string }
+        reason: { type: string, enum: [no_atomizer, no_vial] }
+        text: { type: string }
+    BundleCatalogProduct:
+      type: object
+      required: [productId, productName, offers, missing]
+      properties:
+        productId: { type: string }
+        productName: { type: string }
+        offers: { type: array, items: { $ref: '#/components/schemas/BundleOffer' } }
+        missing: { type: array, items: { $ref: '#/components/schemas/BundleMissing' } }
+    BundlePiece:
+      type: object
+      required: [productId, variantSize, role, line, size]
+      properties:
+        productId: { type: string }
+        variantSize: { type: string }
+        role: { type: string, enum: [large, atomizer, vial] }
+        line: { type: string }
+        size: { type: string }
+    BundleCatalog:
+      type: object
+      required: [lines, products, pieces]
+      properties:
+        lines: { type: array, items: { $ref: '#/components/schemas/BundleLine' } }
+        products: { type: array, items: { $ref: '#/components/schemas/BundleCatalogProduct' } }
+        pieces: { type: array, items: { $ref: '#/components/schemas/BundlePiece' } }
+    BundleCatalogResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/BundleCatalog' }
     Promotion:
       type: object
       required: [id, name, type, value, isActive, createdAt]
@@ -2478,6 +2565,8 @@ components:
         loyaltyConditions: { type: array, items: { $ref: '#/components/schemas/LoyaltyCondition' } }
         loyaltySettings: { $ref: '#/components/schemas/LoyaltySettings' }
         appSettings: { $ref: '#/components/schemas/AppSettings' }
+        bundleCatalog:
+          $ref: '#/components/schemas/BundleCatalog'
         users: { type: array, items: { $ref: '#/components/schemas/User' } }
         receiveApprovers:
           type: array
@@ -3919,6 +4008,44 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/BundleListResponse' }
+  /api/v1/bundles/catalog:
+    get:
+      operationId: getBundleCatalog
+      tags: [catalog]
+      summary: Derived bundle catalog (offers per product, missing reasons, pieces)
+      responses:
+        '200':
+          description: bundle catalog
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BundleCatalogResponse' }
+  /api/v1/settings/bundles:
+    get:
+      operationId: getBundleSettings
+      tags: [settings]
+      summary: Bundle price settings
+      responses:
+        '200':
+          description: bundle settings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BundleSettingsResponse' }
+    put:
+      operationId: updateBundleSettings
+      tags: [settings]
+      summary: Replace the bundle price settings (manage_products)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BundleSettingsInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '400': { description: 'invalid bundle prices', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/customers:
     post:
       operationId: createCustomer
