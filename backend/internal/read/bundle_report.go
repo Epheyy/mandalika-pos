@@ -17,23 +17,28 @@ type BundleReportFilters struct{ DateFrom, DateTo, OutletID string }
 // only (refund group set:<n>), so a bundle whose large piece has refund rows is excluded.
 // The status list is the only place to extend when sales can be voided.
 const bundleReportSQL = `
-WITH sets AS (
-  SELECT l.order_id, l.bundle_group, l.product_id, l.product_name,
-         COALESCE(l.bundle_line,'') AS line, COALESCE(l.bundle_size,'') AS size
+WITH grp AS (
+  -- one row per bundle group: its three pieces summed once. A group with anything but exactly
+  -- one large piece is malformed (a kept-invalid synced sale) and is not counted, so it cannot
+  -- double its revenue through a join.
+  SELECT i.order_id, i.bundle_group,
+         SUM(i.subtotal) AS revenue, SUM(COALESCE(i.bundle_discount,0)) AS discount
   FROM orders o
-  JOIN order_items l ON l.order_id = o.id AND l.bundle_role = 'large'
+  JOIN order_items i ON i.order_id = o.id AND i.bundle_group IS NOT NULL
   WHERE o.status IN ('completed','partially_refunded')
     AND ($3 = '' OR o.outlet_id::text = $3)
     AND ($1 = '' OR o.business_date >= $1::date)
     AND ($2 = '' OR o.business_date <= $2::date)
-    AND NOT EXISTS (SELECT 1 FROM order_refund_items ri WHERE ri.order_item_id = l.id)
+  GROUP BY i.order_id, i.bundle_group
+  HAVING COUNT(*) FILTER (WHERE i.bundle_role = 'large') = 1
 ),
 priced AS (
-  SELECT s.product_id, s.product_name, s.line, s.size,
-         SUM(i.subtotal) AS revenue, SUM(COALESCE(i.bundle_discount,0)) AS discount
-  FROM sets s
-  JOIN order_items i ON i.order_id = s.order_id AND i.bundle_group = s.bundle_group
-  GROUP BY s.order_id, s.bundle_group, s.product_id, s.product_name, s.line, s.size
+  SELECT l.product_id, l.product_name,
+         COALESCE(l.bundle_line,'') AS line, COALESCE(l.bundle_size,'') AS size,
+         g.revenue, g.discount
+  FROM grp g
+  JOIN order_items l ON l.order_id = g.order_id AND l.bundle_group = g.bundle_group AND l.bundle_role = 'large'
+  WHERE NOT EXISTS (SELECT 1 FROM order_refund_items ri WHERE ri.order_item_id = l.id)
 )
 SELECT COALESCE(json_agg(json_build_object(
          'productId', product_id, 'productName', product_name, 'line', line, 'size', size,

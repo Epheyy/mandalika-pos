@@ -101,7 +101,15 @@ func bundleReportSubtests(
 		for i := 0; i < 2; i++ {
 			syncSale(sale(bundleItems(champ, 250000, 850000), 850000))
 		}
-		syncSale(sale(piItems(), 795000))
+		piSale := sale(piItems(), 795000)
+		syncSale(piSale)
+		var reason *string
+		if err := pool.QueryRow(ctx, `SELECT discount_warning_reason FROM orders WHERE id=$1`, orderID(piSale)).Scan(&reason); err != nil {
+			t.Fatal(err)
+		}
+		if reason != nil {
+			t.Fatalf("PI fixture sale was flagged (%s), so it is not a valid bundle", *reason)
+		}
 		refunded := sale(bundleItems(champ, 250000, 850000), 850000)
 		syncSale(refunded)
 		code, _, raw := call("POST", "/orders/"+orderID(refunded)+"/refund", nil, map[string]any{"reason": "semua", "items": []map[string]int{
@@ -133,9 +141,46 @@ func bundleReportSubtests(
 		if got.Totals.Bundles != nb || got.Totals.Revenue != rev || got.Totals.Discount != disc {
 			t.Errorf("totals %+v, SQL says %d / %v / %v", got.Totals, nb, rev, disc)
 		}
-		// Date window with no sales, and a day in the future, are empty.
+		// A date window with no sales is empty.
 		if empty := admin("?dateFrom=2000-01-01&dateTo=2000-01-02"); len(empty.Data) != 0 || empty.Totals.Bundles != 0 {
 			t.Errorf("old window not empty: %+v", empty)
+		}
+	})
+
+	t.Run("bundle_report_partial_refund_and_malformed", func(t *testing.T) {
+		base := admin("")
+		extBase := rowOf(base, champ, "EXTRAIT DE PARFUM", "120ml")
+		// Two bundles (groups 1 and 2) plus a plain line in one order; refund only bundle 1.
+		second := bundleItems(champ, 250000, 850000)
+		for _, it := range second {
+			it["bundleGroup"] = 2
+		}
+		items := append(bundleItems(champ, 250000, 850000), second...)
+		items = append(items, map[string]any{
+			"productId": champ, "productName": "CHAMPION", "variantSize": "10ml ATOMIZER", "price": 250000, "quantity": 1, "subtotal": 250000})
+		mixed := sale(items, 1950000)
+		syncSale(mixed)
+		oid := orderID(mixed)
+		code, _, raw := call("POST", "/orders/"+oid+"/refund", nil, map[string]any{"reason": "satu bundle", "items": []map[string]int{
+			{"lineNo": 0, "quantity": 1}, {"lineNo": 1, "quantity": 1}, {"lineNo": 2, "quantity": 1}}})
+		if code != 201 {
+			t.Fatalf("refund %d %s", code, raw)
+		}
+		var status string
+		if err := pool.QueryRow(ctx, `SELECT status FROM orders WHERE id=$1`, oid).Scan(&status); err != nil || status != "partially_refunded" {
+			t.Fatalf("order status %q err %v, want partially_refunded", status, err)
+		}
+		got := rowOf(admin(""), champ, "EXTRAIT DE PARFUM", "120ml")
+		if got.Bundles-extBase.Bundles != 1 || got.Revenue-extBase.Revenue != 850000 {
+			t.Errorf("after refunding bundle 1 of 2: delta bundles %d revenue %v, want 1 / 850000", got.Bundles-extBase.Bundles, got.Revenue-extBase.Revenue)
+		}
+		// A malformed synced group with two large pieces is not counted (and cannot double revenue).
+		bad := bundleItems(champ, 250000, 850000)
+		bad = append(bad, bad[0])
+		syncSale(sale(bad, 1525498))
+		again := rowOf(admin(""), champ, "EXTRAIT DE PARFUM", "120ml")
+		if again.Bundles != got.Bundles || again.Revenue != got.Revenue {
+			t.Errorf("malformed group changed the report: %d/%v -> %d/%v", got.Bundles, got.Revenue, again.Bundles, again.Revenue)
 		}
 	})
 
