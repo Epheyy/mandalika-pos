@@ -507,16 +507,7 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 		if e != nil {
 			return "", false, false, e
 		}
-		pidSet := make(map[string]bool, len(in.Items)*2)
-		for _, it := range in.Items {
-			if it.IsReward {
-				continue // a free reward item must not trigger more conditions
-			}
-			pidSet[it.ProductID] = true
-			if it.VariantSize != "" {
-				pidSet[variantKey(it.ProductID, it.VariantSize)] = true // variant-level trigger entries (SP-CRM-9b)
-			}
-		}
+		pidSet := loyaltyProductSet(in.Items) // skips reward lines and bundle pieces
 		outcome = EvaluateLoyalty(conds, EvalContext{
 			Total: res.Total, BasePoints: base, ProductIDs: pidSet,
 			SaleDate: saleTime.In(saleZone), Customer: evalCust,

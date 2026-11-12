@@ -60,16 +60,7 @@ func (s *OrderService) PreviewRewards(ctx context.Context, customerID string, it
 	if err != nil {
 		return nil, fmt.Errorf("preview load conditions: %w", err)
 	}
-	pidSet := make(map[string]bool, len(items)*2)
-	for _, it := range items {
-		if it.IsReward {
-			continue
-		}
-		pidSet[it.ProductID] = true
-		if it.VariantSize != "" {
-			pidSet[variantKey(it.ProductID, it.VariantSize)] = true // variant-level trigger entries (SP-CRM-9b)
-		}
-	}
+	pidSet := loyaltyProductSet(items) // same set CreateOrder evaluates: no reward lines, no bundle pieces
 	saleTime := time.Now()
 	if clientCreated != nil {
 		saleTime = *clientCreated
