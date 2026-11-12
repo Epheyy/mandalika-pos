@@ -30,8 +30,23 @@ type BundleSettingsInput struct {
 
 var bundleSizeRe = regexp.MustCompile(`^[0-9]+ml$`)
 
+// bundleNotLarge mirrors bundles.NotLargeSizes (write may not import bundles, see archtest).
+var bundleNotLarge = map[string]bool{"2ml": true, "10ml": true, "15ml": true}
+
+const maxBundlePrice = 1_000_000_000
+
 func validBundlePrice(p float64) bool {
-	return p > 0 && p == math.Trunc(p) && p <= 1_000_000_000
+	return p > 0 && p == math.Trunc(p)
+}
+
+func checkBundlePrice(p float64) error {
+	if !validBundlePrice(p) {
+		return fmt.Errorf("Harga bundle harus bilangan bulat > 0")
+	}
+	if p > maxBundlePrice {
+		return fmt.Errorf("Harga bundle maksimal Rp 1.000.000.000")
+	}
+	return nil
 }
 
 // validateBundleSettings checks the copy the Backoffice shows verbatim. knownLines is the
@@ -46,8 +61,11 @@ func validateBundleSettings(in BundleSettingsInput, knownLines []string) error {
 		if !bundleSizeRe.MatchString(s.Size) {
 			return fmt.Errorf("Ukuran harus seperti 120ml")
 		}
-		if !validBundlePrice(s.Price) {
-			return fmt.Errorf("Harga bundle harus bilangan bulat > 0")
+		if bundleNotLarge[s.Size] {
+			return fmt.Errorf("Ukuran %s bukan ukuran botol besar", s.Size)
+		}
+		if err := checkBundlePrice(s.Price); err != nil {
+			return err
 		}
 		if std[s.Size] {
 			return fmt.Errorf("Ukuran %s dobel", s.Size)
@@ -62,8 +80,8 @@ func validateBundleSettings(in BundleSettingsInput, knownLines []string) error {
 		if !bundleSizeRe.MatchString(lp.Size) {
 			return fmt.Errorf("Ukuran harus seperti 120ml")
 		}
-		if !validBundlePrice(lp.Price) {
-			return fmt.Errorf("Harga bundle harus bilangan bulat > 0")
+		if err := checkBundlePrice(lp.Price); err != nil {
+			return err
 		}
 		if !std[lp.Size] {
 			return fmt.Errorf("Harga lini %s butuh harga standar %s", lp.Size, lp.Size)

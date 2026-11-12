@@ -41,7 +41,7 @@ func (r *Repo) BundleSettings(ctx context.Context) (api.BundleSettings, error) {
 	out := api.BundleSettings{
 		Standard:   []api.BundlePriceEntry{},
 		LinePrices: []api.BundleLinePriceEntry{},
-		Lines:      bundleLines(cat.Lines),
+		Lines:      bundleLines(withStoredLines(cat.Lines, p)),
 	}
 	for _, size := range p.LargeSizes() {
 		out.Standard = append(out.Standard, api.BundlePriceEntry{Size: size, Price: p.Standard[size]})
@@ -162,4 +162,21 @@ func (r *Repo) deriveBundles(ctx context.Context, sc Scope, p bundles.Prices) (b
 		return bundles.Catalog{}, err
 	}
 	return bundles.Derive(vs, p), nil
+}
+
+// withStoredLines adds lines that still have a stored price, so a price never loses its field when its
+// last large bottle goes inactive.
+func withStoredLines(lines []string, p bundles.Prices) []string {
+	seen := map[string]bool{}
+	for _, l := range lines {
+		seen[l] = true
+	}
+	out := append([]string{}, lines...)
+	for l := range p.Lines {
+		if !seen[l] {
+			out = append(out, l)
+		}
+	}
+	sort.Strings(out)
+	return out
 }

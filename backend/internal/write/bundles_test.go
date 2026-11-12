@@ -16,6 +16,8 @@ func TestValidateBundleSettings(t *testing.T) {
 			[]BundlePriceIn{{"100ml", 650000}}, []BundleLinePriceIn{{ext, "110ml", 800000}}},
 			"Harga lini 110ml butuh harga standar 110ml"},
 		{"bad size", BundleSettingsInput{[]BundlePriceIn{{"120", 795000}}, nil}, "Ukuran harus seperti 120ml"},
+		{"15ml is not a large size", BundleSettingsInput{[]BundlePriceIn{{"15ml", 100000}}, nil}, "Ukuran 15ml bukan ukuran botol besar"},
+		{"price over the cap", BundleSettingsInput{[]BundlePriceIn{{"120ml", 2000000000}}, nil}, "Harga bundle maksimal Rp 1.000.000.000"},
 		{"zero price", BundleSettingsInput{[]BundlePriceIn{{"120ml", 0}}, nil}, "Harga bundle harus bilangan bulat > 0"},
 		{"negative price", BundleSettingsInput{[]BundlePriceIn{{"120ml", -1}}, nil}, "Harga bundle harus bilangan bulat > 0"},
 		{"fractional price", BundleSettingsInput{[]BundlePriceIn{{"120ml", 650000.5}}, nil}, "Harga bundle harus bilangan bulat > 0"},

@@ -60,6 +60,7 @@ func TestParseSizeML(t *testing.T) {
 
 func TestClassify(t *testing.T) {
 	p := stdPrices()
+	p.Standard["15ml"] = 100000
 	type want struct {
 		ok   bool
 		role Role
@@ -82,6 +83,7 @@ func TestClassify(t *testing.T) {
 		{"glitter 100ml", lv("x", "X", "100ml", "GLITTER", 1000), want{ok: false}},
 		{"15ml ext", lv("x", "X", "15ml EXTRAIT DE PARFUM", ext, 1000), want{ok: false}},
 		{"130ml without standard price", lv("x", "X", "130ml", ext, 1000), want{ok: false}},
+		{"15ml even with a standard price", lv("x", "X", "15ml EXTRAIT DE PARFUM", ext, 1000), want{ok: false}},
 		{"price zero", lv("x", "X", "120ml", ext, 0), want{ok: false}},
 		{"inactive", inactive, want{ok: false}},
 		{"atomizer category with wrong size", lv("x", "X", "15ml", "ATOMIZER", 1000), want{ok: false}},

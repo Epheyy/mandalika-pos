@@ -31,6 +31,9 @@ const (
 // DefaultLargeSizes are the large sizes the Backoffice always offers a standard price for.
 var DefaultLargeSizes = []string{"100ml", "110ml", "120ml"}
 
+// NotLargeSizes are the piece and sample sizes: never a large bottle, whatever the price settings say.
+var NotLargeSizes = map[string]bool{"2ml": true, "10ml": true, "15ml": true}
+
 var sizeRe = regexp.MustCompile(`(?i)^\s*(\d+)\s*ml\b`)
 
 // ParseSizeML reads the leading "<n>ml" of a variant label ("120ml EXTRAIT DE PARFUM" ->
@@ -136,7 +139,7 @@ func Classify(v Variant, p Prices) (Piece, bool) {
 		return Piece{ProductID: v.ProductID, VariantSize: v.Label, Role: role, Line: line, Size: size}, true
 	}
 	std, hasStd := p.Standard[size]
-	hasStd = hasStd && std > 0
+	hasStd = hasStd && std > 0 && !NotLargeSizes[size]
 	if !v.ErpLinked {
 		// Test catalog: no ERP data, so the size alone decides and there is no line.
 		switch {
