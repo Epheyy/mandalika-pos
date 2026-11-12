@@ -66,11 +66,28 @@ type OrderItem struct {
 	RewardConditionID string `json:"rewardConditionId"`
 	RewardPromotionID string `json:"rewardPromotionId"` // SP-Promo-3b reward fulfillment: the buy_x_get_y promo that gave this line
 
+	// Bundles (migration 0090): a bundle is three lines (large, atomizer, vial), qty 1 each,
+	// sharing one per-order BundleGroup (1..32767). BundlePrice is the list price before any
+	// Diskon Bundle, the same on all three pieces; BundleBasisPrice is this piece's single
+	// price when it entered the cart. Not the legacy IsBundle flag.
+	BundleGroup      int     `json:"bundleGroup"`
+	BundleRole       string  `json:"bundleRole"`
+	BundlePrice      float64 `json:"bundlePrice"`
+	BundleBasisPrice float64 `json:"bundleBasisPrice"`
+
 	// C4a, server-internal (never decoded from JSON): payloadLine is the 0-based index of
 	// this line in the sale payload (stamped at the top of createOrderCore, survives the
 	// reward-line compaction); group marks a validated bundle/BXGY reward line.
 	payloadLine int
 	group       *refundGroupInfo
+	bundle      *setBundleInfo // filled by resolveSetBundles
+}
+
+// setBundleInfo is what the server resolved for a bundle piece (persisted to order_items).
+type setBundleInfo struct {
+	line, size  string
+	discount    float64
+	promotionID string
 }
 
 // CreateOrderInput is the resolved request. Outlet/cashier come from the JWT,
