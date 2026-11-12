@@ -25,6 +25,11 @@ const createPromo = (input: PromotionInput) => api.createPromotion(input)
 const updatePromo = (id: string, input: PromotionInput) => api.updatePromotion(id, input)
 
 /** The pickers' data, read once when the editor opens (not polled: the list screen no longer walks the catalogue). */
+function isBundleSettings(v: unknown): v is BundleSettings {
+  const s = v as Partial<BundleSettings> | null | undefined
+  return !!s && Array.isArray(s.standard) && Array.isArray(s.lines) && Array.isArray(s.linePrices)
+}
+
 function usePickerData() {
   const [products, setProducts] = useState<Product[]>([])
   const [productsState, setProductsState] = useState<'loading' | 'ready' | 'failed'>('loading')
@@ -36,7 +41,8 @@ function usePickerData() {
     let alive = true
     api
       .getBundleSettings()
-      .then((r) => alive && setBundle(r.data))
+      // A malformed reply must not crash the editor: only a complete settings object is used.
+      .then((r) => alive && isBundleSettings(r.data) && setBundle(r.data))
       .catch(() => undefined)
     // The shared catalogue: opening the editor again within its TTL costs no request, and a product saved in this tab refetches.
     productCatalogue
