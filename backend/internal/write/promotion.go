@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
+	"regexp"
 
 	"github.com/jackc/pgx/v5"
 
@@ -132,6 +134,46 @@ func validateBXGY(c *BXGYConfigInput) error {
 	return nil
 }
 
+// BundleDiscountConfigInput is the Diskon Bundle config. Empty Lines/Sizes mean "all"; the amount is Promotion.Value.
+type BundleDiscountConfigInput struct {
+	Kind  string   `json:"kind"`
+	Lines []string `json:"lines"`
+	Sizes []string `json:"sizes"`
+}
+
+var bundleSizeKey = regexp.MustCompile(`^[0-9]+ml$`)
+
+func validateBundleDiscount(value float64, c *BundleDiscountConfigInput) error {
+	if c == nil || (c.Kind != "percentage" && c.Kind != "fixed") {
+		return fmt.Errorf("Pilih persen atau nominal")
+	}
+	whole := value == math.Trunc(value)
+	if c.Kind == "percentage" && (!whole || value < 1 || value > 99) {
+		return fmt.Errorf("Diskon persen harus 1–99")
+	}
+	if c.Kind == "fixed" && (!whole || value <= 0) {
+		return fmt.Errorf("Diskon nominal harus bilangan bulat > 0")
+	}
+	for _, sz := range c.Sizes {
+		if !bundleSizeKey.MatchString(sz) {
+			return fmt.Errorf("Ukuran harus seperti 120ml")
+		}
+	}
+	return nil
+}
+
+// validateBundleDiscountPromotion adds the promotion-level rule: both pricing twins test minPurchase against a
+// subtotal this very promotion lowers, so the type cannot carry one.
+func validateBundleDiscountPromotion(p Promotion) error {
+	if err := validateBundleDiscount(p.Value, p.BundleDiscountConfig); err != nil {
+		return err
+	}
+	if p.MinPurchase != nil && *p.MinPurchase > 0 {
+		return fmt.Errorf("Diskon Bundle tidak memakai minimal belanja")
+	}
+	return nil
+}
+
 var errAutoApplyCodeOnly = errors.New("Promo otomatis tidak bisa sekaligus hanya via kode")
 
 type Promotion struct {
@@ -160,6 +202,8 @@ type Promotion struct {
 	BXGYConfig     *BXGYConfigInput   `json:"bxgyConfig"`
 	TieredConfig   *TieredConfigInput `json:"tieredConfig"`
 	BundleConfig   *BundleConfigInput `json:"bundleConfig"`
+	// BundleDiscountConfig is the Diskon Bundle config (type bundle_discount).
+	BundleDiscountConfig *BundleDiscountConfigInput `json:"bundleDiscountConfig"`
 }
 
 func (r *Repo) CreatePromotion(ctx context.Context, p Promotion) (string, error) {
@@ -180,6 +224,15 @@ func (r *Repo) CreatePromotion(ctx context.Context, p Promotion) (string, error)
 		if err := validateBundle(p.BundleConfig); err != nil {
 			return "", err
 		}
+	}
+	if p.Type == "bundle_discount" {
+		if err := validateBundleDiscountPromotion(p); err != nil {
+			return "", err
+		}
+	}
+	if p.Type == "bundle_discount" && p.Combinable == nil {
+		yes := true
+		p.Combinable = &yes
 	}
 	var id string
 	err := r.tx(ctx, "promotions", func(t pgx.Tx) error {
@@ -204,18 +257,23 @@ func (r *Repo) CreatePromotion(ctx context.Context, p Promotion) (string, error)
 			b, _ := jsonb(p.BundleConfig)
 			bundle = b
 		}
+		var bundleDiscount any
+		if p.Type == "bundle_discount" && p.BundleDiscountConfig != nil {
+			b, _ := jsonb(p.BundleDiscountConfig)
+			bundleDiscount = b
+		}
 		return t.QueryRow(ctx, `
 			INSERT INTO promotions (name, description, type, value, min_purchase,
 			  applicable_product_ids, applicable_variant_keys,
 			  applicable_variant_sizes, outlet_ids, combinable, combinable_with,
 			  active_from_hour, active_to_hour, active_days, is_active,
-			  start_date, end_date, code_only, bxgy_config, tiered_config, bundle_config, auto_apply)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,COALESCE($22::boolean,false))
+			  start_date, end_date, code_only, bxgy_config, tiered_config, bundle_config, auto_apply, bundle_discount_config)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,COALESCE($22::boolean,false),$23)
 			RETURNING id`,
 			p.Name, nullStr(p.Description), p.Type, p.Value, p.MinPurchase,
 			apid, avk, avs, oid, p.Combinable, cw,
 			nullStr(p.ActiveFromHour), nullStr(p.ActiveToHour), ad, p.IsActive,
-			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, bxgy, tiered, bundle, p.AutoApply).Scan(&id)
+			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, bxgy, tiered, bundle, p.AutoApply, bundleDiscount).Scan(&id)
 	})
 	return id, err
 }
@@ -236,6 +294,11 @@ func (r *Repo) UpdatePromotion(ctx context.Context, id string, p Promotion) erro
 	}
 	if p.Type == "bundle" {
 		if err := validateBundle(p.BundleConfig); err != nil {
+			return err
+		}
+	}
+	if p.Type == "bundle_discount" {
+		if err := validateBundleDiscountPromotion(p); err != nil {
 			return err
 		}
 	}
@@ -261,6 +324,11 @@ func (r *Repo) UpdatePromotion(ctx context.Context, id string, p Promotion) erro
 			b, _ := jsonb(p.BundleConfig)
 			bundle = b
 		}
+		var bundleDiscount any
+		if p.Type == "bundle_discount" && p.BundleDiscountConfig != nil {
+			b, _ := jsonb(p.BundleDiscountConfig)
+			bundleDiscount = b
+		}
 		ct, e := t.Exec(ctx, `
 			UPDATE promotions SET name=$1, description=$2, type=$3, value=$4,
 			  min_purchase=$5, applicable_product_ids=$6, applicable_variant_keys=$7,
@@ -268,12 +336,13 @@ func (r *Repo) UpdatePromotion(ctx context.Context, id string, p Promotion) erro
 			  combinable_with=$11, active_from_hour=$12, active_to_hour=$13,
 			  active_days=$14, is_active=$15, start_date=$16, end_date=$17, code_only=$18,
 			  bxgy_config=$19, tiered_config=$20, bundle_config=$21,
-			  auto_apply=CASE WHEN $18 THEN false ELSE COALESCE($22::boolean, auto_apply) END
+			  auto_apply=CASE WHEN $18 THEN false ELSE COALESCE($22::boolean, auto_apply) END,
+			  bundle_discount_config=$24
 			WHERE id=$23`,
 			p.Name, nullStr(p.Description), p.Type, p.Value, p.MinPurchase,
 			apid, avk, avs, oid, p.Combinable, cw,
 			nullStr(p.ActiveFromHour), nullStr(p.ActiveToHour), ad, p.IsActive,
-			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, bxgy, tiered, bundle, p.AutoApply, id)
+			nullDate(p.StartDate), nullDate(p.EndDate), p.CodeOnly, bxgy, tiered, bundle, p.AutoApply, id, bundleDiscount)
 		if e == nil && ct.RowsAffected() == 0 {
 			return ErrNotFound
 		}

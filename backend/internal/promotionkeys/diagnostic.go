@@ -54,6 +54,9 @@ func Diagnose(p StoredPromotion) []Finding {
 			return unreadable()
 		}
 		groups = [][]string{c.Buy, c.Get}
+	case "bundle_discount":
+		// Matches bundles by ERP line and size, never by product key: nothing to overlap.
+		return nil
 	default:
 		return nil
 	}

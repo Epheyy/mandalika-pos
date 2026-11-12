@@ -4274,6 +4274,13 @@ export interface components {
             bundlePrice: number;
             maxApplications?: number;
         };
+        /** @description Diskon Bundle (type bundle_discount). The amount is the promotion value. An empty lines or sizes list means all. */
+        BundleDiscountConfig: {
+            /** @enum {string} */
+            kind: "percentage" | "fixed";
+            lines?: string[];
+            sizes?: string[];
+        };
         BundlePriceEntry: {
             /** @description Large size key such as 120ml. */
             size: string;
@@ -4351,7 +4358,7 @@ export interface components {
             name: string;
             description?: string | null;
             /** @enum {string} */
-            type: "percentage" | "fixed" | "bogo" | "buy_x_get_y" | "tiered" | "bundle";
+            type: "percentage" | "fixed" | "bogo" | "buy_x_get_y" | "tiered" | "bundle" | "bundle_discount";
             /** Format: double */
             value: number;
             /** Format: double */
@@ -4375,6 +4382,7 @@ export interface components {
             bxgyConfig?: components["schemas"]["BXGYConfig"] | null;
             tieredConfig?: components["schemas"]["TieredConfig"] | null;
             bundleConfig?: components["schemas"]["BundleConfig"] | null;
+            bundleDiscountConfig?: components["schemas"]["BundleDiscountConfig"] | null;
             /** Format: date-time */
             createdAt: string;
         };
@@ -5563,7 +5571,7 @@ export interface components {
             name: string;
             description?: string;
             /** @enum {string} */
-            type: "percentage" | "fixed" | "bogo" | "buy_x_get_y" | "tiered" | "bundle";
+            type: "percentage" | "fixed" | "bogo" | "buy_x_get_y" | "tiered" | "bundle" | "bundle_discount";
             /** Format: double */
             value: number;
             /** Format: double */
@@ -5587,6 +5595,7 @@ export interface components {
             bxgyConfig?: components["schemas"]["BXGYConfig"] | null;
             tieredConfig?: components["schemas"]["TieredConfig"] | null;
             bundleConfig?: components["schemas"]["BundleConfig"] | null;
+            bundleDiscountConfig?: components["schemas"]["BundleDiscountConfig"] | null;
         };
         DiscountCodeInput: {
             code: string;

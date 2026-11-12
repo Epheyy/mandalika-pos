@@ -236,5 +236,49 @@ func TestBundlesPostgres(t *testing.T) {
 		t.Fatal("NO1 not in the backoffice catalog")
 	})
 
+	t.Run("promo_bundle_discount_roundtrip", func(t *testing.T) {
+		// Created without combinable: a Diskon Bundle stores combinable=true. Config survives the list read and the pull.
+		id, err := wr.CreatePromotion(ctx, write.Promotion{
+			Name: "BN Diskon Bundle", Type: "bundle_discount", Value: 10, IsActive: true,
+			BundleDiscountConfig: &write.BundleDiscountConfigInput{Kind: "percentage", Lines: []string{"EXTRAIT DE PARFUM"}, Sizes: []string{"120ml"}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		check := func(src string, list []map[string]any) {
+			t.Helper()
+			for _, p := range list {
+				if p["id"] != id {
+					continue
+				}
+				cfg, _ := p["bundleDiscountConfig"].(map[string]any)
+				if p["combinable"] != true || p["type"] != "bundle_discount" || cfg == nil || cfg["kind"] != "percentage" ||
+					len(cfg["lines"].([]any)) != 1 || len(cfg["sizes"].([]any)) != 1 {
+					t.Fatalf("%s: promotion = %v", src, p)
+				}
+				return
+			}
+			t.Fatalf("%s: promotion %s missing", src, id)
+		}
+		listed, _, err := rd.Promotions(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, _ := json.Marshal(listed)
+		var got []map[string]any
+		_ = json.Unmarshal(raw, &got)
+		check("list", got)
+		b, err := syncpkg.New(pool, rd, nil, wr).Pull(ctx, read.Scope{OutletID: outlet}, outlet)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, _ = json.Marshal(b)
+		var pulled struct {
+			Promotions []map[string]any `json:"promotions"`
+		}
+		_ = json.Unmarshal(raw, &pulled)
+		check("pull", pulled.Promotions)
+	})
+
 	bundleSaleSubtests(t, pool, ctx, rd, wr, outlet, champ, key)
 }
