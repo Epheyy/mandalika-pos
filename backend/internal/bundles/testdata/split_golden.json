@@ -1,0 +1,7 @@
+[
+  { "name": "champion_ext_120", "amount": 850000, "basis": [1200000, 250000, 60000], "expected": [675498, 140728, 33774], "minNet": 26 },
+  { "name": "discount_share", "amount": 85000, "basis": [1200000, 250000, 60000], "expected": [67551, 14072, 3377], "minNet": 26 },
+  { "name": "equal_basis_remainder_on_large", "amount": 100, "basis": [1, 1, 1], "expected": [34, 33, 33], "minNet": 3 },
+  { "name": "zero_amount", "amount": 0, "basis": [1200000, 250000, 60000], "expected": [0, 0, 0], "minNet": 26 },
+  { "name": "swap_atomizer_basis", "amount": 850000, "basis": [1200000, 300000, 60000], "expected": [653847, 163461, 32692], "minNet": 26 }
+]
