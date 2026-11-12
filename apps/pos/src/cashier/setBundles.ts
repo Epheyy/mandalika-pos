@@ -237,3 +237,38 @@ export function rebuildHeldBundle(lines: CartItem[], products: Product[], catalo
   const shares = splitBundleAmount(net, basis)
   return { ok: true, lines: out.map((l, i) => ({ ...l, price: shares[i], subtotal: shares[i], bundleDiscount: 0 })) }
 }
+
+/** Display name of a line for sheet titles: `Ganti 2ml Extrait`. Empty for no line. */
+export function lineLabel(line: string): string {
+  if (line === 'EXTRAIT DE PARFUM') return 'Extrait'
+  if (line === 'PARFUM INTENSE') return 'Parfum Intense'
+  return line
+}
+
+/** The piece variant is at 0 or less, or the cart already sells more than its stock (so this piece oversells). */
+export function pieceOut(products: Product[], cart: CartItem[], productId: string, size: string): boolean {
+  const raw = stockFor(products, productId, size)
+  return raw !== null && (raw <= 0 || raw - inCartQty(cart, productId, size) < 0)
+}
+
+export interface SwapFlow {
+  group: number
+  queue: Array<'atomizer' | 'vial'>
+}
+
+/** The swap sheets run in queue order (atomizer, then 2ml): closing, keeping or picking moves to the next. */
+export function advanceSwapFlow(f: SwapFlow | null): SwapFlow | null {
+  return f && f.queue.length > 1 ? { ...f, queue: f.queue.slice(1) } : null
+}
+
+/** `Bundle EXT 120ml` (or `Bundle 120ml` for a bundle without a line), from a catalog offer. */
+export function offerLabel(offer: BundleOffer): string {
+  return offer.lineShort ? `Bundle ${offer.lineShort} ${offer.size}` : `Bundle ${offer.size}`
+}
+
+/** `Ganti atomizer 10ml`, `Ganti 2ml Extrait` (`Ganti 2ml` when the bundle has no line). */
+export function swapTitle(role: 'atomizer' | 'vial', line: string): string {
+  if (role === 'atomizer') return 'Ganti atomizer 10ml'
+  return `Ganti 2ml ${lineLabel(line)}`.trim()
+}
+
