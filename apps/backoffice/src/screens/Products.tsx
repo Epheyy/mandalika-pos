@@ -1,24 +1,22 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import type { Bundle, Category } from '@mandalika/api'
+import type { Category } from '@mandalika/api'
 import { api } from '../api'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { useScreenTabs } from '../lib/router/useScreenTabs'
 import { PageHeader } from '../ui/PageHeader'
 import { Tabs } from '../ui/Tabs'
-import { BundlesPanel } from './products/BundlesPanel'
+import { BundleSettingsPanel } from './products/BundleSettingsPanel'
 import { CategoriesView } from './products/CategoriesView'
 import { ProductsListView } from './products/ProductsListView'
 
 type ProductsTab = 'products' | 'categories' | 'bundles'
 
-// Bundles are polled only while their tab is open.
+// Bundle prices load only while their tab is open.
 function BundlesView({ tabs }: { tabs: ReactNode }) {
-  const q = usePolledQuery<Bundle[]>(() => api.listBundles(), [])
-  const bundles = q.data ?? []
   return (
     <>
-      <PageHeader title="Produk" count={q.data ? `${bundles.length} bundle` : undefined} subtitle="Paket produk yang dijual dengan harga tetap." actions={tabs} />
-      <BundlesPanel bundles={bundles} loading={q.loading && !q.data} error={q.error ? 'Bundle gagal dimuat.' : null} onRetry={() => void q.refetch()} />
+      <PageHeader title="Produk" subtitle="Harga bundle: botol besar + atomizer 10ml + vial 2ml, otomatis dari katalog." actions={tabs} />
+      <BundleSettingsPanel />
     </>
   )
 }

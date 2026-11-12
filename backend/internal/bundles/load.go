@@ -12,7 +12,7 @@ type Querier interface {
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }
 
-// LoadPrices reads bundle_prices: line '' is the standard price per size.
+// LoadPrices reads bundle_prices: line ” is the standard price per size.
 func LoadPrices(ctx context.Context, q Querier) (Prices, error) {
 	rows, err := q.Query(ctx, `SELECT line, size, price::float8 FROM bundle_prices ORDER BY line, size`)
 	if err != nil {
