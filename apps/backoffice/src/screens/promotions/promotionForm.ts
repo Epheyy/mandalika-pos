@@ -23,6 +23,7 @@ export const PROMO_FIELD = {
   products: 'promo-products',
   tiers: 'promo-tiers',
   bundle: 'promo-bundle',
+  bundleDiscount: 'promo-bundle-discount',
   hours: 'promo-hours-from',
   maxApplications: 'promo-max-applications',
   autoApply: 'promo-auto-apply',
@@ -43,6 +44,9 @@ export const DEFAULT_BXGY: BxgyConfig & { maxApplications: number } = {
   maxApplications: 0,
 }
 export const DEFAULT_TIERED: { tiers: TierRow[] } = { tiers: [{ minSubtotal: 100000, kind: 'percentage', value: 10 }] }
+export type BundleDiscountConfig = NonNullable<PromotionInput['bundleDiscountConfig']>
+/** Empty lines/sizes mean every line / every size. */
+export const DEFAULT_BUNDLE_DISCOUNT: BundleDiscountConfig = { kind: 'percentage', lines: [], sizes: [] }
 export const DEFAULT_BUNDLE: BundleConfig = { slots: [{ productKeys: [], quantity: 1 }], bundlePrice: 0, maxApplications: 0 }
 
 export const EMPTY_PROMO: PromotionInput = {
@@ -81,7 +85,24 @@ export function promotionToInput(p: Promotion): PromotionInput {
     bxgyConfig: p.bxgyConfig ?? null,
     tieredConfig: p.tieredConfig ?? null,
     bundleConfig: p.bundleConfig ?? null,
+    bundleDiscountConfig: p.bundleDiscountConfig ?? null,
   }
+}
+
+/**
+ * Switching jenis seeds the new jenis' default config only when it has none. Diskon Bundle also starts combinable
+ * (the server default) and drops any minimum purchase: the server refuses one for this jenis.
+ */
+export function selectPromoType(f: PromotionInput, type: PromoType): PromotionInput {
+  const next: PromotionInput = {
+    ...f,
+    type,
+    bxgyConfig: type === 'buy_x_get_y' ? (f.bxgyConfig ?? DEFAULT_BXGY) : f.bxgyConfig,
+    tieredConfig: type === 'tiered' ? (f.tieredConfig ?? DEFAULT_TIERED) : f.tieredConfig,
+    bundleConfig: type === 'bundle' ? (f.bundleConfig ?? DEFAULT_BUNDLE) : f.bundleConfig,
+  }
+  if (type !== 'bundle_discount') return next
+  return { ...next, bundleDiscountConfig: f.bundleDiscountConfig ?? DEFAULT_BUNDLE_DISCOUNT, combinable: true, minPurchase: null }
 }
 
 /** A copy for "Duplikat": same body, a suffixed name, and always inactive: a copy must not reach tablets unasked (D-79). */
@@ -155,6 +176,20 @@ export function dateOrderProblem(start: string | undefined, end: string | undefi
   return null
 }
 
+const BUNDLE_SIZE_KEY = /^[0-9]+ml$/
+
+/** Mirrors the server (write.validateBundleDiscount), same copy. The discount value lives in the top-level `value`. */
+function bundleDiscountProblem(form: PromotionInput): FormProblem | null {
+  const c = form.bundleDiscountConfig
+  const bad = (fieldId: string, message: string): FormProblem => ({ fieldId, label: 'Diskon bundle', message, kind: 'invalid' })
+  if (!c || (c.kind !== 'percentage' && c.kind !== 'fixed')) return bad(PROMO_FIELD.bundleDiscount, 'Pilih persen atau nominal')
+  const whole = Number.isInteger(form.value)
+  if (c.kind === 'percentage' && (!whole || form.value < 1 || form.value > 99)) return bad(PROMO_FIELD.value, 'Diskon persen harus 1–99')
+  if (c.kind === 'fixed' && (!whole || form.value <= 0)) return bad(PROMO_FIELD.value, 'Diskon nominal harus bilangan bulat > 0')
+  if ((c.sizes ?? []).some((sz) => !BUNDLE_SIZE_KEY.test(sz))) return bad(PROMO_FIELD.bundleDiscount, 'Ukuran harus seperti 120ml')
+  return null
+}
+
 /** Every problem that blocks a save, in form order. Empty means the form may be saved. */
 export function promotionProblems(form: PromotionInput): FormProblem[] {
   const out: FormProblem[] = []
@@ -164,6 +199,10 @@ export function promotionProblems(form: PromotionInput): FormProblem[] {
   if (!form.name.trim()) add(PROMO_FIELD.name, 'Nama promosi', 'Nama promosi wajib diisi.', 'required')
   const valueProblem = discountValueProblem(form.type, form.value, PROMO_FIELD.value)
   if (valueProblem) out.push(valueProblem)
+  if (form.type === 'bundle_discount') {
+    const bd = bundleDiscountProblem(form)
+    if (bd) out.push(bd)
+  }
   const dateProblem = dateOrderProblem(form.startDate, form.endDate, PROMO_FIELD.endDate)
   if (dateProblem) out.push(dateProblem)
   add(PROMO_FIELD.hours, 'Jam aktif', hoursMessage(form))

@@ -20,6 +20,9 @@ export interface PromoFormSlideOverProps {
   form: PromotionInput
   setForm: Dispatch<SetStateAction<PromotionInput>>
   products: Product[]
+  /** ERP lines and standard sizes from the bundle settings (Diskon Bundle pickers). */
+  bundleLines?: readonly { line: string; label: string }[]
+  bundleSizes?: readonly string[]
   productsState: 'loading' | 'ready' | 'failed'
   outlets: Outlet[]
   /** Until the outlet list is known, chips would show every real outlet as unknown: they wait for it. */
@@ -66,7 +69,7 @@ export function PromoFormSlideOver(p: PromoFormSlideOverProps) {
   const ready = p.load === 'ready'
   const days = form.activeDays ?? []
   const hasHours = !!form.activeFromHour || !!form.activeToHour
-  const showVariants = form.type !== 'buy_x_get_y' && form.type !== 'tiered' && form.type !== 'bundle'
+  const showVariants = form.type !== 'buy_x_get_y' && form.type !== 'tiered' && form.type !== 'bundle' && form.type !== 'bundle_discount'
   const toggleDay = (d: number) => setForm((f) => ({ ...f, activeDays: (f.activeDays ?? []).includes(d) ? (f.activeDays ?? []).filter((x) => x !== d) : [...(f.activeDays ?? []), d] }))
 
   return (
@@ -98,7 +101,7 @@ export function PromoFormSlideOver(p: PromoFormSlideOverProps) {
           </Section>
 
           <Section title="Jenis dan nilai">
-            <PromoTypeFields form={form} setForm={setForm} products={p.products} errors={byField} />
+            <PromoTypeFields form={form} setForm={setForm} products={p.products} errors={byField} bundleLines={p.bundleLines} bundleSizes={p.bundleSizes} />
             {p.productsState === 'loading' && <p className="text-xs text-ink-700">Memuat daftar produk…</p>}
             {p.productsState === 'failed' && <p role="alert" className="text-xs font-semibold text-danger">Daftar produk gagal dimuat; pilihan produk kosong. Tutup dan buka lagi untuk mencoba ulang.</p>}
           </Section>
@@ -141,7 +144,7 @@ export function PromoFormSlideOver(p: PromoFormSlideOverProps) {
               {p.outletsState === 'loading' && <p className="text-xs text-ink-700">Memuat daftar outlet…</p>}
               {p.outletsState === 'failed' && <p role="alert" className="text-xs font-semibold text-danger">Daftar outlet gagal dimuat. Outlet promosi ini tidak diubah; tutup dan buka lagi untuk memilih outlet.</p>}
             </Field>
-            <Input label="Minimum Pembelian (Rp)" type="number" value={form.minPurchase || ''} onChange={(e) => setForm((f) => ({ ...f, minPurchase: e.target.value === '' ? null : parseFloat(e.target.value) || 0 }))} />
+            {form.type !== 'bundle_discount' && <Input label="Minimum Pembelian (Rp)" type="number" value={form.minPurchase || ''} onChange={(e) => setForm((f) => ({ ...f, minPurchase: e.target.value === '' ? null : parseFloat(e.target.value) || 0 }))} />}
             <SwitchRow label="Bisa dikombinasikan dengan promosi lain" checked={form.combinable ?? false} onChange={(combinable) => setForm((f) => ({ ...f, combinable }))} />
             <SwitchRow label="Hanya via kode" hint="Disembunyikan dari panel kasir." checked={form.codeOnly ?? false} onChange={(codeOnly) => setForm((f) => ({ ...f, codeOnly, autoApply: codeOnly ? false : f.autoApply }))} />
             <div id={PROMO_FIELD.autoApply} tabIndex={-1}>

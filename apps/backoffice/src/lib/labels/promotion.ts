@@ -15,6 +15,7 @@ export const PROMOTION_TYPE = {
   buy_x_get_y: { label: 'Beli-Gratis', tone: 'promo' },
   tiered: { label: 'Bertingkat', tone: 'promo' },
   bundle: { label: 'Paket Bundel', tone: 'promo' },
+  bundle_discount: { label: 'Diskon Bundle', tone: 'promo' },
 } as const satisfies LabelMap<string>
 
 /** Discount codes only come in two kinds. */

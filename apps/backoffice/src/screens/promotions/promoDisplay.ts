@@ -23,6 +23,10 @@ export function promoValueLabel(p: Promotion): string {
   }
   if (p.type === 'tiered') return `${p.tieredConfig?.tiers?.length ?? 0} tingkat`
   if (p.type === 'bundle') return `Harga paket ${BRAND.currency.format(p.bundleConfig?.bundlePrice ?? 0)}`
+  if (p.type === 'bundle_discount') {
+    const kind = p.bundleDiscountConfig?.kind
+    return `${kind === 'fixed' ? BRAND.currency.format(p.value) : `${p.value}%`} per bundle`
+  }
   return String(p.value)
 }
 

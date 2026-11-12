@@ -1,15 +1,16 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { Product, PromotionInput } from '@mandalika/api'
-import { Banknote, BarChart3, Gift, Package, Percent, ShoppingBag, type LucideIcon } from 'lucide-react'
+import { Banknote, BarChart3, Gift, Package, Tags, Percent, ShoppingBag, type LucideIcon } from 'lucide-react'
 import { Button } from '../../ui/Button'
 import { Field, Input, Select } from '../../ui/Field'
 import { cn } from '../../ui/cn'
+import { BundleDiscountFields } from './BundleDiscountFields'
 import { ProductVariantPicker } from '../customers/ProductVariantPicker'
 import {
   DEFAULT_BUNDLE,
   DEFAULT_BXGY,
-  DEFAULT_TIERED,
   PROMO_FIELD,
+  selectPromoType,
   type BundleSlotRow,
   type PromoType,
   type TierRow,
@@ -22,6 +23,7 @@ const PROMO_TYPES: { value: PromoType; label: string; desc: string; icon: Lucide
   { value: 'buy_x_get_y', label: 'Beli X, Gratis/Diskon Y', desc: 'Beli sejumlah barang, dapat hadiah/diskon', icon: ShoppingBag },
   { value: 'tiered', label: 'Bertingkat', desc: 'Belanja lebih, hemat lebih (tier)', icon: BarChart3 },
   { value: 'bundle', label: 'Paket Bundel', desc: 'Beli satu set produk sekaligus dengan harga paket tetap; item termurah jadi GRATIS', icon: Package },
+  { value: 'bundle_discount', label: 'Diskon Bundle', desc: 'Diskon persen atau nominal untuk bundle 1 botol besar + atomizer + vial', icon: Tags },
 ]
 
 function PromoTypePicker({ value, onChange }: { value: PromoType; onChange: (t: PromoType) => void }) {
@@ -62,23 +64,19 @@ interface PromoTypeFieldsProps {
   products: Product[]
   /** Problem messages by field id (see PROMO_FIELD). */
   errors: Readonly<Record<string, string>>
+  /** ERP lines (bundle settings) and standard sizes, for the Diskon Bundle pickers. */
+  bundleLines?: readonly { line: string; label: string }[]
+  bundleSizes?: readonly string[]
 }
 
 /** The jenis picker and the fields of the chosen jenis. Switching jenis seeds its default config only when it has none. */
-export function PromoTypeFields({ form, setForm, products, errors }: PromoTypeFieldsProps) {
+export function PromoTypeFields({ form, setForm, products, errors, bundleLines = [], bundleSizes = [] }: PromoTypeFieldsProps) {
   const setBxgy = (patch: Partial<typeof DEFAULT_BXGY>) =>
     setForm((f) => ({ ...f, bxgyConfig: { ...(f.bxgyConfig ?? DEFAULT_BXGY), ...patch } }))
   const setTiers = (tiers: TierRow[]) => setForm((f) => ({ ...f, tieredConfig: { tiers } }))
   const setBundle = (patch: Partial<typeof DEFAULT_BUNDLE>) =>
     setForm((f) => ({ ...f, bundleConfig: { ...(f.bundleConfig ?? DEFAULT_BUNDLE), ...patch } }))
-  const selectType = (type: PromoType) =>
-    setForm((f) => ({
-      ...f,
-      type,
-      bxgyConfig: type === 'buy_x_get_y' ? (f.bxgyConfig ?? DEFAULT_BXGY) : f.bxgyConfig,
-      tieredConfig: type === 'tiered' ? (f.tieredConfig ?? DEFAULT_TIERED) : f.tieredConfig,
-      bundleConfig: type === 'bundle' ? (f.bundleConfig ?? DEFAULT_BUNDLE) : f.bundleConfig,
-    }))
+  const selectType = (type: PromoType) => setForm((f) => selectPromoType(f, type))
 
   const tiers = (form.tieredConfig?.tiers ?? []) as TierRow[]
   const slots = (form.bundleConfig?.slots ?? []) as BundleSlotRow[]
@@ -155,6 +153,8 @@ export function PromoTypeFields({ form, setForm, products, errors }: PromoTypeFi
           <Button variant="secondary" onClick={() => setTiers([...tiers, { minSubtotal: 0, kind: 'percentage', value: 10 }])}>+ Tambah tingkat</Button>
         </div>
       )}
+
+      {form.type === 'bundle_discount' && <BundleDiscountFields form={form} setForm={setForm} lines={bundleLines} sizes={bundleSizes} errors={errors} />}
 
       {form.type === 'bundle' && (
         <div id={PROMO_FIELD.bundle} tabIndex={-1} className="space-y-3 rounded-xl bg-paper-1 p-3">

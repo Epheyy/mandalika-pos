@@ -7,7 +7,7 @@ describe('promotion labels', () => {
   })
 
   it('names every promotion type of the API', () => {
-    expect(Object.keys(PROMOTION_TYPE).sort()).toEqual(['bogo', 'bundle', 'buy_x_get_y', 'fixed', 'percentage', 'tiered'])
+    expect(Object.keys(PROMOTION_TYPE).sort()).toEqual(['bogo', 'bundle', 'bundle_discount', 'buy_x_get_y', 'fixed', 'percentage', 'tiered'])
   })
 
   it('reads Lainnya for an unknown type, never the raw code', () => {
