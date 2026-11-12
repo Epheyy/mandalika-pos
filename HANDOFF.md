@@ -8,6 +8,17 @@ Last updated: 2026-11-13 by Claude (Sonnet 5.5) - bundles phase 3 (POS selling) 
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-13: **VOID PLAN and RECEIPT DESIGNER PLAN approved by the owner** ("Approve both"), with all their default owner decisions. Docs only, nothing built.
+> - **Void:** `docs/plans/2026-11-12-void-plan.md`: 5 phases, 25 tasks, migrations 0092-0094, Postgres gate port 26482.
+>   - Defaults: O1 cashiers get `void_own_shift`; O2 a price gap becomes "Penyesuaian koreksi"; O3 the window is 7 days (1-30); O4 void-related ERP documents are held until Phase 5; O5 shifts opened offline can void only once synced; O6 an offline void that overlaps an approved stock count is refused ("lakukan online").
+>   - Phase 5 (ERP reversal) is blocked on the ERP developer's Q1-Q4. The drafted message is with the owner, who sends it.
+>   - Starts after bundles Phase 5.
+> - **Receipt designer:** `docs/plans/2026-11-12-receipt-designer-plan.md`: 5 phases, 17 tasks, migrations 0095-0096, gate port 26483.
+>   - Defaults: O1 points print as estimates on the live sale only; O2 one logo per template; O3 a new refund slip, 1 copy; O4 the old header/footer are frozen for tablets older than the Phase 2 OTA; O5 keep the test-print relay.
+>   - Phase 4 needs an on-device RPP02N check before release.
+>   - Starts after Void; Phase 1 freezes `escpos.ts` from the post-bundles/post-Void base.
+> - **Both plans** were written by Opus and independently reviewed (Void: 2 HIGH and 5 MEDIUM fixed; receipt: 2 blockers and 7 amendments fixed).
+
 > 2026-11-13: **BUNDLES PHASE 3 (#146, POS selling) LIVE as POS OTA 2.14.0** (owner: "Yes, release it"). Merge `602ae6ed` (no-ff onto `a1b4e70b`), gate `gate/bundles-p3` 5/5 green, pushed with the Void plan (`88251548`). OTA: `APK_BUILD_SHA=cdcfa44e make ota-release VERSION=2.14.0` from `602ae6ed`, id `1de49dbd`, 309092 B; sha256 `fde2b151...` matches the download. `/api/v1/ota/check`: code 14 (APK 2.3) -> 2.14.0; code 13 -> "no update" (stays 2.13.8). No backend deploy (Go changes are the parity golden test and its data only) and no Backoffice change. Not checked: on a tablet and on the RPP02N (the receipt uses ASCII `+`/`-` bullets for the pieces). **NEXT:** Phase 4 (Diskon Bundle, migration 0091), then Phase 5 (reports).
 > - **Built:**
 >   - `setBundles.ts`: the Go `Split`/`MinNet` twin (BigInt, shared golden), catalog, swap and stock helpers, `repriceBundles`.
