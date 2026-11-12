@@ -8,7 +8,7 @@ Last updated: 2026-11-13 by Claude (Sonnet 5.5) - bundles phase 3 (POS selling) 
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
-> 2026-11-13: **BUNDLES PHASE 3 (POS selling) BUILT, PR open, NOT released** (branch `claude/bundles-p3-cc5dd8`; POS web layer only, ships by OTA after the owner's go; backend Phase 2 is already live).
+> 2026-11-13: **BUNDLES PHASE 3 (#146, POS selling) LIVE as POS OTA 2.14.0** (owner: "Yes, release it"). Merge `602ae6ed` (no-ff onto `a1b4e70b`), gate `gate/bundles-p3` 5/5 green, pushed with the Void plan (`88251548`). OTA: `APK_BUILD_SHA=cdcfa44e make ota-release VERSION=2.14.0` from `602ae6ed`, id `1de49dbd`, 309092 B; sha256 `fde2b151...` matches the download. `/api/v1/ota/check`: code 14 (APK 2.3) -> 2.14.0; code 13 -> "no update" (stays 2.13.8). No backend deploy (Go changes are the parity golden test and its data only) and no Backoffice change. Not checked: on a tablet and on the RPP02N (the receipt uses ASCII `+`/`-` bullets for the pieces). **NEXT:** Phase 4 (Diskon Bundle, migration 0091), then Phase 5 (reports).
 > - **Built:**
 >   - `setBundles.ts`: the Go `Split`/`MinNet` twin (BigInt, shared golden), catalog, swap and stock helpers, `repriceBundles`.
 >   - Reducer actions `CART_ADD_SET_BUNDLE`, `CART_REMOVE_SET_BUNDLE`, `CART_SWAP_BUNDLE_PIECE`.
