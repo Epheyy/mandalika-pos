@@ -416,6 +416,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Get("/reports/summary", h.ReportSummary)
 				r.Get("/promo-reward-grants", h.PromoRewardGrants)
 				r.Get("/discount-code-report", h.DiscountCodeReport)
+				r.Get("/bundle-report", h.BundleReport)
 				r.Get("/refund-report", h.RefundReport)
 				r.Get("/oversell-report", h.OversellReport)
 				r.Get("/oversell-report/open-count", h.OversellOpenCount)
