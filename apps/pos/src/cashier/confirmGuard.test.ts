@@ -125,3 +125,12 @@ describe('resolveConfirmGuard', () => {
     expect(r.clearAll).toBe(true)
   })
 })
+
+describe('findInvalidPromos: a code linked to a Diskon Bundle', () => {
+  it('drops the code when no bundle in the cart matches the linked promotion', () => {
+    const bd = promo('bd', { type: 'bundle_discount', value: 10, bundleDiscountConfig: { kind: 'percentage' } } as Partial<Promotion>)
+    const state = stateWith({ appliedPromoCodes: [{ ...applied('LINK'), promotion: { id: 'bd', type: 'bundle_discount', value: 10, isBOGO: false } }] })
+    const drops = findInvalidPromos({ state, promotions: [bd], discountCodes: [dcode('LINK')], ctx })
+    expect(drops).toEqual([{ kind: 'code', code: 'LINK', reason: 'belum ada bundle yang cocok' }])
+  })
+})

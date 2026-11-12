@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 
 	"github.com/jackc/pgx/v5"
 
@@ -154,12 +155,27 @@ func validateBundleDiscount(value float64, c *BundleDiscountConfigInput) error {
 	if c.Kind == "fixed" && (!whole || value <= 0) {
 		return fmt.Errorf("Diskon nominal harus bilangan bulat > 0")
 	}
+	for _, ln := range c.Lines {
+		if !slices.Contains(bundleLineNames, ln) {
+			return fmt.Errorf("Lini tidak dikenal: %s", ln)
+		}
+	}
 	for _, sz := range c.Sizes {
 		if !bundleSizeKey.MatchString(sz) {
 			return fmt.Errorf("Ukuran harus seperti 120ml")
 		}
 	}
 	return nil
+}
+
+// defaultBundleDiscountCombinable makes an absent combinable true for a bundle_discount promotion (create and
+// update alike), so a PUT that omits it never stores NULL.
+func defaultBundleDiscountCombinable(p Promotion) Promotion {
+	if p.Type == "bundle_discount" && p.Combinable == nil {
+		yes := true
+		p.Combinable = &yes
+	}
+	return p
 }
 
 // validateBundleDiscountPromotion adds the promotion-level rule: both pricing twins test minPurchase against a
@@ -230,10 +246,7 @@ func (r *Repo) CreatePromotion(ctx context.Context, p Promotion) (string, error)
 			return "", err
 		}
 	}
-	if p.Type == "bundle_discount" && p.Combinable == nil {
-		yes := true
-		p.Combinable = &yes
-	}
+	p = defaultBundleDiscountCombinable(p)
 	var id string
 	err := r.tx(ctx, "promotions", func(t pgx.Tx) error {
 		apid, _ := jsonb(p.ApplicableProductIDs)
@@ -302,6 +315,7 @@ func (r *Repo) UpdatePromotion(ctx context.Context, id string, p Promotion) erro
 			return err
 		}
 	}
+	p = defaultBundleDiscountCombinable(p)
 	return r.tx(ctx, "promotions", func(t pgx.Tx) error {
 		apid, _ := jsonb(p.ApplicableProductIDs)
 		avk, _ := jsonb(p.ApplicableVariantKeys)

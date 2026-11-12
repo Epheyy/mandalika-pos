@@ -253,7 +253,7 @@ export function bundleDiscountGain(promo: Promotion, state: CashierState): numbe
   const applied = effectiveBundleDiscounts(state)
   const withPromo = applied.some((p) => p.id === promo.id) ? applied : [...applied, promo]
   return bundleGroupInfos(state.cart).reduce((n, g) => {
-    const current = g.lines.L.bundleDiscount ?? 0
+    const current = (g.lines.L.bundleDiscount ?? 0) + (g.lines.A.bundleDiscount ?? 0) + (g.lines.V.bundleDiscount ?? 0)
     return n + Math.max(0, bestBundleDiscount(g.price, g.line, g.size, g.basis, withPromo).amount - current)
   }, 0)
 }

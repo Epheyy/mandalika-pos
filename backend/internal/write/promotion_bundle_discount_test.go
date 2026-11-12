@@ -25,6 +25,8 @@ func TestValidateBundleDiscount(t *testing.T) {
 		{"fixed fractional", 1000.5, cfg("fixed"), "Diskon nominal harus bilangan bulat > 0"},
 		{"bad size", 10, cfg("percentage", "120"), "Ukuran harus seperti 120ml"},
 		{"bad size uppercase", 10, cfg("percentage", "120ML"), "Ukuran harus seperti 120ml"},
+		{"blank line", 10, &BundleDiscountConfigInput{Kind: "percentage", Lines: []string{" "}}, "Lini tidak dikenal:  "},
+		{"unknown line", 10, &BundleDiscountConfigInput{Kind: "percentage", Lines: []string{"EXTRAIT DE PARFUM", "FOO"}}, "Lini tidak dikenal: FOO"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -58,5 +60,20 @@ func TestValidatePromotionBasicsBundleDiscountMinPurchase(t *testing.T) {
 	p.MinPurchase = nil
 	if err := validateBundleDiscountPromotion(p); err != nil {
 		t.Fatalf("nil minPurchase should pass: %v", err)
+	}
+}
+
+func TestDefaultBundleDiscountCombinable(t *testing.T) {
+	no := false
+	got := defaultBundleDiscountCombinable(Promotion{Type: "bundle_discount"})
+	if got.Combinable == nil || !*got.Combinable {
+		t.Fatalf("nil combinable on bundle_discount must default to true, got %v", got.Combinable)
+	}
+	got = defaultBundleDiscountCombinable(Promotion{Type: "bundle_discount", Combinable: &no})
+	if got.Combinable == nil || *got.Combinable {
+		t.Fatalf("explicit false must stay false")
+	}
+	if got = defaultBundleDiscountCombinable(Promotion{Type: "percentage"}); got.Combinable != nil {
+		t.Fatalf("other types untouched")
 	}
 }

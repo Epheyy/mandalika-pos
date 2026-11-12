@@ -93,6 +93,11 @@ export function findInvalidPromos({ state, discountCodes, promotions, ctx }: Con
       const linkedViolations = validatePromo(linked, guardCtx)
       if (linkedViolations.length > 0) {
         drops.push({ kind: 'code', code: c.code, reason: violationMessage(linkedViolations[0]) })
+        continue
+      }
+      // A code linked to a Diskon Bundle with no matching bundle would be burned for nothing.
+      if (linked.type === 'bundle_discount' && unmetCartPrecondition(linked, state.cart, 0) !== null) {
+        drops.push({ kind: 'code', code: c.code, reason: 'belum ada bundle yang cocok' })
       }
     }
   }
