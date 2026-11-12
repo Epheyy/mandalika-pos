@@ -6,7 +6,8 @@ import (
 	"testing"
 )
 
-// Same fixture file is read by POS combinabilityParity.test.ts. Engine code is never
+// Flag-gate golden: it pins combinabilityViolation (the rule the unlinked-code branch feeds with the code row's
+// combinable). Same fixture file is read by POS combinabilityParity.test.ts. Engine code is never
 // adjusted to make a vector pass.
 func TestCombinabilityGolden(t *testing.T) {
 	raw, err := os.ReadFile("testdata/combinability_golden.json")
