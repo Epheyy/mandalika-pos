@@ -402,7 +402,7 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 
 	items := make([]LineItem, len(in.Items))
 	for i, it := range in.Items {
-		items[i] = LineItem{ProductID: it.ProductID, VariantSize: it.VariantSize, Price: it.Price, Quantity: it.Quantity, Subtotal: it.Subtotal}
+		items[i] = LineItem{ProductID: it.ProductID, VariantSize: it.VariantSize, Price: it.Price, Quantity: it.Quantity, Subtotal: it.Subtotal, InBundle: it.BundleGroup > 0}
 	}
 	pricingIn := PricingInput{
 		Items: items, ManualDiscount: in.ManualValue, ManualKind: in.ManualKind,
