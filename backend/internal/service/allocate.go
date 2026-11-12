@@ -273,7 +273,7 @@ func promoEligibleLines(p *PromoSpec, items []LineItem) []int {
 		return matchingLines(items, func(i LineItem) bool {
 			return !i.InBundle && keyMatchesLine(p.BXGY.BuyProductIDs, i.ProductID, i.VariantSize)
 		})
-	case DiscountTiered, DiscountBundle:
+	case DiscountTiered, DiscountBundle, DiscountBundleDiscount:
 		return nil
 	}
 	if len(p.ApplicableProductIDs) == 0 {

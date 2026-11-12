@@ -376,7 +376,7 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 	}
 	// Bundles (migration 0090): validate each three-piece bundle, reprice its pieces to their
 	// share of the bundle price. Before pricing/stock/order_items so all of them see the shares.
-	setBundleWarn, err := s.resolveSetBundles(ctx, tx, &in)
+	setBundleWarn, err := s.resolveSetBundles(ctx, tx, &in, promos)
 	if err != nil {
 		return "", false, false, err
 	}
@@ -507,16 +507,7 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 		if e != nil {
 			return "", false, false, e
 		}
-		pidSet := make(map[string]bool, len(in.Items)*2)
-		for _, it := range in.Items {
-			if it.IsReward {
-				continue // a free reward item must not trigger more conditions
-			}
-			pidSet[it.ProductID] = true
-			if it.VariantSize != "" {
-				pidSet[variantKey(it.ProductID, it.VariantSize)] = true // variant-level trigger entries (SP-CRM-9b)
-			}
-		}
+		pidSet := loyaltyProductSet(in.Items) // skips reward lines and bundle pieces
 		outcome = EvaluateLoyalty(conds, EvalContext{
 			Total: res.Total, BasePoints: base, ProductIDs: pidSet,
 			SaleDate: saleTime.In(saleZone), Customer: evalCust,

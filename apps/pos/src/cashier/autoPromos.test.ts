@@ -314,3 +314,40 @@ describe('promoEligibility (panel behaviour preserved)', () => {
     expect(unmetCartPrecondition(promo('p'), cart, 0)).toBeNull()
   })
 })
+
+describe('Diskon Bundle auto-apply', () => {
+  const EXTL = 'EXTRAIT DE PARFUM'
+  const piece = (role: 'large' | 'atomizer' | 'vial', price: number, basis: number): CartItem => ({
+    productId: 'champ', productName: 'CHAMPION', variantSize: role, price, quantity: 1, subtotal: price,
+    bundleGroup: 1, bundleRole: role, bundlePrice: 850000, bundleBasisPrice: basis, bundleLine: EXTL, bundleSize: '120ml', bundleDiscount: 0,
+  })
+  const bundleCart = (): CartItem[] => [piece('large', 675498, 1200000), piece('atomizer', 140728, 250000), piece('vial', 33774, 60000)]
+  const diskon = (id: string, kind: 'percentage' | 'fixed', value: number, over: Partial<Promotion> = {}): Promotion =>
+    promo(id, { type: 'bundle_discount', value, bundleDiscountConfig: { kind, lines: [], sizes: [] }, ...over } as Partial<Promotion>)
+  const base = () => stateWith(bundleCart())
+
+  it('reconcileAutoPromos installs an auto Diskon Bundle (saving > 0)', () => {
+    const r = run(base(), [diskon('d', 'percentage', 10)])
+    expect(ids(r)).toEqual(['d'])
+    expect(r.next.cart.reduce((n, c) => n + c.subtotal, 0)).toBe(765000)
+    expect(run(r.next, [diskon('d', 'percentage', 10)], { autoPromotionIds: ['d'] }).changed).toBe(false)
+  })
+
+  it('reconcileAutoPromos holds Diskon Bundle back behind an exclusive code', () => {
+    const s = stateWith(bundleCart(), { appliedPromoCodes: [{ code: 'X', value: 5, type: 'percentage', combinable: false }] })
+    const r = run(s, [diskon('d', 'percentage', 10)])
+    expect(ids(r)).toEqual([])
+    expect(r.next.cart.reduce((n, c) => n + c.subtotal, 0)).toBe(850000)
+  })
+
+  it('settle drops a Diskon Bundle that wins no bundle', () => {
+    const r = run(base(), [diskon('small', 'percentage', 10), diskon('big', 'fixed', 100000)])
+    expect(ids(r)).toEqual(['big'])
+    expect(r.next.cart.reduce((n, c) => n + c.subtotal, 0)).toBe(750000)
+  })
+
+  it('skips a Diskon Bundle when no bundle matches', () => {
+    const r = run(base(), [diskon('d', 'percentage', 10, { bundleDiscountConfig: { kind: 'percentage', lines: ['PARFUM INTENSE'], sizes: [] } } as Partial<Promotion>)])
+    expect(ids(r)).toEqual([])
+  })
+})

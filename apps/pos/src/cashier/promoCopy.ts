@@ -4,6 +4,9 @@ import type { AutoPrompt } from './autoPromos'
 
 type Promotion = components['schemas']['Promotion']
 
+export const BUNDLE_DISCOUNT_LABEL = 'Diskon Bundle'
+export const BUNDLE_DISCOUNT_UNMET = 'Belum ada bundle yang cocok di keranjang'
+
 /**
  * One line for a tiered promo (QA P-21): what it saves now and what the next tier needs, e.g.
  * "Hemat Rp 10.000 · belanja Rp 30.000 lagi untuk hemat 15%". Null when there is no next tier to point at

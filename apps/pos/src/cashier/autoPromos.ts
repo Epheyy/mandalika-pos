@@ -24,6 +24,7 @@ import { isSeparateSetBxgy, unmetCartPrecondition } from './promoEligibility'
 import { effectiveMechanics, invalidPhysicalPromotionIds, planPromotionFulfillment } from './promotionFulfillment'
 import { removePromotionEffect } from './promotionEffects'
 import { stockFor } from './stock'
+import { bundleDiscountGain, repriceBundles } from './setBundles'
 
 type Promotion = components['schemas']['Promotion']
 type Product = components['schemas']['Product']
@@ -154,12 +155,19 @@ function planInstall(
   if (unmetCartPrecondition(promo, cur.cart, savings) !== null) return { kind: 'skip' }
   const plan = planPromotionFulfillment(cur, { kind: 'direct', promotion: promo }, products)
   switch (plan.kind) {
-    case 'simple':
+    case 'simple': {
+      // Diskon Bundle saves by repricing bundle pieces: the gain is what it adds over the discounts in force.
+      if (promo.type === 'bundle_discount') {
+        if (bundleDiscountGain(promo, cur) <= 0) return { kind: 'skip' }
+        const next = { ...cur, appliedPromotions: [...cur.appliedPromotions, promo], activeAdjustment: null }
+        return { kind: 'installed', state: repriceBundles(next) }
+      }
       // A promo that saves nothing right now (e.g. tiered below its first tier)
       // is not worth an "Otomatis" row.
       return savings > 0
         ? { kind: 'installed', state: { ...cur, appliedPromotions: [...cur.appliedPromotions, promo], activeAdjustment: null } }
         : { kind: 'skip' }
+    }
     case 'ready': {
       // The picker caps a free gift at stock whatever allowNegativeStock says; auto does the same.
       // Gifts already in the cart (other promos, loyalty rewards) share the same stock.
@@ -198,7 +206,10 @@ function settle(
   for (;;) {
     const ec = evalCtx(cur, ctx)
     const physicalBad = new Set(invalidPhysicalPromotionIds(cur))
-    const bad = kept.filter((p) => validatePromo(p, ec).length > 0 || physicalBad.has(p.id))
+    // A Diskon Bundle that no longer wins any bundle (a bigger one took them all) saves nothing: drop it.
+    const winsNothing = (p: Promotion): boolean =>
+      p.type === 'bundle_discount' && !cur.cart.some((c) => c.bundlePromotionId === p.id && (c.bundleDiscount ?? 0) > 0)
+    const bad = kept.filter((p) => validatePromo(p, ec).length > 0 || physicalBad.has(p.id) || winsNothing(p))
     if (bad.length === 0) return { state: cur, installed: kept }
     const badIds = new Set(bad.map((p) => p.id))
     for (const p of bad) cur = removePromotionEffect(cur, p.id)
@@ -207,7 +218,7 @@ function settle(
 }
 
 // Money the customer saves with an option: the promo discount plus the value of
-// reward lines / freed bundle units (calcPromoDiscount is 0 for those).
+// reward lines / freed bundle units / Diskon Bundle shares (calcPromoDiscount is 0 for those).
 function autoSaving(state: CashierState, installed: Promotion[], products: Product[]): number {
   const money = computePricing({
     cart: state.cart,
@@ -225,7 +236,9 @@ function autoSaving(state: CashierState, installed: Promotion[], products: Produ
   }).appliedPromoDiscountAmount
   let value = 0
   for (const p of installed) {
-    if (p.type === 'bundle') {
+    if (p.type === 'bundle_discount') {
+      for (const line of state.cart) if (line.bundlePromotionId === p.id) value += line.bundleDiscount ?? 0
+    } else if (p.type === 'bundle') {
       for (const f of state.bundleFreed[p.id] ?? []) value += (f.fullPrice - f.net) * f.quantity
     } else if (isSeparateSetBxgy(p)) {
       for (const line of state.cart) {

@@ -2,6 +2,7 @@ package service
 
 import (
 	"math"
+	"slices"
 
 	"github.com/mandalika/pos-backend/internal/bundles"
 )
@@ -43,10 +44,35 @@ type setBundlePriced struct {
 	ok          bool // false: the group is invalid (the violations say why)
 	line, size  string
 	price       int64 // list price actually used, before any Diskon Bundle
-	discount    int64 // Diskon Bundle amount (0 until Phase 4)
+	discount    int64 // Diskon Bundle amount (0 when none applies)
 	promotionID string
 	shares      [3]int64 // net per piece, index order large, atomizer, vial
 	discShares  [3]int64 // the discount share per piece
+}
+
+// bestBundleDiscount picks the biggest Diskon Bundle for one bundle (a tie goes to the
+// lexicographically smaller promotion id). The amount is clamped to price - MinNet(basis) so no
+// piece reaches Rp0, and floored at 0. Line "" matches only a promotion with an empty Lines list.
+func bestBundleDiscount(price int64, line, size string, basis [3]int64, specs []PromoSpec) (amount int64, promotionID string) {
+	limit := price - bundles.MinNet(basis)
+	for _, sp := range specs {
+		c := sp.BundleDiscount
+		if sp.Kind != DiscountBundleDiscount || c == nil {
+			continue
+		}
+		if (len(c.Lines) > 0 && !slices.Contains(c.Lines, line)) || (len(c.Sizes) > 0 && !slices.Contains(c.Sizes, size)) {
+			continue
+		}
+		d := int64(math.Round(sp.Value))
+		if c.Kind == DiscountPercentage {
+			d = int64(math.Round(float64(price) * sp.Value / 100))
+		}
+		d = max(min(d, limit), 0)
+		if d > amount || (d == amount && d > 0 && sp.ID < promotionID) {
+			amount, promotionID = d, sp.ID
+		}
+	}
+	return amount, promotionID
 }
 
 var roleIndex = map[bundles.Role]int{bundles.RoleLarge: 0, bundles.RoleAtomizer: 1, bundles.RoleVial: 2}
@@ -55,7 +81,7 @@ var roleIndex = map[bundles.Role]int{bundles.RoleLarge: 0, bundles.RoleAtomizer:
 // returns ok=false and the violations (ViolationBundleInvalid, or BundlePriceChanged for an
 // online stale price). Warnings of a usable group (an offline stale price or a replaced basis)
 // come back with ok=true. Pure: no database.
-func priceSetBundle(g setBundleGroup, prices bundles.Prices, offline bool) (setBundlePriced, []PromoViolation) {
+func priceSetBundle(g setBundleGroup, prices bundles.Prices, offline bool, discounts []PromoSpec) (setBundlePriced, []PromoViolation) {
 	invalid := []PromoViolation{ViolationBundleInvalid}
 	if g.mismatch || len(g.pieces) != 3 {
 		return setBundlePriced{}, invalid
@@ -89,8 +115,6 @@ func priceSetBundle(g setBundleGroup, prices bundles.Prices, offline bool) (setB
 		}
 	}
 
-	const discount int64 = 0 // Phase 4 adds the Diskon Bundle
-	net := price - discount
 	catalog := [3]int64{byRole[0].catalogBasis, byRole[1].catalogBasis, byRole[2].catalogBasis}
 	client := [3]int64{byRole[0].clientBasis, byRole[1].clientBasis, byRole[2].clientBasis}
 	basisOK := func(b [3]int64) bool {
@@ -99,7 +123,7 @@ func priceSetBundle(g setBundleGroup, prices bundles.Prices, offline bool) (setB
 				return false
 			}
 		}
-		return net >= bundles.MinNet(b)
+		return price >= bundles.MinNet(b)
 	}
 	clientSent := client[0] > 0 || client[1] > 0 || client[2] > 0
 	var basis [3]int64
@@ -117,7 +141,8 @@ func priceSetBundle(g setBundleGroup, prices bundles.Prices, offline bool) (setB
 			warns = append(warns, ViolationBundleBasisReplaced)
 		}
 	}
-	shares, err := bundles.Split(net, basis)
+	discount, promotionID := bestBundleDiscount(price, large.piece.Line, large.piece.Size, basis, discounts)
+	shares, err := bundles.Split(price-discount, basis)
 	if err != nil {
 		return setBundlePriced{}, invalid
 	}
@@ -129,6 +154,6 @@ func priceSetBundle(g setBundleGroup, prices bundles.Prices, offline bool) (setB
 	}
 	return setBundlePriced{
 		ok: true, line: large.piece.Line, size: large.piece.Size,
-		price: price, discount: discount, shares: shares, discShares: discShares,
+		price: price, discount: discount, promotionID: promotionID, shares: shares, discShares: discShares,
 	}, warns
 }

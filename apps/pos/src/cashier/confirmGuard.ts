@@ -1,5 +1,6 @@
 import type { components } from '@mandalika/api'
 import { bxgyRewardDue, calcPromoDiscount } from './pricing'
+import { unmetCartPrecondition } from './promoEligibility'
 import { effectivePromotionSelection } from './promotionSelection'
 import { cashierReducer, type CashierAction, type CashierState } from './state/cashierReducer'
 import { validateCode, validatePromo, violationMessage, type PromoEvalContext } from './promoValidate'
@@ -46,6 +47,10 @@ export function findInvalidPromos({ state, discountCodes, promotions, ctx }: Con
     }
     // buy_x_get_y has a cart precondition that gating cannot see. SEPARATE-SET earns a reward line
     // (calcPromoDiscount is always 0), so check bxgyRewardDue over PAID lines; SAME-SET discounts in place.
+    if (p.type === 'bundle_discount' && unmetCartPrecondition(p, state.cart, 0) !== null) {
+      drops.push({ kind: 'promotion', id: p.id, name: p.name, reason: 'belum ada bundle yang cocok', stripRewards: false })
+      continue
+    }
     if (p.type === 'buy_x_get_y') {
       const cfg = p.bxgyConfig
       const isSeparateSet = (cfg?.getProductIds ?? []).length > 0
@@ -88,6 +93,11 @@ export function findInvalidPromos({ state, discountCodes, promotions, ctx }: Con
       const linkedViolations = validatePromo(linked, guardCtx)
       if (linkedViolations.length > 0) {
         drops.push({ kind: 'code', code: c.code, reason: violationMessage(linkedViolations[0]) })
+        continue
+      }
+      // A code linked to a Diskon Bundle with no matching bundle would be burned for nothing.
+      if (linked.type === 'bundle_discount' && unmetCartPrecondition(linked, state.cart, 0) !== null) {
+        drops.push({ kind: 'code', code: c.code, reason: 'belum ada bundle yang cocok' })
       }
     }
   }

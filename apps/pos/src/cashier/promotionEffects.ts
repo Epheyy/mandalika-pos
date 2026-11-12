@@ -1,6 +1,7 @@
 import type { components } from '@mandalika/api'
 import type { CashierState } from './state/cashierReducer'
 import type { BundleFreedUnit } from './bundle'
+import { repriceBundles } from './setBundles'
 type CartItem = components['schemas']['CartItem']
 
 // Physical ownership is promotion-ID based, independent of direct/code selection.
@@ -8,13 +9,14 @@ type CartItem = components['schemas']['CartItem']
 // harmless. A stale caller's freed-set argument must not restore a second time.
 export function removePromotionEffect(state: CashierState, id: string): CashierState {
   const freed = state.bundleFreed[id]
-  return {
+  // Ends with repriceBundles: removing a Diskon Bundle hands its bundles back their full price.
+  return repriceBundles({
     ...state,
     cart: freed ? restoreBundle(state.cart, id, freed) : state.cart.filter(c => !(c.isReward && c.rewardPromotionId === id)),
     ...clearBundleEntry(state, id),
     appliedPromotions: state.appliedPromotions.filter(p => p.id !== id),
     appliedPromoCodes: state.appliedPromoCodes.filter(c => c.promotion?.id !== id),
-  }
+  })
 }
 
 export function upsertCartItem(cart: CartItem[], item: CartItem): CartItem[] {

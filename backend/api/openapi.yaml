@@ -1519,6 +1519,14 @@ components:
         slots: { type: array, items: { $ref: '#/components/schemas/BundleSlot' } }
         bundlePrice: { type: number, format: double }
         maxApplications: { type: integer }
+    BundleDiscountConfig:
+      type: object
+      required: [kind]
+      description: Diskon Bundle (type bundle_discount). The amount is the promotion value. An empty lines or sizes list means all.
+      properties:
+        kind: { type: string, enum: [percentage, fixed] }
+        lines: { type: array, items: { type: string } }
+        sizes: { type: array, items: { type: string } }
     BundlePriceEntry:
       type: object
       required: [size, price]
@@ -1613,7 +1621,7 @@ components:
         id: { type: string, format: uuid }
         name: { type: string }
         description: { type: string, nullable: true }
-        type: { type: string, enum: [percentage, fixed, bogo, buy_x_get_y, tiered, bundle] }
+        type: { type: string, enum: [percentage, fixed, bogo, buy_x_get_y, tiered, bundle, bundle_discount] }
         value: { type: number, format: double }
         minPurchase: { type: number, format: double, nullable: true }
         applicableProductIds: { type: array, items: { type: string }, nullable: true }
@@ -1642,6 +1650,9 @@ components:
           nullable: true
         bundleConfig:
           allOf: [{ $ref: '#/components/schemas/BundleConfig' }]
+          nullable: true
+        bundleDiscountConfig:
+          allOf: [{ $ref: '#/components/schemas/BundleDiscountConfig' }]
           nullable: true
         createdAt: { type: string, format: date-time }
     PromotionListResponse:
@@ -2881,7 +2892,7 @@ components:
       properties:
         name: { type: string }
         description: { type: string }
-        type: { type: string, enum: [percentage, fixed, bogo, buy_x_get_y, tiered, bundle] }
+        type: { type: string, enum: [percentage, fixed, bogo, buy_x_get_y, tiered, bundle, bundle_discount] }
         value: { type: number, format: double }
         minPurchase: { type: number, format: double, nullable: true }
         applicableProductIds: { type: array, items: { type: string } }
@@ -2910,6 +2921,9 @@ components:
           nullable: true
         bundleConfig:
           allOf: [{ $ref: '#/components/schemas/BundleConfig' }]
+          nullable: true
+        bundleDiscountConfig:
+          allOf: [{ $ref: '#/components/schemas/BundleDiscountConfig' }]
           nullable: true
     DiscountCodeInput:
       type: object

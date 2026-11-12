@@ -273,6 +273,8 @@ export function calcPromoDiscount(
     // promo contributes 0 to the additive stack — mirrors buy_x_get_y separate-set.
     return 0
   }
+  // Diskon Bundle: the saving lives in the repriced bundle pieces (repriceBundles), not in the additive stack.
+  if (promo.type === 'bundle_discount') return 0
   const scoped = !!promo.applicableProductIds && promo.applicableProductIds.length > 0
   // Product-keyed (scoped or BOGO): bundle pieces never count. Unscoped percent/fixed keep the whole cart.
   const keyed = scoped || promo.type === 'bogo' ? promoLines(items) : items
@@ -330,6 +332,7 @@ export function linkedPromoShape(c: AppliedPromoCode): Promotion {
     bxgyConfig: c.promotion.bxgyConfig ?? null,
     tieredConfig: c.promotion.tieredConfig ?? null,
     bundleConfig: c.promotion.bundleConfig ?? null,
+    bundleDiscountConfig: c.promotion.bundleDiscountConfig ?? null,
     combinable: c.combinable,
     isActive: true,
     createdAt: '',

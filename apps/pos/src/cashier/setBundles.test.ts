@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { components } from '@mandalika/api'
 import {
   buildBundleLines,
+  bundleDiscountGain,
   cardOffers,
   lineShort,
   minNet,
@@ -172,5 +173,19 @@ describe('repriceBundles', () => {
     expect(repriceBundles(low)).toBe(low)
     const huge = stateOf(bundle().map((l) => ({ ...l, bundleBasisPrice: 2e9 })))
     expect(() => repriceBundles(huge)).not.toThrow()
+  })
+})
+
+describe('bundleDiscountGain', () => {
+  type Promotion = components['schemas']['Promotion']
+  const bd = (id: string, kind: 'percentage' | 'fixed', value: number): Promotion =>
+    ({ id, name: id, type: 'bundle_discount', value, isActive: true, createdAt: '', combinable: true, bundleDiscountConfig: { kind } }) as Promotion
+  it('counts the whole applied discount (all three pieces), so a smaller promo gains 0', () => {
+    const ten = bd('ten', 'percentage', 10)
+    const base = { ...CASHIER_INITIAL_STATE, cart: buildBundleLines(offer(), champion, [champion], 1).lines, appliedPromotions: [ten] }
+    const priced = repriceBundles(base)
+    expect(priced.cart.reduce((n, l) => n + l.subtotal, 0)).toBe(765000)
+    expect(bundleDiscountGain(bd('eighty', 'fixed', 80000), priced)).toBe(0)
+    expect(bundleDiscountGain(bd('hundred', 'fixed', 100000), priced)).toBe(15000)
   })
 })

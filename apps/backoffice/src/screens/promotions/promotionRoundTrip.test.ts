@@ -8,7 +8,7 @@ import { duplicateInput, promotionToInput } from './promotionForm'
 const PROMOTION_INPUT_KEYS = [
   'name', 'description', 'type', 'value', 'minPurchase', 'applicableProductIds', 'applicableVariantKeys',
   'applicableVariantSizes', 'outletIds', 'combinable', 'combinableWith', 'activeFromHour', 'activeToHour',
-  'activeDays', 'isActive', 'startDate', 'endDate', 'codeOnly', 'autoApply', 'bxgyConfig', 'tieredConfig', 'bundleConfig',
+  'activeDays', 'isActive', 'startDate', 'endDate', 'codeOnly', 'autoApply', 'bxgyConfig', 'tieredConfig', 'bundleConfig', 'bundleDiscountConfig',
 ] as const satisfies readonly (keyof PromotionInput)[]
 
 const P = '00000000-0000-4000-8300-000000000001'
@@ -42,6 +42,7 @@ const base: Promotion = {
   bxgyConfig: null,
   tieredConfig: null,
   bundleConfig: null,
+  bundleDiscountConfig: null,
 }
 
 const FIXTURES: Record<string, Promotion> = {
@@ -62,6 +63,10 @@ const FIXTURES: Record<string, Promotion> = {
   bundle: {
     ...base, type: 'bundle', value: 0,
     bundleConfig: { slots: [{ productKeys: [`${P}|M`, `${P}|L`], quantity: 2 }, { productKeys: [R], quantity: 1 }], bundlePrice: 199000, maxApplications: 3 },
+  },
+  bundle_discount: {
+    ...base, type: 'bundle_discount', value: 10,
+    bundleDiscountConfig: { kind: 'percentage', lines: ['EXTRAIT DE PARFUM'], sizes: ['110ml'] },
   },
 }
 

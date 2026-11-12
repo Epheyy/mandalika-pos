@@ -128,6 +128,7 @@ export interface LinkedPromotionInfo {
   bxgyConfig?: Promotion['bxgyConfig']
   tieredConfig?: Promotion['tieredConfig']
   bundleConfig?: Promotion['bundleConfig']
+  bundleDiscountConfig?: Promotion['bundleDiscountConfig']
 }
 
 export interface AppliedPromoCode {
@@ -188,6 +189,7 @@ export function decideApplyCode(
           bxgyConfig: promo.bxgyConfig ?? null,
           tieredConfig: promo.tieredConfig ?? null,
           bundleConfig: promo.bundleConfig ?? null,
+          bundleDiscountConfig: promo.bundleDiscountConfig ?? null,
         },
       },
     }

@@ -93,6 +93,18 @@ func parseBundleConfig(raw []byte) (*BundleConfig, error) {
 	return &c, nil
 }
 
+// parseBundleDiscountConfig unmarshals the bundle_discount_config jsonb. nil/empty -> (nil, nil).
+func parseBundleDiscountConfig(raw []byte) (*BundleDiscountConfig, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var c BundleDiscountConfig
+	if err := json.Unmarshal(raw, &c); err != nil {
+		return nil, fmt.Errorf("parse bundle_discount_config: %w", err)
+	}
+	return &c, nil
+}
+
 // loadPromoSpec loads an ACTIVE promotion by id, builds its PromoSpec, and returns
 // its combinable + code_only flags and validation violations. found=false on
 // ErrNoRows (caller decides reject-vs-flag by origin).
@@ -103,7 +115,7 @@ func (s *OrderService) loadPromoSpec(ctx context.Context, tx pgx.Tx, promoID str
 	var row PromoRow
 	var bxgyRaw []byte
 	var tieredRaw []byte
-	var bundleRaw []byte
+	var bundleRaw, bundleDiscRaw []byte
 	e := tx.QueryRow(ctx,
 		`SELECT type, value,
 		   COALESCE(applicable_product_ids,'[]'::jsonb),
@@ -111,18 +123,18 @@ func (s *OrderService) loadPromoSpec(ctx context.Context, tx pgx.Tx, promoID str
 		   COALESCE(active_from_hour,''), COALESCE(active_to_hour,''),
 		   COALESCE(active_days,'[]'::jsonb), COALESCE(outlet_ids,'[]'::jsonb),
 		   COALESCE(combinable,false), COALESCE(code_only,false), bxgy_config, tiered_config,
-		   bundle_config
+		   bundle_config, bundle_discount_config
 		   FROM promotions WHERE id=$1 AND is_active=true`, promoID).
 		Scan(&kind, &value, &ids, &row.StartDate, &row.EndDate, &row.MinPurchase,
 			&row.ActiveFromHour, &row.ActiveToHour, &row.ActiveDays, &row.OutletIDs,
-			&row.Combinable, &codeOnly, &bxgyRaw, &tieredRaw, &bundleRaw)
+			&row.Combinable, &codeOnly, &bxgyRaw, &tieredRaw, &bundleRaw, &bundleDiscRaw)
 	if errors.Is(e, pgx.ErrNoRows) {
 		return PromoSpec{}, false, false, nil, false, nil
 	}
 	if e != nil {
 		return PromoSpec{}, false, false, nil, false, fmt.Errorf("load promotion: %w", e)
 	}
-	spec = PromoSpec{Kind: DiscountKind(kind), Value: value, ApplicableProductIDs: ids, IsBOGO: kind == "bogo"}
+	spec = PromoSpec{Kind: DiscountKind(kind), Value: value, ApplicableProductIDs: ids, IsBOGO: kind == "bogo", ID: promoID}
 	if spec.Kind == DiscountBuyXGetY {
 		cfg, perr := parseBXGYConfig(bxgyRaw)
 		if perr != nil {
@@ -143,6 +155,13 @@ func (s *OrderService) loadPromoSpec(ctx context.Context, tx pgx.Tx, promoID str
 			return PromoSpec{}, false, false, nil, false, perr
 		}
 		spec.Bundle = cfg
+	}
+	if spec.Kind == DiscountBundleDiscount {
+		cfg, perr := parseBundleDiscountConfig(bundleDiscRaw)
+		if perr != nil {
+			return PromoSpec{}, false, false, nil, false, perr
+		}
+		spec.BundleDiscount = cfg
 	}
 	vio = ValidatePromo(row, ec)
 	if spec.Kind == DiscountBundle && bundleKeysOverlap(spec.Bundle) {

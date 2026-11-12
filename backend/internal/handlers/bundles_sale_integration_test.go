@@ -315,4 +315,6 @@ func bundleSaleSubtests(t *testing.T, pool *pgxpool.Pool, ctx context.Context, r
 			t.Fatalf("pieces=%d plain=%d", pieces, plain)
 		}
 	})
+
+	bundleDiscountSubtests(t, pool, ctx, wr, str, exec, bundleItems, sale, syncSale, orderID, champ, extFull)
 }

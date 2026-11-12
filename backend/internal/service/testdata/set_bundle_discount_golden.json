@@ -1,0 +1,271 @@
+[
+  {
+    "name": "pct10_ext_120",
+    "price": 850000,
+    "line": "EXTRAIT DE PARFUM",
+    "size": "120ml",
+    "basis": [
+      1200000,
+      250000,
+      60000
+    ],
+    "promos": [
+      {
+        "id": "promo-a",
+        "kind": "percentage",
+        "value": 10,
+        "lines": [
+          "EXTRAIT DE PARFUM"
+        ],
+        "sizes": [
+          "120ml"
+        ]
+      }
+    ],
+    "expected": {
+      "discount": 85000,
+      "promotionId": "promo-a",
+      "shares": [
+        607948,
+        126655,
+        30397
+      ],
+      "discShares": [
+        67551,
+        14072,
+        3377
+      ]
+    }
+  },
+  {
+    "name": "two_promos_bigger_wins",
+    "price": 850000,
+    "line": "EXTRAIT DE PARFUM",
+    "size": "120ml",
+    "basis": [
+      1200000,
+      250000,
+      60000
+    ],
+    "promos": [
+      {
+        "id": "promo-a",
+        "kind": "percentage",
+        "value": 10,
+        "lines": [],
+        "sizes": []
+      },
+      {
+        "id": "promo-b",
+        "kind": "fixed",
+        "value": 100000,
+        "lines": [],
+        "sizes": []
+      }
+    ],
+    "expected": {
+      "discount": 100000,
+      "promotionId": "promo-b",
+      "shares": [
+        596027,
+        124172,
+        29801
+      ],
+      "discShares": [
+        79471,
+        16556,
+        3973
+      ]
+    }
+  },
+  {
+    "name": "tie_smaller_id",
+    "price": 850000,
+    "line": "EXTRAIT DE PARFUM",
+    "size": "120ml",
+    "basis": [
+      1200000,
+      250000,
+      60000
+    ],
+    "promos": [
+      {
+        "id": "promo-b",
+        "kind": "percentage",
+        "value": 10,
+        "lines": [],
+        "sizes": []
+      },
+      {
+        "id": "promo-a",
+        "kind": "fixed",
+        "value": 85000,
+        "lines": [],
+        "sizes": []
+      }
+    ],
+    "expected": {
+      "discount": 85000,
+      "promotionId": "promo-a",
+      "shares": [
+        607948,
+        126655,
+        30397
+      ],
+      "discShares": [
+        67551,
+        14072,
+        3377
+      ]
+    }
+  },
+  {
+    "name": "line_filter_misses_pi",
+    "price": 650000,
+    "line": "PARFUM INTENSE",
+    "size": "120ml",
+    "basis": [
+      1200000,
+      250000,
+      60000
+    ],
+    "promos": [
+      {
+        "id": "promo-a",
+        "kind": "percentage",
+        "value": 10,
+        "lines": [
+          "EXTRAIT DE PARFUM"
+        ],
+        "sizes": []
+      }
+    ],
+    "expected": {
+      "discount": 0,
+      "promotionId": "",
+      "shares": [
+        516558,
+        107615,
+        25827
+      ],
+      "discShares": [
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  {
+    "name": "size_filter_110_only",
+    "price": 850000,
+    "line": "EXTRAIT DE PARFUM",
+    "size": "120ml",
+    "basis": [
+      1200000,
+      250000,
+      60000
+    ],
+    "promos": [
+      {
+        "id": "promo-a",
+        "kind": "percentage",
+        "value": 10,
+        "lines": [],
+        "sizes": [
+          "110ml"
+        ]
+      }
+    ],
+    "expected": {
+      "discount": 0,
+      "promotionId": "",
+      "shares": [
+        675498,
+        140728,
+        33774
+      ],
+      "discShares": [
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  {
+    "name": "no_line_bundle_matches_only_unfiltered",
+    "price": 725000,
+    "line": "",
+    "size": "110ml",
+    "basis": [
+      1200000,
+      250000,
+      60000
+    ],
+    "promos": [
+      {
+        "id": "promo-a",
+        "kind": "fixed",
+        "value": 100000,
+        "lines": [
+          "EXTRAIT DE PARFUM"
+        ],
+        "sizes": []
+      },
+      {
+        "id": "promo-b",
+        "kind": "percentage",
+        "value": 10,
+        "lines": [],
+        "sizes": []
+      }
+    ],
+    "expected": {
+      "discount": 72500,
+      "promotionId": "promo-b",
+      "shares": [
+        518544,
+        108029,
+        25927
+      ],
+      "discShares": [
+        57617,
+        12003,
+        2880
+      ]
+    }
+  },
+  {
+    "name": "fixed_clamped_by_min_net",
+    "price": 850000,
+    "line": "EXTRAIT DE PARFUM",
+    "size": "120ml",
+    "basis": [
+      1200000,
+      250000,
+      60000
+    ],
+    "promos": [
+      {
+        "id": "promo-a",
+        "kind": "fixed",
+        "value": 849990,
+        "lines": [],
+        "sizes": []
+      }
+    ],
+    "expected": {
+      "discount": 849974,
+      "promotionId": "promo-a",
+      "shares": [
+        21,
+        4,
+        1
+      ],
+      "discShares": [
+        675477,
+        140724,
+        33773
+      ]
+    }
+  }
+]

@@ -22,6 +22,7 @@ const promotionObj = `json_build_object('id',id,'name',name,'description',descri
 		   'bxgyConfig',bxgy_config,
 		   'tieredConfig',tiered_config,
 		   'bundleConfig',bundle_config,
+		   'bundleDiscountConfig',bundle_discount_config,
 		   'createdAt',created_at)`
 
 const discountCodeObj = `json_build_object('id',id,'code',code,'promotionId',promotion_id,

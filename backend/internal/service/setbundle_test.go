@@ -33,7 +33,7 @@ func champGroup(clientPrice float64) setBundleGroup {
 }
 
 func TestPriceSetBundleValid(t *testing.T) {
-	got, warns := priceSetBundle(champGroup(850000), champPrices(), false)
+	got, warns := priceSetBundle(champGroup(850000), champPrices(), false, nil)
 	if !got.ok || len(warns) != 0 {
 		t.Fatalf("ok=%v warns=%v", got.ok, warns)
 	}
@@ -45,7 +45,7 @@ func TestPriceSetBundleValid(t *testing.T) {
 func TestPriceSetBundleSwapKeepsPrice(t *testing.T) {
 	g := champGroup(850000)
 	g.pieces[1] = sbPiece(1, bundles.RoleAtomizer, "", "10ml", 300000, 300000)
-	got, warns := priceSetBundle(g, champPrices(), false)
+	got, warns := priceSetBundle(g, champPrices(), false, nil)
 	if !got.ok || len(warns) != 0 {
 		t.Fatalf("ok=%v warns=%v", got.ok, warns)
 	}
@@ -70,7 +70,7 @@ func TestPriceSetBundleRejects(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			g := champGroup(850000)
 			mut(&g)
-			got, warns := priceSetBundle(g, champPrices(), false)
+			got, warns := priceSetBundle(g, champPrices(), false, nil)
 			if got.ok || !reflect.DeepEqual(warns, []PromoViolation{ViolationBundleInvalid}) {
 				t.Fatalf("ok=%v warns=%v", got.ok, warns)
 			}
@@ -82,7 +82,7 @@ func TestPriceSetBundleZeroPricePieceInvalid(t *testing.T) {
 	g := champGroup(850000)
 	g.pieces[1].classified = false // a 0-priced atomizer is not a piece
 	g.pieces[1].clientBasis, g.pieces[1].catalogBasis = 0, 0
-	if got, warns := priceSetBundle(g, champPrices(), true); got.ok || warns[0] != ViolationBundleInvalid {
+	if got, warns := priceSetBundle(g, champPrices(), true, nil); got.ok || warns[0] != ViolationBundleInvalid {
 		t.Fatalf("ok=%v warns=%v", got.ok, warns)
 	}
 }
@@ -90,20 +90,20 @@ func TestPriceSetBundleZeroPricePieceInvalid(t *testing.T) {
 func TestPriceSetBundleInactiveVialInvalid(t *testing.T) {
 	g := champGroup(850000)
 	g.pieces[2].classified = false
-	if got, warns := priceSetBundle(g, champPrices(), false); got.ok || warns[0] != ViolationBundleInvalid {
+	if got, warns := priceSetBundle(g, champPrices(), false, nil); got.ok || warns[0] != ViolationBundleInvalid {
 		t.Fatalf("ok=%v warns=%v", got.ok, warns)
 	}
 }
 
 func TestPriceSetBundleStalePriceOnlineRejects(t *testing.T) {
-	got, warns := priceSetBundle(champGroup(795000), champPrices(), false)
+	got, warns := priceSetBundle(champGroup(795000), champPrices(), false, nil)
 	if got.ok || !reflect.DeepEqual(warns, []PromoViolation{ViolationBundlePriceChanged}) {
 		t.Fatalf("ok=%v warns=%v", got.ok, warns)
 	}
 }
 
 func TestPriceSetBundleStalePriceOfflineKeepsClientPrice(t *testing.T) {
-	got, warns := priceSetBundle(champGroup(795000), champPrices(), true)
+	got, warns := priceSetBundle(champGroup(795000), champPrices(), true, nil)
 	if !got.ok || got.price != 795000 || !reflect.DeepEqual(warns, []PromoViolation{ViolationBundlePriceChanged}) {
 		t.Fatalf("got %+v warns=%v", got, warns)
 	}
@@ -121,14 +121,14 @@ func TestPriceSetBundleNoLineUsesStandard(t *testing.T) {
 	}}
 	p := champPrices()
 	p.Lines[ext]["110ml"] = 999999 // a line price must never apply to a no-line bundle
-	got, warns := priceSetBundle(g, p, false)
+	got, warns := priceSetBundle(g, p, false, nil)
 	if !got.ok || got.price != 725000 || len(warns) != 0 {
 		t.Fatalf("got %+v warns=%v", got, warns)
 	}
 }
 
 func TestPriceSetBundleNoClientPriceUsesCatalog(t *testing.T) {
-	got, warns := priceSetBundle(champGroup(0), champPrices(), false)
+	got, warns := priceSetBundle(champGroup(0), champPrices(), false, nil)
 	if !got.ok || got.price != 850000 || len(warns) != 0 {
 		t.Fatalf("got %+v warns=%v", got, warns)
 	}
@@ -137,7 +137,7 @@ func TestPriceSetBundleNoClientPriceUsesCatalog(t *testing.T) {
 func TestPriceSetBundleClientBasisPreferred(t *testing.T) {
 	g := champGroup(850000)
 	g.pieces[0].clientBasis, g.pieces[1].clientBasis, g.pieces[2].clientBasis = 1000000, 200000, 50000
-	got, _ := priceSetBundle(g, champPrices(), false)
+	got, _ := priceSetBundle(g, champPrices(), false, nil)
 	want, _ := bundles.Split(850000, [3]int64{1000000, 200000, 50000})
 	if !got.ok || got.shares != want {
 		t.Fatalf("got %+v want shares %v", got, want)
@@ -150,10 +150,10 @@ func TestPriceSetBundleShareNeverZero(t *testing.T) {
 	}
 	g := champGroup(850000)
 	bad(&g)
-	if got, w := priceSetBundle(g, champPrices(), false); got.ok || w[0] != ViolationBundleInvalid {
+	if got, w := priceSetBundle(g, champPrices(), false, nil); got.ok || w[0] != ViolationBundleInvalid {
 		t.Fatalf("online: ok=%v warns=%v", got.ok, w)
 	}
-	got, w := priceSetBundle(g, champPrices(), true)
+	got, w := priceSetBundle(g, champPrices(), true, nil)
 	if !got.ok || got.shares != [3]int64{675498, 140728, 33774} || !reflect.DeepEqual(w, []PromoViolation{ViolationBundleBasisReplaced}) {
 		t.Fatalf("offline: %+v warns=%v", got, w)
 	}
@@ -162,7 +162,7 @@ func TestPriceSetBundleShareNeverZero(t *testing.T) {
 		g2 := champGroup(850000)
 		bad(&g2)
 		g2.pieces[0].catalogBasis, g2.pieces[1].catalogBasis, g2.pieces[2].catalogBasis = 1, 1_000_000, 1
-		if got, w := priceSetBundle(g2, champPrices(), off); got.ok || w[0] != ViolationBundleInvalid {
+		if got, w := priceSetBundle(g2, champPrices(), off, nil); got.ok || w[0] != ViolationBundleInvalid {
 			t.Fatalf("offline=%v: ok=%v warns=%v", off, got.ok, w)
 		}
 	}

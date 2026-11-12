@@ -49,6 +49,12 @@ export interface CollapsedBundle {
   amount: number
 }
 
+/** The printer code page is unknown, so a receipt label is plain ASCII: accents fold away, anything else goes. */
+export function asciiLabel(raw: string, fallback = 'Diskon Bundle'): string {
+  const out = raw.normalize('NFKD').replace(/[^\x20-\x7e]/g, '').replace(/\s+/g, ' ').trim()
+  return out || fallback
+}
+
 const ROLE_ORDER: Record<string, number> = { large: 0, atomizer: 1, vial: 2 }
 
 /** One entry per bundle group (at its large piece's position), every other line unchanged and in order.
@@ -87,7 +93,7 @@ export function collapseBundleLines<T extends BundleLineSource>(
       pieces: sorted.map((m) => `${m.name} ${variantLabel(m.variantSize)}`.trim()),
       price: amount + discount,
       discount,
-      ...(discount > 0 ? { discountLabel: (promoId ? promotionName(promoId) : undefined) ?? 'Diskon Bundle' } : {}),
+      ...(discount > 0 ? { discountLabel: asciiLabel((promoId ? promotionName(promoId) : undefined) ?? 'Diskon Bundle') } : {}),
       amount,
     })
   }

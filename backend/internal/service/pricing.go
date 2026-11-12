@@ -78,6 +78,18 @@ func pickTier(c *TieredConfig, sub float64) *Tier {
 
 const DiscountBundle DiscountKind = "bundle"
 
+// DiscountBundleDiscount ("Diskon Bundle") discounts the automatic three-piece bundle. The saving
+// is realized by setbundle.go repricing the pieces, so the promo adds 0 to the additive stack.
+const DiscountBundleDiscount DiscountKind = "bundle_discount"
+
+// BundleDiscountConfig is promotions.bundle_discount_config; empty Lines/Sizes mean "all". The
+// amount is PromoSpec.Value, Kind is percentage or fixed.
+type BundleDiscountConfig struct {
+	Kind  DiscountKind `json:"kind"`
+	Lines []string     `json:"lines"`
+	Sizes []string     `json:"sizes"`
+}
+
 // BundleSlot is one slot of a bundle: any one of ProductKeys satisfies it,
 // Quantity units per set. Keys are pid or pid|size (keyMatchesLine).
 type BundleSlot struct {
@@ -340,6 +352,8 @@ type PromoSpec struct {
 	BXGY                 *BXGYConfig
 	Tiered               *TieredConfig
 	Bundle               *BundleConfig
+	ID                   string // promotion id; set by loadPromoSpec (empty for an unlinked code)
+	BundleDiscount       *BundleDiscountConfig
 }
 
 type PricingInput struct {
@@ -528,6 +542,10 @@ func calcPromotionDiscount(p *PromoSpec, items []LineItem, sub float64) float64 
 		case DiscountFixed:
 			return math.Min(t.Value, sub)
 		}
+		return 0
+	}
+	if p.Kind == DiscountBundleDiscount {
+		// Realized by repricing the bundle pieces (setbundle.go), never by the additive stack.
 		return 0
 	}
 	if p.Kind == DiscountBundle {

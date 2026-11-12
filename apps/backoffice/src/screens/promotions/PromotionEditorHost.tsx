@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Outlet, Product, Promotion, PromotionInput } from '@mandalika/api'
+import type { BundleSettings, Outlet, Product, Promotion, PromotionInput } from '@mandalika/api'
 import { api } from '../../api'
 import { activeProducts, productCatalogue } from '../../lib/productCatalogue'
 import { useConfirm } from '../../ui/ConfirmDialog'
+import { settingsToForm } from '../products/bundleSettings'
 import { PromoFormSlideOver } from './PromoFormSlideOver'
 import { EMPTY_PROMO, promotionProblems, promotionToInput } from './promotionForm'
 import { useEditorGuard, useLeave } from './useEditorLeave'
@@ -24,13 +25,25 @@ const createPromo = (input: PromotionInput) => api.createPromotion(input)
 const updatePromo = (id: string, input: PromotionInput) => api.updatePromotion(id, input)
 
 /** The pickers' data, read once when the editor opens (not polled: the list screen no longer walks the catalogue). */
+function isBundleSettings(v: unknown): v is BundleSettings {
+  const s = v as Partial<BundleSettings> | null | undefined
+  return !!s && Array.isArray(s.standard) && Array.isArray(s.lines) && Array.isArray(s.linePrices)
+}
+
 function usePickerData() {
   const [products, setProducts] = useState<Product[]>([])
   const [productsState, setProductsState] = useState<'loading' | 'ready' | 'failed'>('loading')
   const [outlets, setOutlets] = useState<Outlet[]>([])
   const [outletsState, setOutletsState] = useState<'loading' | 'ready' | 'failed'>('loading')
+  // Diskon Bundle's pickers only; a failed load leaves them empty (the jenis then reads Semua lini / Semua ukuran).
+  const [bundle, setBundle] = useState<BundleSettings | null>(null)
   useEffect(() => {
     let alive = true
+    api
+      .getBundleSettings()
+      // A malformed reply must not crash the editor: only a complete settings object is used.
+      .then((r) => alive && isBundleSettings(r.data) && setBundle(r.data))
+      .catch(() => undefined)
     // The shared catalogue: opening the editor again within its TTL costs no request, and a product saved in this tab refetches.
     productCatalogue
       .get()
@@ -52,7 +65,9 @@ function usePickerData() {
       alive = false
     }
   }, [])
-  return { products, productsState, outlets, outletsState }
+  const bundleLines = bundle?.lines ?? []
+  const bundleSizes = bundle ? Object.keys(settingsToForm(bundle).standard) : []
+  return { products, productsState, outlets, outletsState, bundleLines, bundleSizes }
 }
 
 /** The promotion editor overlay, mounted while `?ubah=<id>` / `?baru=1` is in the URL. */
@@ -93,6 +108,8 @@ export function PromotionEditorHost({ promoId, closeEditor, refetchList }: Promo
       form={editor.form}
       setForm={editor.setForm}
       products={picker.products}
+      bundleLines={picker.bundleLines}
+      bundleSizes={picker.bundleSizes}
       productsState={picker.productsState}
       outlets={picker.outlets}
       outletsState={picker.outletsState}
