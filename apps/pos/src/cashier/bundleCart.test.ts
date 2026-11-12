@@ -164,3 +164,14 @@ describe('hold, restore and draft', () => {
     expect(revalidationDelta(draft!.held, products)).toEqual({ unavailable: 0, repriced: 0 })
   })
 })
+
+describe('auto-promo fingerprint', () => {
+  it('changes when a bundle is added or removed (subtotal-based auto promos must re-run)', async () => {
+    const { autoReconcileFingerprint } = await import('./autoPromoRun')
+    const fp = (s: CashierState) => autoReconcileFingerprint(s, [], 0)
+    const empty = CASHIER_INITIAL_STATE
+    const withBundle = run(empty, { type: 'CART_ADD_SET_BUNDLE', lines: bundleLines(1) })
+    expect(fp(withBundle)).not.toBe(fp(empty))
+    expect(fp(run(withBundle, { type: 'CART_REMOVE_SET_BUNDLE', bundleGroup: 1 }))).toBe(fp(empty))
+  })
+})

@@ -27,7 +27,7 @@ export function autoReconcileFingerprint(
 ): string {
   const paid = new Map<string, number>()
   const add = (productId: string, size: string, qty: number) => paid.set(`${productId}|${size}`, (paid.get(`${productId}|${size}`) ?? 0) + qty)
-  for (const c of state.cart) if (!c.isReward && c.bundleGroup == null) add(c.productId, c.variantSize, c.quantity)
+  for (const c of state.cart) if (!c.isReward) add(c.productId, c.variantSize, c.quantity)
   for (const freed of Object.values(state.bundleFreed)) for (const f of freed) add(f.productId, f.variantSize, f.quantity)
   // Non-bundle reward lines are not rung; bundle reward lines are, through bundleFreed (restored above).
   return JSON.stringify([

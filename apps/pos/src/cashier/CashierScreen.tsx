@@ -1433,7 +1433,7 @@ export default function CashierScreen() {
         role={swapCurrent ? swapRole : null} line={swapCurrent?.bundleLine ?? ''} current={swapCurrent}
         options={swapCurrent && swapRole ? swapCandidates(bundleCatalog, displayProducts, state.cart, swapRole, swapCurrent.bundleLine ?? '', { productId: swapCurrent.productId, variantSize: swapCurrent.variantSize }) : []}
         currentSoldOut={!!swapCurrent && pieceOut(displayProducts, state.cart, swapCurrent.productId, swapCurrent.variantSize)}
-        onPick={handleSwapPick} onKeep={handleSwapKeep} onClose={advanceSwap}
+        onPick={handleSwapPick} onKeep={handleSwapKeep} onClose={swapCurrent && pieceOut(displayProducts, state.cart, swapCurrent.productId, swapCurrent.variantSize) ? handleSwapKeep : advanceSwap}
       />
 
       <CustomerPicker
