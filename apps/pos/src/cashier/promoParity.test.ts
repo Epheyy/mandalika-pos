@@ -43,7 +43,7 @@ function linkedCodes(g: Golden, promos: Promotion[]): AppliedPromoCode[] {
 }
 
 it('golden fixture count is pinned', () => {
-  expect(golden).toHaveLength(21)
+  expect(golden).toHaveLength(26)
 })
 
 describe('shared Go and TypeScript promo parity matrix', () => {

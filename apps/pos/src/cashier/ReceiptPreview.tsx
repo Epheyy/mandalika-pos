@@ -4,6 +4,7 @@ import { formatRupiah } from './pricing'
 import { ReceiptTotals } from './ReceiptTotals'
 import { receiptTenderRows, type TotalRow } from './receiptRows'
 import { receiptRefLabel } from './orderRef'
+import { collapseBundleLines, fromOrderItem } from './bundleReceipt'
 import { brand } from '../brand'
 import { variantLabel, resolveReceiptFlags } from '@mandalika/types'
 import { PAYMENT_LABELS } from '../lib/paymentLabels'
@@ -150,22 +151,44 @@ export const ReceiptPreview = memo(function ReceiptPreview({
 
           {/* Items */}
           <div className="space-y-1 mb-4 border-t border-dashed border-paper-2 pt-3">
-            {items.map((item) => (
-              <div
-                key={`${item.productId}-${item.variantSize}-${item.isReward ? item.rewardPromotionId ?? item.rewardConditionId ?? 'r' : ''}`}
-                className="flex justify-between text-xs"
-              >
-                <span className="text-ink-700 flex-1 mr-2">
-                  {item.productName}
-                  <span className="text-ink-500 ml-1">
-                    {variantLabel(item.variantSize) ? `${variantLabel(item.variantSize)} ×${item.quantity}` : `×${item.quantity}`}
+            {collapseBundleLines(items.map((i) => ({ ...fromOrderItem(i), item: i })), () => undefined).map((entry) => {
+              if (entry.kind === 'bundle') {
+                return (
+                  <div key={`bundle-${entry.group}`} data-testid="receipt-bundle" className="text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-ink-700 flex-1 mr-2">{entry.name}</span>
+                      <span className="flex-shrink-0 font-medium text-ink-900">{formatRupiah(entry.price)}</span>
+                    </div>
+                    {entry.pieces.map((p) => (
+                      <p key={p} className="pl-2 text-ink-500">· {p}</p>
+                    ))}
+                    {entry.discount > 0 && (
+                      <div className="flex justify-between text-promo">
+                        <span className="pl-2">− {entry.discountLabel}</span>
+                        <span>-{formatRupiah(entry.discount)}</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+              const item = entry.line.item
+              return (
+                <div
+                  key={`${item.productId}-${item.variantSize}-${item.isReward ? item.rewardPromotionId ?? item.rewardConditionId ?? 'r' : ''}`}
+                  className="flex justify-between text-xs"
+                >
+                  <span className="text-ink-700 flex-1 mr-2">
+                    {item.productName}
+                    <span className="text-ink-500 ml-1">
+                      {variantLabel(item.variantSize) ? `${variantLabel(item.variantSize)} ×${item.quantity}` : `×${item.quantity}`}
+                    </span>
                   </span>
-                </span>
-                <span className={`flex-shrink-0 font-medium ${item.isReward ? 'text-reward' : 'text-ink-900'}`}>
-                  {item.isReward && item.subtotal <= 0 ? 'GRATIS' : formatRupiah(item.subtotal)}
-                </span>
-              </div>
-            ))}
+                  <span className={`flex-shrink-0 font-medium ${item.isReward ? 'text-reward' : 'text-ink-900'}`}>
+                    {item.isReward && item.subtotal <= 0 ? 'GRATIS' : formatRupiah(item.subtotal)}
+                  </span>
+                </div>
+              )
+            })}
             {giveaway && (
               <div className="flex justify-between text-xs" data-testid="receipt-giveaway">
                 <span className="text-ink-700 flex-1 mr-2">

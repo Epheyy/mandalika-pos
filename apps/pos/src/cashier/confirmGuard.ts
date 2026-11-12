@@ -50,7 +50,7 @@ export function findInvalidPromos({ state, discountCodes, promotions, ctx }: Con
       const cfg = p.bxgyConfig
       const isSeparateSet = (cfg?.getProductIds ?? []).length > 0
       const unmet = isSeparateSet
-        ? bxgyRewardDue(cfg, state.cart.filter((c) => !c.isReward)) < 1
+        ? bxgyRewardDue(cfg, state.cart.filter((c) => !c.isReward && c.bundleGroup == null)) < 1
         : calcPromoDiscount(p, state.cart, guardCtx.subtotal) <= 0
       if (unmet) {
         drops.push({ kind: 'promotion', id: p.id, name: p.name, reason: 'syarat beli belum terpenuhi', stripRewards: isSeparateSet })

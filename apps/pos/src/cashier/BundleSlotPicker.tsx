@@ -57,7 +57,7 @@ function lineKey(l: { productId: string; variantSize: string }): string {
 
 // Per-slot eligible paid lines (distinct SKUs) + the unit count needed.
 function buildSlotViews(cfg: BundleConfig, cart: CartItem[]): SlotView[] {
-  const paid = cart.filter((c) => !c.isReward)
+  const paid = cart.filter((c) => !c.isReward && c.bundleGroup == null)
   const nApp = bundleApplications(cfg, paid)
   return cfg.slots.map((slot, index) => {
     const need = nApp * slot.quantity

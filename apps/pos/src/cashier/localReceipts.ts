@@ -81,6 +81,7 @@ export function localReceiptOrder(r: LocalReceipt, methods?: readonly CashFlagMe
       productId: l.productId, productName: l.name, variantSize: l.variantSize, quantity: l.qty, price: l.unitPrice, subtotal: l.amount,
       ...(l.isReward ? { isReward: true } : {}),
       ...(l.isBundle ? { isBundle: true } : {}),
+      ...(l.bundleGroup != null ? { bundleGroup: l.bundleGroup, bundleRole: l.bundleRole, bundleLine: l.bundleLine, bundleSize: l.bundleSize, bundleDiscount: l.bundleDiscount, bundlePromotionId: l.bundlePromotionId } : {}),
       ...(nets && i < nets.length ? { lineNo: i, netAmount: nets[i], refundGroup: r.lineGroups?.[i] ?? null } : {}),
       ...(nets && i >= nets.length ? { isGiveaway: true } : {}),
     })),

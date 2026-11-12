@@ -73,6 +73,9 @@ import { applyPendingStock, stockFor, oversoldSizes, OVERSELL_WARNING } from './
 import { giveawayLine, giveawayStock } from './giveaway'
 import { isLineInBundle, planSizeSwitch, SIZE_SWITCH_BUNDLE_MESSAGE } from './lineSizes'
 import { decideApplyCode } from './promoValidate'
+import { BundleSwapSheet } from './BundleSwapSheet'
+import { bundleReceiptLine, collapseBundleLines, fromOrderItem } from './bundleReceipt'
+import { advanceSwapFlow, buildBundleLines, nextBundleGroup, offerLabel, pieceOut, swapCandidates, type BundleOffer, type SwapFlow, type SwapOption } from './setBundles'
 import { resolveConfirmGuard } from './confirmGuard'
 import { cashierBackLayer } from './backGuard'
 import { customerAttachImpact, customerAttachMessage } from './customerAttachImpact'
@@ -331,6 +334,7 @@ export default function CashierScreen() {
   )
   const salesmen = (snapshot.users ?? []).map((u) => ({ id: u.id, name: u.displayName }))
   const promotions = snapshot.promotions ?? []
+  const bundleCatalog = snapshot.bundleCatalog
   const discountCodes = snapshot.discountCodes ?? []
   const outletTimezone = snapshot.outletTimezone // A28: promo clock = outlet-local; absent (old server) = WIB in promoValidate
   const settings = snapshot.appSettings ?? DEFAULT_SETTINGS
@@ -423,14 +427,14 @@ export default function CashierScreen() {
   const heldOrders = useHeldOrders({
     outletId: authStore.outletId ?? '', state, dispatch, ensureShift, offlineLock, showToast,
     askConfirm: (c) => setConfirm(c),
-    getEnv: () => ({ products: displayProducts, promotions, discountCodes, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }),
+    getEnv: () => ({ products: displayProducts, promotions, discountCodes, bundleCatalog, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }),
   })
   const { open: heldOpen, setOpen: setHeldOpen } = heldOrders
 
   // C6 D-62: an unfinished split payment survives an app kill (the draft owns the sale's order uuid).
   const splitDraft = useSplitDraft({
     outletId: authStore.outletId ?? '', state, total: derived.total, dispatch, isCash: isCashId, defaultMethod,
-    getEnv: () => ({ products: displayProducts, promotions, discountCodes, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }),
+    getEnv: () => ({ products: displayProducts, promotions, discountCodes, bundleCatalog, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }),
     saleUuids: () => new Set([
       ...engine.outbox.all().flatMap((i) => (i.type === 'order' && typeof i.payload.orderUuid === 'string' ? [i.payload.orderUuid] : [])),
       ...engine.localReceipts().map((r) => r.orderUuid),
@@ -442,7 +446,7 @@ export default function CashierScreen() {
   const openCart = useOpenCartDraft({
     outletId: authStore.outletId ?? '', userId: authStore.userId, state, dispatch, showToast,
     catalogueReady: products.length > 0, splitDraftOrderUuid: splitDraft.pending?.orderUuid ?? null,
-    getEnv: () => ({ products: displayProducts, promotions, discountCodes, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }),
+    getEnv: () => ({ products: displayProducts, promotions, discountCodes, bundleCatalog, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }),
     saleUuids: () => new Set([
       ...engine.outbox.all().flatMap((i) => (i.type === 'order' && typeof i.payload.orderUuid === 'string' ? [i.payload.orderUuid] : [])),
       ...engine.localReceipts().map((r) => r.orderUuid),
@@ -483,13 +487,38 @@ export default function CashierScreen() {
     else if (result === 'added') kitToast.showToast(`Ditambahkan · ${product.name}`, { tone: 'info', duration: ADD_TOAST_MS })
   }
 
+  // Bundles: one tap adds the three pieces (same shift / offline gates as a single add). A piece at 0 stock opens its
+  // swap sheet on its own, the atomizer first, then the 2ml; keeping it is the O1 oversell (warned, never blocked).
+  const [swapFlow, setSwapFlow] = useState<SwapFlow | null>(null)
+  const handleBundleTap = (product: components['schemas']['Product'], offer: BundleOffer) => {
+    if (!ensureShift()) return
+    const lockedMsg = offlineLock()
+    if (lockedMsg) { showToast(lockedMsg); return }
+    const group = nextBundleGroup(state.cart)
+    const built = buildBundleLines(offer, product, displayProducts, group, state.cart)
+    if (built.lines.length === 0) { showToast('Bundle tidak bisa ditambahkan. Jual satuan.'); return }
+    track(`Tambah ${offerLabel(offer)} ${product.name}`)
+    cartActions.addSetBundle(built.lines)
+    kitToast.showToast(`Ditambahkan · ${offerLabel(offer)} ${product.name}`, { tone: 'info', duration: ADD_TOAST_MS })
+    if (built.needsSwap.length > 0) setSwapFlow({ group, queue: built.needsSwap })
+  }
+  const swapRole = swapFlow?.queue[0] ?? null
+  const swapCurrent = swapFlow && swapRole ? state.cart.find((c) => c.bundleGroup === swapFlow.group && c.bundleRole === swapRole) ?? null : null
+  useEffect(() => { if (swapFlow && !swapCurrent) setSwapFlow(null) }, [swapFlow, swapCurrent])
+  const advanceSwap = () => setSwapFlow(advanceSwapFlow)
+  const handleSwapPick = (o: SwapOption) => {
+    if (swapFlow && swapRole) cartActions.swapBundlePiece(swapFlow.group, swapRole, { productId: o.productId, productName: o.productName, variantSize: o.variantSize, basisPrice: o.price })
+    advanceSwap()
+  }
+  const handleSwapKeep = () => { showToast(OVERSELL_WARNING); advanceSwap() }
+
   // B1 line sheet size switch: the existing remove + add actions (planSizeSwitch), through
   // the same add path as a tile tap so the oversell warning applies. The add's own gates
   // (open shift, offline lock) are checked FIRST so a blocked add never strands the removal.
   // Returns true only when the line moved.
   const handleSwitchSize = (productId: string, fromSize: string, toSize: string): boolean => {
     const product = displayProducts.find((p) => p.id === productId)
-    const line = state.cart.find((i) => i.productId === productId && i.variantSize === fromSize && !i.isReward)
+    const line = state.cart.find((i) => i.productId === productId && i.variantSize === fromSize && !i.isReward && i.bundleGroup == null)
     if (!product || !line) return false
     const plan = planSizeSwitch(line, product, toSize)
     if (!plan) return false
@@ -960,7 +989,7 @@ export default function CashierScreen() {
         customerName: state.selectedCustomer?.name ?? null,
         customerPhone: state.selectedCustomer?.phone ?? null,
         cashierName: user?.displayName ?? 'Kasir',
-      })
+      }, (id) => promotions.find((p) => p.id === id)?.name)
       lastReceipt.current = receipt
       lastPayment.current = { paymentMethod: plan.paymentMethod, amountPaid: plan.amountPaid, change: plan.change }
       setPrintError(null)
@@ -1034,13 +1063,17 @@ export default function CashierScreen() {
       orderRef: o.orderNumber,
       pending: false,
       dateTime: new Date(o.clientCreatedAt ?? o.createdAt),
-      lines: o.items.map((i) => ({
-        name: i.productName,
-        variant: variantLabel(i.variantSize) || undefined,
-        qty: i.quantity,
-        unitPrice: i.price,
-        amount: i.subtotal,
-      })),
+      lines: collapseBundleLines(o.items.map((i) => ({ ...fromOrderItem(i), item: i })), (id) => promotions.find((p) => p.id === id)?.name).map((e) =>
+        e.kind === 'bundle'
+          ? bundleReceiptLine(e)
+          : {
+              name: e.line.item.productName,
+              variant: variantLabel(e.line.item.variantSize) || undefined,
+              qty: e.line.item.quantity,
+              unitPrice: e.line.item.price,
+              amount: e.line.item.subtotal,
+            },
+      ),
       subtotal: o.subtotal,
       discountAmount: o.discountAmount,
       taxAmount: o.taxAmount,
@@ -1356,6 +1389,7 @@ export default function CashierScreen() {
             showFavouritesOnly={showFavouritesOnly} gridCols={gridCols}
             showPrice={showPrice} showStock={showStock} showVariants={showVariants}
             onProductTap={handleProductTap}
+            bundleCatalog={bundleCatalog} cart={state.cart} onBundleTap={handleBundleTap}
             onCategoryChange={setSelectedCategoryId} promoProductIds={promoIds}
             onToggleFavourites={() => setShowFavouritesOnly((v) => !v)} isLoading={false}
             variantBackRef={variantBackRef}
@@ -1373,6 +1407,8 @@ export default function CashierScreen() {
               onRemove={cartActions.removeItem} onSetQty={cartActions.setQty}
               onSwitchSize={handleSwitchSize} lineBackRef={lineBackRef}
               heldCount={heldOrders.held.length} onOpenHeld={() => heldOrders.setOpen(true)}
+              onRemoveBundle={cartActions.removeSetBundle}
+              onSwapBundle={(group, role) => setSwapFlow({ group, queue: [role] })}
               onClear={() => setConfirm({ message: 'Kosongkan keranjang? Pelanggan, promo dan catatan ikut terhapus.', confirmLabel: 'Kosongkan', tone: 'danger', run: cartActions.clearCart })}
               onCheckout={handleCheckout}
               onOpenAdjustment={(panel) => { setPendingFulfillment(null); dispatch({ type: 'SET_ACTIVE_ADJUSTMENT', panel }) }}
@@ -1392,6 +1428,13 @@ export default function CashierScreen() {
           </div>
         )}
       </div>
+
+      <BundleSwapSheet
+        role={swapCurrent ? swapRole : null} line={swapCurrent?.bundleLine ?? ''} current={swapCurrent}
+        options={swapCurrent && swapRole ? swapCandidates(bundleCatalog, displayProducts, state.cart, swapRole, swapCurrent.bundleLine ?? '', { productId: swapCurrent.productId, variantSize: swapCurrent.variantSize }) : []}
+        currentSoldOut={!!swapCurrent && pieceOut(displayProducts, state.cart, swapCurrent.productId, swapCurrent.variantSize)}
+        onPick={handleSwapPick} onKeep={handleSwapKeep} onClose={swapCurrent && pieceOut(displayProducts, state.cart, swapCurrent.productId, swapCurrent.variantSize) ? handleSwapKeep : advanceSwap}
+      />
 
       <CustomerPicker
         open={showCustomerSheet} onClose={closeCustomerSheet}

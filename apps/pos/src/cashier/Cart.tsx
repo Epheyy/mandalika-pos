@@ -10,6 +10,7 @@ import { LineSheet } from './LineSheet'
 import { sizeOptions } from './lineSizes'
 import { autoPromptLabel } from './promoCopy'
 import type { AutoPrompt } from './autoPromos'
+import { BundleCartLine } from './BundleCartLine'
 import { GIVEAWAY_CAPTION, GIVEAWAY_OUT_OF_STOCK, type GiveawayLine } from './giveaway'
 
 type CartItem = components['schemas']['CartItem']
@@ -54,6 +55,9 @@ interface CartProps {
   heldCount: number
   onOpenHeld: () => void
   onClear: () => void
+  /** Bundles: remove a whole bundle, or open the swap sheet for its atomizer / 2ml. */
+  onRemoveBundle?: (bundleGroup: number) => void
+  onSwapBundle?: (bundleGroup: number, role: 'atomizer' | 'vial') => void
   onCheckout: () => void
   onOpenAdjustment: (panel: 'notes' | 'promo') => void
   discountRunning: number
@@ -116,6 +120,8 @@ export const Cart = memo(function Cart({
   heldCount,
   onOpenHeld,
   onClear,
+  onRemoveBundle,
+  onSwapBundle,
   onCheckout,
   onOpenAdjustment,
   discountRunning,
@@ -140,7 +146,7 @@ export const Cart = memo(function Cart({
   // quantity and subtotal follow the reducer, and the sheet is simply gone once the line is.
   const [lineKey, setLineKey] = useState<LineKey | null>(null)
   const openLine = lineKey
-    ? cart.find((i) => i.productId === lineKey.productId && i.variantSize === lineKey.variantSize && !i.isReward) ?? null
+    ? cart.find((i) => i.productId === lineKey.productId && i.variantSize === lineKey.variantSize && !i.isReward && i.bundleGroup == null) ?? null
     : null
   // A key whose line is gone is dropped at once (state adjusted during render, no effect),
   // so re-adding that product+size later can never pop the sheet open by itself.
@@ -215,7 +221,17 @@ export const Cart = memo(function Cart({
             <p className="mt-1 text-[0.8125rem]">Pilih produk untuk mulai</p>
           </div>
         ) : (
-          cart.map((item) => (
+          cart.map((item, idx) => item.bundleGroup != null ? (
+            cart.findIndex((c) => c.bundleGroup === item.bundleGroup) === idx ? (
+              <BundleCartLine
+                key={`bundle-${item.bundleGroup}`}
+                lines={cart.filter((c) => c.bundleGroup === item.bundleGroup)}
+                products={products} cart={cart}
+                onSwap={(role) => onSwapBundle?.(item.bundleGroup as number, role)}
+                onRemove={() => onRemoveBundle?.(item.bundleGroup as number)}
+              />
+            ) : null
+          ) : (
             <div
               key={`${item.productId}-${item.variantSize}-${item.isReward ? item.rewardPromotionId ?? item.rewardConditionId ?? 'r' : ''}`}
               className="flex min-h-11 items-center gap-2 border-b border-paper-2 py-0.5 last:border-b-0"

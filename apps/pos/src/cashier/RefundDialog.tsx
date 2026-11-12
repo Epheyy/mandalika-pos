@@ -106,7 +106,7 @@ function LinesList({ basis, sel, setSel }: { basis: Extract<RefundBasis, { kind:
       </div>
       {groups.map((g) => (
         <div key={g} className="rounded-control surface-group" data-testid="refund-group">
-          <p className="px-3 pt-2 text-xs font-semibold text-promo">Paket (refund bersama)</p>
+          <p className="px-3 pt-2 text-xs font-semibold text-promo">{g.startsWith('set:') ? 'Bundle (refund bersama)' : 'Paket (refund bersama)'}</p>
           <div className="divide-y divide-paper-2">
             {lines.filter((l) => l.group === g).map((l) => <LineRow key={l.lineNo} line={l} lines={lines} sel={sel} onChange={change} onToggle={toggle} />)}
           </div>

@@ -25,6 +25,11 @@ export interface ReceiptLine {
   isReward?: boolean
   /** C1: optional tag naming the reward (e.g. the promo); printed after the name. */
   rewardLabel?: string
+  /** Bundles: the pieces of a bundle, printed under the name (one bullet each). `variant` is not used then. */
+  pieces?: string[]
+  /** Bundles: the Diskon Bundle printed under the line. `amount` stays the NET, so the slip still adds up; the amount
+   *  column of the qty row shows `amount + lineDiscount.amount` (the bundle price). */
+  lineDiscount?: ReceiptDiscountRow
 }
 
 /** C1: one deduction row (a promo, a code or the manual discount), already in whole Rupiah. */
@@ -142,7 +147,8 @@ function bytes(text: string): number[] {
   const out: number[] = []
   for (let i = 0; i < text.length; i++) {
     const c = text.charCodeAt(i)
-    out.push(c > 0xff ? 0x3f : c) // unknown glyph → '?'
+    // U+00B7 (the middle dot in a bundle name) is a box glyph on the printer code page: print a hyphen instead.
+    out.push(c === 0xb7 ? 0x2d : c > 0xff ? 0x3f : c) // unknown glyph → '?'
   }
   return out
 }
@@ -207,9 +213,17 @@ export function buildReceipt(
     const tag = item.isReward ? ` [${(item.rewardLabel ?? 'HADIAH').toUpperCase()}]` : ''
     for (const l of wrap(item.name + tag, 2)) b.line(l)
     if (item.variant) b.line(`  ${item.variant}`.slice(0, COLS))
+    for (const piece of item.pieces ?? []) {
+      // Indented bullet (wrap() would trim it); a name longer than the paper continues on one indented line.
+      const text = `  + ${piece}`
+      b.line(text.slice(0, COLS))
+      if (text.length > COLS) b.line(`    ${text.slice(COLS)}`.slice(0, COLS))
+    }
     // A giveaway at Rp0 prints GRATIS (as the screen does), never a bare "0".
-    const amountText = item.isReward && item.amount === 0 ? 'GRATIS' : money(item.amount)
+    const gross = item.amount + (item.lineDiscount?.amount ?? 0)
+    const amountText = item.isReward && item.amount === 0 ? 'GRATIS' : money(gross)
     b.line(pad(`  ${item.qty} x ${money(item.unitPrice)}`, amountText))
+    if (item.lineDiscount && item.lineDiscount.amount > 0) labelRow(b, `  - ${item.lineDiscount.label}`, minusRp(item.lineDiscount.amount))
   }
   b.divider()
 

@@ -201,3 +201,24 @@ describe('C6 split tender rows', () => {
     expect(amt(row(slip(a), 'Tunai'))).toBe(1351000)
   })
 })
+
+describe('bundle line (pieces + line discount)', () => {
+  const data: ReceiptData = {
+    ...base,
+    lines: [{
+      name: 'CHAMPION · Bundle EXT 120ml', qty: 1, unitPrice: 850000, amount: 765000,
+      pieces: ['CHAMPION 120ml EXTRAIT', 'BLUE 10ml ATOMIZER', 'CHAMPION 2ml EXTRAIT'],
+      lineDiscount: { label: 'Promo Akhir Tahun', amount: 85000 },
+    }],
+    subtotal: 765000, discounts: [], total: 765000, amountPaid: 765000,
+  }
+  it('prints the pieces, the gross price on the qty row and the discount under it; the middle dot becomes a hyphen', () => {
+    const lines = slip(buildReceipt(data, settings))
+    expect(lines.every((l) => l.length <= COLS)).toBe(true)
+    expect(lines).toContain('CHAMPION - Bundle EXT 120ml')
+    expect(lines.filter((l) => l.startsWith('  + '))).toHaveLength(3)
+    expect(row(lines, '  1 x 850.000')).toMatch(/850\.000$/)
+    expect(row(lines, '  - Promo Akhir Tahun')).toMatch(/-Rp ?85\.000$/)
+    expect(amt(row(lines, 'TOTAL'))).toBe(765000)
+  })
+})

@@ -990,5 +990,348 @@
    "taxAmount": 9900,
    "total": 110000
   }
+ },
+ {
+  "name": "bundle_scoped_pct_ignores_pieces",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "120ml EXT",
+    "price": 675498,
+    "quantity": 1,
+    "subtotal": 675498,
+    "bundleGroup": 1
+   },
+   {
+    "productId": "B",
+    "variantSize": "10ml ATOMIZER",
+    "price": 140728,
+    "quantity": 1,
+    "subtotal": 140728,
+    "bundleGroup": 1
+   },
+   {
+    "productId": "A",
+    "variantSize": "2ml EXT",
+    "price": 33774,
+    "quantity": 1,
+    "subtotal": 33774,
+    "bundleGroup": 1
+   },
+   {
+    "productId": "A",
+    "variantSize": "120ml EXT",
+    "price": 1200000,
+    "quantity": 1,
+    "subtotal": 1200000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "combinable": true,
+    "value": 10,
+    "type": "percentage",
+    "applicableProductIds": [
+     "A"
+    ]
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 120000,
+   "discountAmount": 120000,
+   "taxAmount": 0,
+   "total": 1930000
+  }
+ },
+ {
+  "name": "bundle_bogo_ignores_pieces",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "120ml EXT",
+    "price": 675498,
+    "quantity": 1,
+    "subtotal": 675498,
+    "bundleGroup": 1
+   },
+   {
+    "productId": "B",
+    "variantSize": "10ml ATOMIZER",
+    "price": 140728,
+    "quantity": 1,
+    "subtotal": 140728,
+    "bundleGroup": 1
+   },
+   {
+    "productId": "A",
+    "variantSize": "2ml EXT",
+    "price": 33774,
+    "quantity": 1,
+    "subtotal": 33774,
+    "bundleGroup": 1
+   },
+   {
+    "productId": "A",
+    "variantSize": "120ml EXT",
+    "price": 1200000,
+    "quantity": 1,
+    "subtotal": 1200000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "combinable": true,
+    "value": 0,
+    "type": "bogo",
+    "applicableProductIds": [
+     "A"
+    ]
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 0,
+   "discountAmount": 0,
+   "taxAmount": 0,
+   "total": 2050000
+  }
+ },
+ {
+  "name": "bundle_bxgy_same_set_ignores_pieces",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "120ml EXT",
+    "price": 675498,
+    "quantity": 1,
+    "subtotal": 675498,
+    "bundleGroup": 1
+   },
+   {
+    "productId": "B",
+    "variantSize": "10ml ATOMIZER",
+    "price": 140728,
+    "quantity": 1,
+    "subtotal": 140728,
+    "bundleGroup": 1
+   },
+   {
+    "productId": "A",
+    "variantSize": "2ml EXT",
+    "price": 33774,
+    "quantity": 1,
+    "subtotal": 33774,
+    "bundleGroup": 1
+   },
+   {
+    "productId": "A",
+    "variantSize": "120ml EXT",
+    "price": 1200000,
+    "quantity": 1,
+    "subtotal": 1200000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "combinable": true,
+    "value": 0,
+    "type": "buy_x_get_y",
+    "bxgyConfig": {
+     "buyQuantity": 1,
+     "getQuantity": 1,
+     "buyProductIds": [],
+     "getProductIds": [],
+     "getDiscountKind": "percentage",
+     "getDiscountValue": 100
+    }
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 0,
+   "discountAmount": 0,
+   "taxAmount": 0,
+   "total": 2050000
+  }
+ },
+ {
+  "name": "bundle_unscoped_pct_includes_bundle_price",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "120ml EXT",
+    "price": 675498,
+    "quantity": 1,
+    "subtotal": 675498,
+    "bundleGroup": 1
+   },
+   {
+    "productId": "B",
+    "variantSize": "10ml ATOMIZER",
+    "price": 140728,
+    "quantity": 1,
+    "subtotal": 140728,
+    "bundleGroup": 1
+   },
+   {
+    "productId": "A",
+    "variantSize": "2ml EXT",
+    "price": 33774,
+    "quantity": 1,
+    "subtotal": 33774,
+    "bundleGroup": 1
+   },
+   {
+    "productId": "A",
+    "variantSize": "120ml EXT",
+    "price": 1200000,
+    "quantity": 1,
+    "subtotal": 1200000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "combinable": true,
+    "value": 10,
+    "type": "percentage"
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 205000,
+   "discountAmount": 205000,
+   "taxAmount": 0,
+   "total": 1845000
+  }
+ },
+ {
+  "name": "bundle_tiered_on_subtotal",
+  "cart": [
+   {
+    "productId": "A",
+    "variantSize": "120ml EXT",
+    "price": 675498,
+    "quantity": 1,
+    "subtotal": 675498,
+    "bundleGroup": 1
+   },
+   {
+    "productId": "B",
+    "variantSize": "10ml ATOMIZER",
+    "price": 140728,
+    "quantity": 1,
+    "subtotal": 140728,
+    "bundleGroup": 1
+   },
+   {
+    "productId": "A",
+    "variantSize": "2ml EXT",
+    "price": 33774,
+    "quantity": 1,
+    "subtotal": 33774,
+    "bundleGroup": 1
+   },
+   {
+    "productId": "A",
+    "variantSize": "120ml EXT",
+    "price": 1200000,
+    "quantity": 1,
+    "subtotal": 1200000
+   }
+  ],
+  "promotions": [
+   {
+    "id": "p1",
+    "combinable": true,
+    "value": 0,
+    "type": "tiered",
+    "tieredConfig": {
+     "tiers": [
+      {
+       "minSubtotal": 2000000,
+       "kind": "fixed",
+       "value": 100000
+      }
+     ]
+    }
+   }
+  ],
+  "manual": {
+   "type": "fixed",
+   "value": 0
+  },
+  "surcharge": {
+   "type": "fixed",
+   "value": 0
+  },
+  "settings": {
+   "taxEnabled": false,
+   "taxRate": 0,
+   "roundingEnabled": false,
+   "roundingType": "none"
+  },
+  "expected": {
+   "promoDiscount": 100000,
+   "discountAmount": 100000,
+   "taxAmount": 0,
+   "total": 1950000
+  }
  }
 ]

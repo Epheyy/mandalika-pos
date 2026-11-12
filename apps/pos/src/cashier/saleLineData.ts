@@ -21,14 +21,22 @@ const sameProduct = (ids: readonly string[], i: CartItem): boolean => ids.includ
 
 /** Positions of the lines a promo's discount is attributed to, or null for "every line". */
 function promoEligibleLines(p: Promotion, items: readonly CartItem[]): number[] | null {
-  const pick = (match: (i: CartItem) => boolean): number[] => items.flatMap((i, idx) => (match(i) ? [idx] : []))
+  // Product-keyed promos never see a bundle piece (mirrors Go promoLines): a scoped discount skips it.
+  const pick = (match: (i: CartItem) => boolean): number[] => items.flatMap((i, idx) => (i.bundleGroup == null && match(i) ? [idx] : []))
   if (p.type === 'buy_x_get_y') {
     const buy = p.bxgyConfig?.buyProductIds ?? []
-    return buy.length === 0 ? null : pick((i) => keyMatchesLine(buy, i.productId, i.variantSize))
+    return buy.length === 0 ? nonBundleLinesIfAny(items) : pick((i) => keyMatchesLine(buy, i.productId, i.variantSize))
   }
   if (p.type === 'tiered' || p.type === 'bundle') return null
   const scope = p.applicableProductIds ?? []
-  return scope.length === 0 ? null : pick((i) => sameProduct(scope, i))
+  if (scope.length === 0) return p.type === 'bogo' ? nonBundleLinesIfAny(items) : null
+  return pick((i) => sameProduct(scope, i))
+}
+
+/** null ("every line") unless the cart holds a bundle piece, else the positions of the other lines (Go nonBundleLinesIfAny). */
+function nonBundleLinesIfAny(items: readonly CartItem[]): number[] | null {
+  if (!items.some((i) => i.bundleGroup != null)) return null
+  return items.flatMap((i, idx) => (i.bundleGroup == null ? [idx] : []))
 }
 
 /** An unlinked code is a flat percentage / fixed discount off the whole cart. */
@@ -82,6 +90,7 @@ export function discountComponents(i: Pick<SaleLineDataInput, 'cart' | 'appliedP
 interface GroupInfo { kind: 'bundle' | 'bxgy'; promoId: string; promo: Promotion; key: string }
 
 function paidLineInGroup(g: GroupInfo, it: CartItem): boolean {
+  if (it.bundleGroup != null) return false
   if (g.kind === 'bundle') return (g.promo.bundleConfig?.slots ?? []).some((s) => keyMatchesLine(s.productKeys, it.productId, it.variantSize))
   const c = g.promo.bxgyConfig
   if (!c) return false
@@ -95,6 +104,10 @@ function paidLineInGroup(g: GroupInfo, it: CartItem): boolean {
  *  member takes the lexicographically smallest key. Loyalty reward lines carry no group (D-35). */
 export function refundGroups(cart: readonly CartItem[], promoById: (id: string) => Promotion | undefined): (string | null)[] {
   const out = new Array<string | null>(cart.length).fill(null)
+  // A bundle's three pieces refund together: group `set:<bundleGroup>` (Go allocate.go), never merged with a promo group.
+  cart.forEach((it, i) => {
+    if (it.bundleGroup != null) out[i] = `set:${it.bundleGroup}`
+  })
   const groups: GroupInfo[] = []
   const byPromo = new Map<string, number>()
   for (const it of cart) {
@@ -127,7 +140,7 @@ export function refundGroups(cart: readonly CartItem[], promoById: (id: string) 
     if (it.isReward) {
       const gi = it.rewardPromotionId ? byPromo.get(it.rewardPromotionId) : undefined
       if (gi !== undefined) out[i] = keyOf(gi)
-    } else if (matches[i].length > 0) {
+    } else if (it.bundleGroup == null && matches[i].length > 0) {
       out[i] = keyOf(matches[i][0])
     }
   })

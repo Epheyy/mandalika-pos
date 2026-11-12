@@ -23,10 +23,17 @@ import { Chip } from '../components/ui/Chip'
 import { VariantSheet } from './VariantSheet'
 import { PRODUCT_GRID_COLS, ProductGridSkeleton } from '../components/Skeleton'
 import { PROMO_TAB_ID } from './promoProducts'
+import { BundleButtons } from './BundleButtons'
+import { BundleListSheet } from './BundleListSheet'
+import { cardOffers, type BundleCatalog, type BundleOffer } from './setBundles'
 import { STOCK_DOT_CLASS, STOCK_TEXT_CLASS, stockLabel, stockTone, type StockTone } from './stockTone'
 
 type Product = components['schemas']['Product']
 type Category = components['schemas']['Category']
+type CartItem = components['schemas']['CartItem']
+
+const NO_CART: CartItem[] = []
+const NO_OFFERS: BundleOffer[] = []
 
 const ORDER_KEY = 'pos_productOrder'
 
@@ -65,6 +72,10 @@ interface ProductGridProps {
   showStock: boolean
   showVariants: boolean
   onProductTap: (product: Product, variantQtys: Record<string, number>) => void
+  /** Bundles: the catalog the sync pull carries, the cart (for the "Habis" rule) and the bundle tap. Absent = no bundle buttons. */
+  bundleCatalog?: BundleCatalog
+  cart?: CartItem[]
+  onBundleTap?: (product: Product, offer: BundleOffer) => void
   onCategoryChange: (id: string | null) => void
   /** Products in a live promotion; the virtual "Promo" tab lists them and is hidden while this is empty. */
   promoProductIds?: ReadonlySet<string>
@@ -86,6 +97,13 @@ interface SortableCardProps {
   showStock: boolean
   showVariants: boolean
   onTap: (product: Product) => void
+  /** Bundle offers of this product (empty = no buttons); `cart` is only passed when there are offers, so a cart change redraws no other card. */
+  offers: BundleOffer[]
+  cart: CartItem[]
+  products: Product[]
+  onBundleTap: (product: Product, offer: BundleOffer) => void
+  onBundleList: (product: Product) => void
+  onSingles: (product: Product) => void
 }
 
 /** Bottle silhouette for products without a photo. Decorative; the name sits next to it. */
@@ -118,7 +136,7 @@ function StockLine({ tone, text, soldOutSizes = 0 }: { tone: StockTone; text: st
   )
 }
 
-const SortableCard = memo(function SortableCard({ product, gridCols, categoryName, showPrice, showStock, showVariants, onTap }: SortableCardProps) {
+const SortableCard = memo(function SortableCard({ product, gridCols, categoryName, showPrice, showStock, showVariants, onTap, offers, cart, products, onBundleTap, onBundleList, onSingles }: SortableCardProps) {
   const totalStock = product.variants.reduce((s, v) => s + v.stock, 0)
   const inStock = totalStock > 0
   const prices = product.variants.map((v) => v.price)
@@ -186,6 +204,13 @@ const SortableCard = memo(function SortableCard({ product, gridCols, categoryNam
           {subline && <p className="mt-0.5 truncate text-xs text-ink-500">{subline}</p>}
         </div>
       </div>
+
+      {offers.length > 0 && (
+        <BundleButtons
+          productId={product.id} offers={offers} products={products} cart={cart}
+          onTap={(o) => onBundleTap(product, o)} onOpenList={() => onBundleList(product)} onSingles={() => onSingles(product)}
+        />
+      )}
 
       {showVariants ? (
         /* Per-variant rows — each variant's own price/stock, not an
@@ -348,6 +373,9 @@ export const ProductGrid = memo(function ProductGrid({
   showStock,
   showVariants,
   onProductTap,
+  bundleCatalog,
+  cart = NO_CART,
+  onBundleTap,
   onCategoryChange,
   promoProductIds,
   onToggleFavourites,
@@ -357,6 +385,7 @@ export const ProductGrid = memo(function ProductGrid({
   clearBottomBar = false,
 }: ProductGridProps) {
   const [variantPopup, setVariantPopup] = useState<Product | null>(null)
+  const [bundleListFor, setBundleListFor] = useState<Product | null>(null)
   const [order, setOrder] = useState<string[]>(loadOrder)
   // Glass band height (header zone + categories) = the scroller's top padding.
   const bandRef = useRef<HTMLDivElement>(null)
@@ -378,9 +407,9 @@ export const ProductGrid = memo(function ProductGrid({
   // Android Back closes the variant sheet before anything underneath.
   useEffect(() => {
     if (!variantBackRef) return
-    variantBackRef.current = variantPopup ? () => { setVariantPopup(null); return true } : null
+    variantBackRef.current = bundleListFor ? () => { setBundleListFor(null); return true } : variantPopup ? () => { setVariantPopup(null); return true } : null
     return () => { variantBackRef.current = null }
-  }, [variantPopup, variantBackRef])
+  }, [variantPopup, bundleListFor, variantBackRef])
 
   const categoryNames = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories])
 
@@ -440,6 +469,11 @@ export const ProductGrid = memo(function ProductGrid({
     setVariantPopup(null)
   }, [onProductTap])
 
+  const handleBundleTap = useCallback((product: Product, offer: BundleOffer) => {
+    setBundleListFor(null)
+    onBundleTap?.(product, offer)
+  }, [onBundleTap])
+
   return (
     <div className="relative h-full overflow-hidden">
       {/* P6a (D-85): the catalogue scrolls UNDER one glass band (header zone + categories). The band is a
@@ -484,7 +518,11 @@ export const ProductGrid = memo(function ProductGrid({
                   <SortableCard key={product.id} product={product} gridCols={gridCols}
                     categoryName={product.categoryId ? categoryNames.get(product.categoryId) : undefined}
                     showPrice={showPrice} showStock={showStock} showVariants={showVariants}
-                    onTap={handleProductClick} />
+                    onTap={handleProductClick}
+                    offers={onBundleTap ? cardOffers(bundleCatalog, product.id) : NO_OFFERS}
+                    cart={onBundleTap && cardOffers(bundleCatalog, product.id).length > 0 ? cart : NO_CART}
+                    products={products}
+                    onBundleTap={handleBundleTap} onBundleList={setBundleListFor} onSingles={setVariantPopup} />
                 ))}
               </div>
             </SortableContext>
@@ -493,6 +531,10 @@ export const ProductGrid = memo(function ProductGrid({
       </div>
 
       {/* Variant sheet (B1): tap a size = add one */}
+      <BundleListSheet
+        product={bundleListFor} offers={bundleListFor ? cardOffers(bundleCatalog, bundleListFor.id) : NO_OFFERS}
+        products={products} cart={cart} onPick={handleBundleTap} onClose={() => setBundleListFor(null)}
+      />
       <VariantSheet product={variantPopup} onPick={handlePickVariant} onClose={() => setVariantPopup(null)} />
     </div>
   )
