@@ -438,9 +438,11 @@ func restockVoidLines(ctx context.Context, tx pgx.Tx, in VoidInput, voidID, orde
 	return err
 }
 
-// reverseVoidCustomer undoes the sale's customer effects: earned points are clawed back (floored at
-// the balance, the shortfall is recorded as forgiven), redeemed points are given back, spend drops by
-// the sale and the visit is removed (unlike a refund, the voided sale never happened).
+// reverseVoidCustomer undoes the sale's customer effects as if the sale never happened: redeemed
+// points are given back FIRST, then earned points are clawed back (floored at the balance including
+// the restored points; the shortfall is recorded as forgiven), spend drops by the sale and the visit
+// is removed (unlike a refund, the voided sale never happened). Restoring first makes the reversal
+// exact whenever balance + redeemed >= earned. last_visit moves back when this sale was the latest.
 func reverseVoidCustomer(ctx context.Context, tx pgx.Tx, in VoidInput, o voidOrderRow, keeper string, ap *voidApplied) error {
 	if keeper == "" {
 		return nil
@@ -453,26 +455,26 @@ func reverseVoidCustomer(ctx context.Context, tx pgx.Tx, in VoidInput, o voidOrd
 	if err != nil {
 		return fmt.Errorf("load points for void: %w", err)
 	}
-	clawed := int64(write.PointsClawback(bal, int(o.earned)))
+	afterRestore := int64(bal) + o.redeemed
+	clawed := int64(write.PointsClawback(int(afterRestore), int(o.earned)))
 	ap.Clawed, ap.Forgiven, ap.Restored = clawed, o.earned-clawed, o.redeemed
-	afterClaw := int64(bal) - clawed
-	newBal := afterClaw + o.redeemed
-	if clawed > 0 {
-		if err := write.InsertPointTx(ctx, tx, write.PointTxRow{
-			CustomerID: keeper, Type: "void", Points: -int(clawed), BalanceAfter: int(afterClaw),
-			Reason:  fmt.Sprintf("Pembatalan poin dari transaksi dibatalkan %s", o.orderNumber),
-			OrderID: in.OrderID, ByID: in.UserID, ByName: in.UserName,
-		}); err != nil {
-			return fmt.Errorf("ledger void clawback: %w", err)
-		}
-	}
+	newBal := afterRestore - clawed
 	if o.redeemed > 0 {
 		if err := write.InsertPointTx(ctx, tx, write.PointTxRow{
-			CustomerID: keeper, Type: "void", Points: int(o.redeemed), BalanceAfter: int(newBal),
+			CustomerID: keeper, Type: "void", Points: int(o.redeemed), BalanceAfter: int(afterRestore),
 			Reason:  fmt.Sprintf("Pengembalian poin tukar dari transaksi dibatalkan %s", o.orderNumber),
 			OrderID: in.OrderID, ByID: in.UserID, ByName: in.UserName,
 		}); err != nil {
 			return fmt.Errorf("ledger void restore: %w", err)
+		}
+	}
+	if clawed > 0 {
+		if err := write.InsertPointTx(ctx, tx, write.PointTxRow{
+			CustomerID: keeper, Type: "void", Points: -int(clawed), BalanceAfter: int(newBal),
+			Reason:  fmt.Sprintf("Pembatalan poin dari transaksi dibatalkan %s", o.orderNumber),
+			OrderID: in.OrderID, ByID: in.UserID, ByName: in.UserName,
+		}); err != nil {
+			return fmt.Errorf("ledger void clawback: %w", err)
 		}
 	}
 	if clawed > 0 || o.redeemed > 0 {
@@ -484,6 +486,18 @@ func reverseVoidCustomer(ctx context.Context, tx pgx.Tx, in VoidInput, o voidOrd
 		`UPDATE customers SET total_spent = GREATEST(total_spent - $2, 0), visit_count = GREATEST(visit_count - 1, 0) WHERE id=$1`,
 		keeper, o.total); err != nil {
 		return fmt.Errorf("reverse customer spend and visit: %w", err)
+	}
+	// last_visit: the sale set it to now(), which equals orders.created_at (same transaction). When it
+	// still equals that, this sale was the latest visit: move it back to the latest remaining
+	// non-voided order. A later visit (a different value) is never touched, and a customer with no
+	// other order keeps the stored value (it may come from an import, so it is never nulled).
+	if _, err := tx.Exec(ctx,
+		`UPDATE customers c SET last_visit = COALESCE(
+		        (SELECT max(x.created_at) FROM orders x
+		          WHERE x.customer_id = c.id AND x.id <> $2 AND x.status IN ('completed','partially_refunded','refunded')),
+		        c.last_visit)
+		  WHERE c.id = $1 AND c.last_visit = $3`, keeper, in.OrderID, o.createdAt); err != nil {
+		return fmt.Errorf("reverse customer last_visit: %w", err)
 	}
 	ap.Spend, ap.VisitReversed = o.total, true
 	return nil

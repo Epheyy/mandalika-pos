@@ -390,6 +390,7 @@ func TestVoidPostgres(t *testing.T) {
 	})
 
 	t.Run("void_points_spent_floor", func(t *testing.T) {
+		// Restore first: balance 30 + 20 redeemed = 50 available, earned 100 -> claw 50, forgive 50.
 		shift := openShift()
 		cust := customer(0)
 		id := sale(saleOpts{shift: shift, cust: cust, earned: 100, redeemed: 20}, product(5))
@@ -398,12 +399,71 @@ func TestVoidPostgres(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if one(`SELECT points_clawed FROM order_voids WHERE id=$1`, res.VoidID) != 30 || one(`SELECT points_forgiven FROM order_voids WHERE id=$1`, res.VoidID) != 70 ||
+		if one(`SELECT points_clawed FROM order_voids WHERE id=$1`, res.VoidID) != 50 || one(`SELECT points_forgiven FROM order_voids WHERE id=$1`, res.VoidID) != 50 ||
 			one(`SELECT points_restored FROM order_voids WHERE id=$1`, res.VoidID) != 20 {
 			t.Fatal("audit points clawed/forgiven/restored")
 		}
-		if got := pointsOf(cust); got != 20 {
-			t.Fatalf("balance = %d, want 0 + 20 restored", got)
+		if got := pointsOf(cust); got != 0 {
+			t.Fatalf("balance = %d, want 0 (floored)", got)
+		}
+	})
+
+	t.Run("void_points_exact_reversal", func(t *testing.T) {
+		// The customer had 500, the sale redeemed 50 and earned 100 (balance 550), then spent 460
+		// elsewhere (balance 90). Had the sale never happened they would hold 500 - 460 = 40.
+		shift := openShift()
+		cust := customer(500)
+		id := sale(saleOpts{shift: shift, cust: cust, earned: 100, redeemed: 50}, product(5))
+		exec(`UPDATE customers SET points=90 WHERE id=$1`, cust)
+		res, err := svc.VoidOrder(ctx, voidIn(id, shift))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := pointsOf(cust); got != 40 {
+			t.Fatalf("balance = %d, want 40 (as if the sale never happened)", got)
+		}
+		if one(`SELECT points_clawed FROM order_voids WHERE id=$1`, res.VoidID) != 100 || one(`SELECT points_forgiven FROM order_voids WHERE id=$1`, res.VoidID) != 0 {
+			t.Fatal("expected the whole earned amount clawed and nothing forgiven")
+		}
+		// Ledger: the restore row comes first (balance 140), then the claw row (balance 40).
+		var restoreBal, clawBal int
+		if err := pool.QueryRow(ctx, `SELECT
+		    (SELECT balance_after FROM point_transactions WHERE order_id=$1 AND type='void' AND points > 0),
+		    (SELECT balance_after FROM point_transactions WHERE order_id=$1 AND type='void' AND points < 0)`, id).Scan(&restoreBal, &clawBal); err != nil || restoreBal != 140 || clawBal != 40 {
+			t.Fatalf("ledger balances restore=%d claw=%d, %v; want 140 then 40", restoreBal, clawBal, err)
+		}
+	})
+
+	t.Run("void_last_visit_moves_back", func(t *testing.T) {
+		shift := openShift()
+		cust := customer(0)
+		first := sale(saleOpts{shift: shift, cust: cust}, product(5))
+		second := sale(saleOpts{shift: shift, cust: cust}, product(5))
+		firstAt := str(`SELECT created_at::text FROM orders WHERE id=$1`, first)
+		lastVisit := func() string { return str(`SELECT last_visit::text FROM customers WHERE id=$1`, cust) }
+		if lastVisit() != str(`SELECT created_at::text FROM orders WHERE id=$1`, second) {
+			t.Fatal("fixture: last_visit should be the latest sale's time")
+		}
+		// Voiding the older sale leaves a later visit alone.
+		secondAt := lastVisit()
+		if _, err := svc.VoidOrder(ctx, voidIn(first, shift)); err != nil {
+			t.Fatal(err)
+		}
+		if lastVisit() != secondAt {
+			t.Fatalf("voiding an older sale changed last_visit to %s", lastVisit())
+		}
+		// Voiding the latest one moves it back to the latest remaining non-voided order: none is left
+		// (the first was voided), so the stored value stays; with a live earlier order it moves back.
+		third := sale(saleOpts{shift: shift, cust: cust}, product(5))
+		fourthAt := str(`SELECT created_at::text FROM orders WHERE id=$1`, third)
+		if lastVisit() != fourthAt {
+			t.Fatal("fixture: last_visit should follow the newest sale")
+		}
+		if _, err := svc.VoidOrder(ctx, voidIn(third, shift)); err != nil {
+			t.Fatal(err)
+		}
+		if got := lastVisit(); got != secondAt {
+			t.Fatalf("last_visit = %s, want the remaining latest order %s (first was %s)", got, secondAt, firstAt)
 		}
 	})
 
