@@ -740,6 +740,36 @@ func TestVoidPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("replacement_business_date_kept", func(t *testing.T) {
+		pid := product(5)
+		orig := sale(saleOpts{}, product(5))
+		target := int64(95000)
+		id, dup, _, err := svc.CreateOrder(ctx, service.CreateOrderInput{
+			IdempotencyKey: "vd-repl-bd-" + newID("4"), OrderUUID: newID("4"), OutletID: outlet,
+			CashierID: cashier, CashierName: "VD Kasir", ReplacesOrderID: orig, BusinessDate: "2026-11-05",
+			CorrectionTarget: &target, PaymentMethod: "cash", AmountPaid: 95000, Offline: true,
+			Items: []service.OrderItem{{ProductID: pid, ProductName: "VD", VariantSize: size, Price: 100000, Quantity: 1, Subtotal: 100000}},
+		})
+		if err != nil || dup {
+			t.Fatalf("replacement: dup=%v err=%v", dup, err)
+		}
+		if got := str(`SELECT business_date::text FROM orders WHERE id=$1`, id); got != "2026-11-05" {
+			t.Fatalf("business_date = %s, want 2026-11-05", got)
+		}
+		if got := str(`SELECT replaces_order_id::text FROM orders WHERE id=$1`, id); got != orig {
+			t.Fatalf("replaces_order_id = %s", got)
+		}
+		if got := one(`SELECT total::int FROM orders WHERE id=$1`, id); got != 95000 {
+			t.Fatalf("total = %d, want the target 95000", got)
+		}
+		if got := one(`SELECT correction_amount::int FROM orders WHERE id=$1`, id); got != -5000 {
+			t.Fatalf("correction_amount = %d, want -5000", got)
+		}
+		if got := one(`SELECT COALESCE(sum(net_amount),0)::int FROM order_items WHERE order_id=$1`, id); got != 95000 {
+			t.Fatalf("line nets sum = %d, want 95000", got)
+		}
+	})
+
 	t.Run("bundle_sale_void_whole", func(t *testing.T) {
 		shift := openShift()
 		pids := []string{product(5), product(5), product(5)}
