@@ -384,15 +384,17 @@ func planVoidStock(ctx context.Context, tx pgx.Tx, in VoidInput, o voidOrderRow,
 	return items, nil
 }
 
-// voidCountedAfter returns the latest completed stock count of the outlet that counted this item
-// after the sale moved its stock, or "". saleCreatedAt is the server's orders.created_at, when the
+// voidCountedAfter returns the latest stock count of the outlet that counted this item after the sale
+// moved its stock, or "". A count still open (in progress, awaiting approval) counts too: it applies
+// actual minus the baseline taken at counting time, so restocking now would be corrected a second time
+// when it completes. A line only counts once it has a counted_at (open) or the count has completed_at. saleCreatedAt is the server's orders.created_at, when the
 // stock row was decremented (never client_created_at).
 func voidCountedAfter(ctx context.Context, tx voidQuerier, outletID, productID, size string, saleCreatedAt time.Time) (string, error) {
 	var id string
 	err := tx.QueryRow(ctx,
 		`SELECT c.id::text
 		   FROM stock_counts c JOIN stock_count_items i ON i.stock_count_id = c.id
-		  WHERE c.outlet_id=$1 AND c.status='completed' AND i.product_id=$2 AND i.variant_size=$3
+		  WHERE c.outlet_id=$1 AND c.status NOT IN ('planned','cancelled') AND i.product_id=$2 AND i.variant_size=$3
 		    AND i.actual_qty IS NOT NULL AND COALESCE(i.counted_at, c.completed_at) > $4
 		  ORDER BY COALESCE(i.counted_at, c.completed_at) DESC, c.id LIMIT 1`,
 		outletID, productID, size, saleCreatedAt).Scan(&id)

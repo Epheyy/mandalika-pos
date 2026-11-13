@@ -509,6 +509,24 @@ func TestVoidPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("void_open_count_needs_choice", func(t *testing.T) {
+		// A count still awaiting approval applies actual minus the baseline taken at counting time:
+		// restocking blindly would be corrected a second time when it is approved.
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		cid := newID("5")
+		exec(`INSERT INTO stock_counts(id,name,status,outlet_id) VALUES($1,'VD open count','pending_approval',$2)`, cid, outlet)
+		exec(`INSERT INTO stock_count_items(stock_count_id,product_id,product_name,variant_size,frozen_qty,actual_qty,difference,counted_at) VALUES($1,$2,'VD',$3,5,5,0,now() + interval '1 minute')`, cid, p, size)
+		before := stockOf(p)
+		if _, err := svc.VoidOrder(ctx, voidIn(id, shift)); !errors.Is(err, service.ErrVoidCountNeedsChoice) {
+			t.Fatalf("err = %v, want ErrVoidCountNeedsChoice", err)
+		}
+		if status(id) != "completed" || stockOf(p) != before {
+			t.Fatal("a refused void changed something")
+		}
+	})
+
 	t.Run("void_gone_variant_recorded", func(t *testing.T) {
 		shift := openShift()
 		p := product(5)
