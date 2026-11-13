@@ -1527,6 +1527,41 @@ func TestVoidPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("replacement_points_deducted_chain", func(t *testing.T) {
+		// Sale earns 100, all spent. Void 1 writes off 100 and Repl 1 earns 0. Voiding Repl 1 claws
+		// nothing, so the write-off must carry to Repl 2: the customer ends at 0, not 100.
+		shift := openShift()
+		cust := customer(0)
+		p := product(5)
+		id := pointsSale(shift, cust, 100, 0, p)
+		withLoyalty(t)
+		in := voidIn(id, shift)
+		in.Mode = service.VoidModeReplace
+		r := replIn(`[{"method":"cash","amount":100000}]`, p)
+		r.CustomerID = cust
+		first, err := svc.VoidAndReplace(ctx, in, r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		in2 := voidIn(first.ReplacementOrderID, shift)
+		in2.Mode = service.VoidModeReplace
+		r2 := replIn(`[{"method":"cash","amount":100000}]`, p)
+		r2.CustomerID = cust
+		second, err := svc.VoidAndReplace(ctx, in2, r2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := one(`SELECT points_earned FROM orders WHERE id=$1`, second.ReplacementOrderID); got != 0 {
+			t.Fatalf("Repl 2 points_earned = %d, want 0", got)
+		}
+		if got := one(`SELECT replacement_points_deducted FROM order_voids WHERE id=$1`, second.VoidID); got != 100 {
+			t.Fatalf("chain deducted = %d, want 100", got)
+		}
+		if got := pointsOf(cust); got != 0 {
+			t.Fatalf("balance = %d, want 0", got)
+		}
+	})
+
 	t.Run("replacement_points_deducted_sync", func(t *testing.T) {
 		shift := openShift()
 		cust := customer(0)

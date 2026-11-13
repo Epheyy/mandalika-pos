@@ -158,8 +158,13 @@ func (s *OrderService) CreateReplacementOrder(ctx context.Context, in CreateOrde
 	if err != nil {
 		return CreateOrderResult{}, err
 	}
-	if same && lv.forgiven > 0 {
-		in.PointsDeduction = int(lv.forgiven)
+	in.PointsDeduction = 0 // never taken from the caller
+	if same {
+		prior, err := priorPointsDeduction(ctx, tx, in.ReplacesOrderID)
+		if err != nil {
+			return CreateOrderResult{}, err
+		}
+		in.PointsDeduction = int(lv.forgiven) + prior
 	}
 	var deducted int
 	in.deductionOut = &deducted

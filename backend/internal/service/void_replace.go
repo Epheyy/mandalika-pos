@@ -78,8 +78,13 @@ func (s *OrderService) VoidAndReplaceTx(ctx context.Context, tx pgx.Tx, in VoidI
 	if err != nil {
 		return VoidResult{}, err
 	}
-	if same && ap.Forgiven > 0 {
-		repl.PointsDeduction = int(ap.Forgiven)
+	repl.PointsDeduction = 0 // never taken from the caller
+	if same {
+		prior, err := priorPointsDeduction(ctx, tx, in.OrderID)
+		if err != nil {
+			return VoidResult{}, err
+		}
+		repl.PointsDeduction = int(ap.Forgiven) + prior
 	}
 	repl.deductionOut = &ap.ReplDeducted
 	created, err := s.createOrderTx(ctx, tx, repl)
@@ -356,4 +361,17 @@ func sameCustomerKeeper(ctx context.Context, tx pgx.Tx, origKeeper, replCustomer
 		return false, err
 	}
 	return keeper == origKeeper, nil
+}
+
+// priorPointsDeduction is the deduction already recorded for an order that was itself a replacement
+// (on the void row or the followup that created it). Voiding that replacement claws back its
+// already-reduced earn, so the write-off carries on to the next replacement: without it a chain of
+// replacements would hand the written-off points back.
+func priorPointsDeduction(ctx context.Context, tx pgx.Tx, orderID string) (int, error) {
+	var n int
+	err := tx.QueryRow(ctx,
+		`SELECT COALESCE((SELECT replacement_points_deducted FROM order_voids WHERE replacement_order_id=$1),
+		                 (SELECT replacement_points_deducted FROM order_void_followups WHERE replacement_order_id=$1), 0)`,
+		orderID).Scan(&n)
+	return n, err
 }
