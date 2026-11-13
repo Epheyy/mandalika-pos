@@ -37,8 +37,12 @@ func outboxRowFor(doc Document, documentID string, part, partCount int) outboxRo
 // the unique document_id and does nothing.
 const enqueueOutboxSQL = `
 INSERT INTO erp_outbox (document_id, doc_key, kind, location_type, location_id,
-  ref_type, ref_id, ref_number, part, part_count)
-SELECT $1::uuid, $2, $3, $4, $5::uuid, $6, $7::uuid, $8, $9, $10
+  ref_type, ref_id, ref_number, part, part_count, status, hold_reason)
+SELECT $1::uuid, $2, $3, $4, $5::uuid, $6, $7::uuid, $8, $9, $10,
+       CASE WHEN h.held THEN 'held' ELSE 'pending' END,
+       CASE WHEN h.held THEN '`+VoidERPHoldReason+`' END
+  FROM (SELECT ($3 = 'void' OR ($6 = 'order' AND EXISTS (
+                 SELECT 1 FROM orders o WHERE o.id = $7::uuid AND o.replaces_order_id IS NOT NULL))) AS held) h
  WHERE EXISTS (SELECT 1 FROM stock_movements WHERE document_id = $1::uuid)
 ON CONFLICT (document_id) DO NOTHING`
 

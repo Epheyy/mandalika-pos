@@ -12,6 +12,7 @@ export const LEDGER_KIND = {
   count: { label: 'Opname', tone: 'neutral' },
   opening: { label: 'Saldo Awal', tone: 'neutral' },
   write_off: { label: 'Penghapusan', tone: 'neutral' },
+  void: { label: 'Pembatalan', tone: 'neutral' },
 } as const satisfies LabelMap<string>
 
 /** Pergerakan bucket columns; the hint is the column tooltip. */

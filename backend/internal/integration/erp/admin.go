@@ -25,7 +25,7 @@ const maxListLimit = 200
 var (
 	OutboxStatuses = []string{statusPending, statusHeld, "sending", statusDelivered, statusReplayed, statusDead}
 	OutboxKinds    = []string{"sale", "refund", "transfer_out", "transfer_in", "transfer_cancel",
-		"receipt", "adjust", "count", "opening", "write_off"}
+		"receipt", "adjust", "count", "opening", "write_off", "void"}
 )
 
 // OutboxItem is one erp_outbox row without its bodies.
@@ -71,6 +71,7 @@ UPDATE erp_outbox o SET status='pending', attempts=0, next_attempt_at=now(),
   payload = CASE WHEN o.last_http_status IN (400, 422) THEN NULL ELSE o.payload END,
   payload_sha256 = CASE WHEN o.last_http_status IN (400, 422) THEN NULL ELSE o.payload_sha256 END
 WHERE o.id = $1 AND o.status IN ('dead','held','delivered','replayed')
+  AND COALESCE(o.hold_reason,'') <> 'void_erp_pending'
 RETURNING ` + itemColumns
 	existsSQL = `SELECT EXISTS (SELECT 1 FROM erp_outbox WHERE id = $1)`
 )

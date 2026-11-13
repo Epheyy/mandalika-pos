@@ -3026,7 +3026,7 @@ export interface components {
             /** Format: uuid */
             documentId: string;
             /** @enum {string} */
-            kind: "sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off";
+            kind: "sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off" | "void";
             /** @enum {string} */
             locationType: "outlet" | "warehouse";
             /** Format: uuid */
@@ -5925,7 +5925,7 @@ export interface components {
             /** Format: date-time */
             recordedAt: string;
             /** @enum {string} */
-            kind: "sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off";
+            kind: "sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off" | "void";
             locationType: components["schemas"]["InventoryLocationType"];
             /** Format: uuid */
             locationId: string;
@@ -11753,7 +11753,7 @@ export interface operations {
                 page?: components["parameters"]["Page"];
                 limit?: components["parameters"]["Limit"];
                 status?: "pending" | "held" | "sending" | "delivered" | "replayed" | "dead";
-                kind?: "sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off";
+                kind?: "sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off" | "void";
             };
             header?: never;
             path?: never;
@@ -11877,7 +11877,7 @@ export interface operations {
                 locationId: string;
                 productId?: string;
                 variantSize?: string;
-                kind?: ("sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off")[];
+                kind?: ("sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off" | "void")[];
                 flag?: "shortage";
                 /** @description true returns only giveaway movements (derived from the ledger key), false excludes giveaway movements, absent returns all. */
                 giveaway?: boolean;
@@ -11923,7 +11923,7 @@ export interface operations {
                 locationId: string;
                 productId?: string;
                 variantSize?: string;
-                kind?: ("sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off")[];
+                kind?: ("sale" | "refund" | "transfer_out" | "transfer_in" | "transfer_cancel" | "receipt" | "adjust" | "count" | "opening" | "write_off" | "void")[];
                 flag?: "shortage";
                 giveaway?: boolean;
                 /** @description First day (YYYY-MM-DD, read in the location timezone) or instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range selects the run of rows by seq from the first row recorded at or after it, so the balance chain stays unbroken. */

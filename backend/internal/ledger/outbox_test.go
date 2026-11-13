@@ -39,8 +39,8 @@ func TestOutboxRowArgsMatchEnqueuePlaceholders(t *testing.T) {
 	if got := len((outboxRow{}).args()); got != 10 {
 		t.Fatalf("args = %d, want 10", got)
 	}
-	if n != 11 { // $1 appears twice ($1 in VALUES and in the EXISTS guard)
-		t.Fatalf("enqueue SQL has %d placeholders, want 11", n)
+	if n != 14 { // $1 twice (select and EXISTS guard), $3 twice, $6 twice, $7 twice (void hold rule)
+		t.Fatalf("enqueue SQL has %d placeholders, want 14", n)
 	}
 	if (outboxRow{}).args()[7] != nil {
 		t.Fatal("empty ref number must be NULL")

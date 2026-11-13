@@ -96,6 +96,7 @@ WITH due AS (
   SELECT id FROM erp_outbox
    WHERE (status IN ('pending','held') OR (status = 'sending' AND lease_until < now()))
      AND next_attempt_at <= now()
+     AND COALESCE(hold_reason,'') <> 'void_erp_pending'
    ORDER BY (status = 'held'), next_attempt_at, created_at
    LIMIT $1
    FOR UPDATE SKIP LOCKED)

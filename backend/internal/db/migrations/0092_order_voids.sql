@@ -15,7 +15,7 @@ CREATE TABLE order_voids (
   source                  text NOT NULL CHECK (source IN ('pos','backoffice')),
   authority               text NOT NULL CHECK (authority IN ('own_shift','any')),
   mode                    text NOT NULL CHECK (mode IN ('none','replace','later')),
-  replacement_order_id    uuid REFERENCES orders(id),
+  replacement_order_id    uuid UNIQUE REFERENCES orders(id),
   reason_code             text NOT NULL CHECK (reason_code IN (
                             'salah_metode_pembayaran','salah_barang','salah_promo','salah_pelanggan',
                             'transaksi_ganda','transaksi_tes','lainnya')),
@@ -89,8 +89,10 @@ ALTER TABLE orders
 CREATE UNIQUE INDEX orders_replaces_once ON orders (replaces_order_id) WHERE replaces_order_id IS NOT NULL;
 CREATE INDEX orders_void_id ON orders (void_id) WHERE void_id IS NOT NULL;
 
--- ── The new 'void' kind in the three closed vocabularies. NOT VALID then VALIDATE: VALIDATE
--- takes only SHARE UPDATE EXCLUSIVE, so the scan of stock_movements never holds the lock. ────
+-- ── The new 'void' kind in the three closed vocabularies. The new CHECK is a superset of the old
+-- one, so every existing row is valid. NOTE: the runner applies a file in one transaction, so the
+-- earlier DROP/ADD already hold ACCESS EXCLUSIVE until commit and VALIDATE gives no lock relief
+-- here. Acceptable at the current table sizes (test data, ~220k sales/yr). ─
 ALTER TABLE stock_movements DROP CONSTRAINT stock_movements_kind_check;
 ALTER TABLE stock_movements ADD CONSTRAINT stock_movements_kind_check
   CHECK (kind IN ('sale','refund','transfer_out','transfer_in','transfer_cancel',

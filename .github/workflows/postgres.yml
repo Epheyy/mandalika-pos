@@ -52,7 +52,7 @@ jobs:
           else
             grep -q 26439-26482 /proc/sys/net/ipv4/ip_local_reserved_ports
           fi
-      - name: Forty-three mandatory fresh PostgreSQL 18.3 fixtures (race enabled)
+      - name: Forty-four mandatory fresh PostgreSQL 18.3 fixtures (race enabled)
         # Fixture ports 26439-26482 are host-global and the gate is CPU-heavy: one host-wide flock serialises it with the other
         # heavy gates across every runner process on the self-hosted VM (both repos). No contention on GitHub-hosted runners.
         # Under the lock, first remove fixture containers left by a hard-killed earlier run.

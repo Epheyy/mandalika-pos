@@ -142,7 +142,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         documentId: { type: string, format: uuid }
-        kind: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
+        kind: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off, void] }
         locationType: { type: string, enum: [outlet, warehouse] }
         locationId: { type: string, format: uuid }
         locationName: { type: string, nullable: true }
@@ -3256,7 +3256,7 @@ components:
         seq: { type: integer, format: int64, description: "Order in which the movement was applied at the location; the balance chain is continuous in this order." }
         occurredAt: { type: string, format: date-time }
         recordedAt: { type: string, format: date-time }
-        kind: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
+        kind: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off, void] }
         locationType: { $ref: '#/components/schemas/InventoryLocationType' }
         locationId: { type: string, format: uuid }
         locationName: { type: string }
@@ -6740,7 +6740,7 @@ paths:
           schema: { type: string, enum: [pending, held, sending, delivered, replayed, dead] }
         - name: kind
           in: query
-          schema: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
+          schema: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off, void] }
       responses:
         '200':
           description: outbox rows, newest first
@@ -6826,7 +6826,7 @@ paths:
           explode: true
           schema:
             type: array
-            items: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
+            items: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off, void] }
         - { name: flag, in: query, required: false, schema: { type: string, enum: [shortage] } }
         - { name: giveaway, in: query, required: false, description: "true returns only giveaway movements (derived from the ledger key), false excludes giveaway movements, absent returns all.", schema: { type: boolean } }
         - { name: from, in: query, required: false, description: "First day (YYYY-MM-DD, read in the location timezone) or instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range selects the run of rows by seq from the first row recorded at or after it, so the balance chain stays unbroken.", schema: { type: string } }
@@ -6861,7 +6861,7 @@ paths:
           explode: true
           schema:
             type: array
-            items: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
+            items: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off, void] }
         - { name: flag, in: query, required: false, schema: { type: string, enum: [shortage] } }
         - { name: giveaway, in: query, required: false, schema: { type: boolean } }
         - { name: from, in: query, required: false, description: "First day (YYYY-MM-DD, read in the location timezone) or instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range selects the run of rows by seq from the first row recorded at or after it, so the balance chain stays unbroken.", schema: { type: string } }
