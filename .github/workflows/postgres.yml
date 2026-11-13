@@ -48,12 +48,12 @@ jobs:
           # GitHub-hosted: sudo is passwordless. Self-hosted runners have no sudo; scripts/ci/runner-provision.sh
           # sets the same reservation at boot, so a refused sudo is fine there.
           if [ "$RUNNER_ENVIRONMENT" = github-hosted ]; then
-            sudo sysctl -w net.ipv4.ip_local_reserved_ports=26439-26481
+            sudo sysctl -w net.ipv4.ip_local_reserved_ports=26439-26482
           else
-            grep -q 26439-26481 /proc/sys/net/ipv4/ip_local_reserved_ports
+            grep -q 26439-26482 /proc/sys/net/ipv4/ip_local_reserved_ports
           fi
       - name: Forty-three mandatory fresh PostgreSQL 18.3 fixtures (race enabled)
-        # Fixture ports 26439-26481 are host-global and the gate is CPU-heavy: one host-wide flock serialises it with the other
+        # Fixture ports 26439-26482 are host-global and the gate is CPU-heavy: one host-wide flock serialises it with the other
         # heavy gates across every runner process on the self-hosted VM (both repos). No contention on GitHub-hosted runners.
         # Under the lock, first remove fixture containers left by a hard-killed earlier run.
         run: flock /tmp/mandalika-ci-heavy.lock sh -c 'docker ps -aq --filter label=mandalika-ci | xargs -r docker rm -f; python3 scripts/ci/postgres_gate.py --output artifacts/postgres/result.json'
