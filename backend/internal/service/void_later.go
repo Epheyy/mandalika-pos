@@ -159,12 +159,14 @@ func (s *OrderService) CreateReplacementOrder(ctx context.Context, in CreateOrde
 		return CreateOrderResult{}, err
 	}
 	in.PointsDeduction = 0 // never taken from the caller
+	writeoff := 0
 	if same {
 		prior, err := priorPointsDeduction(ctx, tx, in.ReplacesOrderID)
 		if err != nil {
 			return CreateOrderResult{}, err
 		}
 		in.PointsDeduction = int(lv.forgiven) + prior
+		writeoff = in.PointsDeduction
 	}
 	var deducted int
 	in.deductionOut = &deducted
@@ -176,9 +178,9 @@ func (s *OrderService) CreateReplacementOrder(ctx context.Context, in CreateOrde
 		return CreateOrderResult{}, ErrVoidReplacementInvalid
 	}
 	if _, err := tx.Exec(ctx,
-		`INSERT INTO order_void_followups (void_id, kind, replacement_order_id, actor, actor_name, replacement_points_deducted)
-		 VALUES ($1,'replacement',$2,NULLIF($3,'')::uuid,NULLIF($4,''),$5)`,
-		lv.voidID, res.OrderID, in.CashierID, in.CashierName, deducted); err != nil {
+		`INSERT INTO order_void_followups (void_id, kind, replacement_order_id, actor, actor_name, replacement_points_deducted, replacement_points_writeoff)
+		 VALUES ($1,'replacement',$2,NULLIF($3,'')::uuid,NULLIF($4,''),$5,$6)`,
+		lv.voidID, res.OrderID, in.CashierID, in.CashierName, deducted, writeoff); err != nil {
 		return CreateOrderResult{}, fmt.Errorf("insert void followup: %w", err)
 	}
 	if replacementNeedsDelta(facts.ShiftStatus == "closed", facts) {

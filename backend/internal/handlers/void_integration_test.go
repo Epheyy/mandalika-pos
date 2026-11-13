@@ -1585,6 +1585,45 @@ func TestVoidPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("replacement_points_deducted_chain_sync", func(t *testing.T) {
+		// O1 earned 80, all spent: V1 writes off 80. R1 (a smaller cart) would earn 50, so it deducts
+		// only 50 and earns 0. R1 is voided and replaced by R2 (normal earn 80): the outstanding
+		// write-off is still the full 80, not R1's 50, so R2 earns 0 and the customer stays at 0.
+		shift := openShift()
+		cust := customer(0)
+		p := product(5)
+		id := pointsSale(shift, cust, 80, 0, p)
+		withLoyalty(t)
+		cart := func(price int) map[string]any {
+			r := replPayload(fmt.Sprintf(`[{"method":"cash","amount":%d}]`, price), map[string]any{"customerId": cust}, p)
+			it := r["items"].([]any)[0].(map[string]any)
+			it["price"], it["subtotal"] = price, price
+			return r
+		}
+		first := sendItem(cashierTok, replaceItem(shift, id, cart(50000)))
+		r1, _ := first["replacementOrderId"].(string)
+		if first["status"] != "ok" || r1 == "" || one(`SELECT points_earned FROM orders WHERE id=$1`, r1) != 0 {
+			t.Fatalf("R1 = %v, want ok and earning 0", first)
+		}
+		if got := one(`SELECT replacement_points_deducted FROM order_voids WHERE order_id=$1`, id); got != 50 {
+			t.Fatalf("R1 deducted = %d, want 50", got)
+		}
+		if got := one(`SELECT replacement_points_writeoff FROM order_voids WHERE order_id=$1`, id); got != 80 {
+			t.Fatalf("R1 write-off requested = %d, want 80", got)
+		}
+		second := sendItem(cashierTok, replaceItem(shift, r1, cart(80000)))
+		r2, _ := second["replacementOrderId"].(string)
+		if second["status"] != "ok" || r2 == "" {
+			t.Fatalf("R2 = %v", second)
+		}
+		if got := one(`SELECT points_earned FROM orders WHERE id=$1`, r2); got != 0 {
+			t.Fatalf("R2 points_earned = %d, want 0 (the full 80 is still written off)", got)
+		}
+		if got := pointsOf(cust); got != 0 {
+			t.Fatalf("balance = %d, want 0", got)
+		}
+	})
+
 	t.Run("buat_pengganti_points_deducted", func(t *testing.T) {
 		shift := openShift()
 		cust := customer(0)

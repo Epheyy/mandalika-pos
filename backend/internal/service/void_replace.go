@@ -85,6 +85,7 @@ func (s *OrderService) VoidAndReplaceTx(ctx context.Context, tx pgx.Tx, in VoidI
 			return VoidResult{}, err
 		}
 		repl.PointsDeduction = int(ap.Forgiven) + prior
+		ap.ReplWriteoff = repl.PointsDeduction
 	}
 	repl.deductionOut = &ap.ReplDeducted
 	created, err := s.createOrderTx(ctx, tx, repl)
@@ -363,15 +364,16 @@ func sameCustomerKeeper(ctx context.Context, tx pgx.Tx, origKeeper, replCustomer
 	return keeper == origKeeper, nil
 }
 
-// priorPointsDeduction is the deduction already recorded for an order that was itself a replacement
-// (on the void row or the followup that created it). Voiding that replacement claws back its
-// already-reduced earn, so the write-off carries on to the next replacement: without it a chain of
-// replacements would hand the written-off points back.
+// priorPointsDeduction is the write-off requested of an order that was itself a replacement (on the
+// void row or the followup that created it). Voiding that replacement claws back its already-reduced
+// earn, so the write-off carries on to the next replacement: deduction(R n+1) = write-off requested
+// for R n + forgiven at V n+1. The REQUESTED figure is carried, not the amount actually deducted: a
+// voided replacement's own deduction disappears together with its earn.
 func priorPointsDeduction(ctx context.Context, tx pgx.Tx, orderID string) (int, error) {
 	var n int
 	err := tx.QueryRow(ctx,
-		`SELECT COALESCE((SELECT replacement_points_deducted FROM order_voids WHERE replacement_order_id=$1),
-		                 (SELECT replacement_points_deducted FROM order_void_followups WHERE replacement_order_id=$1), 0)`,
+		`SELECT COALESCE((SELECT replacement_points_writeoff FROM order_voids WHERE replacement_order_id=$1),
+		                 (SELECT replacement_points_writeoff FROM order_void_followups WHERE replacement_order_id=$1), 0)`,
 		orderID).Scan(&n)
 	return n, err
 }

@@ -10,8 +10,13 @@ ALTER TABLE orders
 -- Points the replacement did NOT earn because the void had already written them off (the customer
 -- spent them before the void): owner rule "deduct written-off". Recorded on the void row for a
 -- replacement made with the void, on the followup row for a later "Buat pengganti".
+-- replacement_points_writeoff is the write-off REQUESTED of the replacement (this void's forgiven
+-- points plus any carried from a replacement being voided again); a chain carries that figure, not the
+-- amount actually deducted, because a voided replacement's own deduction disappears with its earn.
 ALTER TABLE order_voids ADD COLUMN replacement_points_deducted integer NOT NULL DEFAULT 0;
+ALTER TABLE order_voids ADD COLUMN replacement_points_writeoff integer NOT NULL DEFAULT 0;
 ALTER TABLE order_void_followups ADD COLUMN replacement_points_deducted integer NOT NULL DEFAULT 0;
+ALTER TABLE order_void_followups ADD COLUMN replacement_points_writeoff integer NOT NULL DEFAULT 0;
 
 CREATE TABLE shift_corrections (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
