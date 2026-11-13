@@ -113,6 +113,12 @@ func (s *OrderService) CreateReplacementOrder(ctx context.Context, in CreateOrde
 		return CreateOrderResult{}, err
 	}
 	if !lv.open() {
+		// A concurrent send of the same key may have committed between the probe above and the row
+		// lock: that is a replay of an applied replacement, never a refusal.
+		var won string
+		if perr := tx.QueryRow(ctx, `SELECT order_id FROM processed_keys WHERE idempotency_key=$1`, in.IdempotencyKey).Scan(&won); perr == nil {
+			return CreateOrderResult{OrderID: won, Duplicate: true}, nil
+		}
 		return CreateOrderResult{}, ErrVoidReplacementInvalid
 	}
 	vin := VoidInput{OutletID: in.OutletID, OrderID: in.ReplacesOrderID}

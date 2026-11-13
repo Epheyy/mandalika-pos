@@ -84,6 +84,9 @@ type VoidInput struct {
 	// StockChoices maps a sale movement's dedupe key to the user's choice for it.
 	StockChoices map[string]VoidStockChoice
 	Channel      string
+	// ReplacementAtOriginalTotal: an editable replacement (own shift, shift still open) settles at the
+	// original's total and books the gap as "Penyesuaian koreksi" instead of moving money.
+	ReplacementAtOriginalTotal bool
 }
 
 // VoidResult is the outcome of one void, returned to the sync layer for the ack.

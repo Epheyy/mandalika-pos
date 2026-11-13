@@ -200,6 +200,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			// cashier holding void_own_shift (checked in the handler).
 			r.With(mw.RequirePermission("void_any")).
 				Post("/orders/{id}/void", h.VoidOrder)
+			r.With(mw.RequirePermission("void_any")).
+				Post("/orders/{id}/void/no-replacement", h.MarkVoidNoReplacement)
 			r.Get("/orders/{id}/void-preview", h.VoidPreview)
 			r.Post("/shifts", h.OpenShift)
 			r.Post("/shifts/{id}/close", h.CloseShift)

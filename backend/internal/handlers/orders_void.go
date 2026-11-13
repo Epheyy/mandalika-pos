@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -39,7 +40,8 @@ func (h *Handlers) voidOutlet(w http.ResponseWriter, r *http.Request, c callerID
 	return o, true
 }
 
-// VoidOrder is the Backoffice void (route-gated on void_any). Phase 1 accepts mode "none" only.
+// VoidOrder is the Backoffice void (route-gated on void_any): mode none, later (the replacement is made
+// afterwards in the POS, or marked "tanpa pengganti") or replace ("Batalkan & perbaiki", one transaction).
 func (h *Handlers) VoidOrder(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ReasonCode     string            `json:"reasonCode"`
@@ -47,6 +49,10 @@ func (h *Handlers) VoidOrder(w http.ResponseWriter, r *http.Request) {
 		ClientVoidUUID string            `json:"clientVoidUuid"`
 		Mode           string            `json:"mode"`
 		StockChoices   map[string]string `json:"stockChoices"`
+		Replacement    *struct {
+			Tenders    json.RawMessage `json:"tenders"`
+			CustomerID *string         `json:"customerId"`
+		} `json:"replacement"`
 	}
 	if err := httpx.DecodeLoose(r, &body); err != nil {
 		if isBodyTooLarge(err) {
@@ -89,11 +95,21 @@ func (h *Handlers) VoidOrder(w http.ResponseWriter, r *http.Request) {
 			in.StockChoices[k] = service.VoidStockChoice(v)
 		}
 	}
-	if in.Mode != service.VoidModeNone {
-		fail(service.ErrVoidReplacementInvalid) // replacements arrive in Void phase 2
+	switch in.Mode {
+	case service.VoidModeNone, service.VoidModeLater, service.VoidModeReplace:
+	default:
+		fail(service.ErrVoidReplacementInvalid)
 		return
 	}
+	var ov service.ReplacementOverride
+	if body.Replacement != nil {
+		ov = service.ReplacementOverride{Tenders: body.Replacement.Tenders, CustomerID: body.Replacement.CustomerID}
+	}
 	if err := write.RetryBusy(r.Context(), func() error {
+		if in.Mode == service.VoidModeReplace {
+			_, err := h.OrderSvc.VoidAndReplaceDirect(r.Context(), in, ov)
+			return err
+		}
 		_, err := h.OrderSvc.VoidOrder(r.Context(), in)
 		return err
 	}); err != nil {
@@ -144,4 +160,52 @@ func (h *Handlers) VoidPreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": p})
+}
+
+// MarkVoidNoReplacement is "Tandai tanpa pengganti" on a void made with mode "later" (route-gated on
+// void_any). One insert-only followup row; the audit row is never edited.
+func (h *Handlers) MarkVoidNoReplacement(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Note string `json:"note"`
+	}
+	if r.ContentLength != 0 {
+		if err := httpx.DecodeLoose(r, &body); err != nil {
+			if isBodyTooLarge(err) {
+				writeDecodeErr(w, err)
+				return
+			}
+			httpx.Err(w, http.StatusBadRequest, "Isi permintaan tidak valid.")
+			return
+		}
+	}
+	id := chi.URLParam(r, "id")
+	fail := func(err error) {
+		status, msg := refundHTTPError(err)
+		if errors.Is(err, service.ErrVoidReplacementInvalid) {
+			status, msg = http.StatusConflict, "Pembatalan ini sudah memiliki pengganti atau tanda tanpa pengganti."
+		}
+		if status >= http.StatusInternalServerError {
+			slog.Error("mark void no replacement failed", "orderId", id, "err", err)
+		}
+		httpx.Err(w, status, msg)
+	}
+	c, _ := h.caller(r)
+	outlet, ok := h.voidOutlet(w, r, c, id, fail)
+	if !ok {
+		return
+	}
+	if err := write.RetryBusy(r.Context(), func() error {
+		return h.OrderSvc.MarkVoidNoReplacement(r.Context(), outlet, id, c.userID, c.name, body.Note)
+	}); err != nil {
+		fail(err)
+		return
+	}
+	h.invalidate(r)
+	o, err := h.Repo.Order(r.Context(), read.Scope{OutletID: outlet}, id)
+	if err != nil {
+		slog.Error("mark committed but the read-back failed", "orderId", id, "outletId", outlet, "err", err)
+		httpx.Err(w, http.StatusInternalServerError, "Tanda tersimpan, tetapi data transaksi belum dapat dimuat. Segarkan halaman.")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": o})
 }

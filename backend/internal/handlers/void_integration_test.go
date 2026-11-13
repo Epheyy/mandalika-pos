@@ -918,8 +918,7 @@ func TestVoidPostgres(t *testing.T) {
 		r := replIn(`[{"method":"cash","amount":300000}]`, ps...)
 		r.Items = r.Items[:1]
 		r.Items[0].Price, r.Items[0].Subtotal = 320000, 320000
-		target := int64(300000)
-		r.CorrectionTarget = &target
+		in2.ReplacementAtOriginalTotal = true
 		res, err := svc.VoidAndReplace(ctx, in2, r)
 		if err != nil {
 			t.Fatal(err)
@@ -1051,6 +1050,42 @@ func TestVoidPostgres(t *testing.T) {
 					IdempotencyKey: "vd-conc-" + newID("4"), OrderUUID: newID("4"), OutletID: outlet,
 					CashierID: cashier, CashierName: "VD Kasir", ShiftID: shift, PaymentMethod: "cash", AmountPaid: 200000,
 					DiscountCodes: []string{"VDHEMAT"},
+					Items: []service.OrderItem{
+						{ProductID: x, ProductName: "VD", VariantSize: size, Price: 100000, Quantity: 1, Subtotal: 100000},
+						{ProductID: y, ProductName: "VD", VariantSize: size, Price: 100000, Quantity: 1, Subtotal: 100000},
+					},
+				})
+			}()
+			wg.Wait()
+			for _, e := range []error{replErr, saleErr} {
+				var pg *pgconn.PgError
+				if errors.As(e, &pg) && pg.Code == "40P01" {
+					t.Fatalf("round %d: deadlock: %v", round, e)
+				}
+			}
+			if replErr != nil || saleErr != nil {
+				t.Fatalf("round %d: replace err=%v sale err=%v", round, replErr, saleErr)
+			}
+		}
+	})
+
+	t.Run("concurrent_void_replace_and_sale_no_deadlock_no_code", func(t *testing.T) {
+		shift := openShift()
+		x, y := product(500), product(500)
+		for round := 0; round < 20; round++ {
+			id := sale(saleOpts{shift: shift}, y)
+			in := voidIn(id, shift)
+			in.Mode = service.VoidModeReplace
+			r := replIn(`[{"method":"cash","amount":100000}]`, x)
+			var wg sync.WaitGroup
+			var replErr, saleErr error
+			wg.Add(2)
+			go func() { defer wg.Done(); _, replErr = svc.VoidAndReplace(ctx, in, r) }()
+			go func() {
+				defer wg.Done()
+				_, _, _, saleErr = svc.CreateOrder(ctx, service.CreateOrderInput{
+					IdempotencyKey: "vd-conc-" + newID("4"), OrderUUID: newID("4"), OutletID: outlet,
+					CashierID: cashier, CashierName: "VD Kasir", ShiftID: shift, PaymentMethod: "cash", AmountPaid: 200000,
 					Items: []service.OrderItem{
 						{ProductID: x, ProductName: "VD", VariantSize: size, Price: 100000, Quantity: 1, Subtotal: 100000},
 						{ProductID: y, ProductName: "VD", VariantSize: size, Price: 100000, Quantity: 1, Subtotal: 100000},
@@ -1225,6 +1260,8 @@ func TestVoidPostgres(t *testing.T) {
 	router.Get("/orders/{id}", h.Order)
 	router.With(mw.RequirePermission("void_any")).Post("/orders/{id}/void", h.VoidOrder)
 	router.Get("/orders/{id}/void-preview", h.VoidPreview)
+	router.With(mw.RequirePermission("void_any")).Post("/orders/{id}/void/no-replacement", h.MarkVoidNoReplacement)
+	router.Get("/shifts", h.Shifts)
 	do := func(token, method, path string, body any) (int, map[string]any) {
 		t.Helper()
 		var buf bytes.Buffer
@@ -1282,6 +1319,123 @@ func TestVoidPostgres(t *testing.T) {
 		}
 		if str(`SELECT source||'/'||authority FROM order_voids WHERE order_id=$1`, id) != "pos/own_shift" {
 			t.Fatal("audit source/authority")
+		}
+	})
+
+	// ── Phase 2, Task 2.4: sync ────────────────────────────────────────────────────────────
+	replPayload := func(tendersJSON string, extra map[string]any, pids ...string) map[string]any {
+		items := []any{}
+		for _, pid := range pids {
+			items = append(items, map[string]any{"productId": pid, "productName": "VD", "variantSize": size, "price": 100000, "quantity": 1, "subtotal": 100000})
+		}
+		var tenders any
+		_ = json.Unmarshal([]byte(tendersJSON), &tenders)
+		m := map[string]any{"orderUuid": newID("4"), "items": items, "tenders": tenders}
+		for k, v := range extra {
+			m[k] = v
+		}
+		return m
+	}
+	replaceItem := func(shift, orderID string, repl map[string]any) map[string]any {
+		return voidItem(shift, orderID, map[string]any{"mode": "replace", "replacement": repl})
+	}
+
+	t.Run("sync_void_replace_ok", func(t *testing.T) {
+		shift := openShift()
+		ps := []string{product(5), product(5), product(5)}
+		id := sale(saleOpts{shift: shift}, ps...)
+		res := sendItem(cashierTok, replaceItem(shift, id, replPayload(`[{"method":"qris","amount":300000}]`, nil, ps...)))
+		repl, _ := res["replacementOrderId"].(string)
+		if res["status"] != "ok" || res["orderId"] != id || repl == "" {
+			t.Fatalf("result = %v, want ok with both ids", res)
+		}
+		if status(id) != "cancelled" || status(repl) != "completed" ||
+			str(`SELECT replaces_order_id::text FROM orders WHERE id=$1`, repl) != id {
+			t.Fatal("void/replacement not applied together")
+		}
+	})
+
+	t.Run("sync_void_replace_replay", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		item := replaceItem(shift, id, replPayload(`[{"method":"cash","amount":100000}]`, nil, p))
+		first := sendItem(cashierTok, item)
+		stock := stockOf(p)
+		again := sendItem(cashierTok, item)
+		if again["status"] != "ok" || again["orderId"] != id || again["replacementOrderId"] != first["replacementOrderId"] {
+			t.Fatalf("replay = %v, first %v", again, first)
+		}
+		if stockOf(p) != stock || one(`SELECT count(*) FROM orders WHERE replaces_order_id=$1`, id) != 1 {
+			t.Fatal("replay applied again")
+		}
+	})
+
+	t.Run("offline_own_shift_after_close_refused", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		item := replaceItem(shift, id, replPayload(`[{"method":"cash","amount":100000}]`, nil, p))
+		closeShift(shift)
+		res := sendItem(cashierTok, item)
+		if res["status"] != "error" || res["code"] != "forbidden" || res["retryable"] != false {
+			t.Fatalf("result = %v, want a non-retryable forbidden", res)
+		}
+		if status(id) != "completed" || one(`SELECT count(*) FROM orders WHERE replaces_order_id=$1`, id) != 0 {
+			t.Fatal("a refused item applied something")
+		}
+		if again := sendItem(cashierTok, item); again["status"] != "error" || again["code"] != "forbidden" {
+			t.Fatalf("retry = %v, want the same refusal", again)
+		}
+	})
+
+	t.Run("replacement_bundle_revalidated", func(t *testing.T) {
+		shift := openShift()
+		ps := []string{product(5), product(5), product(5)}
+		id := sale(saleOpts{shift: shift}, ps...)
+		repl := replPayload(`[{"method":"cash","amount":300000}]`, nil, ps...)
+		for i, role := range []string{"large", "atomizer", "vial"} {
+			it := repl["items"].([]any)[i].(map[string]any)
+			it["bundleGroup"], it["bundleRole"], it["bundlePrice"], it["bundleBasisPrice"] = 1, role, 300000, 300000
+		}
+		res := sendItem(cashierTok, replaceItem(shift, id, repl))
+		rid, _ := res["replacementOrderId"].(string)
+		if res["status"] != "ok" || rid == "" {
+			t.Fatalf("result = %v, want the invalid bundle kept", res)
+		}
+		if got := str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, rid); !strings.Contains(got, "bundle_invalid") {
+			t.Fatalf("reason = %q, want bundle_invalid", got)
+		}
+	})
+
+	t.Run("sync_buat_pengganti_needs_void_any", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		in := bo(id)
+		in.Mode = service.VoidModeLater
+		if _, err := svc.VoidOrder(ctx, in); err != nil {
+			t.Fatal(err)
+		}
+		orderItemFor := func(token string) map[string]any {
+			pl := replPayload(`[{"method":"cash","amount":100000}]`, map[string]any{"replacesOrderId": id}, p)
+			uid := pl["orderUuid"].(string)
+			return map[string]any{"type": "order", "idempotencyKey": syncDevice + ":" + uid, "payload": pl,
+				"envelope": map[string]any{"v": 1, "outletId": outlet, "userId": cashier, "deviceId": syncDevice, "capturedAt": time.Now().UTC().Format(time.RFC3339), "shiftId": shift}}
+		}
+		item := orderItemFor("")
+		if res := sendItem(cashierTok, item); res["status"] != "error" || res["code"] != "forbidden" {
+			t.Fatalf("without void_any: %v", res)
+		}
+		anyTok := tok(cashier, "manager", []string{"void_any"})
+		first := sendItem(anyTok, item)
+		if first["status"] != "ok" || first["orderId"] == "" {
+			t.Fatalf("with void_any: %v", first)
+		}
+		// sync_buat_pengganti_replay: the same item again, even without the permission, is a duplicate.
+		again := sendItem(cashierTok, item)
+		if again["status"] != "duplicate" || again["orderId"] != first["orderId"] {
+			t.Fatalf("replay = %v, want duplicate with the stored id", again)
 		}
 	})
 
@@ -1372,8 +1526,8 @@ func TestVoidPostgres(t *testing.T) {
 		if code, _ := do(anyTok, http.MethodPost, "/orders/"+id+"/void", map[string]any{"reasonCode": "transaksi_tes", "mode": "none"}); code != http.StatusBadRequest {
 			t.Fatalf("missing clientVoidUuid = %d, want 400", code)
 		}
-		if code, _ := do(anyTok, http.MethodPost, "/orders/"+id+"/void", map[string]any{"reasonCode": "transaksi_tes", "mode": "replace", "clientVoidUuid": newID("4")}); code != http.StatusBadRequest {
-			t.Fatalf("replace mode in phase 1 = %d, want 400", code)
+		if code, _ := do(anyTok, http.MethodPost, "/orders/"+id+"/void", map[string]any{"reasonCode": "transaksi_tes", "mode": "bogus", "clientVoidUuid": newID("4")}); code != http.StatusBadRequest {
+			t.Fatalf("unknown mode = %d, want 400", code)
 		}
 		code, out := do(anyTok, http.MethodPost, "/orders/"+id+"/void", body)
 		if code != http.StatusOK || out["data"].(map[string]any)["status"] != "cancelled" {
@@ -1395,6 +1549,124 @@ func TestVoidPostgres(t *testing.T) {
 		}
 		if str(`SELECT source||'/'||authority||'/'||device_id FROM order_voids WHERE order_id=$1`, id) != "backoffice/any/backoffice:"+adminU {
 			t.Fatal("audit source/authority/device")
+		}
+	})
+
+	// ── Phase 2, Task 2.5: Backoffice replacement, no-replacement mark, shift read ─────────
+	t.Run("direct_void_replace_payment_fix", func(t *testing.T) {
+		shift := openShift()
+		ps := []string{product(5), product(5), product(5)}
+		id := sale(saleOpts{shift: shift, tenders: `[{"method":"cash","amount":200000},{"method":"card","amount":100000}]`}, ps...)
+		anyTok := tok(adminU, "cashier", []string{"void_any"})
+		body := map[string]any{
+			"reasonCode": "salah_metode_pembayaran", "mode": "replace", "clientVoidUuid": newID("4"),
+			"replacement": map[string]any{"tenders": []any{map[string]any{"method": "qris", "amount": 300000}}},
+		}
+		code, out := do(anyTok, http.MethodPost, "/orders/"+id+"/void", body)
+		if code != http.StatusOK {
+			t.Fatalf("void+replace = %d %v", code, out)
+		}
+		data := out["data"].(map[string]any)
+		repl := data["void"].(map[string]any)["replacementOrderId"].(string)
+		if status(id) != "cancelled" || status(repl) != "completed" {
+			t.Fatalf("statuses %s / %s", status(id), status(repl))
+		}
+		if got := one(`SELECT total::int FROM orders WHERE id=$1`, repl); got != 300000 {
+			t.Fatalf("replacement total = %d", got)
+		}
+		if got := str(`SELECT string_agg(method||':'||amount::int::text, ',') FROM order_tenders WHERE order_id=$1`, repl); got != "qris:300000" {
+			t.Fatalf("replacement tenders = %s", got)
+		}
+		if code, out := do(anyTok, http.MethodGet, "/orders/"+repl, nil); code != http.StatusOK || out["data"].(map[string]any)["correctionAmount"].(float64) != 0 {
+			t.Fatalf("read of the replacement = %d %v", code, out)
+		}
+		// A retry with the same client uuid replays: one replacement.
+		if code, _ := do(anyTok, http.MethodPost, "/orders/"+id+"/void", body); code != http.StatusOK ||
+			one(`SELECT count(*) FROM orders WHERE replaces_order_id=$1`, id) != 1 {
+			t.Fatal("retry did not replay")
+		}
+	})
+
+	t.Run("direct_void_replace_amount_mismatch", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		anyTok := tok(adminU, "cashier", []string{"void_any"})
+		code, out := do(anyTok, http.MethodPost, "/orders/"+id+"/void", map[string]any{
+			"reasonCode": "salah_metode_pembayaran", "mode": "replace", "clientVoidUuid": newID("4"),
+			"replacement": map[string]any{"tenders": []any{map[string]any{"method": "cash", "amount": 120000}}},
+		})
+		if code != http.StatusBadRequest || !strings.Contains(fmt.Sprint(out), "Rp 100.000") {
+			t.Fatalf("mismatch = %d %v, want 400 naming Rp 100.000", code, out)
+		}
+		if status(id) != "completed" {
+			t.Fatal("refused replacement voided the sale")
+		}
+	})
+
+	t.Run("shift_read_corrected", func(t *testing.T) {
+		shift := openShift()
+		ps := []string{product(5), product(5), product(5)}
+		id := splitSale(shift, ps...)
+		closeShift(shift)
+		anyTok := tok(adminU, "cashier", []string{"void_any"})
+		before := snapshot(shift)
+		if code, out := do(anyTok, http.MethodPost, "/orders/"+id+"/void", map[string]any{
+			"reasonCode": "salah_metode_pembayaran", "mode": "replace", "clientVoidUuid": newID("4"),
+			"replacement": map[string]any{"tenders": []any{map[string]any{"method": "qris", "amount": 300000}}},
+		}); code != http.StatusOK {
+			t.Fatalf("void+replace = %d %v", code, out)
+		}
+		code, out := do(anyTok, http.MethodGet, "/shifts", nil)
+		if code != http.StatusOK {
+			t.Fatalf("shifts = %d", code)
+		}
+		var got map[string]any
+		for _, s := range out["data"].([]any) {
+			if s.(map[string]any)["id"] == shift {
+				got = s.(map[string]any)
+			}
+		}
+		if got == nil {
+			t.Fatal("shift not listed")
+		}
+		corr := got["corrections"].(map[string]any)
+		if corr["count"].(float64) != 1 || len(corr["items"].([]any)) != 3 {
+			t.Fatalf("corrections = %v", corr)
+		}
+		if got["correctedCashSales"].(float64) != 0 || got["correctedQrisSales"].(float64) != 300000 ||
+			got["correctedTotalSales"].(float64) != 300000 || got["correctedTotalOrders"].(float64) != 1 {
+			t.Fatalf("corrected figures = %v", got)
+		}
+		if got["cashSales"].(float64) != 100000 || got["qrisSales"].(float64) != 200000 {
+			t.Fatalf("the close snapshot figures moved: %v", got)
+		}
+		if snapshot(shift) != before {
+			t.Fatal("snapshot columns changed")
+		}
+	})
+
+	t.Run("mark_no_replacement_endpoint", func(t *testing.T) {
+		shift := openShift()
+		id := sale(saleOpts{shift: shift}, product(5))
+		anyTok := tok(adminU, "cashier", []string{"void_any"})
+		path := "/orders/" + id + "/void/no-replacement"
+		if code, _ := do(anyTok, http.MethodPost, path, nil); code != http.StatusConflict {
+			t.Fatalf("mark on a sale that is not voided = %d, want 409", code)
+		}
+		if code, out := do(anyTok, http.MethodPost, "/orders/"+id+"/void", map[string]any{
+			"reasonCode": "transaksi_ganda", "mode": "later", "clientVoidUuid": newID("4")}); code != http.StatusOK {
+			t.Fatalf("void later = %d %v", code, out)
+		}
+		if code, _ := do(cashierTok, http.MethodPost, path, nil); code != http.StatusForbidden {
+			t.Fatalf("mark without void_any = %d, want 403", code)
+		}
+		code, out := do(anyTok, http.MethodPost, path, map[string]any{"note": "pelanggan batal"})
+		if code != http.StatusOK || out["data"].(map[string]any)["void"].(map[string]any)["followup"] != "no_replacement" {
+			t.Fatalf("mark = %d %v", code, out)
+		}
+		if code, _ := do(anyTok, http.MethodPost, path, nil); code != http.StatusConflict {
+			t.Fatalf("second mark = %d, want 409", code)
 		}
 	})
 

@@ -69,6 +69,7 @@ const orderObj = `((` + orderObjBase + `)::jsonb || jsonb_build_object(
      'replacementOrderNumber',(SELECT ro.order_number FROM orders ro WHERE ro.id = COALESCE(v.replacement_order_id,f.replacement_order_id)),
      'followup',f.kind)
      FROM order_voids v LEFT JOIN order_void_followups f ON f.void_id = v.id WHERE v.order_id = o.id),
+  'correctionAmount',o.correction_amount,
   'replacesOrderId',o.replaces_order_id,
   'replacesOrderNumber',(SELECT ro.order_number FROM orders ro WHERE ro.id = o.replaces_order_id),
   'deviceId',o.device_id))::json`
