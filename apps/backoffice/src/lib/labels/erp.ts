@@ -21,4 +21,5 @@ export const ERP_KIND = {
   count: { label: 'Stok opname', tone: 'neutral' },
   opening: { label: 'Saldo awal', tone: 'neutral' },
   write_off: { label: 'Penghapusan', tone: 'neutral' },
+  void: { label: 'Pembatalan', tone: 'neutral' },
 } as const satisfies LabelMap<ErpOutboxItem['kind']>

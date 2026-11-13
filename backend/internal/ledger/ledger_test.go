@@ -336,3 +336,13 @@ func TestMixedCaseDuplicatesChainAfterCanonicalize(t *testing.T) {
 		t.Fatalf("spellings of one product must chain as one key: %+v", out)
 	}
 }
+
+func TestValidKindsIncludesVoid(t *testing.T) {
+	if !validKinds[KindVoid] || KindVoid != "void" {
+		t.Fatal("void must be a valid ledger kind")
+	}
+	b, err := BucketOf(BucketInput{Kind: KindVoid})
+	if err != nil || b != BucketRefund {
+		t.Fatalf("void bucket = %q, %v; want the refund (returns) bucket", b, err)
+	}
+}

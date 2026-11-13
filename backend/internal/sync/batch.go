@@ -26,7 +26,9 @@ type ItemResult struct {
 	// RefundState is set on a successful refund: "full" when the order is now fully refunded,
 	// else "partial". Additive (C4a); the OpenAPI SyncBatchItemResult needs the field.
 	RefundState string `json:"refundState,omitempty"`
-	Error       string `json:"error,omitempty"`
+	// ReplacementOrderID is set on a void ack that created a replacement sale (Void phase 2).
+	ReplacementOrderID string `json:"replacementOrderId,omitempty"`
+	Error              string `json:"error,omitempty"`
 	// Code and Retryable are set exactly when Status is "error" (Retryable is a
 	// pointer so false is still serialised). Clients must treat a missing or
 	// unknown Code as the pre-contract behaviour (an older server omits both).
@@ -63,6 +65,14 @@ type Caller struct {
 	HomeOutletID string `json:"-"`
 	// Server-derived from authenticated request claims; never from a batch body.
 	CanRefund bool `json:"-"`
+	// CanVoidOwnShift and CanVoidAny are the void permissions of the authenticated request
+	// (A06): read from the token when the void reaches the server, never from the payload.
+	CanVoidOwnShift bool `json:"-"`
+	CanVoidAny      bool `json:"-"`
+	// EnvelopeDeviceID is the verified device of the envelope (its id is the idempotency-key
+	// prefix, checked by attribute()); empty for a legacy item. The unattributed-sale void
+	// rule compares orders.device_id with it.
+	EnvelopeDeviceID string `json:"-"`
 	// EnvelopeShiftID is set by attribute() only when the envelope's shift row exists
 	// at the attributed outlet (open or closed); unknown, non-uuid or absent -> "".
 	// Never taken from the request: a dangling id would hit the orders FK (23503).

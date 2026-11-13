@@ -427,3 +427,9 @@ func TestNewRelayDefaults(t *testing.T) {
 		t.Errorf("defaults = %+v", c)
 	}
 }
+
+func TestClaimSQLExcludesVoidHold(t *testing.T) {
+	if !strings.Contains(claimSQL, "<> 'void_erp_pending'") {
+		t.Fatal("claimSQL must never claim a void_erp_pending row")
+	}
+}

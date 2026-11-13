@@ -18,14 +18,15 @@ type appSettings struct {
 	RoundingEnabled bool
 	RoundingType    string
 	PaymentMethods  []api.PaymentMethodConfig
+	VoidWindowDays  int
 }
 
 func loadAppSettings(ctx context.Context, tx pgx.Tx) (appSettings, error) {
 	var a appSettings
 	var methods []byte
 	err := tx.QueryRow(ctx,
-		`SELECT tax_enabled, tax_rate, rounding_enabled, rounding_type, payment_methods
-		   FROM app_settings WHERE id=1`).Scan(&a.TaxEnabled, &a.TaxRate, &a.RoundingEnabled, &a.RoundingType, &methods)
+		`SELECT tax_enabled, tax_rate, rounding_enabled, rounding_type, payment_methods, void_window_days
+		   FROM app_settings WHERE id=1`).Scan(&a.TaxEnabled, &a.TaxRate, &a.RoundingEnabled, &a.RoundingType, &methods, &a.VoidWindowDays)
 	if err != nil {
 		return a, err
 	}

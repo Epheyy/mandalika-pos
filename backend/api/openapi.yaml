@@ -142,7 +142,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         documentId: { type: string, format: uuid }
-        kind: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
+        kind: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off, void] }
         locationType: { type: string, enum: [outlet, warehouse] }
         locationId: { type: string, format: uuid }
         locationName: { type: string, nullable: true }
@@ -1097,7 +1097,7 @@ components:
       required: [id, type, points, balanceAfter, createdAt]
       properties:
         id: { type: string, format: uuid }
-        type: { type: string, enum: [earn, redeem, adjust, refund] }
+        type: { type: string, enum: [earn, redeem, adjust, refund, void] }
         points: { type: integer }
         balanceAfter: { type: integer }
         reason: { type: string, nullable: true }
@@ -1914,6 +1914,105 @@ components:
         refundedByName: { type: string, nullable: true }
         createdAt: { type: string, format: date-time, description: "When the server received the order (list sorting uses this). For an offline sale this is later than the sale itself; see clientCreatedAt." }
         clientCreatedAt: { type: string, format: date-time, nullable: true, description: "When the tablet recorded the sale. Null on older rows; show createdAt then." }
+        # Void (migration 0092). All optional and NOT nullable ($ref + nullable is dropped by the TS generator).
+        void: { $ref: '#/components/schemas/OrderVoidInfo' }
+        replacesOrderId: { type: string, format: uuid, description: "Set on a replacement sale: the voided order it replaces." }
+        replacesOrderNumber: { type: string }
+        deviceId: { type: string, description: "The device that rang the sale (used by the POS to tell its own unsynced sales apart)." }
+    OrderVoidInfo:
+      type: object
+      required: [id, reasonCode, voidedAt, source, afterClose, mode]
+      properties:
+        id: { type: string, format: uuid }
+        reasonCode: { type: string, enum: [salah_metode_pembayaran, salah_barang, salah_promo, salah_pelanggan, transaksi_ganda, transaksi_tes, lainnya] }
+        note: { type: string }
+        voidedAt: { type: string, format: date-time }
+        voidedByName: { type: string }
+        source: { type: string, enum: [pos, backoffice] }
+        afterClose: { type: boolean }
+        mode: { type: string, enum: [none, replace, later] }
+        replacementOrderId: { type: string, format: uuid }
+        replacementOrderNumber: { type: string }
+        followup: { type: string, enum: [replacement, no_replacement] }
+    VoidOrderRequest:
+      type: object
+      required: [reasonCode, clientVoidUuid, mode]
+      properties:
+        reasonCode: { type: string, enum: [salah_metode_pembayaran, salah_barang, salah_promo, salah_pelanggan, transaksi_ganda, transaksi_tes, lainnya] }
+        note: { type: string, maxLength: 500 }
+        clientVoidUuid: { type: string, format: uuid, description: "Required: makes a retry of the same void a replay." }
+        mode: { type: string, enum: [none, replace, later], description: "Phase 1 accepts none only." }
+        stockChoices:
+          type: object
+          additionalProperties: { type: string, enum: [restock, skip_counted] }
+          description: "Sale-movement key -> choice, for every line the preview listed as countedAfter."
+        replacement:
+          type: object
+          properties:
+            tenders: { type: array, items: { $ref: '#/components/schemas/TenderInput' } }
+            customerId: { type: string }
+    VoidPreviewLine:
+      type: object
+      required: [key, productId, productName, variantSize, quantity, countedAfter]
+      properties:
+        key: { type: string, description: "The sale movement's dedupe key; stockChoices uses the same key." }
+        productId: { type: string, format: uuid }
+        productName: { type: string }
+        variantSize: { type: string }
+        quantity: { type: integer }
+        countedAfter: { type: boolean, description: "An approved stock count covered this item after the sale: a choice is required." }
+        stockCountName: { type: string }
+    VoidPreview:
+      type: object
+      required: [eligible, afterClose, amountsLocked, windowDays, lines]
+      properties:
+        eligible: { type: boolean }
+        refusal: { type: string }
+        authority: { type: string, enum: [own_shift, any] }
+        afterClose: { type: boolean }
+        amountsLocked: { type: boolean }
+        windowDays: { type: integer }
+        lines: { type: array, items: { $ref: '#/components/schemas/VoidPreviewLine' } }
+    VoidPreviewResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/VoidPreview' }
+    SyncVoidPayload:
+      type: object
+      required: [reasonCode, mode, orderNumber, total]
+      description: "Body of a sync item of type void."
+      properties:
+        reasonCode: { type: string }
+        mode: { type: string, enum: [none, replace] }
+        orderNumber: { type: string }
+        total: { type: number }
+        orderId: { type: string }
+        saleOrderUuid: { type: string }
+        note: { type: string }
+        stockChoices:
+          type: object
+          additionalProperties: { type: string, enum: [restock, skip_counted] }
+        restockLines:
+          type: array
+          items:
+            type: object
+            required: [productId, variantSize, quantity]
+            properties:
+              productId: { type: string }
+              variantSize: { type: string }
+              quantity: { type: integer }
+          description: "Tablet-only display facts for the stock overlay; the server ignores them."
+        originalTenders:
+          type: array
+          items:
+            type: object
+            required: [method, amount]
+            properties:
+              method: { type: string }
+              amount: { type: number }
+        originalShiftId: { type: string }
+        replacement: { $ref: '#/components/schemas/CreateOrderRequest' }
     DiscountComponent:
       type: object
       required: [label, amount]
@@ -2173,6 +2272,11 @@ components:
         splitTenderEnabled:
           type: boolean
           description: "Split payment (several tender lines per sale). Absent = off; an update that omits it leaves the stored value."
+        voidWindowDays:
+          type: integer
+          minimum: 1
+          maximum: 30
+          description: "Days after the business day a sale can still be voided. Absent on update = untouched."
         inventoryApprovalRequired:
           type: boolean
           description: "When on, POST /inventory/adjust and POST /stock-counts/{id}/complete answer 409 approval_required. The server does not return it before the approvals slice."
@@ -2629,7 +2733,7 @@ components:
       type: object
       required: [type, idempotencyKey, payload]
       properties:
-        type: { type: string, enum: [order, refund, shift_open, shift_close, cash_flow, customer_create, transfer_receive] }
+        type: { type: string, enum: [order, refund, void, shift_open, shift_close, cash_flow, customer_create, transfer_receive] }
         idempotencyKey: { type: string }
         payload:
           type: object
@@ -2673,7 +2777,7 @@ components:
         idempotencyKey: { type: string, maxLength: 200 }
         type:
           type: string
-          enum: [order, refund, shift_open, shift_close, cash_flow, customer_create, transfer_receive]
+          enum: [order, refund, void, shift_open, shift_close, cash_flow, customer_create, transfer_receive]
         reviewCode: { type: string }
         reviewReason: { type: string }
         lastError: { type: string }
@@ -2780,6 +2884,7 @@ components:
         status: { type: string, enum: [ok, duplicate, error] }
         orderId: { type: string }
         stockWarning: { type: boolean }
+        replacementOrderId: { type: string, description: "Present on a void ack that created a replacement sale." }
         refundState:
           type: string
           enum: [partial, full]
@@ -3256,7 +3361,7 @@ components:
         seq: { type: integer, format: int64, description: "Order in which the movement was applied at the location; the balance chain is continuous in this order." }
         occurredAt: { type: string, format: date-time }
         recordedAt: { type: string, format: date-time }
-        kind: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
+        kind: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off, void] }
         locationType: { $ref: '#/components/schemas/InventoryLocationType' }
         locationId: { type: string, format: uuid }
         locationName: { type: string }
@@ -6280,6 +6385,52 @@ paths:
         '400': { description: "invalid order id or reason (trimmed, 1-500 characters)" }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { description: "already refunded; partially refunded; not completed; or not found at this outlet" }
+  /api/v1/orders/{id}/void:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: voidOrder
+      tags: [sales]
+      summary: Void a sale (whole sale, mandatory reason); Backoffice path, needs void_any
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VoidOrderRequest' }
+      responses:
+        '200':
+          description: the cancelled order
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderResponse' }
+        '400': { description: "invalid order id, reason, note or clientVoidUuid" }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: "already voided, refunded, not completed, outside the void window, or not found at this outlet" }
+  /api/v1/orders/{id}/void-preview:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getVoidPreview
+      tags: [sales]
+      summary: What a void of this sale would do (eligibility, authority, stock lines a stock count already covered)
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      responses:
+        '200':
+          description: preview
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VoidPreviewResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: "order not found at this outlet" }
   /api/v1/shifts/{id}/close:
     parameters:
       - name: id
@@ -6740,7 +6891,7 @@ paths:
           schema: { type: string, enum: [pending, held, sending, delivered, replayed, dead] }
         - name: kind
           in: query
-          schema: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
+          schema: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off, void] }
       responses:
         '200':
           description: outbox rows, newest first
@@ -6826,7 +6977,7 @@ paths:
           explode: true
           schema:
             type: array
-            items: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
+            items: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off, void] }
         - { name: flag, in: query, required: false, schema: { type: string, enum: [shortage] } }
         - { name: giveaway, in: query, required: false, description: "true returns only giveaway movements (derived from the ledger key), false excludes giveaway movements, absent returns all.", schema: { type: boolean } }
         - { name: from, in: query, required: false, description: "First day (YYYY-MM-DD, read in the location timezone) or instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range selects the run of rows by seq from the first row recorded at or after it, so the balance chain stays unbroken.", schema: { type: string } }
@@ -6861,7 +7012,7 @@ paths:
           explode: true
           schema:
             type: array
-            items: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off] }
+            items: { type: string, enum: [sale, refund, transfer_out, transfer_in, transfer_cancel, receipt, adjust, count, opening, write_off, void] }
         - { name: flag, in: query, required: false, schema: { type: string, enum: [shortage] } }
         - { name: giveaway, in: query, required: false, schema: { type: boolean } }
         - { name: from, in: query, required: false, description: "First day (YYYY-MM-DD, read in the location timezone) or instant (RFC 3339) of the range, on TIME RECORDED (recordedAt), not occurredAt. The range selects the run of rows by seq from the first row recorded at or after it, so the balance chain stays unbroken.", schema: { type: string } }

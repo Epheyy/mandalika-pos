@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { formatMovementTime, movementKindTone, signedQty, skuSearchStart } from './stockCardFormat'
+import {
+  formatMovementTime, KIND_GROUPS, MOVEMENT_KIND_LABEL, movementKindTone, signedQty, skuSearchStart,
+} from './stockCardFormat'
 
 describe('formatMovementTime', () => {
   it('reads "04 Nov 2026 · 14:22" in the location zone', () => {
@@ -31,5 +33,12 @@ describe('movementKindTone', () => {
 describe('skuSearchStart', () => {
   it('drops old results and shows loading with nothing highlighted when a new query starts', () => {
     expect(skuSearchStart<{ id: string }>()).toEqual({ results: [], status: 'loading', active: -1 })
+  })
+})
+
+describe('void kind', () => {
+  it('reads Pembatalan and sits in the refund (kembali) bucket', () => {
+    expect(MOVEMENT_KIND_LABEL.void).toBe('Pembatalan')
+    expect(KIND_GROUPS.find((g) => g.bucket === 'refund')?.kinds).toContain('void')
   })
 })

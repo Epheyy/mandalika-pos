@@ -58,7 +58,7 @@ export const ALWAYS_KEYS = [
 ] as const
 
 /** Keys the server leaves untouched when absent: sent only when the admin changed them. */
-export const PRESENT_ONLY_KEYS = ['recipesEnabled', 'inventoryApprovalRequired', 'splitTenderEnabled', 'documents'] as const
+export const PRESENT_ONLY_KEYS = ['recipesEnabled', 'inventoryApprovalRequired', 'splitTenderEnabled', 'documents', 'voidWindowDays'] as const
 
 export const DEFAULT_SETTINGS: AppSettings = {
   taxEnabled: true,

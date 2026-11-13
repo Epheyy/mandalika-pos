@@ -66,7 +66,7 @@ func BucketOf(in BucketInput) (Bucket, error) {
 	switch in.Kind {
 	case KindSale:
 		return BucketPenjualan, nil
-	case KindRefund:
+	case KindRefund, KindVoid:
 		return BucketRefund, nil
 	case KindReceipt:
 		return BucketMasuk, nil

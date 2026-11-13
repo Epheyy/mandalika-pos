@@ -215,6 +215,8 @@ type receiptOutcome struct {
 	// RefundState ("partial"|"full") is stored for refunds only, so a replay acks the same
 	// state; receipts written before C4a lack it and replay without one.
 	RefundState string `json:"refundState,omitempty"`
+	// ReplacementOrderID is stored for a void that created a replacement, so a replay acks it.
+	ReplacementOrderID string `json:"replacementOrderId,omitempty"`
 }
 
 // keyed runs effect exactly once for it.IdempotencyKey (A11): a retry after a lost
@@ -260,14 +262,14 @@ func (e *Engine) keyedOutcome(ctx context.Context, c Caller, it BatchItem, effec
 // refusals: an item whose key already landed returns the first attempt's result. A
 // failed probe is a retryable error, never a refusal.
 func (e *Engine) replay(ctx context.Context, c Caller, it BatchItem, r ItemResult, fail func(error) ItemResult) (ItemResult, bool) {
-	id, status, refundState, applied, aerr := e.alreadyApplied(ctx, c, it)
+	out, applied, aerr := e.alreadyApplied(ctx, c, it)
 	if aerr != nil {
 		return fail(aerr), true
 	}
 	if !applied {
 		return r, false
 	}
-	r.Status, r.OrderID, r.RefundState = status, id, refundState
+	r.Status, r.OrderID, r.RefundState, r.ReplacementOrderID = out.Status, out.ID, out.RefundState, out.ReplacementOrderID
 	return r, true
 }
 
@@ -417,12 +419,12 @@ func (e *Engine) processOneWithSeq(ctx context.Context, c Caller, it BatchItem,
 			// A06: a refund that already committed replays as ok even if the
 			// permission was removed since (M3 rule); only an uncommitted key is
 			// forbidden. A failed probe is a retryable server error, never a review item.
-			id, _, state, applied, aerr := e.alreadyApplied(ctx, c, it)
+			out, applied, aerr := e.alreadyApplied(ctx, c, it)
 			if aerr != nil {
 				return fail(aerr)
 			}
 			if applied {
-				r.Status, r.OrderID, r.RefundState = "ok", id, state
+				r.Status, r.OrderID, r.RefundState = "ok", out.ID, out.RefundState
 				return r
 			}
 			return fail(apperr.New(apperr.Forbidden, "Sinkronisasi refund belum selesai: izin refund pada permintaan ini tidak mencukupi. Operasi tetap tersimpan dan belum terselesaikan. Jika uang sudah dikembalikan, jangan bayar ulang."))
@@ -445,6 +447,8 @@ func (e *Engine) processOneWithSeq(ctx context.Context, c Caller, it BatchItem,
 		}
 		r.Status, r.OrderID, r.RefundState = "ok", out.OrderID, out.RefundState
 		return r
+	case "void":
+		return e.processVoid(ctx, c, it, r, fail)
 	case "shift_open":
 		p, err := service.DecodeOpenShift(bytes.NewReader(it.Payload))
 		if err != nil {

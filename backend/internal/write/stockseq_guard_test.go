@@ -25,6 +25,7 @@ var stockSeqAllowlist = map[string]bool{
 	// product-create seed
 	"internal/service/order.go":    true,
 	"internal/service/refund.go":   true,
+	"internal/service/void.go":     true,
 	"internal/write/transfer.go":   true,
 	"internal/write/warehouse.go":  true,
 	"internal/write/stockcount.go": true,
@@ -324,6 +325,7 @@ var stockWriteSQL = regexp.MustCompile(`(?i)(INSERT\s+INTO|UPDATE|DELETE\s+FROM)
 var stockSQLPins = map[string][2]int{
 	"internal/service/order.go":     {2, 0}, // lazy row, decrement
 	"internal/service/refund.go":    {1, 0}, // refund restock
+	"internal/service/void.go":      {1, 0}, // void restock
 	"internal/service/lockorder.go": {1, 0}, // lazy zero row (no bump); S2 adds the giveaway key to that same statement
 	// S2: the per-sale giveaway decrement (giveawayLine). A non-bumper: the sale bumps once at
 	// order.go after recordSaleMovements, and the row is already locked by lockStockRowsSorted

@@ -2,7 +2,7 @@ import { localDay } from '../../lib/businessDay'
 import { LEDGER_BUCKET, LEDGER_KIND } from '../../lib/labels/ledger'
 
 export const MOVEMENT_KINDS = [
-  'sale', 'refund', 'transfer_out', 'transfer_in', 'transfer_cancel', 'receipt', 'adjust', 'count', 'opening', 'write_off',
+  'sale', 'refund', 'transfer_out', 'transfer_in', 'transfer_cancel', 'receipt', 'adjust', 'count', 'opening', 'write_off', 'void',
 ] as const
 
 export type MovementKind = (typeof MOVEMENT_KINDS)[number]
@@ -18,6 +18,7 @@ export const MOVEMENT_KIND_LABEL: Record<MovementKind, string> = {
   count: LEDGER_KIND.count.label,
   opening: LEDGER_KIND.opening.label,
   write_off: LEDGER_KIND.write_off.label,
+  void: LEDGER_KIND.void.label,
 }
 
 export type KindBucket = keyof typeof LEDGER_BUCKET
@@ -31,7 +32,7 @@ export type KindBucket = keyof typeof LEDGER_BUCKET
 export const KIND_GROUPS: ReadonlyArray<{ bucket: KindBucket; kinds: readonly MovementKind[] }> = [
   { bucket: 'masuk', kinds: ['receipt'] },
   { bucket: 'penjualan', kinds: ['sale'] },
-  { bucket: 'refund', kinds: ['refund'] },
+  { bucket: 'refund', kinds: ['refund', 'void'] },
   { bucket: 'transfer', kinds: ['transfer_out', 'transfer_in', 'transfer_cancel'] },
   { bucket: 'penyesuaian', kinds: ['adjust', 'count', 'write_off', 'opening'] },
   { bucket: 'hadiah', kinds: [] },

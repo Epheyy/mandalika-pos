@@ -7,7 +7,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/api"
 )
 
-const orderObj = `json_build_object('id',o.id,'orderNumber',o.order_number,
+const orderObjBase = `json_build_object('id',o.id,'orderNumber',o.order_number,
   'outletId',o.outlet_id,'cashierId',o.cashier_id,'cashierName',o.cashier_name,
   'salesmanId',o.salesman_id,'salesmanName',o.salesman_name,
   'customerId',o.customer_id,'customerName',o.customer_name,
@@ -58,6 +58,20 @@ const orderObj = `json_build_object('id',o.id,'orderNumber',o.order_number,
           'bundleSize',it.bundle_size,'bundleDiscount',it.bundle_discount,
           'bundlePromotionId',it.bundle_promotion_id)) END))
      FROM order_items it WHERE it.order_id=o.id),'[]'::json))`
+
+// orderObj is the order JSON every order read returns. json_build_object takes at most 100 arguments
+// (50 pairs) and orderObjBase is at the cap, so the void fields (migration 0092) are a second object
+// merged in with jsonb ||. Absent (null, dropped by omitempty) when the order was never voided.
+const orderObj = `((` + orderObjBase + `)::jsonb || jsonb_build_object(
+  'void',(SELECT jsonb_build_object('id',v.id,'reasonCode',v.reason_code,'note',v.note,'voidedAt',v.voided_at,
+     'voidedByName',v.voided_by_name,'source',v.source,'afterClose',v.after_close,'mode',v.mode,
+     'replacementOrderId',COALESCE(v.replacement_order_id,f.replacement_order_id),
+     'replacementOrderNumber',(SELECT ro.order_number FROM orders ro WHERE ro.id = COALESCE(v.replacement_order_id,f.replacement_order_id)),
+     'followup',f.kind)
+     FROM order_voids v LEFT JOIN order_void_followups f ON f.void_id = v.id WHERE v.order_id = o.id),
+  'replacesOrderId',o.replaces_order_id,
+  'replacesOrderNumber',(SELECT ro.order_number FROM orders ro WHERE ro.id = o.replaces_order_id),
+  'deviceId',o.device_id))::json`
 
 // refundOrderKey is the refund-basis sort key: the latest refund row (C4a), because a part
 // refund leaves orders.refunded_at NULL. Computed once per candidate row in the id-first CTE.

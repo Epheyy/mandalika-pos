@@ -24,7 +24,7 @@ type PointTxRow struct {
 // order transaction. The ::uuid casts let empty strings encode as NULL safely.
 func InsertPointTx(ctx context.Context, tx pgx.Tx, e PointTxRow) error {
 	switch e.Type {
-	case "earn", "redeem", "adjust", "refund":
+	case "earn", "redeem", "adjust", "refund", "void":
 	default:
 		return fmt.Errorf("invalid point tx type: %q", e.Type)
 	}

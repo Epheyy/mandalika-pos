@@ -34,7 +34,7 @@ const (
 
 var movementKinds = map[string]bool{
 	"sale": true, "refund": true, "transfer_out": true, "transfer_in": true, "transfer_cancel": true,
-	"receipt": true, "adjust": true, "count": true, "opening": true, "write_off": true,
+	"receipt": true, "adjust": true, "count": true, "opening": true, "write_off": true, "void": true,
 }
 
 // movementLocationAllowed is the explicit location check of the kartu stok reads. An admin

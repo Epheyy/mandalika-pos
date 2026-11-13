@@ -237,7 +237,7 @@ type scopeSpy struct {
 	onApplied func(typ, scope string)
 }
 
-func (s *scopeSpy) Applied(ctx context.Context, typ, key, scope, fp string) (string, string, string, bool, error) {
+func (s *scopeSpy) Applied(ctx context.Context, typ, key, scope, fp string) (appliedOutcome, bool, error) {
 	s.onApplied(typ, scope)
 	return s.fakeLookup.Applied(ctx, typ, key, scope, fp)
 }

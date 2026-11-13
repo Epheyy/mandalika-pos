@@ -196,6 +196,11 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Post("/orders", h.CreateOrder)
 			r.With(mw.RequirePermission("process_refund")).
 				Post("/orders/{id}/refund", h.RefundOrder)
+			// Void (migration 0092): the Backoffice path needs void_any; the preview also serves a
+			// cashier holding void_own_shift (checked in the handler).
+			r.With(mw.RequirePermission("void_any")).
+				Post("/orders/{id}/void", h.VoidOrder)
+			r.Get("/orders/{id}/void-preview", h.VoidPreview)
 			r.Post("/shifts", h.OpenShift)
 			r.Post("/shifts/{id}/close", h.CloseShift)
 			r.Post("/cash-flows", h.CreateCashFlow)

@@ -30,7 +30,7 @@ usermod -aG docker runner
 passwd -l runner >/dev/null
 
 # --- kernel: keep gate fixture ports out of the ephemeral pool (the workflow's sudo step is a no-op here) ----
-echo 'net.ipv4.ip_local_reserved_ports = 26439-26481' >/etc/sysctl.d/99-mandalika-ci.conf
+echo 'net.ipv4.ip_local_reserved_ports = 26439-26482' >/etc/sysctl.d/99-mandalika-ci.conf
 sysctl --system >/dev/null
 
 # --- jobs must not reach the metadata server (the service account has no roles anyway; defence in depth) ----

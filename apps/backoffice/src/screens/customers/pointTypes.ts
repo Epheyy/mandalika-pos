@@ -5,6 +5,7 @@ const META: Record<string, { label: string; color: string }> = {
   redeem: { label: 'Penukaran', color: 'amber' },
   adjust: { label: 'Penyesuaian', color: 'blue' },
   refund: { label: 'Refund', color: 'red' },
+  void: { label: 'Pembatalan', color: 'red' },
 }
 
 export const pointTypeLabel = (t: string): string => META[t]?.label ?? t
