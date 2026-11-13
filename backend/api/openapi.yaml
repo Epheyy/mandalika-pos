@@ -2777,7 +2777,7 @@ components:
         idempotencyKey: { type: string, maxLength: 200 }
         type:
           type: string
-          enum: [order, refund, shift_open, shift_close, cash_flow, customer_create, transfer_receive]
+          enum: [order, refund, void, shift_open, shift_close, cash_flow, customer_create, transfer_receive]
         reviewCode: { type: string }
         reviewReason: { type: string }
         lastError: { type: string }

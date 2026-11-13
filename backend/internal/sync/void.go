@@ -38,12 +38,12 @@ func (p voidPayload) input(c Caller, orderID string) service.VoidInput {
 		Reason: service.VoidReasonCode(p.ReasonCode), Note: p.Note,
 		Mode: service.VoidMode(p.Mode), Source: service.VoidSourcePOS,
 		UserID: c.UserID, UserName: c.DisplayName,
-		DeviceID: p.DeviceID, CallerShiftID: c.EnvelopeShiftID,
+		DeviceID: c.EnvelopeDeviceID, CallerShiftID: c.EnvelopeShiftID,
 		CanVoidOwnShift: c.CanVoidOwnShift, CanVoidAny: c.CanVoidAny,
 		EnvelopeDeviceID: c.EnvelopeDeviceID, Channel: "sync",
 	}
 	if in.DeviceID == "" {
-		in.DeviceID = c.EnvelopeDeviceID
+		in.DeviceID = p.DeviceID // legacy item without an envelope
 	}
 	if service.IsCanonicalUUID(p.OrderUUID) {
 		in.ClientVoidUUID = strings.ToLower(p.OrderUUID)
@@ -89,6 +89,9 @@ func (e *Engine) processVoid(ctx context.Context, c Caller, it BatchItem, r Item
 	}
 	if p.Mode != string(service.VoidModeNone) {
 		return fail(service.ErrVoidReplacementInvalid) // replacements arrive in Void phase 2
+	}
+	if p.DeviceID == "" {
+		p.DeviceID = c.EnvelopeDeviceID
 	}
 	out, err := e.keyedOutcome(ctx, c, it, func(tx pgx.Tx) (receiptOutcome, error) {
 		orderID, rerr := e.refundSaleID(ctx, tx, c.OutletID, p.OrderID, p.SaleOrderUUID, p.DeviceID)

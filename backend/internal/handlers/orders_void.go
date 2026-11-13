@@ -29,8 +29,11 @@ func (h *Handlers) voidOutlet(w http.ResponseWriter, r *http.Request, c callerID
 		return "", false
 	}
 	o, err := h.OrderSvc.OrderOutlet(r.Context(), orderID)
+	if errors.Is(err, service.ErrRefundOrderNotFound) || errors.Is(err, service.ErrRefundOrderInvalid) {
+		err = service.ErrVoidNotFound
+	}
 	if err != nil {
-		fail(service.ErrVoidNotFound)
+		fail(err)
 		return "", false
 	}
 	return o, true
@@ -112,13 +115,14 @@ func (h *Handlers) VoidPreview(w http.ResponseWriter, r *http.Request) {
 	canOwn := auth.HasPermission(r.Context(), "void_own_shift")
 	canAny := auth.HasPermission(r.Context(), "void_any")
 	if !canOwn && !canAny {
-		httpx.Err(w, http.StatusForbidden, service.ErrVoidForbidden.Error())
+		status, msg := refundHTTPError(service.ErrVoidForbidden)
+		httpx.Err(w, status, msg)
 		return
 	}
 	id := chi.URLParam(r, "id")
 	fail := func(err error) {
 		if errors.Is(err, service.ErrVoidNotFound) {
-			httpx.Err(w, http.StatusNotFound, err.Error())
+			httpx.Err(w, http.StatusNotFound, "Transaksi tidak ditemukan di outlet ini.")
 			return
 		}
 		status, msg := refundHTTPError(err)

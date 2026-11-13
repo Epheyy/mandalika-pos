@@ -5573,7 +5573,7 @@ export interface components {
         SyncReviewReport: {
             idempotencyKey: string;
             /** @enum {string} */
-            type: "order" | "refund" | "shift_open" | "shift_close" | "cash_flow" | "customer_create" | "transfer_receive";
+            type: "order" | "refund" | "void" | "shift_open" | "shift_close" | "cash_flow" | "customer_create" | "transfer_receive";
             reviewCode?: string;
             reviewReason?: string;
             lastError?: string;
