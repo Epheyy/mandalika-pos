@@ -189,6 +189,7 @@ func NewOrderService(p *pgxpool.Pool) *OrderService { return &OrderService{Pool:
 //	discount codes by code -> customer -> stock rows by (product_id, variant_size)
 //	  -> new order row (create) / existing order row (refund, which reads the
 //	     order, codes and customer UNLOCKED first so it can enter the same order)
+//	  -> (void: codes -> customer -> order -> shift FOR SHARE -> stock rows, service/void.go)
 //	  -> [content_versions rows] -> outlet_stock_seq row(s) in outlet_id order, LAST
 //
 // The last two steps (A15 Phase B) are shared by every stock writer, not only the

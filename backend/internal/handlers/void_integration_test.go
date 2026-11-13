@@ -2,15 +2,19 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mandalika/pos-backend/internal/integration/erp"
 	"github.com/mandalika/pos-backend/internal/ledger"
+	"github.com/mandalika/pos-backend/internal/service"
 )
 
 // Void phase 1: the void write path, its audit record, the ledger kind and the ERP hold.
@@ -181,11 +185,23 @@ func TestVoidPostgres(t *testing.T) {
 		// The relay claims the plain sale only: the held rows stay put.
 		exec(`UPDATE erp_outbox SET next_attempt_at = now() - interval '1 hour' WHERE status IN ('held','pending')`)
 		p := &obrPoster{reply: obrAnswer(500, `{}`)}
-		obrRun(t, ctx, obrRelay(pool, p, erp.Config{}))
+		rep := obrRun(t, ctx, obrRelay(pool, p, erp.Config{}))
 		for _, k := range []string{voidDoc, "sale:vd-erp-repl", "refund:vd-erp-repl"} {
-			if r := get(k); r.status != "held" {
-				t.Fatalf("%s status after a relay run = %s, want held", k, r.status)
+			r := get(k)
+			if r.status != "held" || r.hold != ledger.VoidERPHoldReason {
+				t.Fatalf("%s after a relay run = %+v, want untouched held/%s", k, r, ledger.VoidERPHoldReason)
 			}
+			var attempts int
+			var docID string
+			if err := pool.QueryRow(ctx, `SELECT attempts, document_id::text FROM erp_outbox WHERE doc_key=$1`, k).Scan(&attempts, &docID); err != nil || attempts != 0 {
+				t.Fatalf("%s attempts = %d, %v; a held void row must never be claimed", k, attempts, err)
+			}
+			if n := len(p.callsFor(docID)); n != 0 {
+				t.Fatalf("%s was posted to the ERP %d times", k, n)
+			}
+		}
+		if rep.Claimed != 1 {
+			t.Fatalf("relay claimed %d rows, want only the plain sale", rep.Claimed)
 		}
 		// The admin list scans held rows (a finite next_attempt_at; 'infinity' would break pgx).
 		items, total, err := erp.List(ctx, pool, "held", "", 50, 0)
@@ -208,6 +224,383 @@ func TestVoidPostgres(t *testing.T) {
 		var status, hold string
 		if err := pool.QueryRow(ctx, `SELECT status, COALESCE(hold_reason,'') FROM erp_outbox WHERE id=$1`, id).Scan(&status, &hold); err != nil || status != "held" || hold != ledger.VoidERPHoldReason {
 			t.Fatalf("row after Retry = %s/%s, %v", status, hold, err)
+		}
+	})
+
+	// ── Task 1.4: the void write path ────────────────────────────────────────────────────────
+	svc := service.NewOrderService(pool)
+	var seq atomic.Int64
+	newID := func(group string) string { return fmt.Sprintf("00000000-0000-4000-9100-%s%011d", group, seq.Add(1)) }
+	one := func(q string, args ...any) int {
+		t.Helper()
+		var n int
+		if err := pool.QueryRow(ctx, q, args...).Scan(&n); err != nil {
+			t.Fatalf("%v: %s", err, q)
+		}
+		return n
+	}
+	str := func(q string, args ...any) string {
+		t.Helper()
+		var v string
+		if err := pool.QueryRow(ctx, q, args...).Scan(&v); err != nil {
+			t.Fatalf("%v: %s", err, q)
+		}
+		return v
+	}
+	const size = "std"
+	product := func(stock int) string {
+		pid := newID("1")
+		exec(`INSERT INTO products(id,name) VALUES($1,$2)`, pid, "VD "+pid[len(pid)-4:])
+		exec(`INSERT INTO product_variants(product_id,size,price,stock,sku) VALUES($1,$2,100000,0,$3)`, pid, size, "VD"+pid[len(pid)-8:])
+		exec(`INSERT INTO outlet_variant_stock(outlet_id,product_id,variant_size,stock) VALUES($1,$2,$3,$4)`, outlet, pid, size, stock)
+		return pid
+	}
+	stockOf := func(pid string) int {
+		return one(`SELECT stock FROM outlet_variant_stock WHERE outlet_id=$1 AND product_id=$2 AND variant_size=$3`, outlet, pid, size)
+	}
+	openShift := func() string {
+		exec(`UPDATE shifts SET status='closed', closed_at=now() WHERE outlet_id=$1 AND status='open'`, outlet)
+		id := newID("3")
+		exec(`INSERT INTO shifts(id,outlet_id,cashier_id,cashier_name,status,opened_at) VALUES($1,$2,$3,'VD Kasir','open',now() - interval '1 hour')`, id, outlet, cashier)
+		return id
+	}
+	giveaway := product(50)
+	exec(`INSERT INTO outlet_giveaways(outlet_id,product_id,variant_size) VALUES($1,$2,$3)`, outlet, giveaway, size)
+	type saleOpts struct {
+		shift, cust, code string
+		earned, redeemed  int
+	}
+	sale := func(o saleOpts, pids ...string) string {
+		t.Helper()
+		var items []service.OrderItem
+		total := 0.0
+		for _, pid := range pids {
+			items = append(items, service.OrderItem{ProductID: pid, ProductName: "VD", VariantSize: size, Price: 100000, Quantity: 1, Subtotal: 100000})
+			total += 100000
+		}
+		id, dup, _, err := svc.CreateOrder(ctx, service.CreateOrderInput{
+			IdempotencyKey: "vd-sale-" + newID("4"), OrderUUID: newID("4"), OutletID: outlet,
+			CashierID: cashier, CashierName: "VD Kasir", CustomerID: o.cust, Items: items,
+			PaymentMethod: "cash", AmountPaid: total, ShiftID: o.shift,
+		})
+		if err != nil || dup {
+			t.Fatalf("sale: dup=%v err=%v", dup, err)
+		}
+		if o.earned > 0 || o.redeemed > 0 {
+			exec(`UPDATE orders SET points_earned=$2, points_redeemed=$3 WHERE id=$1`, id, o.earned, o.redeemed)
+		}
+		if o.code != "" {
+			exec(`UPDATE orders SET discount_code=$2, applied_discount_codes=jsonb_build_array($2::text) WHERE id=$1`, id, o.code)
+		}
+		return id
+	}
+	customer := func(points int) string {
+		id := newID("2")
+		exec(`INSERT INTO customers(id,name,phone,points) VALUES($1,'VD Cust',$2,$3)`, id, "+6285"+id[len(id)-9:], points)
+		return id
+	}
+	voidIn := func(orderID, shift string) service.VoidInput {
+		return service.VoidInput{
+			OutletID: outlet, OrderID: orderID, Reason: service.VoidReasonWrongPayment, Mode: service.VoidModeNone,
+			Source: service.VoidSourcePOS, UserID: cashier, UserName: "VD Kasir", DeviceID: "vd-dev", ClientVoidUUID: newID("4"),
+			CallerShiftID: shift, CanVoidOwnShift: true,
+		}
+	}
+	status := func(orderID string) string { return str(`SELECT status FROM orders WHERE id=$1`, orderID) }
+	pointsOf := func(cust string) int { return one(`SELECT points FROM customers WHERE id=$1`, cust) }
+	closeShift := func(shift string) {
+		t.Helper()
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.CloseShiftTx(ctx, tx, outlet, shift, 0, nil); err != nil {
+			t.Fatal(err)
+		}
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	t.Run("void_none_restores_everything", func(t *testing.T) {
+		shift := openShift()
+		p1, p2 := product(10), product(10)
+		cust := customer(500)
+		exec(`INSERT INTO discount_codes(code,type,value,usage_count) VALUES('HEMAT','fixed',1000,1)`)
+		spentBefore := one(`SELECT total_spent::int FROM customers WHERE id=$1`, cust)
+		visitsBefore := one(`SELECT visit_count FROM customers WHERE id=$1`, cust)
+		g0, s1, s2 := stockOf(giveaway), stockOf(p1), stockOf(p2)
+		id := sale(saleOpts{shift: shift, cust: cust, code: "HEMAT", earned: 100, redeemed: 50}, p1, p2)
+		exec(`UPDATE customers SET points=550 WHERE id=$1`, cust) // 500 - 50 redeemed + 100 earned
+		if stockOf(p1) != s1-1 || stockOf(giveaway) != g0-1 {
+			t.Fatalf("fixture: the sale did not move stock (p1 %d giveaway %d)", stockOf(p1), stockOf(giveaway))
+		}
+		res, err := svc.VoidOrder(ctx, voidIn(id, shift))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status(id) != "cancelled" || res.Authority != service.VoidOwnShift || res.Replayed {
+			t.Fatalf("status %s result %+v", status(id), res)
+		}
+		if str(`SELECT void_id::text FROM orders WHERE id=$1`, id) != res.VoidID {
+			t.Fatal("orders.void_id does not point at the audit row")
+		}
+		if stockOf(p1) != s1 || stockOf(p2) != s2 || stockOf(giveaway) != g0 {
+			t.Fatalf("stock p1 %d/%d p2 %d/%d giveaway %d/%d: not back to pre-sale", stockOf(p1), s1, stockOf(p2), s2, stockOf(giveaway), g0)
+		}
+		if got := pointsOf(cust); got != 500 {
+			t.Fatalf("points = %d, want 500", got)
+		}
+		if n := one(`SELECT count(*) FROM point_transactions WHERE order_id=$1 AND type='void'`, id); n != 2 {
+			t.Fatalf("void point rows = %d, want 2", n)
+		}
+		if one(`SELECT total_spent::int FROM customers WHERE id=$1`, cust) != spentBefore || one(`SELECT visit_count FROM customers WHERE id=$1`, cust) != visitsBefore {
+			t.Fatal("customer spend or visit was not reversed")
+		}
+		if one(`SELECT usage_count FROM discount_codes WHERE code='HEMAT'`) != 0 {
+			t.Fatal("HEMAT usage not released")
+		}
+		if str(`SELECT erp_document_key FROM order_voids WHERE id=$1`, res.VoidID) != "void:"+res.VoidID {
+			t.Fatal("erp_document_key")
+		}
+		if n := one(`SELECT count(*) FROM order_void_items WHERE void_id=$1 AND choice='restock'`, res.VoidID); n != 3 {
+			t.Fatalf("restock audit rows = %d, want 3", n)
+		}
+		if n := one(`SELECT count(*) FROM order_refunds WHERE order_id=$1`, id); n != 0 {
+			t.Fatalf("a void wrote %d order_refunds rows", n)
+		}
+		if n := one(`SELECT count(*) FROM erp_outbox WHERE doc_key=$1 AND status='held'`, "void:"+res.VoidID); n != 1 {
+			t.Fatalf("held void outbox rows = %d, want 1", n)
+		}
+		closeShift(shift) // the closed shift no longer counts the sale
+		if one(`SELECT total_orders FROM shifts WHERE id=$1`, shift) != 0 || one(`SELECT total_sales::int FROM shifts WHERE id=$1`, shift) != 0 || one(`SELECT cash_sales::int FROM shifts WHERE id=$1`, shift) != 0 {
+			t.Fatal("closed shift still counts the voided sale")
+		}
+	})
+
+	t.Run("void_points_spent_floor", func(t *testing.T) {
+		shift := openShift()
+		cust := customer(0)
+		id := sale(saleOpts{shift: shift, cust: cust, earned: 100, redeemed: 20}, product(5))
+		exec(`UPDATE customers SET points=30 WHERE id=$1`, cust)
+		res, err := svc.VoidOrder(ctx, voidIn(id, shift))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if one(`SELECT points_clawed FROM order_voids WHERE id=$1`, res.VoidID) != 30 || one(`SELECT points_forgiven FROM order_voids WHERE id=$1`, res.VoidID) != 70 ||
+			one(`SELECT points_restored FROM order_voids WHERE id=$1`, res.VoidID) != 20 {
+			t.Fatal("audit points clawed/forgiven/restored")
+		}
+		if got := pointsOf(cust); got != 20 {
+			t.Fatalf("balance = %d, want 0 + 20 restored", got)
+		}
+	})
+
+	t.Run("void_points_balance_zero_no_redeem", func(t *testing.T) {
+		shift := openShift()
+		cust := customer(0)
+		id := sale(saleOpts{shift: shift, cust: cust, earned: 100}, product(5))
+		exec(`UPDATE customers SET points=0 WHERE id=$1`, cust)
+		res, err := svc.VoidOrder(ctx, voidIn(id, shift))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if one(`SELECT points_clawed FROM order_voids WHERE id=$1`, res.VoidID) != 0 || one(`SELECT points_forgiven FROM order_voids WHERE id=$1`, res.VoidID) != 100 {
+			t.Fatal("expected clawed 0 forgiven 100")
+		}
+		if n := one(`SELECT count(*) FROM point_transactions WHERE order_id=$1 AND type='void'`, id); n != 0 {
+			t.Fatalf("void point rows = %d, want none (CHECK points <> 0)", n)
+		}
+	})
+
+	countFor := func(pid string) string {
+		cid := newID("5")
+		exec(`INSERT INTO stock_counts(id,name,status,outlet_id,completed_at) VALUES($1,'VD count','completed',$2,now() + interval '1 minute')`, cid, outlet)
+		exec(`INSERT INTO stock_count_items(stock_count_id,product_id,product_name,variant_size,frozen_qty,actual_qty,difference) VALUES($1,$2,'VD',$3,5,5,0)`, cid, pid, size)
+		return cid
+	}
+	countedSale := func(shift string) (string, string, string, string) {
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		cid := countFor(p)
+		return id, p, cid, "sale:" + str(`SELECT id::text FROM order_items WHERE order_id=$1`, id)
+	}
+
+	t.Run("void_counted_after_skip", func(t *testing.T) {
+		shift := openShift()
+		id, p, cid, key := countedSale(shift)
+		before := stockOf(p)
+		in := voidIn(id, shift)
+		in.StockChoices = map[string]service.VoidStockChoice{key: service.VoidStockSkipCounted}
+		res, err := svc.VoidOrder(ctx, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if stockOf(p) != before {
+			t.Fatalf("a skipped counted line was restocked: %d -> %d", before, stockOf(p))
+		}
+		var choice, counted string
+		if err := pool.QueryRow(ctx, `SELECT choice, counted_stock_count_id::text FROM order_void_items WHERE void_id=$1 AND movement_key=$2`, res.VoidID, key).Scan(&choice, &counted); err != nil || choice != "skip_counted" || counted != cid {
+			t.Fatalf("audit row = %s %s %v", choice, counted, err)
+		}
+	})
+
+	t.Run("void_counted_after_restock_chosen", func(t *testing.T) {
+		shift := openShift()
+		id, p, cid, key := countedSale(shift)
+		before := stockOf(p)
+		in := voidIn(id, shift)
+		in.StockChoices = map[string]service.VoidStockChoice{key: service.VoidStockRestock}
+		res, err := svc.VoidOrder(ctx, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if stockOf(p) != before+1 {
+			t.Fatalf("stock %d -> %d, want +1", before, stockOf(p))
+		}
+		var choice, counted string
+		if err := pool.QueryRow(ctx, `SELECT choice, counted_stock_count_id::text FROM order_void_items WHERE void_id=$1 AND movement_key=$2`, res.VoidID, key).Scan(&choice, &counted); err != nil || choice != "restock" || counted != cid {
+			t.Fatalf("audit row = %s %s %v", choice, counted, err)
+		}
+	})
+
+	t.Run("void_counted_after_choice_missing_refused", func(t *testing.T) {
+		shift := openShift()
+		id, p, _, _ := countedSale(shift)
+		before := stockOf(p)
+		if _, err := svc.VoidOrder(ctx, voidIn(id, shift)); !errors.Is(err, service.ErrVoidCountNeedsChoice) {
+			t.Fatalf("err = %v, want ErrVoidCountNeedsChoice", err)
+		}
+		if status(id) != "completed" || stockOf(p) != before || one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, id) != 0 {
+			t.Fatal("a refused void changed something")
+		}
+	})
+
+	t.Run("void_refunded_refused", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		if err := svc.Refund(ctx, service.RefundInput{OutletID: outlet, OrderID: id, Reason: "vd refund", ShiftID: shift, UserID: cashier, UserName: "VD Kasir"}); err != nil {
+			t.Fatal(err)
+		}
+		before := stockOf(p)
+		if _, err := svc.VoidOrder(ctx, voidIn(id, shift)); !errors.Is(err, service.ErrVoidRefunded) {
+			t.Fatalf("err = %v, want ErrVoidRefunded", err)
+		}
+		if stockOf(p) != before || one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, id) != 0 {
+			t.Fatal("a refused void changed something")
+		}
+	})
+
+	t.Run("void_twice_conflict", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		if _, err := svc.VoidOrder(ctx, voidIn(id, shift)); err != nil {
+			t.Fatal(err)
+		}
+		after := stockOf(p)
+		if _, err := svc.VoidOrder(ctx, voidIn(id, shift)); !errors.Is(err, service.ErrVoidAlreadyVoided) {
+			t.Fatalf("err = %v, want ErrVoidAlreadyVoided", err)
+		}
+		if stockOf(p) != after {
+			t.Fatal("second void moved stock")
+		}
+	})
+
+	t.Run("void_replay_same_key_ok", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		in := voidIn(id, shift)
+		first, err := svc.VoidOrder(ctx, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		after := stockOf(p)
+		again, err := svc.VoidOrder(ctx, in)
+		if err != nil || !again.Replayed || again.VoidID != first.VoidID {
+			t.Fatalf("replay = %+v, %v", again, err)
+		}
+		if stockOf(p) != after || one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, id) != 1 {
+			t.Fatal("replay applied again")
+		}
+	})
+
+	t.Run("void_races_refund", func(t *testing.T) {
+		shift := openShift()
+		p := product(100)
+		for round := 0; round < 20; round++ {
+			id := sale(saleOpts{shift: shift}, p)
+			var wg sync.WaitGroup
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				_, _ = svc.VoidOrder(ctx, voidIn(id, shift))
+			}()
+			go func() {
+				defer wg.Done()
+				_ = svc.Refund(ctx, service.RefundInput{OutletID: outlet, OrderID: id, Reason: "vd race", ShiftID: shift, UserID: cashier, UserName: "VD Kasir"})
+			}()
+			wg.Wait()
+			voids := one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, id)
+			refunds := one(`SELECT count(*) FROM order_refunds WHERE order_id=$1`, id)
+			if voids+refunds != 1 {
+				t.Fatalf("round %d: %d voids + %d refunds, want exactly one", round, voids, refunds)
+			}
+		}
+	})
+
+	t.Run("void_after_close_refused_phase1", func(t *testing.T) {
+		shift := openShift()
+		id := sale(saleOpts{shift: shift}, product(5))
+		closeShift(shift)
+		in := voidIn(id, "")
+		in.Source, in.CanVoidOwnShift, in.CanVoidAny = service.VoidSourceBackoffice, false, true
+		if _, err := svc.VoidOrder(ctx, in); !errors.Is(err, service.ErrVoidAfterCloseNotYet) {
+			t.Fatalf("err = %v, want ErrVoidAfterCloseNotYet", err)
+		}
+		if status(id) != "completed" {
+			t.Fatal("refused void changed the order")
+		}
+	})
+
+	t.Run("bundle_sale_void_whole", func(t *testing.T) {
+		shift := openShift()
+		pids := []string{product(5), product(5), product(5)}
+		before := []int{stockOf(pids[0]), stockOf(pids[1]), stockOf(pids[2])}
+		id := sale(saleOpts{shift: shift}, pids...)
+		exec(`UPDATE order_items oi SET bundle_group=1, bundle_role=(ARRAY['large','atomizer','vial'])[r.n]
+		      FROM (SELECT id, row_number() OVER (ORDER BY id) AS n FROM order_items WHERE order_id=$1) r WHERE oi.id=r.id`, id)
+		if _, err := svc.VoidOrder(ctx, voidIn(id, shift)); err != nil {
+			t.Fatal(err)
+		}
+		for i, p := range pids {
+			if stockOf(p) != before[i] {
+				t.Fatalf("bundle piece %d not restocked", i)
+			}
+		}
+	})
+
+	t.Run("legacy_cancelled_not_voidable", func(t *testing.T) {
+		id := newID("a")
+		exec(`INSERT INTO orders(id,order_number,order_uuid,idempotency_key,outlet_id,cashier_id,cashier_name,subtotal,total,payment_method,amount_paid,status)
+		      VALUES($1,$2,gen_random_uuid(),$3,$4,$5,'VD Kasir',1000,1000,'cash',1000,'cancelled')`, id, "VD-LEG-"+id[len(id)-4:], "vd-leg-"+id, outlet, cashier)
+		if _, err := svc.VoidOrder(ctx, voidIn(id, "")); !errors.Is(err, service.ErrVoidAlreadyVoided) {
+			t.Fatalf("err = %v, want ErrVoidAlreadyVoided", err)
+		}
+	})
+
+	t.Run("void_no_movements_refused", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		exec(`DELETE FROM stock_movements WHERE ref_type='order' AND ref_id=$1 AND kind='sale'`, id)
+		if _, err := svc.VoidOrder(ctx, voidIn(id, shift)); !errors.Is(err, service.ErrVoidNoMovements) {
+			t.Fatalf("err = %v, want ErrVoidNoMovements", err)
+		}
+		if status(id) != "completed" {
+			t.Fatal("refused void changed the order")
 		}
 	})
 }

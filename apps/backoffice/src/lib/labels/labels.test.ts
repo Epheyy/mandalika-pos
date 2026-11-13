@@ -47,7 +47,7 @@ describe('coverage of API enums', () => {
   it('ERP_KIND covers every outbox kind', () => {
     const all: Record<ErpOutboxItem['kind'], true> = {
       sale: true, refund: true, transfer_out: true, transfer_in: true, transfer_cancel: true,
-      receipt: true, adjust: true, count: true, opening: true, write_off: true,
+      receipt: true, adjust: true, count: true, opening: true, write_off: true, void: true,
     }
     expect(Object.keys(labels.ERP_KIND).sort()).toEqual(Object.keys(all).sort())
   })

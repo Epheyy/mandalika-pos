@@ -84,7 +84,7 @@ func decideVoidAuthority(f voidFacts, in VoidInput) (VoidAuthority, error) {
 	}
 	// A POS void of a sale in the caller's own shift, after that shift closed, is refused even for
 	// a caller who also holds void_any: it is redone in the Backoffice.
-	if in.Source == VoidSourcePOS && matches && f.CallerShiftStatus != "open" {
+	if in.Source != VoidSourceBackoffice && matches && f.CallerShiftStatus != "open" {
 		return "", ErrVoidShiftClosed
 	}
 	if in.CanVoidAny {

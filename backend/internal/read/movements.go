@@ -106,9 +106,9 @@ func movementWhere(f MovementFilter, withChips bool) (string, []any) {
 	}
 	if f.Giveaway != nil {
 		if *f.Giveaway {
-			where += " AND m.dedupe_key LIKE 'giveaway:%'"
+			where += " AND (m.dedupe_key LIKE 'giveaway:%' OR m.dedupe_key LIKE 'void:%:giveaway:%')"
 		} else {
-			where += " AND m.dedupe_key NOT LIKE 'giveaway:%'"
+			where += " AND m.dedupe_key NOT LIKE 'giveaway:%' AND m.dedupe_key NOT LIKE 'void:%:giveaway:%'"
 		}
 	}
 	return where, args
@@ -118,7 +118,7 @@ const movementSelect = `
 SELECT m.id, m.seq, m.occurred_at, m.recorded_at, m.kind, m.location_type, m.location_id,
   COALESCE(lo.name, lw.name), p.name, m.product_id, m.variant_size, NULLIF(v.sku,''), v.barcode,
   m.qty, m.qty_before, m.qty_after, m.ref_type, m.ref_id, m.ref_number, m.flags,
-  (m.dedupe_key LIKE 'giveaway:%'), m.actor, u.display_name, COALESCE(wsa.reason, CASE WHEN sci.reason_code IS NOT NULL THEN sci.reason_text ELSE sc.reason_text END, NULLIF(orf.reason, '')), eo.status,
+  (m.dedupe_key LIKE 'giveaway:%' OR m.dedupe_key LIKE 'void:%:giveaway:%'), m.actor, u.display_name, COALESCE(wsa.reason, CASE WHEN sci.reason_code IS NOT NULL THEN sci.reason_text ELSE sc.reason_text END, NULLIF(orf.reason, '')), eo.status,
   COALESCE(wsa.reason_code, sci.reason_code, sc.reason_code), au.display_name, sar.number, pb.number,
   COALESCE(gr.source = 'warranty', false), sar.id, orf.seq
 FROM stock_movements m
@@ -294,7 +294,7 @@ func (r *Repo) movementLedgerSummary(ctx context.Context, w SeqWindow, locType, 
 	sql := fmt.Sprintf(`
 WITH rng AS (
   SELECT m.product_id, m.variant_size, m.kind, m.qty, m.qty_before, m.qty_after, m.seq,
-         (m.dedupe_key LIKE 'giveaway:%%') AS giveaway,
+         (m.dedupe_key LIKE 'giveaway:%%' OR m.dedupe_key LIKE 'void:%%:giveaway:%%') AS giveaway,
          COALESCE(gr.source = 'warranty', false) AS warranty,
          (t.source_warehouse_id IS NOT NULL) AS src_wh
   FROM stock_movements m
