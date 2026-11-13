@@ -158,6 +158,7 @@ func (s *OrderService) CreateReplacementOrder(ctx context.Context, in CreateOrde
 			return CreateOrderResult{}, err
 		}
 	}
+	outletKey := strings.ToLower(strings.TrimSpace(in.OutletID)) // BumpStockSeq's map key
 	seqs, err := write.BumpStockSeq(ctx, tx, in.OutletID)
 	if err != nil {
 		return CreateOrderResult{}, err
@@ -165,7 +166,7 @@ func (s *OrderService) CreateReplacementOrder(ctx context.Context, in CreateOrde
 	if err := tx.Commit(ctx); err != nil {
 		return CreateOrderResult{}, fmt.Errorf("commit: %w", err)
 	}
-	if seq := seqs[strings.ToLower(strings.TrimSpace(in.OutletID))]; seq > 0 {
+	if seq := seqs[outletKey]; seq > 0 {
 		res.StockSeq = &seq
 	}
 	return res, nil
