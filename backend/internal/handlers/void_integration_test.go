@@ -716,6 +716,30 @@ func TestVoidPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("shift_corrections_append_only", func(t *testing.T) {
+		shift := openShift()
+		id := sale(saleOpts{shift: shift}, product(5))
+		res, err := svc.VoidOrder(ctx, voidIn(id, shift))
+		if err != nil {
+			t.Fatal(err)
+		}
+		exec(`INSERT INTO shift_corrections(shift_id,void_id,order_id,kind,method,amount) VALUES($1,$2,$3,'void','cash',-100000)`, shift, res.VoidID, id)
+		for _, q := range []string{`UPDATE shift_corrections SET amount=-1`, `DELETE FROM shift_corrections`} {
+			if _, err := pool.Exec(ctx, q); err == nil || !strings.Contains(err.Error(), "append-only") {
+				t.Fatalf("%s: err = %v, want the append-only trigger", q, err)
+			}
+		}
+		for name, q := range map[string]string{
+			"amount_nonzero": `INSERT INTO shift_corrections(shift_id,void_id,order_id,kind,method,amount) VALUES($1,$2,$3,'replacement','qris',0)`,
+			"unique_row":     `INSERT INTO shift_corrections(shift_id,void_id,order_id,kind,method,amount) VALUES($1,$2,$3,'void','cash',-5)`,
+			"kind_check":     `INSERT INTO shift_corrections(shift_id,void_id,order_id,kind,method,amount) VALUES($1,$2,$3,'other','cash',-5)`,
+		} {
+			if _, err := pool.Exec(ctx, q, shift, res.VoidID, id); err == nil {
+				t.Fatalf("%s: insert accepted", name)
+			}
+		}
+	})
+
 	t.Run("bundle_sale_void_whole", func(t *testing.T) {
 		shift := openShift()
 		pids := []string{product(5), product(5), product(5)}
