@@ -189,7 +189,7 @@ func voidCore(ctx context.Context, tx pgx.Tx, in VoidInput, voidID string, extra
 		}
 	}
 
-	facts, err := loadVoidFacts(ctx, tx, in, o)
+	facts, err := loadVoidFacts(ctx, tx, true, in, o)
 	if err != nil {
 		return ap, err
 	}
@@ -236,7 +236,11 @@ func voidCore(ctx context.Context, tx pgx.Tx, in VoidInput, voidID string, extra
 
 // loadVoidFacts reads the shift, refund and setting facts the pure rules decide on, locking the
 // order's shift FOR SHARE so the void serialises with CloseShiftTx.
-func loadVoidFacts(ctx context.Context, tx pgx.Tx, in VoidInput, o voidOrderRow) (voidFacts, error) {
+func loadVoidFacts(ctx context.Context, tx voidQuerier, lock bool, in VoidInput, o voidOrderRow) (voidFacts, error) {
+	share := ""
+	if lock {
+		share = " FOR SHARE"
+	}
 	f := voidFacts{
 		Status: o.status, HasVoid: o.voidID != nil, OutletID: in.OutletID,
 		CreatedAt: o.createdAt, BusinessDate: o.businessDate,
@@ -254,7 +258,7 @@ func loadVoidFacts(ctx context.Context, tx pgx.Tx, in VoidInput, o voidOrderRow)
 	}
 	if o.shiftID != nil && *o.shiftID != "" {
 		f.ShiftID = *o.shiftID
-		if err := tx.QueryRow(ctx, `SELECT status, closed_at FROM shifts WHERE id=$1 FOR SHARE`, f.ShiftID).Scan(&f.ShiftStatus, &f.ShiftClosedAt); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		if err := tx.QueryRow(ctx, `SELECT status, closed_at FROM shifts WHERE id=$1`+share, f.ShiftID).Scan(&f.ShiftStatus, &f.ShiftClosedAt); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return f, fmt.Errorf("lock sale shift: %w", err)
 		}
 	}
@@ -265,7 +269,7 @@ func loadVoidFacts(ctx context.Context, tx pgx.Tx, in VoidInput, o voidOrderRow)
 				return f, err
 			}
 		} else {
-			err := tx.QueryRow(ctx, `SELECT status, opened_at FROM shifts WHERE id=$1 AND outlet_id=$2 FOR SHARE`, in.CallerShiftID, in.OutletID).
+			err := tx.QueryRow(ctx, `SELECT status, opened_at FROM shifts WHERE id=$1 AND outlet_id=$2`+share, in.CallerShiftID, in.OutletID).
 				Scan(&f.CallerShiftStatus, &f.CallerShiftOpenedAt)
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				return f, fmt.Errorf("lock caller shift: %w", err)
@@ -383,7 +387,7 @@ func planVoidStock(ctx context.Context, tx pgx.Tx, in VoidInput, o voidOrderRow,
 // voidCountedAfter returns the latest completed stock count of the outlet that counted this item
 // after the sale moved its stock, or "". saleCreatedAt is the server's orders.created_at, when the
 // stock row was decremented (never client_created_at).
-func voidCountedAfter(ctx context.Context, tx pgx.Tx, outletID, productID, size string, saleCreatedAt time.Time) (string, error) {
+func voidCountedAfter(ctx context.Context, tx voidQuerier, outletID, productID, size string, saleCreatedAt time.Time) (string, error) {
 	var id string
 	err := tx.QueryRow(ctx,
 		`SELECT c.id::text
@@ -568,4 +572,10 @@ func insertVoidAudit(ctx context.Context, tx pgx.Tx, in VoidInput, voidID, repla
 		}
 	}
 	return nil
+}
+
+// voidQuerier is the read surface shared by a transaction (the void) and the pool (the preview).
+type voidQuerier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }

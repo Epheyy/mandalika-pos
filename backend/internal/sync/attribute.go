@@ -66,7 +66,14 @@ type attributionLookup interface {
 	// scope (an outlet id), and the id/status a replay returns (M3). fp is the request
 	// fingerprint of the item being probed; a receipt stored under the same key for a
 	// different payload is service.ErrReceiptKeyConflict, never a replay.
-	Applied(ctx context.Context, typ, key, scope, fp string) (id, status, refundState string, ok bool, err error)
+	Applied(ctx context.Context, typ, key, scope, fp string) (out appliedOutcome, ok bool, err error)
+}
+
+// appliedOutcome is what a replay of an already-applied item acks.
+type appliedOutcome struct {
+	ID, Status, RefundState string
+	// ReplacementOrderID is set on a void that created a replacement sale (Void phase 2).
+	ReplacementOrderID string
 }
 
 type poolLookup struct{ q pgxQuerier }
@@ -111,8 +118,8 @@ func (p poolLookup) Shift(ctx context.Context, outletID, shiftID string) (shiftS
 // Applied implements the already-applied probe: orders via processed_keys, transfer
 // receives via the stored receive key, every other keyed op via its receipt. The scope
 // (outlet) must match what was recorded, like the receipt replay rule.
-func (p poolLookup) Applied(ctx context.Context, typ, key, scope, fp string) (string, string, string, bool, error) {
-	var id, refundState string
+func (p poolLookup) Applied(ctx context.Context, typ, key, scope, fp string) (appliedOutcome, bool, error) {
+	var id, refundState, replacementID string
 	var err error
 	status := "ok"
 	switch typ {
@@ -122,30 +129,30 @@ func (p poolLookup) Applied(ctx context.Context, typ, key, scope, fp string) (st
 			WHERE p.idempotency_key=$1 AND o.outlet_id::text=$2`, key, scope).Scan(&id)
 	case "transfer_receive":
 		err = p.q.QueryRow(ctx, `SELECT id::text FROM transfers WHERE received_idempotency_key=$1 AND dest_outlet_id::text=$2`, key, scope).Scan(&id)
-	case "refund", "shift_open", "shift_close", "cash_flow", "customer_create":
+	case "refund", "void", "shift_open", "shift_close", "cash_flow", "customer_create":
 		var outcome []byte
 		var stored string
 		err = p.q.QueryRow(ctx, `SELECT outcome, fingerprint FROM operation_receipts WHERE idempotency_key=$1 AND op_type=$2 AND scope=$3`, key, typ, scope).Scan(&outcome, &stored)
 		if err == nil {
 			if stored != fp {
-				return "", "", "", false, service.ErrReceiptKeyConflict
+				return appliedOutcome{}, false, service.ErrReceiptKeyConflict
 			}
 			var o receiptOutcome
 			if json.Unmarshal(outcome, &o) != nil || o.OrderID == "" && typ != "customer_create" {
-				return "", "", "", false, nil // receipt not completed: not applied
+				return appliedOutcome{}, false, nil // receipt not completed: not applied
 			}
-			id, refundState = o.OrderID, o.RefundState
+			id, refundState, replacementID = o.OrderID, o.RefundState, o.ReplacementOrderID
 		}
 	default:
-		return "", "", "", false, nil
+		return appliedOutcome{}, false, nil
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", "", "", false, nil
+		return appliedOutcome{}, false, nil
 	}
 	if err != nil {
-		return "", "", "", false, err
+		return appliedOutcome{}, false, err
 	}
-	return id, status, refundState, true, nil
+	return appliedOutcome{ID: id, Status: status, RefundState: refundState, ReplacementOrderID: replacementID}, true, nil
 }
 
 // alreadyApplied is consulted only when attribution is refused: an item that landed
@@ -153,7 +160,7 @@ func (p poolLookup) Applied(ctx context.Context, typ, key, scope, fp string) (st
 // first attempt's result, not go to review, and never apply twice (M3). The replay
 // only holds for the same payload: the key was committed for one operation, and a
 // different payload under it is a key conflict (review), like RunWithReceipt.
-func (e *Engine) alreadyApplied(ctx context.Context, c Caller, it BatchItem) (id, status, refundState string, ok bool, err error) {
+func (e *Engine) alreadyApplied(ctx context.Context, c Caller, it BatchItem) (out appliedOutcome, ok bool, err error) {
 	scope := c.OutletID
 	var env Envelope
 	if len(it.Envelope) > 0 && json.Unmarshal(it.Envelope, &env) == nil && env.OutletID != "" {
@@ -250,6 +257,7 @@ func (e *Engine) attribute(ctx context.Context, c Caller, it BatchItem) (Caller,
 	out := c
 	out.OutletID = env.OutletID
 	out.EnvelopeShiftID = envelopeShift
+	out.EnvelopeDeviceID = env.DeviceID
 	return out, nil
 }
 

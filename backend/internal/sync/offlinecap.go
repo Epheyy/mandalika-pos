@@ -20,7 +20,7 @@ const offlineExpiredMessage = "Transaksi dicatat lebih dari 12 jam setelah table
 // grant expires 12 h after it is minted (write.ReceiveApprovalTTL), measured on the server clock.
 func cappedType(t string) bool {
 	switch t {
-	case "order", "refund", "cash_flow":
+	case "order", "refund", "void", "cash_flow":
 		return true
 	}
 	return false

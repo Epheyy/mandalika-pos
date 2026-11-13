@@ -2097,6 +2097,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orders/{id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Void a sale (whole sale, mandatory reason); Backoffice path, needs void_any */
+        post: operations["voidOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{id}/void-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** What a void of this sale would do (eligibility, authority, stock lines a stock count already covered) */
+        get: operations["getVoidPreview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/shifts/{id}/close": {
         parameters: {
             query?: never;
@@ -3905,7 +3943,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            type: "earn" | "redeem" | "adjust" | "refund";
+            type: "earn" | "redeem" | "adjust" | "refund" | "void";
             points: number;
             balanceAfter: number;
             reason?: string | null;
@@ -4740,6 +4778,109 @@ export interface components {
              * @description When the tablet recorded the sale. Null on older rows; show createdAt then.
              */
             clientCreatedAt?: string | null;
+            void?: components["schemas"]["OrderVoidInfo"];
+            /**
+             * Format: uuid
+             * @description Set on a replacement sale: the voided order it replaces.
+             */
+            replacesOrderId?: string;
+            replacesOrderNumber?: string;
+            /** @description The device that rang the sale (used by the POS to tell its own unsynced sales apart). */
+            deviceId?: string;
+        };
+        OrderVoidInfo: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            reasonCode: "salah_metode_pembayaran" | "salah_barang" | "salah_promo" | "salah_pelanggan" | "transaksi_ganda" | "transaksi_tes" | "lainnya";
+            note?: string;
+            /** Format: date-time */
+            voidedAt: string;
+            voidedByName?: string;
+            /** @enum {string} */
+            source: "pos" | "backoffice";
+            afterClose: boolean;
+            /** @enum {string} */
+            mode: "none" | "replace" | "later";
+            /** Format: uuid */
+            replacementOrderId?: string;
+            replacementOrderNumber?: string;
+            /** @enum {string} */
+            followup?: "replacement" | "no_replacement";
+        };
+        VoidOrderRequest: {
+            /** @enum {string} */
+            reasonCode: "salah_metode_pembayaran" | "salah_barang" | "salah_promo" | "salah_pelanggan" | "transaksi_ganda" | "transaksi_tes" | "lainnya";
+            note?: string;
+            /**
+             * Format: uuid
+             * @description Required: makes a retry of the same void a replay.
+             */
+            clientVoidUuid: string;
+            /**
+             * @description Phase 1 accepts none only.
+             * @enum {string}
+             */
+            mode: "none" | "replace" | "later";
+            /** @description Sale-movement key -> choice, for every line the preview listed as countedAfter. */
+            stockChoices?: {
+                [key: string]: "restock" | "skip_counted";
+            };
+            replacement?: {
+                tenders?: components["schemas"]["TenderInput"][];
+                customerId?: string;
+            };
+        };
+        VoidPreviewLine: {
+            /** @description The sale movement's dedupe key; stockChoices uses the same key. */
+            key: string;
+            /** Format: uuid */
+            productId: string;
+            productName: string;
+            variantSize: string;
+            quantity: number;
+            /** @description An approved stock count covered this item after the sale: a choice is required. */
+            countedAfter: boolean;
+            stockCountName?: string;
+        };
+        VoidPreview: {
+            eligible: boolean;
+            refusal?: string;
+            /** @enum {string} */
+            authority?: "own_shift" | "any";
+            afterClose: boolean;
+            amountsLocked: boolean;
+            windowDays: number;
+            lines: components["schemas"]["VoidPreviewLine"][];
+        };
+        VoidPreviewResponse: {
+            data: components["schemas"]["VoidPreview"];
+        };
+        /** @description Body of a sync item of type void. */
+        SyncVoidPayload: {
+            reasonCode: string;
+            /** @enum {string} */
+            mode: "none" | "replace";
+            orderNumber: string;
+            total: number;
+            orderId?: string;
+            saleOrderUuid?: string;
+            note?: string;
+            stockChoices?: {
+                [key: string]: "restock" | "skip_counted";
+            };
+            /** @description Tablet-only display facts for the stock overlay; the server ignores them. */
+            restockLines?: {
+                productId: string;
+                variantSize: string;
+                quantity: number;
+            }[];
+            originalTenders?: {
+                method: string;
+                amount: number;
+            }[];
+            originalShiftId?: string;
+            replacement?: components["schemas"]["CreateOrderRequest"];
         };
         DiscountComponent: {
             label: string;
@@ -4996,6 +5137,8 @@ export interface components {
             recipesEnabled?: boolean;
             /** @description Split payment (several tender lines per sale). Absent = off; an update that omits it leaves the stored value. */
             splitTenderEnabled?: boolean;
+            /** @description Days after the business day a sale can still be voided. Absent on update = untouched. */
+            voidWindowDays?: number;
             /** @description When on, POST /inventory/adjust and POST /stock-counts/{id}/complete answer 409 approval_required. The server does not return it before the approvals slice. */
             inventoryApprovalRequired?: boolean;
         };
@@ -5396,7 +5539,7 @@ export interface components {
         };
         SyncBatchItem: {
             /** @enum {string} */
-            type: "order" | "refund" | "shift_open" | "shift_close" | "cash_flow" | "customer_create" | "transfer_receive";
+            type: "order" | "refund" | "void" | "shift_open" | "shift_close" | "cash_flow" | "customer_create" | "transfer_receive";
             idempotencyKey: string;
             /** @description Per-type body. For transfer_receive (A08) it carries transferId, items, discrepancyReason and approvalGrantId (from createTransferReceiveApproval); it never carries a pin, and the server ignores any approverUserId (the approver is the grant's). An item without a usable grant is refused as forbidden and goes to review. For refund (C4a) see SyncRefundPayload: legacy {orderId, reason} refunds the whole order; the per-line shape adds items [{lineNo, quantity}], refundAmount and reasonCode. For order the body is CreateOrderRequest (C6a adds tenders [TenderInput]). */
             payload: {
@@ -5517,6 +5660,8 @@ export interface components {
             status: "ok" | "duplicate" | "error";
             orderId?: string;
             stockWarning?: boolean;
+            /** @description Present on a void ack that created a replacement sale. */
+            replacementOrderId?: string;
             /**
              * @description C4a: present on a refund ack. "full" = this refund left the order fully refunded, "partial" = it is partially refunded. Optional and NOT nullable; absent from an older server.
              * @enum {string}
@@ -10996,6 +11141,83 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             /** @description already refunded; partially refunded; not completed; or not found at this outlet */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    voidOrder: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoidOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description the cancelled order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description invalid order id, reason, note or clientVoidUuid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description already voided, refunded, not completed, outside the void window, or not found at this outlet */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getVoidPreview: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoidPreviewResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description order not found at this outlet */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

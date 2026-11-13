@@ -24,7 +24,7 @@ const (
 )
 
 var reviewOpTypes = map[string]bool{
-	"order": true, "refund": true, "shift_open": true, "shift_close": true,
+	"order": true, "refund": true, "void": true, "shift_open": true, "shift_close": true,
 	"cash_flow": true, "customer_create": true, "transfer_receive": true,
 }
 

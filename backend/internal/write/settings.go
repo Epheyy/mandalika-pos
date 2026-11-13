@@ -70,6 +70,8 @@ func (r *Repo) UpdateAppSettingsBy(ctx context.Context, actor string, raw json.R
 		// SplitTenderEnabled: absent leaves the stored value untouched (a form that does not
 		// know the key must not switch split payment off).
 		SplitTenderEnabled *bool `json:"splitTenderEnabled"`
+		// VoidWindowDays: absent leaves the stored value untouched; outside 1-30 is refused.
+		VoidWindowDays *int `json:"voidWindowDays"`
 	}
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return err
@@ -88,6 +90,9 @@ func (r *Repo) UpdateAppSettingsBy(ctx context.Context, actor string, raw json.R
 	}
 	if s.ReceiveApproverRoles == nil {
 		s.ReceiveApproverRoles = []string{}
+	}
+	if s.VoidWindowDays != nil && (*s.VoidWindowDays < 1 || *s.VoidWindowDays > 30) {
+		return errors.New("Batas waktu pembatalan harus 1–30 hari.")
 	}
 
 	return r.tx(ctx, "appSettings", func(t pgx.Tx) error {
@@ -148,6 +153,11 @@ func (r *Repo) UpdateAppSettingsBy(ctx context.Context, actor string, raw json.R
 				                                 ELSE split_tender_enabled_at END
 				WHERE id=1`, *s.SplitTenderEnabled); e != nil {
 				return fmt.Errorf("update split_tender_enabled: %w", e)
+			}
+		}
+		if s.VoidWindowDays != nil {
+			if _, e := t.Exec(ctx, `UPDATE app_settings SET void_window_days=$1 WHERE id=1`, *s.VoidWindowDays); e != nil {
+				return fmt.Errorf("update void_window_days: %w", e)
 			}
 		}
 		if s.InventoryApprovalRequired != nil {

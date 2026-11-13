@@ -1,8 +1,12 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,10 +15,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/mandalika/pos-backend/internal/auth"
+	"github.com/mandalika/pos-backend/internal/config"
 	"github.com/mandalika/pos-backend/internal/integration/erp"
 	"github.com/mandalika/pos-backend/internal/ledger"
+	mw "github.com/mandalika/pos-backend/internal/middleware"
+	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/service"
+	syncpkg "github.com/mandalika/pos-backend/internal/sync"
+	"github.com/mandalika/pos-backend/internal/write"
 )
 
 // Void phase 1: the void write path, its audit record, the ledger kind and the ERP hold.
@@ -476,6 +487,46 @@ func TestVoidPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("void_count_before_sale_plain_restock", func(t *testing.T) {
+		// A stock count completed BEFORE the sale did not cover its decrement: no choice is needed,
+		// so an offline void (no stock choices) restocks.
+		shift := openShift()
+		p := product(5)
+		cid := newID("5")
+		exec(`INSERT INTO stock_counts(id,name,status,outlet_id,completed_at) VALUES($1,'VD old count','completed',$2,now() - interval '1 hour')`, cid, outlet)
+		exec(`INSERT INTO stock_count_items(stock_count_id,product_id,product_name,variant_size,frozen_qty,actual_qty,difference) VALUES($1,$2,'VD',$3,5,5,0)`, cid, p, size)
+		id := sale(saleOpts{shift: shift}, p)
+		before := stockOf(p)
+		res, err := svc.VoidOrder(ctx, voidIn(id, shift))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if stockOf(p) != before+1 {
+			t.Fatalf("stock %d -> %d, want +1", before, stockOf(p))
+		}
+		if one(`SELECT count(*) FROM order_void_items WHERE void_id=$1 AND counted_stock_count_id IS NOT NULL`, res.VoidID) != 0 {
+			t.Fatal("an earlier count was recorded as covering the sale")
+		}
+	})
+
+	t.Run("void_gone_variant_recorded", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		exec(`DELETE FROM outlet_variant_stock WHERE product_id=$1`, p)
+		exec(`DELETE FROM product_variants WHERE product_id=$1`, p)
+		res, err := svc.VoidOrder(ctx, voidIn(id, shift))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if one(`SELECT count(*) FROM order_void_items WHERE void_id=$1 AND choice='gone'`, res.VoidID) != 1 {
+			t.Fatal("a line whose variant and stock row are gone must be recorded as gone, not restocked")
+		}
+		if one(`SELECT count(*) FROM outlet_variant_stock WHERE product_id=$1`, p) != 0 {
+			t.Fatal("a gone line created a stock row")
+		}
+	})
+
 	t.Run("void_refunded_refused", func(t *testing.T) {
 		shift := openShift()
 		p := product(5)
@@ -533,20 +584,28 @@ func TestVoidPostgres(t *testing.T) {
 		for round := 0; round < 20; round++ {
 			id := sale(saleOpts{shift: shift}, p)
 			var wg sync.WaitGroup
+			var voidErr, refundErr error
 			wg.Add(2)
 			go func() {
 				defer wg.Done()
-				_, _ = svc.VoidOrder(ctx, voidIn(id, shift))
+				_, voidErr = svc.VoidOrder(ctx, voidIn(id, shift))
 			}()
 			go func() {
 				defer wg.Done()
-				_ = svc.Refund(ctx, service.RefundInput{OutletID: outlet, OrderID: id, Reason: "vd race", ShiftID: shift, UserID: cashier, UserName: "VD Kasir"})
+				refundErr = svc.Refund(ctx, service.RefundInput{OutletID: outlet, OrderID: id, Reason: "vd race", ShiftID: shift, UserID: cashier, UserName: "VD Kasir"})
 			}()
 			wg.Wait()
 			voids := one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, id)
 			refunds := one(`SELECT count(*) FROM order_refunds WHERE order_id=$1`, id)
 			if voids+refunds != 1 {
 				t.Fatalf("round %d: %d voids + %d refunds, want exactly one", round, voids, refunds)
+			}
+			// The loser must lose cleanly (not by a deadlock or other abort).
+			if voids == 1 && !errors.Is(refundErr, service.ErrOrderNotRefundable) {
+				t.Fatalf("round %d: void won, refund err = %v, want ErrOrderNotRefundable (void err %v)", round, refundErr, voidErr)
+			}
+			if refunds == 1 && !errors.Is(voidErr, service.ErrVoidRefunded) {
+				t.Fatalf("round %d: refund won, void err = %v, want ErrVoidRefunded (refund err %v)", round, voidErr, refundErr)
 			}
 		}
 	})
@@ -601,6 +660,237 @@ func TestVoidPostgres(t *testing.T) {
 		}
 		if status(id) != "completed" {
 			t.Fatal("refused void changed the order")
+		}
+	})
+
+	// ── Task 1.5: the sync item, the direct endpoint, the preview, the order read, the setting ──
+	rd, wr := read.New(pool), write.New(pool)
+	h := New(rd, nil, auth.NewStore(pool), wr, svc, syncpkg.New(pool, rd, svc, wr), nil)
+	key := []byte("VD-SYNTHETIC-TEST-KEY")
+	tok := func(user, role string, perms []string) string {
+		t.Helper()
+		v, err := auth.IssueAccess(key, time.Hour, user, role, outlet, perms)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	router := chi.NewRouter()
+	router.Use(mw.RequireAuth(&config.Config{AccessSecret: key}))
+	router.Post("/sync/batch", h.SyncBatch)
+	router.Get("/orders/{id}", h.Order)
+	router.With(mw.RequirePermission("void_any")).Post("/orders/{id}/void", h.VoidOrder)
+	router.Get("/orders/{id}/void-preview", h.VoidPreview)
+	do := func(token, method, path string, body any) (int, map[string]any) {
+		t.Helper()
+		var buf bytes.Buffer
+		if body != nil {
+			if err := json.NewEncoder(&buf).Encode(body); err != nil {
+				t.Fatal(err)
+			}
+		}
+		r := httptest.NewRequest(method, path, &buf)
+		r.Header.Set("Authorization", "Bearer "+token)
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, r)
+		var out map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &out)
+		return w.Code, out
+	}
+	const syncDevice = "vd-sync-dev"
+	sendItem := func(token string, item map[string]any) map[string]any {
+		t.Helper()
+		code, body := do(token, http.MethodPost, "/sync/batch", map[string]any{"items": []any{item}})
+		if code != http.StatusOK {
+			t.Fatalf("sync batch = %d %v", code, body)
+		}
+		return body["data"].(map[string]any)["results"].([]any)[0].(map[string]any)
+	}
+	voidItem := func(shift, orderID string, extra map[string]any) map[string]any {
+		t.Helper()
+		uid := newID("4")
+		payload := map[string]any{
+			"orderId": orderID, "reasonCode": "salah_barang", "mode": "none", "orderNumber": "VD-1", "total": 100000,
+			"deviceId": syncDevice, "orderUuid": uid,
+		}
+		for k, v := range extra {
+			payload[k] = v
+		}
+		return map[string]any{
+			"type": "void", "idempotencyKey": syncDevice + ":" + uid, "payload": payload,
+			"envelope": map[string]any{"v": 1, "outletId": outlet, "userId": cashier, "deviceId": syncDevice, "capturedAt": time.Now().UTC().Format(time.RFC3339), "shiftId": shift},
+		}
+	}
+	cashierTok := tok(cashier, "cashier", []string{"void_own_shift"})
+
+	t.Run("sync_void_item_ok", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		before := stockOf(p)
+		res := sendItem(cashierTok, voidItem(shift, id, nil))
+		if res["status"] != "ok" || res["orderId"] != id {
+			t.Fatalf("result = %v", res)
+		}
+		if status(id) != "cancelled" || stockOf(p) != before+1 {
+			t.Fatalf("status %s stock %d -> %d", status(id), before, stockOf(p))
+		}
+		if str(`SELECT source||'/'||authority FROM order_voids WHERE order_id=$1`, id) != "pos/own_shift" {
+			t.Fatal("audit source/authority")
+		}
+	})
+
+	t.Run("void_permission_revoked", func(t *testing.T) {
+		shift := openShift()
+		first, second := sale(saleOpts{shift: shift}, product(5)), sale(saleOpts{shift: shift}, product(5))
+		noPerms := tok(cashier, "cashier", nil)
+		// Not committed: forbidden, non-retryable, nothing applied.
+		res := sendItem(noPerms, voidItem(shift, first, nil))
+		if res["status"] != "error" || res["code"] != "forbidden" || res["retryable"] != false {
+			t.Fatalf("result = %v, want a non-retryable forbidden", res)
+		}
+		if status(first) != "completed" {
+			t.Fatal("a refused void changed the order")
+		}
+		// Committed with the permission, then replayed after it was revoked: ok (M3 rule).
+		item := voidItem(shift, second, nil)
+		if okRes := sendItem(cashierTok, item); okRes["status"] != "ok" {
+			t.Fatalf("result = %v", okRes)
+		}
+		stockAfter := one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, second)
+		replay := sendItem(noPerms, item) // same key and payload, permission now gone
+		if replay["status"] != "ok" || replay["orderId"] != second {
+			t.Fatalf("replay = %v, want ok with the stored order id (M3 rule)", replay)
+		}
+		if one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, second) != stockAfter {
+			t.Fatal("the replay applied again")
+		}
+	})
+
+	t.Run("void_preview_lists_counted_lines", func(t *testing.T) {
+		shift := openShift()
+		id, _, _, key := countedSale(shift)
+		code, body := do(cashierTok, http.MethodGet, "/orders/"+id+"/void-preview", nil)
+		if code != http.StatusOK {
+			t.Fatalf("preview = %d %v", code, body)
+		}
+		data := body["data"].(map[string]any)
+		if data["eligible"] != true || data["authority"] != "own_shift" || data["amountsLocked"] != false {
+			t.Fatalf("preview = %v", data)
+		}
+		var found bool
+		for _, l := range data["lines"].([]any) {
+			line := l.(map[string]any)
+			if line["key"] == key {
+				found = true
+				if line["countedAfter"] != true || line["stockCountName"] != "VD count" {
+					t.Fatalf("line = %v", line)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("counted line %s missing from %v", key, data["lines"])
+		}
+		// Without either void permission the preview is forbidden.
+		if code, _ := do(tok(cashier, "cashier", nil), http.MethodGet, "/orders/"+id+"/void-preview", nil); code != http.StatusForbidden {
+			t.Fatalf("preview without permission = %d, want 403", code)
+		}
+	})
+
+	t.Run("order_read_has_void", func(t *testing.T) {
+		shift := openShift()
+		id := sale(saleOpts{shift: shift}, product(5))
+		if _, err := svc.VoidOrder(ctx, voidIn(id, shift)); err != nil {
+			t.Fatal(err)
+		}
+		code, body := do(tok(adminU, "admin", nil), http.MethodGet, "/orders/"+id, nil)
+		if code != http.StatusOK {
+			t.Fatalf("GET order = %d %v", code, body)
+		}
+		data := body["data"].(map[string]any)
+		v, ok := data["void"].(map[string]any)
+		if data["status"] != "cancelled" || !ok || v["reasonCode"] != "salah_metode_pembayaran" || v["mode"] != "none" || v["source"] != "pos" {
+			t.Fatalf("order = %v", data)
+		}
+	})
+
+	t.Run("direct_void_backoffice", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		before := stockOf(p)
+		anyTok := tok(adminU, "cashier", []string{"void_any"})
+		body := map[string]any{"reasonCode": "transaksi_tes", "mode": "none", "clientVoidUuid": newID("4")}
+		if code, _ := do(cashierTok, http.MethodPost, "/orders/"+id+"/void", body); code != http.StatusForbidden {
+			t.Fatalf("void_own_shift alone on the Backoffice route = %d, want 403", code)
+		}
+		if code, _ := do(anyTok, http.MethodPost, "/orders/"+id+"/void", map[string]any{"reasonCode": "transaksi_tes", "mode": "none"}); code != http.StatusBadRequest {
+			t.Fatalf("missing clientVoidUuid = %d, want 400", code)
+		}
+		if code, _ := do(anyTok, http.MethodPost, "/orders/"+id+"/void", map[string]any{"reasonCode": "transaksi_tes", "mode": "replace", "clientVoidUuid": newID("4")}); code != http.StatusBadRequest {
+			t.Fatalf("replace mode in phase 1 = %d, want 400", code)
+		}
+		code, out := do(anyTok, http.MethodPost, "/orders/"+id+"/void", body)
+		if code != http.StatusOK || out["data"].(map[string]any)["status"] != "cancelled" {
+			t.Fatalf("void = %d %v", code, out)
+		}
+		if stockOf(p) != before+1 {
+			t.Fatalf("stock %d -> %d", before, stockOf(p))
+		}
+		// A retry with the same client uuid replays; a different uuid conflicts.
+		if code, _ := do(anyTok, http.MethodPost, "/orders/"+id+"/void", body); code != http.StatusOK {
+			t.Fatalf("replay = %d, want 200", code)
+		}
+		if stockOf(p) != before+1 || one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, id) != 1 {
+			t.Fatal("replay applied again")
+		}
+		body["clientVoidUuid"] = newID("4")
+		if code, _ := do(anyTok, http.MethodPost, "/orders/"+id+"/void", body); code != http.StatusConflict {
+			t.Fatalf("second void = %d, want 409", code)
+		}
+		if str(`SELECT source||'/'||authority||'/'||device_id FROM order_voids WHERE order_id=$1`, id) != "backoffice/any/backoffice:"+adminU {
+			t.Fatal("audit source/authority/device")
+		}
+	})
+
+	t.Run("void_window_setting_enforced", func(t *testing.T) {
+		raw := func(extra string) json.RawMessage {
+			return json.RawMessage(`{"taxEnabled":false,"taxRate":0,"roundingEnabled":false,"roundingType":"none","autoOpenShift":false,"allowNegativeStock":false,"paymentMethods":[],"receipt":{}` + extra + `}`)
+		}
+		if err := wr.UpdateAppSettingsBy(ctx, adminU, raw(`,"voidWindowDays":14`)); err != nil {
+			t.Fatal(err)
+		}
+		if one(`SELECT void_window_days FROM app_settings WHERE id=1`) != 14 {
+			t.Fatal("voidWindowDays not stored")
+		}
+		if err := wr.UpdateAppSettingsBy(ctx, adminU, raw("")); err != nil || one(`SELECT void_window_days FROM app_settings WHERE id=1`) != 14 {
+			t.Fatalf("an update that omits voidWindowDays must leave it untouched (err %v)", err)
+		}
+		if err := wr.UpdateAppSettingsBy(ctx, adminU, raw(`,"voidWindowDays":31`)); err == nil {
+			t.Fatal("31 days accepted")
+		}
+		s, err := rd.AppSettings(ctx)
+		if err != nil || s.VoidWindowDays == nil || *s.VoidWindowDays != 14 {
+			t.Fatalf("read = %+v, %v", s.VoidWindowDays, err)
+		}
+		// The window is enforced from the stored value: a sale 3 days old is outside a 1-day window.
+		if err := wr.UpdateAppSettingsBy(ctx, adminU, raw(`,"voidWindowDays":1`)); err != nil {
+			t.Fatal(err)
+		}
+		shift := openShift()
+		id := sale(saleOpts{shift: shift}, product(5))
+		exec(`UPDATE orders SET business_date = business_date - 3 WHERE id=$1`, id)
+		in := voidIn(id, "")
+		in.Source, in.CanVoidOwnShift, in.CanVoidAny = service.VoidSourceBackoffice, false, true
+		if _, err := svc.VoidOrder(ctx, in); err == nil || !strings.Contains(err.Error(), "1 hari") {
+			t.Fatalf("err = %v, want the window refusal naming 1 hari", err)
+		}
+		if err := wr.UpdateAppSettingsBy(ctx, adminU, raw(`,"voidWindowDays":7`)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.VoidOrder(ctx, in); err != nil {
+			t.Fatalf("within a 7-day window: %v", err)
 		}
 	})
 }

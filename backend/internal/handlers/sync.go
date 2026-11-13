@@ -70,7 +70,9 @@ func (h *Handlers) syncBatch(w http.ResponseWriter, r *http.Request,
 	res, err := process(r.Context(), syncpkg.Caller{
 		OutletID: c.outletID, UserID: c.userID, DisplayName: c.name,
 		Role: c.role, HomeOutletID: c.homeOutletID,
-		CanRefund: auth.HasPermission(r.Context(), "process_refund"),
+		CanRefund:       auth.HasPermission(r.Context(), "process_refund"),
+		CanVoidOwnShift: auth.HasPermission(r.Context(), "void_own_shift"),
+		CanVoidAny:      auth.HasPermission(r.Context(), "void_any"),
 	}, items)
 	if err != nil {
 		syncFail(w, r, err)
