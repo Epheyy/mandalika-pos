@@ -437,33 +437,47 @@ func TestVoidPostgres(t *testing.T) {
 	t.Run("void_last_visit_moves_back", func(t *testing.T) {
 		shift := openShift()
 		cust := customer(0)
+		lastVisit := func() string { return str(`SELECT COALESCE(last_visit::text,'null') FROM customers WHERE id=$1`, cust) }
+		createdAt := func(id string) string { return str(`SELECT created_at::text FROM orders WHERE id=$1`, id) }
 		first := sale(saleOpts{shift: shift, cust: cust}, product(5))
 		second := sale(saleOpts{shift: shift, cust: cust}, product(5))
-		firstAt := str(`SELECT created_at::text FROM orders WHERE id=$1`, first)
-		lastVisit := func() string { return str(`SELECT last_visit::text FROM customers WHERE id=$1`, cust) }
-		if lastVisit() != str(`SELECT created_at::text FROM orders WHERE id=$1`, second) {
-			t.Fatal("fixture: last_visit should be the latest sale's time")
+		if lastVisit() != createdAt(second) || createdAt(first) == createdAt(second) {
+			t.Fatal("fixture: last_visit should be the latest sale's time, distinct from the first")
 		}
-		// Voiding the older sale leaves a later visit alone.
-		secondAt := lastVisit()
-		if _, err := svc.VoidOrder(ctx, voidIn(first, shift)); err != nil {
+		// Voiding the latest sale moves last_visit back to the latest remaining order.
+		if _, err := svc.VoidOrder(ctx, voidIn(second, shift)); err != nil {
 			t.Fatal(err)
 		}
-		if lastVisit() != secondAt {
-			t.Fatalf("voiding an older sale changed last_visit to %s", lastVisit())
+		if got := lastVisit(); got != createdAt(first) {
+			t.Fatalf("last_visit = %s, want the remaining order's time %s", got, createdAt(first))
 		}
-		// Voiding the latest one moves it back to the latest remaining non-voided order: none is left
-		// (the first was voided), so the stored value stays; with a live earlier order it moves back.
+		// A stored last_visit later than the voided sale is never touched.
 		third := sale(saleOpts{shift: shift, cust: cust}, product(5))
-		fourthAt := str(`SELECT created_at::text FROM orders WHERE id=$1`, third)
-		if lastVisit() != fourthAt {
-			t.Fatal("fixture: last_visit should follow the newest sale")
-		}
+		exec(`UPDATE customers SET last_visit = now() + interval '1 day' WHERE id=$1`, cust)
+		later := lastVisit()
 		if _, err := svc.VoidOrder(ctx, voidIn(third, shift)); err != nil {
 			t.Fatal(err)
 		}
-		if got := lastVisit(); got != secondAt {
-			t.Fatalf("last_visit = %s, want the remaining latest order %s (first was %s)", got, secondAt, firstAt)
+		if got := lastVisit(); got != later {
+			t.Fatalf("a later last_visit changed from %s to %s", later, got)
+		}
+		// The customer's only live order voided: nothing remains, so last_visit clears.
+		if _, err := svc.VoidOrder(ctx, voidIn(first, shift)); err != nil {
+			t.Fatal(err)
+		}
+		if got := lastVisit(); got != later {
+			t.Fatalf("voiding an older sale must not change a later last_visit (got %s)", got)
+		}
+		solo := customer(0)
+		soloOrder := sale(saleOpts{shift: shift, cust: solo}, product(5))
+		if str(`SELECT COALESCE(last_visit::text,'null') FROM customers WHERE id=$1`, solo) != createdAt(soloOrder) {
+			t.Fatal("fixture: solo last_visit")
+		}
+		if _, err := svc.VoidOrder(ctx, voidIn(soloOrder, shift)); err != nil {
+			t.Fatal(err)
+		}
+		if got := str(`SELECT COALESCE(last_visit::text,'null') FROM customers WHERE id=$1`, solo); got != "null" {
+			t.Fatalf("a customer whose only order was voided has last_visit %s, want null", got)
 		}
 	})
 

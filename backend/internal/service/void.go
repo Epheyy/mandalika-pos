@@ -488,14 +488,13 @@ func reverseVoidCustomer(ctx context.Context, tx pgx.Tx, in VoidInput, o voidOrd
 		return fmt.Errorf("reverse customer spend and visit: %w", err)
 	}
 	// last_visit: the sale set it to now(), which equals orders.created_at (same transaction). When it
-	// still equals that, this sale was the latest visit: move it back to the latest remaining
-	// non-voided order. A later visit (a different value) is never touched, and a customer with no
-	// other order keeps the stored value (it may come from an import, so it is never nulled).
+	// still equals that, this sale was the latest visit (it already overwrote any older value, imported
+	// or not): move it back to the latest remaining non-voided order, or NULL when there is none (the
+	// customer has not visited). A later visit (a different value) is never touched.
 	if _, err := tx.Exec(ctx,
-		`UPDATE customers c SET last_visit = COALESCE(
+		`UPDATE customers c SET last_visit =
 		        (SELECT max(x.created_at) FROM orders x
-		          WHERE x.customer_id = c.id AND x.id <> $2 AND x.status IN ('completed','partially_refunded','refunded')),
-		        c.last_visit)
+		          WHERE x.customer_id = c.id AND x.id <> $2 AND x.status IN ('completed','partially_refunded','refunded'))
 		  WHERE c.id = $1 AND c.last_visit = $3`, keeper, in.OrderID, o.createdAt); err != nil {
 		return fmt.Errorf("reverse customer last_visit: %w", err)
 	}
