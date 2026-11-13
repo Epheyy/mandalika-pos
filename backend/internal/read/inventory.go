@@ -310,14 +310,18 @@ sold AS (
   SELECT oi.product_id, oi.variant_size, SUM(oi.quantity) AS qty
   FROM order_items oi
   JOIN orders o ON o.id = oi.order_id
-  WHERE o.outlet_id = $1 AND o.status IN ('completed','partially_refunded') AND oi.is_bundle = false
+  -- A voided sale's units did leave stock when it was rung, so it still counts as sold; its returns
+  -- are counted once, at void time, by the order_void_items branch of refunded below. The parentheses
+  -- keep the status test from escaping the outlet filter.
+  WHERE o.outlet_id = $1 AND (o.status IN ('completed','partially_refunded') OR o.void_id IS NOT NULL)
+    AND oi.is_bundle = false
     AND o.created_at >= $2 AND o.created_at < $3
   GROUP BY 1,2
 ),
 refunded AS (
   -- C4a: refunded units come from order_refund_items (a part refund counts only its units;
   -- legacy_full rows carry the full quantity and are counted whether or not restocked).
-  -- Cancelled orders keep the old whole-order rule.
+  -- Cancelled orders with no void record (fsmigrate imports) keep the old whole-order rule.
   SELECT x.product_id, x.variant_size, SUM(x.qty) AS qty FROM (
     SELECT oi.product_id, oi.variant_size, ri.quantity AS qty
     FROM order_refund_items ri
@@ -329,9 +333,19 @@ refunded AS (
     SELECT oi.product_id, oi.variant_size, oi.quantity AS qty
     FROM order_items oi
     JOIN orders o ON o.id = oi.order_id
-    WHERE o.outlet_id = $1 AND o.status = 'cancelled' AND oi.is_bundle = false
+    WHERE o.outlet_id = $1 AND o.status = 'cancelled' AND o.void_id IS NULL AND oi.is_bundle = false
       AND COALESCE(o.refunded_at, o.created_at) >= $2
       AND COALESCE(o.refunded_at, o.created_at) < $3
+    UNION ALL
+    -- Void (migration 0092): the units a void put back on the shelf, dated at the void. A line the
+    -- user skipped as already corrected by a stock count (or one whose variant is gone) was not
+    -- returned. order_item_id IS NOT NULL drops the giveaway line (sold never counted it: it is not
+    -- an order item).
+    SELECT vi.product_id, vi.variant_size, vi.qty
+    FROM order_void_items vi
+    JOIN order_voids v ON v.id = vi.void_id
+    WHERE v.outlet_id = $1 AND vi.choice = 'restock' AND vi.order_item_id IS NOT NULL
+      AND v.voided_at >= $2 AND v.voided_at < $3
   ) x
   GROUP BY 1,2
 ),

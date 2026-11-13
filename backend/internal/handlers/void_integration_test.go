@@ -893,4 +893,104 @@ func TestVoidPostgres(t *testing.T) {
 			t.Fatalf("within a 7-day window: %v", err)
 		}
 	})
+
+	// ── Task 1.6: reports and the movement summary ───────────────────────────────────────────
+	t.Run("void_report_exclusion", func(t *testing.T) {
+		shift := openShift()
+		keep := sale(saleOpts{shift: shift}, product(5))
+		gone := sale(saleOpts{shift: shift}, product(5), product(5))
+		day := str(`SELECT business_date::text FROM orders WHERE id=$1`, gone)
+		dash := func() float64 {
+			t.Helper()
+			d, err := rd.DashboardAggregate(ctx, read.DashboardFilter{Scope: read.Scope{OutletID: outlet}, From: day, To: day, Trend: read.DashboardTrendDay})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return d.Current.Gross
+		}
+		sum := func() (float64, int) {
+			t.Helper()
+			sm, err := rd.ReportSummary(ctx, read.OrderFilter{Scope: read.Scope{OutletID: outlet}, ShiftID: shift})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return sm.TotalSales, sm.TotalOrders
+		}
+		if sales, orders := sum(); sales != 300000 || orders != 2 {
+			t.Fatalf("fixture: totalSales %v totalOrders %d, want 300000 and 2", sales, orders)
+		}
+		grossBefore := dash()
+		if _, err := svc.VoidOrder(ctx, voidIn(gone, shift)); err != nil {
+			t.Fatal(err)
+		}
+		if sales, orders := sum(); sales != 100000 || orders != 1 {
+			t.Fatalf("after the void: totalSales %v totalOrders %d, want 100000 and 1", sales, orders)
+		}
+		if got := dash(); grossBefore-got != 200000 {
+			t.Fatalf("dashboard gross fell by %v, want the voided 200000", grossBefore-got)
+		}
+		_ = keep
+	})
+
+	t.Run("movement_summary_void", func(t *testing.T) {
+		shift := openShift()
+		x := product(10)
+		other := product(10)
+		counted := product(10)
+		id := sale(saleOpts{shift: shift}, x, x) // two lines of x: 2 units sold
+		cid, cp, ccid, ckey := countedSale(shift)
+		_, _ = cp, ccid
+		_ = counted
+		day := str(`SELECT business_date::text FROM orders WHERE id=$1`, id)
+		from := str(`SELECT ($1::date - 1)::text`, day)
+		to := str(`SELECT ($1::date + 2)::text`, day)
+		in := voidIn(id, shift)
+		if _, err := svc.VoidOrder(ctx, in); err != nil {
+			t.Fatal(err)
+		}
+		skip := voidIn(cid, shift)
+		skip.StockChoices = map[string]service.VoidStockChoice{ckey: service.VoidStockSkipCounted}
+		if _, err := svc.VoidOrder(ctx, skip); err != nil {
+			t.Fatal(err)
+		}
+		// A voided order at another outlet must not leak into this outlet's summary.
+		out2 := newID("b")
+		exec(`INSERT INTO outlets(id,name) VALUES($1,'VD Outlet 2')`, out2)
+		exec(`INSERT INTO outlet_variant_stock(outlet_id,product_id,variant_size,stock) VALUES($1,$2,$3,10)`, out2, other, size)
+		o2, dup, _, err := svc.CreateOrder(ctx, service.CreateOrderInput{
+			IdempotencyKey: "vd-sale-" + newID("4"), OrderUUID: newID("4"), OutletID: out2,
+			CashierID: cashier, CashierName: "VD Kasir",
+			Items:         []service.OrderItem{{ProductID: other, ProductName: "VD", VariantSize: size, Price: 100000, Quantity: 1, Subtotal: 100000}},
+			PaymentMethod: "cash", AmountPaid: 100000,
+		})
+		if err != nil || dup {
+			t.Fatalf("outlet 2 sale: dup=%v err=%v", dup, err)
+		}
+		in2 := voidIn(o2, "")
+		in2.OutletID, in2.Source, in2.CanVoidOwnShift, in2.CanVoidAny = out2, service.VoidSourceBackoffice, false, true
+		if _, err := svc.VoidOrder(ctx, in2); err != nil {
+			t.Fatal(err)
+		}
+
+		rows, _, err := rd.MovementSummary(ctx, "outlet", outlet, from, to, 1, 5000)
+		if err != nil {
+			t.Fatal(err)
+		}
+		byProduct := map[string]struct{ sold, refunded int }{}
+		for _, r := range rows {
+			byProduct[r.ProductId.String()] = struct{ sold, refunded int }{r.Sold, r.Refunded}
+		}
+		if got := byProduct[x]; got.sold != 2 || got.refunded != 2 {
+			t.Fatalf("x sold/refunded = %+v, want 2/2 (the void counts once, at void time)", got)
+		}
+		if got := byProduct[cp]; got.sold != 1 || got.refunded != 0 {
+			t.Fatalf("a skip_counted line sold/refunded = %+v, want 1/0", got)
+		}
+		if got := byProduct[giveaway]; got.sold != 0 || got.refunded != 0 {
+			t.Fatalf("the giveaway sold/refunded = %+v, want 0/0 (not an order item)", got)
+		}
+		if got := byProduct[other]; got.sold != 0 || got.refunded != 0 {
+			t.Fatalf("another outlet's voided order leaked: %+v", got)
+		}
+	})
 }
