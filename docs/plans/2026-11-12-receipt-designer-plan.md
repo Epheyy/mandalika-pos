@@ -69,17 +69,25 @@ Builder decisions with no design conflict, such as the code page and detecting r
 
 ## Dependencies on bundles and Void
 
-- **Hard start dependency for Phase 1.** Two branches edit `escpos.ts`, and both must be merged into `prod-hardening` first:
-  - **Bundles Phase 3** (`feat/bundles-3-pos`, branch head `cfd6f286`). It adds `ReceiptLine.pieces` (printed as `"  + <piece>"`), `ReceiptLine.lineDiscount`, and the `0xB7`→`-` byte mapping. `collapseBundleLines`/`bundleReceiptLine` live in `apps/pos/src/cashier/bundleReceipt.ts` and stay there.
-  - **Void Task 3.5.** It adds `ReceiptData.replacesOrderRef`/`correctionAmount`, the `Pengganti untuk #…` and `Penyesuaian koreksi` rows, and `buildVoidSlip`/`VoidSlipData`.
-  - Task 1.1 freezes `buildReceipt` **as it is on that base**.
-- **Bundles Phase 4** changes only `bundleReceipt.ts` (the discount label). Re-check at build time that it left `escpos.ts` alone. If it did not, re-freeze in Task 1.1.
-- **Phase 5 depends on Void Phase 3** (`printVoidSlip` in `apps/pos/src/printer.tsx`).
-  - **Coordination point:** Void plan Task 3.5 defines `printVoidSlip(data)` (void plan line 1030). Phase 5 changes it to `printVoidSlip(data, settings, layout)`, updating every caller. Tell the Void implementer.
+- **Phase 1 starts now, before Void Phase 3 (owner amendment, 2026-11-13).** This departs from the design's build order (design lines 6–7: bundles, then Void, then this) by owner decision.
+  - Task 1.1 freezes `buildReceipt` from `origin/prod-hardening` at `d3cd431f` or later, which carries all five bundle phases.
+  - **Known base (checked at `d3cd431f`):** `escpos.ts` was last changed by bundles P3 `cfd6f286` (`ReceiptLine.pieces` printed as `"  + <piece>"`, `ReceiptLine.lineDiscount`, the `0xB7`→`-` byte mapping). Bundles P4 changed only `bundleReceipt.ts` (`b1b2b991`). `collapseBundleLines`/`bundleReceiptLine` stay in `apps/pos/src/cashier/bundleReceipt.ts`.
+  - If a later commit touches `escpos.ts` before Task 1.1 branches, freeze from that base and capture the goldens there. Record the base commit in the PR.
+- **Void's receipt rows come after Phase 1, which has no Void data case.** Void Task 3.5 adds `ReceiptData.replacesOrderRef`/`correctionAmount` through this renderer:
+  - `Pengganti untuk #…` is a renderer mark;
+  - `Penyesuaian koreksi` is a `totals` row;
+  - `buildReceiptV1` gets the same two rows in one sanctioned, additive edit;
+  - "Landed" means merged to `origin/prod-hardening`. Check with `git log origin/prod-hardening -- packages/printer/src/__legacy__/buildReceiptV1.ts`.
+  - **Fallback:** if Void Task 3.5 merges before Task 1.1 branches, the original order applies. Task 1.1 freezes `buildReceipt` with Void's rows and moves `VoidSlipData`/`voidSlipLines` into `receipt/`. It also retypes the `layout?: unknown` parameter of `printVoidSlip` to `ReceiptLayout`. Task 1.2 adds the Void data case (a replacement with a correction) to its matrix.
+- **Phases 2–4 do not depend on Void.** Void's rows add no block type, no `TxField` and no OpenAPI field, so neither plan changes the other's schema, `receipttpl.Validate`, the designer or the sync pull. The two plans share only:
+  - the migration and gate numbering below;
+  - the CashierScreen print sites (Task 2.4 here, Void Tasks 3.3–3.5). Whichever merges second rebases and re-locates the lines.
+- **Phase 5 depends on Void Phase 3** (`printVoidSlip` in `apps/pos/src/printer.tsx`, `voidSlipLines` in `packages/printer/src/receipt/slips.ts`).
+  - **One signature:** Void Task 3.5 defines `printVoidSlip(data: VoidSlipData, settings: ReceiptSettings, layout?: ReceiptLayout): Promise<void>`. Its callers already pass `receiptLayout` when Task 2.4 is live. Phase 5 changes only the body; no signature and no caller change.
 - **Migrations.** Void uses 0092–0094, and 0094 is blocked on the ERP. This plan uses **0095** (Phase 2) and **0096** (Phase 4).
   - The runner applies files in name order and skips names already recorded (`backend/internal/db/db.go:95-125`), so 0095 may land before 0094.
   - If a number is taken at merge time, renumber it in the same PR.
-- **CashierScreen line references** in this plan are from bundles P3 `cfd6f286`:
+- **CashierScreen line references** in this plan were re-checked at `d3cd431f` (unchanged since bundles P3 `cfd6f286`):
   - sale print: about `:985-1007` (`.print` at `:1001`);
   - `handleReprint`: `:1011`/`:1020`;
   - `reprintLocal`: `:1030`;
@@ -147,7 +155,7 @@ Builder decisions with no design conflict, such as the code page and detecting r
 - **Locked blocks:**
   - `items`, `totals` and `payment` each appear exactly once, are always enabled, and keep that relative order. Other blocks may sit between them.
   - In stored templates, `TOTAL`, the payment rows and `Kembalian` (when change > 0) always print (deviation 10).
-  - The C1 rule stays: on an itemised slip (`data.discounts !== undefined`), every deduction, PPN, surcharge, points redemption and rounding row prints whatever the switches say.
+  - The C1 rule stays: on an itemised slip (`data.discounts !== undefined`), every deduction, PPN, surcharge, points redemption and rounding row prints whatever the switches say. So does Void's `Penyesuaian koreksi` (void plan Task 3.5).
 - **Printing rules unchanged (#136):** `runExclusive` serialisation, connect → write×copies → disconnect, and `Gagal…` copy via `printerErrorMessage`.
 - **Never fail the sale's print; never lose a locked block.**
   - The production fallback is `packages/printer/src/__legacy__/buildReceiptV1.ts`, the frozen copy of today's `buildReceipt`. It shares no code with the renderer, so a renderer bug cannot also break the fallback.
@@ -215,7 +223,7 @@ Reviewer: Opus high (everything printed goes through these helpers, money includ
   - `packages/printer/src/__legacy__/buildReceiptV1.ts`: a verbatim copy of today's `buildReceipt` and its private helpers, exported as `buildReceiptV1(data: ReceiptData, settings: ReceiptSettings, reprint?: boolean): Uint8Array`.
     - It is **production code**: the fallback in Task 2.4, and the reference for the differential tests.
     - It is imported only inside the package, not exported from `index.ts`.
-    - Never edit it after Task 1.1.
+    - Never edit it after Task 1.1, with one exception: Void Task 3.5 adds its two rows to it in lockstep with the renderer (void plan). The six existing hex goldens must stay byte-identical in that commit.
   - `packages/printer/src/receipt/data.ts`: `ReceiptData`, `ReceiptLine` and `ReceiptDiscountRow` move here unchanged. `escpos.ts` re-exports them.
   - `packages/printer/src/receipt/text.ts`
   - `packages/printer/src/receipt/sink.ts`
@@ -312,11 +320,11 @@ Reviewer: Opus high (totals, payment and C1 rows).
   - **`header` in compat:** it emits `alignCenter`, then the title (`boldOn largeOn` line `largeOff boldOff`) when non-empty, then the space, then `alignLeft`, even when the title is empty.
   - **`text`:** the space comes before its align command.
   - **Marks:** the reprint mark (`*** CETAK ULANG (REPRINT) ***`, centred and bold) prints after the leading run of `header` blocks (later also `image`) and again before `feed3 cut`.
-  - **Void rows:** `replacesOrderRef` prints at the mark position, and `correctionAmount` prints in `totals` right before `TOTAL`, wherever the frozen copy puts them.
+  - **Void rows:** none in Phase 1. Void Task 3.5 adds `Pengganti untuk #<ref>` as a renderer mark right after the top reprint mark, and `Penyesuaian koreksi` in `totals` right before `TOTAL`. It adds them to the renderer and to `buildReceiptV1` together.
   - **Compat lines:** the header title, footer and inline rows are sent unwrapped.
 
 - [ ] **Step 1: Write the failing tests.**
-  - `Standar equals buildReceiptV1 for all 256 flag combinations × {header only, footer only, both, neither} × 8 data cases × reprint on/off`. The data cases are: a plain sale, itemised C1 with 4 discounts, pre-C1 with `discountAmount`, split tender with refs, a reward at Rp0, a bundle with pieces and `lineDiscount`, a Void replacement with a correction, and 60-character names.
+  - `Standar equals buildReceiptV1 for all 256 flag combinations × {header only, footer only, both, neither} × every data case × reprint on/off`. The data cases are: a plain sale, itemised C1 with 4 discounts, pre-C1 with `discountAmount`, split tender with refs, a reward at Rp0, a bundle with pieces and `lineDiscount`, and 60-character names. Void Task 3.5 adds a replacement with a correction.
   - `Standar equals buildReceiptV1 for 2,000 seeded random ReceiptData`. Use a fixed-seed generator (no new dependency). A failure prints the seed. It covers:
     - 0–12 lines, with names up to 80 chars including `·`, `é` and `☺`;
     - optional variant, reward, `pieces` and `lineDiscount`;
@@ -910,15 +918,16 @@ Owner: the owner and a Sonnet session over adb (`tablet-checks-via-adb`). It is 
 
 ## Phase 5: Refund and Void slips framed by the template (`feat/receipt-5-stamps`)
 
-Depends on Void Phase 3 (`buildVoidSlip`, `VoidSlipData`, `printVoidSlip`).
+Depends on Void Phase 3 (`buildVoidSlip`, `VoidSlipData`, `voidSlipLines`, `printVoidSlip`).
 
 ### Task 5.1: Stamped slips in the renderer
 
 Reviewer: Opus high (refund amounts printed).
 
 **Files:**
-- Create: `packages/printer/src/receipt/slips.ts`
-- Modify: `packages/printer/src/index.ts` and `./render`, to export the new functions. Void's `buildVoidSlip` stays in `escpos.ts`, unused by the POS after Task 5.2.
+- Modify:
+  - `packages/printer/src/receipt/slips.ts`. Void Task 3.5 created it with `voidSlipLines`; under that task's fallback order, create it here.
+  - `packages/printer/src/index.ts` and `./render`, to export the new functions. Void's `buildVoidSlip` stays in `escpos.ts` as the void slip's fallback (Task 5.2).
 - Test: `packages/printer/src/receipt/slips.test.ts`
 
 **Interfaces:**
@@ -932,7 +941,7 @@ Reviewer: Opus high (refund amounts printed).
     2. a divider;
     3. the stamp, centred, bold and large;
     4. a divider;
-    5. Void's body lines, in the same text and order as `buildVoidSlip` (void plan copy table);
+    5. Void's body lines from `voidSlipLines(data, cols)`, the same lines `buildVoidSlip` prints (void plan copy table);
     6. `feed3 cut`.
 - **`refundSlipBytes(layout: ReceiptLayout, data: RefundSlipData, opts?: RenderOptions): Uint8Array`:**
   - It prints the same frame with `REFUND`, then:
@@ -962,7 +971,9 @@ Reviewer: Opus high (refund flow, print path).
 
 **Files:**
 - Modify:
-  - `apps/pos/src/printer.tsx`: `printVoidSlip(data, settings, layout)` (the signature changes from Void's `printVoidSlip(data)`; update every caller) and a new `printRefundSlip(data, settings, layout)`.
+  - `apps/pos/src/printer.tsx` and `packages/printer/src/print.ts`:
+    - `printVoidSlip(data, settings, layout?)` keeps the signature Void Task 3.5 defined. Only its body changes, to `voidSlipBytes(layout ?? standarLayout(settings), data)`. On any throw it prints `buildVoidSlip(data)` and reports `kind: 'receipt_template'`. Confirm that every caller passes `receiptLayout`.
+    - A new `printRefundSlip(data, settings, layout)`.
     - Both run through `sendJob` with 1 copy.
     - `layout` comes from `resolveReceiptLayout`.
   - `apps/pos/src/cashier/CashierScreen.tsx`. After the refund's `engine.enqueue('refund', …)` succeeds (`:1130` on bundles P3) and a printer is paired, it prints the refund slip. The data is built from the refunded order, the dialog selection, `refundAmountFor` and the payout label. A failure shows a toast and calls `reportErrors` (`kind: 'refund_slip'`), and never undoes the refund. The void path passes `receiptLayout`.
@@ -991,7 +1002,7 @@ Reviewer: Opus high (refund flow, print path).
 
 ## Not verified (check in the owning task)
 
-- **Byte-level start state.** The exact `escpos.ts` after Void Task 3.5 is unknown: where `Pengganti untuk #` sits relative to the reprint mark. Task 1.1's frozen copy settles it.
+- **Byte-level start state: known (settled 2026-11-13).** Task 1.1 freezes `escpos.ts` as last changed by `cfd6f286`, unchanged through `d3cd431f`. The goldens are captured at Task 1.1's own branch point, and that commit is recorded in the PR. Void Task 3.5 places `Pengganti untuk #` right after the top reprint mark.
 - **Canvas CORS** on Cloudinary delivery URLs (Task 4.3), which "Ambil logo brand" needs. Upload from a file is the fallback.
 - **The RPP02N's raster and QR support**, its safe band height, and whether native SPP `write` accepts a ~20KB payload in one call (Task 4.5).
 - **Drain numbers.** The RPP02N's real SPP drain rate, which sets `DRAIN_MAX_MS` and the worst wait before the next print (Task 4.5).
