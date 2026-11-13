@@ -7,6 +7,12 @@ SET LOCAL lock_timeout = '5s';
 ALTER TABLE orders
   ADD COLUMN correction_amount numeric NOT NULL DEFAULT 0;
 
+-- Points the replacement did NOT earn because the void had already written them off (the customer
+-- spent them before the void): owner rule "deduct written-off". Recorded on the void row for a
+-- replacement made with the void, on the followup row for a later "Buat pengganti".
+ALTER TABLE order_voids ADD COLUMN replacement_points_deducted integer NOT NULL DEFAULT 0;
+ALTER TABLE order_void_followups ADD COLUMN replacement_points_deducted integer NOT NULL DEFAULT 0;
+
 CREATE TABLE shift_corrections (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   shift_id   uuid NOT NULL REFERENCES shifts(id),

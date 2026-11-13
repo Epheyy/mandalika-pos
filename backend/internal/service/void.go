@@ -48,6 +48,8 @@ type voidApplied struct {
 	VisitReversed bool
 	CodesReleased []string
 	CustomerID    string
+	// ReplDeducted: points the replacement withheld because this void wrote them off.
+	ReplDeducted int
 	// Replay is set when the same (device, client void uuid) already voided this order: nothing
 	// was written and the stored outcome is returned.
 	Replay *VoidResult
@@ -587,14 +589,14 @@ func insertVoidAudit(ctx context.Context, tx pgx.Tx, in VoidInput, voidID, repla
 		        source, authority, mode, replacement_order_id, reason_code, note, voided_by, voided_by_name,
 		        device_id, client_void_uuid, original_total, original_payment_method, original_tenders,
 		        points_clawed, points_forgiven, points_restored, spend_reversed, visit_reversed, codes_released,
-		        erp_document_key)
+		        erp_document_key, replacement_points_deducted)
 		 VALUES ($1,$2,$3,$4::date,NULLIF($5,'')::uuid,$6,$7,$8,$9,$10,NULLIF($11,'')::uuid,$12,NULLIF($13,''),
 		        NULLIF($14,'')::uuid,NULLIF($15,''),NULLIF($16,''),NULLIF($17,'')::uuid,$18,$19,$20::jsonb,
-		        $21,$22,$23,$24,$25,$26::jsonb,$27)`,
+		        $21,$22,$23,$24,$25,$26::jsonb,$27,$28)`,
 		voidID, in.OrderID, in.OutletID, ap.Facts.BusinessDate, ap.Facts.ShiftID, ap.Facts.ShiftStatus == "closed",
 		voidCountedInClose(ap.Facts), string(in.Source), string(ap.Authority), string(in.Mode), replacementID,
 		string(in.Reason), in.Note, in.UserID, in.UserName, in.DeviceID, in.ClientVoidUUID, ap.Total, ap.PaymentMethod,
-		string(tenders), ap.Clawed, ap.Forgiven, ap.Restored, ap.Spend, ap.VisitReversed, string(codes), "void:"+voidID); err != nil {
+		string(tenders), ap.Clawed, ap.Forgiven, ap.Restored, ap.Spend, ap.VisitReversed, string(codes), "void:"+voidID, ap.ReplDeducted); err != nil {
 		return fmt.Errorf("insert order_voids: %w", err)
 	}
 	for _, it := range ap.Items {

@@ -74,6 +74,14 @@ func (s *OrderService) VoidAndReplaceTx(ctx context.Context, tx pgx.Tx, in VoidI
 	default:
 		repl.CorrectionTarget = nil // an editable replacement never carries a caller-chosen total
 	}
+	same, err := sameCustomerKeeper(ctx, tx, ap.CustomerID, repl.CustomerID)
+	if err != nil {
+		return VoidResult{}, err
+	}
+	if same && ap.Forgiven > 0 {
+		repl.PointsDeduction = int(ap.Forgiven)
+	}
+	repl.deductionOut = &ap.ReplDeducted
 	created, err := s.createOrderTx(ctx, tx, repl)
 	if err != nil {
 		return VoidResult{}, err
@@ -332,4 +340,20 @@ func replacementFromOriginal(ctx context.Context, tx pgx.Tx, outletID, orderID s
 		return in, err
 	}
 	return in, nil
+}
+
+// sameCustomerKeeper reports whether the voided sale's customer (already a keeper id, "" = none) and
+// the replacement's customer are the same live customer after merges.
+func sameCustomerKeeper(ctx context.Context, tx pgx.Tx, origKeeper, replCustomer string) (bool, error) {
+	if origKeeper == "" || replCustomer == "" {
+		return false, nil
+	}
+	if _, err := uuid.Parse(replCustomer); err != nil {
+		return false, nil
+	}
+	keeper, err := resolveMergedCustomer(ctx, tx, replCustomer)
+	if err != nil {
+		return false, err
+	}
+	return keeper == origKeeper, nil
 }

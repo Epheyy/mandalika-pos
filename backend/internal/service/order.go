@@ -133,6 +133,11 @@ type CreateOrderInput struct {
 	ReplacesOrderID  string
 	BusinessDate     string
 	CorrectionTarget *int64
+	// PointsDeduction (void paths only) is the written-off points of the voided sale when the same
+	// customer is charged again: the replacement earns max(0, normal earn - PointsDeduction).
+	// deductionOut, when set, receives the amount actually deducted.
+	PointsDeduction int
+	deductionOut    *int
 	// EvalTime and ClockSkew are set by the sync batch only (A05): the bounded time promo
 	// and loyalty rules run at when ClientCreated disagrees with the server's evidence.
 	// ClientCreated stays the recorded fact; EvalTime only changes the evaluation.
@@ -588,6 +593,15 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 		})
 		finalEarned = outcome.FinalEarned(base)
 	}
+	// Void replacement for the same customer: do not re-earn the points the void already wrote off.
+	deducted := 0
+	if in.PointsDeduction > 0 && in.CustomerID != "" {
+		deducted = min(in.PointsDeduction, finalEarned)
+		finalEarned -= deducted
+	}
+	if in.deductionOut != nil {
+		*in.deductionOut = deducted
+	}
 	if err := salePoints("finalEarned", math.Round(float64(base)*outcome.BestMultiplier)+float64(outcome.FlatBonus)); err != nil {
 		return "", false, false, err
 	}
@@ -803,7 +817,7 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 				if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
 					CustomerID: in.CustomerID, Type: "earn", Points: earned,
 					BalanceAfter: balanceBefore + earned,
-					Reason:       LoyaltyEarnReason(orderNumber, base, outcome),
+					Reason:       earnReasonWithDeduction(LoyaltyEarnReason(orderNumber, base, outcome), deducted),
 					OrderID:      orderID, ByID: in.CashierID, ByName: in.CashierName,
 				}); e != nil {
 					return "", false, false, fmt.Errorf("ledger earn: %w", e)
@@ -938,4 +952,13 @@ func nextOrderNumber(ctx context.Context, tx pgx.Tx, _ string) (string, error) {
 		return "", fmt.Errorf("order number: %w", err)
 	}
 	return fmt.Sprintf("MND-%06d", seq), nil
+}
+
+// earnReasonWithDeduction tells the points ledger that part of the earn was withheld because the
+// voided sale's points were already written off.
+func earnReasonWithDeduction(reason string, deducted int) string {
+	if deducted <= 0 {
+		return reason
+	}
+	return fmt.Sprintf("%s (dikurangi %d poin yang sudah dihapuskan pada pembatalan)", reason, deducted)
 }

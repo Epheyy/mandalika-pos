@@ -23,6 +23,7 @@ type laterVoid struct {
 	mode       string
 	hasFollow  bool
 	origTotal  int64
+	forgiven   int64
 	cancelled  bool
 	hasVoidRow bool
 }
@@ -53,7 +54,7 @@ func lockLaterVoid(ctx context.Context, tx pgx.Tx, outletID, orderID string) (la
 	if !lv.cancelled {
 		return lv, nil
 	}
-	err = tx.QueryRow(ctx, `SELECT id::text, mode FROM order_voids WHERE order_id=$1`, orderID).Scan(&lv.voidID, &lv.mode)
+	err = tx.QueryRow(ctx, `SELECT id::text, mode, points_forgiven FROM order_voids WHERE order_id=$1`, orderID).Scan(&lv.voidID, &lv.mode, &lv.forgiven)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return lv, nil // an fsmigrate-imported cancelled order has no void row
 	}
@@ -144,6 +145,24 @@ func (s *OrderService) CreateReplacementOrder(ctx context.Context, in CreateOrde
 	target := lv.origTotal
 	in.CorrectionTarget = &target
 
+	origCust := ""
+	if lv.row.custID != nil {
+		origCust = *lv.row.custID
+		if _, perr := uuid.Parse(origCust); perr == nil {
+			if origCust, err = resolveMergedCustomer(ctx, tx, origCust); err != nil {
+				return CreateOrderResult{}, err
+			}
+		}
+	}
+	same, err := sameCustomerKeeper(ctx, tx, origCust, in.CustomerID)
+	if err != nil {
+		return CreateOrderResult{}, err
+	}
+	if same && lv.forgiven > 0 {
+		in.PointsDeduction = int(lv.forgiven)
+	}
+	var deducted int
+	in.deductionOut = &deducted
 	res, err := s.createOrderTx(ctx, tx, in)
 	if err != nil {
 		return CreateOrderResult{}, err
@@ -152,9 +171,9 @@ func (s *OrderService) CreateReplacementOrder(ctx context.Context, in CreateOrde
 		return CreateOrderResult{}, ErrVoidReplacementInvalid
 	}
 	if _, err := tx.Exec(ctx,
-		`INSERT INTO order_void_followups (void_id, kind, replacement_order_id, actor, actor_name)
-		 VALUES ($1,'replacement',$2,NULLIF($3,'')::uuid,NULLIF($4,''))`,
-		lv.voidID, res.OrderID, in.CashierID, in.CashierName); err != nil {
+		`INSERT INTO order_void_followups (void_id, kind, replacement_order_id, actor, actor_name, replacement_points_deducted)
+		 VALUES ($1,'replacement',$2,NULLIF($3,'')::uuid,NULLIF($4,''),$5)`,
+		lv.voidID, res.OrderID, in.CashierID, in.CashierName, deducted); err != nil {
 		return CreateOrderResult{}, fmt.Errorf("insert void followup: %w", err)
 	}
 	if replacementNeedsDelta(facts.ShiftStatus == "closed", facts) {

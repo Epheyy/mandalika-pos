@@ -1439,6 +1439,146 @@ func TestVoidPostgres(t *testing.T) {
 		}
 	})
 
+	// ── Owner rule "deduct written-off": a replacement for the SAME customer earns
+	// max(0, normal earn - the void's points_forgiven) ───────────────────────────────────────
+	withLoyalty := func(t *testing.T) {
+		t.Helper()
+		var en bool
+		var ppk float64
+		if err := pool.QueryRow(ctx, `SELECT enabled, points_per_thousand FROM loyalty_settings WHERE id=1`).Scan(&en, &ppk); err != nil {
+			t.Fatal(err)
+		}
+		exec(`UPDATE loyalty_settings SET enabled=true, points_per_thousand=1 WHERE id=1`)
+		t.Cleanup(func() { exec(`UPDATE loyalty_settings SET enabled=$1, points_per_thousand=$2 WHERE id=1`, en, ppk) })
+	}
+	// pointsSale rings a 100000 sale for cust that "earned" earn points, with the customer's balance
+	// then set to balance (the rest was spent), before loyalty is switched on for the replacement.
+	pointsSale := func(shift, cust string, earn, balance int, p string) string {
+		id := sale(saleOpts{shift: shift, cust: cust, earned: earn}, p)
+		exec(`UPDATE customers SET points=$2 WHERE id=$1`, cust, balance)
+		return id
+	}
+	earnRows := func(order string) (int, string) {
+		return one(`SELECT COALESCE(sum(points),0)::int FROM point_transactions WHERE order_id=$1 AND type='earn'`, order),
+			str(`SELECT COALESCE(string_agg(reason, ' | '),'') FROM point_transactions WHERE order_id=$1 AND type='earn'`, order)
+	}
+
+	t.Run("replacement_points_deducted", func(t *testing.T) {
+		cases := []struct {
+			name           string
+			balance        int  // customer balance at the void (earned 100)
+			otherCustomer  bool // the replacement is for a different customer
+			wantForgiven   int
+			wantReplEarned int
+		}{
+			{"fully_spent", 0, false, 100, 0},
+			{"partly_spent", 70, false, 30, 70},
+			{"nothing_forgiven", 100, false, 0, 100},
+			{"different_customer", 0, true, 100, 100},
+		}
+		for _, c := range cases {
+			t.Run(c.name, func(t *testing.T) {
+				shift := openShift()
+				cust, other := customer(0), customer(0)
+				p := product(5)
+				id := pointsSale(shift, cust, 100, c.balance, p)
+				withLoyalty(t)
+				in := voidIn(id, shift)
+				in.Mode = service.VoidModeReplace
+				r := replIn(`[{"method":"cash","amount":100000}]`, p)
+				r.CustomerID = cust
+				if c.otherCustomer {
+					r.CustomerID = other
+				}
+				res, err := svc.VoidAndReplace(ctx, in, r)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := one(`SELECT points_forgiven FROM order_voids WHERE id=$1`, res.VoidID); got != c.wantForgiven {
+					t.Fatalf("forgiven = %d, want %d", got, c.wantForgiven)
+				}
+				if got := one(`SELECT points_earned FROM orders WHERE id=$1`, res.ReplacementOrderID); got != c.wantReplEarned {
+					t.Fatalf("replacement points_earned = %d, want %d", got, c.wantReplEarned)
+				}
+				wantDeducted := 100 - c.wantReplEarned
+				if c.otherCustomer {
+					wantDeducted = 0
+				}
+				if got := one(`SELECT replacement_points_deducted FROM order_voids WHERE id=$1`, res.VoidID); got != wantDeducted {
+					t.Fatalf("audit deducted = %d, want %d", got, wantDeducted)
+				}
+				// The ledger earn row and the balance agree with the order.
+				ledger, reason := earnRows(res.ReplacementOrderID)
+				if ledger != c.wantReplEarned {
+					t.Fatalf("ledger earn = %d, want %d", ledger, c.wantReplEarned)
+				}
+				if wantDeducted > 0 && c.wantReplEarned > 0 && !strings.Contains(reason, "dikurangi") {
+					t.Fatalf("earn reason %q does not mention the deduction", reason)
+				}
+				who := cust
+				wantBalance := c.wantReplEarned // the void clawed whatever was left
+				if c.otherCustomer {
+					who, wantBalance = other, c.wantReplEarned
+				}
+				if got := pointsOf(who); got != wantBalance {
+					t.Fatalf("balance = %d, want %d", got, wantBalance)
+				}
+			})
+		}
+	})
+
+	t.Run("replacement_points_deducted_sync", func(t *testing.T) {
+		shift := openShift()
+		cust := customer(0)
+		p := product(5)
+		id := pointsSale(shift, cust, 80, 0, p)
+		withLoyalty(t)
+		res := sendItem(cashierTok, replaceItem(shift, id, replPayload(`[{"method":"cash","amount":100000}]`, map[string]any{"customerId": cust}, p)))
+		repl, _ := res["replacementOrderId"].(string)
+		if res["status"] != "ok" || repl == "" {
+			t.Fatalf("result = %v", res)
+		}
+		// earned 80, balance 0: 80 forgiven; the replacement's normal 100 earns 20.
+		if got := one(`SELECT points_earned FROM orders WHERE id=$1`, repl); got != 20 {
+			t.Fatalf("replacement points_earned = %d, want 20", got)
+		}
+		if got := one(`SELECT replacement_points_deducted FROM order_voids WHERE order_id=$1`, id); got != 80 {
+			t.Fatalf("audit deducted = %d, want 80", got)
+		}
+		if got := pointsOf(cust); got != 20 {
+			t.Fatalf("balance = %d, want 20", got)
+		}
+	})
+
+	t.Run("buat_pengganti_points_deducted", func(t *testing.T) {
+		shift := openShift()
+		cust := customer(0)
+		p := product(5)
+		id := pointsSale(shift, cust, 100, 40, p) // 40 left: clawed, 60 forgiven
+		in := bo(id)
+		in.Mode = service.VoidModeLater
+		res, err := svc.VoidOrder(ctx, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		withLoyalty(t)
+		r := replIn(`[{"method":"cash","amount":100000}]`, p)
+		r.ReplacesOrderID, r.CustomerID = id, cust
+		got, err := svc.CreateReplacementOrder(ctx, r, true, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if e := one(`SELECT points_earned FROM orders WHERE id=$1`, got.OrderID); e != 40 {
+			t.Fatalf("replacement points_earned = %d, want 40 (100 - 60 forgiven)", e)
+		}
+		if d := one(`SELECT replacement_points_deducted FROM order_void_followups WHERE void_id=$1`, res.VoidID); d != 60 {
+			t.Fatalf("followup deducted = %d, want 60", d)
+		}
+		if b := pointsOf(cust); b != 40 {
+			t.Fatalf("balance = %d, want 40", b)
+		}
+	})
+
 	t.Run("void_permission_revoked", func(t *testing.T) {
 		shift := openShift()
 		first, second := sale(saleOpts{shift: shift}, product(5)), sale(saleOpts{shift: shift}, product(5))
