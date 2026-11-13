@@ -1,5 +1,8 @@
 package service
 
+// Stock: these writers move outlet_variant_stock through voidCore (restock) and createOrderTx (the
+// replacement sale), so they bump the outlet stock counter themselves, once, as the last statement.
+
 import (
 	"context"
 	"errors"

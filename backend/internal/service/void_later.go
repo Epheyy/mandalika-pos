@@ -1,5 +1,8 @@
 package service
 
+// Stock: CreateReplacementOrder moves outlet_variant_stock through createOrderTx, so it bumps the
+// outlet stock counter itself, once, as the last statement.
+
 import (
 	"context"
 	"errors"
