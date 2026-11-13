@@ -278,8 +278,9 @@ func TestVoidPostgres(t *testing.T) {
 	giveaway := product(50)
 	exec(`INSERT INTO outlet_giveaways(outlet_id,product_id,variant_size) VALUES($1,$2,$3)`, outlet, giveaway, size)
 	type saleOpts struct {
-		shift, cust, code string
-		earned, redeemed  int
+		shift, cust, code, tenders string
+		earned, redeemed           int
+		offline                    bool
 	}
 	sale := func(o saleOpts, pids ...string) string {
 		t.Helper()
@@ -292,7 +293,8 @@ func TestVoidPostgres(t *testing.T) {
 		id, dup, _, err := svc.CreateOrder(ctx, service.CreateOrderInput{
 			IdempotencyKey: "vd-sale-" + newID("4"), OrderUUID: newID("4"), OutletID: outlet,
 			CashierID: cashier, CashierName: "VD Kasir", CustomerID: o.cust, Items: items,
-			PaymentMethod: "cash", AmountPaid: total, ShiftID: o.shift,
+			PaymentMethod: "cash", AmountPaid: total, ShiftID: o.shift, Offline: o.offline,
+			Tenders: json.RawMessage(o.tenders),
 		})
 		if err != nil || dup {
 			t.Fatalf("sale: dup=%v err=%v", dup, err)
@@ -702,17 +704,413 @@ func TestVoidPostgres(t *testing.T) {
 		}
 	})
 
-	t.Run("void_after_close_refused_phase1", func(t *testing.T) {
-		shift := openShift()
-		id := sale(saleOpts{shift: shift}, product(5))
-		closeShift(shift)
-		in := voidIn(id, "")
+	// ── Phase 2, Task 2.3: replacement and closed-shift corrections ─────────────────────────
+	bo := func(orderID string) service.VoidInput {
+		in := voidIn(orderID, "")
 		in.Source, in.CanVoidOwnShift, in.CanVoidAny = service.VoidSourceBackoffice, false, true
-		if _, err := svc.VoidOrder(ctx, in); !errors.Is(err, service.ErrVoidAfterCloseNotYet) {
-			t.Fatalf("err = %v, want ErrVoidAfterCloseNotYet", err)
+		in.DeviceID = ""
+		in.ClientVoidUUID = ""
+		return in
+	}
+	// replIn builds a replacement cart of the given products (100000 each) paid by tendersJSON.
+	replIn := func(tendersJSON string, pids ...string) service.CreateOrderInput {
+		var items []service.OrderItem
+		for _, pid := range pids {
+			items = append(items, service.OrderItem{ProductID: pid, ProductName: "VD", VariantSize: size, Price: 100000, Quantity: 1, Subtotal: 100000})
+		}
+		return service.CreateOrderInput{
+			IdempotencyKey: "vd-repl-" + newID("4"), OrderUUID: newID("4"), OutletID: outlet,
+			CashierID: cashier, CashierName: "VD Kasir", Items: items, Offline: true,
+			Tenders: json.RawMessage(tendersJSON),
+		}
+	}
+	corrections := func(shift string) string {
+		return str(`SELECT COALESCE(string_agg(kind||':'||method||':'||amount::bigint::text, ',' ORDER BY kind DESC, method, amount), '')
+		              FROM shift_corrections WHERE shift_id=$1`, shift)
+	}
+	snapshot := func(shift string) string {
+		return str(`SELECT concat_ws('|', total_sales::text, total_orders::text, cash_sales::text, card_sales::text,
+		                  transfer_sales::text, qris_sales::text, closing_cash::text, total_refunds::text,
+		                  refunds_paid_by_method::text, cash_refunds_paid::text) FROM shifts WHERE id=$1`, shift)
+	}
+	splitSale := func(shift string, pids ...string) string {
+		return sale(saleOpts{shift: shift, tenders: `[{"method":"cash","amount":100000},{"method":"qris","amount":200000}]`}, pids...)
+	}
+
+	t.Run("void_replace_atomic_open_shift", func(t *testing.T) {
+		shift := openShift()
+		ps := []string{product(5), product(5), product(5)}
+		id := sale(saleOpts{shift: shift}, ps...)
+		in := voidIn(id, shift)
+		in.Mode = service.VoidModeReplace
+		res, err := svc.VoidAndReplace(ctx, in, replIn(`[{"method":"qris","amount":300000}]`, ps...))
+		if err != nil || res.ReplacementOrderID == "" {
+			t.Fatalf("res=%+v err=%v", res, err)
+		}
+		if status(id) != "cancelled" || status(res.ReplacementOrderID) != "completed" {
+			t.Fatalf("statuses %s / %s", status(id), status(res.ReplacementOrderID))
+		}
+		if got := str(`SELECT replaces_order_id::text FROM orders WHERE id=$1`, res.ReplacementOrderID); got != id {
+			t.Fatalf("replaces_order_id = %s", got)
+		}
+		if str(`SELECT shift_id::text FROM orders WHERE id=$1`, res.ReplacementOrderID) != shift ||
+			str(`SELECT business_date::text FROM orders WHERE id=$1`, res.ReplacementOrderID) != str(`SELECT business_date::text FROM orders WHERE id=$1`, id) {
+			t.Fatal("replacement not pinned to the original's shift and day")
+		}
+		if got := str(`SELECT replacement_order_id::text FROM order_voids WHERE id=$1`, res.VoidID); got != res.ReplacementOrderID {
+			t.Fatalf("audit replacement link = %s", got)
+		}
+		for _, p := range ps {
+			if stockOf(p) != 4 { // restocked to 5 by the void, then sold again
+				t.Fatalf("stock = %d, want 4", stockOf(p))
+			}
+		}
+		closeShift(shift)
+		if got := snapshot(shift); !strings.HasPrefix(got, "300000.00|1|0.00|") || !strings.Contains(got, "|300000.00|") {
+			t.Fatalf("close snapshot = %s, want cash 0, qris 300000, 1 order", got)
+		}
+		if corrections(shift) != "" {
+			t.Fatal("an open-shift void wrote corrections")
+		}
+	})
+
+	t.Run("void_replace_refused_rolls_back_both", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		in := voidIn(id, shift)
+		in.Mode = service.VoidModeReplace
+		bad := replIn(`[{"method":"cash","amount":100000}]`, p)
+		bad.Items[0].Quantity = -1 // rejected inside the sale core, after the void already wrote
+		if _, err := svc.VoidAndReplace(ctx, in, bad); err == nil {
+			t.Fatal("invalid replacement accepted")
+		}
+		if status(id) != "completed" || one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, id) != 0 || stockOf(p) != 4 {
+			t.Fatalf("partial apply: status=%s stock=%d", status(id), stockOf(p))
+		}
+	})
+
+	t.Run("void_replace_closed_shift_deltas", func(t *testing.T) {
+		shift := openShift()
+		ps := []string{product(5), product(5), product(5)}
+		id := splitSale(shift, ps...)
+		closeShift(shift)
+		before := snapshot(shift)
+		res, err := svc.VoidAndReplace(ctx, func() service.VoidInput { in := bo(id); in.Mode = service.VoidModeReplace; return in }(),
+			replIn(`[{"method":"qris","amount":300000}]`, ps...))
+		if err != nil || !res.AfterClose {
+			t.Fatalf("res=%+v err=%v", res, err)
+		}
+		if got := corrections(shift); got != "void:cash:-100000,void:qris:-200000,replacement:qris:300000" {
+			t.Fatalf("corrections = %s", got)
+		}
+		if snapshot(shift) != before {
+			t.Fatal("the close snapshot changed") // closed_shift_snapshot_unchanged
+		}
+		if !strings.Contains(str(`SELECT after_close::text||counted_in_close::text FROM order_voids WHERE id=$1`, res.VoidID), "truetrue") {
+			t.Fatal("after_close / counted_in_close not set")
+		}
+	})
+
+	t.Run("void_any_closed_shift_void_only_delta", func(t *testing.T) {
+		shift := openShift()
+		id := splitSale(shift, product(5), product(5), product(5))
+		closeShift(shift)
+		if _, err := svc.VoidOrder(ctx, bo(id)); err != nil {
+			t.Fatal(err)
+		}
+		if got := corrections(shift); got != "void:cash:-100000,void:qris:-200000" {
+			t.Fatalf("corrections = %s", got)
+		}
+	})
+
+	t.Run("late_sale_void_no_delta", func(t *testing.T) {
+		shift := openShift()
+		closeShift(shift)
+		id := sale(saleOpts{shift: shift, offline: true}, product(5))
+		if str(`SELECT (created_at > (SELECT closed_at FROM shifts WHERE id=$1))::text FROM orders WHERE id=$2`, shift, id) != "true" {
+			t.Fatal("setup: the sale is not late")
+		}
+		res, err := svc.VoidOrder(ctx, bo(id))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if corrections(shift) != "" {
+			t.Fatalf("a late sale wrote corrections: %s", corrections(shift))
+		}
+		if got := str(`SELECT after_close::text||counted_in_close::text FROM order_voids WHERE id=$1`, res.VoidID); got != "truefalse" {
+			t.Fatalf("after_close/counted = %s, want truefalse", got)
+		}
+	})
+
+	t.Run("later_void_open_replaced_after_close", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p, product(5), product(5))
+		in := bo(id)
+		in.Mode = service.VoidModeLater
+		if _, err := svc.VoidOrder(ctx, in); err != nil {
+			t.Fatal(err)
+		}
+		if corrections(shift) != "" {
+			t.Fatal("a void while the shift is open wrote corrections")
+		}
+		closeShift(shift)
+		if got := snapshot(shift); !strings.HasPrefix(got, "0.00|0|") {
+			t.Fatalf("snapshot should exclude the cancelled sale: %s", got)
+		}
+		r := replIn(`[{"method":"qris","amount":300000}]`, p, product(5), product(5))
+		r.ReplacesOrderID = id
+		got, err := svc.CreateReplacementOrder(ctx, r, true, "")
+		if err != nil || got.OrderID == "" {
+			t.Fatalf("buat pengganti: %+v %v", got, err)
+		}
+		if c := corrections(shift); c != "replacement:qris:300000" {
+			t.Fatalf("corrections = %s, want only the replacement +row", c)
+		}
+		if str(`SELECT shift_id::text FROM orders WHERE id=$1`, got.OrderID) != shift {
+			t.Fatal("replacement not on the original's shift")
+		}
+	})
+
+	t.Run("void_replacement_on_closed_shift", func(t *testing.T) {
+		shift := openShift()
+		ps := []string{product(5), product(5), product(5)}
+		id := sale(saleOpts{shift: shift}, ps...)
+		closeShift(shift)
+		in := bo(id)
+		in.Mode = service.VoidModeReplace
+		res, err := svc.VoidAndReplace(ctx, in, replIn(`[{"method":"qris","amount":300000}]`, ps...))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := corrections(shift); got != "void:cash:-300000,replacement:qris:300000" {
+			t.Fatalf("after replace: %s", got)
+		}
+		if _, err := svc.VoidOrder(ctx, bo(res.ReplacementOrderID)); err != nil {
+			t.Fatalf("void of the replacement: %v", err)
+		}
+		if got := corrections(shift); got != "void:cash:-300000,void:qris:-300000,replacement:qris:300000" {
+			t.Fatalf("after voiding the replacement: %s", got)
+		}
+	})
+
+	t.Run("replacement_amounts_fixed_after_close", func(t *testing.T) {
+		shift := openShift()
+		ps := []string{product(5), product(5), product(5)}
+		id := sale(saleOpts{shift: shift}, ps...)
+		closeShift(shift)
+		in := bo(id)
+		in.Mode = service.VoidModeReplace
+		_, err := svc.VoidAndReplace(ctx, in, replIn(`[{"method":"cash","amount":320000}]`, ps...))
+		if err == nil || !strings.Contains(err.Error(), "Rp 300.000") {
+			t.Fatalf("err = %v, want the amounts-locked refusal naming Rp 300.000", err)
 		}
 		if status(id) != "completed" {
 			t.Fatal("refused void changed the order")
+		}
+
+		// Own shift, still open: amounts are editable; the gap becomes "Penyesuaian koreksi".
+		shift2 := openShift()
+		id2 := sale(saleOpts{shift: shift2}, ps...)
+		in2 := voidIn(id2, shift2)
+		in2.Mode = service.VoidModeReplace
+		r := replIn(`[{"method":"cash","amount":300000}]`, ps...)
+		r.Items = r.Items[:1]
+		r.Items[0].Price, r.Items[0].Subtotal = 320000, 320000
+		target := int64(300000)
+		r.CorrectionTarget = &target
+		res, err := svc.VoidAndReplace(ctx, in2, r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := one(`SELECT correction_amount::int FROM orders WHERE id=$1`, res.ReplacementOrderID); got != -20000 {
+			t.Fatalf("correction_amount = %d, want -20000", got)
+		}
+		if got := one(`SELECT total::int FROM orders WHERE id=$1`, res.ReplacementOrderID); got != 300000 {
+			t.Fatalf("total = %d, want 300000", got)
+		}
+	})
+
+	t.Run("salah_pelanggan_moves_visit", func(t *testing.T) {
+		shift := openShift()
+		a, b := customer(0), customer(0)
+		p := product(5)
+		id := sale(saleOpts{shift: shift, cust: a}, p)
+		visits := func(c string) int { return one(`SELECT visit_count FROM customers WHERE id=$1`, c) }
+		aBefore, bBefore := visits(a), visits(b)
+		in := voidIn(id, shift)
+		in.Mode, in.Reason = service.VoidModeReplace, service.VoidReasonWrongCustomer
+		r := replIn(`[{"method":"cash","amount":100000}]`, p)
+		r.CustomerID = b
+		if _, err := svc.VoidAndReplace(ctx, in, r); err != nil {
+			t.Fatal(err)
+		}
+		if visits(a) != aBefore-1 || visits(b) != bBefore+1 {
+			t.Fatalf("visits a=%d b=%d, want %d and %d", visits(a), visits(b), aBefore-1, bBefore+1)
+		}
+	})
+
+	t.Run("buat_pengganti_later", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		in := bo(id)
+		in.Mode = service.VoidModeLater
+		if _, err := svc.VoidOrder(ctx, in); err != nil {
+			t.Fatal(err)
+		}
+		r := replIn(`[{"method":"cash","amount":100000}]`, p)
+		r.ReplacesOrderID = id
+		if _, err := svc.CreateReplacementOrder(ctx, r, false, ""); !errors.Is(err, service.ErrVoidForbidden) {
+			t.Fatalf("without void_any: %v", err)
+		}
+		got, err := svc.CreateReplacementOrder(ctx, r, true, "")
+		if err != nil || got.Duplicate {
+			t.Fatalf("res=%+v err=%v", got, err)
+		}
+		if one(`SELECT count(*) FROM order_void_followups f JOIN order_voids v ON v.id=f.void_id WHERE v.order_id=$1 AND f.kind='replacement' AND f.replacement_order_id=$2`, id, got.OrderID) != 1 {
+			t.Fatal("followup row missing")
+		}
+		// The same key again (a lost ack) is a duplicate with the stored id; a new key is refused.
+		again, err := svc.CreateReplacementOrder(ctx, r, true, "")
+		if err != nil || !again.Duplicate || again.OrderID != got.OrderID {
+			t.Fatalf("resend = %+v, %v", again, err)
+		}
+		r2 := replIn(`[{"method":"cash","amount":100000}]`, p)
+		r2.ReplacesOrderID = id
+		if _, err := svc.CreateReplacementOrder(ctx, r2, true, ""); !errors.Is(err, service.ErrVoidReplacementInvalid) {
+			t.Fatalf("second replacement: %v", err)
+		}
+	})
+
+	t.Run("no_replacement_mark", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		in := bo(id)
+		in.Mode = service.VoidModeLater
+		if _, err := svc.VoidOrder(ctx, in); err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.MarkVoidNoReplacement(ctx, outlet, id, adminU, "VD Admin", "tes"); err != nil {
+			t.Fatal(err)
+		}
+		if one(`SELECT count(*) FROM order_void_followups f JOIN order_voids v ON v.id=f.void_id WHERE v.order_id=$1 AND f.kind='no_replacement'`, id) != 1 {
+			t.Fatal("followup row missing")
+		}
+		if err := svc.MarkVoidNoReplacement(ctx, outlet, id, adminU, "VD Admin", ""); !errors.Is(err, service.ErrVoidReplacementInvalid) {
+			t.Fatalf("second mark: %v", err)
+		}
+		r := replIn(`[{"method":"cash","amount":100000}]`, p)
+		r.ReplacesOrderID = id
+		if _, err := svc.CreateReplacementOrder(ctx, r, true, ""); !errors.Is(err, service.ErrVoidReplacementInvalid) {
+			t.Fatalf("replacement after the mark: %v", err)
+		}
+	})
+
+	t.Run("replacement_erp_held", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		in := voidIn(id, shift)
+		in.Mode = service.VoidModeReplace
+		res, err := svc.VoidAndReplace(ctx, in, replIn(`[{"method":"cash","amount":100000}]`, p))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var st, hold string
+		if err := pool.QueryRow(ctx, `SELECT status, COALESCE(hold_reason,'') FROM erp_outbox WHERE doc_key=$1`, "sale:"+res.ReplacementOrderID).Scan(&st, &hold); err != nil {
+			t.Fatal(err)
+		}
+		if st != "held" || hold != ledger.VoidERPHoldReason {
+			t.Fatalf("replacement sale outbox = %s/%s, want held/%s", st, hold, ledger.VoidERPHoldReason)
+		}
+		if got := str(`SELECT status FROM erp_outbox WHERE doc_key=$1`, "sale:"+id); got == "held" {
+			t.Fatalf("the original sale document was held")
+		}
+	})
+
+	t.Run("concurrent_void_replace_and_sale_no_deadlock", func(t *testing.T) {
+		exec(`INSERT INTO discount_codes(code, type, value, is_active) VALUES ('VDHEMAT','percentage',0,true) ON CONFLICT DO NOTHING`)
+		shift := openShift()
+		x, y := product(500), product(500)
+		for round := 0; round < 20; round++ {
+			id := sale(saleOpts{shift: shift, code: "VDHEMAT"}, y)
+			in := voidIn(id, shift)
+			in.Mode = service.VoidModeReplace
+			r := replIn(`[{"method":"cash","amount":100000}]`, x)
+			r.DiscountCodes = []string{"VDHEMAT"}
+			var wg sync.WaitGroup
+			var replErr, saleErr error
+			wg.Add(2)
+			go func() { defer wg.Done(); _, replErr = svc.VoidAndReplace(ctx, in, r) }()
+			go func() {
+				defer wg.Done()
+				_, _, _, saleErr = svc.CreateOrder(ctx, service.CreateOrderInput{
+					IdempotencyKey: "vd-conc-" + newID("4"), OrderUUID: newID("4"), OutletID: outlet,
+					CashierID: cashier, CashierName: "VD Kasir", ShiftID: shift, PaymentMethod: "cash", AmountPaid: 200000,
+					DiscountCodes: []string{"VDHEMAT"},
+					Items: []service.OrderItem{
+						{ProductID: x, ProductName: "VD", VariantSize: size, Price: 100000, Quantity: 1, Subtotal: 100000},
+						{ProductID: y, ProductName: "VD", VariantSize: size, Price: 100000, Quantity: 1, Subtotal: 100000},
+					},
+				})
+			}()
+			wg.Wait()
+			for _, e := range []error{replErr, saleErr} {
+				var pg *pgconn.PgError
+				if errors.As(e, &pg) && pg.Code == "40P01" {
+					t.Fatalf("round %d: deadlock: %v", round, e)
+				}
+			}
+			if replErr != nil || saleErr != nil {
+				t.Fatalf("round %d: replace err=%v sale err=%v", round, replErr, saleErr)
+			}
+		}
+	})
+
+	t.Run("void_replace_direct_replay", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		in := bo(id)
+		in.Mode, in.DeviceID, in.ClientVoidUUID = service.VoidModeReplace, "vd-bo-dev", newID("4")
+		r := replIn(`[{"method":"qris","amount":100000}]`, p)
+		first, err := svc.VoidAndReplace(ctx, in, r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		again, err := svc.VoidAndReplace(ctx, in, r)
+		if err != nil || !again.Replayed || again.VoidID != first.VoidID || again.ReplacementOrderID != first.ReplacementOrderID {
+			t.Fatalf("replay = %+v, %v (first %+v)", again, err, first)
+		}
+		if one(`SELECT count(*) FROM orders WHERE replaces_order_id=$1`, id) != 1 {
+			t.Fatal("replay created a second replacement")
+		}
+	})
+
+	t.Run("void_chain", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		id := sale(saleOpts{shift: shift}, p)
+		in := voidIn(id, shift)
+		in.Mode = service.VoidModeReplace
+		first, err := svc.VoidAndReplace(ctx, in, replIn(`[{"method":"cash","amount":100000}]`, p))
+		if err != nil {
+			t.Fatal(err)
+		}
+		in2 := voidIn(first.ReplacementOrderID, shift)
+		in2.Mode = service.VoidModeReplace
+		second, err := svc.VoidAndReplace(ctx, in2, replIn(`[{"method":"cash","amount":100000}]`, p))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := str(`SELECT replaces_order_id::text FROM orders WHERE id=$1`, second.ReplacementOrderID); got != first.ReplacementOrderID {
+			t.Fatalf("chain link = %s", got)
+		}
+		if status(id) != "cancelled" || status(first.ReplacementOrderID) != "cancelled" || status(second.ReplacementOrderID) != "completed" {
+			t.Fatal("chain statuses wrong")
 		}
 	})
 

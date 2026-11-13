@@ -33,6 +33,7 @@ type voidItem struct {
 
 // voidApplied is everything voidCore did, for the audit insert (and, in Phase 2, the replacement).
 type voidApplied struct {
+	OrderID       string
 	Facts         voidFacts
 	Authority     VoidAuthority
 	OrderNumber   string
@@ -72,16 +73,21 @@ func (s *OrderService) VoidOrder(ctx context.Context, in VoidInput) (VoidResult,
 // VoidOrderTx is THE void, inside a caller-owned transaction (the keyed /sync/batch path commits
 // it with its operation receipt). It has its own write path: it never writes order_refunds and
 // never calls RefundLinesTx, because every money reader and the shift aggregation read refund rows
-// as money paid out. Phase 1 handles mode "none" only.
+// as money paid out. Modes none and later; replace is VoidAndReplaceTx.
 //
 // Lock order (A42, extended): discount codes -> customer -> the order row FOR UPDATE -> the
 // shift row FOR SHARE (serialises with CloseShiftTx's FOR UPDATE) -> stock rows in
 // (product, size) order -> BumpStockSeq last.
 func (s *OrderService) VoidOrderTx(ctx context.Context, tx pgx.Tx, in VoidInput) (VoidResult, error) {
-	if in.Mode != "" && in.Mode != VoidModeNone {
+	// "replace" goes through VoidAndReplaceTx. "later" is a Backoffice void whose replacement (or
+	// "tanpa pengganti") is recorded afterwards; here it is a plain void with that mode on the audit row.
+	switch in.Mode {
+	case "":
+		in.Mode = VoidModeNone
+	case VoidModeNone, VoidModeLater:
+	default:
 		return VoidResult{}, ErrVoidReplacementInvalid
 	}
-	in.Mode = VoidModeNone
 	voidID := uuid.NewString()
 	ap, err := voidCore(ctx, tx, in, voidID, nil)
 	if err != nil {
@@ -92,6 +98,12 @@ func (s *OrderService) VoidOrderTx(ctx context.Context, tx pgx.Tx, in VoidInput)
 	}
 	if err := insertVoidAudit(ctx, tx, in, voidID, "", ap); err != nil {
 		return VoidResult{}, err
+	}
+	if voidCountedInClose(ap.Facts) {
+		rows := shiftCorrectionRows(in.OrderID, toTenderAmounts(ap.Tenders), "", nil)
+		if err := insertShiftCorrections(ctx, tx, ap.Facts.ShiftID, voidID, rows); err != nil {
+			return VoidResult{}, err
+		}
 	}
 	if _, err := write.BumpStockSeq(ctx, tx, in.OutletID); err != nil {
 		return VoidResult{}, err
@@ -200,9 +212,7 @@ func voidCore(ctx context.Context, tx pgx.Tx, in VoidInput, voidID string, extra
 	if err != nil {
 		return ap, err
 	}
-	if facts.ShiftStatus == "closed" {
-		return ap, ErrVoidAfterCloseNotYet // Phase 2 adds the correction deltas
-	}
+	ap.OrderID = in.OrderID
 	ap.Facts, ap.Authority = facts, authority
 	ap.OrderNumber, ap.Total, ap.PaymentMethod, ap.CustomerID = o.orderNumber, o.total, o.paymentMethod, keeper
 
@@ -260,6 +270,15 @@ func loadVoidFacts(ctx context.Context, tx voidQuerier, lock bool, in VoidInput,
 		f.ShiftID = *o.shiftID
 		if err := tx.QueryRow(ctx, `SELECT status, closed_at FROM shifts WHERE id=$1`+share, f.ShiftID).Scan(&f.ShiftStatus, &f.ShiftClosedAt); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return f, fmt.Errorf("lock sale shift: %w", err)
+		}
+	}
+	if f.ShiftStatus == "closed" {
+		// A replacement booked as a correction counts in the closed shift although it was created
+		// after the close (decision C).
+		if err := tx.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM shift_corrections WHERE order_id=$1 AND kind='replacement')`, in.OrderID).
+			Scan(&f.HasReplacementCorrection); err != nil {
+			return f, err
 		}
 	}
 	if _, err := uuid.Parse(in.CallerShiftID); err == nil {

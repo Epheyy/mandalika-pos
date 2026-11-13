@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -67,8 +68,8 @@ func TestCreateOrderTxKeyConflictIsSentinel(t *testing.T) {
 	pg := &pgconn.PgError{Code: "23505", ConstraintName: "orders_idempotency_key_key"}
 	tx := &conflictTx{inputTestTx: &inputTestTx{allowWrites: true, stock: 5}, insertErr: pg}
 	_, err := (&OrderService{}).createOrderTx(context.Background(), tx, ordinaryInput())
-	if !errors.Is(err, errOrderKeyConflict) || !errors.Is(err, pg) {
-		t.Fatalf("err = %v, want errOrderKeyConflict wrapping the cause", err)
+	if !errors.Is(err, errOrderKeyConflict) || strings.Contains(err.Error(), "23505") {
+		t.Fatalf("err = %v, want the bare errOrderKeyConflict", err)
 	}
 	if code, _ := apperr.CodeOf(err); code != apperr.Busy {
 		t.Fatalf("code = %v, want busy", code)

@@ -114,15 +114,13 @@ type voidFacts struct {
 }
 
 var (
-	ErrVoidNotFound         = apperr.New(apperr.Conflict, "Transaksi tidak ditemukan di outlet ini.")
-	ErrVoidAlreadyVoided    = apperr.New(apperr.Conflict, "Transaksi ini sudah dibatalkan.")
-	ErrVoidRefunded         = apperr.New(apperr.Conflict, "Transaksi yang sudah direfund tidak dapat dibatalkan.")
-	ErrVoidNotCompleted     = apperr.New(apperr.Conflict, "Hanya transaksi selesai yang dapat dibatalkan.")
-	ErrVoidForbidden        = apperr.New(apperr.Forbidden, "Izin membatalkan transaksi ini tidak dimiliki.")
-	ErrVoidCountNeedsChoice = apperr.New(apperr.Conflict, "Stock opname sudah menghitung barang di transaksi ini. Lakukan pembatalan saat online agar pilihan stok bisa dibuat.")
-	ErrVoidShiftClosed      = apperr.New(apperr.Forbidden, "Shift transaksi ini sudah ditutup. Batalkan lewat Backoffice oleh pengguna dengan izin Batalkan Transaksi.")
-	// ErrVoidAfterCloseNotYet is Phase 1 only: closed-shift corrections arrive in Phase 2.
-	ErrVoidAfterCloseNotYet   = apperr.New(apperr.Conflict, "Pembatalan transaksi dari shift yang sudah ditutup belum tersedia.")
+	ErrVoidNotFound           = apperr.New(apperr.Conflict, "Transaksi tidak ditemukan di outlet ini.")
+	ErrVoidAlreadyVoided      = apperr.New(apperr.Conflict, "Transaksi ini sudah dibatalkan.")
+	ErrVoidRefunded           = apperr.New(apperr.Conflict, "Transaksi yang sudah direfund tidak dapat dibatalkan.")
+	ErrVoidNotCompleted       = apperr.New(apperr.Conflict, "Hanya transaksi selesai yang dapat dibatalkan.")
+	ErrVoidForbidden          = apperr.New(apperr.Forbidden, "Izin membatalkan transaksi ini tidak dimiliki.")
+	ErrVoidCountNeedsChoice   = apperr.New(apperr.Conflict, "Stock opname sudah menghitung barang di transaksi ini. Lakukan pembatalan saat online agar pilihan stok bisa dibuat.")
+	ErrVoidShiftClosed        = apperr.New(apperr.Forbidden, "Shift transaksi ini sudah ditutup. Batalkan lewat Backoffice oleh pengguna dengan izin Batalkan Transaksi.")
 	ErrVoidReasonInvalid      = apperr.New(apperr.Rejected, "Alasan pembatalan tidak valid.")
 	ErrVoidNoteRequired       = apperr.New(apperr.Rejected, "Catatan wajib diisi minimal 10 karakter untuk alasan Lainnya.")
 	ErrVoidNoMovements        = apperr.New(apperr.Conflict, "Catatan stok transaksi ini tidak ditemukan; pembatalan tidak dapat diproses.")

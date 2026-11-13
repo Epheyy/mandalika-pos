@@ -304,8 +304,11 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 // a void's transaction returns it (retryable) and its outer receipt replays on the retry.
 var errOrderKeyConflict = apperr.Wrap(apperr.Busy, write.ErrBusy)
 
+// orderKeyConflict logs the database cause and returns the bare sentinel: the sentinel's text is
+// what a sync ack or HTTP body may echo, and it must not carry constraint names or SQLSTATE.
 func orderKeyConflict(cause error) error {
-	return fmt.Errorf("%w: %w", errOrderKeyConflict, cause)
+	slog.Warn("order idempotency key conflict", "err", cause)
+	return errOrderKeyConflict
 }
 
 // createOrderTx is the checkout body inside a caller-owned transaction, from the processed_keys
