@@ -3,7 +3,7 @@ import type { CashFlagMethod } from '@mandalika/types'
 import type { BxgyRewardPick } from '../BxgyRewardModal'
 import type { HeldAdjustment, HeldOrder } from '../heldOrders'
 import type { TenderLine } from '../tenderSplit'
-import { appliedTenders, type VoidReasonCode } from './voidRules'
+import { appliedTenders, type LocalVoidSale, type VoidReasonCode } from './voidRules'
 
 type Order = components['schemas']['Order']
 type CartItem = components['schemas']['CartItem']
@@ -23,6 +23,16 @@ export interface VoidDraft {
   /** The server refuses a different amount (afterClose or another shift): the replacement always books the gap as a correction. */
   amountsLocked: boolean
   kind: 'void_and_replace' | 'create_replacement'
+  /** Set by startVoidDraftActions. The replacement sale's order uuid: also the void item's key, so a retry is the same item. */
+  replacementUuid?: string
+  /** Set by startVoidDraftActions: the open shift's id when the draft began. Confirm refuses once it is not the open shift. */
+  startedShiftId?: string | null
+  /** Set by startVoidDraftActions: the original as the history row knew it (an Order, or a LocalVoidSale for a sale not
+   *  synced yet). It feeds buildVoidPayload (restockLines, originalTenders, orderId or saleOrderUuid). */
+  sale?: Order | LocalVoidSale
+  /** The outlet giveaway unit the original took, when the caller knows it (an Order's items do not carry it). Only
+   *  feeds the tablet's stock overlay; the server decides stock itself. Leave unset when unsure. */
+  giveaway?: { productId: string; variantSize: string } | null
 }
 
 const adjustment = (type: string | null | undefined, value: number | null | undefined): HeldAdjustment =>

@@ -14,13 +14,14 @@ describe('open cart draft is tied to the sale gate (no double submit)', () => {
     const enqueue = gate.indexOf("engine.enqueue('order'")
     expect(commit).toBeGreaterThan(-1)
     expect(commit).toBeLessThan(enqueue)
-    expect(gate).toContain('}, saleUuid)')
+    expect(gate).toContain("engine.enqueue('order', orderPayload, saleUuid)")
+    expect(gate).toMatch(/commitVoidDraftSale\(\{[^}]*orderPayload, saleUuid,/)
   })
   it('the draft is deleted inside the gate right after the enqueue resolved', () => {
     expect(gate.indexOf('openCart.clearForSale()')).toBeGreaterThan(gate.indexOf("engine.enqueue('order'"))
   })
   it('closing the shift clears the draft and the screen cart', () => {
-    expect(screen).toMatch(/closed\) \{ await openCart\.clearForSale\(\); dispatch\(\{ type: 'CART_CLEAR' \}\) \}/)
+    expect(screen).toMatch(/closed\) \{ await openCart\.clearForSale\(\); dispatch\(\{ type: 'VOID_DRAFT_CANCEL' \}\) \}/)
   })
   it('hydration is skipped while a split draft is pending and drops sales already queued', () => {
     expect(screen).toContain('splitDraftOrderUuid: splitDraft.pending?.orderUuid ?? null')

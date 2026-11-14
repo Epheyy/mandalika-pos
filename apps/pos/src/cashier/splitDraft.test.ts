@@ -81,3 +81,10 @@ describe('restore rules', () => {
     expect(draftIsAlreadyASale(d, new Set(['other']))).toBe(false)
   })
 })
+
+describe('splitDraftFromState with a void draft', () => {
+  it('never keeps the seeded original payment lines as a restorable plain sale', () => {
+    const s = { ...splitState([{ method: 'qris', amount: 100 }]), voidDraft: { orderNumber: 'BSD-1' } }
+    expect(splitDraftFromState(s, 100, isCash, NOW)).toBeNull()
+  })
+})

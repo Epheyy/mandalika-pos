@@ -78,3 +78,13 @@ describe('replacement receipt', () => {
     expect(lines.every((l) => l.length <= COLS)).toBe(true)
   })
 })
+
+describe('printer text safety', () => {
+  it('a note with control characters, curly quotes and an en dash prints as plain ASCII', () => {
+    const note = 'a\x1bb\x07c \u201cq\u201d \u2018s\u2019 x\u2013y'
+    const text = voidSlipLines({ ...voidData, note }, 48).join('\n')
+    expect(text).toContain('Catatan: a b c "q" ' + "'s' x-y")
+    // eslint-disable-next-line no-control-regex
+    expect(/[\x00-\x09\x0b-\x1f\x7f\u2013\u201c\u2018]/.test(text)).toBe(false)
+  })
+})

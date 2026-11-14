@@ -139,3 +139,12 @@ describe('revalidation against the live catalogue', () => {
     expect(restoreToast({ unavailable: 0, repriced: 0 }, [])).toBeNull()
   })
 })
+
+describe('openCartFromState with a void draft', () => {
+  it('openCartFromState returns null while a void draft is open', () => {
+    const s = withCart()
+    expect(openCartFromState(src(s), { saleUuid: 'u', userId: 'u1', now: NOW })).not.toBeNull()
+    const voided = { ...src(s), voidDraft: { orderNumber: 'BSD-1' } }
+    expect(openCartFromState(voided, { saleUuid: 'u', userId: 'u1', now: NOW })).toBeNull()
+  })
+})

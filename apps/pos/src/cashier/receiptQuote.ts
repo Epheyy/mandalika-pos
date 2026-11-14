@@ -79,6 +79,8 @@ export interface ReceiptSnapshot {
   roundingAmount?: number
   /** C6: one row per payment line of a split sale; absent on a plain one-method sale and on older archives. */
   tenders?: SnapshotTender[]
+  /** Void: the replacement's "Penyesuaian koreksi" (original total minus the cart's); part of `total`, absent when 0. */
+  correctionAmount?: number
 }
 
 export interface ReceiptQuote {
@@ -105,10 +107,14 @@ export function buildReceiptQuote(input: {
   tender: { amountPaid: number; change: number }
   refVersion: number
   tenders?: SnapshotTender[]
+  /** Void replacement: the signed gap that brings the cart's total to the original's. Added to the total, stored as `correctionAmount`. */
+  correction?: number
 }): ReceiptQuote {
   const { cart, derived, tender, refVersion, tenders } = input
+  const correction = input.correction ?? 0
+  const total = derived.total + correction
   return {
-    quotedTotal: derived.total,
+    quotedTotal: total,
     receiptSnapshot: {
       v: 2,
       refVersion,
@@ -117,7 +123,7 @@ export function buildReceiptQuote(input: {
       surchargeAmount: derived.surchargeAmount,
       taxAmount: derived.taxAmount,
       redeemAmount: derived.redeemAmount,
-      total: derived.total,
+      total,
       amountPaid: tender.amountPaid,
       change: tender.change,
       discounts: derived.discountParts ?? (derived.discountAmount > 0 ? [{ label: 'Diskon', amount: derived.discountAmount }] : []),
@@ -142,6 +148,7 @@ export function buildReceiptQuote(input: {
         } : {}),
       })),
       ...(tenders && tenders.length > 0 ? { tenders } : {}),
+      ...(correction !== 0 ? { correctionAmount: correction } : {}),
     },
   }
 }
@@ -156,7 +163,7 @@ export function receiptAddsUp(data: ReceiptData): boolean {
   if (lineSum !== data.subtotal) return false
   const discount = data.discounts ? data.discounts.reduce((sum, d) => sum + d.amount, 0) : data.discountAmount
   const expected =
-    data.subtotal - discount + (data.surcharge ?? 0) - (data.pointsRedeemed?.amount ?? 0) + data.taxAmount + (data.rounding ?? 0)
+    data.subtotal - discount + (data.surcharge ?? 0) - (data.pointsRedeemed?.amount ?? 0) + data.taxAmount + (data.rounding ?? 0) + (data.correctionAmount ?? 0)
   return expected === data.total
 }
 
@@ -193,6 +200,7 @@ export function receiptFromQuote(
           surcharge: s.surchargeAmount > 0 ? s.surchargeAmount : null,
           pointsRedeemed: s.redeemAmount > 0 ? { points: s.redeemedPoints ?? 0, amount: s.redeemAmount } : null,
           rounding: s.roundingAmount ? s.roundingAmount : null,
+          ...(s.correctionAmount ? { correctionAmount: s.correctionAmount } : {}),
         }
       : {}),
     taxAmount: s.taxAmount,

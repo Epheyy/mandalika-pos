@@ -75,8 +75,10 @@ export function quoteTotalRows(
   cart: readonly QuoteLineInput[],
   derived: QuoteDerived,
   settings: Pick<ReceiptSettings, 'showSubtotal' | 'showDiscount' | 'showTax'>,
+  /** Void replacement: the Penyesuaian koreksi that brings the cart to the original total. */
+  correction?: number,
 ): TotalRow[] {
-  const quote = buildReceiptQuote({ cart, derived, tender: { amountPaid: 0, change: 0 }, refVersion: 0 })
+  const quote = buildReceiptQuote({ cart, derived, tender: { amountPaid: 0, change: 0 }, refVersion: 0, ...(correction ? { correction } : {}) })
   const data = receiptFromQuote(quote, {
     orderRef: '', dateTime: new Date(0), paymentLabel: '', customerName: null, customerPhone: null, cashierName: '',
   })

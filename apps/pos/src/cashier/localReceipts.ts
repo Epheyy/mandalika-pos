@@ -110,14 +110,8 @@ export function reprintReceiptData(r: LocalReceipt): ReceiptData | null {
     customerPhone: null,
     cashierName: '-',
   })
-  // Void: a replacement sale's slip keeps its "Pengganti untuk" line and correction row on a reprint. The snapshot
-  // gets `correctionAmount` with the replacement cart; read it optionally until then.
-  const correction = (r.receiptSnapshot as { correctionAmount?: number }).correctionAmount
-  return {
-    ...data,
-    ...(r.replacesOrderNumber ? { replacesOrderRef: r.replacesOrderNumber } : {}),
-    ...(correction ? { correctionAmount: correction } : {}),
-  }
+  // Void: a replacement sale's slip keeps its "Pengganti untuk" line on a reprint (the correction row comes from the snapshot).
+  return r.replacesOrderNumber ? { ...data, replacesOrderRef: r.replacesOrderNumber } : data
 }
 
 /** The newest local receipt that can be reprinted (the list is newest first). */

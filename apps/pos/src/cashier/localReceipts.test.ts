@@ -84,6 +84,13 @@ describe('reprintReceiptData', () => {
     expect(d.lines).toEqual([{ name: 'Mandalika Oud', variant: '110ml', qty: 2, unitPrice: 125000, amount: 250000 }])
     expect(d.dateTime.toISOString()).toBe('2026-10-20T03:00:00.000Z')
   })
+  it('a replacement reprint carries replacesOrderRef and the correction row', () => {
+    const snap = { ...snapshot, v: 2, total: 250000, discounts: [], correctionAmount: -20000, subtotal: 270000 }
+    const d = reprintReceiptData(receipt({ receiptSnapshot: { ...snap, lines: [{ ...snapshot.lines[0], amount: 270000 }] }, replacesOrderNumber: 'BSD-G0001' }))!
+    expect(d.replacesOrderRef).toBe('BSD-G0001')
+    expect(d.correctionAmount).toBe(-20000)
+    expect(reprintReceiptData(receipt())!.replacesOrderRef).toBeUndefined()
+  })
   it('is null when the snapshot is missing or malformed (nothing to print)', () => {
     expect(reprintReceiptData(receipt({ receiptSnapshot: null }))).toBeNull()
     expect(reprintReceiptData(receipt({ receiptSnapshot: { v: 3, lines: [] } }))).toBeNull()

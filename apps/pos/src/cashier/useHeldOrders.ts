@@ -31,9 +31,11 @@ export function useHeldOrders({ outletId, state, dispatch, getEnv, ensureShift, 
   const [held, setHeld] = useState<HeldOrder[]>(() => store.list())
   const refresh = (): void => setHeld(store.list())
   const hasCart = state.cart.length > 0
+  // A void replacement cart cannot be parked: resumed later it would ring up as a plain sale.
+  const canSave = hasCart && !state.voidDraft
 
   const save = (name: string): void => {
-    if (!hasCart) return
+    if (!canSave) return
     const order = heldOrderFromState(state, { id: crypto.randomUUID(), name, now: Date.now() })
     const result = store.save(order)
     if (!result.ok) { showToast(result.reason === 'full' ? HELD_ORDERS_FULL_MESSAGE : HELD_ORDERS_WRITE_MESSAGE, 'warn'); return }
@@ -70,5 +72,5 @@ export function useHeldOrders({ outletId, state, dispatch, getEnv, ensureShift, 
   }
 
   const suggestedName = defaultHeldName(state.selectedCustomer?.name, new Date())
-  return { open, setOpen, held, hasCart, suggestedName, save, resume, remove }
+  return { open, setOpen, held, hasCart, canSave, suggestedName, save, resume, remove }
 }

@@ -40,10 +40,12 @@ const isDraft = (v: unknown): v is SplitDraft => {
     !!d.held && Array.isArray(d.held.lines) && Array.isArray(d.tenders) && d.tenders.length > 0 && d.tenders.every(isTenderLine)
 }
 
-export type SplitDraftSource = HeldSource & { splitMode: boolean; tenders: readonly TenderLine[]; splitOrderUuid: string | null }
+export type SplitDraftSource = HeldSource & { splitMode: boolean; tenders: readonly TenderLine[]; splitOrderUuid: string | null; voidDraft?: unknown }
 
 /** The draft to keep for this state, or null when there is nothing worth keeping: a draft exists only once a NON-CASH line is entered. */
 export function splitDraftFromState(state: SplitDraftSource, total: number, isCash: (method: string) => boolean, now: number): SplitDraft | null {
+  // A void replacement's seeded payment lines are the original sale's, not a charge taken now: never offered back as a plain sale.
+  if (state.voidDraft) return null
   if (!state.splitMode || !state.splitOrderUuid || !state.tenders.some((l) => !isCash(l.method))) return null
   return {
     v: 1,

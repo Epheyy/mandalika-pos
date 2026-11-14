@@ -305,7 +305,16 @@ export interface VoidSlipData {
 
 /** Printer-safe text: accents folded to ASCII (the code page prints them as box glyphs), middle dot to a hyphen. */
 function toPrinterText(text: string): string {
-  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/·/g, '-')
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\u00b7/g, '-')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    // A control byte in a note would reach the printer as a command.
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1f\x7f]/g, ' ')
 }
 
 /** Hard-wrap `text` at `cols` characters (word-aware, no line limit). */
