@@ -101,3 +101,15 @@ describe('inRecapShift', () => {
     expect(inRecapShift({ shiftId: null, replacesOrderId: 'o1' }, 'S')).toBe(false)
   })
 })
+
+describe('voidRecapOverlay for an unattributed sale', () => {
+  it('still overlays a void with no originalShiftId when the orders of the shift hold the sale', () => {
+    const ov = voidRecapOverlay([qv({ originalShiftId: null, mode: 'none', replacementTenders: undefined })], [order()], 'S')
+    expect(ov.orders).toBe(-1)
+    expect(ov.total).toBeLessThan(0)
+  })
+  it('a void of the sale of another shift is still ignored, and so is an unattributed one the orders do not hold', () => {
+    expect(voidRecapOverlay([qv({ originalShiftId: 'OTHER' })], [order()], 'S').orders).toBe(0)
+    expect(voidRecapOverlay([qv({ originalShiftId: null, orderId: 'missing' })], [order()], 'S').orders).toBe(0)
+  })
+})

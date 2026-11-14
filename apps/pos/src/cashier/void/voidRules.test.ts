@@ -190,3 +190,16 @@ describe('void draft lock and skip_counted', () => {
     expect(all.restockLines).toEqual([])
   })
 })
+
+describe('buildVoidPayload applied tenders', () => {
+  it('marks tendersApplied and trims the replacement with the outlet cash methods (custom cash id)', () => {
+    const methods = [{ id: 'tunai-2', isCash: true }] as never
+    const p = buildVoidPayload({
+      order: order({ total: 85000 }), reason: 'salah_barang', note: '', mode: 'replace', methods,
+      replacement: { orderUuid: 'r', quotedTotal: 85000, tenders: [{ method: 'tunai-2', amount: 100000 }] },
+    })
+    expect(p.tendersApplied).toBe(true)
+    expect(p.replacementTenders).toEqual([{ method: 'tunai-2', amount: 85000 }])
+    expect(buildVoidPayload({ order: order(), reason: 'salah_barang', note: '', mode: 'none' })).not.toHaveProperty('replacementTenders')
+  })
+})

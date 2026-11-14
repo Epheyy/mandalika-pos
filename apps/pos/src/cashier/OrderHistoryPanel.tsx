@@ -55,6 +55,8 @@ interface OrderHistoryPanelProps {
   queuedRefundOrderIds: ReadonlySet<string>
   /** Orders whose refund already synced from this tablet (stale cached rows may still say completed). */
   syncedRefundOrderIds?: ReadonlySet<string>
+  /** Sales with a queued, parked or acknowledged void on this tablet: they cannot be refunded. */
+  voidedOrderIds?: ReadonlySet<string>
   /** Sales (by uuid) with a queued or parked linked refund. */
   queuedSaleUuids?: ReadonlySet<string>
   /** Server id -> sale uuid for sales this tablet made, so a refund queued under the uuid blocks the server row too. */
@@ -122,7 +124,7 @@ function VoidDetails({ order, onOpenOrder }: { order: Order; onOpenOrder: (order
   )
 }
 
-export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, paymentMethods, timezone, shiftOpenedAt, voidGate, parkedVoids, onVoid, onCreateReplacement }: OrderHistoryPanelProps) {
+export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, voidedOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, paymentMethods, timezone, shiftOpenedAt, voidGate, parkedVoids, onVoid, onCreateReplacement }: OrderHistoryPanelProps) {
   const [from, setFrom] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).from : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
   const [to, setTo] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).to : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
   // Once the cashier picks a day (or the panel opened on a given sale), a late-arriving timezone/shift no longer moves it.
@@ -424,6 +426,7 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
                         shiftUnsynced={shiftUnsynced}
                         queuedOrderIds={queuedRefundOrderIds}
                         syncedRefundOrderIds={syncedRefundOrderIds}
+                        voidedOrderIds={voidedOrderIds}
                         queuedSaleUuids={queuedSaleUuids}
                         serverIdToSaleUuid={serverIdToSaleUuid}
                         refundCache={refundCache}

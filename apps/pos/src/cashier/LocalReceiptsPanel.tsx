@@ -19,7 +19,7 @@ import { VoidAction } from './void/VoidAction'
 import { localVoidSale } from './void/localVoidSale'
 import { parkedVoidNote, voidAvailability, type VoidAvailabilityInput } from './void/voidRules'
 
-type Gate = Pick<RefundAvailabilityInput, 'canRefund' | 'hasOpenShift' | 'shiftUnsynced' | 'syncedRefundOrderIds' | 'queuedSaleUuids' | 'serverIdToSaleUuid'>
+type Gate = Pick<RefundAvailabilityInput, 'canRefund' | 'hasOpenShift' | 'shiftUnsynced' | 'syncedRefundOrderIds' | 'queuedSaleUuids' | 'serverIdToSaleUuid' | 'voidedOrderIds'>
 
 /** The same props refundGateProps hands the history panel. */
 interface LocalReceiptsPanelProps extends Gate {

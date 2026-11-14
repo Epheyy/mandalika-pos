@@ -82,7 +82,8 @@ export function voidRecapOverlay(queued: QueuedVoid[], orders: Order[], shiftId:
   const add = (m: string, v: number) => { byMethod[m] = (byMethod[m] ?? 0) + v; total += v }
   const byId = new Map(orders.map((o) => [o.id, o]))
   for (const v of queued) {
-    if (v.parked || v.originalShiftId !== shiftId || v.orderId === '') continue
+    // An unattributed sale (no originalShiftId) the shift's orders list holds is counted in this shift by the server too.
+    if (v.parked || (v.originalShiftId !== null && v.originalShiftId !== shiftId) || v.orderId === '') continue
     // Only a sale the recap actually counted can be taken out of it; a cancelled one already reflects the void.
     const o = byId.get(v.orderId)
     if (!o || o.status === 'cancelled') continue

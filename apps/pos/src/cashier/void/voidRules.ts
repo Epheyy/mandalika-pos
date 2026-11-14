@@ -230,14 +230,37 @@ export function originalTendersOf(o: Order | LocalVoidSale, methods?: readonly C
   return [{ method: o.paymentMethod, amount: o.total }]
 }
 
+/** What the replacement costs the customer: the original total when the gap is booked as a correction, else the cart's
+ *  quoted total. Undefined when the replacement does not say. */
+function replacementDueOf(replacement: Record<string, unknown>, originalTotal: number): number | undefined {
+  if (replacement.correctionTarget === 'original_total') return originalTotal
+  if (typeof replacement.quotedTotal === 'number' && Number.isFinite(replacement.quotedTotal)) return replacement.quotedTotal
+  const snap = replacement.receiptSnapshot as { total?: unknown } | null | undefined
+  return snap && typeof snap.total === 'number' && Number.isFinite(snap.total) ? snap.total : undefined
+}
+
+/** The replacement's payment lines as APPLIED (cash change trimmed with the outlet's own cash methods), or undefined. */
+function replacementTendersOf(r: Record<string, unknown> | undefined, originalTotal: number, methods?: readonly CashFlagMethod[]): TenderLine[] | undefined {
+  if (!r || !Array.isArray(r.tenders)) return undefined
+  const lines = (r.tenders as { method?: unknown; amount?: unknown; reference?: unknown }[])
+    .filter((t) => typeof t.method === 'string' && typeof t.amount === 'number')
+    .map((t) => ({ method: t.method as string, amount: t.amount as number, ...(typeof t.reference === 'string' && t.reference ? { reference: t.reference } : {}) }))
+  if (lines.length === 0) return undefined
+  const due = replacementDueOf(r, originalTotal)
+  return due === undefined ? lines : appliedTenders(lines, due, methods)
+}
+
 /** The `void` sync payload (SyncVoidPayload): written once and never mutated (A11). The display facts (restockLines,
- *  originalTenders, originalShiftId, orderNumber, total) feed the tablet's own overlays; the server ignores them. */
+ *  originalTenders, replacementTenders, originalShiftId, orderNumber, total) feed the tablet's own overlays; the server ignores
+ *  them. `tendersApplied` says the tender lines are already the APPLIED amounts (trimmed with this outlet's cash methods), so
+ *  the engine does not re-guess cash from the default ids. */
 export function buildVoidPayload(i: VoidPayloadInput): Record<string, unknown> {
   if (i.mode === 'replace' && !i.replacement) throw new Error('buildVoidPayload: mode replace needs a replacement')
   const o = i.order
   const note = i.note.trim()
   const shiftId = o.shiftId ? o.shiftId : null
   const choices = i.stockChoices && Object.keys(i.stockChoices).length > 0 ? { ...i.stockChoices } : null
+  const appliedReplacement = i.mode === 'replace' ? replacementTendersOf(i.replacement, o.total, i.methods) : undefined
   return {
     orderId: isLocal(o) ? (o.serverOrderId ?? '') : o.id,
     ...(isLocal(o) ? { saleOrderUuid: o.orderUuid } : {}),
@@ -249,6 +272,8 @@ export function buildVoidPayload(i: VoidPayloadInput): Record<string, unknown> {
     total: o.total,
     restockLines: restockLinesOf(i),
     originalTenders: originalTendersOf(o, i.methods),
+    tendersApplied: true,
+    ...(appliedReplacement ? { replacementTenders: appliedReplacement } : {}),
     ...(shiftId ? { originalShiftId: shiftId } : {}),
     ...(i.mode === 'replace' && i.replacement ? { replacement: { ...i.replacement } } : {}),
   }

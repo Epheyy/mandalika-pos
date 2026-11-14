@@ -139,6 +139,5 @@ export function voidSlipData(i: { draft: Pick<VoidDraft, 'orderNumber' | 'origin
     voidedBy: i.voidedBy,
     dateTime: `${two(at.getDate())}/${two(at.getMonth() + 1)}/${at.getFullYear()} ${two(at.getHours())}:${two(at.getMinutes())}`,
     ...(i.replacementRef ? { replacementRef: i.replacementRef } : {}),
-    pending: false,
   }
 }

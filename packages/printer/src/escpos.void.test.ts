@@ -23,7 +23,7 @@ const base: ReceiptData = {
   paymentLabel: 'Tunai', amountPaid: 80000, change: 0, customerName: null, customerPhone: null, cashierName: 'Kasir',
 }
 const voidData: VoidSlipData = {
-  orderRef: 'MND-1', total: 100000, reasonLabel: 'Salah barang', voidedBy: 'Sari', dateTime: '14/11/2026 10:00', pending: false,
+  orderRef: 'MND-1', total: 100000, reasonLabel: 'Salah barang', voidedBy: 'Sari', dateTime: '14/11/2026 10:00',
 }
 
 describe('DIBATALKAN slip', () => {

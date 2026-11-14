@@ -5,7 +5,7 @@ import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
 import { KVOutboxStore, type OutboxStore } from './outboxStore'
-import { SyncedRefunds, SYNCED_VOIDS_KEY } from './syncedRefunds'
+import { SyncedRefunds, SYNCED_REPLACEMENTS_KEY, SYNCED_VOIDS_KEY } from './syncedRefunds'
 import { PartialRefunds, partialRefundFromPayload, type PartialRefundEntry } from './partialRefunds'
 import { ReceiptArchive, receiptEntryFromItem, salePayloadOf, tendersFromPayload, type ArchivedTender, type ReceiptContext, type ReceiptEntry } from './receiptArchive'
 import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
@@ -250,8 +250,6 @@ export interface QueuedRefund {
 /** A void not yet acknowledged by the server (queued, retrying or parked), as the POS gate and shift recap see it.
  *  Display facts come from the payload's tablet-only fields; the payload itself is never altered. */
 export interface QueuedVoid {
-  // Note for the payload builder (Task 3.2): `payload.restockLines` must include the giveaway movement of the
-  // voided sale, since pendingStockDeltas() only adds a giveaway unit for the replacement sale, never for the original.
   idempotencyKey: string
   /** Server order id of the sale (its own, or resolved once a linked sale synced); '' while that sale is still queued. */
   orderId: string
@@ -377,6 +375,7 @@ export class SyncEngine {
   private readonly syncedRefunds: SyncedRefunds
   /** Sales whose void the server acknowledged (an acked void leaves the outbox; a cached history row still says completed). */
   private readonly syncedVoids: SyncedRefunds
+  private readonly syncedReplacements: SyncedRefunds
   /** C4b: acknowledged per-line refunds (a partial refund is NOT a whole-order "done" marker). */
   private readonly partialRefunds: PartialRefunds
   /** Refund keys the server acked as leaving the order fully refunded: the outbox row cannot carry that (guarded file), so a
@@ -474,6 +473,7 @@ export class SyncEngine {
     this.settling = new SettlingDebits(kv)
     this.syncedRefunds = new SyncedRefunds(store.kv)
     this.syncedVoids = new SyncedRefunds(store.kv, SYNCED_VOIDS_KEY)
+    this.syncedReplacements = new SyncedRefunds(store.kv, SYNCED_REPLACEMENTS_KEY)
     this.partialRefunds = new PartialRefunds(store.kv)
     this.receiptArchive = new ReceiptArchive(store.kv)
     // Self-heal: an acked refund still in the queue means a crash hit between its ack and the
@@ -490,21 +490,34 @@ export class SyncEngine {
    *  whole-order refunds acked in this batch (and per-line ones the server reported as leaving it fully
    *  refunded); `extraPartial` = the per-line refunds acked in this batch.
    *  Resolves false, never rejects, when a write failed: the caller must then keep the rows. */
-  private foldAckedRefunds(extra: readonly string[] = [], extraPartial: readonly PartialRefundEntry[] = [], extraVoid: readonly string[] = []): Promise<boolean> {
+  private foldAckedRefunds(extra: readonly string[] = [], extraPartial: readonly PartialRefundEntry[] = [], extraVoid: readonly string[] = [], extraReplacement: readonly string[] = []): Promise<boolean> {
     const queued = this.ackedQueuedRefunds()
     const ids = new Set([...extra, ...queued.wholeOrderIds])
     const partial = [...extraPartial, ...queued.partial]
     const voidIds = new Set([...extraVoid, ...this.ackedQueuedVoidIds()])
     ids.delete('')
     voidIds.delete('')
-    if (!ids.size && !partial.length && !voidIds.size) return Promise.resolve(true)
-    return Promise.all([this.syncedRefunds.addMany([...ids]), this.partialRefunds.addMany(partial), this.syncedVoids.addMany([...voidIds])]).then(
+    const replacementIds = new Set([...extraReplacement, ...this.ackedQueuedReplacementIds()])
+    replacementIds.delete('')
+    if (!ids.size && !partial.length && !voidIds.size && !replacementIds.size) return Promise.resolve(true)
+    return Promise.all([this.syncedRefunds.addMany([...ids]), this.partialRefunds.addMany(partial), this.syncedVoids.addMany([...voidIds]), this.syncedReplacements.addMany([...replacementIds])]).then(
       () => true,
       (err) => {
         console.error('[sync] synced-refund memory write failed; acked refund rows are kept', err)
         return false
       },
     )
+  }
+
+  /** Voided orders named by acknowledged "Buat pengganti" sales still sitting in the queue. */
+  private ackedQueuedReplacementIds(): string[] {
+    const ids: string[] = []
+    for (const i of this.outbox.all()) {
+      if (i.type !== 'order' || i.status !== 'acked') continue
+      const id = i.payload.replacesOrderId
+      if (typeof id === 'string' && id) ids.push(id)
+    }
+    return ids
   }
 
   /** Ids (server id and client uuid) of the sales named by acknowledged voids still sitting in the queue. */
@@ -589,6 +602,7 @@ export class SyncEngine {
     await this.outbox.idle()
     await this.syncedRefunds.idle()
     await this.syncedVoids.idle()
+    await this.syncedReplacements.idle()
     await this.partialRefunds.idle()
     await this.receiptArchive.idle()
     await this.settling.idle()
@@ -1149,6 +1163,7 @@ export class SyncEngine {
     // Queued and parked (needs review) sales never reached server stock, or are not yet in the snapshot.
     const unacked = [...this.outbox.pending(), ...this.outbox.deadLettered()]
     const unackedKeys = new Set(unacked.map((i) => i.idempotencyKey))
+    const parkedKeys = new Set(this.outbox.deadLettered().map((i) => i.idempotencyKey))
     // Only the outlet in effect (a flush-only or mismatched terminal may still drain another outlet's queue).
     const outlet = this.actorProvider?.()?.outletId
     const inScope = (o: string | undefined) => !outlet || !o || o === outlet
@@ -1174,7 +1189,8 @@ export class SyncEngine {
       if (item.type === 'void' && inScope(item.envelope?.outletId)) {
         // Delta convention: positive = units the displayed stock loses. The restock gives units back; the
         // replacement sale (if any) takes its lines and one giveaway unit like any counted order. Gone on ack.
-        add(voidRestockLines(item))
+        // A parked void is not applied and may be retried or voided again: its restock is not shown (errs low); its replacement debit is.
+        if (!parkedKeys.has(item.idempotencyKey)) add(voidRestockLines(item))
         const replacement = salePayloadOf(item)
         if (replacement) {
           add(orderDebitLines({ payload: replacement }))
@@ -1228,15 +1244,18 @@ export class SyncEngine {
     return this.outbox
       .all()
       .filter((i) => i.type === 'void' && i.status !== 'acked')
-      .slice()
       .sort((a, b) => a.seq - b.seq)
       .map((i) => {
         const p = i.payload
         const replacement = salePayloadOf(i)
         const replacementOrderUuid = replacement && typeof replacement.orderUuid === 'string' && replacement.orderUuid ? replacement.orderUuid : undefined
         const originalTotal = typeof p.total === 'number' && Number.isFinite(p.total) ? p.total : undefined
-        const replacementTenders = replacement ? appliedArchived(tendersFromPayload(replacement.tenders), replacementDue(replacement, originalTotal)) : undefined
-        const originalTenders = appliedArchived(tendersFromPayload(p.originalTenders), originalTotal) ?? []
+        // A payload built by the POS (tendersApplied) carries the lines already trimmed with the outlet's own cash methods;
+        // only older payloads fall back to the default-id heuristic.
+        const marked = p.tendersApplied === true
+        const heuristicReplacement = replacement ? appliedArchived(tendersFromPayload(replacement.tenders), replacementDue(replacement, originalTotal)) : undefined
+        const replacementTenders = replacement ? (marked ? tendersFromPayload(p.replacementTenders) ?? heuristicReplacement : heuristicReplacement) : undefined
+        const originalTenders = (marked ? tendersFromPayload(p.originalTenders) : appliedArchived(tendersFromPayload(p.originalTenders), originalTotal)) ?? []
         const replacementOrderNumber = replacement && typeof replacement.orderNumber === 'string' && replacement.orderNumber ? replacement.orderNumber : undefined
         return {
           idempotencyKey: i.idempotencyKey,
@@ -1329,6 +1348,12 @@ export class SyncEngine {
   /** Orders that already have an unacknowledged refund (incl. parked): no second refund may start. */
   queuedRefundOrderIds(): Set<string> {
     return new Set(this.queuedRefunds().map((r) => r.orderId).filter((id) => id !== ''))
+  }
+
+  /** Voided orders (server ids) whose "Buat pengganti" sale this tablet saw acknowledged, plus acked ones still queued:
+   *  a stale history row (whose void followup is not updated yet) must not offer a second replacement. */
+  syncedReplacementOrderIds(): Set<string> {
+    return new Set([...this.syncedReplacements.ids(), ...this.ackedQueuedReplacementIds()])
   }
 
   /** Sales whose void this tablet saw the server acknowledge (persistent, bounded): server ids and client uuids,
@@ -1850,6 +1875,7 @@ export class SyncEngine {
     const ackedRefundOrderIds: string[] = []
     const ackedPartialRefunds: PartialRefundEntry[] = []
     const ackedVoidSaleIds: string[] = []
+    const ackedReplacementIds: string[] = []
     const ackedOrders: { key: string; outletId?: string; lines: DebitLine[]; seq?: number; seqOutlet?: string }[] = []
     // A15 phase B: a sale's seq is trusted only while every seq rule is on, the batch carried a counter, and the
     // outlet in effect is the one the request was sent for (never in flush-only mode).
@@ -1905,11 +1931,15 @@ export class SyncEngine {
           const replacement = acked ? salePayloadOf(acked) : null
           if (acked && replacement) {
             ackedOrders.push({ key: acked.idempotencyKey, outletId: acked.envelope?.outletId, lines: orderDebitLines({ payload: replacement }) })
-            needsFollowUp = true
           }
+          // The void moved stock (restock, and the replacement's debit): one follow-up pull refreshes it, mode none included.
+          needsFollowUp = true
         }
         this.pending.stampAck(res.idempotencyKey, data.version ?? 0)
         if (type === 'order') {
+          // A "Buat pengganti" sale remembers the voided order, so a stale history row cannot offer a second one.
+          const replaced = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)?.payload.replacesOrderId
+          if (typeof replaced === 'string' && replaced) ackedReplacementIds.push(replaced)
           // A15: keep the debit visible once the ack prunes the row; written before settle, so a crash
           // between the two can only leave a duplicate that the key-skip in pendingStockDeltas absorbs.
           const acked = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)
@@ -1992,7 +2022,7 @@ export class SyncEngine {
     // The memory is the only copy once the acked row is pruned: durable first, and if it failed keep
     // the rows (the next engine start or batch folds them again).
     // Both folds always run; the acked rows are dropped only when both facts are durable.
-    const [refundsOk, receiptsOk] = await Promise.all([this.foldAckedRefunds(ackedRefundOrderIds, ackedPartialRefunds, ackedVoidSaleIds), this.foldAckedReceipts()])
+    const [refundsOk, receiptsOk] = await Promise.all([this.foldAckedRefunds(ackedRefundOrderIds, ackedPartialRefunds, ackedVoidSaleIds, ackedReplacementIds), this.foldAckedReceipts()])
     if (refundsOk && receiptsOk) await this.outbox.prune()
     else if (refundsOk && this.archiveFailures >= ARCHIVE_HOLD_MAX) {
       // The archive keeps failing: do not let acked rows pile up behind it. Rows that are not sales never needed

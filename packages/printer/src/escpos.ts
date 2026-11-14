@@ -300,7 +300,6 @@ export interface VoidSlipData {
   dateTime: string
   /** Number of the replacement sale, when one exists yet. */
   replacementRef?: string
-  pending: boolean
 }
 
 /** Printer-safe text: accents folded to ASCII (the code page prints them as box glyphs), middle dot to a hyphen. */

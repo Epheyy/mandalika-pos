@@ -167,7 +167,7 @@ describe('pendingStockDeltas for voids', () => {
     expect(engine.pendingStockDeltas()).toEqual({})
   })
 
-  it('a refused (parked) void still counts', async () => {
+  it('a refused (parked) void no longer raises the displayed stock (errs low), but keeps its replacement debit', async () => {
     const request = vi.fn(async (_m: string, _p: string, body: Body) => ({
       data: {
         processed: 0, version: 0,
@@ -179,7 +179,14 @@ describe('pendingStockDeltas for voids', () => {
     online()
     await engine.flushNow()
     expect(engine.reviewItems()).toHaveLength(1)
-    expect(engine.pendingStockDeltas()).toEqual({ 'p1|30ml': -2 })
+    expect(engine.pendingStockDeltas()).toEqual({})
+    const withReplacement = make(request)
+    vi.stubGlobal('navigator', { onLine: false })
+    await withReplacement.enqueue('void', voidPayload({ orderId: 'srv-2', mode: 'replace', replacement: REPLACEMENT }))
+    online()
+    await withReplacement.flushNow()
+    expect(withReplacement.reviewItems()).toHaveLength(1)
+    expect(withReplacement.pendingStockDeltas()).toEqual({ 'p2|10ml': 3 })
   })
 
   it('a void of another outlet (capture envelope) is out of scope', async () => {
@@ -369,5 +376,44 @@ describe('voided sale flags and parked voids', () => {
     await engine.flushNow()
     expect(engine.queuedVoids()[0]).toMatchObject({ parked: true, status: 'failed', reviewReason: 'ditolak' })
     expect(engine.queuedVoidOrderIds().size).toBe(0)
+  })
+})
+
+describe('Phase 3 review fixes', () => {
+  it('prefers the applied tenders carried by the payload over the default-id guess (custom cash id with change)', async () => {
+    const engine = make(vi.fn())
+    const replacement = { ...REPLACEMENT, quotedTotal: 85000, receiptSnapshot: { total: 85000 }, tenders: [{ method: 'tunai-2', amount: 100000 }] }
+    await engine.enqueue('void', voidPayload({
+      orderId: 'srv-1', mode: 'replace', total: 85000, tendersApplied: true,
+      originalTenders: [{ method: 'tunai-2', amount: 85000 }], replacementTenders: [{ method: 'tunai-2', amount: 85000 }], replacement,
+    }))
+    const [v] = engine.queuedVoids()
+    expect(v?.originalTenders).toEqual([{ method: 'tunai-2', amount: 85000 }])
+    expect(v?.replacementTenders).toEqual([{ method: 'tunai-2', amount: 85000 }])
+    // Without the marker an unknown cash id is not recognised and stays as captured.
+    const old = make(vi.fn())
+    await old.enqueue('void', voidPayload({ orderId: 'srv-1', mode: 'replace', total: 85000, originalTenders: [{ method: 'tunai-2', amount: 85000 }], replacement }))
+    expect(old.queuedVoids()[0]?.replacementTenders).toEqual([{ method: 'tunai-2', amount: 100000 }])
+  })
+
+  it('an acked mode none void schedules the follow-up pull so stock refreshes', async () => {
+    const engine = make(okAll())
+    await engine.enqueue('void', voidPayload({ orderId: 'srv-1' }))
+    online()
+    await engine.flushNow()
+    expect((engine as unknown as { followUpPull: boolean }).followUpPull).toBe(true)
+  })
+
+  it('an acked Buat pengganti order is remembered (durable) so a stale row cannot offer a second one', async () => {
+    const { kv } = controllableKV()
+    const mk = () => new SyncEngine(api(okAll()), {}, kv, { actor })
+    const engine = mk()
+    await engine.enqueue('order', { ...SALE, replacesOrderId: 'srv-voided' }, 'rep-1')
+    expect(engine.syncedReplacementOrderIds().has('srv-voided')).toBe(false)
+    online()
+    await engine.flushNow()
+    await engine.idle()
+    expect(engine.syncedReplacementOrderIds().has('srv-voided')).toBe(true)
+    expect(mk().syncedReplacementOrderIds().has('srv-voided')).toBe(true)
   })
 })

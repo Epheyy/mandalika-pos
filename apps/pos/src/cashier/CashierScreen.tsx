@@ -53,7 +53,7 @@ import { RefundDialog, type RefundConfirmInput } from './RefundDialog'
 import type { RefundCache } from './refundSelection'
 import type { HistoryFocus } from './OrderHistoryPanel'
 import { withSaleLineData } from './saleLineData'
-import { REFUND_DONE, REFUND_QUEUED, orderReceiptTenders, planRefundSubmit, refundGateProps, type LocalSaleRef } from './refundView'
+import { REFUND_DONE, REFUND_QUEUED, REFUND_VOIDED, orderReceiptTenders, planRefundSubmit, refundGateProps, type LocalSaleRef } from './refundView'
 import { OrderHistoryPanel } from './OrderHistoryPanel'
 import { LocalReceiptsPanel } from './LocalReceiptsPanel'
 import { localReceiptOrder, localSaleRef, newestReprintable, reprintReceiptData } from './localReceipts'
@@ -96,12 +96,11 @@ import { brand, hasFeature } from '../brand'
 import { PAYMENT_LABELS, tenderLabel } from '../lib/paymentLabels'
 import { cashPredicate, planSaleTender, snapshotTenders } from './tenderSplit'
 import { buildSaleOrderPayload } from './salePayload'
-import { applyLockedTenders, commitVoidDraftSale, voidDraftRefusal, voidPayable, voidSlipData } from './void/voidCheckout'
+import { applyLockedTenders, commitVoidDraftSale, voidDraftRefusal, voidDroppedMessage, voidPayable, voidSlipData } from './void/voidCheckout'
 import { isLocked, lockedTendersProblem, voidDraftNames } from './void/voidReplacement'
 import { BatalkanSheet } from './void/BatalkanSheet'
 import { VoidDraftBanner } from './void/VoidDraftBanner'
 import { useVoidFlow } from './void/useVoidFlow'
-import { voidDroppedMessage } from './void/voidCheckout'
 import { localVoidSale } from './void/localVoidSale'
 import { VOID_BLOCKED_DRAFT, type VoidAvailabilityInput } from './void/voidRules'
 import { useSplitDraft } from './useSplitDraft'
@@ -447,13 +446,15 @@ export default function CashierScreen() {
   const { open: heldOpen, setOpen: setHeldOpen } = heldOrders
 
   // Void phase 3: the Batalkan sheet and its "perbaiki" / "pengganti" carts. The gate is UI-only (the server decides).
+  /** Sales with a queued, parked or acknowledged void here: never offered a refund. */
+  const voidedIds = (): Set<string> => new Set([...engine.queuedVoidOrderIds(), ...engine.syncedVoidOrderIds(), ...engine.queuedVoids().flatMap((v) => [v.orderId, v.saleOrderUuid ?? ''].filter(Boolean))])
   const voidGateInputs = (draftOpen = !!state.voidDraft): Omit<VoidAvailabilityInput, 'order'> => ({
     draftOpen,
     user, deviceId: engine.deviceId, currentShift: shift.currentShift,
     queuedVoidIds: engine.queuedVoidOrderIds(),
     queuedRefundIds: new Set([...engine.queuedRefundOrderIds(), ...engine.queuedRefundSaleUuids()]),
     syncedVoidIds: engine.syncedVoidOrderIds(),
-    queuedReplacementOf: engine.queuedReplacementOrderIds(),
+    queuedReplacementOf: new Set([...engine.queuedReplacementOrderIds(), ...engine.syncedReplacementOrderIds()]),
   })
   const voidFlow = useVoidFlow({
     engine, dispatch, cartHasItems: state.cart.length > 0, draftOpen: !!state.voidDraft, currentShift: shift.currentShift, isOnline: offlineData.isOnline,
@@ -1190,6 +1191,8 @@ export default function CashierScreen() {
     const synced = engine.syncedRefundOrderIds()
     const queuedIds = engine.queuedRefundOrderIds()
     const queuedUuids = engine.queuedRefundSaleUuids()
+    const voided = voidedIds()
+    if (ids.some((k) => voided.has(k))) { setRefundError(REFUND_VOIDED); return }
     if (ids.some((k) => synced.has(k))) { setRefundError(REFUND_DONE); return }
     if (ids.some((k) => queuedIds.has(k) || queuedUuids.has(k))) { setRefundError(REFUND_QUEUED); return }
     const plan = planRefundSubmit({
@@ -1702,7 +1705,7 @@ export default function CashierScreen() {
         onVoid={(o) => voidFlow.openVoid(o, o, o.id)}
         onCreateReplacement={voidFlow.openReplacement}
         paymentMethods={settings.paymentMethods}
-        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId, refundCache: refundCacheFor })}
+        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId, refundCache: refundCacheFor, voidedOrderIds: voidedIds() })}
       />
 
       <LocalReceiptsPanel
@@ -1723,7 +1726,7 @@ export default function CashierScreen() {
           setShowHistory(true)
         }}
         onRefund={(r) => { if (voidDraftNames(state.voidDraft, [r.orderUuid, r.serverOrderId])) { showToast(VOID_BLOCKED_DRAFT); return }; setShowLocalReceipts(false); setRefundSale(localSaleRef(r)); setRefundOrder(localReceiptOrder(r, settings.paymentMethods)) }}
-        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId, refundCache: refundCacheFor })}
+        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId, refundCache: refundCacheFor, voidedOrderIds: voidedIds() })}
       />
 
       <BatalkanSheet order={voidFlow.target?.order ?? null} preview={voidFlow.target?.preview ?? null} previewLoading={voidFlow.target?.previewLoading}

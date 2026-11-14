@@ -30,8 +30,12 @@ export function filterLocalReceipts<T extends Pick<LocalReceipt, 'orderNumber'>>
   return t === '' ? [...rows] : rows.filter((r) => r.orderNumber.toLowerCase().includes(t))
 }
 
-export function localSaleRef(r: Pick<LocalReceipt, 'orderUuid' | 'serverOrderId'>): LocalSaleRef {
-  return r.serverOrderId ? { orderUuid: r.orderUuid, serverOrderId: r.serverOrderId } : { orderUuid: r.orderUuid }
+export function localSaleRef(r: Pick<LocalReceipt, 'orderUuid' | 'serverOrderId'> & Partial<Pick<LocalReceipt, 'voidQueued' | 'voided'>>): LocalSaleRef {
+  return {
+    orderUuid: r.orderUuid,
+    ...(r.serverOrderId ? { serverOrderId: r.serverOrderId } : {}),
+    ...(r.voidQueued || r.voided ? { voided: true } : {}),
+  }
 }
 
 const isSnapshot = (v: unknown): v is ReceiptSnapshot => {

@@ -5,6 +5,9 @@ export const SYNCED_REFUNDS_KEY = 'mandalika.pos.syncedRefunds'
 /** Durable key: sales whose void this tablet has seen the server acknowledge (Phase 3). Same shape and bounds as the
  *  synced-refund memory (this class, constructed with this key); NEW and additive, older bundles ignore it. */
 export const SYNCED_VOIDS_KEY = 'mandalika.pos.syncedVoids'
+/** Durable key: voided orders whose "Buat pengganti" sale this tablet has seen acknowledged (same class and bounds), so a
+ *  stale history row cannot offer a second replacement. NEW and additive. */
+export const SYNCED_REPLACEMENTS_KEY = 'mandalika.pos.syncedReplacements'
 /** Bound: newest entries only, and nothing older than the window. */
 export const SYNCED_REFUNDS_MAX = 500
 export const SYNCED_REFUNDS_TTL_MS = 30 * 24 * 60 * 60 * 1000
