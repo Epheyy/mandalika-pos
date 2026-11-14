@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObjec
 import { isCashMethod } from '@mandalika/types'
 import type { components } from '@mandalika/api'
 import type { RecapData } from '@mandalika/printer'
-import type { QueuedRefund } from '@mandalika/sync'
+import type { QueuedRefund, QueuedVoid } from '@mandalika/sync'
 import { api } from '../api'
 import { usePrinter } from '../printer'
 import { formatRupiah } from './pricing'
@@ -28,6 +28,8 @@ import { recapRows, differenceLines } from './recapRows'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { CashAmountInput } from './CashAmountInput'
 import { countedRaw, withCountedRaw } from './recapEntry'
+import { inRecapShift, voidRecapOverlay, voidRecapRows } from './void/voidRecap'
+import { VoidRecapList } from './void/VoidRecapList'
 import { RecapLoadGate, ownsFlags, startRefresh, switchTab } from './recapRefresh'
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
@@ -64,6 +66,8 @@ interface ShiftRecapPanelProps {
   isClosingShift: boolean
   /** Refunds on this device not yet acknowledged by the server (incl. parked), from the sync engine. */
   queuedRefunds: readonly QueuedRefund[]
+  /** Voids on this device not yet acknowledged (incl. parked), from the sync engine: overlaid on the live figures. */
+  queuedVoids?: readonly QueuedVoid[]
   /** D-4: hide the system's expected amounts until every Terhitung is entered (Pengaturan). */
   blindCount?: boolean
   /** D-6: carts held on this tablet; they stay across shifts, so this is information only. */
@@ -135,6 +139,7 @@ function ShiftRecapPanelBody({
   isOpeningShift,
   isClosingShift,
   queuedRefunds,
+  queuedVoids,
   blindCount = false,
   heldCount = 0,
   backRef,
@@ -155,13 +160,18 @@ function ShiftRecapPanelBody({
   // would also wipe the typed 'Terhitung' counts).
   const [liveOrders, setLiveOrders] = useState<Order[] | null>(null)
   const live: Breakdown | null = useMemo(
-    () => (liveOrders ? aggregate(liveOrders, paymentMethods) : null),
-    [liveOrders, paymentMethods],
+    () => (liveOrders ? aggregate(liveOrders.filter((o) => inRecapShift(o, currentShift?.id ?? '')), paymentMethods) : null),
+    [liveOrders, paymentMethods, currentShift?.id],
   )
 
   // Recorded cash net of refunds paid out of this drawer: other shifts' sales (server snapshot + queued)
   // and this shift's own sales whose refund has not synced yet.
-  const cur = live ? recapFigures(live, currentShift, queuedRefunds, liveOrders) : null
+  const voidList = useMemo(() => [...(queuedVoids ?? [])], [queuedVoids])
+  const curShiftId = currentShift?.id ?? ''
+  const voidOv = useMemo(() => voidRecapOverlay(voidList, liveOrders ?? [], curShiftId), [voidList, liveOrders, curShiftId])
+  const voidRows = useMemo(() => voidRecapRows(liveOrders ?? [], voidList, curShiftId), [voidList, liveOrders, curShiftId])
+  const cur = live ? recapFigures(live, currentShift, queuedRefunds, liveOrders, voidOv) : null
+  const liveOrderCount = (live?.totalOrders ?? 0) + voidOv.orders
   const curRecap = cur?.rec ?? refundRecap(currentShift, queuedRefunds, liveOrders)
   // P-16: every enabled method plus any method (disabled or unconfigured) holding money, so rows add up to the total.
   const rows = useMemo(() => recapRows(paymentMethods, cur?.byMethod ?? {}), [paymentMethods, cur?.byMethod])
@@ -277,7 +287,7 @@ function ShiftRecapPanelBody({
   // A refund queued, acknowledged or parked changes what is already out of the server's figures: refetch
   // shift, orders and flows together, WITHOUT touching 'Terhitung' (loadRekap would wipe typed counts).
   // The signature counts as applied only once a refresh succeeded; failures retry with backoff.
-  const queueSignature = queuedRefunds.map((r) => `${r.idempotencyKey}:${r.parked ? 'p' : 'q'}`).join('|')
+  const queueSignature = [...queuedRefunds, ...(queuedVoids ?? [])].map((r) => `${r.idempotencyKey}:${r.parked ? 'p' : 'q'}`).join('|')
   const appliedQueueSignature = useRef(queueSignature)
   useEffect(() => {
     if (tab !== 'rekapan' || appliedQueueSignature.current === queueSignature) return
@@ -437,7 +447,7 @@ function ShiftRecapPanelBody({
     net: live?.net ?? 0,
     tax: live?.tax ?? 0,
     totalSales: live?.totalSales ?? 0,
-    totalOrders: live?.totalOrders ?? 0,
+    totalOrders: liveOrderCount,
     generatedAt: new Date(),
   })
 
@@ -532,7 +542,7 @@ function ShiftRecapPanelBody({
                   <p className="truncate text-ink-500">{currentShift.outletName ?? outletName} · Kasir: {userName}</p>
                 </div>
                 <div className="tnum space-y-1 text-sm">
-                  <div className="flex justify-between"><span>Penjualan Kotor ({live?.totalOrders ?? 0} transaksi)</span><span className="font-bold">{formatRupiah(live?.gross ?? 0)}</span></div>
+                  <div className="flex justify-between"><span>Penjualan Kotor ({liveOrderCount} transaksi)</span><span className="font-bold">{formatRupiah(live?.gross ?? 0)}</span></div>
                   <div className="flex justify-between text-promo"><span>Potongan Promo &amp; Diskon</span><span className="font-bold">−{formatRupiah(live?.discount ?? 0)}</span></div>
                   <div className="flex justify-between text-danger">
                     <span>Pengembalian / Refund{(live?.refundFullTotal ?? 0) === 0 ? ` (${live?.refundCount ?? 0} transaksi)` : ''}</span>
@@ -656,6 +666,7 @@ function ShiftRecapPanelBody({
                         <span className="text-sm font-black text-ink-900">{formatRupiah(recordedTotal)}</span>
                       </div>
                       <RefundRecapNotes rec={curRecap} />
+                      <VoidRecapList rows={voidRows} />
                     </>
                   )}
                   <div className="flex items-center justify-between">
@@ -887,7 +898,7 @@ function ShiftRecapPanelBody({
               <div className="flex justify-between text-xs font-black text-ink-500 border-b border-paper-2 pb-1 mb-1">
                 <span>Ringkasan Pesanan</span><span>Qty</span>
               </div>
-              {sumRow('Total Transaksi', String(live?.totalOrders ?? 0))}
+              {sumRow('Total Transaksi', String(liveOrderCount))}
               {sumRow('Total Pengembalian', String(live?.refundCount ?? 0))}
               {sumRow('Total Pengembalian Item', String(live?.refundItems ?? 0))}
             </div>
@@ -1029,6 +1040,7 @@ function ShiftRecapPanelBody({
                           <span>Total Tercatat</span><span>{formatRupiah(hist.total)}</span>
                         </div>
                         <RefundRecapNotes rec={histRecap} />
+                        <VoidRecapList rows={voidRecapRows(selectedOrders, [], selected.id)} />
                         {hasCounted && (
                           <>
                             <div className="flex justify-between text-xs font-bold text-ink-700">

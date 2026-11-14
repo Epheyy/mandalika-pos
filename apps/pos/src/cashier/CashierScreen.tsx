@@ -1650,6 +1650,7 @@ export default function CashierScreen() {
         isOpeningShift={shift.isOpeningShift}
         isClosingShift={shift.isClosingShift}
         queuedRefunds={engine.queuedRefunds()}
+        queuedVoids={engine.queuedVoids()}
         blindCount={blindCount}
         heldCount={heldOrders.held.length}
         backRef={recapBackRef}
