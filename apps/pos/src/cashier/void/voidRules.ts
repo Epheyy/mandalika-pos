@@ -1,5 +1,5 @@
 import type { components } from '@mandalika/api'
-import { canVoidAny, canVoidOwnShift, isCashMethod, type AppUser, type CashFlagMethod, type Shift } from '@mandalika/types'
+import { canVoidAny, canVoidOwnShift, isCashMethod, type CashFlagMethod, type Shift } from '@mandalika/types'
 import type { TenderLine } from '../tenderSplit'
 
 type Order = components['schemas']['Order']
@@ -70,9 +70,9 @@ export type VoidAvailability =
 
 export interface VoidAvailabilityInput {
   order: Order | LocalVoidSale
-  user: Pick<AppUser, 'role' | 'permissions'> | null
+  user: { role: string; permissions?: readonly string[] | null } | null
   deviceId: string
-  currentShift: Shift | null
+  currentShift: Pick<Shift, 'id' | 'status' | 'openedAt'> | null
   queuedVoidIds: ReadonlySet<string>
   queuedRefundIds: ReadonlySet<string>
   /** Sales whose void this tablet saw acknowledged (engine.syncedVoidOrderIds()): a stale cached row may still say completed. */
@@ -195,7 +195,7 @@ export function appliedTenders(tenders: readonly TenderLine[], total: number, me
 
 /** The original tenders as APPLIED. A server order's `amount` already is; a local receipt's tenders are CAPTURED
  *  (cash handed over), so cash change is trimmed off against the sale total. */
-function originalTendersOf(o: Order | LocalVoidSale, methods?: readonly CashFlagMethod[]): TenderLine[] {
+export function originalTendersOf(o: Order | LocalVoidSale, methods?: readonly CashFlagMethod[]): TenderLine[] {
   if (isLocal(o)) {
     if (o.tenders && o.tenders.length > 0) {
       return appliedTenders(o.tenders.map((t) => ({ method: t.method, amount: t.amount, ...(t.reference ? { reference: t.reference } : {}) })), o.total, methods)
@@ -230,4 +230,10 @@ export function buildVoidPayload(i: VoidPayloadInput): Record<string, unknown> {
     ...(shiftId ? { originalShiftId: shiftId } : {}),
     ...(i.mode === 'replace' && i.replacement ? { replacement: { ...i.replacement } } : {}),
   }
+}
+
+/** The review row of a queued void: "Batalkan #BSD-G0007". Undefined without a captured order number. */
+export function voidDetail(payload: Readonly<Record<string, unknown>> | undefined): string | undefined {
+  const no = payload?.orderNumber
+  return typeof no === 'string' && no !== '' ? `Batalkan #${no}` : undefined
 }

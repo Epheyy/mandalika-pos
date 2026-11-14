@@ -98,6 +98,12 @@ import { cashPredicate, planSaleTender, snapshotTenders } from './tenderSplit'
 import { buildSaleOrderPayload } from './salePayload'
 import { applyLockedTenders, commitVoidDraftSale, voidDraftRefusal, voidPayable, voidSlipData } from './void/voidCheckout'
 import { isLocked, lockedTendersProblem } from './void/voidReplacement'
+import { BatalkanSheet } from './void/BatalkanSheet'
+import { VoidDraftBanner } from './void/VoidDraftBanner'
+import { useVoidFlow } from './void/useVoidFlow'
+import { voidDroppedMessage } from './void/voidCheckout'
+import { localVoidSale } from './void/localVoidSale'
+import type { VoidAvailabilityInput } from './void/voidRules'
 import { useSplitDraft } from './useSplitDraft'
 import { useOpenCartDraft } from './useOpenCartDraft'
 import { autoReconcileFingerprint, autoRunAllowed, autoSetWouldChange, hasAutoPromotions } from './autoPromoRun'
@@ -439,6 +445,24 @@ export default function CashierScreen() {
     getEnv: () => ({ products: displayProducts, promotions, discountCodes, bundleCatalog, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }),
   })
   const { open: heldOpen, setOpen: setHeldOpen } = heldOrders
+
+  // Void phase 3: the Batalkan sheet and its "perbaiki" / "pengganti" carts. The gate is UI-only (the server decides).
+  const voidGateInputs = (): Omit<VoidAvailabilityInput, 'order'> => ({
+    user, deviceId: engine.deviceId, currentShift: shift.currentShift,
+    queuedVoidIds: engine.queuedVoidOrderIds(),
+    queuedRefundIds: new Set([...engine.queuedRefundOrderIds(), ...engine.queuedRefundSaleUuids()]),
+    syncedVoidIds: engine.syncedVoidOrderIds(),
+    queuedReplacementOf: engine.queuedReplacementOrderIds(),
+  })
+  const voidFlow = useVoidFlow({
+    engine, dispatch, cartHasItems: state.cart.length > 0, currentShift: shift.currentShift, isOnline: offlineData.isOnline,
+    methods: settings.paymentMethods, giveaway: giveawayConfig, voidedBy: user?.displayName ?? 'Kasir',
+    getEnv: () => ({ products: displayProducts, promotions, discountCodes, bundleCatalog, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }),
+    getGate: voidGateInputs, getPreview: (id) => api.getVoidPreview(id),
+    ensureShift, offlineLock, askConfirm: (c) => setConfirm(c), showToast,
+    closePanels: () => { setShowHistory(false); setShowLocalReceipts(false) },
+    printSlip: async (data) => { if (printer.isPaired) await printer.printVoidSlip(data, settings.receipt) },
+  })
 
   // C6 D-62: an unfinished split payment survives an app kill (the draft owns the sale's order uuid).
   const splitDraft = useSplitDraft({
@@ -1386,6 +1410,12 @@ export default function CashierScreen() {
           })} />
       )}
 
+      {state.voidDraft && (
+        <VoidDraftBanner draft={state.voidDraft} choice={state.voidCorrectionChoice}
+          onChoice={(choice) => dispatch({ type: 'SET_VOID_CORRECTION_CHOICE', choice })}
+          onCancel={() => { showToast(voidDroppedMessage(state.voidDraft!.orderNumber), 'info'); dispatch({ type: 'VOID_DRAFT_CANCEL' }) }} />
+      )}
+
       {ota.state.pending && otaBannerDismissed !== ota.state.pending.version && (
         <Banner tone="info" message="Versi baru siap, mulai ulang saat kasir kosong"
           action={{ label: 'Lihat', onClick: () => setShowConnection(true) }}
@@ -1664,6 +1694,9 @@ export default function CashierScreen() {
         canReprint={printer.isPaired}
         timezone={outletTimezone}
         shiftOpenedAt={shift.currentShift?.openedAt}
+        voidGate={voidGateInputs()}
+        onVoid={(o) => voidFlow.openVoid(o, o, o.id)}
+        onCreateReplacement={voidFlow.openReplacement}
         paymentMethods={settings.paymentMethods}
         {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId, refundCache: refundCacheFor })}
       />
@@ -1676,6 +1709,9 @@ export default function CashierScreen() {
         canReprint={printer.isPaired}
         onReprint={reprintLocal}
         isOnline={offlineData.isOnline}
+        voidGate={voidGateInputs()}
+        parkedVoids={engine.queuedVoids()}
+        onVoid={(r) => voidFlow.openVoid(localReceiptOrder(r, settings.paymentMethods), localVoidSale(r), r.serverOrderId ?? null)}
         onOpenInHistory={(r) => {
           if (!r.serverOrderId) return
           setHistoryFocus({ orderId: r.serverOrderId, orderNumber: r.orderNumber, capturedAt: r.capturedAt, nonce: Date.now() })
@@ -1685,6 +1721,9 @@ export default function CashierScreen() {
         onRefund={(r) => { setShowLocalReceipts(false); setRefundSale(localSaleRef(r)); setRefundOrder(localReceiptOrder(r, settings.paymentMethods)) }}
         {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId, refundCache: refundCacheFor })}
       />
+
+      <BatalkanSheet order={voidFlow.target?.order ?? null} preview={voidFlow.target?.preview ?? null} previewLoading={voidFlow.target?.previewLoading}
+        isProcessing={voidFlow.isProcessing} error={voidFlow.error} onConfirm={(i) => { void voidFlow.confirm(i) }} onClose={voidFlow.close} />
 
       <RefundDialog order={refundOrder} methods={settings.paymentMethods} cache={refundOrder ? refundCacheFor(refundIdsFor(refundOrder.id)) : undefined} isProcessing={isRefunding} error={refundError}
         onConfirm={(id, input) => { void handleRefundConfirm(id, input) }}

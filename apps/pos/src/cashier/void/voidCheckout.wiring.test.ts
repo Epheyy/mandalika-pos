@@ -76,7 +76,7 @@ describe('commitVoidDraftSale', () => {
     expect(r).toEqual({ status: 'queued', type: 'order', orderUuid: 'new' })
     expect(i.engine.enqueue).toHaveBeenCalledTimes(1)
     expect(i.engine.enqueue.mock.calls[0]![0]).toBe('order')
-    expect(i.engine.enqueue.mock.calls[0]![1]).toMatchObject({ replacesOrderId: 'ord1', correctionTarget: 'original_total', shiftId: 's0' })
+    expect(i.engine.enqueue.mock.calls[0]![1]).toMatchObject({ replacesOrderId: 'ord1', replacesOrderNumber: expect.any(String), correctionTarget: 'original_total', shiftId: 's0' })
   })
 })
 

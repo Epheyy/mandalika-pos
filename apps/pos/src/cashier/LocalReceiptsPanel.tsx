@@ -15,6 +15,9 @@ import { Button } from '../components/ui/Button'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import type { Tone } from '../components/ui/tone'
 import { formatHistoryStamp } from './historyStamp'
+import { VoidAction } from './void/VoidAction'
+import { localVoidSale } from './void/localVoidSale'
+import { parkedVoidNote, voidAvailability, type VoidAvailabilityInput } from './void/voidRules'
 
 type Gate = Pick<RefundAvailabilityInput, 'canRefund' | 'hasOpenShift' | 'shiftUnsynced' | 'syncedRefundOrderIds' | 'queuedSaleUuids' | 'serverIdToSaleUuid'>
 
@@ -36,11 +39,16 @@ interface LocalReceiptsPanelProps extends Gate {
   onOpenInHistory?: (r: LocalReceipt) => void
   /** The tablet can reach the server; absent = online. */
   isOnline?: boolean
+  /** Void gate inputs (permission, shift, queues). Absent = no Batalkan action. The server decides again. */
+  voidGate?: Omit<VoidAvailabilityInput, 'order'>
+  onVoid?: (r: LocalReceipt) => void
+  /** Parked voids (engine.queuedVoids()) to show why a void of a sale is waiting for a person. */
+  parkedVoids?: Parameters<typeof parkedVoidNote>[0]
 }
 
 const TONES: Record<'ok' | 'warn' | 'bad' | 'muted', Tone> = { ok: 'ok', warn: 'warn', bad: 'danger', muted: 'neutral' }
 
-export function LocalReceiptsPanel({ isOpen, onClose, receipts, canReprint, onReprint, onRefund, onOpenInHistory, isOnline = true, paymentMethods, queuedRefundOrderIds, refundCache, ...gate }: LocalReceiptsPanelProps) {
+export function LocalReceiptsPanel({ isOpen, onClose, receipts, canReprint, onReprint, onRefund, onOpenInHistory, isOnline = true, paymentMethods, queuedRefundOrderIds, refundCache, voidGate, onVoid, parkedVoids, ...gate }: LocalReceiptsPanelProps) {
   const [search, setSearch] = useState('')
   if (!isOpen) return null
   const rows = filterLocalReceipts(receipts, search)
@@ -82,10 +90,20 @@ export function LocalReceiptsPanel({ isOpen, onClose, receipts, canReprint, onRe
                 </div>
                 <RefundAction order={order} sale={localSaleRef(r)} queuedOrderIds={queuedRefundOrderIds} refundCache={refundCache} {...gate} onRefund={() => onRefund(r)}
                   viaHistory={onOpenInHistory && refundViaHistory(r, order, cache) ? { online: isOnline, onOpen: () => onOpenInHistory(r), offlineMessage: REFUND_VIA_HISTORY_OFFLINE } : undefined} />
+                {voidGate && (
+                  <VoidAction availability={voidAvailability({ order: localVoidSale(r), ...voidGate })} onVoid={() => onVoid?.(r)} onCreateReplacement={() => undefined} />
+                )}
+                {parkedVoids && <ParkedVoid note={parkedVoidNote(parkedVoids, [r.orderUuid, ...(r.serverOrderId ? [r.serverOrderId] : [])])} />}
               </div>
             )
           })}
         </div>
     </Sheet>
   )
+}
+
+/** A parked void of this sale: the review reason, so the cashier knows why it did not go through. */
+function ParkedVoid({ note }: { note: string | null }) {
+  if (note === null) return null
+  return <p className="text-xs font-semibold text-warn-strong mt-2" data-testid="local-receipt-parked-void">Pembatalan ditahan: {note}</p>
 }

@@ -20,6 +20,8 @@ import { StatusBadge } from '../components/ui/StatusBadge'
 import type { Tone } from '../components/ui/tone'
 import { IconPrinter } from '../components/ui/icons'
 import { orderAdjustmentRows } from './receiptRows'
+import { VoidAction } from './void/VoidAction'
+import { VOID_REASONS, voidAvailability, type VoidAvailabilityInput } from './void/voidRules'
 
 type Order = components['schemas']['Order']
 type OrderListResponse = components['schemas']['OrderListResponse']
@@ -65,6 +67,10 @@ interface OrderHistoryPanelProps {
   timezone?: string | null
   /** ISO open time of the shown shift; its business day is the default day (A28). */
   shiftOpenedAt?: string | null
+  /** Void gate inputs (permission, shift, queues). Absent = no Batalkan action. The server decides again. */
+  voidGate?: Omit<VoidAvailabilityInput, 'order'>
+  onVoid?: (order: Order) => void
+  onCreateReplacement?: (order: Order) => void
 }
 const ONE_DAY_MS = 86_400_000
 
@@ -91,7 +97,30 @@ const STATUS_TONES: Record<string, Tone> = {
 }
 
 
-export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, paymentMethods, timezone, shiftOpenedAt }: OrderHistoryPanelProps) {
+const VOID_FOLLOWUP: Record<string, string> = { replacement: 'diganti', no_replacement: 'tanpa pengganti' }
+
+/** What a cancelled order shows: reason, note, who voided it and the replacement ("Pengganti: #no", a link that searches it). */
+function VoidDetails({ order, onOpenOrder }: { order: Order; onOpenOrder: (orderNumber: string) => void }) {
+  const v = order.void
+  if (!v) return null
+  const reason = VOID_REASONS.find((r) => r.code === v.reasonCode)?.label ?? v.reasonCode
+  const state = v.replacementOrderNumber ? null : v.followup ? VOID_FOLLOWUP[v.followup] : v.mode === 'later' ? 'menunggu pengganti' : null
+  return (
+    <div className="text-xs text-ink-700 mt-2 space-y-0.5" data-testid="history-void">
+      <p className="font-semibold text-danger">Dibatalkan · {reason}{v.afterClose ? ' · dikoreksi setelah ditutup' : ''}</p>
+      {v.note && <p>Catatan: {v.note}</p>}
+      {v.voidedByName && <p>Oleh: {v.voidedByName}</p>}
+      {v.replacementOrderNumber && (
+        <p>Pengganti:{' '}
+          <button type="button" onClick={() => onOpenOrder(v.replacementOrderNumber ?? '')} className="font-semibold text-brand-strong underline press">#{v.replacementOrderNumber}</button>
+        </p>
+      )}
+      {state && <p>{state}</p>}
+    </div>
+  )
+}
+
+export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, paymentMethods, timezone, shiftOpenedAt, voidGate, onVoid, onCreateReplacement }: OrderHistoryPanelProps) {
   const [from, setFrom] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).from : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
   const [to, setTo] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).to : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
   // Once the cashier picks a day (or the panel opened on a given sale), a late-arriving timezone/shift no longer moves it.
@@ -379,6 +408,10 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
                       >
                         Cetak Ulang
                       </Button>
+                      {o.void && <VoidDetails order={o} onOpenOrder={setSearch} />}
+                      {o.replacesOrderNumber && (
+                        <p className="text-xs text-ink-700 mt-2" data-testid="history-replaces">Pengganti untuk #{o.replacesOrderNumber}</p>
+                      )}
                       <RefundAction
                         order={o}
                         canRefund={canRefund}
@@ -391,6 +424,10 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
                         refundCache={refundCache}
                         onRefund={onRefund}
                       />
+                      {voidGate && (
+                        <VoidAction availability={voidAvailability({ order: o, ...voidGate })}
+                          onVoid={() => onVoid?.(o)} onCreateReplacement={() => onCreateReplacement?.(o)} />
+                      )}
                     </div>
                   )}
                 </div>

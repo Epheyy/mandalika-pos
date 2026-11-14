@@ -63,6 +63,8 @@ export function heldOrderFromVoidedOrder(order: Order, now: number): HeldOrder {
   const codes: string[] = order.discountCode ? [order.discountCode] : []
   let loyaltyReward = false
   for (const it of order.items) {
+    // The outlet giveaway of a local receipt (flagged by localReceiptOrder) is added by the server again, never re-rung.
+    if ((it as { isGiveaway?: boolean }).isGiveaway) continue
     const inSet = it.bundleGroup != null
     const promoId = inSet ? null : promoOfGroup(it.refundGroup)
     if (promoId) promoIds.push(promoId)

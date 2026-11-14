@@ -97,7 +97,8 @@ export async function commitVoidDraftSale(i: VoidCommitInput): Promise<VoidCommi
   }
   const { correctionTarget } = voidPayable(draft, i.choice, i.cartTotal)
   if (draft.kind === 'create_replacement') {
-    const payload = { ...i.orderPayload, replacesOrderId: draft.orderId, correctionTarget: 'original_total', shiftId: draft.shiftId }
+    // replacesOrderNumber is display only (the reprint's "Pengganti untuk" line); the server ignores it.
+    const payload = { ...i.orderPayload, replacesOrderId: draft.orderId, replacesOrderNumber: draft.orderNumber, correctionTarget: 'original_total', shiftId: draft.shiftId }
     await i.engine.enqueue('order', payload, i.saleUuid)
     return { status: 'queued', type: 'order', orderUuid: i.saleUuid }
   }
@@ -113,8 +114,9 @@ export async function commitVoidDraftSale(i: VoidCommitInput): Promise<VoidCommi
 
 const two = (n: number): string => String(n).padStart(2, '0')
 
-/** The DIBATALKAN slip of a void_and_replace commit (the replacement's number is known: it was just rung). */
-export function voidSlipData(i: { draft: VoidDraft; voidedBy: string; replacementRef: string; at: Date }): VoidSlipData {
+/** The DIBATALKAN slip: of a void_and_replace commit (the replacement's number is known: it was just rung), or of a
+ *  "Batalkan saja" (no `replacementRef`). */
+export function voidSlipData(i: { draft: Pick<VoidDraft, 'orderNumber' | 'originalTotal' | 'reason' | 'note'>; voidedBy: string; replacementRef?: string; at: Date }): VoidSlipData {
   const { draft, at } = i
   const label = VOID_REASONS.find((r) => r.code === draft.reason)?.label ?? draft.reason
   const note = draft.note.trim()
@@ -125,7 +127,7 @@ export function voidSlipData(i: { draft: VoidDraft; voidedBy: string; replacemen
     ...(note ? { note } : {}),
     voidedBy: i.voidedBy,
     dateTime: `${two(at.getDate())}/${two(at.getMonth() + 1)}/${at.getFullYear()} ${two(at.getHours())}:${two(at.getMinutes())}`,
-    replacementRef: i.replacementRef,
+    ...(i.replacementRef ? { replacementRef: i.replacementRef } : {}),
     pending: false,
   }
 }

@@ -117,6 +117,16 @@ describe('receiptEntryFromItem', () => {
     expect('serverOrderId' in receiptEntryFromItem(item())!).toBe(false)
   })
 
+  it('archives replacesOrderNumber for a Buat pengganti order (replacesOrderId + number), and for a void replacement', () => {
+    const rep = receiptEntryFromItem(item({ payload: { ...item().payload, replacesOrderId: 'srv-orig', replacesOrderNumber: 'ORD-0' } }))!
+    expect(rep.replacesOrderNumber).toBe('ORD-0')
+    // A plain sale, or a number without replacesOrderId, never claims to replace anything.
+    expect('replacesOrderNumber' in receiptEntryFromItem(item())!).toBe(false)
+    expect('replacesOrderNumber' in receiptEntryFromItem(item({ payload: { ...item().payload, replacesOrderNumber: 'ORD-0' } }))!).toBe(false)
+    const viaVoid = receiptEntryFromItem(item({ type: 'void', payload: { orderNumber: 'ORD-0', replacement: { ...item().payload } } }))!
+    expect(viaVoid.replacesOrderNumber).toBe('ORD-0')
+  })
+
   it('returns null for anything that is not an order with a uuid and number', () => {
     expect(receiptEntryFromItem(item({ type: 'refund' }))).toBeNull()
     expect(receiptEntryFromItem(item({ payload: { orderNumber: 'x' } }))).toBeNull()

@@ -121,7 +121,9 @@ export function receiptEntryFromItem(item: OutboxItem): ReceiptEntry | null {
   if (lines) Object.assign(entry, lines)
   const tenders = tendersFromPayload(p.tenders)
   if (tenders) entry.tenders = tenders
-  const replaces = item.type === 'void' ? str(item.payload.orderNumber) : null
+  // A void's replacement names the sale it replaces by the void's own number; a "Buat pengganti" order carries it as
+  // replacesOrderNumber next to replacesOrderId (display only: the server ignores it).
+  const replaces = item.type === 'void' ? str(item.payload.orderNumber) : str(p.replacesOrderId) ? str(p.replacesOrderNumber) : null
   if (replaces) entry.replacesOrderNumber = replaces
   const serverId = str((item as OutboxItem & { ackedOrderId?: unknown }).ackedOrderId)
   if (serverId) entry.serverOrderId = serverId

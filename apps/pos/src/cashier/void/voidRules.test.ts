@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { components } from '@mandalika/api'
 import type { AppUser, Shift } from '@mandalika/types'
 import {
-  buildVoidPayload, parkedVoidNote, voidAvailability, voidReasonProblem, VOID_REASONS, type LocalVoidSale,
+  buildVoidPayload, parkedVoidNote, voidAvailability, voidDetail, voidReasonProblem, VOID_REASONS, type LocalVoidSale,
 } from './voidRules'
 
 type Order = components['schemas']['Order']
@@ -161,5 +161,13 @@ describe('buildVoidPayload', () => {
     const p = buildVoidPayload({ order: order(), reason: 'salah_barang', note: '', mode: 'none', replacement: { a: 1 } })
     expect(p.originalTenders).toEqual([{ method: 'cash', amount: 100000 }])
     expect(p).not.toHaveProperty('replacement')
+  })
+})
+
+describe('voidDetail (review row)', () => {
+  it('renders Batalkan #<no>, and nothing without an order number', () => {
+    expect(voidDetail({ orderNumber: 'BSD-G0007', total: 1000 })).toBe('Batalkan #BSD-G0007')
+    expect(voidDetail({ orderNumber: '' })).toBeUndefined()
+    expect(voidDetail(undefined)).toBeUndefined()
   })
 })
