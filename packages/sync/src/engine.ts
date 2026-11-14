@@ -1,4 +1,5 @@
 import type { components } from '@mandalika/api'
+import { isCashMethod } from '@mandalika/types'
 import { Outbox, MAX_ATTEMPTS, summarizeQueue, type QueueSummary, type OutboxEnvelope, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxStatus, type OutboxType, type ReviewItem } from './outbox'
 import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
@@ -264,6 +265,37 @@ export interface QueuedVoid {
   originalTenders: ArchivedTender[]
   replacementTenders?: ArchivedTender[]
   replacementOrderUuid?: string
+  /** Display facts from the payload, so a queued void can be listed even when its sale is not loaded. */
+  orderNumber?: string
+  reasonCode?: string
+  total?: number
+  replacementOrderNumber?: string
+}
+
+/** What a void's replacement actually costs the customer: the original total when the gap is booked as a correction
+ *  (`correctionTarget`), else the cart's quoted total. Undefined when the payload does not say. */
+function replacementDue(replacement: Record<string, unknown>, originalTotal: number | undefined): number | undefined {
+  if (replacement.correctionTarget === 'original_total') return originalTotal
+  if (typeof replacement.quotedTotal === 'number' && Number.isFinite(replacement.quotedTotal)) return replacement.quotedTotal
+  const snap = replacement.receiptSnapshot as { total?: unknown } | null | undefined
+  return snap && typeof snap.total === 'number' && Number.isFinite(snap.total) ? snap.total : undefined
+}
+
+/** Tenders as APPLIED to a bill of `due`: cash change (handed over minus due) is trimmed off the last cash lines.
+ *  Same rule as `appliedTenders` in the POS void code; cash is recognised by the default ids (the tablet's method
+ *  flags are not known here). Without a due total the lines stay as captured. */
+function appliedArchived(tenders: ArchivedTender[] | undefined, due: number | undefined): ArchivedTender[] | undefined {
+  if (!tenders || due === undefined) return tenders
+  const out = tenders.map((t) => ({ ...t }))
+  let excess = out.reduce((n, t) => n + t.amount, 0) - due
+  for (let k = out.length - 1; k >= 0 && excess > 0; k--) {
+    if (!isCashMethod(undefined, out[k].method)) continue
+    const cut = Math.min(excess, out[k].amount)
+    out[k] = { ...out[k], amount: out[k].amount - cut }
+    excess -= cut
+  }
+  const kept = out.filter((t) => t.amount > 0)
+  return kept.length > 0 ? kept : out
 }
 
 /** A sale made on this tablet, as the local receipt book shows it (A41). Receipt facts only: no customer,
@@ -1202,7 +1234,10 @@ export class SyncEngine {
         const p = i.payload
         const replacement = salePayloadOf(i)
         const replacementOrderUuid = replacement && typeof replacement.orderUuid === 'string' && replacement.orderUuid ? replacement.orderUuid : undefined
-        const replacementTenders = replacement ? tendersFromPayload(replacement.tenders) : undefined
+        const originalTotal = typeof p.total === 'number' && Number.isFinite(p.total) ? p.total : undefined
+        const replacementTenders = replacement ? appliedArchived(tendersFromPayload(replacement.tenders), replacementDue(replacement, originalTotal)) : undefined
+        const originalTenders = appliedArchived(tendersFromPayload(p.originalTenders), originalTotal) ?? []
+        const replacementOrderNumber = replacement && typeof replacement.orderNumber === 'string' && replacement.orderNumber ? replacement.orderNumber : undefined
         return {
           idempotencyKey: i.idempotencyKey,
           orderId: this.refundOrderId(p),
@@ -1212,7 +1247,11 @@ export class SyncEngine {
           parked: parked.has(i.idempotencyKey),
           ...(i.reviewReason ? { reviewReason: i.reviewReason } : {}),
           originalShiftId: typeof p.originalShiftId === 'string' && p.originalShiftId ? p.originalShiftId : null,
-          originalTenders: tendersFromPayload(p.originalTenders) ?? [],
+          originalTenders,
+          ...(typeof p.orderNumber === 'string' && p.orderNumber ? { orderNumber: p.orderNumber } : {}),
+          ...(typeof p.reasonCode === 'string' && p.reasonCode ? { reasonCode: p.reasonCode } : {}),
+          ...(originalTotal !== undefined ? { total: originalTotal } : {}),
+          ...(replacementOrderNumber ? { replacementOrderNumber } : {}),
           ...(replacementTenders ? { replacementTenders } : {}),
           ...(replacementOrderUuid ? { replacementOrderUuid } : {}),
         }

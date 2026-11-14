@@ -31,7 +31,7 @@ describe('voidRecapRows', () => {
   it('lists a queued void once', () => {
     const rows = voidRecapRows([order()], [qv()], 'S')
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ orderNumber: 'BSD-0001', state: 'queued', followup: 'menunggu pengganti' })
+    expect(rows[0]).toMatchObject({ orderNumber: 'BSD-0001', state: 'queued', followup: 'diganti' })
   })
   it('lists a void once when it is both synced and still queued', () => {
     expect(voidRecapRows([voided()], [qv()], 'S')).toHaveLength(1)
@@ -42,6 +42,10 @@ describe('voidRecapRows', () => {
   })
   it('ignores fsmigrate cancelled orders without void', () => {
     expect(voidRecapRows([order({ status: 'cancelled' })], [], 'S')).toEqual([])
+  })
+  it('a queued replace void reads diganti with its own facts even when the sale is not loaded', () => {
+    const rows = voidRecapRows([], [qv({ orderNumber: 'BSD-0001', reasonCode: 'salah_barang', total: 300000, replacementOrderNumber: 'BSD-0009' })], 'S')
+    expect(rows[0]).toMatchObject({ orderNumber: 'BSD-0001', total: 300000, reasonLabel: 'Salah barang', replacementNumber: 'BSD-0009', followup: 'diganti', state: 'queued' })
   })
   it('ignores voids of other shifts', () => {
     expect(voidRecapRows([voided({ shiftId: 'X' })], [qv({ originalShiftId: 'X' })], 'S')).toEqual([])
@@ -79,9 +83,8 @@ describe('voidRecapOverlay', () => {
     expect(voidRecapOverlay([qv({ originalShiftId: 'X' })], [order()], 'S')).toEqual(none)
     expect(voidRecapOverlay([qv({ orderId: '' })], [order()], 'S')).toEqual(none)
   })
-  it('does not add a replacement the server already lists', () => {
-    const ov = voidRecapOverlay([qv()], [order(), order({ id: 'o2', replacesOrderId: 'o1' })], 'S')
-    expect(ov).toEqual({ byMethod: { cash: -300000 }, total: -300000, orders: -1 })
+  it('ignores a void whose sale is not among the loaded orders', () => {
+    expect(voidRecapOverlay([qv()], [], 'S')).toEqual({ byMethod: {}, total: 0, orders: 0 })
   })
   it('composes with the refund overlay without touching it', () => {
     const base = applyRefundRecap(live.byMethod, live.totalSales, refundRecap(shift, []))

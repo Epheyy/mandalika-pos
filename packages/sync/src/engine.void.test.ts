@@ -266,6 +266,27 @@ describe('queuedVoids / queuedVoidOrderIds', () => {
     expect(engine.queuedVoids()).toEqual([])
   })
 
+  it('exposes APPLIED tenders: cash change is trimmed (85k sale, 100k handed -> 85k), and the display facts', async () => {
+    const engine = make(vi.fn())
+    await engine.enqueue('void', voidPayload({
+      orderId: 'srv-1', mode: 'replace', total: 85000, originalTenders: [{ method: 'cash', amount: 100000 }],
+      replacement: { ...REPLACEMENT, quotedTotal: 85000, receiptSnapshot: { total: 85000 }, tenders: [{ method: 'cash', amount: 100000 }] },
+    }))
+    const [v] = engine.queuedVoids()
+    expect(v?.originalTenders).toEqual([{ method: 'cash', amount: 85000 }])
+    expect(v?.replacementTenders).toEqual([{ method: 'cash', amount: 85000 }])
+    expect(v).toMatchObject({ orderNumber: 'BSD-0001', reasonCode: 'salah_barang', total: 85000, replacementOrderNumber: 'BSD-0009' })
+  })
+
+  it('a locked replacement (correctionTarget original_total) is trimmed to the original total, not the cart price', async () => {
+    const engine = make(vi.fn())
+    await engine.enqueue('void', voidPayload({
+      orderId: 'srv-1', mode: 'replace', total: 100000,
+      replacement: { ...REPLACEMENT, correctionTarget: 'original_total', quotedTotal: 90000, tenders: [{ method: 'cash', amount: 100000 }] },
+    }))
+    expect(engine.queuedVoids()[0]?.replacementTenders).toEqual([{ method: 'cash', amount: 100000 }])
+  })
+
   it('queuedVoidOrderIds holds order ids and sale uuids, and resolves a synced sale id', async () => {
     const engine = make(vi.fn())
     await engine.enqueue('void', voidPayload({ orderId: 'srv-1' }))

@@ -51,9 +51,12 @@ export function voidRecapRows(orders: Order[], queued: QueuedVoid[], shiftId: st
     if (seen.has(key)) continue
     seen.add(key)
     const o = v.orderId ? byId.get(v.orderId) : undefined
+    // A queued replace void carries its replacement in the same item: it is already "diganti".
     rows.push({
-      orderNumber: o?.orderNumber ?? '—', total: o?.total ?? sumTenders(v.originalTenders), reasonLabel: '', voidedBy: '',
-      state: v.parked ? 'review' : 'queued', followup: v.mode === 'replace' ? 'menunggu pengganti' : 'tanpa pengganti',
+      orderNumber: v.orderNumber ?? o?.orderNumber ?? '—', total: v.total ?? o?.total ?? sumTenders(v.originalTenders),
+      reasonLabel: v.reasonCode ? reasonLabelOf(v.reasonCode) : '', voidedBy: '',
+      ...(v.replacementOrderNumber ? { replacementNumber: v.replacementOrderNumber } : {}),
+      state: v.parked ? 'review' : 'queued', followup: v.mode === 'replace' ? 'diganti' : 'tanpa pengganti',
     })
   }
   return rows
@@ -80,15 +83,15 @@ export function voidRecapOverlay(queued: QueuedVoid[], orders: Order[], shiftId:
   const byId = new Map(orders.map((o) => [o.id, o]))
   for (const v of queued) {
     if (v.parked || v.originalShiftId !== shiftId || v.orderId === '') continue
-    if (byId.get(v.orderId)?.status === 'cancelled') continue // the server data already reflects this void
+    // Only a sale the recap actually counted can be taken out of it; a cancelled one already reflects the void.
+    const o = byId.get(v.orderId)
+    if (!o || o.status === 'cancelled') continue
     for (const t of v.originalTenders) add(t.method, -t.amount)
     const hasReplacement = v.mode === 'replace' && (v.replacementTenders?.length ?? 0) > 0
-    // The replacement commits with the void, so it is normally absent from the server's orders; if it is
-    // listed anyway it is already in byMethod.
-    const replacementListed = orders.some((o) => o.replacesOrderId === v.orderId)
-    const addsReplacement = hasReplacement && !replacementListed
-    if (addsReplacement) for (const t of v.replacementTenders ?? []) add(t.method, t.amount)
-    if (!addsReplacement) count -= 1
+    // The original is still completed on the server, so its replacement (committed in the same item) is not in the
+    // orders yet either: add it. (A listed replacement with a non-cancelled original cannot happen.)
+    if (hasReplacement) for (const t of v.replacementTenders ?? []) add(t.method, t.amount)
+    else count -= 1
   }
   return { byMethod, total, orders: count }
 }

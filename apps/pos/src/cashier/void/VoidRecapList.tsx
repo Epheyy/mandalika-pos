@@ -1,7 +1,7 @@
 import { formatRupiah } from '../pricing'
 import type { VoidRecapRow } from './voidRecap'
 
-const STATE_NOTE: Record<VoidRecapRow['state'], string> = { synced: '', queued: 'belum tersinkron', review: 'perlu ditinjau' }
+const STATE_NOTE: Record<VoidRecapRow['state'], string> = { synced: '', queued: 'Tersimpan di tablet', review: 'Perlu ditinjau' }
 
 /** "Pembatalan" section of the shift recap: voids of this shift (synced and still queued). Display only. */
 export function VoidRecapList({ rows }: { rows: readonly VoidRecapRow[] }) {

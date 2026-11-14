@@ -172,6 +172,7 @@ function ShiftRecapPanelBody({
   const voidRows = useMemo(() => voidRecapRows(liveOrders ?? [], voidList, curShiftId), [voidList, liveOrders, curShiftId])
   const cur = live ? recapFigures(live, currentShift, queuedRefunds, liveOrders, voidOv) : null
   const liveOrderCount = (live?.totalOrders ?? 0) + voidOv.orders
+  const liveTotalSales = (live?.totalSales ?? 0) + voidOv.total // gross/discount/net rows are not adjusted (no per-line detail)
   const curRecap = cur?.rec ?? refundRecap(currentShift, queuedRefunds, liveOrders)
   // P-16: every enabled method plus any method (disabled or unconfigured) holding money, so rows add up to the total.
   const rows = useMemo(() => recapRows(paymentMethods, cur?.byMethod ?? {}), [paymentMethods, cur?.byMethod])
@@ -287,7 +288,7 @@ function ShiftRecapPanelBody({
   // A refund queued, acknowledged or parked changes what is already out of the server's figures: refetch
   // shift, orders and flows together, WITHOUT touching 'Terhitung' (loadRekap would wipe typed counts).
   // The signature counts as applied only once a refresh succeeded; failures retry with backoff.
-  const queueSignature = [...queuedRefunds, ...(queuedVoids ?? [])].map((r) => `${r.idempotencyKey}:${r.parked ? 'p' : 'q'}`).join('|')
+  const queueSignature = [...queuedRefunds, ...(queuedVoids ?? [])].map((r) => `${r.idempotencyKey}:${r.orderId}:${r.parked ? 'p' : 'q'}`).join('|')
   const appliedQueueSignature = useRef(queueSignature)
   useEffect(() => {
     if (tab !== 'rekapan' || appliedQueueSignature.current === queueSignature) return
@@ -446,7 +447,7 @@ function ShiftRecapPanelBody({
     surcharge: live?.surcharge ?? 0,
     net: live?.net ?? 0,
     tax: live?.tax ?? 0,
-    totalSales: live?.totalSales ?? 0,
+    totalSales: liveTotalSales,
     totalOrders: liveOrderCount,
     generatedAt: new Date(),
   })
@@ -914,7 +915,7 @@ function ShiftRecapPanelBody({
               {sumRow('Surcharge', formatRupiah(live?.surcharge ?? 0))}
               {sumRow('Penjualan Bersih', formatRupiah(live?.net ?? 0), true)}
               {sumRow('Pajak', formatRupiah(live?.tax ?? 0))}
-              {sumRow('Total Penjualan', formatRupiah(live?.totalSales ?? 0), true)}
+              {sumRow('Total Penjualan', formatRupiah(liveTotalSales), true)}
             </div>
             </>}
           </div>
