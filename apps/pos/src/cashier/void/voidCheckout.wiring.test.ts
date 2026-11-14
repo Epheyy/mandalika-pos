@@ -160,7 +160,7 @@ describe('CashierScreen wiring', () => {
   })
   it('the sale uuid prefers the void draft replacementUuid over split and minted uuids', () => {
     const hook = readFileSync(new URL('../useOpenCartDraft.ts', import.meta.url), 'utf8')
-    expect(hook).toMatch(/s.voidDraft?.replacementUuid ?? (s.splitMode/)
+    expect(hook).toContain('s.voidDraft?.replacementUuid ?? (s.splitMode')
   })
   it('a void replacement cart cannot be parked', () => {
     expect(screen).toContain('canSave={heldOrders.canSave}')
