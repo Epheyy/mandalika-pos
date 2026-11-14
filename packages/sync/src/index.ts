@@ -18,7 +18,7 @@ export { initJournal, quarantineCorruptRows, getJournalBootNotice, JournalBootEr
 export type { JournalBootResult, JournalBootNotice, InitJournalDeps } from './journalBoot'
 export { parseSentinel } from './journalSentinel'
 export type { JournalSentinel } from './journalSentinel'
-export { SyncedRefunds, SYNCED_REFUNDS_MAX, SYNCED_REFUNDS_TTL_MS } from './syncedRefunds'
+export { SyncedRefunds, SYNCED_VOIDS_KEY, SYNCED_REFUNDS_MAX, SYNCED_REFUNDS_TTL_MS } from './syncedRefunds'
 export { PartialRefunds, PARTIAL_REFUNDS_KEY, PARTIAL_REFUNDS_MAX, PARTIAL_REFUNDS_TTL_MS, partialRefundFromPayload } from './partialRefunds'
 export type { PartialRefundEntry, PartialRefundLine } from './partialRefunds'
 export { ReceiptArchive, RECEIPT_ARCHIVE_KEY, RECEIPT_RETENTION_MS, RECEIPT_KEEP_NEWEST, prunable, receiptEntryFromItem, lineDataFromItems } from './receiptArchive'

@@ -150,10 +150,18 @@ describe('pendingStockDeltas for voids', () => {
     expect(engine.pendingStockDeltas()).toEqual({ 'p1|30ml': -2 })
   })
 
-  it('a parked void keeps its delta; the delta is gone once the void is acked (no double count)', async () => {
-    const request = okAll()
-    const engine = make(request)
+  it('an acked void with a replacement keeps the replacement debit (A15 settling) until a pull; the restock is dropped', async () => {
+    const engine = make(okAll())
     await engine.enqueue('void', voidPayload({ orderId: 'srv-1', mode: 'replace', replacement: REPLACEMENT }))
+    online()
+    await engine.flushNow()
+    expect(engine.unsettledCount()).toBe(0)
+    expect(engine.pendingStockDeltas()).toEqual({ 'p2|10ml': 3 })
+  })
+
+  it('an acked mode none void leaves no delta', async () => {
+    const engine = make(okAll())
+    await engine.enqueue('void', voidPayload({ orderId: 'srv-1' }))
     online()
     await engine.flushNow()
     expect(engine.pendingStockDeltas()).toEqual({})
@@ -264,5 +272,72 @@ describe('queuedVoids / queuedVoidOrderIds', () => {
     await engine.enqueue('void', voidPayload({ saleOrderUuid: 'sale-uuid' }))
     await engine.enqueue('refund', { orderId: 'srv-refund', reason: 'x' })
     expect([...engine.queuedVoidOrderIds()].sort()).toEqual(['sale-uuid', 'srv-1'])
+  })
+})
+
+describe('replacement stamping', () => {
+  it('stamps deviceId and clientCreatedAt on the replacement, keeping values the caller set', async () => {
+    const request = okAll()
+    const engine = make(request)
+    await engine.enqueue('void', voidPayload({ orderId: 'srv-1', mode: 'replace', replacement: { ...REPLACEMENT, clientCreatedAt: '2026-01-01T00:00:00.000Z' } }))
+    const [row] = engine.outbox.all()
+    const rep = row?.payload.replacement as Record<string, unknown>
+    expect(rep.deviceId).toBe(engine.deviceId)
+    expect(rep.clientCreatedAt).toBe('2026-01-01T00:00:00.000Z')
+    expect(rep.orderUuid).toBe('rep-uuid')
+    const { replacement: _r, ...top } = row!.payload
+    expect(top.deviceId).toBe(engine.deviceId)
+    const second = await engine.enqueue('void', voidPayload({ orderId: 'srv-2', mode: 'replace', replacement: REPLACEMENT }), 'void-2')
+    const r2 = engine.outbox.all().find((i) => i.idempotencyKey === second.idempotencyKey)?.payload.replacement as Record<string, unknown>
+    expect(typeof r2.clientCreatedAt).toBe('string')
+  })
+})
+
+describe('voided sale flags and parked voids', () => {
+  it('flags the sale voidQueued while its void waits, then voided once acked', async () => {
+    const engine = make(okAll())
+    await engine.enqueue('order', SALE, SALE_UUID)
+    online()
+    await engine.flushNow()
+    vi.stubGlobal('navigator', { onLine: false })
+    await engine.enqueue('void', voidPayload({ saleOrderUuid: SALE_UUID }))
+    expect(engine.localReceipts()[0]).toMatchObject({ orderUuid: SALE_UUID, voidQueued: true, voided: false })
+    online()
+    await engine.flushNow()
+    expect(engine.localReceipts()[0]).toMatchObject({ orderUuid: SALE_UUID, voidQueued: false, voided: true })
+    expect([...engine.syncedVoidOrderIds()]).toContain(SALE_UUID)
+  })
+
+  it('the voided memory survives an engine restart (durable, like synced refunds)', async () => {
+    const { kv } = controllableKV()
+    const mk = () => new SyncEngine(api(okAll()), {}, kv, { actor })
+    const engine = mk()
+    await engine.enqueue('order', SALE, SALE_UUID)
+    online()
+    await engine.flushNow()
+    vi.stubGlobal('navigator', { onLine: false })
+    await engine.enqueue('void', voidPayload({ saleOrderUuid: SALE_UUID, orderId: 'srv-sale' }))
+    online()
+    await engine.flushNow()
+    await engine.idle()
+    const restarted = mk().syncedVoidOrderIds()
+    expect(restarted.has('srv-sale') && restarted.has(SALE_UUID)).toBe(true)
+  })
+
+  it('a parked void is marked parked and does not block (queuedVoidOrderIds excludes it)', async () => {
+    const request = vi.fn(async (_m: string, _p: string, body: Body) => ({
+      data: {
+        processed: 0, version: 0,
+        results: body.items.map((i) => ({ idempotencyKey: i.idempotencyKey, status: 'error', error: 'ditolak', code: 'forbidden', retryable: false })),
+      },
+    }))
+    const engine = make(request)
+    await engine.enqueue('void', voidPayload({ orderId: 'srv-1' }))
+    expect(engine.queuedVoids()[0]).toMatchObject({ parked: false })
+    expect([...engine.queuedVoidOrderIds()]).toEqual(['srv-1'])
+    online()
+    await engine.flushNow()
+    expect(engine.queuedVoids()[0]).toMatchObject({ parked: true, status: 'failed', reviewReason: 'ditolak' })
+    expect(engine.queuedVoidOrderIds().size).toBe(0)
   })
 })
