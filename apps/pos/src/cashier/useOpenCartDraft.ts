@@ -32,9 +32,9 @@ export function useOpenCartDraft({ outletId, userId, state, dispatch, getEnv, ca
   const sawCart = useRef(false)
 
   const mintUuid = (): string => (uuidRef.current ??= crypto.randomUUID())
-  /** The uuid the sale of THIS cart must use: the split draft's when split mode owns one, else the cart's own. */
-  const saleUuidFor = (s: Pick<CashierState, 'splitMode' | 'splitOrderUuid'>): string =>
-    s.splitMode && s.splitOrderUuid ? s.splitOrderUuid : mintUuid()
+  /** The uuid the sale of THIS cart must use: a void draft's replacement uuid, else the split draft's when split mode owns one, else the cart's own. */
+  const saleUuidFor = (s: Pick<CashierState, 'splitMode' | 'splitOrderUuid'> & { voidDraft?: { replacementUuid?: string } | null }): string =>
+    s.voidDraft?.replacementUuid ?? (s.splitMode && s.splitOrderUuid ? s.splitOrderUuid : mintUuid())
 
   useEffect(() => {
     if (hydrated.current || !catalogueReady || !userId) return

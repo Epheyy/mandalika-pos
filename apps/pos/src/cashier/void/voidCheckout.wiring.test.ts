@@ -80,6 +80,25 @@ describe('commitVoidDraftSale', () => {
   })
 })
 
+describe('Buat pengganti is always locked', () => {
+  const lockedByKind = (): VoidDraft => draft({ kind: 'create_replacement', amountsLocked: false })
+  it('trims change, checks the sum and forces original_total even with the flag off', async () => {
+    const plan: Extract<SalePlan, { ok: true }> = { ok: true, lines: [{ method: 'cash', amount: 150000 }], paymentMethod: 'cash', amountPaid: 150000, change: 50000, split: false }
+    const cash = [{ id: 'cash', label: 'Tunai', isCash: true }]
+    expect(applyLockedTenders(plan, lockedByKind(), cash)).toMatchObject({ lines: [{ method: 'cash', amount: 100000 }], change: 0 })
+    expect(voidPayable(lockedByKind(), 'settle', 90000)).toMatchObject({ correctionTarget: 'original_total', correction: 10000 })
+    const i = input({ draft: lockedByKind(), currentShift: null, orderPayload: { tenders: [{ method: 'cash', amount: 150000 }] } })
+    expect(await commitVoidDraftSale(i as never)).toMatchObject({ status: 'refused', dropDraft: false })
+    expect(i.engine.enqueue).not.toHaveBeenCalled()
+  })
+})
+
+describe('draft without its original', () => {
+  it('is refused up front so no number is burned', () => {
+    expect(voidDraftRefusal(draft({ sale: undefined }), open)).toBe(voidDroppedMessage('BSD-1'))
+  })
+})
+
 describe('locked tenders are applied amounts', () => {
   const plan: Extract<SalePlan, { ok: true }> = { ok: true, lines: [{ method: 'cash', amount: 150000 }], paymentMethod: 'cash', amountPaid: 150000, change: 50000, split: false }
   it('trims the change off a locked draft and leaves an unlocked one alone', () => {
@@ -138,6 +157,10 @@ describe('CashierScreen wiring', () => {
   it('prints the slip only after the save, then the replacement receipt', () => {
     expect(confirm.indexOf('printVoidSlip(')).toBeGreaterThan(confirm.indexOf("outcome.status === 'failed'"))
     expect(confirm).toContain('replacesOrderRef = voidDraft.orderNumber')
+  })
+  it('the sale uuid prefers the void draft replacementUuid over split and minted uuids', () => {
+    const hook = readFileSync(new URL('../useOpenCartDraft.ts', import.meta.url), 'utf8')
+    expect(hook).toMatch(/s.voidDraft?.replacementUuid ?? (s.splitMode/)
   })
   it('a void replacement cart cannot be parked', () => {
     expect(screen).toContain('canSave={heldOrders.canSave}')

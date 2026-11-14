@@ -64,6 +64,12 @@ describe('void draft in the cashier reducer', () => {
     expect(reopened.tenders).toEqual([{ method: 'qris', amount: 100000 }])
   })
 
+  it('emptying the cart with CART_REMOVE_ITEM keeps the void draft (a refilled cart must not become a plain sale)', () => {
+    const s = cashierReducer(started(), { type: 'CART_REMOVE_ITEM', productId: 'a', variantSize: 'S' })
+    expect(s.cart).toEqual([])
+    expect(s.voidDraft?.orderNumber).toBe('BSD-1')
+  })
+
   it('a plain sale opens the checkout with no split lines', () => {
     expect(cashierReducer(CASHIER_INITIAL_STATE, { type: 'OPEN_CHECKOUT', defaultMethod: 'cash' }).tenders).toEqual([])
   })

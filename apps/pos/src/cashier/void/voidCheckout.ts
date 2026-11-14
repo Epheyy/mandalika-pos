@@ -4,7 +4,7 @@ import type { CashFlagMethod, Shift } from '@mandalika/types'
 import { planHeldRestore, type HeldRestoreEnv } from '../heldRestore'
 import type { CashierAction } from '../state/cashierReducer'
 import { SPLIT_METHOD_ID, type SalePlan, type TenderLine } from '../tenderSplit'
-import { heldOrderFromVoidedOrder, lockedReplacementTenders, lockedTendersProblem, replacementCorrection, type VoidDraft } from './voidReplacement'
+import { heldOrderFromVoidedOrder, isLocked, lockedReplacementTenders, lockedTendersProblem, replacementCorrection, type VoidDraft } from './voidReplacement'
 import { buildVoidPayload, VOID_REASONS } from './voidRules'
 
 type Order = components['schemas']['Order']
@@ -46,6 +46,8 @@ export function voidPayable(draft: VoidDraft | null, choice: 'adjust' | 'settle'
  *  it began in, and that shift must still be open: the server refuses otherwise (ErrVoidShiftClosed), so the tablet
  *  never queues it. */
 export function voidDraftRefusal(draft: VoidDraft, currentShift: Pick<Shift, 'id' | 'status'> | null): string | null {
+  // A draft that lost its original can never build the void: refuse before a number is burned.
+  if (!draft.sale && draft.kind !== 'create_replacement') return voidDroppedMessage(draft.orderNumber)
   if (draft.kind === 'create_replacement') return null
   const id = currentShift?.id ?? ''
   const open = !!currentShift && currentShift.status === 'open' && id !== ''
@@ -55,7 +57,7 @@ export function voidDraftRefusal(draft: VoidDraft, currentShift: Pick<Shift, 'id
 
 /** A locked draft sends the amounts APPLIED (never tendered / change). Keeps the plan's shape. */
 export function applyLockedTenders(plan: OkPlan, draft: VoidDraft, methods?: readonly CashFlagMethod[]): OkPlan {
-  if (!draft.amountsLocked) return plan
+  if (!isLocked(draft)) return plan
   const lines: TenderLine[] = lockedReplacementTenders(plan.lines, draft.originalTotal, methods)
   const amountPaid = lines.reduce((n, l) => n + l.amount, 0)
   return { ...plan, lines, amountPaid, change: 0, paymentMethod: lines.length > 1 ? SPLIT_METHOD_ID : (lines[0]?.method ?? plan.paymentMethod), split: lines.length > 1 }
@@ -89,7 +91,7 @@ export async function commitVoidDraftSale(i: VoidCommitInput): Promise<VoidCommi
   const { draft } = i
   const refusal = voidDraftRefusal(draft, i.currentShift)
   if (refusal) return { status: 'refused', message: refusal, dropDraft: true }
-  if (draft.amountsLocked) {
+  if (isLocked(draft)) {
     const problem = lockedTendersProblem((i.orderPayload.tenders ?? []) as TenderLine[], draft.originalTotal)
     if (problem) return { status: 'refused', message: problem, dropDraft: false }
   }

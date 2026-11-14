@@ -23,7 +23,8 @@ export interface VoidDraft {
   /** The server refuses a different amount (afterClose or another shift): the replacement always books the gap as a correction. */
   amountsLocked: boolean
   kind: 'void_and_replace' | 'create_replacement'
-  /** Set by startVoidDraftActions. The replacement sale's order uuid: also the void item's key, so a retry is the same item. */
+  /** Set by startVoidDraftActions. The replacement sale's order uuid: also the void item's key. saleUuidFor prefers it, so
+   *  it stays the same across split cancel / a new split / retries. */
   replacementUuid?: string
   /** Set by startVoidDraftActions: the open shift's id when the draft began. Confirm refuses once it is not the open shift. */
   startedShiftId?: string | null
@@ -100,6 +101,10 @@ export function heldOrderFromVoidedOrder(order: Order, now: number): HeldOrder {
   }
 }
 
+/** Whether the replacement must pay exactly what the store received. "Buat pengganti" is always locked (the server
+ *  forces it), whatever the draft's flag says. */
+export const isLocked = (d: Pick<VoidDraft, 'amountsLocked' | 'kind'>): boolean => d.amountsLocked || d.kind === 'create_replacement'
+
 /** The replacement starts with the original's applied payment lines (a copy). */
 export function initialReplacementTenders(d: VoidDraft): TenderLine[] {
   return d.originalTenders.map((t) => ({ ...t }))
@@ -126,6 +131,6 @@ export function lockedTendersProblem(tenders: readonly TenderLine[], originalTot
 export function replacementCorrection(
   d: VoidDraft, cartTotal: number, choice: 'adjust' | 'settle',
 ): { correctionTarget?: 'original_total'; correction: number } {
-  if (choice === 'adjust' || d.amountsLocked) return { correctionTarget: 'original_total', correction: d.originalTotal - Math.round(cartTotal) }
+  if (choice === 'adjust' || isLocked(d)) return { correctionTarget: 'original_total', correction: d.originalTotal - Math.round(cartTotal) }
   return { correction: 0 }
 }

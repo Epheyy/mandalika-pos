@@ -97,7 +97,7 @@ import { PAYMENT_LABELS, tenderLabel } from '../lib/paymentLabels'
 import { cashPredicate, planSaleTender, snapshotTenders } from './tenderSplit'
 import { buildSaleOrderPayload } from './salePayload'
 import { applyLockedTenders, commitVoidDraftSale, voidDraftRefusal, voidPayable, voidSlipData } from './void/voidCheckout'
-import { lockedTendersProblem } from './void/voidReplacement'
+import { isLocked, lockedTendersProblem } from './void/voidReplacement'
 import { useSplitDraft } from './useSplitDraft'
 import { useOpenCartDraft } from './useOpenCartDraft'
 import { autoReconcileFingerprint, autoRunAllowed, autoSetWouldChange, hasAutoPromotions } from './autoPromoRun'
@@ -874,6 +874,8 @@ export default function CashierScreen() {
       showToast('Manfaat loyalti dibatalkan: pilih pelanggan terlebih dahulu')
       return
     }
+    // With a void draft the payable is fixed to the original total for adjust / locked, so an auto-promo change only moves
+    // the Penyesuaian koreksi; with 'settle' the cashier re-confirms the new total, exactly as for a plain sale.
     // Promo auto-apply: an hour that ended or a promo a pull switched off may change the auto set since the cashier
     // last looked. Commit it and let them confirm the total they now see (same pattern as the guard below).
     const autoEnv = { promotions, products: displayProducts, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }
@@ -926,7 +928,7 @@ export default function CashierScreen() {
     }
     // A locked void replacement sends the amounts APPLIED (never tendered / change) and must equal what the store received.
     const plan = voidDraft ? applyLockedTenders(basePlan, voidDraft, settings.paymentMethods) : basePlan
-    const lockedProblem = voidDraft?.amountsLocked ? lockedTendersProblem(plan.lines, voidDraft.originalTotal) : null
+    const lockedProblem = voidDraft && isLocked(voidDraft) ? lockedTendersProblem(plan.lines, voidDraft.originalTotal) : null
     if (lockedProblem) {
       showToast(lockedProblem)
       return
