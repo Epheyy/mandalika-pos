@@ -2116,6 +2116,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orders/{id}/void/no-replacement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a void made with mode later as tanpa pengganti (insert-only followup); needs void_any */
+        post: operations["markVoidNoReplacement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orders/{id}/void-preview": {
         parameters: {
             query?: never;
@@ -4784,6 +4803,11 @@ export interface components {
              * @description Set on a replacement sale: the voided order it replaces.
              */
             replacesOrderId?: string;
+            /**
+             * Format: double
+             * @description Penyesuaian koreksi on a replacement sale: the corrected price minus what the cart priced to (negative: the store received less). 0 or absent otherwise.
+             */
+            correctionAmount?: number;
             replacesOrderNumber?: string;
             /** @description The device that rang the sale (used by the POS to tell its own unsynced sales apart). */
             deviceId?: string;
@@ -4818,7 +4842,7 @@ export interface components {
              */
             clientVoidUuid: string;
             /**
-             * @description Phase 1 accepts none only.
+             * @description none: void only. replace: Batalkan & perbaiki (void and its replacement in one transaction; the replacement object may carry new tenders and customer). later: the replacement is made afterwards in the POS (Buat pengganti) or marked tanpa pengganti.
              * @enum {string}
              */
             mode: "none" | "replace" | "later";
@@ -4998,6 +5022,44 @@ export interface components {
             refundsPaidByMethod?: {
                 [key: string]: number;
             } | null;
+            corrections?: components["schemas"]["ShiftCorrections"];
+            /** Format: double */
+            correctedTotalSales?: number;
+            correctedTotalOrders?: number;
+            /** Format: double */
+            correctedCashSales?: number;
+            /** Format: double */
+            correctedCardSales?: number;
+            /** Format: double */
+            correctedTransferSales?: number;
+            /** Format: double */
+            correctedQrisSales?: number;
+        };
+        ShiftCorrectionItem: {
+            /** Format: uuid */
+            voidId: string;
+            /** Format: uuid */
+            orderId: string;
+            orderNumber: string;
+            /** @enum {string} */
+            kind: "void" | "replacement";
+            method: string;
+            /**
+             * Format: double
+             * @description Signed: void rows are negative, replacement rows positive.
+             */
+            amount: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ShiftCorrections: {
+            /** @description Number of voids that corrected this shift. */
+            count: number;
+            /** @description Net correction per payment method id. */
+            byMethod: {
+                [key: string]: number;
+            };
+            items: components["schemas"]["ShiftCorrectionItem"][];
         };
         ShiftListResponse: {
             data: components["schemas"]["Shift"][];
@@ -5375,6 +5437,16 @@ export interface components {
         };
         /** @description Server recomputes all money/stock/loyalty (plan §9); client values are provisional. Outlet + cashier come from the JWT. The Idempotency-Key header is required. */
         CreateOrderRequest: {
+            /**
+             * Format: uuid
+             * @description Sync only (order item): Buat pengganti, a replacement of an older sale voided as later. The direct POST /orders ignores it.
+             */
+            replacesOrderId?: string;
+            /**
+             * @description Sync only (void replacement payload): settle the replacement at the original total and record the gap as Penyesuaian koreksi.
+             * @enum {string}
+             */
+            correctionTarget?: "original_total";
             /** Format: uuid */
             orderUuid: string;
             deviceId?: string | null;
@@ -11184,6 +11256,52 @@ export interface operations {
             };
             403: components["responses"]["Forbidden"];
             /** @description already voided, refunded, not completed, outside the void window, or not found at this outlet */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    markVoidNoReplacement: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    note?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description the cancelled order with its followup */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description invalid order id or note */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description the void already has a replacement or a mark, was not made with mode later, or the order was not voided */
             409: {
                 headers: {
                     [name: string]: unknown;

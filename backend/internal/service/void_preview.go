@@ -58,8 +58,6 @@ func (s *OrderService) VoidPreview(ctx context.Context, outletID, orderID string
 		refuse(e)
 	} else if authority, e := decideVoidAuthority(facts, in); e != nil {
 		refuse(e)
-	} else if out.AfterClose {
-		refuse(ErrVoidAfterCloseNotYet) // Phase 2 adds the correction deltas
 	} else {
 		a := api.VoidPreviewAuthority(authority)
 		out.Authority, out.Eligible = &a, true

@@ -53,7 +53,10 @@ func (r *Repo) Shifts(ctx context.Context, sc Scope, dateFrom, dateTo string, pa
 	if err != nil {
 		return nil, 0, err
 	}
-	return rows, total, r.fillOpenCashRefunds(ctx, rows)
+	if err := r.fillOpenCashRefunds(ctx, rows); err != nil {
+		return nil, 0, err
+	}
+	return rows, total, r.fillShiftCorrections(ctx, rows)
 }
 
 // fillOpenCashRefunds sets cashRefundsPaid on open shifts: the cash part of the live
@@ -92,6 +95,9 @@ func (r *Repo) oneShift(ctx context.Context, sql string, args ...any) (api.Shift
 	}
 	one := []api.Shift{s}
 	if err := r.fillOpenCashRefunds(ctx, one); err != nil {
+		return s, err
+	}
+	if err := r.fillShiftCorrections(ctx, one); err != nil {
 		return s, err
 	}
 	return one[0], nil

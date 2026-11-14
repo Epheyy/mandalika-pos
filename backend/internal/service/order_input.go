@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/bundles"
 	"math"
 	"strings"
+	"time"
 )
 
 // Limits are PostgreSQL numeric(14,2) money and integer quantities/points,
@@ -124,6 +126,9 @@ func ValidateSaleInput(in CreateOrderInput) error {
 	if in.PointsRedeemed < 0 || int64(in.PointsRedeemed) > math.MaxInt32 {
 		return saleInputError("pointsRedeemed", "di luar rentang integer nonnegatif")
 	}
+	if err := validateReplacementFields(in); err != nil {
+		return err
+	}
 	// Methods are free-form configured IDs (migration 0005), not a closed enum.
 	if hasTenders {
 		return nil
@@ -213,6 +218,25 @@ func validateBundleFields(items []OrderItem) error {
 				return saleInputError(field+"."+m.name, "melebihi batas yang didukung")
 			}
 		}
+	}
+	return nil
+}
+
+// validateReplacementFields checks the void-replacement fields (migration 0093). They are set by the
+// server's void paths, never trusted from a payload shape: a malformed one is a rejection, not a 500.
+func validateReplacementFields(in CreateOrderInput) error {
+	if in.ReplacesOrderID != "" {
+		if _, err := uuid.Parse(in.ReplacesOrderID); err != nil {
+			return saleInputError("replacesOrderId", "bukan UUID yang valid")
+		}
+	}
+	if in.BusinessDate != "" {
+		if _, err := time.Parse("2006-01-02", in.BusinessDate); err != nil {
+			return saleInputError("businessDate", "harus berformat YYYY-MM-DD")
+		}
+	}
+	if t := in.CorrectionTarget; t != nil && (*t < 0 || float64(*t) > maxSaleMoney) {
+		return saleInputError("correctionTarget", "di luar rentang")
 	}
 	return nil
 }

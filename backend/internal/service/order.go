@@ -126,6 +126,18 @@ type CreateOrderInput struct {
 	Notes             string
 	ShiftID           string
 	ClientCreated     *time.Time
+	// Void replacement (migration 0093). ReplacesOrderID links the new sale to the one it replaces.
+	// BusinessDate ("YYYY-MM-DD", empty = the 0059 trigger decides) pins the replacement to the voided
+	// sale's day. CorrectionTarget (nil = none) is the total the sale must end at: the gap to what the
+	// cart priced to is stored as orders.correction_amount ("Penyesuaian koreksi").
+	ReplacesOrderID  string
+	BusinessDate     string
+	CorrectionTarget *int64
+	// PointsDeduction (void paths only) is the written-off points of the voided sale when the same
+	// customer is charged again: the replacement earns max(0, normal earn - PointsDeduction).
+	// deductionOut, when set, receives the amount actually deducted.
+	PointsDeduction int
+	deductionOut    *int
 	// EvalTime and ClockSkew are set by the sync batch only (A05): the bounded time promo
 	// and loyalty rules run at when ClientCreated disagrees with the server's evidence.
 	// ClientCreated stays the recorded fact; EvalTime only changes the evaluation.
@@ -263,6 +275,65 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 		return "", false, false, err
 	}
 	defer tx.Rollback(ctx)
+
+	res, err := s.createOrderTx(ctx, tx, in)
+	if err != nil {
+		if errors.Is(err, errOrderKeyConflict) {
+			return s.replayAfterConflict(ctx, tx, in.IdempotencyKey, err)
+		}
+		return "", false, false, err
+	}
+	if res.Duplicate {
+		return res.OrderID, true, false, nil
+	}
+	// A15 Phase B: tell every tablet at this outlet that its stock changed. Exactly once
+	// per committed sale (a sale that moved no stock still counts, so one own sale is
+	// always one bump), as the LAST statement: after the processed_keys claim, so a
+	// lost same-key race rolls back with no gap, and after all stock rows.
+	outletKey := strings.ToLower(strings.TrimSpace(in.OutletID)) // BumpStockSeq's map key
+	seqs, e := write.BumpStockSeq(ctx, tx, in.OutletID)
+	if e != nil {
+		return "", false, false, e
+	}
+	if e := tx.Commit(ctx); e != nil {
+		return "", false, false, fmt.Errorf("commit: %w", e)
+	}
+	if seqOut != nil {
+		*seqOut = seqs[outletKey]
+	}
+	return res.OrderID, false, res.StockWarning, nil
+}
+
+// errOrderKeyConflict marks a lost same-key race inside createOrderTx. It cannot roll back the
+// caller's transaction, so it reports the conflict: createOrderCore then replays the winner's key,
+// a void's transaction returns it (retryable) and its outer receipt replays on the retry.
+var errOrderKeyConflict = apperr.Wrap(apperr.Busy, write.ErrBusy)
+
+// orderKeyConflict logs the database cause and returns the bare sentinel: the sentinel's text is
+// what a sync ack or HTTP body may echo, and it must not carry constraint names or SQLSTATE.
+func orderKeyConflict(cause error) error {
+	slog.Warn("order idempotency key conflict", "err", cause)
+	return errOrderKeyConflict
+}
+
+// createOrderTx is the checkout body inside a caller-owned transaction, from the processed_keys
+// check to the processed_keys insert. It neither bumps the outlet stock counter nor commits: the
+// caller does both (createOrderCore for a plain sale, VoidAndReplaceTx for a void with a replacement).
+func (s *OrderService) createOrderTx(ctx context.Context, tx pgx.Tx, in CreateOrderInput) (CreateOrderResult, error) {
+	id, dup, warn, err := s.createOrderBody(ctx, tx, in)
+	if err != nil {
+		return CreateOrderResult{}, err
+	}
+	return CreateOrderResult{OrderID: id, Duplicate: dup, StockWarning: warn}, nil
+}
+
+func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in CreateOrderInput) (orderID string, dup bool, stockWarning bool, err error) {
+	if len(in.Items) == 0 {
+		return "", false, false, ErrNoItems
+	}
+	if in.OutletID == "" {
+		return "", false, false, ErrNoOutlet
+	}
 
 	// Durable idempotency guard (Redis is the fast path in the handler).
 	var existing string
@@ -474,6 +545,13 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 		}
 	}
 	finalTotal := res.Total - redeemAmount
+	// Void replacement: the sale ends at the target and the gap is "Penyesuaian koreksi". Points
+	// earned are decided below from res.Total, before this adjustment, so the gap never moves them.
+	var correction int64
+	if in.CorrectionTarget != nil {
+		correction = correctionAmount(*in.CorrectionTarget, int64(math.Round(finalTotal)))
+		finalTotal = float64(*in.CorrectionTarget)
+	}
 	if err := saleMoney("finalTotal", finalTotal); err != nil {
 		return "", false, false, err
 	}
@@ -514,6 +592,15 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 			SaleDate: saleTime.In(saleZone), Customer: evalCust,
 		})
 		finalEarned = outcome.FinalEarned(base)
+	}
+	// Void replacement for the same customer: do not re-earn the points the void already wrote off.
+	deducted := 0
+	if in.PointsDeduction > 0 && in.CustomerID != "" {
+		deducted = min(in.PointsDeduction, finalEarned)
+		finalEarned -= deducted
+	}
+	if in.deductionOut != nil {
+		*in.deductionOut = deducted
 	}
 	if err := salePoints("finalEarned", math.Round(float64(base)*outcome.BestMultiplier)+float64(outcome.FlatBonus)); err != nil {
 		return "", false, false, err
@@ -607,9 +694,11 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 		  surcharge_amount, tax_amount, total, payment_method, amount_paid,
 		  change, status, notes, shift_id, client_created_at, quoted_total,
 		  stock_warning, points_redeemed, points_redemption_amount, discount_label, discount_breakdown, points_earned, discount_warning, discount_warning_reason, applied_discount_codes, tender_warning, tender_warning_reason,
-		  receipt_snapshot, quote_warning, quote_warning_reason)
+		  receipt_snapshot, quote_warning, quote_warning_reason,
+		  replaces_order_id, business_date, correction_amount)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
-		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31,$32,$33::jsonb,$34,$35,$36,$37::jsonb,$38,$39,$40::jsonb,$41,$42)
+		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31,$32,$33::jsonb,$34,$35,$36,$37::jsonb,$38,$39,$40::jsonb,$41,$42,
+		        $43,$44::date,$45)
 		RETURNING id`,
 		orderNumber, in.OrderUUID, in.IdempotencyKey, nullUUID(in.DeviceID), in.OutletID,
 		in.CashierID, in.CashierName, nullUUID(in.SalesmanID), nullStr(in.SalesmanName),
@@ -623,10 +712,11 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 		finalEarned, discountWarning, nullStr(discountWarnReason), nullCodes(appliedCodes),
 		tenderWarning, nullStr(tenderReason),
 		nullBytes(snapStored), quoteReason != "", nullStr(quoteReason),
+		nullUUID(in.ReplacesOrderID), nullStr(in.BusinessDate), correction,
 	).Scan(&orderID)
 	if err != nil {
 		if isIdempotencyConflict(err) {
-			return s.replayAfterConflict(ctx, tx, in.IdempotencyKey, err)
+			return "", false, false, orderKeyConflict(err)
 		}
 		return "", false, false, fmt.Errorf("insert order: %w", err)
 	}
@@ -727,7 +817,7 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 				if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
 					CustomerID: in.CustomerID, Type: "earn", Points: earned,
 					BalanceAfter: balanceBefore + earned,
-					Reason:       LoyaltyEarnReason(orderNumber, base, outcome),
+					Reason:       earnReasonWithDeduction(LoyaltyEarnReason(orderNumber, base, outcome), deducted),
 					OrderID:      orderID, ByID: in.CashierID, ByName: in.CashierName,
 				}); e != nil {
 					return "", false, false, fmt.Errorf("ledger earn: %w", e)
@@ -815,26 +905,9 @@ func (s *OrderService) createOrderCore(ctx context.Context, in CreateOrderInput,
 		`INSERT INTO processed_keys (idempotency_key, order_id) VALUES ($1,$2)`,
 		in.IdempotencyKey, orderID); e != nil {
 		if isIdempotencyConflict(e) {
-			return s.replayAfterConflict(ctx, tx, in.IdempotencyKey, e)
+			return "", false, false, orderKeyConflict(e)
 		}
 		return "", false, false, fmt.Errorf("record idempotency: %w", e)
-	}
-
-	// A15 Phase B: tell every tablet at this outlet that its stock changed. Exactly once
-	// per committed sale (a sale that moved no stock still counts, so one own sale is
-	// always one bump), as the LAST statement: after the processed_keys claim, so a
-	// lost same-key race above rolls back with no gap, and after all stock rows.
-	outletKey := strings.ToLower(strings.TrimSpace(in.OutletID)) // BumpStockSeq's map key
-	seqs, e := write.BumpStockSeq(ctx, tx, in.OutletID)
-	if e != nil {
-		return "", false, false, e
-	}
-
-	if e := tx.Commit(ctx); e != nil {
-		return "", false, false, fmt.Errorf("commit: %w", e)
-	}
-	if seqOut != nil {
-		*seqOut = seqs[outletKey]
 	}
 	return orderID, false, stockWarning, nil
 }
@@ -879,4 +952,13 @@ func nextOrderNumber(ctx context.Context, tx pgx.Tx, _ string) (string, error) {
 		return "", fmt.Errorf("order number: %w", err)
 	}
 	return fmt.Sprintf("MND-%06d", seq), nil
+}
+
+// earnReasonWithDeduction tells the points ledger that part of the earn was withheld because the
+// voided sale's points were already written off.
+func earnReasonWithDeduction(reason string, deducted int) string {
+	if deducted <= 0 {
+		return reason
+	}
+	return fmt.Sprintf("%s (dikurangi %d poin yang sudah dihapuskan pada pembatalan)", reason, deducted)
 }

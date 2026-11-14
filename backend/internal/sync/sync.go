@@ -352,6 +352,9 @@ func (e *Engine) processOneWithSeq(ctx context.Context, c Caller, it BatchItem,
 		if err := json.Unmarshal(it.Payload, &p); err != nil {
 			return fail(apperr.Wrap(apperr.Rejected, err))
 		}
+		if p.ReplacesOrderID != "" {
+			return e.processReplacementOrder(ctx, c, it, r, p, env, fail)
+		}
 		shiftID, err := e.payloadShift(ctx, c, it, p.ShiftID)
 		if err != nil {
 			return fail(err)
@@ -361,42 +364,7 @@ func (e *Engine) processOneWithSeq(ctx context.Context, c Caller, it BatchItem,
 			slog.Warn("sale clock disagrees with offline evidence; promo/loyalty evaluated at a bounded time",
 				"idempotencyKey", it.IdempotencyKey, "deviceId", env.DeviceID)
 		}
-		in := service.CreateOrderInput{
-			IdempotencyKey:    it.IdempotencyKey,
-			OrderUUID:         p.OrderUUID,
-			OrderNumber:       p.OrderNumber,
-			DeviceID:          p.DeviceID,
-			OutletID:          c.OutletID,
-			CashierID:         c.UserID,
-			CashierName:       c.DisplayName,
-			SalesmanID:        p.SalesmanID,
-			SalesmanName:      p.SalesmanName,
-			CustomerID:        p.CustomerID,
-			CustomerName:      p.CustomerName,
-			Items:             p.Items,
-			PaymentMethod:     p.PaymentMethod,
-			AmountPaid:        p.AmountPaid,
-			Tenders:           p.Tenders,
-			ManualKind:        service.DiscountKind(p.DiscountType),
-			ManualValue:       p.DiscountValue,
-			Surcharge:         p.SurchargeValue,
-			SurchargeKind:     service.DiscountKind(p.SurchargeType),
-			DiscountCode:      p.DiscountCode,
-			PromotionID:       p.PromotionID,
-			PromotionIDs:      p.PromotionIDs,
-			DiscountCodes:     p.DiscountCodes,
-			DiscountLabel:     p.DiscountLabel,
-			DiscountBreakdown: p.DiscountBreakdown,
-			QuotedTotal:       p.QuotedTotal,
-			ReceiptSnapshot:   p.ReceiptSnapshot,
-			PointsRedeemed:    p.PointsRedeemed,
-			Notes:             p.Notes,
-			ShiftID:           shiftID,
-			ClientCreated:     p.ClientCreatedAt,
-			EvalTime:          evalTime,
-			ClockSkew:         skew,
-			Offline:           true,
-		}
+		in := p.createInput(c, it.IdempotencyKey, shiftID, evalTime, skew)
 		res, err := createOrder(ctx, in)
 		if err != nil {
 			return fail(err)
@@ -641,4 +609,47 @@ type orderPayload struct {
 	ClientCreatedAt   *time.Time          `json:"clientCreatedAt"`
 	QuotedTotal       *float64            `json:"quotedTotal"`     // A10: absent on legacy outbox items
 	ReceiptSnapshot   json.RawMessage     `json:"receiptSnapshot"` // A10
+	// ReplacesOrderID marks "Buat pengganti": this order replaces an older sale voided as "later".
+	ReplacesOrderID string `json:"replacesOrderId"`
+}
+
+// createInput is the sale input of a synced order item. A void's replacement is built the same way,
+// under its own key.
+func (p orderPayload) createInput(c Caller, idempotencyKey, shiftID string, evalTime *time.Time, skew bool) service.CreateOrderInput {
+	return service.CreateOrderInput{
+		IdempotencyKey:    idempotencyKey,
+		OrderUUID:         p.OrderUUID,
+		OrderNumber:       p.OrderNumber,
+		DeviceID:          p.DeviceID,
+		OutletID:          c.OutletID,
+		CashierID:         c.UserID,
+		CashierName:       c.DisplayName,
+		SalesmanID:        p.SalesmanID,
+		SalesmanName:      p.SalesmanName,
+		CustomerID:        p.CustomerID,
+		CustomerName:      p.CustomerName,
+		Items:             p.Items,
+		PaymentMethod:     p.PaymentMethod,
+		AmountPaid:        p.AmountPaid,
+		Tenders:           p.Tenders,
+		ManualKind:        service.DiscountKind(p.DiscountType),
+		ManualValue:       p.DiscountValue,
+		Surcharge:         p.SurchargeValue,
+		SurchargeKind:     service.DiscountKind(p.SurchargeType),
+		DiscountCode:      p.DiscountCode,
+		PromotionID:       p.PromotionID,
+		PromotionIDs:      p.PromotionIDs,
+		DiscountCodes:     p.DiscountCodes,
+		DiscountLabel:     p.DiscountLabel,
+		DiscountBreakdown: p.DiscountBreakdown,
+		QuotedTotal:       p.QuotedTotal,
+		ReceiptSnapshot:   p.ReceiptSnapshot,
+		PointsRedeemed:    p.PointsRedeemed,
+		Notes:             p.Notes,
+		ShiftID:           shiftID,
+		ClientCreated:     p.ClientCreatedAt,
+		EvalTime:          evalTime,
+		ClockSkew:         skew,
+		Offline:           true,
+	}
 }

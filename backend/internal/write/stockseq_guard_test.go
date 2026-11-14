@@ -23,13 +23,15 @@ import (
 var stockSeqAllowlist = map[string]bool{
 	// bumpers: sale, refund (RefundTx), transfers, goods receipt/adjust, stock count,
 	// product-create seed
-	"internal/service/order.go":    true,
-	"internal/service/refund.go":   true,
-	"internal/service/void.go":     true,
-	"internal/write/transfer.go":   true,
-	"internal/write/warehouse.go":  true,
-	"internal/write/stockcount.go": true,
-	"internal/write/catalog.go":    true,
+	"internal/service/order.go":        true,
+	"internal/service/refund.go":       true,
+	"internal/service/void.go":         true,
+	"internal/service/void_replace.go": true,
+	"internal/service/void_later.go":   true,
+	"internal/write/transfer.go":       true,
+	"internal/write/warehouse.go":      true,
+	"internal/write/stockcount.go":     true,
+	"internal/write/catalog.go":        true,
 	// non-bumpers: stock unchanged (lazy zero row, rename, delete, par, availability)
 	// or read-only
 	"internal/service/lockorder.go":     false,

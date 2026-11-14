@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -173,4 +174,47 @@ func giveawayKey(ctx context.Context, tx pgx.Tx, outletID string) (pid, size str
 		return "", "", false, fmt.Errorf("record giveaway key: %w", err)
 	}
 	return pid, size, enabled, nil
+}
+
+// lockVoidAndReplacement takes the codes and customers of a void and its replacement in ONE pass
+// each, in the global order (A42): the union of the discount codes sorted by code, then the union of
+// customers sorted by keeper id. Nothing else is locked here: voidCore locks the original order, the
+// shift and the sorted union of both stock sets next, and createOrderTx's own locks are then
+// re-entrant. origCodes and origCustomer may be empty (a replacement made after a "later" void).
+func lockVoidAndReplacement(ctx context.Context, tx pgx.Tx, origCodes []string, origCustomer string, repl CreateOrderInput) error {
+	codes := append([]string(nil), origCodes...)
+	switch {
+	case len(repl.DiscountCodes) > 0:
+		codes = append(codes, repl.DiscountCodes...)
+	case repl.DiscountCode != "":
+		codes = append(codes, repl.DiscountCode)
+	}
+	if _, err := lockCodes(ctx, tx, codes, false); err != nil {
+		return err
+	}
+	keepers := map[string]bool{}
+	for _, id := range []string{origCustomer, repl.CustomerID} {
+		if id == "" {
+			continue
+		}
+		if _, err := uuid.Parse(id); err != nil {
+			continue // the sale path rejects it later exactly as before
+		}
+		keeper, err := resolveMergedCustomer(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		keepers[keeper] = true
+	}
+	sorted := make([]string, 0, len(keepers))
+	for k := range keepers {
+		sorted = append(sorted, k)
+	}
+	sort.Strings(sorted)
+	for _, k := range sorted {
+		if _, err := lockResolvedCustomer(ctx, tx, k); err != nil {
+			return err
+		}
+	}
+	return nil
 }
