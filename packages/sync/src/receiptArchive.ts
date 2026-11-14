@@ -32,6 +32,8 @@ export interface ReceiptEntry {
   /** C6: the payment lines of the sale (amount = captured). Optional and additive; absent on single-method
    *  sales archived before C6 and when the payload's tenders were malformed. */
   tenders?: ArchivedTender[]
+  /** Phase 3 (void): set on the receipt of a replacement sale made by a void; the number of the sale it replaces. */
+  replacesOrderNumber?: string
 }
 
 export interface ArchivedTender {
@@ -88,10 +90,18 @@ export function tendersFromPayload(v: unknown): ArchivedTender[] | undefined {
   return out
 }
 
-/** The receipt facts of an acked order item, or null when it is not a usable sale. */
+/** The sale payload an item carries: an order item's own payload, or the replacement of a void item that has one. */
+export function salePayloadOf(item: Pick<OutboxItem, 'type' | 'payload'>): Record<string, unknown> | null {
+  if (item.type === 'order') return item.payload
+  if (item.type !== 'void') return null
+  const r = item.payload.replacement
+  return r && typeof r === 'object' && !Array.isArray(r) ? (r as Record<string, unknown>) : null
+}
+
+/** The receipt facts of an acked order item (or of a void's replacement sale), or null when it is not a usable sale. */
 export function receiptEntryFromItem(item: OutboxItem): ReceiptEntry | null {
-  if (item.type !== 'order') return null
-  const p = item.payload
+  const p = salePayloadOf(item)
+  if (!p) return null
   const orderUuid = str(p.orderUuid)
   const orderNumber = str(p.orderNumber)
   if (!orderUuid || !orderNumber) return null
@@ -111,6 +121,8 @@ export function receiptEntryFromItem(item: OutboxItem): ReceiptEntry | null {
   if (lines) Object.assign(entry, lines)
   const tenders = tendersFromPayload(p.tenders)
   if (tenders) entry.tenders = tenders
+  const replaces = item.type === 'void' ? str(item.payload.orderNumber) : null
+  if (replaces) entry.replacesOrderNumber = replaces
   const serverId = str((item as OutboxItem & { ackedOrderId?: unknown }).ackedOrderId)
   if (serverId) entry.serverOrderId = serverId
   return entry

@@ -18,6 +18,7 @@ export const OUTBOX_CORRUPTION_MARKER_KEY = 'mandalika.outbox.corruptionNotice'
 export type OutboxType =
   | 'order'
   | 'refund'
+  | 'void'
   | 'shift_open'
   | 'shift_close'
   | 'cash_flow'

@@ -1,12 +1,12 @@
 import type { components } from '@mandalika/api'
-import { Outbox, MAX_ATTEMPTS, summarizeQueue, type QueueSummary, type OutboxEnvelope, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType, type ReviewItem } from './outbox'
+import { Outbox, MAX_ATTEMPTS, summarizeQueue, type QueueSummary, type OutboxEnvelope, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxStatus, type OutboxType, type ReviewItem } from './outbox'
 import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
 import { KVOutboxStore, type OutboxStore } from './outboxStore'
 import { SyncedRefunds } from './syncedRefunds'
 import { PartialRefunds, partialRefundFromPayload, type PartialRefundEntry } from './partialRefunds'
-import { ReceiptArchive, receiptEntryFromItem, type ReceiptContext, type ReceiptEntry } from './receiptArchive'
+import { ReceiptArchive, receiptEntryFromItem, salePayloadOf, tendersFromPayload, type ArchivedTender, type ReceiptContext, type ReceiptEntry } from './receiptArchive'
 import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
 import { SettlingDebits, type DebitLine, type PulledSeq } from './settlingDebits'
 import { AutoPullScheduler, AUTO_PULL, type PullKind } from './autoPull'
@@ -153,6 +153,18 @@ function orderDebitLines(item: { payload: Record<string, unknown> }): DebitLine[
   return lines
 }
 
+/** The units a void gives back to stock (display only; the server decides), as negative debits. */
+function voidRestockLines(item: { payload: Record<string, unknown> }): DebitLine[] {
+  const raw = item.payload.restockLines
+  const lines: DebitLine[] = []
+  if (!Array.isArray(raw)) return lines
+  for (const l of raw as Array<{ productId?: unknown; variantSize?: unknown; quantity?: unknown } | null>) {
+    if (!l || typeof l.productId !== 'string' || l.productId === '' || typeof l.quantity !== 'number' || !Number.isFinite(l.quantity)) continue
+    lines.push({ productId: l.productId, variantSize: typeof l.variantSize === 'string' ? l.variantSize : '', qty: -l.quantity })
+  }
+  return lines
+}
+
 /** An acked order is kept queued at most this many times when its settling-debit write fails. */
 const SETTLING_HOLD_MAX = 3
 /** A15 phase B housekeeping: this many settling entries (a quiet outlet that never pulls) trigger a stock pull. */
@@ -234,6 +246,22 @@ export interface QueuedRefund {
   readonly payload: Readonly<Record<string, unknown>>
 }
 
+/** A void not yet acknowledged by the server (queued, retrying or parked), as the POS gate and shift recap see it.
+ *  Display facts come from the payload's tablet-only fields; the payload itself is never altered. */
+export interface QueuedVoid {
+  idempotencyKey: string
+  /** Server order id of the sale (its own, or resolved once a linked sale synced); '' while that sale is still queued. */
+  orderId: string
+  saleOrderUuid?: string
+  mode: 'none' | 'replace'
+  status: OutboxStatus
+  reviewReason?: string
+  originalShiftId: string | null
+  originalTenders: ArchivedTender[]
+  replacementTenders?: ArchivedTender[]
+  replacementOrderUuid?: string
+}
+
 /** A sale made on this tablet, as the local receipt book shows it (A41). Receipt facts only: no customer,
  *  notes or salesman data. */
 export interface LocalReceipt {
@@ -260,6 +288,8 @@ export interface LocalReceipt {
   lineGroups?: (string | null)[]
   /** C6: the sale's payment lines (amount = captured); absent on single-method sales from before C6. */
   tenders?: { method: string; amount: number; reference?: string }[]
+  /** Phase 3 (void): set when this receipt is the replacement sale of a void; the number of the sale it replaces. */
+  replacesOrderNumber?: string
 }
 
 /** Where a refund's sale stands for the send rule. */
@@ -267,6 +297,8 @@ type SaleState = 'acked' | 'queued' | 'parked' | 'unknown'
 
 const SALE_IN_REVIEW_MESSAGE =
   'Penjualan asal refund ini sedang ditinjau, jadi refund ditahan dan tidak dikirim. Jangan bayar ulang. Hubungi admin untuk meninjau penjualan ini.'
+const SALE_IN_REVIEW_VOID_MESSAGE =
+  'Penjualan asal pembatalan ini sedang ditinjau, jadi pembatalan ditahan dan tidak dikirim. Hubungi admin untuk meninjau penjualan ini.'
 
 /** A shift open/close still waiting in the outbox, for overlaying the header (A04). */
 export interface PendingShiftOp {
@@ -462,9 +494,11 @@ export class SyncEngine {
     const referenced = new Set<string>()
     for (const i of this.outbox.all()) {
       if (i.status === 'acked') continue
-      if (i.type === 'order' && typeof i.payload.orderUuid === 'string') {
-        unsynced.push({ orderUuid: i.payload.orderUuid, outletId: i.envelope?.outletId ?? '', capturedAt: i.envelope?.capturedAt ?? i.clientCreatedAt, seq: i.seq })
-      } else if (i.type === 'refund') {
+      const salePayload = salePayloadOf(i)
+      if (salePayload && typeof salePayload.orderUuid === 'string') {
+        unsynced.push({ orderUuid: salePayload.orderUuid, outletId: i.envelope?.outletId ?? '', capturedAt: i.envelope?.capturedAt ?? i.clientCreatedAt, seq: i.seq })
+      }
+      if (i.type === 'refund' || i.type === 'void') {
         for (const k of [i.payload.saleOrderUuid, i.payload.orderId]) if (typeof k === 'string' && k) referenced.add(k)
       }
     }
@@ -1075,6 +1109,16 @@ export class SyncEngine {
         add(orderDebitLines(item))
         addGiveaway()
       }
+      if (item.type === 'void' && inScope(item.envelope?.outletId)) {
+        // Delta convention: positive = units the displayed stock loses. The restock gives units back; the
+        // replacement sale (if any) takes its lines and one giveaway unit like any counted order. Gone on ack.
+        add(voidRestockLines(item))
+        const replacement = salePayloadOf(item)
+        if (replacement) {
+          add(orderDebitLines({ payload: replacement }))
+          addGiveaway()
+        }
+      }
     }
     // A15: acked orders until a pull sent after the ack. Skip one only while its item is still unacked
     // (a failed settle write); an acked row left behind by a skipped prune must NOT hide it.
@@ -1115,12 +1159,50 @@ export class SyncEngine {
       }))
   }
 
+  /** Unacknowledged voids (queued, retrying or parked for review), oldest first. A parked void is NOT settled: the
+   *  cashier may already have handed over a replacement. Read-only; the payload stays as captured. */
+  queuedVoids(): QueuedVoid[] {
+    return this.outbox
+      .all()
+      .filter((i) => i.type === 'void' && i.status !== 'acked')
+      .slice()
+      .sort((a, b) => a.seq - b.seq)
+      .map((i) => {
+        const p = i.payload
+        const replacement = salePayloadOf(i)
+        const replacementOrderUuid = replacement && typeof replacement.orderUuid === 'string' && replacement.orderUuid ? replacement.orderUuid : undefined
+        const replacementTenders = replacement ? tendersFromPayload(replacement.tenders) : undefined
+        return {
+          idempotencyKey: i.idempotencyKey,
+          orderId: this.refundOrderId(p),
+          ...(typeof p.saleOrderUuid === 'string' && p.saleOrderUuid ? { saleOrderUuid: p.saleOrderUuid } : {}),
+          mode: p.mode === 'replace' ? 'replace' as const : 'none' as const,
+          status: i.status,
+          ...(i.reviewReason ? { reviewReason: i.reviewReason } : {}),
+          originalShiftId: typeof p.originalShiftId === 'string' && p.originalShiftId ? p.originalShiftId : null,
+          originalTenders: tendersFromPayload(p.originalTenders) ?? [],
+          ...(replacementTenders ? { replacementTenders } : {}),
+          ...(replacementOrderUuid ? { replacementOrderUuid } : {}),
+        }
+      })
+  }
+
+  /** Orders that already have an unacknowledged void (incl. parked): server ids and client sale uuids. */
+  queuedVoidOrderIds(): Set<string> {
+    const out = new Set<string>()
+    for (const v of this.queuedVoids()) {
+      if (v.orderId) out.add(v.orderId)
+      if (v.saleOrderUuid) out.add(v.saleOrderUuid)
+    }
+    return out
+  }
+
   /** The server order id a queued refund applies to: its own, or (linked refund) that of its sale once synced. */
   private refundOrderId(payload: Readonly<Record<string, unknown>>): string {
     if (typeof payload.orderId === 'string' && payload.orderId !== '') return payload.orderId
     const uuid = payload.saleOrderUuid
     if (typeof uuid !== 'string' || uuid === '') return ''
-    const row = this.outbox.all().find((i) => i.type === 'order' && i.payload.orderUuid === uuid)
+    const row = this.saleRow(uuid)
     if (row?.ackedOrderId) return row.ackedOrderId
     return this.receiptArchive.entries().find((e) => e.orderUuid === uuid)?.serverOrderId ?? ''
   }
@@ -1174,9 +1256,15 @@ export class SyncEngine {
     return out
   }
 
-  /** Where the sale named by a linked refund stands. An acked row not yet pruned counts as acked. */
+  /** The outbox row that carries the sale with this client uuid: an order item, or the void item whose replacement it is
+   *  (a refund or void of a replacement must wait for that void exactly as one of a sale waits for its order). */
+  private saleRow(orderUuid: string): OutboxItem | undefined {
+    return this.outbox.all().find((i) => salePayloadOf(i)?.orderUuid === orderUuid)
+  }
+
+  /** Where the sale named by a linked refund or void stands. An acked row not yet pruned counts as acked. */
   private saleState(orderUuid: string): SaleState {
-    const row = this.outbox.all().find((i) => i.type === 'order' && i.payload.orderUuid === orderUuid)
+    const row = this.saleRow(orderUuid)
     if (row) {
       if (row.status === 'acked') return 'acked'
       return row.status === 'failed' && (row.attempts ?? 0) >= MAX_ATTEMPTS ? 'parked' : 'queued'
@@ -1211,13 +1299,14 @@ export class SyncEngine {
           paymentMethod: e.paymentMethod, quotedTotal: e.quotedTotal, receiptSnapshot: e.receiptSnapshot, state: 'synced',
           ...(e.lineNets ? { lineNets: e.lineNets } : {}), ...(e.lineGroups ? { lineGroups: e.lineGroups } : {}),
           ...(e.tenders ? { tenders: e.tenders } : {}),
+          ...(e.replacesOrderNumber ? { replacesOrderNumber: e.replacesOrderNumber } : {}),
           ...flags(e.orderUuid, e.serverOrderId),
         },
       })
     })
     for (const i of this.outbox.all()) {
-      if (i.type !== 'order' || !inScope(i.envelope?.outletId)) continue
-      const e = receiptEntryFromItem(i)
+      if ((i.type !== 'order' && i.type !== 'void') || !inScope(i.envelope?.outletId)) continue
+      const e = receiptEntryFromItem(i) // a void yields one only when it carries a replacement
       if (!e) continue
       const acked = i.status === 'acked'
       // An acked row the archive does not hold yet (its write failed) is the only copy of that sale.
@@ -1231,6 +1320,7 @@ export class SyncEngine {
           state: acked ? 'synced' : i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS ? 'parked' : 'queued',
           ...(e.lineNets ? { lineNets: e.lineNets } : {}), ...(e.lineGroups ? { lineGroups: e.lineGroups } : {}),
           ...(e.tenders ? { tenders: e.tenders } : {}),
+          ...(e.replacesOrderNumber ? { replacesOrderNumber: e.replacesOrderNumber } : {}),
           ...flags(e.orderUuid, e.serverOrderId),
         },
       })
@@ -1248,7 +1338,7 @@ export class SyncEngine {
   localReceiptsForCustomer(customerId: string): LocalReceipt[] {
     if (!customerId) return []
     const mine = new Set(
-      this.outbox.all().filter((i) => i.type === 'order' && i.status !== 'acked' && i.payload.customerId === customerId).map((i) => i.idempotencyKey),
+      this.outbox.all().filter((i) => i.status !== 'acked' && salePayloadOf(i)?.customerId === customerId).map((i) => i.idempotencyKey),
     )
     return mine.size === 0 ? [] : this.localReceipts().filter((r) => mine.has(r.idempotencyKey))
   }
@@ -1397,7 +1487,9 @@ export class SyncEngine {
         resolvedOrders.map((i) => ({ key: i.idempotencyKey, outletId: i.capturedOutletId, lines: orderDebitLines(i) })),
       ).catch((err) => console.error('[sync] settling-debit write failed for resolved review items', err))
       // A15 phase B: head office may or may not have applied the sale and the entry has no seq: one pull settles it.
-      if (resolvedOrders.length > 0 && this.serverStockSeq !== null && this.seqRulesOn()) {
+      // A resolved void is the same: its restock/replacement left the local overlay, and the server may have applied it.
+      const resolvedVoids = [...parkedBefore.values()].filter((i) => i.type === 'void')
+      if ((resolvedOrders.length > 0 || resolvedVoids.length > 0) && this.serverStockSeq !== null && this.seqRulesOn()) {
         this.followUpPull = true
         this.afterWallUpdate()
       }
@@ -1521,14 +1613,14 @@ export class SyncEngine {
   private async gateLinkedRefunds(chunk: readonly OutboxItem[]): Promise<{ send: OutboxItem[]; held: Set<string> }> {
     const send: OutboxItem[] = []
     const held = new Set<string>()
-    const toPark: string[] = []
+    const toPark: { key: string; reason: string }[] = []
     let holding = false
     for (const i of chunk) {
       if (holding && (i.type === 'shift_close' || i.type === 'shift_open')) {
         held.add(i.idempotencyKey)
         continue
       }
-      const sale = i.type === 'refund' ? i.payload.saleOrderUuid : undefined
+      const sale = i.type === 'refund' || i.type === 'void' ? i.payload.saleOrderUuid : undefined
       if (typeof sale !== 'string' || !sale) {
         send.push(i)
         continue
@@ -1538,13 +1630,13 @@ export class SyncEngine {
         held.add(i.idempotencyKey)
         holding = true
       } else if (state === 'parked') {
-        toPark.push(i.idempotencyKey)
+        toPark.push({ key: i.idempotencyKey, reason: i.type === 'void' ? SALE_IN_REVIEW_VOID_MESSAGE : SALE_IN_REVIEW_MESSAGE })
       } else {
         send.push(i)
       }
     }
     if (toPark.length) {
-      await this.outbox.settle(toPark.map((key) => ({ key, op: 'review' as const, code: 'sale_in_review', reason: SALE_IN_REVIEW_MESSAGE })))
+      await this.outbox.settle(toPark.map((p) => ({ key: p.key, op: 'review' as const, code: 'sale_in_review', reason: p.reason })))
       this.events.onOutboxChange?.(this.outbox.count())
     }
     return { send, held }
@@ -1681,7 +1773,10 @@ export class SyncEngine {
       const type = typeByKey.get(res.idempotencyKey)
       if (res.status === 'ok' || res.status === 'duplicate') {
         // Only order/refund results carry an order id; other types return their own ids (shift, customer...).
-        updates.push({ key: res.idempotencyKey, op: 'ack', ...((type === 'order' || type === 'refund') && res.orderId ? { orderId: res.orderId } : {}) })
+        updates.push({ key: res.idempotencyKey, op: 'ack', ...((type === 'order' || type === 'refund') && res.orderId
+          ? { orderId: res.orderId }
+          // A void's own id is the voided sale's; the one the tablet keeps is the replacement sale's (absent: mode none).
+          : type === 'void' && res.replacementOrderId ? { orderId: res.replacementOrderId } : {}) })
         if (type === 'refund') {
           // The acked refund leaves the outbox: remember its order so a stale history row cannot offer it again.
           const acked = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)
