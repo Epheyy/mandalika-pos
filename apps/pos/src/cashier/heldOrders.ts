@@ -48,6 +48,8 @@ export interface HeldOrder {
    * never stored (`promotions` is manual only): they are recomputed after a restore.
    */
   dismissedAutoPromotionIds?: string[]
+  /** OPTIONAL: notes shown on restore (a void's replacement draft could not recover everything). Unversioned like the field above. */
+  restoreNotes?: string[]
 }
 
 const isHeldOrder = (v: unknown): v is HeldOrder => {

@@ -1,9 +1,9 @@
 import type { components } from '@mandalika/api'
-import { isCashMethod, type CashFlagMethod } from '@mandalika/types'
+import type { CashFlagMethod } from '@mandalika/types'
 import type { BxgyRewardPick } from '../BxgyRewardModal'
 import type { HeldAdjustment, HeldOrder } from '../heldOrders'
 import type { TenderLine } from '../tenderSplit'
-import type { VoidReasonCode } from './voidRules'
+import { appliedTenders, type VoidReasonCode } from './voidRules'
 
 type Order = components['schemas']['Order']
 type CartItem = components['schemas']['CartItem']
@@ -30,11 +30,21 @@ const adjustment = (type: string | null | undefined, value: number | null | unde
 
 const unique = (xs: string[]): string[] => [...new Set(xs.filter((x) => x !== ''))]
 
+/** "bxgy:<promoId>:1" / "bundle:<promoId>:1" (backend allocate.go groupKey) -> promoId, else null. */
+const promoOfGroup = (group: string | null | undefined): string | null => {
+  const m = /^(?:bxgy|bundle):([^:]+):\d+$/.exec(group ?? '')
+  return m ? m[1] : null
+}
+
 /** The voided sale as a cart draft, for the replacement. Same shape as a held order, so the existing planHeldRestore
- *  rebuilds it (bundle groups, customer, promotions, codes, manual discount/surcharge). Server row fields and per-line
- *  promo ids are dropped (the restore re-applies promotions); reward lines become `rewardPicks`. Auto promos cannot be
- *  told from manual ones on an Order, so they come back as manual promotions. The customer's phone and points are not on
- *  an Order (phone '', points 0) until the picker refreshes them. */
+ *  rebuilds it. Built ONLY from what the order read JSON really carries (backend/internal/read/orders.go):
+ *  - set-bundle pieces keep their bundle fields (bundleGroup/Role/Line/Size); the restore re-prices them from today's offer;
+ *  - a Rp0 line outside a set bundle whose refundGroup is `bxgy:<promo>:1` / `bundle:<promo>:1` is that promotion's
+ *    gift: it becomes rewardPicks[promo] and the promotion is re-installed; any other line of such a group only adds
+ *    its promotion; a Rp0 line with no group is a loyalty reward: dropped, loyaltyDropped (the restore says so);
+ *  - only the first discount code (`discountCode`) is stored on an order; the restore notes that more must be re-applied;
+ *  - promotions are not named on an Order, and auto promos cannot be told from manual ones, so all come back as manual;
+ *  - the customer comes back as id + name only (no phone, points or segment), with a restore note to pick again. */
 export function heldOrderFromVoidedOrder(order: Order, now: number): HeldOrder {
   const lines: CartItem[] = []
   const rewardPicks: Record<string, BxgyRewardPick[]> = {}
@@ -42,21 +52,24 @@ export function heldOrderFromVoidedOrder(order: Order, now: number): HeldOrder {
   const codes: string[] = order.discountCode ? [order.discountCode] : []
   let loyaltyReward = false
   for (const it of order.items) {
-    promoIds.push(...(it.promotionIds ?? []))
-    codes.push(...(it.discountCodes ?? []))
-    if (it.isReward) {
-      if (it.rewardConditionId) loyaltyReward = true
-      else if (it.rewardPromotionId) {
-        const pick: BxgyRewardPick = { productId: it.productId, productName: it.productName, variantSize: it.variantSize, net: it.price }
-        rewardPicks[it.rewardPromotionId] = [...(rewardPicks[it.rewardPromotionId] ?? []), ...Array.from({ length: it.quantity }, () => pick)]
-      }
+    const inSet = it.bundleGroup != null
+    const promoId = inSet ? null : promoOfGroup(it.refundGroup)
+    if (promoId) promoIds.push(promoId)
+    if (!inSet && it.price === 0) {
+      if (promoId) {
+        const pick: BxgyRewardPick = { productId: it.productId, productName: it.productName, variantSize: it.variantSize, net: 0 }
+        rewardPicks[promoId] = [...(rewardPicks[promoId] ?? []), ...Array.from({ length: it.quantity }, () => pick)]
+      } else loyaltyReward = true
       continue
     }
-    const { id: _id, lineNo: _lineNo, netAmount: _net, refundGroup: _group, refundedQty: _qty, promotionIds: _p, discountCodes: _c, ...line } = it
-    void [_id, _lineNo, _net, _group, _qty, _p, _c]
+    const { id: _id, lineNo: _lineNo, netAmount: _net, refundGroup: _group, refundedQty: _qty, ...line } = it
+    void [_id, _lineNo, _net, _group, _qty]
     lines.push(line)
   }
   const discount = adjustment(order.discountType, order.discountValue)
+  const restoreNotes: string[] = []
+  if (order.customerId) restoreNotes.push('Pilih ulang pelanggan agar poin dan segmen terbaru terpasang')
+  if (order.discountCode) restoreNotes.push('Kode Promo lain (jika ada) harus dipasang ulang di Promo & Diskon')
   return {
     v: 1,
     id: `void-${order.id}`,
@@ -73,6 +86,7 @@ export function heldOrderFromVoidedOrder(order: Order, now: number): HeldOrder {
     codes: unique(codes),
     rewardPicks,
     loyaltyDropped: (order.pointsRedeemed ?? 0) > 0 || loyaltyReward,
+    ...(restoreNotes.length > 0 ? { restoreNotes } : {}),
   }
 }
 
@@ -82,24 +96,26 @@ export function initialReplacementTenders(d: VoidDraft): TenderLine[] {
 }
 
 /** For a locked draft the replacement's lines must be the amounts APPLIED: the server refuses a cash line that still
- *  carries change. Trims the excess over `due` from cash lines (last first); other lines are left as they are. */
-export function lockedReplacementTenders(tenders: readonly TenderLine[], due: number, methods?: readonly CashFlagMethod[]): TenderLine[] {
-  const out = tenders.map((t) => ({ ...t }))
-  let excess = out.reduce((n, t) => n + t.amount, 0) - due
-  for (let k = out.length - 1; k >= 0 && excess > 0; k--) {
-    if (!isCashMethod(methods, out[k].method)) continue
-    const cut = Math.min(excess, out[k].amount)
-    out[k] = { ...out[k], amount: out[k].amount - cut }
-    excess -= cut
-  }
-  const kept = out.filter((t) => t.amount > 0)
-  return kept.length > 0 ? kept : out
+ *  carries change. Trims the excess over `originalTotal` from cash lines (the same rule as the original tenders). */
+export function lockedReplacementTenders(tenders: readonly TenderLine[], originalTotal: number, methods?: readonly CashFlagMethod[]): TenderLine[] {
+  return appliedTenders(tenders, originalTotal, methods)
 }
 
-/** "adjust" (or a locked draft) books the gap between the original total and the cart as Penyesuaian koreksi. */
+const groupThousands = (n: number): string => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+
+/** The server's ErrVoidAmountsLocked text when the applied lines do not add up to what the store received (so 3.3 can
+ *  block confirm), else null. Compared in whole cents like the server's tender rules. */
+export function lockedTendersProblem(tenders: readonly TenderLine[], originalTotal: number): string | null {
+  const sum = tenders.reduce((n, t) => n + Math.round(t.amount * 100), 0)
+  if (sum === Math.round(originalTotal * 100)) return null
+  return `Jumlah pembayaran pengganti harus sama dengan yang diterima (Rp ${groupThousands(originalTotal)}).`
+}
+
+/** "adjust" (or a locked draft) books the gap between the original total and the cart as Penyesuaian koreksi.
+ *  `cartTotal` is the amount due after points redemption (what the order payload's total will be); whole rupiah. */
 export function replacementCorrection(
   d: VoidDraft, cartTotal: number, choice: 'adjust' | 'settle',
 ): { correctionTarget?: 'original_total'; correction: number } {
-  if (choice === 'adjust' || d.amountsLocked) return { correctionTarget: 'original_total', correction: d.originalTotal - cartTotal }
+  if (choice === 'adjust' || d.amountsLocked) return { correctionTarget: 'original_total', correction: d.originalTotal - Math.round(cartTotal) }
   return { correction: 0 }
 }

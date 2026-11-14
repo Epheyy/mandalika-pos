@@ -1,5 +1,5 @@
 import type { components } from '@mandalika/api'
-import { canVoidAny, canVoidOwnShift, type AppUser, type Shift } from '@mandalika/types'
+import { canVoidAny, canVoidOwnShift, isCashMethod, type AppUser, type CashFlagMethod, type Shift } from '@mandalika/types'
 import type { TenderLine } from '../tenderSplit'
 
 type Order = components['schemas']['Order']
@@ -75,6 +75,10 @@ export interface VoidAvailabilityInput {
   currentShift: Shift | null
   queuedVoidIds: ReadonlySet<string>
   queuedRefundIds: ReadonlySet<string>
+  /** Sales whose void this tablet saw acknowledged (engine.syncedVoidOrderIds()): a stale cached row may still say completed. */
+  syncedVoidIds: ReadonlySet<string>
+  /** Voided order ids that already have a queued "Buat pengganti" sale (engine.queuedReplacementOrderIds()). */
+  queuedReplacementOf: ReadonlySet<string>
 }
 
 const isLocal = (o: Order | LocalVoidSale): o is LocalVoidSale => 'orderUuid' in o
@@ -95,14 +99,22 @@ export function voidAvailability(i: VoidAvailabilityInput): VoidAvailability {
   const status = local ? (o.voided ? 'cancelled' : 'completed') : o.status
 
   if (status === 'cancelled') {
-    // A voided sale: only a later-mode void without a followup offers "Buat pengganti", and only with void_any.
+    // A voided sale: only a later-mode void without a followup offers "Buat pengganti", and only with void_any, and
+    // not again while its replacement is queued. The void window (app_settings.void_window_days) lives on the server
+    // and is not known to the tablet, so it is not checked here: the server refuses an out-of-window replacement.
     const v = local ? undefined : o.void
-    return v?.mode === 'later' && !v.followup && canVoidAny(i.user) ? { kind: 'create_replacement' } : { kind: 'hidden' }
+    const offered = v?.mode === 'later' && !v.followup && canVoidAny(i.user) && !keys.some((k) => i.queuedReplacementOf.has(k))
+    return offered ? { kind: 'create_replacement' } : { kind: 'hidden' }
   }
+  // Any state other than a plain completed or a refunded sale offers nothing.
+  const refundedStatus = status === 'refunded' || status === 'partially_refunded'
+  if (status !== 'completed' && !refundedStatus) return { kind: 'hidden' }
+  // A stale cached row may still say completed after this tablet saw the void acknowledged.
+  if (keys.some((k) => i.syncedVoidIds.has(k))) return { kind: 'hidden' }
 
   const refunded = local
     ? !!(o.refunded || o.refundQueued)
-    : status !== 'completed' || (o.refunds?.length ?? 0) > 0 || (o.refundedAmount ?? 0) > 0
+    : refundedStatus || (o.refunds?.length ?? 0) > 0 || (o.refundedAmount ?? 0) > 0
   if (refunded || keys.some((k) => i.queuedRefundIds.has(k))) return blocked(VOID_BLOCKED_REFUNDED)
 
   // queuedVoidIds never holds a parked void (engine.queuedVoidOrderIds skips it), so a parked void lets the cashier try again.
@@ -112,7 +124,7 @@ export function voidAvailability(i: VoidAvailabilityInput): VoidAvailability {
   if (shift && shift.id === '') return blocked(VOID_BLOCKED_SHIFT_UNSYNCED)
 
   const saleShiftId = o.shiftId ? o.shiftId : null
-  const shiftId = shift?.id ? shift.id : null
+  const shiftId = shift?.id && shift.status === 'open' ? shift.id : null
   let own = shiftId !== null && saleShiftId === shiftId
   if (!own && shift && shiftId !== null && saleShiftId === null) {
     // O5: an unattributed sale rung on this tablet since the shift opened. The server decides with orders.device_id.
@@ -140,6 +152,8 @@ export interface VoidPayloadInput {
   stockChoices?: Record<string, 'restock' | 'skip_counted'>
   /** The exact order payload of the replacement sale plus `correctionTarget` (Task 3.3 stamps deviceId). Used only for mode replace. */
   replacement?: Record<string, unknown>
+  /** Payment-method settings, to tell a cash line when trimming a captured amount to the applied one. */
+  methods?: readonly CashFlagMethod[]
   /** The outlet's giveaway item when the sale took one unit of it (C3: the server takes one per completed order). */
   giveaway?: { productId: string; variantSize: string } | null
 }
@@ -164,10 +178,28 @@ function restockLinesOf(i: VoidPayloadInput): RestockLine[] {
   return [...out.values()]
 }
 
-/** The tenders as APPLIED (an order tender's `amount`, never `tendered`), else one line for the sale method. */
-function originalTendersOf(o: Order | LocalVoidSale): TenderLine[] {
+/** Lines as APPLIED to a bill of `total`: a cash line that carries change (captured > due) is trimmed by the excess,
+ *  last cash line first. Non-cash lines are never touched. Lines left at 0 are dropped (one line is always kept). */
+export function appliedTenders(tenders: readonly TenderLine[], total: number, methods?: readonly CashFlagMethod[]): TenderLine[] {
+  const out = tenders.map((t) => ({ ...t }))
+  let excess = out.reduce((n, t) => n + t.amount, 0) - total
+  for (let k = out.length - 1; k >= 0 && excess > 0; k--) {
+    if (!isCashMethod(methods, out[k].method)) continue
+    const cut = Math.min(excess, out[k].amount)
+    out[k] = { ...out[k], amount: out[k].amount - cut }
+    excess -= cut
+  }
+  const kept = out.filter((t) => t.amount > 0)
+  return kept.length > 0 ? kept : out
+}
+
+/** The original tenders as APPLIED. A server order's `amount` already is; a local receipt's tenders are CAPTURED
+ *  (cash handed over), so cash change is trimmed off against the sale total. */
+function originalTendersOf(o: Order | LocalVoidSale, methods?: readonly CashFlagMethod[]): TenderLine[] {
   if (isLocal(o)) {
-    if (o.tenders && o.tenders.length > 0) return o.tenders.map((t) => ({ method: t.method, amount: t.amount, ...(t.reference ? { reference: t.reference } : {}) }))
+    if (o.tenders && o.tenders.length > 0) {
+      return appliedTenders(o.tenders.map((t) => ({ method: t.method, amount: t.amount, ...(t.reference ? { reference: t.reference } : {}) })), o.total, methods)
+    }
     return o.paymentMethod ? [{ method: o.paymentMethod, amount: o.total }] : []
   }
   if (o.tenders && o.tenders.length > 0) {
@@ -179,6 +211,7 @@ function originalTendersOf(o: Order | LocalVoidSale): TenderLine[] {
 /** The `void` sync payload (SyncVoidPayload): written once and never mutated (A11). The display facts (restockLines,
  *  originalTenders, originalShiftId, orderNumber, total) feed the tablet's own overlays; the server ignores them. */
 export function buildVoidPayload(i: VoidPayloadInput): Record<string, unknown> {
+  if (i.mode === 'replace' && !i.replacement) throw new Error('buildVoidPayload: mode replace needs a replacement')
   const o = i.order
   const note = i.note.trim()
   const shiftId = o.shiftId ? o.shiftId : null
@@ -193,7 +226,7 @@ export function buildVoidPayload(i: VoidPayloadInput): Record<string, unknown> {
     orderNumber: o.orderNumber,
     total: o.total,
     restockLines: restockLinesOf(i),
-    originalTenders: originalTendersOf(o),
+    originalTenders: originalTendersOf(o, i.methods),
     ...(shiftId ? { originalShiftId: shiftId } : {}),
     ...(i.mode === 'replace' && i.replacement ? { replacement: { ...i.replacement } } : {}),
   }

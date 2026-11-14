@@ -1231,6 +1231,18 @@ export class SyncEngine {
     return out
   }
 
+  /** Voided orders (server ids) that already have an unacknowledged "Buat pengganti" sale in the outbox
+   *  (an order item whose payload names `replacesOrderId`), so the POS offers it only once. */
+  queuedReplacementOrderIds(): Set<string> {
+    const out = new Set<string>()
+    for (const i of this.outbox.all()) {
+      if (i.type !== 'order' || i.status === 'acked') continue
+      const id = i.payload.replacesOrderId
+      if (typeof id === 'string' && id) out.add(id)
+    }
+    return out
+  }
+
   /** The server order id a queued refund applies to: its own, or (linked refund) that of its sale once synced. */
   private refundOrderId(payload: Readonly<Record<string, unknown>>): string {
     if (typeof payload.orderId === 'string' && payload.orderId !== '') return payload.orderId

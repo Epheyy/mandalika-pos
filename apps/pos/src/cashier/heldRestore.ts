@@ -151,6 +151,7 @@ export function planHeldRestore(held: HeldOrder, env: HeldRestoreEnv): HeldResto
   // Auto promos are not stored: install them now so every restore path (held order, open-cart draft, split-payment
   // draft that reopens the checkout straight away) comes back with the same total it was saved with.
   if (hasAutoPromotions(env.promotions)) push({ type: 'RECONCILE_AUTO_PROMOS', promotions: env.promotions, products: env.products, ctx: env.ctx })
+  if (Array.isArray(held.restoreNotes)) notes.push(...held.restoreNotes.filter((n) => typeof n === 'string'))
   if (held.loyaltyDropped) notes.push('Poin dan Hadiah loyalti perlu dipilih ulang')
 
   return { actions, notes, result: state, lossless: retired.length === 0 && retiredBundles.length === 0 }

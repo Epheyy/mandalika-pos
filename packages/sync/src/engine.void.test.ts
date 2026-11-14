@@ -275,6 +275,15 @@ describe('queuedVoids / queuedVoidOrderIds', () => {
   })
 })
 
+describe('queuedReplacementOrderIds', () => {
+  it('lists voided orders that have an unacknowledged replacement sale queued', async () => {
+    const engine = make(vi.fn())
+    await engine.enqueue('order', { ...SALE, replacesOrderId: 'srv-voided' }, 'rep-1')
+    await engine.enqueue('order', SALE, 'plain-1')
+    expect([...engine.queuedReplacementOrderIds()]).toEqual(['srv-voided'])
+  })
+})
+
 describe('replacement stamping', () => {
   it('stamps deviceId and clientCreatedAt on the replacement, keeping values the caller set', async () => {
     const request = okAll()

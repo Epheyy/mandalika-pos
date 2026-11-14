@@ -17,7 +17,7 @@ const order = (over: Partial<Order> = {}): Order => ({
   discountAmount: 0, taxAmount: 0, total: 100000, paymentMethod: 'cash', amountPaid: 100000, change: 0, status: 'completed',
   createdAt: '2026-11-14T09:00:00Z', shiftId: 's1', ...over,
 } as Order)
-const base = { user: user(['void_own_shift']), deviceId: 'dev1', currentShift: shift('s1'), queuedVoidIds: new Set<string>(), queuedRefundIds: new Set<string>() }
+const base = { user: user(['void_own_shift']), deviceId: 'dev1', currentShift: shift('s1'), queuedVoidIds: new Set<string>(), queuedRefundIds: new Set<string>(), syncedVoidIds: new Set<string>(), queuedReplacementOf: new Set<string>() }
 
 describe('voidAvailability', () => {
   it('shows void for own open shift with void_own_shift', () => {
@@ -35,6 +35,20 @@ describe('voidAvailability', () => {
     expect(voidAvailability({ ...base, order: o })).toEqual({ kind: 'hidden' })
     const done = order({ status: 'cancelled', void: { mode: 'later', followup: 'no_replacement' } as Order['void'] })
     expect(voidAvailability({ ...base, user: user(['void_any']), order: done })).toEqual({ kind: 'hidden' })
+  })
+  it('hides create_replacement while its replacement is queued', () => {
+    const o = order({ status: 'cancelled', void: { mode: 'later' } as Order['void'] })
+    expect(voidAvailability({ ...base, user: user(['void_any']), order: o, queuedReplacementOf: new Set(['ord1']) })).toEqual({ kind: 'hidden' })
+  })
+  it('does not offer Batalkan again for a sale whose void this tablet saw acknowledged', () => {
+    expect(voidAvailability({ ...base, order: order(), syncedVoidIds: new Set(['ord1']) })).toEqual({ kind: 'hidden' })
+  })
+  it('blocks refunded statuses only; other states are hidden', () => {
+    expect(voidAvailability({ ...base, order: order({ status: 'refunded' }) })).toEqual({ kind: 'blocked', label: 'Sudah direfund' })
+    expect(voidAvailability({ ...base, order: order({ status: 'weird' as Order['status'] }) })).toEqual({ kind: 'hidden' })
+  })
+  it('needs the current shift to be open', () => {
+    expect(voidAvailability({ ...base, currentShift: { ...shift('s1'), status: 'closed' }, order: order() })).toEqual({ kind: 'blocked', label: 'Batalkan lewat Backoffice' })
   })
   it('hides a sale that is already voided', () => {
     expect(voidAvailability({ ...base, order: order({ status: 'cancelled', void: { mode: 'none' } as Order['void'] }) })).toEqual({ kind: 'hidden' })
@@ -132,6 +146,16 @@ describe('buildVoidPayload', () => {
     expect(p.originalTenders).toEqual([{ method: 'cash', amount: 100000 }])
     expect(p.stockChoices).toEqual({ k: 'skip_counted' })
     expect(p.replacement).toEqual({ orderUuid: 'n1' })
+  })
+  it('trims cash change off the captured tenders of a local sale (applied amounts)', () => {
+    const p = buildVoidPayload({
+      order: { orderUuid: 'u1', orderNumber: 'BSD-9', total: 100000, shiftId: 's1', capturedAt: 'x', tenders: [{ method: 'qris', amount: 60000 }, { method: 'cash', amount: 100000 }] },
+      reason: 'salah_barang', note: '', mode: 'none',
+    })
+    expect(p.originalTenders).toEqual([{ method: 'qris', amount: 60000 }, { method: 'cash', amount: 40000 }])
+  })
+  it('throws for mode replace without a replacement', () => {
+    expect(() => buildVoidPayload({ order: order(), reason: 'salah_barang', note: '', mode: 'replace' })).toThrow()
   })
   it('falls back to a single tender line and omits the replacement for mode none', () => {
     const p = buildVoidPayload({ order: order(), reason: 'salah_barang', note: '', mode: 'none', replacement: { a: 1 } })
