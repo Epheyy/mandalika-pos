@@ -90,3 +90,21 @@ describe('F36 on-screen receipt time is the stored sale time', () => {
     expect(readFileSync(new URL('./ReceiptPreview.tsx', import.meta.url), 'utf8')).not.toMatch(/new Date\(\)/)
   })
 })
+
+describe('Void replacement receipt', () => {
+  it('shows Pengganti untuk #<ref> only when the sale replaces another', () => {
+    expect(html({}, { replacesOrderRef: 'MND-1' })).toContain('Pengganti untuk #MND-1')
+    expect(html({})).not.toContain('Pengganti untuk')
+  })
+
+  it('shows a Penyesuaian koreksi row before TOTAL', () => {
+    const rows = [
+      { key: 'correction', kind: 'correction' as const, label: 'Penyesuaian koreksi', amount: 20000 },
+      { key: 'total', kind: 'total' as const, label: 'TOTAL', amount: 120000 },
+    ]
+    const h = html({}, { totalRows: rows })
+    expect(h.indexOf('Penyesuaian koreksi')).toBeGreaterThan(-1)
+    expect(h.indexOf('Penyesuaian koreksi')).toBeLessThan(h.indexOf('TOTAL'))
+    expect(h).toContain('+')
+  })
+})

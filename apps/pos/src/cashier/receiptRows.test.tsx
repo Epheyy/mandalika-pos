@@ -124,3 +124,15 @@ describe('C6 split tender rows match the printed receipt', () => {
     expect(base.receiptSnapshot.tenders).toBeUndefined()
   })
 })
+
+describe('Void correction row', () => {
+  const t = { subtotal: 100000, discountAmount: 0, taxAmount: 0, total: 80000 }
+  it('receiptTotalRows puts Penyesuaian koreksi right before TOTAL, ignoring the switches', () => {
+    const rows = receiptTotalRows({ ...t, discounts: [], correctionAmount: -20000 }, { showSubtotal: false, showDiscount: false, showTax: false })
+    expect(rows.map((r) => r.kind)).toEqual(['correction', 'total'])
+    expect(rows[0]!.amount).toBe(-20000)
+  })
+  it('no row when the correction is absent or zero', () => {
+    expect(receiptTotalRows({ ...t, correctionAmount: 0 }, { showSubtotal: true, showDiscount: true, showTax: true }).some((r) => r.kind === 'correction')).toBe(false)
+  })
+})

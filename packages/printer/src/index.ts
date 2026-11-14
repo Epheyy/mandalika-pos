@@ -1,13 +1,13 @@
 // @mandalika/printer — BLE ESC/POS receipt printing for the native POS shell
 // (plan §6). Transport-agnostic: buildReceipt → PrinterTransport → bytes.
 
-export { buildReceipt, buildRecap, buildTandaTerima, COLS } from './escpos'
-export type { ReceiptData, ReceiptDiscountRow, ReceiptLine, RecapData, RecapMethodRow, TandaTerimaData, TandaTerimaLine } from './escpos'
+export { buildReceipt, buildRecap, buildTandaTerima, buildVoidSlip, voidSlipLines, COLS } from './escpos'
+export type { ReceiptData, ReceiptDiscountRow, ReceiptLine, RecapData, RecapMethodRow, TandaTerimaData, TandaTerimaLine, VoidSlipData } from './escpos'
 export { NoopTransport } from './transport'
 export type { PrinterTransport, PrinterDevice, PrinterKind } from './transport'
 export { CapacitorBleTransport } from './ble'
 export { AutoBluetoothTransport } from './autoTransport'
 export { ClassicSppTransport } from './classic'
 export { printerErrorMessage } from './printerError'
-export { createTransport, printReceipt, printRecap, printTandaTerima } from './print'
-export type { PrintJob, RecapJob, TandaTerimaJob } from './print'
+export { createTransport, printReceipt, printRecap, printTandaTerima, printVoidSlip } from './print'
+export type { PrintJob, RecapJob, TandaTerimaJob, VoidSlipJob } from './print'

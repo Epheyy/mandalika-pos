@@ -102,7 +102,7 @@ export const REFUND_VIA_HISTORY_OFFLINE = 'Refund struk ini lewat Riwayat saat o
  *  nothing trustworthy to print (no snapshot, or no quoted total). Never touches the outbox. */
 export function reprintReceiptData(r: LocalReceipt): ReceiptData | null {
   if (!isSnapshot(r.receiptSnapshot) || typeof r.quotedTotal !== 'number') return null
-  return receiptFromQuote({ quotedTotal: r.quotedTotal, receiptSnapshot: r.receiptSnapshot }, {
+  const data = receiptFromQuote({ quotedTotal: r.quotedTotal, receiptSnapshot: r.receiptSnapshot }, {
     orderRef: r.orderNumber,
     dateTime: new Date(r.capturedAt),
     paymentLabel: PAYMENT_LABELS[r.paymentMethod] ?? r.paymentMethod,
@@ -110,6 +110,14 @@ export function reprintReceiptData(r: LocalReceipt): ReceiptData | null {
     customerPhone: null,
     cashierName: '-',
   })
+  // Void: a replacement sale's slip keeps its "Pengganti untuk" line and correction row on a reprint. The snapshot
+  // gets `correctionAmount` with the replacement cart; read it optionally until then.
+  const correction = (r.receiptSnapshot as { correctionAmount?: number }).correctionAmount
+  return {
+    ...data,
+    ...(r.replacesOrderNumber ? { replacesOrderRef: r.replacesOrderNumber } : {}),
+    ...(correction ? { correctionAmount: correction } : {}),
+  }
 }
 
 /** The newest local receipt that can be reprinted (the list is newest first). */

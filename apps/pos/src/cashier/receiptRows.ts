@@ -5,7 +5,7 @@ import { buildReceiptQuote, receiptFromQuote, type QuoteDerived, type QuoteLineI
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
 
-export type TotalRowKind = 'subtotal' | 'promo' | 'surcharge' | 'points' | 'tax' | 'rounding' | 'total'
+export type TotalRowKind = 'subtotal' | 'promo' | 'surcharge' | 'points' | 'tax' | 'rounding' | 'correction' | 'total'
 
 /** One row of the totals block. `amount` is signed: deductions are negative. */
 export interface TotalRow {
@@ -15,7 +15,7 @@ export interface TotalRow {
   amount: number
 }
 
-type TotalsInput = Pick<ReceiptData, 'subtotal' | 'discountAmount' | 'discounts' | 'surcharge' | 'pointsRedeemed' | 'rounding' | 'taxAmount' | 'total'>
+type TotalsInput = Pick<ReceiptData, 'subtotal' | 'discountAmount' | 'discounts' | 'surcharge' | 'pointsRedeemed' | 'rounding' | 'correctionAmount' | 'taxAmount' | 'total'>
 
 /**
  * C1 follow-up: the totals rows as the printed receipt shows them (same order, same visibility rules as
@@ -44,6 +44,8 @@ export function receiptTotalRows(data: TotalsInput, settings: Pick<ReceiptSettin
   }
   if ((itemised || flags.showTax) && data.taxAmount > 0) rows.push({ key: 'tax', kind: 'tax', label: 'PPN', amount: data.taxAmount })
   if (data.rounding) rows.push({ key: 'rounding', kind: 'rounding', label: 'Pembulatan', amount: data.rounding })
+  // Void: Penyesuaian koreksi sits inside TOTAL, so it shows whatever the switches say (as the printer).
+  if (data.correctionAmount) rows.push({ key: 'correction', kind: 'correction', label: 'Penyesuaian koreksi', amount: data.correctionAmount })
   rows.push({ key: 'total', kind: 'total', label: 'TOTAL', amount: data.total })
   return rows
 }
