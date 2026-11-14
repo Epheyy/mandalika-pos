@@ -61,12 +61,16 @@ function localTenders(r: LocalReceipt, methods?: readonly CashFlagMethod[]): Ord
 
 /** The order the refund dialog shows for a local receipt. Its id is the sale uuid (the dialog's identity);
  *  the payload's real ids come from {@link localSaleRef}. Always 'completed': the refund gate decides. */
-export function localReceiptOrder(r: LocalReceipt, methods?: readonly CashFlagMethod[]): Order {
+export function localReceiptOrder(r: LocalReceipt, methods?: readonly CashFlagMethod[], giveaway?: { productId: string; variantSize: string } | null): Order {
   const snap = isSnapshot(r.receiptSnapshot) ? r.receiptSnapshot : null
   const lines = snap?.lines ?? []
   const tenders = localTenders(r, methods)
   // C4b: a sale that carries per-line data lists its lines by position (lineNo) with their net share; the snapshot
   // may hold one extra trailing line, the C3 giveaway bag, which is shown but never refundable (D-41).
+  // Without per-line data the trailing giveaway line cannot be told by position; it is the last Rp0 reward line of exactly
+  // the outlet's giveaway item (one unit). With none matching it stays a plain line (a limit of receipts before C4b).
+  const last = lines[lines.length - 1]
+  const giveawayIdx = giveaway && last && last.isReward && last.qty === 1 && last.amount === 0 && last.productId === giveaway.productId && last.variantSize === giveaway.variantSize ? lines.length - 1 : -1
   const nets = r.lineNets && r.lineNets.length > 0 && lines.length >= r.lineNets.length && lines.length - r.lineNets.length <= 1 ? r.lineNets : null
   return {
     id: r.orderUuid,
@@ -83,7 +87,7 @@ export function localReceiptOrder(r: LocalReceipt, methods?: readonly CashFlagMe
       ...(l.isBundle ? { isBundle: true } : {}),
       ...(l.bundleGroup != null ? { bundleGroup: l.bundleGroup, bundleRole: l.bundleRole, bundleLine: l.bundleLine, bundleSize: l.bundleSize, bundleDiscount: l.bundleDiscount, bundlePromotionId: l.bundlePromotionId } : {}),
       ...(nets && i < nets.length ? { lineNo: i, netAmount: nets[i], refundGroup: r.lineGroups?.[i] ?? null } : {}),
-      ...(nets && i >= nets.length ? { isGiveaway: true } : {}),
+      ...((nets && i >= nets.length) || (!nets && i === giveawayIdx) ? { isGiveaway: true } : {}),
     })),
   } as unknown as Order
 }

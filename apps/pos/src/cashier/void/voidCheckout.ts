@@ -5,7 +5,7 @@ import { planHeldRestore, type HeldRestoreEnv } from '../heldRestore'
 import type { CashierAction } from '../state/cashierReducer'
 import { SPLIT_METHOD_ID, type SalePlan, type TenderLine } from '../tenderSplit'
 import { heldOrderFromVoidedOrder, isLocked, lockedReplacementTenders, lockedTendersProblem, replacementCorrection, type VoidDraft } from './voidReplacement'
-import { buildVoidPayload, VOID_REASONS } from './voidRules'
+import { buildVoidPayload, voidAvailability, VOID_REASONS, type VoidAvailabilityInput } from './voidRules'
 
 type Order = components['schemas']['Order']
 type OkPlan = Extract<SalePlan, { ok: true }>
@@ -45,14 +45,23 @@ export function voidPayable(draft: VoidDraft | null, choice: 'adjust' | 'settle'
 /** Why this draft can no longer be committed (the toast text), or null. An own-shift void must still be in the shift
  *  it began in, and that shift must still be open: the server refuses otherwise (ErrVoidShiftClosed), so the tablet
  *  never queues it. */
-export function voidDraftRefusal(draft: VoidDraft, currentShift: Pick<Shift, 'id' | 'status'> | null): string | null {
+export function voidDraftRefusal(draft: VoidDraft, currentShift: Pick<Shift, 'id' | 'status'> | null, gate?: Omit<VoidAvailabilityInput, 'order'>): string | null {
+  const dropped = voidDroppedMessage(draft.orderNumber)
   // A draft that lost its original can never build the void: refuse before a number is burned.
-  if (!draft.sale && draft.kind !== 'create_replacement') return voidDroppedMessage(draft.orderNumber)
-  if (draft.kind === 'create_replacement') return null
-  const id = currentShift?.id ?? ''
-  const open = !!currentShift && currentShift.status === 'open' && id !== ''
-  const sameShift = draft.startedShiftId !== undefined && draft.startedShiftId === id && (draft.shiftId === null || draft.shiftId === id)
-  return open && sameShift ? null : voidDroppedMessage(draft.orderNumber)
+  if (!draft.sale && draft.kind !== 'create_replacement') return dropped
+  if (draft.kind !== 'create_replacement') {
+    const id = currentShift?.id ?? ''
+    const open = !!currentShift && currentShift.status === 'open' && id !== ''
+    const sameShift = draft.startedShiftId !== undefined && draft.startedShiftId === id && (draft.shiftId === null || draft.shiftId === id)
+    if (!(open && sameShift)) return dropped
+  }
+  // The sale may have been voided, refunded or replaced since the cart opened (this tablet or a synced ack): a second
+  // void would be refused as already voided and the paid replacement parked. `gate` is read fresh by the caller.
+  if (gate && draft.sale) {
+    const want = draft.kind === 'create_replacement' ? 'create_replacement' : 'void'
+    if (voidAvailability({ order: draft.sale, ...gate, draftOpen: false }).kind !== want) return dropped
+  }
+  return null
 }
 
 /** A locked draft sends the amounts APPLIED (never tendered / change). Keeps the plan's shape. */
@@ -82,6 +91,8 @@ export interface VoidCommitInput {
   choice: 'adjust' | 'settle'
   cartTotal: number
   methods?: readonly CashFlagMethod[]
+  /** Fresh availability inputs (queues, synced voids, shift): the draft is dropped when its sale no longer permits it. */
+  gate?: Omit<VoidAvailabilityInput, 'order'>
 }
 
 /** Queues the replacement cart. ONE outbox item: a `void` carrying the replacement (void_and_replace), or an `order`
@@ -89,7 +100,7 @@ export interface VoidCommitInput {
  *  is gone or a locked draft's payment lines are not exactly what the store received. Run it inside the sale gate. */
 export async function commitVoidDraftSale(i: VoidCommitInput): Promise<VoidCommit> {
   const { draft } = i
-  const refusal = voidDraftRefusal(draft, i.currentShift)
+  const refusal = voidDraftRefusal(draft, i.currentShift, i.gate)
   if (refusal) return { status: 'refused', message: refusal, dropDraft: true }
   if (isLocked(draft)) {
     const problem = lockedTendersProblem((i.orderPayload.tenders ?? []) as TenderLine[], draft.originalTotal)
@@ -106,7 +117,7 @@ export async function commitVoidDraftSale(i: VoidCommitInput): Promise<VoidCommi
   const payload = buildVoidPayload({
     order: draft.sale, reason: draft.reason, note: draft.note, mode: 'replace', stockChoices: draft.stockChoices,
     replacement: { ...i.orderPayload, orderUuid: i.saleUuid, ...(correctionTarget ? { correctionTarget } : {}) },
-    methods: i.methods, giveaway: draft.giveaway,
+    methods: i.methods, giveaway: draft.giveaway, previewLines: draft.previewLines,
   })
   await i.engine.enqueue('void', payload, i.saleUuid)
   return { status: 'queued', type: 'void', orderUuid: i.saleUuid }

@@ -171,3 +171,22 @@ describe('voidDetail (review row)', () => {
     expect(voidDetail(undefined)).toBeUndefined()
   })
 })
+
+describe('void draft lock and skip_counted', () => {
+  it('draftOpen blocks Batalkan and Buat pengganti but never hides a sale', () => {
+    const blockedDraft = { kind: 'blocked', label: 'Selesaikan atau batalkan pengganti dulu' }
+    expect(voidAvailability({ ...base, order: order(), draftOpen: true })).toEqual(blockedDraft)
+    const later = order({ status: 'cancelled', void: { mode: 'later' } as Order['void'] })
+    expect(voidAvailability({ ...base, user: user(['void_any']), order: later, draftOpen: true })).toEqual(blockedDraft)
+    expect(voidAvailability({ ...base, order: order({ status: 'weird' as Order['status'] }), draftOpen: true })).toEqual({ kind: 'hidden' })
+  })
+
+  it('a skip_counted line is not restocked on the tablet; a restock line is', () => {
+    const o = order({ items: [{ productId: 'a', variantSize: 'S', quantity: 3 }, { productId: 'b', variantSize: 'S', quantity: 1 }] as Order['items'] })
+    const previewLines = [{ key: 'k1', productId: 'a', variantSize: 'S', quantity: 2 }, { key: 'k2', productId: 'b', variantSize: 'S', quantity: 1 }]
+    const p = buildVoidPayload({ order: o, reason: 'salah_barang', note: '', mode: 'none', stockChoices: { k1: 'skip_counted', k2: 'restock' }, previewLines })
+    expect(p.restockLines).toEqual([{ productId: 'a', variantSize: 'S', quantity: 1 }, { productId: 'b', variantSize: 'S', quantity: 1 }])
+    const all = buildVoidPayload({ order: o, reason: 'salah_barang', note: '', mode: 'none', stockChoices: { k1: 'skip_counted', k2: 'skip_counted' }, previewLines: [{ ...previewLines[0], quantity: 3 }, previewLines[1]] })
+    expect(all.restockLines).toEqual([])
+  })
+})

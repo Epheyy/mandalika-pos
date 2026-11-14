@@ -9,7 +9,7 @@ import type { ConfirmRequest } from '../useHeldOrders'
 import type { CashierAction } from '../state/cashierReducer'
 import type { BatalkanInput } from './batalkanState'
 import { startVoidDraftActions, voidSlipData } from './voidCheckout'
-import type { VoidDraft } from './voidReplacement'
+import { defaultAmountsLocked, type VoidDraft } from './voidReplacement'
 import { buildVoidPayload, originalTendersOf, voidAvailability, type LocalVoidSale, type VoidAvailabilityInput } from './voidRules'
 
 type Order = components['schemas']['Order']
@@ -26,6 +26,8 @@ export interface VoidTarget {
   uuid: string
   preview: VoidPreview | null
   previewLoading: boolean
+  /** Online, the sale is on the server and the preview could not be read: confirm waits for a retry. */
+  previewFailed: boolean
 }
 
 interface Options {
@@ -34,6 +36,8 @@ interface Options {
   cartHasItems: boolean
   currentShift: Pick<Shift, 'id' | 'status'> | null
   isOnline: boolean
+  /** A replacement cart is open (state.voidDraft): no other void or pengganti may start. */
+  draftOpen: boolean
   methods: readonly CashFlagMethod[]
   /** The outlet's giveaway unit of an Order from the server (its items do not carry it); undefined when the outlet has none. */
   giveaway: { productId: string; variantSize: string } | null | undefined
@@ -53,6 +57,7 @@ interface Options {
 }
 
 const REPLACE_CART = 'Ganti keranjang saat ini? Isinya tidak tersimpan kecuali kamu simpan dulu.'
+const DRAFT_OPEN = 'Selesaikan atau batalkan pengganti dulu'
 const ALREADY = 'Transaksi ini tidak dapat dibatalkan lagi dari tablet ini.'
 
 /** Opens and commits the Batalkan sheet, "Batalkan & perbaiki" and "Buat pengganti" (Void phase 3). Nothing is voided
@@ -67,22 +72,37 @@ export function useVoidFlow(o: Options) {
 
   const close = (): void => { ticket.current += 1; setTarget(null); setError(null) }
 
+  /** Reads the preview of `serverId` for the open sheet `mine`. Online only; a failure is shown, never silent. */
+  const loadPreview = (serverId: string, mine: number): void => {
+    o.getPreview(serverId).then(
+      (preview) => { if (ticket.current === mine) setTarget((t) => (t ? { ...t, preview, previewLoading: false, previewFailed: false } : t)) },
+      () => { if (ticket.current === mine) setTarget((t) => (t ? { ...t, previewLoading: false, previewFailed: true } : t)) },
+    )
+  }
+
+  const retryPreview = (): void => {
+    if (!target || target.serverId === null) return
+    const mine = ++ticket.current
+    setTarget({ ...target, previewLoading: true, previewFailed: false })
+    loadPreview(target.serverId, mine)
+  }
+
   const openVoid = (order: Order, sale: Order | LocalVoidSale, serverId: string | null): void => {
+    if (o.draftOpen) { o.showToast(DRAFT_OPEN, 'warn'); return }
     if (!o.ensureShift()) return
     const locked = o.offlineLock()
     if (locked) { o.showToast(locked, 'warn'); return }
     const mine = ++ticket.current
     const wantsPreview = o.isOnline && serverId !== null
     setError(null)
-    setTarget({ order, sale, serverId, uuid: uuid(), preview: null, previewLoading: wantsPreview })
+    setTarget({ order, sale, serverId, uuid: uuid(), preview: null, previewLoading: wantsPreview, previewFailed: false })
     o.closePanels()
     if (!wantsPreview || serverId === null) return
-    // A preview that cannot be read leaves the sheet in its offline form: the server decides at sync (and may refuse, O6).
-    o.getPreview(serverId).then(
-      (preview) => { if (ticket.current === mine) setTarget((t) => (t ? { ...t, preview, previewLoading: false } : t)) },
-      () => { if (ticket.current === mine) setTarget((t) => (t ? { ...t, previewLoading: false } : t)) },
-    )
+    loadPreview(serverId, mine)
   }
+
+  /** Online with a server sale but no preview (still loading, or failed): the stock choices are unknown, so no confirm. */
+  const previewMissing = (t: VoidTarget): boolean => o.isOnline && t.serverId !== null && t.preview === null
 
   const stillVoidable = (t: VoidTarget): boolean => voidAvailability({ order: t.sale, ...o.getGate() }).kind === 'void'
 
@@ -107,7 +127,7 @@ export function useVoidFlow(o: Options) {
 
   const confirm = async (input: BatalkanInput): Promise<void> => {
     const t = target
-    if (!t || gate.current.isBusy() || t.previewLoading) return
+    if (!t || gate.current.isBusy() || t.previewLoading || previewMissing(t)) return
     const locked = o.offlineLock()
     if (locked) { setError(locked); return }
     if (t.preview && !t.preview.eligible) { setError(t.preview.refusal ?? ALREADY); return }
@@ -126,11 +146,13 @@ export function useVoidFlow(o: Options) {
         note: input.note,
         stockChoices: input.stockChoices,
         shiftId: sale.shiftId ? sale.shiftId : null,
-        amountsLocked: t.preview?.amountsLocked ?? false,
+        // An unattributed (O5) sale is server-forced to locked amounts, so without a preview it starts locked.
+        amountsLocked: defaultAmountsLocked(t.preview, sale),
         kind: 'void_and_replace',
         replacementUuid: t.uuid,
         sale,
         giveaway: giveawayOf(t),
+        ...(t.preview ? { previewLines: t.preview.lines.map((l) => ({ key: l.key, productId: l.productId, variantSize: l.variantSize, quantity: l.quantity })) } : {}),
       }
       startCart(draft, t.order)
       return
@@ -138,14 +160,15 @@ export function useVoidFlow(o: Options) {
     setError(null)
     setIsProcessing(true)
     const payload = buildVoidPayload({
-      order: t.sale, reason: input.reason, note: input.note, mode: 'none', stockChoices: choices, methods: o.methods, giveaway: giveawayOf(t),
+      order: t.sale, reason: input.reason, note: input.note, mode: 'none', stockChoices: choices, methods: o.methods, giveaway: giveawayOf(t), previewLines: t.preview?.lines,
     })
     const outcome = await gate.current.run(() => o.engine.enqueue('void', payload, t.uuid))
     if (outcome.status === 'busy') return
     setIsProcessing(false)
     if (outcome.status === 'failed') { setError(notSavedMessage('Pembatalan')); return }
     setTarget(null)
-    o.showToast(`Transaksi #${t.sale.orderNumber} dibatalkan: stok dipulihkan saat terkirim`, 'info')
+    // Saved on this tablet, not yet acknowledged by the server: say so rather than claiming it went through.
+    o.showToast(o.isOnline ? `Pembatalan #${t.sale.orderNumber} dicatat; dikirim ke server` : `Pembatalan #${t.sale.orderNumber} dicatat di tablet; terkirim saat online`, 'info')
     // Only now that the void is saved: a print failure is a toast, never an undo.
     o.printSlip(voidSlipData({ draft: { orderNumber: t.sale.orderNumber, originalTotal: t.sale.total, reason: input.reason, note: input.note }, voidedBy: o.voidedBy, at: new Date() }))
       .catch((e: unknown) => o.showToast(e instanceof Error ? e.message : 'Gagal mencetak slip pembatalan', 'warn'))
@@ -153,6 +176,7 @@ export function useVoidFlow(o: Options) {
 
   /** "Buat pengganti" on an older voided sale: its cart, amounts locked, sent as an `order` with replacesOrderId. */
   const openReplacement = (order: Order): void => {
+    if (o.draftOpen) { o.showToast(DRAFT_OPEN, 'warn'); return }
     if (!o.ensureShift()) return
     const locked = o.offlineLock()
     if (locked) { o.showToast(locked, 'warn'); return }
@@ -173,5 +197,6 @@ export function useVoidFlow(o: Options) {
     startCart(draft, order)
   }
 
-  return { target, isProcessing, error, openVoid, openReplacement, confirm, close }
+  const previewFailed = !!target && target.previewFailed && o.isOnline
+  return { target, previewFailed, isProcessing, error, openVoid, openReplacement, confirm, close, retryPreview }
 }

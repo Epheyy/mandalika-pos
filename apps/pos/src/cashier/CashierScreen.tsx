@@ -97,13 +97,13 @@ import { PAYMENT_LABELS, tenderLabel } from '../lib/paymentLabels'
 import { cashPredicate, planSaleTender, snapshotTenders } from './tenderSplit'
 import { buildSaleOrderPayload } from './salePayload'
 import { applyLockedTenders, commitVoidDraftSale, voidDraftRefusal, voidPayable, voidSlipData } from './void/voidCheckout'
-import { isLocked, lockedTendersProblem } from './void/voidReplacement'
+import { isLocked, lockedTendersProblem, voidDraftNames } from './void/voidReplacement'
 import { BatalkanSheet } from './void/BatalkanSheet'
 import { VoidDraftBanner } from './void/VoidDraftBanner'
 import { useVoidFlow } from './void/useVoidFlow'
 import { voidDroppedMessage } from './void/voidCheckout'
 import { localVoidSale } from './void/localVoidSale'
-import type { VoidAvailabilityInput } from './void/voidRules'
+import { VOID_BLOCKED_DRAFT, type VoidAvailabilityInput } from './void/voidRules'
 import { useSplitDraft } from './useSplitDraft'
 import { useOpenCartDraft } from './useOpenCartDraft'
 import { autoReconcileFingerprint, autoRunAllowed, autoSetWouldChange, hasAutoPromotions } from './autoPromoRun'
@@ -447,7 +447,8 @@ export default function CashierScreen() {
   const { open: heldOpen, setOpen: setHeldOpen } = heldOrders
 
   // Void phase 3: the Batalkan sheet and its "perbaiki" / "pengganti" carts. The gate is UI-only (the server decides).
-  const voidGateInputs = (): Omit<VoidAvailabilityInput, 'order'> => ({
+  const voidGateInputs = (draftOpen = !!state.voidDraft): Omit<VoidAvailabilityInput, 'order'> => ({
+    draftOpen,
     user, deviceId: engine.deviceId, currentShift: shift.currentShift,
     queuedVoidIds: engine.queuedVoidOrderIds(),
     queuedRefundIds: new Set([...engine.queuedRefundOrderIds(), ...engine.queuedRefundSaleUuids()]),
@@ -455,10 +456,10 @@ export default function CashierScreen() {
     queuedReplacementOf: engine.queuedReplacementOrderIds(),
   })
   const voidFlow = useVoidFlow({
-    engine, dispatch, cartHasItems: state.cart.length > 0, currentShift: shift.currentShift, isOnline: offlineData.isOnline,
+    engine, dispatch, cartHasItems: state.cart.length > 0, draftOpen: !!state.voidDraft, currentShift: shift.currentShift, isOnline: offlineData.isOnline,
     methods: settings.paymentMethods, giveaway: giveawayConfig, voidedBy: user?.displayName ?? 'Kasir',
     getEnv: () => ({ products: displayProducts, promotions, discountCodes, bundleCatalog, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }),
-    getGate: voidGateInputs, getPreview: (id) => api.getVoidPreview(id),
+    getGate: () => voidGateInputs(false), getPreview: (id) => api.getVoidPreview(id),
     ensureShift, offlineLock, askConfirm: (c) => setConfirm(c), showToast,
     closePanels: () => { setShowHistory(false); setShowLocalReceipts(false) },
     printSlip: async (data) => { if (printer.isPaired) await printer.printVoidSlip(data, settings.receipt) },
@@ -885,7 +886,7 @@ export default function CashierScreen() {
     }
     // Void replacement: the shift it began in must still be the open one, else nothing is queued and the draft is dropped.
     const voidDraft = state.voidDraft
-    const voidRefusal = voidDraft ? voidDraftRefusal(voidDraft, shift.currentShift) : null
+    const voidRefusal = voidDraft ? voidDraftRefusal(voidDraft, shift.currentShift, voidGateInputs(false)) : null
     if (voidDraft && voidRefusal) {
       showToast(voidRefusal)
       dispatch({ type: 'VOID_DRAFT_CANCEL' })
@@ -1005,7 +1006,7 @@ export default function CashierScreen() {
         const queued = voidDraft
           ? await commitVoidDraftSale({
             engine, draft: voidDraft, currentShift: shift.currentShift, orderPayload, saleUuid,
-            choice: state.voidCorrectionChoice, cartTotal: derived.total, methods: settings.paymentMethods,
+            choice: state.voidCorrectionChoice, cartTotal: derived.total, methods: settings.paymentMethods, gate: voidGateInputs(false),
           })
           : { status: 'queued' as const, ...(await engine.enqueue('order', orderPayload, saleUuid)) }
         // A refused void queued nothing: the draft (and its cart) stays or goes below, the stored cart draft is untouched.
@@ -1291,6 +1292,7 @@ export default function CashierScreen() {
       if (showRequisitions) { if (!requisitionBackRef.current?.()) setShowRequisitions(false); return true }
       if (showRecap) { if (!recapBackRef.current?.()) closeRecap(); return true }
       if (refundOrder) { setRefundOrder(null); setRefundSale(null); return true }
+      if (voidFlow.target) { if (!voidFlow.isProcessing) voidFlow.close(); return true }
       if (layer === 'close-picker') { setPendingFulfillment(null); return true }
       if (layer === 'close-success') { dispatch({ type: 'CLOSE_SUCCESS' }); return true }
       if (layer === 'close-checkout') {
@@ -1311,7 +1313,7 @@ export default function CashierScreen() {
     })
     return () => setBackHandler(null)
   }, [
-    showConnection, showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRequisitions, showRecap, refundOrder,
+    showConnection, showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRequisitions, showRecap, refundOrder, voidFlow.target, voidFlow.isProcessing,
     state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment, state.isProcessing, pendingFulfillment, confirm,
     state.activeTab, profileCustomer, showCustomerSheet, heldOpen,
     // D-63: the Back handler asks before dropping entered payment lines, so it must see them.
@@ -1690,12 +1692,13 @@ export default function CashierScreen() {
         focus={historyFocus}
         isOpen={showHistory}
         onClose={() => setShowHistory(false)}
-        onRefund={(o) => { setShowHistory(false); setRefundSale(null); setRefundOrder(o) }}
+        onRefund={(o) => { if (voidDraftNames(state.voidDraft, [o.id])) { showToast(VOID_BLOCKED_DRAFT); return }; setShowHistory(false); setRefundSale(null); setRefundOrder(o) }}
         onReprint={reprintOrder}
         canReprint={printer.isPaired}
         timezone={outletTimezone}
         shiftOpenedAt={shift.currentShift?.openedAt}
         voidGate={voidGateInputs()}
+        parkedVoids={engine.queuedVoids()}
         onVoid={(o) => voidFlow.openVoid(o, o, o.id)}
         onCreateReplacement={voidFlow.openReplacement}
         paymentMethods={settings.paymentMethods}
@@ -1712,18 +1715,19 @@ export default function CashierScreen() {
         isOnline={offlineData.isOnline}
         voidGate={voidGateInputs()}
         parkedVoids={engine.queuedVoids()}
-        onVoid={(r) => voidFlow.openVoid(localReceiptOrder(r, settings.paymentMethods), localVoidSale(r), r.serverOrderId ?? null)}
+        onVoid={(r) => voidFlow.openVoid(localReceiptOrder(r, settings.paymentMethods, giveawayConfig), localVoidSale(r), r.serverOrderId ?? null)}
         onOpenInHistory={(r) => {
           if (!r.serverOrderId) return
           setHistoryFocus({ orderId: r.serverOrderId, orderNumber: r.orderNumber, capturedAt: r.capturedAt, nonce: Date.now() })
           setShowLocalReceipts(false)
           setShowHistory(true)
         }}
-        onRefund={(r) => { setShowLocalReceipts(false); setRefundSale(localSaleRef(r)); setRefundOrder(localReceiptOrder(r, settings.paymentMethods)) }}
+        onRefund={(r) => { if (voidDraftNames(state.voidDraft, [r.orderUuid, r.serverOrderId])) { showToast(VOID_BLOCKED_DRAFT); return }; setShowLocalReceipts(false); setRefundSale(localSaleRef(r)); setRefundOrder(localReceiptOrder(r, settings.paymentMethods)) }}
         {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId, refundCache: refundCacheFor })}
       />
 
       <BatalkanSheet order={voidFlow.target?.order ?? null} preview={voidFlow.target?.preview ?? null} previewLoading={voidFlow.target?.previewLoading}
+        previewFailed={voidFlow.previewFailed} onRetryPreview={voidFlow.retryPreview}
         isProcessing={voidFlow.isProcessing} error={voidFlow.error} onConfirm={(i) => { void voidFlow.confirm(i) }} onClose={voidFlow.close} />
 
       <RefundDialog order={refundOrder} methods={settings.paymentMethods} cache={refundOrder ? refundCacheFor(refundIdsFor(refundOrder.id)) : undefined} isProcessing={isRefunding} error={refundError}

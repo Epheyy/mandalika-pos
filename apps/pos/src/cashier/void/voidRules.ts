@@ -27,6 +27,7 @@ export const VOID_BLOCKED_NO_PERMISSION = 'Butuh izin batalkan transaksi'
 export const VOID_BLOCKED_BACKOFFICE = 'Batalkan lewat Backoffice'
 export const VOID_BLOCKED_QUEUED = 'Pembatalan menunggu terkirim'
 export const VOID_BLOCKED_REFUNDED = 'Sudah direfund'
+export const VOID_BLOCKED_DRAFT = 'Selesaikan atau batalkan pengganti dulu'
 export const VOID_BLOCKED_SHIFT_UNSYNCED = 'Shift masih tersimpan di tablet'
 
 const runes = (s: string): number => [...s].length
@@ -79,6 +80,8 @@ export interface VoidAvailabilityInput {
   syncedVoidIds: ReadonlySet<string>
   /** Voided order ids that already have a queued "Buat pengganti" sale (engine.queuedReplacementOrderIds()). */
   queuedReplacementOf: ReadonlySet<string>
+  /** A replacement cart (void draft) is open: no other void or "Buat pengganti" may start until it is finished or dropped. */
+  draftOpen?: boolean
 }
 
 const isLocal = (o: Order | LocalVoidSale): o is LocalVoidSale => 'orderUuid' in o
@@ -92,7 +95,13 @@ const notBefore = (iso: string, openedAt: string): boolean => {
   return Number.isFinite(a) && Number.isFinite(b) && a >= b
 }
 
+/** What the history offers for a sale. The draft lock never hides a sale, it only blocks what would be offered. */
 export function voidAvailability(i: VoidAvailabilityInput): VoidAvailability {
+  const a = voidAvailabilityBase(i)
+  return i.draftOpen && (a.kind === 'void' || a.kind === 'create_replacement') ? blocked(VOID_BLOCKED_DRAFT) : a
+}
+
+function voidAvailabilityBase(i: VoidAvailabilityInput): VoidAvailability {
   const o = i.order
   const local = isLocal(o)
   const keys = (local ? [o.orderUuid, o.serverOrderId] : [o.id]).filter((k): k is string => !!k)
@@ -156,6 +165,8 @@ export interface VoidPayloadInput {
   methods?: readonly CashFlagMethod[]
   /** The outlet's giveaway item when the sale took one unit of it (C3: the server takes one per completed order). */
   giveaway?: { productId: string; variantSize: string } | null
+  /** The preview's lines: maps a stockChoices key to its product, size and quantity so a skip_counted line is not restocked. */
+  previewLines?: readonly { key: string; productId: string; variantSize: string; quantity: number }[]
 }
 
 type RestockLine = { productId: string; variantSize: string; quantity: number }
@@ -175,6 +186,17 @@ function restockLinesOf(i: VoidPayloadInput): RestockLine[] {
   }
   src.forEach(add)
   if (i.giveaway) add({ productId: i.giveaway.productId, variantSize: i.giveaway.variantSize, quantity: 1 })
+  // A line the cashier left to the stock count ("sudah dikoreksi oleh stock opname") gives nothing back: the server
+  // skips it, so the tablet's displayed stock must not rise for it either.
+  for (const l of i.previewLines ?? []) {
+    if (i.stockChoices?.[l.key] !== 'skip_counted') continue
+    const k = `${l.productId}|${l.variantSize}`
+    const cur = out.get(k)
+    if (!cur) continue
+    const left = cur.quantity - l.quantity
+    if (left > 0) out.set(k, { ...cur, quantity: left })
+    else out.delete(k)
+  }
   return [...out.values()]
 }
 

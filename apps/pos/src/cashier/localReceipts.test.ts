@@ -140,3 +140,19 @@ describe('C4b local receipt lines for a per-line refund', () => {
     expect(localBadge(receipt({ state: 'synced', refundQueued: true }), { any: true, exhausted: false, remaining: 500 }).label).toBe('Refund tersimpan di tablet')
   })
 })
+
+describe('localReceiptOrder giveaway without per-line data', () => {
+  const withGiveaway = receipt({
+    receiptSnapshot: { ...snapshot, lines: [...snapshot.lines, { productId: 'g', variantSize: 'STD', name: 'Tas', qty: 1, unitPrice: 0, amount: 0, isReward: true }] },
+  })
+  const flag = (o: ReturnType<typeof localReceiptOrder>, i: number) => (o.items[i] as { isGiveaway?: boolean }).isGiveaway
+  it('flags the trailing Rp0 giveaway line when it is the outlet giveaway', () => {
+    const o = localReceiptOrder(withGiveaway, undefined, { productId: 'g', variantSize: 'STD' })
+    expect(flag(o, 1)).toBe(true)
+    expect(flag(o, 0)).toBeUndefined()
+  })
+  it('leaves it a plain line without the outlet giveaway or when the item differs', () => {
+    expect(flag(localReceiptOrder(withGiveaway), 1)).toBeUndefined()
+    expect(flag(localReceiptOrder(withGiveaway, undefined, { productId: 'x', variantSize: 'STD' }), 1)).toBeUndefined()
+  })
+})

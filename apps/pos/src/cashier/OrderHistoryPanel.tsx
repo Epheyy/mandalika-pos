@@ -21,7 +21,7 @@ import type { Tone } from '../components/ui/tone'
 import { IconPrinter } from '../components/ui/icons'
 import { orderAdjustmentRows } from './receiptRows'
 import { VoidAction } from './void/VoidAction'
-import { VOID_REASONS, voidAvailability, type VoidAvailabilityInput } from './void/voidRules'
+import { VOID_REASONS, parkedVoidNote, voidAvailability, type VoidAvailabilityInput } from './void/voidRules'
 
 type Order = components['schemas']['Order']
 type OrderListResponse = components['schemas']['OrderListResponse']
@@ -69,6 +69,8 @@ interface OrderHistoryPanelProps {
   shiftOpenedAt?: string | null
   /** Void gate inputs (permission, shift, queues). Absent = no Batalkan action. The server decides again. */
   voidGate?: Omit<VoidAvailabilityInput, 'order'>
+  /** Parked voids (engine.queuedVoids()): the review reason shows on the sale they name. */
+  parkedVoids?: Parameters<typeof parkedVoidNote>[0]
   onVoid?: (order: Order) => void
   onCreateReplacement?: (order: Order) => void
 }
@@ -120,7 +122,7 @@ function VoidDetails({ order, onOpenOrder }: { order: Order; onOpenOrder: (order
   )
 }
 
-export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, paymentMethods, timezone, shiftOpenedAt, voidGate, onVoid, onCreateReplacement }: OrderHistoryPanelProps) {
+export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, paymentMethods, timezone, shiftOpenedAt, voidGate, parkedVoids, onVoid, onCreateReplacement }: OrderHistoryPanelProps) {
   const [from, setFrom] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).from : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
   const [to, setTo] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).to : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
   // Once the cashier picks a day (or the panel opened on a given sale), a late-arriving timezone/shift no longer moves it.
@@ -408,6 +410,9 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
                       >
                         Cetak Ulang
                       </Button>
+                      {parkedVoids && parkedVoidNote(parkedVoids, [o.id]) !== null && (
+                        <p className="text-xs font-semibold text-warn-strong mt-2" data-testid="history-parked-void">Pembatalan ditahan: {parkedVoidNote(parkedVoids, [o.id])}</p>
+                      )}
                       {o.void && <VoidDetails order={o} onOpenOrder={setSearch} />}
                       {o.replacesOrderNumber && (
                         <p className="text-xs text-ink-700 mt-2" data-testid="history-replaces">Pengganti untuk #{o.replacesOrderNumber}</p>

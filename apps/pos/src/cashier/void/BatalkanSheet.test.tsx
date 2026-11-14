@@ -64,6 +64,15 @@ describe('BatalkanSheet', () => {
     expect(batalkanInput({ ...initialBatalkan(null), reason: 'salah_barang' }, null)?.stockChoices).toEqual({})
   })
 
+  it('online preview failure is shown with Coba lagi and blocks confirm', () => {
+    const out = html(null, { previewFailed: true, onRetryPreview: vi.fn() })
+    expect(out).toContain('Gagal memeriksa stock opname')
+    expect(out).toContain('Coba lagi')
+    expect(out).toMatch(/<button type="button" disabled=""[^>]*>Batalkan &amp; perbaiki<\/button>/)
+    // Offline (no failure flag) keeps the plain no-opname form.
+    expect(html(null)).not.toContain('Gagal memeriksa')
+  })
+
   it('shows the refusal and never confirms when the preview says not eligible; waits while the preview loads', () => {
     const p = preview([], { eligible: false, refusal: 'Transaksi ini sudah dibatalkan.' })
     expect(html(p)).toContain('Transaksi ini sudah dibatalkan.')

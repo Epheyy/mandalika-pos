@@ -6,11 +6,11 @@ import type { SalePlan } from '../tenderSplit'
 import {
   applyLockedTenders, commitVoidDraftSale, voidDraftRefusal, voidDroppedMessage, voidPayable, voidSlipData, type VoidEngine,
 } from './voidCheckout'
-import type { VoidDraft } from './voidReplacement'
+import { defaultAmountsLocked, voidDraftNames, type VoidDraft } from './voidReplacement'
 
 const screen = readFileSync(new URL('../CashierScreen.tsx', import.meta.url), 'utf8')
 
-const sale = { id: 'ord1', orderNumber: 'BSD-1', total: 100000, shiftId: 's1', items: [{ productId: 'a', variantSize: 'S', quantity: 2 }], tenders: [], paymentMethod: 'qris' } as never
+const sale = { id: 'ord1', orderNumber: 'BSD-1', status: 'completed', total: 100000, shiftId: 's1', items: [{ productId: 'a', variantSize: 'S', quantity: 2 }], tenders: [], paymentMethod: 'qris' } as never
 const draft = (over: Partial<VoidDraft> = {}): VoidDraft => ({
   orderId: 'ord1', orderNumber: 'BSD-1', originalTotal: 100000, originalTenders: [{ method: 'qris', amount: 100000 }],
   reason: 'salah_barang', note: 'x', stockChoices: {}, shiftId: 's1', amountsLocked: false, kind: 'void_and_replace',
@@ -164,5 +164,42 @@ describe('CashierScreen wiring', () => {
   })
   it('a void replacement cart cannot be parked', () => {
     expect(screen).toContain('canSave={heldOrders.canSave}')
+  })
+})
+
+describe('draft re-check against the sale', () => {
+  const gate = (over: Record<string, unknown> = {}) => ({
+    user: { role: 'cashier', permissions: ['void_own_shift', 'void_any'] }, deviceId: 'dev', currentShift: { id: 's1', status: 'open' as const, openedAt: '2026-11-14T00:00:00Z' },
+    queuedVoidIds: new Set<string>(), queuedRefundIds: new Set<string>(), syncedVoidIds: new Set<string>(), queuedReplacementOf: new Set<string>(), ...over,
+  })
+  it('permits a draft whose sale is still voidable', () => {
+    expect(voidDraftRefusal(draft(), open, gate())).toBeNull()
+  })
+  it('drops it when a void or refund of the sale got queued, or a void was acknowledged, since the cart opened', () => {
+    for (const over of [{ queuedVoidIds: new Set(['ord1']) }, { queuedRefundIds: new Set(['ord1']) }, { syncedVoidIds: new Set(['ord1']) }]) {
+      expect(voidDraftRefusal(draft(), open, gate(over))).toBe(voidDroppedMessage('BSD-1'))
+    }
+  })
+  it('commit queues nothing when the gate refuses, and the draft lock never counts against its own draft', async () => {
+    const i = input({ gate: gate({ syncedVoidIds: new Set(['ord1']) }) })
+    expect(await commitVoidDraftSale(i as never)).toEqual({ status: 'refused', message: voidDroppedMessage('BSD-1'), dropDraft: true })
+    expect(i.engine.enqueue).not.toHaveBeenCalled()
+    expect(voidDraftRefusal(draft(), open, gate({ draftOpen: true }))).toBeNull()
+  })
+  it('a create_replacement draft needs the sale to still offer it', () => {
+    const voided = { id: 'ord1', orderNumber: 'BSD-1', status: 'cancelled', void: { mode: 'later' }, shiftId: 's0', items: [] } as never
+    const d = draft({ kind: 'create_replacement', sale: voided, amountsLocked: true })
+    expect(voidDraftRefusal(d, open, gate())).toBeNull()
+    expect(voidDraftRefusal(d, open, gate({ queuedReplacementOf: new Set(['ord1']) }))).toBe(voidDroppedMessage('BSD-1'))
+  })
+  it('names the sale of a draft by server id or sale uuid; amounts start locked for an unattributed sale without a preview', () => {
+    expect(voidDraftNames(draft(), ['ord1'])).toBe(true)
+    expect(voidDraftNames(draft({ saleOrderUuid: 'u9' }), [undefined, 'u9'])).toBe(true)
+    expect(voidDraftNames(draft(), ['other'])).toBe(false)
+    expect(voidDraftNames(null, ['ord1'])).toBe(false)
+    expect(defaultAmountsLocked(null, { shiftId: null })).toBe(true)
+    expect(defaultAmountsLocked(null, { shiftId: 's1' })).toBe(false)
+    expect(defaultAmountsLocked({ amountsLocked: false }, { shiftId: null })).toBe(false)
+    expect(defaultAmountsLocked({ amountsLocked: true }, { shiftId: 's1' })).toBe(true)
   })
 })

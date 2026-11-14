@@ -21,6 +21,9 @@ export interface BatalkanSheetProps {
   preview: VoidPreview | null
   /** Online and the preview is still on its way: confirm waits so the stock choices are never skipped. */
   previewLoading?: boolean
+  /** Online and the preview could not be read: a retry is offered and confirm stays off. */
+  previewFailed?: boolean
+  onRetryPreview?: () => void
   isProcessing?: boolean
   error?: string | null
   onConfirm: (input: BatalkanInput) => void
@@ -38,12 +41,12 @@ export const BatalkanSheet = memo(function BatalkanSheet(props: BatalkanSheetPro
   return props.order ? <BatalkanBody key={props.order.id} {...props} order={props.order} /> : null
 })
 
-export function BatalkanBody({ order, preview, previewLoading = false, isProcessing = false, error, onConfirm, onClose }: BatalkanSheetProps & { order: Order }) {
+export function BatalkanBody({ order, preview, previewLoading = false, previewFailed = false, onRetryPreview, isProcessing = false, error, onConfirm, onClose }: BatalkanSheetProps & { order: Order }) {
   const [s, setS] = useState<BatalkanState>(() => initialBatalkan(preview))
   const counted = countedLines(preview)
   const problem = voidReasonProblem(s.reason, s.note)
   const input = batalkanInput(s, preview)
-  const ready = input !== null && !previewLoading && !isProcessing
+  const ready = input !== null && !previewLoading && !previewFailed && !isProcessing
   const confirmLabel = s.choice === 'perbaiki' ? 'Batalkan & perbaiki' : 'Batalkan saja'
 
   return (
@@ -51,6 +54,7 @@ export function BatalkanBody({ order, preview, previewLoading = false, isProcess
       <h3 className="font-bold text-ink-900 mb-1">Batalkan transaksi #{order.orderNumber}</h3>
       <p className="text-xs text-ink-500 mb-3">Total {formatRupiah(order.total)}</p>
 
+      {previewFailed && <Banner tone="warn" message="Gagal memeriksa stock opname" action={onRetryPreview ? { label: 'Coba lagi', onClick: onRetryPreview } : undefined} className="rounded-control mb-3" />}
       {previewLoading && <p className="text-xs text-ink-500 mb-3" role="status">Memeriksa stock opname…</p>}
       {preview && !preview.eligible && <Banner tone="danger" message={preview.refusal ?? 'Transaksi ini tidak dapat dibatalkan.'} className="rounded-control mb-3" />}
 

@@ -34,6 +34,8 @@ export interface VoidDraft {
   /** The outlet giveaway unit the original took, when the caller knows it (an Order's items do not carry it). Only
    *  feeds the tablet's stock overlay; the server decides stock itself. Leave unset when unsure. */
   giveaway?: { productId: string; variantSize: string } | null
+  /** The preview's counted lines, kept so the void payload can leave skip_counted lines out of the stock overlay. */
+  previewLines?: { key: string; productId: string; variantSize: string; quantity: number }[]
 }
 
 const adjustment = (type: string | null | undefined, value: number | null | undefined): HeldAdjustment =>
@@ -136,3 +138,12 @@ export function replacementCorrection(
   if (choice === 'adjust' || isLocked(d)) return { correctionTarget: 'original_total', correction: d.originalTotal - Math.round(cartTotal) }
   return { correction: 0 }
 }
+
+/** Whether this draft is the one about `keys` (a sale's server id and/or client uuid). */
+export const voidDraftNames = (d: Pick<VoidDraft, 'orderId' | 'saleOrderUuid'> | null, keys: readonly (string | undefined)[]): boolean =>
+  !!d && keys.some((k) => !!k && (k === d.orderId || k === d.saleOrderUuid))
+
+/** Whether a new "Batalkan & perbaiki" draft starts with locked amounts: the preview decides when there is one; without
+ *  it (offline) a sale with no shift id (O5) is server-forced to locked, so it starts locked. */
+export const defaultAmountsLocked = (preview: { amountsLocked: boolean } | null, sale: { shiftId?: string | null }): boolean =>
+  preview ? preview.amountsLocked : !sale.shiftId
