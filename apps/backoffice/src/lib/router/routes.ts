@@ -89,6 +89,7 @@ const REPORT_TABS: readonly RouteTab[] = [
   tab('codeReport', 'kode-diskon', 'Kode Diskon', 'view_reports'),
   tab('refund', 'refund', 'Refund', 'view_reports'),
   tab('bundles', 'bundle', 'Bundle', 'view_reports'),
+  tab('voids', 'pembatalan', 'Pembatalan', 'view_reports'),
   tab('oversell', 'stok-minus', 'Stok Minus', 'view_reports'),
 ]
 const INVENTORY_TABS: readonly RouteTab[] = [

@@ -13,6 +13,7 @@ import { PromoGrantsTab } from './reports/PromoGrantsTab'
 import { DiscountCodeReportTab } from './reports/DiscountCodeReportTab'
 import { RefundReportTab } from './reports/RefundReportTab'
 import { BundleReportTab } from './reports/BundleReportTab'
+import { VoidReportTab } from './reports/VoidReportTab'
 import { OversellTab } from './reports/OversellTab'
 import { useOversellOpenCount } from './reports/useOversellOpenCount'
 import { useHistoricalPaymentIds } from './reports/useHistoricalPaymentIds'
@@ -28,7 +29,7 @@ import { useListState, type ListSchema } from '../lib/router/useListState'
 import { useScreenTabs } from '../lib/router/useScreenTabs'
 import { useResetPageOnChange } from '../lib/useResetPageOnChange'
 
-type ReportTab = 'orders' | 'export' | 'shifts' | 'grants' | 'codeReport' | 'refund' | 'bundles' | 'oversell'
+type ReportTab = 'orders' | 'export' | 'shifts' | 'grants' | 'codeReport' | 'refund' | 'bundles' | 'voids' | 'oversell'
 
 interface HubState {
   dari: string
@@ -180,6 +181,8 @@ export default function Reports() {
       {tab === 'refund' && !rangeError && <RefundReportTab key={`${outletId}|${dateFrom}|${dateTo}`} dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
 
       {tab === 'bundles' && !rangeError && <BundleReportTab key={`${outletId}|${dateFrom}|${dateTo}`} dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
+
+      {tab === 'voids' && !rangeError && <VoidReportTab key={`${outletId}|${dateFrom}|${dateTo}`} dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} />}
 
       {tab === 'oversell' && !rangeError && (
         <OversellTab onRangeActiveChange={setOversellFollowsRange} dateFrom={dateFrom} dateTo={dateTo} outletId={outletId ?? ''} canAcknowledge={canAcknowledgeOversell} />
