@@ -158,9 +158,10 @@ func (s *OrderService) CreateReplacementOrder(ctx context.Context, in CreateOrde
 	if err != nil {
 		return CreateOrderResult{}, err
 	}
-	in.PointsDeduction = 0 // never taken from the caller
+	in.PointsDeduction, in.pointsReuse = 0, 0 // never taken from the caller
 	writeoff := 0
 	if same {
+		in.pointsReuse = int(lv.row.redeemed) // restored when the sale was voided; the replacement may spend them again
 		prior, err := priorPointsDeduction(ctx, tx, in.ReplacesOrderID)
 		if err != nil {
 			return CreateOrderResult{}, err

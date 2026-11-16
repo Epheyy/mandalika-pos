@@ -138,6 +138,10 @@ type CreateOrderInput struct {
 	// deductionOut, when set, receives the amount actually deducted.
 	PointsDeduction int
 	deductionOut    *int
+	// pointsReuse (void paths only, never taken from the caller) is the points the voided sale
+	// redeemed when the same customer is charged again: the redemption cap rises by
+	// min(pointsReuse, the replacement's earn) so the replacement can spend them again.
+	pointsReuse int
 	// EvalTime and ClockSkew are set by the sync batch only (A05): the bounded time promo
 	// and loyalty rules run at when ClientCreated disagrees with the server's evidence.
 	// ClientCreated stays the recorded fact; EvalTime only changes the evaluation.
@@ -527,53 +531,6 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 			return "", false, false, fmt.Errorf("load customer points: %w", e)
 		}
 	}
-	pointsRedeemed := 0
-	redeemAmount := 0.0
-	if in.PointsRedeemed > 0 && hasLoyaltyCustomer && redemptionRate > 0 {
-		pointsRedeemed = in.PointsRedeemed
-		if pointsRedeemed > balanceBefore {
-			pointsRedeemed = balanceBefore
-		}
-		redeemAmount = float64(pointsRedeemed) * redemptionRate
-		// This intermediate is capped to total below; preserve the existing cap.
-		if math.IsNaN(redeemAmount) || math.IsInf(redeemAmount, 0) || redeemAmount < 0 {
-			return "", false, false, saleInputError("redemptionAmount", "tidak valid")
-		}
-		if redeemAmount > res.Total {
-			redeemAmount = res.Total
-			pointsRedeemed = int(res.Total / redemptionRate)
-		}
-	}
-	finalTotal := res.Total - redeemAmount
-	// Void replacement: the sale ends at the target and the gap is "Penyesuaian koreksi". Points
-	// earned are decided below from res.Total, before this adjustment, so the gap never moves them.
-	var correction int64
-	if in.CorrectionTarget != nil {
-		correction = correctionAmount(*in.CorrectionTarget, int64(math.Round(finalTotal)))
-		finalTotal = float64(*in.CorrectionTarget)
-	}
-	if err := saleMoney("finalTotal", finalTotal); err != nil {
-		return "", false, false, err
-	}
-
-	// A09 tender rules, judged once per new sale (replays returned above). Online
-	// (direct POST /orders) rejects only a cash shortfall; offline/batch sales and
-	// non-cash mismatches are accepted with the captured amount and flagged.
-	settle, err := settleSale(in, finalTotal, func(id string) bool { return IsCashMethod(settings.PaymentMethods, id) })
-	if err != nil {
-		return "", false, false, err
-	}
-	amountPaid, change, tenderReason := settle.AmountPaid, settle.Change, settle.Reason
-	tenderWarning := tenderReason != ""
-
-	// A10: judge the quoted receipt total after the replay guard, flag-only on both
-	// routes. An unusable quote is dropped (NULL) with quote_invalid; the sale stands.
-	quotedStored, quoteReason := evaluateQuote(in.QuotedTotal, in.ReceiptSnapshot, finalTotal)
-	var snapStored json.RawMessage
-	if quotedStored != nil {
-		snapStored = in.ReceiptSnapshot
-	}
-
 	// Loyalty-condition engine (SP-CRM-8): base × bestMultiplier + Σ set_points.
 	// Inert when no condition matches → finalEarned == base (byte-identical to before).
 	base := res.EarnedPoints
@@ -602,6 +559,69 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 	if in.deductionOut != nil {
 		*in.deductionOut = deducted
 	}
+	pointsRedeemed := 0
+	redeemAmount := 0.0
+	if in.PointsRedeemed > 0 && hasLoyaltyCustomer && redemptionRate > 0 {
+		pointsRedeemed = in.PointsRedeemed
+		// Void replacement for the same customer: the points the voided sale redeemed were restored
+		// and then partly eaten by the clawback of its earn, so balanceBefore can be short of them.
+		// The replacement may redeem them again out of its own earn (credited first, as in the
+		// ledger): the cap rises by min(pointsReuse, finalEarned), so the balance never goes below 0.
+		available := balanceBefore + min(in.pointsReuse, finalEarned)
+		if pointsRedeemed > available {
+			// A locked replacement (CorrectionTarget set) is refused rather than clamped: a silent clamp
+			// would leave finalTotal above the original's and push the points value into the
+			// correction. Fewer points asked for on purpose (the cashier removed some) stay allowed.
+			if in.CorrectionTarget != nil {
+				return "", false, false, saleInputError("pointsRedeemed", "melebihi poin yang tersedia")
+			}
+			pointsRedeemed = available
+		}
+		redeemAmount = float64(pointsRedeemed) * redemptionRate
+		// This intermediate is capped to total below; preserve the existing cap.
+		if math.IsNaN(redeemAmount) || math.IsInf(redeemAmount, 0) || redeemAmount < 0 {
+			return "", false, false, saleInputError("redemptionAmount", "tidak valid")
+		}
+		if redeemAmount > res.Total {
+			redeemAmount = res.Total
+			pointsRedeemed = int(res.Total / redemptionRate)
+		}
+	}
+	finalTotal := res.Total - redeemAmount
+	// Void replacement: the sale ends at the target and the gap is "Penyesuaian koreksi". Points
+	// earned are decided above from res.Total, before this adjustment, so the gap never moves them.
+	// Arithmetic: the original stored total T = cart price - points value, i.e. the money it took (its
+	// tenders sum to T). A replacement of the same cart redeeming the same points has finalTotal =
+	// res.Total - redeemAmount = T, so correction = target(T) - T = 0 and its tenders (which must sum
+	// to T when locked) settle exactly. Only points NOT redeemed again (removed, another customer, a
+	// clamp) leave finalTotal above T and land the points value in the negative correction.
+	var correction int64
+	if in.CorrectionTarget != nil {
+		correction = correctionAmount(*in.CorrectionTarget, int64(math.Round(finalTotal)))
+		finalTotal = float64(*in.CorrectionTarget)
+	}
+	if err := saleMoney("finalTotal", finalTotal); err != nil {
+		return "", false, false, err
+	}
+
+	// A09 tender rules, judged once per new sale (replays returned above). Online
+	// (direct POST /orders) rejects only a cash shortfall; offline/batch sales and
+	// non-cash mismatches are accepted with the captured amount and flagged.
+	settle, err := settleSale(in, finalTotal, func(id string) bool { return IsCashMethod(settings.PaymentMethods, id) })
+	if err != nil {
+		return "", false, false, err
+	}
+	amountPaid, change, tenderReason := settle.AmountPaid, settle.Change, settle.Reason
+	tenderWarning := tenderReason != ""
+
+	// A10: judge the quoted receipt total after the replay guard, flag-only on both
+	// routes. An unusable quote is dropped (NULL) with quote_invalid; the sale stands.
+	quotedStored, quoteReason := evaluateQuote(in.QuotedTotal, in.ReceiptSnapshot, finalTotal)
+	var snapStored json.RawMessage
+	if quotedStored != nil {
+		snapStored = in.ReceiptSnapshot
+	}
+
 	if err := salePoints("finalEarned", math.Round(float64(base)*outcome.BestMultiplier)+float64(outcome.FlatBonus)); err != nil {
 		return "", false, false, err
 	}

@@ -36,3 +36,20 @@ func TestVoidReplacementInputFromPayload(t *testing.T) {
 		t.Fatal("correctionTarget original_total not mapped")
 	}
 }
+
+func TestVoidReplacementDeviceDefaultsToEnvelope(t *testing.T) {
+	e := &Engine{Now: func() time.Time { return time.Date(2026, 11, 13, 9, 0, 0, 0, time.UTC) }}
+	c := Caller{OutletID: "out", UserID: "u1", EnvelopeDeviceID: "0F8FAD5B-D9CB-469F-A165-70867728950E"}
+	omitted := orderPayload{OrderUUID: "11111111-2222-4333-8444-555555555555"}
+	if got := e.replacementInput(c, BatchItem{IdempotencyKey: "k1"}, omitted, "k1:replacement", Envelope{}).DeviceID; got != "0f8fad5b-d9cb-469f-a165-70867728950e" {
+		t.Fatalf("omitted deviceId = %q, want the envelope device", got)
+	}
+	stamped := orderPayload{OrderUUID: omitted.OrderUUID, DeviceID: "dev-payload"}
+	if got := e.replacementInput(c, BatchItem{IdempotencyKey: "k1"}, stamped, "k1:replacement", Envelope{}).DeviceID; got != "dev-payload" {
+		t.Fatalf("stamped deviceId = %q, want the payload's", got)
+	}
+	legacy := Caller{OutletID: "out", UserID: "u1", EnvelopeDeviceID: "not-a-uuid"}
+	if got := e.replacementInput(legacy, BatchItem{IdempotencyKey: "k1"}, omitted, "k1:replacement", Envelope{}).DeviceID; got != "" {
+		t.Fatalf("non-uuid envelope device = %q, want none (the column is a uuid)", got)
+	}
+}

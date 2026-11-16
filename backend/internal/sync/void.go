@@ -141,14 +141,23 @@ func (e *Engine) voidAndReplace(ctx context.Context, tx pgx.Tx, c Caller, it Bat
 	in := p.input(c, orderID)
 	in.ReplacementAtOriginalTotal = p.Replacement.CorrectionTarget == "original_total"
 	repl := e.replacementInput(c, it, p.Replacement.orderPayload, it.IdempotencyKey+":replacement", decodeEnvelope(it))
+	if repl.DeviceID == "" && service.IsCanonicalUUID(p.DeviceID) {
+		repl.DeviceID = strings.ToLower(p.DeviceID) // an item without an envelope: the void's own device
+	}
 	return e.Orders.VoidAndReplaceTx(ctx, tx, in, repl)
 }
 
 // replacementInput builds the sale input of a replacement the way `case "order"` builds a sale. The
-// shift is pinned by the service to the voided sale's, never taken from the payload.
+// shift is pinned by the service to the voided sale's, never taken from the payload. A payload
+// without a deviceId gets the verified envelope device (when it is a uuid, the column's type), so
+// the replacement never depends on the tablet stamping it.
 func (e *Engine) replacementInput(c Caller, it BatchItem, p orderPayload, key string, env Envelope) service.CreateOrderInput {
 	evalTime, skew := boundSaleTime(readEvidence(env, e.now(), e.ContactKey), p.ClientCreatedAt, e.now())
-	return p.createInput(c, key, "", evalTime, skew)
+	in := p.createInput(c, key, "", evalTime, skew)
+	if in.DeviceID == "" && service.IsCanonicalUUID(c.EnvelopeDeviceID) {
+		in.DeviceID = strings.ToLower(c.EnvelopeDeviceID)
+	}
+	return in
 }
 
 // processReplacementOrder runs an `order` item that carries replacesOrderId ("Buat pengganti").
