@@ -22,6 +22,7 @@ import {
   printVoidSlip,
   type PrinterTransport,
   type ReceiptData,
+  type ReceiptLayout,
   type RecapData,
   type TandaTerimaData,
   type VoidSlipData,
@@ -48,8 +49,8 @@ interface PrinterState {
   print: (data: ReceiptData, settings: ReceiptSettings, reprint?: boolean) => Promise<void>
   printRecap: (data: RecapData, settings: ReceiptSettings) => Promise<void>
   printTandaTerima: (data: TandaTerimaData, settings: ReceiptSettings, reprint?: boolean) => Promise<void>
-  /** DIBATALKAN slip; `layout` is reserved for the receipt designer (typed unknown until it lands). */
-  printVoidSlip: (data: VoidSlipData, settings: ReceiptSettings, layout?: unknown) => Promise<void>
+  /** DIBATALKAN slip; `layout` is reserved for the receipt designer (the slip does not read it yet). */
+  printVoidSlip: (data: VoidSlipData, settings: ReceiptSettings, layout?: ReceiptLayout) => Promise<void>
   testPrint: (settings: ReceiptSettings) => Promise<void>
 }
 
@@ -170,7 +171,7 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
   )
 
   const doPrintVoidSlip = useCallback(
-    async (data: VoidSlipData, settings: ReceiptSettings, layout?: unknown) => {
+    async (data: VoidSlipData, settings: ReceiptSettings, layout?: ReceiptLayout) => {
       await printVoidSlip({
         transport: transportRef.current,
         deviceId: pairedId,

@@ -1,0 +1,17 @@
+// Pure receipt entry (`@mandalika/printer/render`): layout model, renderer, Standar, validation and the sample
+// sale. No Capacitor import, so the Backoffice can draw the live preview from the same code the printer uses.
+
+export type { ReceiptData, ReceiptDiscountRow, ReceiptLine } from './data'
+export { COLS_BY_WIDTH, LOCKED_TYPES, isLockedType } from './layout'
+export type { PaperWidth, ReceiptBlock, ReceiptBlockType, ReceiptLayout, TxField } from './layout'
+export { LockedBlockError, normalizeForPrint, receiptBytes, receiptPreview, renderReceipt, resolveCols } from './render'
+export type { RenderOptions } from './render'
+export { EscPosSink, PreviewSink } from './sink'
+export type { Align, Cmd, PreviewLine, ReceiptSink } from './sink'
+export { standarLayout } from './standar'
+export { NEW_TEMPLATE_BLOCKS, SAMPLE_RECEIPT } from './sample'
+export { RECEIPT_LIMITS, validateTemplate } from './validate'
+export type { LayoutIssue } from './validate'
+export { money, toPrinterText } from './text'
+export { voidSlipLines } from './slips'
+export type { VoidSlipData } from './slips'

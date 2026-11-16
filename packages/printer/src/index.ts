@@ -3,6 +3,7 @@
 
 export { buildReceipt, buildRecap, buildTandaTerima, buildVoidSlip, voidSlipLines, COLS } from './escpos'
 export type { ReceiptData, ReceiptDiscountRow, ReceiptLine, RecapData, RecapMethodRow, TandaTerimaData, TandaTerimaLine, VoidSlipData } from './escpos'
+export type { ReceiptLayout } from './receipt/layout'
 export { NoopTransport } from './transport'
 export type { PrinterTransport, PrinterDevice, PrinterKind } from './transport'
 export { CapacitorBleTransport } from './ble'

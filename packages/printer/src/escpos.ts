@@ -4,74 +4,26 @@
 // on-screen ReceiptPreview so the printed slip matches what the cashier sees.
 
 import type { components } from '@mandalika/api'
-import { resolveReceiptFlags } from '@mandalika/types'
+import type { ReceiptData, ReceiptDiscountRow, ReceiptLine } from './receipt/data'
+import { receiptBytes } from './receipt/render'
+import { standarLayout } from './receipt/standar'
+import { voidSlipLines } from './receipt/slips'
+import type { VoidSlipData } from './receipt/slips'
+import {
+  center as centerAt,
+  encodeLegacy,
+  money,
+  pad as padAt,
+} from './receipt/text'
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
 
+// The data shapes live in ./receipt (shared with the renderer); re-exported so callers keep importing from here.
+export type { ReceiptData, ReceiptDiscountRow, ReceiptLine, VoidSlipData }
+export { voidSlipLines }
+
 /** Paper geometry for the I-Ware C5813 (58 mm, Font A). */
 export const COLS = 32
-
-/** One printable line of a receipt (already priced, server- or client-side). */
-export interface ReceiptLine {
-  name: string
-  /** Variant/size — printed on its own indented line so it never clips. */
-  variant?: string
-  qty: number
-  /** Per-unit price in whole Rupiah. */
-  unitPrice: number
-  /** Line total in whole Rupiah. */
-  amount: number
-  /** C1: a promo/loyalty giveaway line. Absent on receipts archived before C1. */
-  isReward?: boolean
-  /** C1: optional tag naming the reward (e.g. the promo); printed after the name. */
-  rewardLabel?: string
-  /** Bundles: the pieces of a bundle, printed under the name (one bullet each). `variant` is not used then. */
-  pieces?: string[]
-  /** Bundles: the Diskon Bundle printed under the line. `amount` stays the NET, so the slip still adds up; the amount
-   *  column of the qty row shows `amount + lineDiscount.amount` (the bundle price). */
-  lineDiscount?: ReceiptDiscountRow
-}
-
-/** C1: one deduction row (a promo, a code or the manual discount), already in whole Rupiah. */
-export interface ReceiptDiscountRow {
-  label: string
-  amount: number
-}
-
-/** Everything needed to render a slip, online or offline-queued. */
-export interface ReceiptData {
-  /** Server order number when known; provisional uuid prefix when offline. */
-  orderRef: string
-  pending: boolean
-  dateTime: Date
-  lines: ReceiptLine[]
-  subtotal: number
-  /** Total deduction. Kept for old callers; the printer prefers `discounts` when present. */
-  discountAmount: number
-  /** C1: one row per applied promo / code / manual discount. Absent on pre-C1 archived receipts
-   *  (the printer then falls back to a single "Diskon" row from `discountAmount`). */
-  discounts?: ReceiptDiscountRow[]
-  /** C1: "Biaya tambahan", already inside `total`. null/absent = none. */
-  surcharge?: number | null
-  /** C1: "Tukar poin" redemption, already deducted from `total`. null/absent = none. */
-  pointsRedeemed?: { points: number; amount: number } | null
-  /** C1: cash/total rounding delta (signed) so the slip still adds up when rounding is on. */
-  rounding?: number | null
-  taxAmount: number
-  total: number
-  paymentLabel: string
-  amountPaid: number
-  /** C6: one row per payment line of a split sale (amount = captured). Absent = print the single `paymentLabel` row. */
-  tenders?: { label: string; amount: number; reference?: string }[]
-  change: number
-  customerName: string | null
-  customerPhone: string | null
-  cashierName: string
-  /** Void: the number of the sale this one replaces; prints "Pengganti untuk #<ref>" under the header. */
-  replacesOrderRef?: string
-  /** Void: signed "Penyesuaian koreksi" already inside `total` (non-zero prints a row before TOTAL). */
-  correctionAmount?: number
-}
 
 // ── ESC/POS control codes ────────────────────────────────
 const ESC = 0x1b
@@ -88,56 +40,10 @@ const DOUBLE_OFF = [GS, 0x21, 0x00]
 const FEED_3 = [ESC, 0x64, 0x03] // feed 3 lines
 const CUT = [GS, 0x56, 0x42, 0x00] // partial cut (ignored if unsupported)
 
-function money(n: number): string {
-  const v = Math.round(n)
-  const sign = v < 0 ? '-' : ''
-  return (
-    sign +
-    Math.abs(v)
-      .toString()
-      .replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-  )
-}
 
-function pad(left: string, right: string): string {
-  const space = COLS - left.length - right.length
-  if (space >= 1) return left + ' '.repeat(space) + right
-  // Truncate the label so the amount is never clipped.
-  const keep = Math.max(0, COLS - right.length - 1)
-  return left.slice(0, keep) + ' ' + right
-}
-
-/** Wrap `text` into at most `maxLines` lines of COLS characters (word-aware, hard-cut the rest). */
-function wrap(text: string, maxLines: number): string[] {
-  const out: string[] = []
-  let rest = text.trim()
-  while (rest.length > 0 && out.length < maxLines) {
-    if (rest.length <= COLS) { out.push(rest); rest = ''; break }
-    let cut = rest.lastIndexOf(' ', COLS)
-    if (cut <= 0) cut = COLS
-    out.push(rest.slice(0, cut))
-    rest = rest.slice(cut).trim()
-  }
-  return out
-}
-
-/** A labelled amount row; a label too long to sit beside its amount wraps (2 lines max) and the amount
- *  goes right-aligned on its own line, so neither is ever clipped. */
-function labelRow(b: Buf, label: string, amount: string): void {
-  if (label.length + 1 + amount.length <= COLS) { b.line(pad(label, amount)); return }
-  const parts = wrap(label, 2)
-  for (const l of parts) b.line(l)
-  b.line(pad('', amount))
-}
-
-/** "-Rp10.000" style deduction amount (ASCII hyphen: Latin-1 safe). */
-const minusRp = (n: number): string => '-Rp' + money(n)
-
-function center(text: string): string {
-  if (text.length >= COLS) return text.slice(0, COLS)
-  const left = Math.floor((COLS - text.length) / 2)
-  return ' '.repeat(left) + text
-}
+// 32-column wrappers over the shared helpers (recap, tanda terima and the void slip stay at COLS).
+const pad = (left: string, right: string): string => padAt(left, right, COLS)
+const center = (text: string): string => centerAt(text, COLS)
 
 /** Centered bold marker printed top + bottom on a reprinted copy so staff can
  *  tell a duplicate apart from the original slip. */
@@ -146,16 +52,7 @@ function reprintLine(b: Buf): void {
   b.raw(ALIGN_CENTER).raw(BOLD_ON).line(REPRINT_MARK).raw(BOLD_OFF).raw(ALIGN_LEFT)
 }
 
-/** Latin-1 byte encoding — Indonesian receipt text is ASCII-safe. */
-function bytes(text: string): number[] {
-  const out: number[] = []
-  for (let i = 0; i < text.length; i++) {
-    const c = text.charCodeAt(i)
-    // U+00B7 (the middle dot in a bundle name) is a box glyph on the printer code page: print a hyphen instead.
-    out.push(c === 0xb7 ? 0x2d : c > 0xff ? 0x3f : c) // unknown glyph → '?'
-  }
-  return out
-}
+const bytes = encodeLegacy
 
 class Buf {
   private parts: number[] = []
@@ -176,173 +73,18 @@ class Buf {
 }
 
 /**
- * Build the ESC/POS payload for one receipt copy. `settings.receipt` toggles
- * the same optional rows the HTML preview honors (tax/cashier/customer/etc.).
+ * Build the ESC/POS payload for one receipt copy: the built-in Standar layout (today's receipt, byte for
+ * byte; see __legacy__/buildReceiptV1.ts) rendered by the shared block renderer.
  */
 export function buildReceipt(
   data: ReceiptData,
   settings: ReceiptSettings,
   reprint = false,
 ): Uint8Array {
-  const b = new Buf().raw(INIT)
-  const flags = resolveReceiptFlags(settings)
-
-  b.raw(ALIGN_CENTER)
-  if (settings.headerText) {
-    b.raw(BOLD_ON).raw(DOUBLE_ON).line(settings.headerText).raw(DOUBLE_OFF).raw(BOLD_OFF)
-  }
-  if (settings.footerText && settings.headerText) b.line()
-  b.raw(ALIGN_LEFT)
-
-  if (reprint) reprintLine(b)
-
-  if (data.replacesOrderRef) for (const l of wrap(`Pengganti untuk #${data.replacesOrderRef}`, 2)) b.line(l)
-
-  // The receipt always shows the order id. Sync state is an app concern, not
-  // something the customer's printed receipt should announce.
-  if (flags.showOrderNumber) b.line(pad('No', data.orderRef))
-  b.line(
-    pad(
-      'Tgl',
-      data.dateTime.toLocaleString('id-ID', {
-        day: '2-digit',
-        month: '2-digit',
-        year: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-    ),
-  )
-  b.divider()
-
-  for (const item of data.lines) {
-    const tag = item.isReward ? ` [${(item.rewardLabel ?? 'HADIAH').toUpperCase()}]` : ''
-    for (const l of wrap(item.name + tag, 2)) b.line(l)
-    if (item.variant) b.line(`  ${item.variant}`.slice(0, COLS))
-    for (const piece of item.pieces ?? []) {
-      // Indented bullet (wrap() would trim it); a name longer than the paper continues on one indented line.
-      const text = `  + ${piece}`
-      b.line(text.slice(0, COLS))
-      if (text.length > COLS) b.line(`    ${text.slice(COLS)}`.slice(0, COLS))
-    }
-    // A giveaway at Rp0 prints GRATIS (as the screen does), never a bare "0".
-    const gross = item.amount + (item.lineDiscount?.amount ?? 0)
-    const amountText = item.isReward && item.amount === 0 ? 'GRATIS' : money(gross)
-    b.line(pad(`  ${item.qty} x ${money(item.unitPrice)}`, amountText))
-    if (item.lineDiscount && item.lineDiscount.amount > 0) labelRow(b, `  - ${item.lineDiscount.label}`, minusRp(item.lineDiscount.amount))
-  }
-  b.divider()
-
-  if (flags.showSubtotal) b.line(pad('Subtotal', money(data.subtotal)))
-  // An itemised (C1) slip always prints its deductions and PPN: hiding a row that is inside TOTAL would
-  // make the slip not add up. The Pengaturan toggles still govern pre-C1 receipts.
-  const itemised = data.discounts !== undefined
-  if (itemised || flags.showDiscount) {
-    if (data.discounts) {
-      for (const d of data.discounts) if (d.amount > 0) labelRow(b, `- ${d.label}`, minusRp(d.amount))
-    } else if (data.discountAmount > 0) {
-      // Pre-C1 archived receipt: no per-promo detail, keep today's single row.
-      b.line(pad('Diskon', '-' + money(data.discountAmount)))
-    }
-  }
-  if (data.surcharge && data.surcharge > 0) b.line(pad('Biaya tambahan', money(data.surcharge)))
-  if (data.pointsRedeemed && data.pointsRedeemed.amount > 0) {
-    b.line(pad(`Tukar poin (${data.pointsRedeemed.points})`, minusRp(data.pointsRedeemed.amount)))
-  }
-  if ((itemised || flags.showTax) && data.taxAmount > 0) {
-    b.line(pad('PPN', money(data.taxAmount)))
-  }
-  if (data.rounding) b.line(pad('Pembulatan', (data.rounding > 0 ? '+' : '') + money(data.rounding)))
-  // Void: a signed correction sits inside TOTAL, so it prints whatever the totals switches say.
-  if (data.correctionAmount) b.line(pad('Penyesuaian koreksi', (data.correctionAmount > 0 ? '+' : '') + money(data.correctionAmount)))
-  b.raw(BOLD_ON).line(pad('TOTAL', money(data.total))).raw(BOLD_OFF)
-  if (data.tenders && data.tenders.length > 0) {
-    for (const t of data.tenders) {
-      b.line(pad(t.label, money(t.amount)))
-      if (t.reference) b.line(`  Ref ${t.reference}`.slice(0, COLS))
-    }
-  } else {
-    b.line(pad(data.paymentLabel, money(data.amountPaid)))
-  }
-  if (flags.showChange && data.change > 0) {
-    b.line(pad('Kembalian', money(data.change)))
-  }
-  b.divider()
-
-  if (flags.showCustomerName && data.customerName) {
-    b.line('Pelanggan: ' + data.customerName)
-  }
-  if (flags.showCustomerPhone && data.customerPhone) {
-    b.line('Telp: ' + data.customerPhone)
-  }
-  if (flags.showCashier) b.line('Kasir: ' + data.cashierName)
-
-  if (settings.footerText) {
-    b.line().raw(ALIGN_CENTER).line(settings.footerText).raw(ALIGN_LEFT)
-  }
-
-  if (reprint) reprintLine(b)
-
-  b.raw(FEED_3).raw(CUT)
-  return b.done()
+  return receiptBytes(standarLayout(settings), data, { reprint })
 }
 
 // ── Void slip ────────────────────────────────────────────
-
-/** Everything the DIBATALKAN slip prints. */
-export interface VoidSlipData {
-  /** Number of the voided sale. */
-  orderRef: string
-  total: number
-  reasonLabel: string
-  note?: string
-  voidedBy: string
-  dateTime: string
-  /** Number of the replacement sale, when one exists yet. */
-  replacementRef?: string
-}
-
-/** Printer-safe text: accents folded to ASCII (the code page prints them as box glyphs), middle dot to a hyphen. */
-function toPrinterText(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\u00b7/g, '-')
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/[\u201c\u201d]/g, '"')
-    .replace(/[\u2013\u2014]/g, '-')
-    // A control byte in a note would reach the printer as a command.
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\x00-\x1f\x7f]/g, ' ')
-}
-
-/** Hard-wrap `text` at `cols` characters (word-aware, no line limit). */
-function wrapAt(text: string, cols: number): string[] {
-  const out: string[] = []
-  let rest = text.trim()
-  while (rest.length > cols) {
-    let cut = rest.lastIndexOf(' ', cols)
-    if (cut <= 0) cut = cols
-    out.push(rest.slice(0, cut))
-    rest = rest.slice(cut).trim()
-  }
-  if (rest.length > 0 || out.length === 0) out.push(rest)
-  return out
-}
-
-/** The body of the DIBATALKAN slip, wrapped at `cols`. Pure. */
-export function voidSlipLines(data: VoidSlipData, cols: number): string[] {
-  const rows = [
-    `No: #${data.orderRef}`,
-    `Total: ${money(data.total)}`,
-    `Alasan: ${data.reasonLabel}`,
-    ...(data.note ? [`Catatan: ${data.note}`] : []),
-    `Oleh: ${data.voidedBy}`,
-    `Waktu: ${data.dateTime}`,
-    ...(data.replacementRef ? [`Pengganti: #${data.replacementRef}`] : []),
-  ]
-  return rows.flatMap((r) => wrapAt(toPrinterText(r), cols))
-}
 
 /** The short DIBATALKAN slip printed when a sale is voided. */
 export function buildVoidSlip(data: VoidSlipData): Uint8Array {
