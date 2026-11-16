@@ -9,7 +9,7 @@ vi.mock('@capacitor/core', () => ({
   registerPlugin: () => ({}),
 }))
 
-import { createTransport, printReceipt } from './print'
+import { createTransport, printReceipt, printVoidSlip } from './print'
 import type { PrinterTransport } from './transport'
 import type { PrintJob } from './print'
 
@@ -122,5 +122,20 @@ describe('createTransport', () => {
   ])('%s -> %s', (platform, kind) => {
     cap.platform = platform
     expect(createTransport().kind).toBe(kind)
+  })
+})
+
+describe('printVoidSlip', () => {
+  it('printVoidSlip sends one copy through the print queue', async () => {
+    const { t, calls } = recorder()
+    const slipData = { orderRef: 'MND-1', total: 100000, reasonLabel: 'Salah barang', voidedBy: 'Sari', dateTime: '14/11/2026 10:00' }
+    await printVoidSlip({ transport: t, deviceId: 'AA', data: slipData, settings: { ...settings, copies: 3 } })
+    expect(calls).toEqual(['connect', 'write', 'disconnect'])
+  })
+
+  it('reports a missing printer in Indonesian', async () => {
+    const { t } = recorder()
+    const slipData = { orderRef: 'MND-1', total: 1, reasonLabel: 'x', voidedBy: 'x', dateTime: 'x' }
+    await expect(printVoidSlip({ transport: t, deviceId: null, data: slipData, settings })).rejects.toThrow(/^Gagal/)
   })
 })

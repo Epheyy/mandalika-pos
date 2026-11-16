@@ -4,7 +4,7 @@
 
 import { Capacitor } from '@capacitor/core'
 import type { components } from '@mandalika/api'
-import { buildReceipt, buildRecap, buildTandaTerima, type ReceiptData, type RecapData, type TandaTerimaData } from './escpos'
+import { buildReceipt, buildRecap, buildTandaTerima, buildVoidSlip, type ReceiptData, type RecapData, type TandaTerimaData, type VoidSlipData } from './escpos'
 import { CapacitorBleTransport } from './ble'
 import { AutoBluetoothTransport } from './autoTransport'
 import { ClassicSppTransport } from './classic'
@@ -113,4 +113,18 @@ export async function printTandaTerima(job: TandaTerimaJob): Promise<void> {
     () => buildTandaTerima(job.data, job.settings, job.reprint),
     1,
   )
+}
+
+export interface VoidSlipJob {
+  transport: PrinterTransport
+  deviceId: string | null
+  data: VoidSlipData
+  settings: ReceiptSettings
+  /** Reserved for the receipt designer; the slip does not read it yet. */
+  layout?: unknown
+}
+
+/** Connect if needed and print a single DIBATALKAN slip. Throws on failure. */
+export async function printVoidSlip(job: VoidSlipJob): Promise<void> {
+  await sendJob(job.transport, job.deviceId, () => buildVoidSlip(job.data), 1)
 }

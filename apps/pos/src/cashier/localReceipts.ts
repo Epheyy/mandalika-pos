@@ -30,8 +30,12 @@ export function filterLocalReceipts<T extends Pick<LocalReceipt, 'orderNumber'>>
   return t === '' ? [...rows] : rows.filter((r) => r.orderNumber.toLowerCase().includes(t))
 }
 
-export function localSaleRef(r: Pick<LocalReceipt, 'orderUuid' | 'serverOrderId'>): LocalSaleRef {
-  return r.serverOrderId ? { orderUuid: r.orderUuid, serverOrderId: r.serverOrderId } : { orderUuid: r.orderUuid }
+export function localSaleRef(r: Pick<LocalReceipt, 'orderUuid' | 'serverOrderId'> & Partial<Pick<LocalReceipt, 'voidQueued' | 'voided'>>): LocalSaleRef {
+  return {
+    orderUuid: r.orderUuid,
+    ...(r.serverOrderId ? { serverOrderId: r.serverOrderId } : {}),
+    ...(r.voidQueued || r.voided ? { voided: true } : {}),
+  }
 }
 
 const isSnapshot = (v: unknown): v is ReceiptSnapshot => {
@@ -61,12 +65,16 @@ function localTenders(r: LocalReceipt, methods?: readonly CashFlagMethod[]): Ord
 
 /** The order the refund dialog shows for a local receipt. Its id is the sale uuid (the dialog's identity);
  *  the payload's real ids come from {@link localSaleRef}. Always 'completed': the refund gate decides. */
-export function localReceiptOrder(r: LocalReceipt, methods?: readonly CashFlagMethod[]): Order {
+export function localReceiptOrder(r: LocalReceipt, methods?: readonly CashFlagMethod[], giveaway?: { productId: string; variantSize: string } | null): Order {
   const snap = isSnapshot(r.receiptSnapshot) ? r.receiptSnapshot : null
   const lines = snap?.lines ?? []
   const tenders = localTenders(r, methods)
   // C4b: a sale that carries per-line data lists its lines by position (lineNo) with their net share; the snapshot
   // may hold one extra trailing line, the C3 giveaway bag, which is shown but never refundable (D-41).
+  // Without per-line data the trailing giveaway line cannot be told by position; it is the last Rp0 reward line of exactly
+  // the outlet's giveaway item (one unit). With none matching it stays a plain line (a limit of receipts before C4b).
+  const last = lines[lines.length - 1]
+  const giveawayIdx = giveaway && last && last.isReward && last.qty === 1 && last.amount === 0 && last.productId === giveaway.productId && last.variantSize === giveaway.variantSize ? lines.length - 1 : -1
   const nets = r.lineNets && r.lineNets.length > 0 && lines.length >= r.lineNets.length && lines.length - r.lineNets.length <= 1 ? r.lineNets : null
   return {
     id: r.orderUuid,
@@ -83,7 +91,7 @@ export function localReceiptOrder(r: LocalReceipt, methods?: readonly CashFlagMe
       ...(l.isBundle ? { isBundle: true } : {}),
       ...(l.bundleGroup != null ? { bundleGroup: l.bundleGroup, bundleRole: l.bundleRole, bundleLine: l.bundleLine, bundleSize: l.bundleSize, bundleDiscount: l.bundleDiscount, bundlePromotionId: l.bundlePromotionId } : {}),
       ...(nets && i < nets.length ? { lineNo: i, netAmount: nets[i], refundGroup: r.lineGroups?.[i] ?? null } : {}),
-      ...(nets && i >= nets.length ? { isGiveaway: true } : {}),
+      ...((nets && i >= nets.length) || (!nets && i === giveawayIdx) ? { isGiveaway: true } : {}),
     })),
   } as unknown as Order
 }
@@ -102,7 +110,7 @@ export const REFUND_VIA_HISTORY_OFFLINE = 'Refund struk ini lewat Riwayat saat o
  *  nothing trustworthy to print (no snapshot, or no quoted total). Never touches the outbox. */
 export function reprintReceiptData(r: LocalReceipt): ReceiptData | null {
   if (!isSnapshot(r.receiptSnapshot) || typeof r.quotedTotal !== 'number') return null
-  return receiptFromQuote({ quotedTotal: r.quotedTotal, receiptSnapshot: r.receiptSnapshot }, {
+  const data = receiptFromQuote({ quotedTotal: r.quotedTotal, receiptSnapshot: r.receiptSnapshot }, {
     orderRef: r.orderNumber,
     dateTime: new Date(r.capturedAt),
     paymentLabel: PAYMENT_LABELS[r.paymentMethod] ?? r.paymentMethod,
@@ -110,6 +118,8 @@ export function reprintReceiptData(r: LocalReceipt): ReceiptData | null {
     customerPhone: null,
     cashierName: '-',
   })
+  // Void: a replacement sale's slip keeps its "Pengganti untuk" line on a reprint (the correction row comes from the snapshot).
+  return r.replacesOrderNumber ? { ...data, replacesOrderRef: r.replacesOrderNumber } : data
 }
 
 /** The newest local receipt that can be reprinted (the list is newest first). */

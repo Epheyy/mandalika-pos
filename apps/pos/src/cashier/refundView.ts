@@ -20,6 +20,7 @@ export const REFUND_NO_PERMISSION = 'Butuh izin refund'
 export const REFUND_QUEUED = 'Refund tersimpan di tablet'
 export const REFUND_NO_SHIFT = 'Buka shift dulu'
 export const REFUND_DONE = 'Sudah direfund'
+export const REFUND_VOIDED = 'Transaksi sudah dibatalkan'
 export const REFUND_SHIFT_UNSYNCED = 'Shift masih tersimpan di tablet'
 export const REFUND_CHANGED = 'Data refund berubah. Tutup lalu coba lagi.'
 /** A struk without line data was already part-refunded from this tablet: only the history row knows what is left. */
@@ -131,6 +132,8 @@ export type RefundAvailability =
 export interface LocalSaleRef {
   orderUuid: string
   serverOrderId?: string
+  /** A void of this sale is queued or was acknowledged here: it is cancelled, so it cannot be refunded. */
+  voided?: boolean
 }
 
 /** What this tablet and the order row say about earlier per-line refunds (C4b). */
@@ -159,7 +162,7 @@ export function partialGateFor(order: Order, cache: RefundCache = {}): PartialGa
 }
 
 export interface RefundAvailabilityInput {
-  order: Pick<Order, 'id' | 'status'>
+  order: Pick<Order, 'id' | 'status'> & { void?: Order['void'] }
   canRefund: boolean
   /** A synced open shift exists: a refund pays out of that drawer (B3). */
   hasOpenShift: boolean
@@ -177,12 +180,17 @@ export interface RefundAvailabilityInput {
   serverIdToSaleUuid?: ReadonlyMap<string, string>
   /** Earlier per-line refunds of this order (C4b); absent = none known. */
   partial?: PartialGate
+  /** Sales (server ids and client uuids) with a queued, parked or acknowledged void on this tablet (engine.queuedVoidOrderIds() + syncedVoidOrderIds()). */
+  voidedOrderIds?: ReadonlySet<string>
 }
 
 export function refundAvailability(i: RefundAvailabilityInput): RefundAvailability {
+  // A voided sale is never refunded (the void already gave the money and stock back). A cancelled imported order without a void stays hidden.
+  if (i.order.status === 'cancelled' && i.order.void) return { kind: 'blocked', reason: REFUND_VOIDED }
   if (i.order.status !== 'completed' && i.order.status !== 'partially_refunded') return { kind: 'hidden' }
   // Either id names the same sale: a refund may have been queued, or acknowledged, under the other one.
   const keys = [i.order.id, i.sale?.orderUuid, i.sale?.serverOrderId, i.serverIdToSaleUuid?.get(i.order.id)].filter((k): k is string => !!k)
+  if (i.sale?.voided || (i.voidedOrderIds && keys.some((k) => i.voidedOrderIds!.has(k)))) return { kind: 'blocked', reason: REFUND_VOIDED }
   if (i.syncedRefundOrderIds && keys.some((k) => i.syncedRefundOrderIds!.has(k))) return { kind: 'blocked', reason: REFUND_DONE }
   if (i.partial?.exhausted) return { kind: 'blocked', reason: REFUND_DONE }
   if (i.partial?.wholeBlocked) return { kind: 'blocked', reason: REFUND_USE_HISTORY }
@@ -351,6 +359,8 @@ export function refundGateProps(i: {
   serverIdToSaleUuid?: ReadonlyMap<string, string>
   /** C4b: units and money this tablet saw acknowledged for an order named by any of these ids. */
   refundCache?: (ids: readonly string[]) => RefundCache
+  /** Sales with a queued, parked or acknowledged void here. */
+  voidedOrderIds?: ReadonlySet<string>
 }) {
   return {
     canRefund: userCanRefund(i.user),
@@ -361,6 +371,7 @@ export function refundGateProps(i: {
     queuedSaleUuids: i.queuedSaleUuids,
     serverIdToSaleUuid: i.serverIdToSaleUuid,
     refundCache: i.refundCache,
+    voidedOrderIds: i.voidedOrderIds,
   }
 }
 

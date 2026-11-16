@@ -26,6 +26,8 @@ interface ReceiptPreviewProps {
   items: CartItem[]
   /** C3: the giveaway row, the same line the paper prints when it was given. */
   giveaway?: GiveawayLine | null
+  /** Void: number of the sale this one replaces; shown as "Pengganti untuk #…" as on paper. */
+  replacesOrderRef?: string | null
   /** The totals rows the printed receipt shows (receiptRows.quoteTotalRows). */
   totalRows: TotalRow[]
   paymentMethod: string
@@ -59,6 +61,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
   orderNumber,
   items,
   giveaway,
+  replacesOrderRef,
   totalRows,
   paymentMethod,
   amountPaid,
@@ -142,6 +145,9 @@ export const ReceiptPreview = memo(function ReceiptPreview({
             </p>
           )}
 
+          {replacesOrderRef && (
+            <p className="text-xs text-ink-500 text-center" data-testid="receipt-replaces">Pengganti untuk #{replacesOrderRef}</p>
+          )}
           {flags.showOrderNumber && (
             <p className="text-xs text-ink-500 text-center" data-testid="receipt-order-number">No {refLabel}</p>
           )}

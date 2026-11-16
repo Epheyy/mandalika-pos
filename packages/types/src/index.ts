@@ -28,7 +28,8 @@ export type PaymentMethod = typeof PaymentMethod[keyof typeof PaymentMethod]
 export const OrderStatus = {
   COMPLETED: 'completed',
   REFUNDED: 'refunded',
-  // Never written by runtime code; only orders imported from legacy Firestore (fsmigrate) can carry it.
+  PARTIALLY_REFUNDED: 'partially_refunded',
+  // Set by a void at runtime and by fsmigrate imports.
   CANCELLED: 'cancelled',
 } as const
 export type OrderStatus = typeof OrderStatus[keyof typeof OrderStatus]
@@ -53,6 +54,8 @@ export const UserPermission = {
   MANAGE_STOCK_COUNT: 'manage_stock_count',
   RESOLVE_SYNC_REVIEW: 'resolve_sync_review',
   REQUEST_STOCK: 'request_stock',
+  VOID_OWN_SHIFT: 'void_own_shift',
+  VOID_ANY: 'void_any',
 } as const
 export type UserPermission = typeof UserPermission[keyof typeof UserPermission]
 
@@ -77,6 +80,18 @@ export interface AppUser {
 export function canRefund(user: { role: string; permissions?: readonly string[] | null } | null | undefined): boolean {
   if (!user) return false
   return user.role === 'admin' || (user.permissions ?? []).includes(UserPermission.PROCESS_REFUND)
+}
+
+/** UI-only void gates, read from the cached signed-in user like canRefund. The server decides (admin bypass, then the
+ *  token's permission); these only hide what would be refused. */
+export function canVoidOwnShift(user: { role: string; permissions?: readonly string[] | null } | null | undefined): boolean {
+  if (!user) return false
+  return user.role === 'admin' || (user.permissions ?? []).includes(UserPermission.VOID_OWN_SHIFT)
+}
+
+export function canVoidAny(user: { role: string; permissions?: readonly string[] | null } | null | undefined): boolean {
+  if (!user) return false
+  return user.role === 'admin' || (user.permissions ?? []).includes(UserPermission.VOID_ANY)
 }
 
 /** UI-only gate for the POS "Permintaan Barang" screen, read from the cached signed-in user. The server decides

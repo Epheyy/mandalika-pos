@@ -10,6 +10,7 @@ import { SyncContext } from '../cashier/SyncProvider'
 import { authStore } from '../api'
 import { ownerLabel } from '../terminalBinding'
 import { refundDetail } from '../cashier/refundView'
+import { voidDetail } from '../cashier/void/voidRules'
 import { STUCK_RETRY_MESSAGE, stuckMessage } from '../lib/stuckMessage'
 
 export interface FailedItem {
@@ -61,7 +62,7 @@ function attention(engine: SyncEngine): { review: FailedItem[]; stuck: FailedIte
     clientCreatedAt: r.clientCreatedAt,
     reviewCode: r.reviewCode,
     lastError: r.reviewReason ?? r.lastError,
-    detail: r.type === 'refund' ? refundDetail(r.payload) : undefined,
+    detail: r.type === 'refund' ? refundDetail(r.payload) : r.type === 'void' ? voidDetail(r.payload) : undefined,
     reported: engine.isReviewReported(r.idempotencyKey),
     ownedBy:
       r.ownerUserId && r.ownerUserId !== authStore.userId

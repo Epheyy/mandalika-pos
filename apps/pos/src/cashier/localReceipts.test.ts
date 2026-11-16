@@ -84,6 +84,13 @@ describe('reprintReceiptData', () => {
     expect(d.lines).toEqual([{ name: 'Mandalika Oud', variant: '110ml', qty: 2, unitPrice: 125000, amount: 250000 }])
     expect(d.dateTime.toISOString()).toBe('2026-10-20T03:00:00.000Z')
   })
+  it('a replacement reprint carries replacesOrderRef and the correction row', () => {
+    const snap = { ...snapshot, v: 2, total: 250000, discounts: [], correctionAmount: -20000, subtotal: 270000 }
+    const d = reprintReceiptData(receipt({ receiptSnapshot: { ...snap, lines: [{ ...snapshot.lines[0], amount: 270000 }] }, replacesOrderNumber: 'BSD-G0001' }))!
+    expect(d.replacesOrderRef).toBe('BSD-G0001')
+    expect(d.correctionAmount).toBe(-20000)
+    expect(reprintReceiptData(receipt())!.replacesOrderRef).toBeUndefined()
+  })
   it('is null when the snapshot is missing or malformed (nothing to print)', () => {
     expect(reprintReceiptData(receipt({ receiptSnapshot: null }))).toBeNull()
     expect(reprintReceiptData(receipt({ receiptSnapshot: { v: 3, lines: [] } }))).toBeNull()
@@ -131,5 +138,21 @@ describe('C4b local receipt lines for a per-line refund', () => {
     expect(localBadge(receipt({ state: 'synced' }), { any: true, exhausted: false, remaining: 500 }).label).toBe('Sebagian direfund')
     expect(localBadge(receipt({ state: 'synced' }), { any: true, exhausted: true, remaining: 0 }).label).toBe('Sudah direfund')
     expect(localBadge(receipt({ state: 'synced', refundQueued: true }), { any: true, exhausted: false, remaining: 500 }).label).toBe('Refund tersimpan di tablet')
+  })
+})
+
+describe('localReceiptOrder giveaway without per-line data', () => {
+  const withGiveaway = receipt({
+    receiptSnapshot: { ...snapshot, lines: [...snapshot.lines, { productId: 'g', variantSize: 'STD', name: 'Tas', qty: 1, unitPrice: 0, amount: 0, isReward: true }] },
+  })
+  const flag = (o: ReturnType<typeof localReceiptOrder>, i: number) => (o.items[i] as { isGiveaway?: boolean }).isGiveaway
+  it('flags the trailing Rp0 giveaway line when it is the outlet giveaway', () => {
+    const o = localReceiptOrder(withGiveaway, undefined, { productId: 'g', variantSize: 'STD' })
+    expect(flag(o, 1)).toBe(true)
+    expect(flag(o, 0)).toBeUndefined()
+  })
+  it('leaves it a plain line without the outlet giveaway or when the item differs', () => {
+    expect(flag(localReceiptOrder(withGiveaway), 1)).toBeUndefined()
+    expect(flag(localReceiptOrder(withGiveaway, undefined, { productId: 'x', variantSize: 'STD' }), 1)).toBeUndefined()
   })
 })

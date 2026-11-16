@@ -24,6 +24,7 @@ type laterVoid struct {
 	hasFollow  bool
 	origTotal  int64
 	forgiven   int64
+	restored   int64 // order_voids.points_restored: what the void actually gave back
 	cancelled  bool
 	hasVoidRow bool
 }
@@ -54,7 +55,7 @@ func lockLaterVoid(ctx context.Context, tx pgx.Tx, outletID, orderID string) (la
 	if !lv.cancelled {
 		return lv, nil
 	}
-	err = tx.QueryRow(ctx, `SELECT id::text, mode, points_forgiven FROM order_voids WHERE order_id=$1`, orderID).Scan(&lv.voidID, &lv.mode, &lv.forgiven)
+	err = tx.QueryRow(ctx, `SELECT id::text, mode, points_forgiven, points_restored FROM order_voids WHERE order_id=$1`, orderID).Scan(&lv.voidID, &lv.mode, &lv.forgiven, &lv.restored)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return lv, nil // an fsmigrate-imported cancelled order has no void row
 	}
@@ -158,9 +159,10 @@ func (s *OrderService) CreateReplacementOrder(ctx context.Context, in CreateOrde
 	if err != nil {
 		return CreateOrderResult{}, err
 	}
-	in.PointsDeduction = 0 // never taken from the caller
+	in.PointsDeduction, in.pointsReuse = 0, 0 // never taken from the caller
 	writeoff := 0
 	if same {
+		in.pointsReuse = int(lv.restored) // what the void actually restored; the replacement may spend them again
 		prior, err := priorPointsDeduction(ctx, tx, in.ReplacesOrderID)
 		if err != nil {
 			return CreateOrderResult{}, err

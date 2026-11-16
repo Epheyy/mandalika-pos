@@ -4,13 +4,14 @@ import type { JournalApplyRequest, JournalReadAllResult, JournalRow, OutboxJourn
 import type { KV } from './storage'
 import { RECEIPT_ARCHIVE_KEY } from './receiptArchive'
 import { PARTIAL_REFUNDS_KEY } from './partialRefunds'
+import { SYNCED_REPLACEMENTS_KEY, SYNCED_VOIDS_KEY } from './syncedRefunds'
 
 /** The meta key of the synced-refund memory (plan §2.3). */
 export const JOURNAL_KV_KEY = 'mandalika.pos.syncedRefunds'
 /** The only meta keys the facade serves: synced-refund memory, the local receipt archive (A41) and the
- *  per-line refund memory (C4b; 2.4.0 shipped without it, so every write of it was refused and the acked
+ *  per-line refund memory and the synced-void memory (Phase 3) (C4b; 2.4.0 shipped without it, so every write of it was refused and the acked
  *  rows were never pruned). Everything else in `meta` (e.g. migration state) is the journal's own business. */
-const FACADE_KEYS: ReadonlySet<string> = new Set([JOURNAL_KV_KEY, RECEIPT_ARCHIVE_KEY, PARTIAL_REFUNDS_KEY])
+const FACADE_KEYS: ReadonlySet<string> = new Set([JOURNAL_KV_KEY, RECEIPT_ARCHIVE_KEY, PARTIAL_REFUNDS_KEY, SYNCED_VOIDS_KEY, SYNCED_REPLACEMENTS_KEY])
 
 /** SQLite `PRAGMA synchronous`: 2 = FULL, 3 = EXTRA. Anything lower can lose a commit on power loss. */
 const SYNCHRONOUS_FULL = 2

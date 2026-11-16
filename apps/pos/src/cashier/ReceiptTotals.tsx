@@ -8,6 +8,7 @@ const TONE: Record<TotalRow['kind'], string> = {
   points: 'text-reward',
   tax: 'text-ink-700',
   rounding: 'text-ink-700',
+  correction: 'text-ink-700',
   total: 'font-bold text-ink-900 text-base pt-2 border-t border-paper-2',
 }
 
@@ -19,7 +20,7 @@ export function ReceiptTotals({ rows }: { rows: TotalRow[] }) {
         <div key={r.key} data-testid={`total-${r.kind}`} className={`flex justify-between gap-3 ${TONE[r.kind]}`}>
           <span className="min-w-0 break-words">{r.label}</span>
           <span className="flex-shrink-0">
-            {r.kind === 'rounding' && r.amount > 0 && '+'}
+            {(r.kind === 'rounding' || r.kind === 'correction') && r.amount > 0 && '+'}
             <Money amount={r.amount} signed />
           </span>
         </div>

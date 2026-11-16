@@ -41,7 +41,7 @@ const isDraft = (v: unknown): v is OpenCartDraft => {
     typeof h.rewardPicks === 'object' && h.rewardPicks !== null
 }
 
-export type OpenCartSource = HeldSource & { isSuccessOpen: boolean; splitMode: boolean; tenders: readonly unknown[] }
+export type OpenCartSource = HeldSource & { isSuccessOpen: boolean; splitMode: boolean; tenders: readonly unknown[]; voidDraft?: unknown }
 
 /**
  * The draft to keep for this state, or null when none should exist: an empty cart (Kosongkan, hold, new sale,
@@ -49,6 +49,8 @@ export type OpenCartSource = HeldSource & { isSuccessOpen: boolean; splitMode: b
  */
 export function openCartFromState(state: OpenCartSource, o: { saleUuid: string; userId: string; now: number }): OpenCartDraft | null {
   if (state.isSuccessOpen || state.cart.length === 0 || !o.userId) return null
+  // A void replacement cart is never kept: restored as a plain sale it would count the money twice, and nothing was voided.
+  if (state.voidDraft) return null
   // With payment lines entered the split draft is the only owner of this sale: a plain restored cart would hide a charge already taken.
   if (state.splitMode && state.tenders.length > 0) return null
   const held = heldOrderFromState(state, { id: o.saleUuid, name: 'Keranjang terbuka', now: o.now })

@@ -3,7 +3,7 @@
 // POST /sync/batch, read-only reference snapshot, content_version sync wall.
 
 export { SyncEngine, RECEIVE_CONFLICT_CODES, BATCH_TIMEOUT_MS, REVIEW_CHECKIN_MS, REVIEW_CHECKIN_NEW_MS, REVIEW_CHECKIN_MAX_ITEMS, BACKOFF_BASE_MS, BACKOFF_CAP_MS, ACCOUNT_PROBLEM_MESSAGE, ENVELOPE_REFUSED_MESSAGE } from './engine'
-export type { ApiLike, ResyncStatus, ReviewResolvedNotice, SyncEvents, WallState, ActorContext, ActorProvider, SyncEngineOptions, PendingShiftOp, QueuedRefund, LocalReceipt } from './engine'
+export type { ApiLike, ResyncStatus, ReviewResolvedNotice, SyncEvents, WallState, ActorContext, ActorProvider, SyncEngineOptions, PendingShiftOp, QueuedRefund, QueuedVoid, LocalReceipt } from './engine'
 export { AutoPullScheduler, AUTO_PULL } from './autoPull'
 export type { AutoPullDeps } from './autoPull'
 export { Outbox, OUTBOX_KEY, MAX_ATTEMPTS, summarizeQueue } from './outbox'
@@ -18,7 +18,7 @@ export { initJournal, quarantineCorruptRows, getJournalBootNotice, JournalBootEr
 export type { JournalBootResult, JournalBootNotice, InitJournalDeps } from './journalBoot'
 export { parseSentinel } from './journalSentinel'
 export type { JournalSentinel } from './journalSentinel'
-export { SyncedRefunds, SYNCED_REFUNDS_MAX, SYNCED_REFUNDS_TTL_MS } from './syncedRefunds'
+export { SyncedRefunds, SYNCED_VOIDS_KEY, SYNCED_REPLACEMENTS_KEY, SYNCED_REFUNDS_MAX, SYNCED_REFUNDS_TTL_MS } from './syncedRefunds'
 export { PartialRefunds, PARTIAL_REFUNDS_KEY, PARTIAL_REFUNDS_MAX, PARTIAL_REFUNDS_TTL_MS, partialRefundFromPayload } from './partialRefunds'
 export type { PartialRefundEntry, PartialRefundLine } from './partialRefunds'
 export { ReceiptArchive, RECEIPT_ARCHIVE_KEY, RECEIPT_RETENTION_MS, RECEIPT_KEEP_NEWEST, prunable, receiptEntryFromItem, lineDataFromItems } from './receiptArchive'

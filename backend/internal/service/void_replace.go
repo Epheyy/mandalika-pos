@@ -78,8 +78,9 @@ func (s *OrderService) VoidAndReplaceTx(ctx context.Context, tx pgx.Tx, in VoidI
 	if err != nil {
 		return VoidResult{}, err
 	}
-	repl.PointsDeduction = 0 // never taken from the caller
+	repl.PointsDeduction, repl.pointsReuse = 0, 0 // never taken from the caller
 	if same {
+		repl.pointsReuse = int(ap.Restored) // the void restored them above; the replacement may spend them again
 		prior, err := priorPointsDeduction(ctx, tx, in.OrderID)
 		if err != nil {
 			return VoidResult{}, err

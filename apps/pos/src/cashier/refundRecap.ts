@@ -1,5 +1,6 @@
 import type { components } from '@mandalika/api'
 import type { QueuedRefund } from '@mandalika/sync'
+import { applyVoidRecap, type VoidRecapOverlay } from './void/voidRecap'
 
 type Shift = components['schemas']['Shift']
 type Order = components['schemas']['Order']
@@ -95,13 +96,17 @@ export function applyRefundRecap(byMethod: Record<string, number>, totalSales: n
   return { byMethod: out, total: totalSales - rec.crossTotal - rec.ownPendingTotal }
 }
 
-/** The figures the recap screen, its totals and the printed slip all use. */
+/** The figures the recap screen, its totals and the printed slip all use. `voidOv` (unsynced voids) runs right after the refund overlay. */
+const NO_VOID_OVERLAY: VoidRecapOverlay = { byMethod: {}, total: 0, orders: 0 }
 export function recapFigures(
   live: { byMethod: Record<string, number>; totalSales: number },
   shift: Shift | null,
   queued: readonly QueuedRefund[] | undefined,
   orders: readonly RecapOrder[] | null | undefined,
+  voidOv: VoidRecapOverlay = NO_VOID_OVERLAY,
 ) {
   const rec = refundRecap(shift, queued, orders)
-  return { rec, ...applyRefundRecap(live.byMethod, live.totalSales, rec) }
+  const refunded = applyRefundRecap(live.byMethod, live.totalSales, rec)
+  const voided = applyVoidRecap(refunded.byMethod, refunded.total, voidOv)
+  return { rec, voidOv, byMethod: voided.byMethod, total: voided.totalSales }
 }

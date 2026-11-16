@@ -15,6 +15,7 @@ import { planPromotionFulfillment, type PromotionOwner, type FulfillmentChoice }
 import { effectivePromotionSelection, isRedundantPromoCode } from '../promotionSelection'
 import { reconcileAutoPromos, type AutoPrompt, type AutoPromoContext } from '../autoPromos'
 import { repriceBundles } from '../setBundles'
+import { initialReplacementTenders, type VoidDraft } from '../void/voidReplacement'
 
 type CartItem = components['schemas']['CartItem']
 type Customer = components['schemas']['Customer']
@@ -85,6 +86,11 @@ export interface CashierState {
   /** The reserved order number of the sale just completed (what is printed). */
   lastOrderNumber: string | null
   isSuccessOpen: boolean
+  /** Void phase 3: the open "Batalkan & perbaiki" / "Buat pengganti" replacement cart. Memory only: never persisted
+   *  (open cart, split draft and held orders all refuse a state that has it), so a restart or an abandoned cart voids nothing. */
+  voidDraft: VoidDraft | null
+  /** How the replacement settles against the original total (a locked draft is always 'adjust'). */
+  voidCorrectionChoice: 'adjust' | 'settle'
   // UI prefs
   activeTab: 'products' | 'cart'
 }
@@ -143,6 +149,12 @@ export type CashierAction =
   | { type: 'CLOSE_SUCCESS' }
   | { type: 'SET_ACTIVE_TAB'; tab: 'products' | 'cart' }
   | { type: 'RESET_SALE' }
+  /** Marks the cart as the replacement of a sale being voided. Does NOT clear the cart: it comes after the restore
+   *  actions, whose first action (CART_CLEAR) would drop it. */
+  | { type: 'VOID_DRAFT_START'; draft: VoidDraft }
+  /** Abandons the replacement: draft AND cart go (a cart left behind would be a plain sale that counts the money twice). */
+  | { type: 'VOID_DRAFT_CANCEL' }
+  | { type: 'SET_VOID_CORRECTION_CHOICE'; choice: 'adjust' | 'settle' }
 
 /** What leaves the state whenever the checkout sheet closes, a sale completes or the sale resets. */
 const NO_SPLIT = { splitMode: false, tenders: [] as TenderLine[], splitOrderUuid: null, tenderReference: '' }
@@ -180,6 +192,8 @@ export const CASHIER_INITIAL_STATE: CashierState = {
   lastOrderId: null,
   lastOrderNumber: null,
   isSuccessOpen: false,
+  voidDraft: null,
+  voidCorrectionChoice: 'adjust',
   activeTab: 'products',
 }
 
@@ -484,6 +498,8 @@ function baseReducer(
         bundleFreed: {},
         bundleApplications: {},
         activeAdjustment: null,
+        voidDraft: null,
+        voidCorrectionChoice: 'adjust',
       }
 
     case 'SET_CUSTOMER': {
@@ -691,6 +707,10 @@ function baseReducer(
         paymentMethod: action.defaultMethod,
         amountPaid: '',
         ...NO_SPLIT,
+        // A replacement opens with what the store already received (the sheet closing wipes the lines).
+        ...(state.voidDraft
+          ? { splitMode: true, tenders: initialReplacementTenders(state.voidDraft), splitOrderUuid: state.voidDraft.replacementUuid ?? null }
+          : {}),
       }
 
     case 'CLOSE_CHECKOUT':
@@ -735,6 +755,8 @@ function baseReducer(
         isSuccessOpen: true,
         isProcessing: false,
         ...NO_SPLIT,
+        voidDraft: null,
+        voidCorrectionChoice: 'adjust',
       }
 
     case 'CLOSE_SUCCESS':
@@ -747,6 +769,15 @@ function baseReducer(
 
     case 'SET_ACTIVE_TAB':
       return { ...state, activeTab: action.tab }
+
+    case 'VOID_DRAFT_START':
+      return { ...state, voidDraft: action.draft, voidCorrectionChoice: 'adjust' }
+
+    case 'VOID_DRAFT_CANCEL':
+      return { ...cashierReducer(state, { type: 'CART_CLEAR' }), isCheckoutOpen: false, ...NO_SPLIT, amountPaid: '' }
+
+    case 'SET_VOID_CORRECTION_CHOICE':
+      return state.voidDraft ? { ...state, voidCorrectionChoice: action.choice } : state
 
     case 'RESET_SALE': {
       return {

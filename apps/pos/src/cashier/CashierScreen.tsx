@@ -53,7 +53,7 @@ import { RefundDialog, type RefundConfirmInput } from './RefundDialog'
 import type { RefundCache } from './refundSelection'
 import type { HistoryFocus } from './OrderHistoryPanel'
 import { withSaleLineData } from './saleLineData'
-import { REFUND_DONE, REFUND_QUEUED, orderReceiptTenders, planRefundSubmit, refundGateProps, type LocalSaleRef } from './refundView'
+import { REFUND_DONE, REFUND_QUEUED, REFUND_VOIDED, orderReceiptTenders, planRefundSubmit, refundGateProps, type LocalSaleRef } from './refundView'
 import { OrderHistoryPanel } from './OrderHistoryPanel'
 import { LocalReceiptsPanel } from './LocalReceiptsPanel'
 import { localReceiptOrder, localSaleRef, newestReprintable, reprintReceiptData } from './localReceipts'
@@ -94,7 +94,15 @@ import { track } from '../lib/activityLog'
 import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
 import { brand, hasFeature } from '../brand'
 import { PAYMENT_LABELS, tenderLabel } from '../lib/paymentLabels'
-import { cashPredicate, planSaleTender, salePaymentFields, snapshotTenders } from './tenderSplit'
+import { cashPredicate, planSaleTender, snapshotTenders } from './tenderSplit'
+import { buildSaleOrderPayload } from './salePayload'
+import { applyLockedTenders, commitVoidDraftSale, voidDraftRefusal, voidDroppedMessage, voidPayable, voidSlipData } from './void/voidCheckout'
+import { isLocked, lockedTendersProblem, voidDraftNames } from './void/voidReplacement'
+import { BatalkanSheet } from './void/BatalkanSheet'
+import { VoidDraftBanner } from './void/VoidDraftBanner'
+import { useVoidFlow } from './void/useVoidFlow'
+import { localVoidSale } from './void/localVoidSale'
+import { VOID_BLOCKED_DRAFT, type VoidAvailabilityInput } from './void/voidRules'
 import { useSplitDraft } from './useSplitDraft'
 import { useOpenCartDraft } from './useOpenCartDraft'
 import { autoReconcileFingerprint, autoRunAllowed, autoSetWouldChange, hasAutoPromotions } from './autoPromoRun'
@@ -258,6 +266,8 @@ export default function CashierScreen() {
   const lastReceipt = useRef<ReceiptData | null>(null)
   /** What the success view shows of the payment (ORDER_SUCCESS clears the split lines, and the single-mode inputs are re-derived on a new sale). */
   const lastPayment = useRef<{ paymentMethod: string; amountPaid: number; change: number } | null>(null)
+  /** The Penyesuaian koreksi of the sale just made (ORDER_SUCCESS drops the void draft the live value comes from). */
+  const lastCorrection = useRef(0)
   const [printError, setPrintError] = useState<string | null>(null)
   /** R11 F36: when the sale just made was captured (the engine's stored time). One value feeds the on-screen receipt and the printed slip. */
   const [saleTime, setSaleTime] = useState<Date | null>(null)
@@ -342,12 +352,16 @@ export default function CashierScreen() {
 
   const { actions: cartActions, derived } = useCart({ state, dispatch, settings, loyalty })
   const cartShown = derived.totalCartItems > 0
+  // Void replacement: when the gap is booked as Penyesuaian koreksi the cart is due the ORIGINAL total. One due amount
+  // (`payDerived.total`) feeds the sheet, the tender lines and the confirm; `derived` stays the cart's own pricing.
+  const voidPay = voidPayable(state.voidDraft, state.voidCorrectionChoice, derived.total)
+  const payDerived = voidPay.correction === 0 ? derived : { ...derived, total: derived.total + voidPay.correction }
   // C3: the outlet giveaway the server adds to every sale, shown as a derived Rp0 line (never in state.cart).
   const giveawayConfig = hasFeature('giveaway') ? snapshot.outletGiveaway : undefined
   const giveaway = giveawayLine(state.cart, giveawayConfig, giveawayConfig ? giveawayStock(giveawayConfig, displayProducts, pendingStockDeltas) : 0)
   // The totals block of the checkout sheet and of the receipt preview, from the same quote the printer uses.
-  const checkoutRows = state.isCheckoutOpen ? quoteTotalRows(state.cart, derived, { showSubtotal: true, showDiscount: true, showTax: settings.taxEnabled }) : []
-  const receiptRows = state.isSuccessOpen ? quoteTotalRows(state.cart, derived, settings.receipt) : []
+  const checkoutRows = state.isCheckoutOpen ? quoteTotalRows(state.cart, derived, { showSubtotal: true, showDiscount: true, showTax: settings.taxEnabled }, voidPay.correction) : []
+  const receiptRows = state.isSuccessOpen ? quoteTotalRows(state.cart, derived, settings.receipt, lastCorrection.current) : []
   const parked = useParkedBanner(engine, offlineData.review, derived.totalCartItems === 0)
 
   // Cart panel hides when empty; if the mobile cart tab was active when the
@@ -405,7 +419,7 @@ export default function CashierScreen() {
 
   const enabledMethods = settings.paymentMethods.filter((m) => m.isEnabled)
   const defaultMethod = enabledMethods[0]?.id ?? 'cash'
-  const tender = cashTender(isCashMethod(settings.paymentMethods, state.paymentMethod), state.amountPaid, derived.total)
+  const tender = cashTender(isCashMethod(settings.paymentMethods, state.paymentMethod), state.amountPaid, payDerived.total)
   const isCashId = cashPredicate(settings.paymentMethods)
   const methodLabel = (id: string): string => tenderLabel(id, settings.paymentMethods)
   const successPayment = lastPayment.current ?? { paymentMethod: state.paymentMethod, amountPaid: tender.amountPaid, change: tender.change }
@@ -431,9 +445,30 @@ export default function CashierScreen() {
   })
   const { open: heldOpen, setOpen: setHeldOpen } = heldOrders
 
+  // Void phase 3: the Batalkan sheet and its "perbaiki" / "pengganti" carts. The gate is UI-only (the server decides).
+  /** Sales with a queued, parked or acknowledged void here: never offered a refund. */
+  const voidedIds = (): Set<string> => new Set([...engine.queuedVoidOrderIds(), ...engine.syncedVoidOrderIds(), ...engine.queuedVoids().flatMap((v) => [v.orderId, v.saleOrderUuid ?? ''].filter(Boolean))])
+  const voidGateInputs = (draftOpen = !!state.voidDraft): Omit<VoidAvailabilityInput, 'order'> => ({
+    draftOpen,
+    user, deviceId: engine.deviceId, currentShift: shift.currentShift,
+    queuedVoidIds: engine.queuedVoidOrderIds(),
+    queuedRefundIds: new Set([...engine.queuedRefundOrderIds(), ...engine.queuedRefundSaleUuids()]),
+    syncedVoidIds: engine.syncedVoidOrderIds(),
+    queuedReplacementOf: new Set([...engine.queuedReplacementOrderIds(), ...engine.syncedReplacementOrderIds()]),
+  })
+  const voidFlow = useVoidFlow({
+    engine, dispatch, cartHasItems: state.cart.length > 0, draftOpen: !!state.voidDraft, currentShift: shift.currentShift, isOnline: offlineData.isOnline,
+    methods: settings.paymentMethods, giveaway: giveawayConfig, voidedBy: user?.displayName ?? 'Kasir',
+    getEnv: () => ({ products: displayProducts, promotions, discountCodes, bundleCatalog, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }),
+    getGate: () => voidGateInputs(false), getPreview: (id) => api.getVoidPreview(id),
+    ensureShift, offlineLock, askConfirm: (c) => setConfirm(c), showToast,
+    closePanels: () => { setShowHistory(false); setShowLocalReceipts(false) },
+    printSlip: async (data) => { if (printer.isPaired) await printer.printVoidSlip(data, settings.receipt) },
+  })
+
   // C6 D-62: an unfinished split payment survives an app kill (the draft owns the sale's order uuid).
   const splitDraft = useSplitDraft({
-    outletId: authStore.outletId ?? '', state, total: derived.total, dispatch, isCash: isCashId, defaultMethod,
+    outletId: authStore.outletId ?? '', state, total: payDerived.total, dispatch, isCash: isCashId, defaultMethod,
     getEnv: () => ({ products: displayProducts, promotions, discountCodes, bundleCatalog, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }),
     saleUuids: () => new Set([
       ...engine.outbox.all().flatMap((i) => (i.type === 'order' && typeof i.payload.orderUuid === 'string' ? [i.payload.orderUuid] : [])),
@@ -850,12 +885,23 @@ export default function CashierScreen() {
       showToast(lockedMsg)
       return
     }
+    // Void replacement: the shift it began in must still be the open one, else nothing is queued and the draft is dropped.
+    const voidDraft = state.voidDraft
+    const voidRefusal = voidDraft ? voidDraftRefusal(voidDraft, shift.currentShift, voidGateInputs(false)) : null
+    if (voidDraft && voidRefusal) {
+      showToast(voidRefusal)
+      dispatch({ type: 'VOID_DRAFT_CANCEL' })
+      await openCart.clearForSale()
+      return
+    }
     // Re-confirm a clean total if a stale customer benefit survives a UI transition.
     if (!state.selectedCustomer && (state.pointsToRedeem > 0 || state.cart.some(c => c.isReward && c.rewardConditionId))) {
       dispatch({ type: 'SET_CUSTOMER', customer: null })
       showToast('Manfaat loyalti dibatalkan: pilih pelanggan terlebih dahulu')
       return
     }
+    // With a void draft the payable is fixed to the original total for adjust / locked, so an auto-promo change only moves
+    // the Penyesuaian koreksi; with 'settle' the cashier re-confirms the new total, exactly as for a plain sale.
     // Promo auto-apply: an hour that ended or a promo a pull switched off may change the auto set since the cashier
     // last looked. Commit it and let them confirm the total they now see (same pattern as the guard below).
     const autoEnv = { promotions, products: displayProducts, ctx: { now: new Date(), outletId: authStore.outletId ?? '', timezone: outletTimezone } }
@@ -898,12 +944,19 @@ export default function CashierScreen() {
       return
     }
     // C6: the payment is judged at tap time against the total NOW (never trimmed to fit): a stale plan is refused.
-    const plan = planSaleTender({
+    const basePlan = planSaleTender({
       splitMode: state.splitMode, tenders: state.tenders, method: state.paymentMethod, amountInput: state.amountPaid,
-      reference: state.tenderReference, due: derived.total, isCash: isCashId, labelOf: methodLabel,
+      reference: state.tenderReference, due: payDerived.total, isCash: isCashId, labelOf: methodLabel,
     })
-    if (!plan.ok) {
-      showToast(plan.reason)
+    if (!basePlan.ok) {
+      showToast(basePlan.reason)
+      return
+    }
+    // A locked void replacement sends the amounts APPLIED (never tendered / change) and must equal what the store received.
+    const plan = voidDraft ? applyLockedTenders(basePlan, voidDraft, settings.paymentMethods) : basePlan
+    const lockedProblem = voidDraft && isLocked(voidDraft) ? lockedTendersProblem(plan.lines, voidDraft.originalTotal) : null
+    if (lockedProblem) {
+      showToast(lockedProblem)
       return
     }
     setSaleError(null)
@@ -917,7 +970,11 @@ export default function CashierScreen() {
       // The sale only counts once it is durably queued: await the outbox write
       // BEFORE any success state, cart reset or receipt print.
       const outcome = await saleGate.current.run(async () => {
-        const queuedNumbers = engine.outbox.all().flatMap((i) => (i.type === 'order' && typeof i.payload.orderNumber === 'string' ? [i.payload.orderNumber] : []))
+        const queuedNumbers = engine.outbox.all().flatMap((i) => {
+          // A void's replacement holds a number too.
+          const p = i.type === 'void' ? (i.payload.replacement as { orderNumber?: unknown } | undefined) : i.type === 'order' ? i.payload : undefined
+          return typeof p?.orderNumber === 'string' ? [p.orderNumber] : []
+        })
         const reserved = await reserveOrderNo(engine.getSnapshot().outletCode, engine.deviceId, authStore.outletId, undefined, queuedNumbers)
         orderNo = reserved.orderNo
         if (reserved.error !== undefined) {
@@ -927,7 +984,7 @@ export default function CashierScreen() {
         // queued as the quote and printed below (printed == quoted by construction).
         const quote = buildReceiptQuote({
           cart: giveaway ? [...state.cart, giveaway] : state.cart, derived, tender: { amountPaid: plan.amountPaid, change: plan.change },
-          refVersion: engine.referenceVersion(), tenders: snapshotTenders(plan, methodLabel),
+          refVersion: engine.referenceVersion(), tenders: snapshotTenders(plan, methodLabel), correction: voidPay.correction,
         })
         quoteHolder.current = quote
         // C4b: each line carries its net share and promo group so a refund of this sale can be priced on the
@@ -941,28 +998,23 @@ export default function CashierScreen() {
         // sale share one idempotency key (a draft can never become a second sale).
         const saleUuid = openCart.saleUuidFor(state)
         await openCart.commitBeforeSale(saleUuid)
-        const queued = await engine.enqueue('order', {
-        orderNumber: orderNo,
-        items: saleItems,
-        ...salePaymentFields(plan),
-        customerId: state.selectedCustomer?.id ?? null,
-        customerName: state.selectedCustomer?.name ?? null,
-        salesmanId: state.selectedSalesman?.id ?? null,
-        salesmanName: state.selectedSalesman?.name ?? null,
-        discountType: state.discountRunning > 0 ? state.appliedDiscountType : null,
-        discountValue: state.discountRunning > 0 ? state.discountRunning : null,
-        surchargeValue: state.surchargeRunning > 0 ? state.surchargeRunning : null,
-        surchargeType: state.surchargeRunning > 0 ? state.appliedSurchargeType : null,
-        ...promotionMetadata,
-        pointsRedeemed: derived.redeemedPoints > 0 ? derived.redeemedPoints : null,
-        notes: state.orderNotes.trim() || null,
-        shiftId: shift.currentShift?.id || null, // '' = open not yet synced
-        quotedTotal: quote.quotedTotal,
-        receiptSnapshot: quote.receiptSnapshot,
-      }, saleUuid)
+        // The ONE order payload builder: a plain sale queues it as an 'order', a void replacement nests it in a 'void'.
+        const orderPayload = buildSaleOrderPayload({
+          orderNumber: orderNo, items: saleItems, plan, state, promotionMetadata, redeemedPoints: derived.redeemedPoints,
+          shiftId: shift.currentShift?.id || null, // '' = open not yet synced
+          quote,
+        })
+        const queued = voidDraft
+          ? await commitVoidDraftSale({
+            engine, draft: voidDraft, currentShift: shift.currentShift, orderPayload, saleUuid,
+            choice: state.voidCorrectionChoice, cartTotal: derived.total, methods: settings.paymentMethods, gate: voidGateInputs(false),
+          })
+          : { status: 'queued' as const, ...(await engine.enqueue('order', orderPayload, saleUuid)) }
+        // A refused void queued nothing: the draft (and its cart) stays or goes below, the stored cart draft is untouched.
+        if (queued.status === 'refused') return queued
         // The draft goes right after the enqueue resolved, inside the gate; a kill in between leaves a draft whose
         // uuid is already queued, which the next start drops without a prompt.
-        await splitDraft.clearForSale(queued.orderUuid)
+        await splitDraft.clearForSale(saleUuid)
         await openCart.clearForSale()
         return queued
       })
@@ -973,6 +1025,16 @@ export default function CashierScreen() {
         dispatch({ type: 'SET_PROCESSING', processing: false })
         setSaleError(notSavedMessage('Transaksi'))
         void reportErrors([{ source: 'runtime', kind: 'outbox_write', action: `Simpan transaksi ${orderNo}`, message: outcome.error instanceof Error ? outcome.error.message : 'penyimpanan lokal gagal', outletName: snapshot.outletName }])
+        return
+      }
+      if (outcome.value.status === 'refused') {
+        // Nothing was queued. A dropped draft takes its cart with it (a plain cart would count the money twice).
+        dispatch({ type: 'SET_PROCESSING', processing: false })
+        showToast(outcome.value.message)
+        if (outcome.value.dropDraft) {
+          dispatch({ type: 'VOID_DRAFT_CANCEL' })
+          await openCart.clearForSale()
+        }
         return
       }
       const { orderUuid } = outcome.value
@@ -990,20 +1052,33 @@ export default function CashierScreen() {
         customerPhone: state.selectedCustomer?.phone ?? null,
         cashierName: user?.displayName ?? 'Kasir',
       }, (id) => promotions.find((p) => p.id === id)?.name)
+      if (voidDraft) receipt.replacesOrderRef = voidDraft.orderNumber
       lastReceipt.current = receipt
+      lastCorrection.current = voidPay.correction
       lastPayment.current = { paymentMethod: plan.paymentMethod, amountPaid: plan.amountPaid, change: plan.change }
       setPrintError(null)
       dispatch({ type: 'ORDER_SUCCESS', orderId: orderUuid, orderNumber: orderNo })
       // Local BLE print — works offline, independent of sync (§6).
       // Auto-print on every successful sale when a printer is paired.
       if (printer.isPaired) {
-        printer
+        const printReceipt = () => printer
           .print(receipt, settings.receipt)
           .catch((e: unknown) => {
             const msg = e instanceof Error ? e.message : 'Gagal mencetak'
             setPrintError(msg)
             void reportErrors([{ source: 'print', kind: 'receipt', action: `Cetak struk ${orderNo}`, message: msg, outletName: snapshot.outletName }])
           })
+        // Void: the DIBATALKAN slip first (only now that the void is saved), then the replacement receipt.
+        if (voidDraft?.kind === 'void_and_replace') {
+          printer
+            .printVoidSlip(voidSlipData({ draft: voidDraft, voidedBy: user?.displayName ?? 'Kasir', replacementRef: orderNo, at: saleAt }), settings.receipt)
+            .catch((e: unknown) => {
+              const msg = e instanceof Error ? e.message : 'Gagal mencetak'
+              setPrintError(msg)
+              void reportErrors([{ source: 'print', kind: 'receipt', action: `Cetak slip pembatalan ${voidDraft.orderNumber}`, message: msg, outletName: snapshot.outletName }])
+            })
+            .finally(() => { void printReceipt() })
+        } else void printReceipt()
       }
     } catch { dispatch({ type: 'SET_PROCESSING', processing: false }) }
   }
@@ -1116,6 +1191,8 @@ export default function CashierScreen() {
     const synced = engine.syncedRefundOrderIds()
     const queuedIds = engine.queuedRefundOrderIds()
     const queuedUuids = engine.queuedRefundSaleUuids()
+    const voided = voidedIds()
+    if (ids.some((k) => voided.has(k))) { setRefundError(REFUND_VOIDED); return }
     if (ids.some((k) => synced.has(k))) { setRefundError(REFUND_DONE); return }
     if (ids.some((k) => queuedIds.has(k) || queuedUuids.has(k))) { setRefundError(REFUND_QUEUED); return }
     const plan = planRefundSubmit({
@@ -1218,6 +1295,7 @@ export default function CashierScreen() {
       if (showRequisitions) { if (!requisitionBackRef.current?.()) setShowRequisitions(false); return true }
       if (showRecap) { if (!recapBackRef.current?.()) closeRecap(); return true }
       if (refundOrder) { setRefundOrder(null); setRefundSale(null); return true }
+      if (voidFlow.target) { if (!voidFlow.isProcessing) voidFlow.close(); return true }
       if (layer === 'close-picker') { setPendingFulfillment(null); return true }
       if (layer === 'close-success') { dispatch({ type: 'CLOSE_SUCCESS' }); return true }
       if (layer === 'close-checkout') {
@@ -1238,7 +1316,7 @@ export default function CashierScreen() {
     })
     return () => setBackHandler(null)
   }, [
-    showConnection, showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRequisitions, showRecap, refundOrder,
+    showConnection, showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRequisitions, showRecap, refundOrder, voidFlow.target, voidFlow.isProcessing,
     state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment, state.isProcessing, pendingFulfillment, confirm,
     state.activeTab, profileCustomer, showCustomerSheet, heldOpen,
     // D-63: the Back handler asks before dropping entered payment lines, so it must see them.
@@ -1335,6 +1413,12 @@ export default function CashierScreen() {
             message: 'Hapus pembayaran terpisah yang belum selesai? Pastikan transaksi di mesin EDC/QRIS dibatalkan.',
             confirmLabel: 'Hapus', tone: 'danger', run: () => splitDraft.discard(),
           })} />
+      )}
+
+      {state.voidDraft && (
+        <VoidDraftBanner draft={state.voidDraft} choice={state.voidCorrectionChoice}
+          onChoice={(choice) => dispatch({ type: 'SET_VOID_CORRECTION_CHOICE', choice })}
+          onCancel={() => { showToast(voidDroppedMessage(state.voidDraft!.orderNumber), 'info'); dispatch({ type: 'VOID_DRAFT_CANCEL' }) }} />
       )}
 
       {ota.state.pending && otaBannerDismissed !== ota.state.pending.version && (
@@ -1490,7 +1574,7 @@ export default function CashierScreen() {
 
       <CheckoutPanel
         isOpen={state.isCheckoutOpen} isProcessing={state.isProcessing}
-        derived={derived} totalRows={checkoutRows} settings={settings} paymentMethod={state.paymentMethod}
+        derived={payDerived} totalRows={checkoutRows} settings={settings} paymentMethod={state.paymentMethod}
         amountPaid={state.amountPaid} selectedCustomer={state.selectedCustomer}
         orderNotes={state.orderNotes}
         salesmen={salesmen} selectedSalesmanId={state.selectedSalesman?.id ?? null}
@@ -1516,7 +1600,7 @@ export default function CashierScreen() {
           dispatch({ type: 'SPLIT_START', orderUuid: uuid() })
         }}
         onSplitCancel={() => dispatch({ type: 'SPLIT_CANCEL' })}
-        onTenderAdd={(line) => dispatch({ type: 'TENDER_ADD', line, due: derived.total, isCash: isCashId })}
+        onTenderAdd={(line) => dispatch({ type: 'TENDER_ADD', line, due: payDerived.total, isCash: isCashId })}
         onTenderRemove={(index) => dispatch({ type: 'TENDER_REMOVE', index })}
         onConfirm={() => void handleConfirmPayment()}
         saveError={saleError}
@@ -1533,6 +1617,7 @@ export default function CashierScreen() {
         amountPaid={successPayment.amountPaid}
         change={successPayment.change}
         tenders={state.isSuccessOpen ? lastReceipt.current?.tenders : undefined}
+        replacesOrderRef={state.isSuccessOpen ? lastReceipt.current?.replacesOrderRef : undefined}
         customerName={state.selectedCustomer?.name ?? null} customerPhone={state.selectedCustomer?.phone ?? null} cashierName={user.displayName}
         settings={settings} capturedAt={saleTime} isPendingSync={offlineData.pendingCount > 0}
         orderState={state.isSuccessOpen ? orderStateFor(engine.localReceipts(), state.lastOrderId) : 'unknown'}
@@ -1545,7 +1630,7 @@ export default function CashierScreen() {
 
       <HeldOrdersSheet
         open={heldOrders.open} onClose={() => heldOrders.setOpen(false)} held={heldOrders.held}
-        canSave={heldOrders.hasCart} defaultName={heldOrders.suggestedName}
+        canSave={heldOrders.canSave} defaultName={heldOrders.suggestedName}
         onSave={heldOrders.save} onResume={heldOrders.resume} onDelete={heldOrders.remove}
       />
 
@@ -1562,13 +1647,15 @@ export default function CashierScreen() {
         onCloseShift={async (...args) => {
           const closed = await shift.closeShift(...args)
           // P-20: a closed shift sells nothing, so its open cart goes too (draft and screen).
-          if (closed) { await openCart.clearForSale(); dispatch({ type: 'CART_CLEAR' }) }
+          // A void replacement cart goes with it: nothing was voided (VOID_DRAFT_CANCEL also clears the cart).
+          if (closed) { await openCart.clearForSale(); dispatch({ type: 'VOID_DRAFT_CANCEL' }) }
           return closed
         }}
         shiftError={shift.shiftError}
         isOpeningShift={shift.isOpeningShift}
         isClosingShift={shift.isClosingShift}
         queuedRefunds={engine.queuedRefunds()}
+        queuedVoids={engine.queuedVoids()}
         blindCount={blindCount}
         heldCount={heldOrders.held.length}
         backRef={recapBackRef}
@@ -1608,13 +1695,17 @@ export default function CashierScreen() {
         focus={historyFocus}
         isOpen={showHistory}
         onClose={() => setShowHistory(false)}
-        onRefund={(o) => { setShowHistory(false); setRefundSale(null); setRefundOrder(o) }}
+        onRefund={(o) => { if (voidDraftNames(state.voidDraft, [o.id])) { showToast(VOID_BLOCKED_DRAFT); return }; setShowHistory(false); setRefundSale(null); setRefundOrder(o) }}
         onReprint={reprintOrder}
         canReprint={printer.isPaired}
         timezone={outletTimezone}
         shiftOpenedAt={shift.currentShift?.openedAt}
+        voidGate={voidGateInputs()}
+        parkedVoids={engine.queuedVoids()}
+        onVoid={(o) => voidFlow.openVoid(o, o, o.id)}
+        onCreateReplacement={voidFlow.openReplacement}
         paymentMethods={settings.paymentMethods}
-        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId, refundCache: refundCacheFor })}
+        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId, refundCache: refundCacheFor, voidedOrderIds: voidedIds() })}
       />
 
       <LocalReceiptsPanel
@@ -1625,15 +1716,22 @@ export default function CashierScreen() {
         canReprint={printer.isPaired}
         onReprint={reprintLocal}
         isOnline={offlineData.isOnline}
+        voidGate={voidGateInputs()}
+        parkedVoids={engine.queuedVoids()}
+        onVoid={(r) => voidFlow.openVoid(localReceiptOrder(r, settings.paymentMethods, giveawayConfig), localVoidSale(r), r.serverOrderId ?? null)}
         onOpenInHistory={(r) => {
           if (!r.serverOrderId) return
           setHistoryFocus({ orderId: r.serverOrderId, orderNumber: r.orderNumber, capturedAt: r.capturedAt, nonce: Date.now() })
           setShowLocalReceipts(false)
           setShowHistory(true)
         }}
-        onRefund={(r) => { setShowLocalReceipts(false); setRefundSale(localSaleRef(r)); setRefundOrder(localReceiptOrder(r, settings.paymentMethods)) }}
-        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId, refundCache: refundCacheFor })}
+        onRefund={(r) => { if (voidDraftNames(state.voidDraft, [r.orderUuid, r.serverOrderId])) { showToast(VOID_BLOCKED_DRAFT); return }; setShowLocalReceipts(false); setRefundSale(localSaleRef(r)); setRefundOrder(localReceiptOrder(r, settings.paymentMethods)) }}
+        {...refundGateProps({ user, currentShift: shift.currentShift, queuedOrderIds: engine.queuedRefundOrderIds(), syncedRefundOrderIds: engine.syncedRefundOrderIds(), queuedSaleUuids: engine.queuedRefundSaleUuids(), serverIdToSaleUuid: saleUuidByServerId, refundCache: refundCacheFor, voidedOrderIds: voidedIds() })}
       />
+
+      <BatalkanSheet order={voidFlow.target?.order ?? null} preview={voidFlow.target?.preview ?? null} previewLoading={voidFlow.target?.previewLoading}
+        previewFailed={voidFlow.previewFailed} onRetryPreview={voidFlow.retryPreview}
+        isProcessing={voidFlow.isProcessing} error={voidFlow.error} onConfirm={(i) => { void voidFlow.confirm(i) }} onClose={voidFlow.close} />
 
       <RefundDialog order={refundOrder} methods={settings.paymentMethods} cache={refundOrder ? refundCacheFor(refundIdsFor(refundOrder.id)) : undefined} isProcessing={isRefunding} error={refundError}
         onConfirm={(id, input) => { void handleRefundConfirm(id, input) }}

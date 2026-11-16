@@ -19,10 +19,12 @@ import {
   printReceipt,
   printRecap,
   printTandaTerima,
+  printVoidSlip,
   type PrinterTransport,
   type ReceiptData,
   type RecapData,
   type TandaTerimaData,
+  type VoidSlipData,
 } from '@mandalika/printer'
 import { getKV } from '@mandalika/sync'
 
@@ -46,6 +48,8 @@ interface PrinterState {
   print: (data: ReceiptData, settings: ReceiptSettings, reprint?: boolean) => Promise<void>
   printRecap: (data: RecapData, settings: ReceiptSettings) => Promise<void>
   printTandaTerima: (data: TandaTerimaData, settings: ReceiptSettings, reprint?: boolean) => Promise<void>
+  /** DIBATALKAN slip; `layout` is reserved for the receipt designer (typed unknown until it lands). */
+  printVoidSlip: (data: VoidSlipData, settings: ReceiptSettings, layout?: unknown) => Promise<void>
   testPrint: (settings: ReceiptSettings) => Promise<void>
 }
 
@@ -165,6 +169,19 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
     [pairedId],
   )
 
+  const doPrintVoidSlip = useCallback(
+    async (data: VoidSlipData, settings: ReceiptSettings, layout?: unknown) => {
+      await printVoidSlip({
+        transport: transportRef.current,
+        deviceId: pairedId,
+        data,
+        settings,
+        layout,
+      })
+    },
+    [pairedId],
+  )
+
   const value = useMemo<PrinterState>(
     () => ({
       supported,
@@ -177,9 +194,10 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
       print,
       printRecap: doPrintRecap,
       printTandaTerima: doPrintTandaTerima,
+      printVoidSlip: doPrintVoidSlip,
       testPrint,
     }),
-    [supported, pairedName, pairedId, listBonded, pairTo, pair, unpair, print, doPrintRecap, doPrintTandaTerima, testPrint],
+    [supported, pairedName, pairedId, listBonded, pairTo, pair, unpair, print, doPrintRecap, doPrintTandaTerima, doPrintVoidSlip, testPrint],
   )
 
   return <PrinterCtx.Provider value={value}>{children}</PrinterCtx.Provider>

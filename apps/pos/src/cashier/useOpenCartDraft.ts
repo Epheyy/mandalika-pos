@@ -32,9 +32,9 @@ export function useOpenCartDraft({ outletId, userId, state, dispatch, getEnv, ca
   const sawCart = useRef(false)
 
   const mintUuid = (): string => (uuidRef.current ??= crypto.randomUUID())
-  /** The uuid the sale of THIS cart must use: the split draft's when split mode owns one, else the cart's own. */
-  const saleUuidFor = (s: Pick<CashierState, 'splitMode' | 'splitOrderUuid'>): string =>
-    s.splitMode && s.splitOrderUuid ? s.splitOrderUuid : mintUuid()
+  /** The uuid the sale of THIS cart must use: a void draft's replacement uuid, else the split draft's when split mode owns one, else the cart's own. */
+  const saleUuidFor = (s: Pick<CashierState, 'splitMode' | 'splitOrderUuid'> & { voidDraft?: { replacementUuid?: string } | null }): string =>
+    s.voidDraft?.replacementUuid ?? (s.splitMode && s.splitOrderUuid ? s.splitOrderUuid : mintUuid())
 
   useEffect(() => {
     if (hydrated.current || !catalogueReady || !userId) return
@@ -72,7 +72,7 @@ export function useOpenCartDraft({ outletId, userId, state, dispatch, getEnv, ca
     // eslint-disable-next-line react-hooks/exhaustive-deps -- follows the sale content, not every render
   }, [state.cart, state.selectedCustomer, state.selectedSalesman, state.pointsToRedeem, state.orderNotes, state.discountRunning, state.surchargeRunning,
     state.appliedDiscountType, state.appliedSurchargeType, state.discountType, state.appliedPromotions, state.appliedPromoCodes, state.bundleFreed, state.dismissedAutoPromotionIds,
-    state.splitMode, state.splitOrderUuid, state.isSuccessOpen])
+    state.splitMode, state.splitOrderUuid, state.isSuccessOpen, state.voidDraft])
 
   /** Before the enqueue: the draft on disk carries the uuid the sale is about to use (best effort: a failed write does not block the sale). */
   const commitBeforeSale = async (orderUuid: string): Promise<void> => {

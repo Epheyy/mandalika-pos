@@ -68,6 +68,8 @@ export function planHeldRestore(held: HeldOrder, env: HeldRestoreEnv): HeldResto
   const dismissedAuto = Array.isArray(held.dismissedAutoPromotionIds) ? held.dismissedAutoPromotionIds.filter((id) => typeof id === 'string') : []
   if (dismissedAuto.length > 0) push({ type: 'SET_DISMISSED_AUTO_PROMOS', ids: dismissedAuto })
   if (held.customer) push({ type: 'SET_CUSTOMER', customer: heldCustomerRecord(held.customer, held.heldAt) })
+  // SET_CUSTOMER clears the redemption, so a void replacement's reused points are set right after it.
+  if (held.customer && (held.reusePoints ?? 0) > 0) push({ type: 'SET_POINTS_REDEEMED', points: held.reusePoints as number })
   if (held.salesman) push({ type: 'SET_SALESMAN', salesman: held.salesman })
 
   const retired: string[] = []
@@ -151,6 +153,7 @@ export function planHeldRestore(held: HeldOrder, env: HeldRestoreEnv): HeldResto
   // Auto promos are not stored: install them now so every restore path (held order, open-cart draft, split-payment
   // draft that reopens the checkout straight away) comes back with the same total it was saved with.
   if (hasAutoPromotions(env.promotions)) push({ type: 'RECONCILE_AUTO_PROMOS', promotions: env.promotions, products: env.products, ctx: env.ctx })
+  if (Array.isArray(held.restoreNotes)) notes.push(...held.restoreNotes.filter((n) => typeof n === 'string'))
   if (held.loyaltyDropped) notes.push('Poin dan Hadiah loyalti perlu dipilih ulang')
 
   return { actions, notes, result: state, lossless: retired.length === 0 && retiredBundles.length === 0 }

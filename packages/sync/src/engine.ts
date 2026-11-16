@@ -1,12 +1,13 @@
 import type { components } from '@mandalika/api'
-import { Outbox, MAX_ATTEMPTS, summarizeQueue, type QueueSummary, type OutboxEnvelope, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxType, type ReviewItem } from './outbox'
+import { isCashMethod } from '@mandalika/types'
+import { Outbox, MAX_ATTEMPTS, summarizeQueue, type QueueSummary, type OutboxEnvelope, type OutboxCorruption, type OutboxSettle, type OutboxItem, type OutboxStatus, type OutboxType, type ReviewItem } from './outbox'
 import { Snapshot } from './snapshot'
 import { getDeviceId, uuid } from './device'
 import { defaultKV, type KV, readJSON, writeJSON } from './storage'
 import { KVOutboxStore, type OutboxStore } from './outboxStore'
-import { SyncedRefunds } from './syncedRefunds'
+import { SyncedRefunds, SYNCED_REPLACEMENTS_KEY, SYNCED_VOIDS_KEY } from './syncedRefunds'
 import { PartialRefunds, partialRefundFromPayload, type PartialRefundEntry } from './partialRefunds'
-import { ReceiptArchive, receiptEntryFromItem, type ReceiptContext, type ReceiptEntry } from './receiptArchive'
+import { ReceiptArchive, receiptEntryFromItem, salePayloadOf, tendersFromPayload, type ArchivedTender, type ReceiptContext, type ReceiptEntry } from './receiptArchive'
 import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
 import { SettlingDebits, type DebitLine, type PulledSeq } from './settlingDebits'
 import { AutoPullScheduler, AUTO_PULL, type PullKind } from './autoPull'
@@ -153,6 +154,18 @@ function orderDebitLines(item: { payload: Record<string, unknown> }): DebitLine[
   return lines
 }
 
+/** The units a void gives back to stock (display only; the server decides), as negative debits. */
+function voidRestockLines(item: { payload: Record<string, unknown> }): DebitLine[] {
+  const raw = item.payload.restockLines
+  const lines: DebitLine[] = []
+  if (!Array.isArray(raw)) return lines
+  for (const l of raw as Array<{ productId?: unknown; variantSize?: unknown; quantity?: unknown } | null>) {
+    if (!l || typeof l.productId !== 'string' || l.productId === '' || typeof l.quantity !== 'number' || !Number.isFinite(l.quantity)) continue
+    lines.push({ productId: l.productId, variantSize: typeof l.variantSize === 'string' ? l.variantSize : '', qty: -l.quantity })
+  }
+  return lines
+}
+
 /** An acked order is kept queued at most this many times when its settling-debit write fails. */
 const SETTLING_HOLD_MAX = 3
 /** A15 phase B housekeeping: this many settling entries (a quiet outlet that never pulls) trigger a stock pull. */
@@ -234,6 +247,55 @@ export interface QueuedRefund {
   readonly payload: Readonly<Record<string, unknown>>
 }
 
+/** A void not yet acknowledged by the server (queued, retrying or parked), as the POS gate and shift recap see it.
+ *  Display facts come from the payload's tablet-only fields; the payload itself is never altered. */
+export interface QueuedVoid {
+  idempotencyKey: string
+  /** Server order id of the sale (its own, or resolved once a linked sale synced); '' while that sale is still queued. */
+  orderId: string
+  saleOrderUuid?: string
+  mode: 'none' | 'replace'
+  status: OutboxStatus
+  /** Parked for review: it will NOT be sent until a person retries it, and (unlike a queued void) it does not block. */
+  parked: boolean
+  reviewReason?: string
+  originalShiftId: string | null
+  originalTenders: ArchivedTender[]
+  replacementTenders?: ArchivedTender[]
+  replacementOrderUuid?: string
+  /** Display facts from the payload, so a queued void can be listed even when its sale is not loaded. */
+  orderNumber?: string
+  reasonCode?: string
+  total?: number
+  replacementOrderNumber?: string
+}
+
+/** What a void's replacement actually costs the customer: the original total when the gap is booked as a correction
+ *  (`correctionTarget`), else the cart's quoted total. Undefined when the payload does not say. */
+function replacementDue(replacement: Record<string, unknown>, originalTotal: number | undefined): number | undefined {
+  if (replacement.correctionTarget === 'original_total') return originalTotal
+  if (typeof replacement.quotedTotal === 'number' && Number.isFinite(replacement.quotedTotal)) return replacement.quotedTotal
+  const snap = replacement.receiptSnapshot as { total?: unknown } | null | undefined
+  return snap && typeof snap.total === 'number' && Number.isFinite(snap.total) ? snap.total : undefined
+}
+
+/** Tenders as APPLIED to a bill of `due`: cash change (handed over minus due) is trimmed off the last cash lines.
+ *  Same rule as `appliedTenders` in the POS void code; cash is recognised by the default ids (the tablet's method
+ *  flags are not known here). Without a due total the lines stay as captured. */
+function appliedArchived(tenders: ArchivedTender[] | undefined, due: number | undefined): ArchivedTender[] | undefined {
+  if (!tenders || due === undefined) return tenders
+  const out = tenders.map((t) => ({ ...t }))
+  let excess = out.reduce((n, t) => n + t.amount, 0) - due
+  for (let k = out.length - 1; k >= 0 && excess > 0; k--) {
+    if (!isCashMethod(undefined, out[k].method)) continue
+    const cut = Math.min(excess, out[k].amount)
+    out[k] = { ...out[k], amount: out[k].amount - cut }
+    excess -= cut
+  }
+  const kept = out.filter((t) => t.amount > 0)
+  return kept.length > 0 ? kept : out
+}
+
 /** A sale made on this tablet, as the local receipt book shows it (A41). Receipt facts only: no customer,
  *  notes or salesman data. */
 export interface LocalReceipt {
@@ -260,6 +322,12 @@ export interface LocalReceipt {
   lineGroups?: (string | null)[]
   /** C6: the sale's payment lines (amount = captured); absent on single-method sales from before C6. */
   tenders?: { method: string; amount: number; reference?: string }[]
+  /** Phase 3 (void): set when this receipt is the replacement sale of a void; the number of the sale it replaces. */
+  replacesOrderNumber?: string
+  /** A void of this sale is queued and not parked (nothing else may start on it). */
+  voidQueued?: boolean
+  /** This tablet saw the server acknowledge a void of this sale. */
+  voided?: boolean
 }
 
 /** Where a refund's sale stands for the send rule. */
@@ -267,6 +335,8 @@ type SaleState = 'acked' | 'queued' | 'parked' | 'unknown'
 
 const SALE_IN_REVIEW_MESSAGE =
   'Penjualan asal refund ini sedang ditinjau, jadi refund ditahan dan tidak dikirim. Jangan bayar ulang. Hubungi admin untuk meninjau penjualan ini.'
+const SALE_IN_REVIEW_VOID_MESSAGE =
+  'Penjualan asal pembatalan ini sedang ditinjau, jadi pembatalan ditahan dan tidak dikirim. Hubungi admin untuk meninjau penjualan ini.'
 
 /** A shift open/close still waiting in the outbox, for overlaying the header (A04). */
 export interface PendingShiftOp {
@@ -303,6 +373,9 @@ export class SyncEngine {
   /** A15: debits of acked orders the next pulled snapshot may not contain yet (display only). */
   private readonly settling: SettlingDebits
   private readonly syncedRefunds: SyncedRefunds
+  /** Sales whose void the server acknowledged (an acked void leaves the outbox; a cached history row still says completed). */
+  private readonly syncedVoids: SyncedRefunds
+  private readonly syncedReplacements: SyncedRefunds
   /** C4b: acknowledged per-line refunds (a partial refund is NOT a whole-order "done" marker). */
   private readonly partialRefunds: PartialRefunds
   /** Refund keys the server acked as leaving the order fully refunded: the outbox row cannot carry that (guarded file), so a
@@ -399,6 +472,8 @@ export class SyncEngine {
     this.pending = new PendingCredits(kv)
     this.settling = new SettlingDebits(kv)
     this.syncedRefunds = new SyncedRefunds(store.kv)
+    this.syncedVoids = new SyncedRefunds(store.kv, SYNCED_VOIDS_KEY)
+    this.syncedReplacements = new SyncedRefunds(store.kv, SYNCED_REPLACEMENTS_KEY)
     this.partialRefunds = new PartialRefunds(store.kv)
     this.receiptArchive = new ReceiptArchive(store.kv)
     // Self-heal: an acked refund still in the queue means a crash hit between its ack and the
@@ -415,19 +490,44 @@ export class SyncEngine {
    *  whole-order refunds acked in this batch (and per-line ones the server reported as leaving it fully
    *  refunded); `extraPartial` = the per-line refunds acked in this batch.
    *  Resolves false, never rejects, when a write failed: the caller must then keep the rows. */
-  private foldAckedRefunds(extra: readonly string[] = [], extraPartial: readonly PartialRefundEntry[] = []): Promise<boolean> {
+  private foldAckedRefunds(extra: readonly string[] = [], extraPartial: readonly PartialRefundEntry[] = [], extraVoid: readonly string[] = [], extraReplacement: readonly string[] = []): Promise<boolean> {
     const queued = this.ackedQueuedRefunds()
     const ids = new Set([...extra, ...queued.wholeOrderIds])
     const partial = [...extraPartial, ...queued.partial]
+    const voidIds = new Set([...extraVoid, ...this.ackedQueuedVoidIds()])
     ids.delete('')
-    if (!ids.size && !partial.length) return Promise.resolve(true)
-    return Promise.all([this.syncedRefunds.addMany([...ids]), this.partialRefunds.addMany(partial)]).then(
+    voidIds.delete('')
+    const replacementIds = new Set([...extraReplacement, ...this.ackedQueuedReplacementIds()])
+    replacementIds.delete('')
+    if (!ids.size && !partial.length && !voidIds.size && !replacementIds.size) return Promise.resolve(true)
+    return Promise.all([this.syncedRefunds.addMany([...ids]), this.partialRefunds.addMany(partial), this.syncedVoids.addMany([...voidIds]), this.syncedReplacements.addMany([...replacementIds])]).then(
       () => true,
       (err) => {
         console.error('[sync] synced-refund memory write failed; acked refund rows are kept', err)
         return false
       },
     )
+  }
+
+  /** Voided orders named by acknowledged "Buat pengganti" sales still sitting in the queue. */
+  private ackedQueuedReplacementIds(): string[] {
+    const ids: string[] = []
+    for (const i of this.outbox.all()) {
+      if (i.type !== 'order' || i.status !== 'acked') continue
+      const id = i.payload.replacesOrderId
+      if (typeof id === 'string' && id) ids.push(id)
+    }
+    return ids
+  }
+
+  /** Ids (server id and client uuid) of the sales named by acknowledged voids still sitting in the queue. */
+  private ackedQueuedVoidIds(): string[] {
+    const ids: string[] = []
+    for (const i of this.outbox.all()) {
+      if (i.type !== 'void' || i.status !== 'acked') continue
+      for (const id of [i.payload.orderId, i.payload.saleOrderUuid]) if (typeof id === 'string' && id) ids.push(id)
+    }
+    return ids
   }
 
   /** The acknowledged refunds still sitting in the queue (not pruned yet): per-line ones as partial-memory
@@ -462,9 +562,11 @@ export class SyncEngine {
     const referenced = new Set<string>()
     for (const i of this.outbox.all()) {
       if (i.status === 'acked') continue
-      if (i.type === 'order' && typeof i.payload.orderUuid === 'string') {
-        unsynced.push({ orderUuid: i.payload.orderUuid, outletId: i.envelope?.outletId ?? '', capturedAt: i.envelope?.capturedAt ?? i.clientCreatedAt, seq: i.seq })
-      } else if (i.type === 'refund') {
+      const salePayload = salePayloadOf(i)
+      if (salePayload && typeof salePayload.orderUuid === 'string') {
+        unsynced.push({ orderUuid: salePayload.orderUuid, outletId: i.envelope?.outletId ?? '', capturedAt: i.envelope?.capturedAt ?? i.clientCreatedAt, seq: i.seq })
+      }
+      if (i.type === 'refund' || i.type === 'void') {
         for (const k of [i.payload.saleOrderUuid, i.payload.orderId]) if (typeof k === 'string' && k) referenced.add(k)
       }
     }
@@ -499,6 +601,8 @@ export class SyncEngine {
   async idle(): Promise<void> {
     await this.outbox.idle()
     await this.syncedRefunds.idle()
+    await this.syncedVoids.idle()
+    await this.syncedReplacements.idle()
     await this.partialRefunds.idle()
     await this.receiptArchive.idle()
     await this.settling.idle()
@@ -918,8 +1022,14 @@ export class SyncEngine {
     const idempotencyKey = this.key(orderUuid)
     const capturedAt = new Date().toISOString()
     const envelope = this.captureEnvelope(capturedAt)
+    // A void's replacement is a sale the server stores from this nested payload: stamp it like a top-level order
+    // (device and capture time), keeping anything the caller already set.
+    const replacement = type === 'void' ? payload.replacement : undefined
+    const stamped = replacement && typeof replacement === 'object' && !Array.isArray(replacement)
+      ? { ...payload, replacement: { deviceId: this.deviceId, clientCreatedAt: capturedAt, ...(replacement as Record<string, unknown>) } }
+      : payload
     await this.outbox.add(type, idempotencyKey, {
-      ...payload,
+      ...stamped,
       orderUuid,
       deviceId: this.deviceId,
       clientCreatedAt: capturedAt,
@@ -1053,6 +1163,7 @@ export class SyncEngine {
     // Queued and parked (needs review) sales never reached server stock, or are not yet in the snapshot.
     const unacked = [...this.outbox.pending(), ...this.outbox.deadLettered()]
     const unackedKeys = new Set(unacked.map((i) => i.idempotencyKey))
+    const parkedKeys = new Set(this.outbox.deadLettered().map((i) => i.idempotencyKey))
     // Only the outlet in effect (a flush-only or mismatched terminal may still drain another outlet's queue).
     const outlet = this.actorProvider?.()?.outletId
     const inScope = (o: string | undefined) => !outlet || !o || o === outlet
@@ -1074,6 +1185,17 @@ export class SyncEngine {
       if (item.type === 'order' && inScope(item.envelope?.outletId)) {
         add(orderDebitLines(item))
         addGiveaway()
+      }
+      if (item.type === 'void' && inScope(item.envelope?.outletId)) {
+        // Delta convention: positive = units the displayed stock loses. The restock gives units back; the
+        // replacement sale (if any) takes its lines and one giveaway unit like any counted order. Gone on ack.
+        // A parked void is not applied and may be retried or voided again: its restock is not shown (errs low); its replacement debit is.
+        if (!parkedKeys.has(item.idempotencyKey)) add(voidRestockLines(item))
+        const replacement = salePayloadOf(item)
+        if (replacement) {
+          add(orderDebitLines({ payload: replacement }))
+          addGiveaway()
+        }
       }
     }
     // A15: acked orders until a pull sent after the ack. Skip one only while its item is still unacked
@@ -1115,12 +1237,76 @@ export class SyncEngine {
       }))
   }
 
+  /** Unacknowledged voids (queued, retrying or parked for review), oldest first. A parked void is NOT settled: the
+   *  cashier may already have handed over a replacement. Read-only; the payload stays as captured. */
+  queuedVoids(): QueuedVoid[] {
+    const parked = new Set(this.outbox.deadLettered().map((i) => i.idempotencyKey))
+    return this.outbox
+      .all()
+      .filter((i) => i.type === 'void' && i.status !== 'acked')
+      .sort((a, b) => a.seq - b.seq)
+      .map((i) => {
+        const p = i.payload
+        const replacement = salePayloadOf(i)
+        const replacementOrderUuid = replacement && typeof replacement.orderUuid === 'string' && replacement.orderUuid ? replacement.orderUuid : undefined
+        const originalTotal = typeof p.total === 'number' && Number.isFinite(p.total) ? p.total : undefined
+        // A payload built by the POS (tendersApplied) carries the lines already trimmed with the outlet's own cash methods;
+        // only older payloads fall back to the default-id heuristic.
+        const marked = p.tendersApplied === true
+        const heuristicReplacement = replacement ? appliedArchived(tendersFromPayload(replacement.tenders), replacementDue(replacement, originalTotal)) : undefined
+        const replacementTenders = replacement ? (marked ? tendersFromPayload(p.replacementTenders) ?? heuristicReplacement : heuristicReplacement) : undefined
+        const originalTenders = (marked ? tendersFromPayload(p.originalTenders) : appliedArchived(tendersFromPayload(p.originalTenders), originalTotal)) ?? []
+        const replacementOrderNumber = replacement && typeof replacement.orderNumber === 'string' && replacement.orderNumber ? replacement.orderNumber : undefined
+        return {
+          idempotencyKey: i.idempotencyKey,
+          orderId: this.refundOrderId(p),
+          ...(typeof p.saleOrderUuid === 'string' && p.saleOrderUuid ? { saleOrderUuid: p.saleOrderUuid } : {}),
+          mode: p.mode === 'replace' ? 'replace' as const : 'none' as const,
+          status: i.status,
+          parked: parked.has(i.idempotencyKey),
+          ...(i.reviewReason ? { reviewReason: i.reviewReason } : {}),
+          originalShiftId: typeof p.originalShiftId === 'string' && p.originalShiftId ? p.originalShiftId : null,
+          originalTenders,
+          ...(typeof p.orderNumber === 'string' && p.orderNumber ? { orderNumber: p.orderNumber } : {}),
+          ...(typeof p.reasonCode === 'string' && p.reasonCode ? { reasonCode: p.reasonCode } : {}),
+          ...(originalTotal !== undefined ? { total: originalTotal } : {}),
+          ...(replacementOrderNumber ? { replacementOrderNumber } : {}),
+          ...(replacementTenders ? { replacementTenders } : {}),
+          ...(replacementOrderUuid ? { replacementOrderUuid } : {}),
+        }
+      })
+  }
+
+  /** Orders that already have an unacknowledged, NOT parked void: server ids and client sale uuids. A parked void
+   *  does not block (read queuedVoids() for those). */
+  queuedVoidOrderIds(): Set<string> {
+    const out = new Set<string>()
+    for (const v of this.queuedVoids()) {
+      if (v.parked) continue
+      if (v.orderId) out.add(v.orderId)
+      if (v.saleOrderUuid) out.add(v.saleOrderUuid)
+    }
+    return out
+  }
+
+  /** Voided orders (server ids) that already have an unacknowledged "Buat pengganti" sale in the outbox
+   *  (an order item whose payload names `replacesOrderId`), so the POS offers it only once. */
+  queuedReplacementOrderIds(): Set<string> {
+    const out = new Set<string>()
+    for (const i of this.outbox.all()) {
+      if (i.type !== 'order' || i.status === 'acked') continue
+      const id = i.payload.replacesOrderId
+      if (typeof id === 'string' && id) out.add(id)
+    }
+    return out
+  }
+
   /** The server order id a queued refund applies to: its own, or (linked refund) that of its sale once synced. */
   private refundOrderId(payload: Readonly<Record<string, unknown>>): string {
     if (typeof payload.orderId === 'string' && payload.orderId !== '') return payload.orderId
     const uuid = payload.saleOrderUuid
     if (typeof uuid !== 'string' || uuid === '') return ''
-    const row = this.outbox.all().find((i) => i.type === 'order' && i.payload.orderUuid === uuid)
+    const row = this.saleRow(uuid)
     if (row?.ackedOrderId) return row.ackedOrderId
     return this.receiptArchive.entries().find((e) => e.orderUuid === uuid)?.serverOrderId ?? ''
   }
@@ -1164,6 +1350,18 @@ export class SyncEngine {
     return new Set(this.queuedRefunds().map((r) => r.orderId).filter((id) => id !== ''))
   }
 
+  /** Voided orders (server ids) whose "Buat pengganti" sale this tablet saw acknowledged, plus acked ones still queued:
+   *  a stale history row (whose void followup is not updated yet) must not offer a second replacement. */
+  syncedReplacementOrderIds(): Set<string> {
+    return new Set([...this.syncedReplacements.ids(), ...this.ackedQueuedReplacementIds()])
+  }
+
+  /** Sales whose void this tablet saw the server acknowledge (persistent, bounded): server ids and client uuids,
+   *  including acked voids still waiting in the queue. */
+  syncedVoidOrderIds(): Set<string> {
+    return new Set([...this.syncedVoids.ids(), ...this.ackedQueuedVoidIds()])
+  }
+
   /** Sales (by client orderUuid) that already have an unacknowledged refund (incl. parked). */
   queuedRefundSaleUuids(): Set<string> {
     const out = new Set<string>()
@@ -1174,9 +1372,15 @@ export class SyncEngine {
     return out
   }
 
-  /** Where the sale named by a linked refund stands. An acked row not yet pruned counts as acked. */
+  /** The outbox row that carries the sale with this client uuid: an order item, or the void item whose replacement it is
+   *  (a refund or void of a replacement must wait for that void exactly as one of a sale waits for its order). */
+  private saleRow(orderUuid: string): OutboxItem | undefined {
+    return this.outbox.all().find((i) => salePayloadOf(i)?.orderUuid === orderUuid)
+  }
+
+  /** Where the sale named by a linked refund or void stands. An acked row not yet pruned counts as acked. */
   private saleState(orderUuid: string): SaleState {
-    const row = this.outbox.all().find((i) => i.type === 'order' && i.payload.orderUuid === orderUuid)
+    const row = this.saleRow(orderUuid)
     if (row) {
       if (row.status === 'acked') return 'acked'
       return row.status === 'failed' && (row.attempts ?? 0) >= MAX_ATTEMPTS ? 'parked' : 'queued'
@@ -1196,9 +1400,13 @@ export class SyncEngine {
       const u = r.payload.saleOrderUuid
       if (typeof u === 'string' && u) queuedRefunds.add(u)
     }
+    const voidQueued = this.queuedVoidOrderIds()
+    const voided = this.syncedVoidOrderIds()
     const flags = (orderUuid: string, serverOrderId?: string) => ({
       refundQueued: queuedRefunds.has(orderUuid) || (!!serverOrderId && queuedRefunds.has(serverOrderId)),
       refunded: refunded.has(orderUuid) || (!!serverOrderId && refunded.has(serverOrderId)),
+      voidQueued: voidQueued.has(orderUuid) || (!!serverOrderId && voidQueued.has(serverOrderId)),
+      voided: voided.has(orderUuid) || (!!serverOrderId && voided.has(serverOrderId)),
     })
     const byUuid = new Map<string, { r: LocalReceipt; order: number }>()
     this.receiptArchive.entries().forEach((e, index) => {
@@ -1211,13 +1419,14 @@ export class SyncEngine {
           paymentMethod: e.paymentMethod, quotedTotal: e.quotedTotal, receiptSnapshot: e.receiptSnapshot, state: 'synced',
           ...(e.lineNets ? { lineNets: e.lineNets } : {}), ...(e.lineGroups ? { lineGroups: e.lineGroups } : {}),
           ...(e.tenders ? { tenders: e.tenders } : {}),
+          ...(e.replacesOrderNumber ? { replacesOrderNumber: e.replacesOrderNumber } : {}),
           ...flags(e.orderUuid, e.serverOrderId),
         },
       })
     })
     for (const i of this.outbox.all()) {
-      if (i.type !== 'order' || !inScope(i.envelope?.outletId)) continue
-      const e = receiptEntryFromItem(i)
+      if ((i.type !== 'order' && i.type !== 'void') || !inScope(i.envelope?.outletId)) continue
+      const e = receiptEntryFromItem(i) // a void yields one only when it carries a replacement
       if (!e) continue
       const acked = i.status === 'acked'
       // An acked row the archive does not hold yet (its write failed) is the only copy of that sale.
@@ -1231,6 +1440,7 @@ export class SyncEngine {
           state: acked ? 'synced' : i.status === 'failed' && (i.attempts ?? 0) >= MAX_ATTEMPTS ? 'parked' : 'queued',
           ...(e.lineNets ? { lineNets: e.lineNets } : {}), ...(e.lineGroups ? { lineGroups: e.lineGroups } : {}),
           ...(e.tenders ? { tenders: e.tenders } : {}),
+          ...(e.replacesOrderNumber ? { replacesOrderNumber: e.replacesOrderNumber } : {}),
           ...flags(e.orderUuid, e.serverOrderId),
         },
       })
@@ -1248,7 +1458,7 @@ export class SyncEngine {
   localReceiptsForCustomer(customerId: string): LocalReceipt[] {
     if (!customerId) return []
     const mine = new Set(
-      this.outbox.all().filter((i) => i.type === 'order' && i.status !== 'acked' && i.payload.customerId === customerId).map((i) => i.idempotencyKey),
+      this.outbox.all().filter((i) => i.status !== 'acked' && salePayloadOf(i)?.customerId === customerId).map((i) => i.idempotencyKey),
     )
     return mine.size === 0 ? [] : this.localReceipts().filter((r) => mine.has(r.idempotencyKey))
   }
@@ -1393,11 +1603,18 @@ export class SyncEngine {
       // A15: a resolved sale may not be in the snapshot yet. Keep its debit (it can only err LOW) until a
       // later pull; the entry is hidden while the item is still parked, so recording first never double counts.
       const resolvedOrders = [...parkedBefore.values()].filter((i) => i.type === 'order')
-      await this.settling.recordMany(
-        resolvedOrders.map((i) => ({ key: i.idempotencyKey, outletId: i.capturedOutletId, lines: orderDebitLines(i) })),
-      ).catch((err) => console.error('[sync] settling-debit write failed for resolved review items', err))
+      // A resolved void's replacement sale is such a sale too (its restock is not kept: the overlay may err low only).
+      const resolvedVoids = [...parkedBefore.values()].filter((i) => i.type === 'void')
+      await this.settling.recordMany([
+        ...resolvedOrders.map((i) => ({ key: i.idempotencyKey, outletId: i.capturedOutletId, lines: orderDebitLines(i) })),
+        ...resolvedVoids.flatMap((i) => {
+          const replacement = salePayloadOf(i)
+          return replacement ? [{ key: i.idempotencyKey, outletId: i.capturedOutletId, lines: orderDebitLines({ payload: replacement }) }] : []
+        }),
+      ]).catch((err) => console.error('[sync] settling-debit write failed for resolved review items', err))
       // A15 phase B: head office may or may not have applied the sale and the entry has no seq: one pull settles it.
-      if (resolvedOrders.length > 0 && this.serverStockSeq !== null && this.seqRulesOn()) {
+      // A resolved void is the same: its restock/replacement left the local overlay, and the server may have applied it.
+      if ((resolvedOrders.length > 0 || resolvedVoids.length > 0) && this.serverStockSeq !== null && this.seqRulesOn()) {
         this.followUpPull = true
         this.afterWallUpdate()
       }
@@ -1521,14 +1738,14 @@ export class SyncEngine {
   private async gateLinkedRefunds(chunk: readonly OutboxItem[]): Promise<{ send: OutboxItem[]; held: Set<string> }> {
     const send: OutboxItem[] = []
     const held = new Set<string>()
-    const toPark: string[] = []
+    const toPark: { key: string; reason: string }[] = []
     let holding = false
     for (const i of chunk) {
       if (holding && (i.type === 'shift_close' || i.type === 'shift_open')) {
         held.add(i.idempotencyKey)
         continue
       }
-      const sale = i.type === 'refund' ? i.payload.saleOrderUuid : undefined
+      const sale = i.type === 'refund' || i.type === 'void' ? i.payload.saleOrderUuid : undefined
       if (typeof sale !== 'string' || !sale) {
         send.push(i)
         continue
@@ -1538,13 +1755,13 @@ export class SyncEngine {
         held.add(i.idempotencyKey)
         holding = true
       } else if (state === 'parked') {
-        toPark.push(i.idempotencyKey)
+        toPark.push({ key: i.idempotencyKey, reason: i.type === 'void' ? SALE_IN_REVIEW_VOID_MESSAGE : SALE_IN_REVIEW_MESSAGE })
       } else {
         send.push(i)
       }
     }
     if (toPark.length) {
-      await this.outbox.settle(toPark.map((key) => ({ key, op: 'review' as const, code: 'sale_in_review', reason: SALE_IN_REVIEW_MESSAGE })))
+      await this.outbox.settle(toPark.map((p) => ({ key: p.key, op: 'review' as const, code: 'sale_in_review', reason: p.reason })))
       this.events.onOutboxChange?.(this.outbox.count())
     }
     return { send, held }
@@ -1657,6 +1874,8 @@ export class SyncEngine {
     const updates: OutboxSettle[] = []
     const ackedRefundOrderIds: string[] = []
     const ackedPartialRefunds: PartialRefundEntry[] = []
+    const ackedVoidSaleIds: string[] = []
+    const ackedReplacementIds: string[] = []
     const ackedOrders: { key: string; outletId?: string; lines: DebitLine[]; seq?: number; seqOutlet?: string }[] = []
     // A15 phase B: a sale's seq is trusted only while every seq rule is on, the batch carried a counter, and the
     // outlet in effect is the one the request was sent for (never in flush-only mode).
@@ -1681,7 +1900,10 @@ export class SyncEngine {
       const type = typeByKey.get(res.idempotencyKey)
       if (res.status === 'ok' || res.status === 'duplicate') {
         // Only order/refund results carry an order id; other types return their own ids (shift, customer...).
-        updates.push({ key: res.idempotencyKey, op: 'ack', ...((type === 'order' || type === 'refund') && res.orderId ? { orderId: res.orderId } : {}) })
+        updates.push({ key: res.idempotencyKey, op: 'ack', ...((type === 'order' || type === 'refund') && res.orderId
+          ? { orderId: res.orderId }
+          // A void's own id is the voided sale's; the one the tablet keeps is the replacement sale's (absent: mode none).
+          : type === 'void' && res.replacementOrderId ? { orderId: res.replacementOrderId } : {}) })
         if (type === 'refund') {
           // The acked refund leaves the outbox: remember its order so a stale history row cannot offer it again.
           const acked = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)
@@ -1698,8 +1920,26 @@ export class SyncEngine {
             }
           }
         }
+        if (type === 'void') {
+          // The acked void leaves the outbox: remember the voided sale so a stale history row cannot offer a refund.
+          const acked = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)
+          for (const id of [acked?.payload.orderId, acked?.payload.saleOrderUuid, res.orderId]) {
+            if (typeof id === 'string') ackedVoidSaleIds.push(id)
+          }
+          // A15: the replacement sale's debit stays visible until a pull (no seq: one follow-up pull settles it). The
+          // restock is not kept, so the overlay can only err low.
+          const replacement = acked ? salePayloadOf(acked) : null
+          if (acked && replacement) {
+            ackedOrders.push({ key: acked.idempotencyKey, outletId: acked.envelope?.outletId, lines: orderDebitLines({ payload: replacement }) })
+          }
+          // The void moved stock (restock, and the replacement's debit): one follow-up pull refreshes it, mode none included.
+          needsFollowUp = true
+        }
         this.pending.stampAck(res.idempotencyKey, data.version ?? 0)
         if (type === 'order') {
+          // A "Buat pengganti" sale remembers the voided order, so a stale history row cannot offer a second one.
+          const replaced = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)?.payload.replacesOrderId
+          if (typeof replaced === 'string' && replaced) ackedReplacementIds.push(replaced)
           // A15: keep the debit visible once the ack prunes the row; written before settle, so a crash
           // between the two can only leave a duplicate that the key-skip in pendingStockDeltas absorbs.
           const acked = this.outbox.all().find((i) => i.idempotencyKey === res.idempotencyKey)
@@ -1782,17 +2022,17 @@ export class SyncEngine {
     // The memory is the only copy once the acked row is pruned: durable first, and if it failed keep
     // the rows (the next engine start or batch folds them again).
     // Both folds always run; the acked rows are dropped only when both facts are durable.
-    const [refundsOk, receiptsOk] = await Promise.all([this.foldAckedRefunds(ackedRefundOrderIds, ackedPartialRefunds), this.foldAckedReceipts()])
+    const [refundsOk, receiptsOk] = await Promise.all([this.foldAckedRefunds(ackedRefundOrderIds, ackedPartialRefunds, ackedVoidSaleIds, ackedReplacementIds), this.foldAckedReceipts()])
     if (refundsOk && receiptsOk) await this.outbox.prune()
     else if (refundsOk && this.archiveFailures >= ARCHIVE_HOLD_MAX) {
       // The archive keeps failing: do not let acked rows pile up behind it. Rows that are not sales never needed
       // the archive and go now; acked sales (their only receipt copy) stay until the drop cap.
       const dropSales = this.archiveFailures >= ARCHIVE_DROP_MAX
       if (dropSales) {
-        const n = this.outbox.all().filter((i) => i.status === 'acked' && i.type === 'order').length
+        const n = this.outbox.all().filter((i) => i.status === 'acked' && salePayloadOf(i) !== null).length
         console.error(`[sync] receipt archive failed ${this.archiveFailures} times in a row; dropping ${n} acked sale row(s) without a local receipt copy`)
       }
-      await this.outbox.prune((i) => i.type === 'order' && !dropSales)
+      await this.outbox.prune((i) => salePayloadOf(i) !== null && !dropSales)
     }
     this.accountProblemMsg = null
     this.resetBackoff()

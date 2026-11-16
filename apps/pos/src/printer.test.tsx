@@ -19,6 +19,7 @@ vi.mock('@mandalika/printer', () => ({
   printReceipt: vi.fn(),
   printRecap: vi.fn(),
   printTandaTerima: vi.fn(),
+  printVoidSlip: vi.fn(),
 }))
 vi.mock('@mandalika/sync', () => ({
   getKV: () => ({ get: () => null, set: () => {}, remove: () => {} }),
