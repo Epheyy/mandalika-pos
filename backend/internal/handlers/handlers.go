@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/auth"
@@ -596,6 +597,54 @@ func (h *Handlers) RefundReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, api.RefundReport{Summary: summary, Data: rows, Meta: *meta(total, p, l)})
+}
+
+// VoidReport is the Pembatalan report: one row per voided sale (plus listed-only legacy imports),
+// with totals and a per-reason breakdown over the whole filtered range. Gated on view_reports.
+func (h *Handlers) VoidReport(w http.ResponseWriter, r *http.Request) {
+	p, l := pageLimit(r)
+	q := r.URL.Query()
+	if !dayRange(w, q.Get("dateFrom"), q.Get("dateTo")) {
+		return
+	}
+	reason := q.Get("reasonCode")
+	if reason != "" && !read.VoidReportReasons[reason] {
+		httpx.Err(w, http.StatusBadRequest, "reasonCode tidak valid")
+		return
+	}
+	cashier := q.Get("cashierId")
+	if _, err := uuid.Parse(cashier); cashier != "" && err != nil {
+		httpx.Err(w, http.StatusBadRequest, "cashierId tidak valid")
+		return
+	}
+	var afterClose *bool
+	if v := q.Get("afterClose"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			httpx.Err(w, http.StatusBadRequest, "afterClose harus true atau false")
+			return
+		}
+		afterClose = &b
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), bundleReportTimeout)
+	defer cancel()
+	sc := scope(r)
+	if !sc.CrossAll && sc.OutletID == "" {
+		// A non-admin with no outlet must never read as "all outlets": fail closed.
+		httpx.Err(w, http.StatusForbidden, "Outlet aktif belum dipilih untuk akun ini.")
+		return
+	}
+	out, total, err := h.Repo.VoidReport(ctx, read.VoidReportFilters{
+		DateFrom: q.Get("dateFrom"), DateTo: q.Get("dateTo"),
+		OutletID:   sc.OutletID, // scope-clamped; "" only for an admin on all outlets
+		ReasonCode: reason, CashierID: cashier, AfterClose: afterClose, Page: p, Limit: l,
+	})
+	if err != nil {
+		writeErr(w, r, 500, err)
+		return
+	}
+	out.Meta = *meta(total, p, l)
+	writeJSON(w, http.StatusOK, out)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

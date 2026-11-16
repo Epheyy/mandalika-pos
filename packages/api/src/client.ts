@@ -147,6 +147,9 @@ export type DiscountCodeReport = S['DiscountCodeReport']
 export type RefundReport = S['RefundReport']
 export type RefundReportRow = S['RefundReportRow']
 export type OrderRefund = S['OrderRefund']
+export type VoidReport = S['VoidReport']
+export type VoidReportRow = S['VoidReportRow']
+export type VoidOrderRequest = S['VoidOrderRequest']
 export type OversellReport = S['OversellReport']
 export type OversellRecord = S['OversellRecord']
 export type OversellSummary = S['OversellSummary']
@@ -394,6 +397,11 @@ export interface Api {
   refundOrder: (id: string, reason: string, opts?: { reasonCode?: string; items?: { lineNo: number; quantity: number }[]; clientRefundUuid?: string; payoutMethod?: string }) => Promise<Order>
   /** Void preview (Void phase 1): eligibility for this caller and the stock lines an approved stock count already covered. */
   getVoidPreview: (id: string) => Promise<S['VoidPreview']>
+  /** Void a sale (Backoffice, needs void_any). `body.clientVoidUuid` is the replay key: the same uuid returns the earlier void
+   *  instead of voiding twice, so a retry after a lost response is safe (generate it once per user action). Returns the cancelled order. */
+  voidOrder: (id: string, body: VoidOrderRequest) => Promise<Order>
+  /** Mark a void made with mode `later` as tanpa pengganti (needs void_any). 409 when the void already has a replacement or a mark. */
+  markVoidNoReplacement: (id: string, note?: string) => Promise<Order>
   listShifts: (params?: ListShiftsParams) => Promise<ListResult<Shift>>
   listErrorLogs: (params?: Record<string, string | number>) => Promise<ListResult<ErrorLog>>
   listSyncReviewItems: (params: SyncReviewListParams) => Promise<SyncReviewItemList>
@@ -513,6 +521,8 @@ export interface Api {
   listPromoRewardGrants: (opts?: { dateFrom?: string; dateTo?: string; outletId?: string; promotionId?: string; productId?: string; page?: number; limit?: number }) => Promise<PromoRewardGrantReport>
 
   // discount code usage report (SP-Code-2)
+  /** Pembatalan report. `cashierId` is the VOIDER. Totals and byReason cover the whole filtered range, not the page. */
+  getVoidReport: (opts?: { dateFrom?: string; dateTo?: string; outletId?: string; reasonCode?: string; cashierId?: string; afterClose?: boolean; page?: number; limit?: number }) => Promise<VoidReport>
   listRefundReport: (opts?: { dateFrom?: string; dateTo?: string; outletId?: string; flag?: 'any' | 'amount_mismatch' | 'over_total'; page?: number; limit?: number }) => Promise<RefundReport>
   getBundleReport: (opts?: { dateFrom?: string; dateTo?: string; outletId?: string }) => Promise<BundleReport>
   listDiscountCodeReport: (opts?: { dateFrom?: string; dateTo?: string; page?: number; limit?: number }) => Promise<DiscountCodeReport>
@@ -945,6 +955,8 @@ export function createClient(opts: ClientOptions): Api {
     refundOrder: (id, reason, opts) =>
       data<Order>('POST', `${API}/orders/${id}/refund`, { reason, ...(opts?.reasonCode ? { reasonCode: opts.reasonCode } : {}), ...(opts?.items ? { items: opts.items } : {}), ...(opts?.clientRefundUuid ? { clientRefundUuid: opts.clientRefundUuid } : {}), ...(opts?.payoutMethod ? { payoutMethod: opts.payoutMethod } : {}) }),
     getVoidPreview: (id) => data<S['VoidPreview']>('GET', `${API}/orders/${id}/void-preview`),
+    voidOrder: (id, body) => data<Order>('POST', `${API}/orders/${id}/void`, body),
+    markVoidNoReplacement: (id, note) => data<Order>('POST', `${API}/orders/${id}/void/no-replacement`, note ? { note } : {}),
     listShifts: (params) => list<Shift>(`${API}/shifts`, params),
     listErrorLogs: (params) => list<ErrorLog>(`${API}/error-logs`, params),
     listErpOutbox: async (params) => {
@@ -1178,6 +1190,18 @@ export function createClient(opts: ClientOptions): Api {
       if (outletId) params.outletId = outletId
       if (flag) params.flag = flag
       return request<RefundReport>('GET', `${API}/refund-report` + qs(params))
+    },
+
+    getVoidReport: (opts) => {
+      const { dateFrom, dateTo, outletId, reasonCode, cashierId, afterClose, page = 1, limit = 50 } = opts ?? {}
+      const params: Record<string, string | number> = { page, limit }
+      if (dateFrom) params.dateFrom = dateFrom
+      if (dateTo) params.dateTo = dateTo
+      if (outletId) params.outletId = outletId
+      if (reasonCode) params.reasonCode = reasonCode
+      if (cashierId) params.cashierId = cashierId
+      if (afterClose !== undefined) params.afterClose = String(afterClose)
+      return request<VoidReport>('GET', `${API}/void-report` + qs(params))
     },
 
     getBundleReport: (opts) => {

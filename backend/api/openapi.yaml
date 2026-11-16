@@ -1847,6 +1847,62 @@ components:
         summary: { $ref: '#/components/schemas/RefundReportSummary' }
         data: { type: array, items: { $ref: '#/components/schemas/RefundReportRow' } }
         meta: { $ref: '#/components/schemas/Meta' }
+    VoidReportTender:
+      type: object
+      required: [method, amount]
+      properties:
+        method: { type: string }
+        amount: { type: number, format: double }
+    VoidReportRow:
+      type: object
+      required: [orderId, orderNumber, kind, state, businessDate, outletName, soldByName, afterClose, originalTotal, originalTenders, countedLines]
+      properties:
+        orderId: { type: string, format: uuid }
+        orderNumber: { type: string }
+        kind: { type: string, enum: [void, legacy_import], description: "legacy_import: a cancelled order with no void record (fsmigrate import). Listed, never counted in totals." }
+        state: { type: string, enum: [replaced, awaiting_replacement, no_replacement, legacy] }
+        businessDate: { type: string, format: date, description: "The original sale's business day." }
+        outletName: { type: string }
+        soldByName: { type: string, description: "Cashier of the original sale." }
+        voidedAt: { type: string, format: date-time }
+        voidedByName: { type: string, description: "Who voided it (the voider, not the seller)." }
+        deviceId: { type: string }
+        source: { type: string, enum: [pos, backoffice] }
+        reasonCode: { type: string }
+        note: { type: string }
+        afterClose: { type: boolean, description: "The sale's shift had already closed when it was voided." }
+        originalTotal: { type: number, format: double }
+        originalTenders: { type: array, items: { $ref: '#/components/schemas/VoidReportTender' } }
+        replacementOrderId: { type: string, format: uuid }
+        replacementOrderNumber: { type: string }
+        replacementTotal: { type: number, format: double }
+        replacementTenders: { type: array, items: { $ref: '#/components/schemas/VoidReportTender' } }
+        correctionAmount: { type: number, format: double, description: "Penyesuaian koreksi on the replacement (original total minus what the replacement priced to)." }
+        countedLines: { type: integer, description: "Lines a stock count had already covered when the sale was voided." }
+    VoidReasonTotal:
+      type: object
+      required: [reasonCode, voids, originalTotal]
+      properties:
+        reasonCode: { type: string }
+        voids: { type: integer }
+        originalTotal: { type: number, format: double }
+    VoidReportTotals:
+      type: object
+      required: [voids, originalTotal, replacementTotal, correctionTotal]
+      description: "Over the whole filtered range (not the page). Legacy imports are excluded. replacementTotal and correctionTotal count live replacements only (a replacement that was itself voided is left out)."
+      properties:
+        voids: { type: integer }
+        originalTotal: { type: number, format: double }
+        replacementTotal: { type: number, format: double }
+        correctionTotal: { type: number, format: double }
+    VoidReport:
+      type: object
+      required: [data, meta, totals, byReason]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/VoidReportRow' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+        totals: { $ref: '#/components/schemas/VoidReportTotals' }
+        byReason: { type: array, items: { $ref: '#/components/schemas/VoidReasonTotal' } }
     Order:
       type: object
       required: [id, orderNumber, outletId, cashierId, cashierName, items, subtotal, discountAmount, taxAmount, total, paymentMethod, amountPaid, change, status, createdAt]
@@ -4853,6 +4909,28 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/RefundReport' }
+  /api/v1/void-report:
+    get:
+      operationId: getVoidReport
+      tags: [reports]
+      summary: Pembatalan report, one row per voided sale (newest first), view_reports; outlet-scoped like the other reports
+      parameters:
+        - { name: dateFrom, in: query, description: "Inclusive business day of the ORIGINAL sale (YYYY-MM-DD). 400 when unparseable.", schema: { type: string } }
+        - { name: dateTo, in: query, description: "Inclusive business day of the ORIGINAL sale (YYYY-MM-DD). 400 when unparseable.", schema: { type: string } }
+        - { name: outletId, in: query, schema: { type: string } }
+        - { name: reasonCode, in: query, description: "One of the seven void reason codes; 400 otherwise. Excludes legacy imports.", schema: { type: string } }
+        - { name: cashierId, in: query, description: "The VOIDER (user id), not the seller. Excludes legacy imports.", schema: { type: string } }
+        - { name: afterClose, in: query, description: "true | false. Excludes legacy imports.", schema: { type: boolean } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VoidReport' }
+        '400': { description: "bad date, reasonCode, cashierId or afterClose" }
+        '403': { description: "no view_reports, or a non-admin with no active outlet" }
   /api/v1/oversell-report:
     get:
       operationId: listOversellReport

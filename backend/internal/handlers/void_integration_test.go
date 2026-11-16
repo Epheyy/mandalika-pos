@@ -1262,6 +1262,7 @@ func TestVoidPostgres(t *testing.T) {
 	router.Get("/orders/{id}/void-preview", h.VoidPreview)
 	router.With(mw.RequirePermission("void_any")).Post("/orders/{id}/void/no-replacement", h.MarkVoidNoReplacement)
 	router.Get("/shifts", h.Shifts)
+	router.With(mw.RequirePermission("view_reports")).Get("/void-report", h.VoidReport)
 	do := func(token, method, path string, body any) (int, map[string]any) {
 		t.Helper()
 		var buf bytes.Buffer
@@ -2442,6 +2443,179 @@ func TestVoidPostgres(t *testing.T) {
 		}
 		if got := byProduct[other]; got.sold != 0 || got.refunded != 0 {
 			t.Fatalf("another outlet's voided order leaked: %+v", got)
+		}
+	})
+
+	// ── Phase 4, Task 4.1: the Pembatalan report ─────────────────────────────────────────────
+	reportTok := tok(manager, "manager", []string{"view_reports"})
+	reportRows := func(q string) (map[string]any, map[string]map[string]any) {
+		t.Helper()
+		code, out := do(reportTok, http.MethodGet, "/void-report?"+q, nil)
+		if code != http.StatusOK {
+			t.Fatalf("void-report?%s = %d %v", q, code, out)
+		}
+		byOrder := map[string]map[string]any{}
+		for _, r := range out["data"].([]any) {
+			row := r.(map[string]any)
+			byOrder[row["orderId"].(string)] = row
+		}
+		return out, byOrder
+	}
+	voidAs := func(voider, orderID, shift string, reason service.VoidReasonCode, mode service.VoidMode) service.VoidResult {
+		t.Helper()
+		in := voidIn(orderID, shift)
+		in.UserID, in.UserName, in.Reason, in.Mode = voider, "VD Voider", reason, mode
+		res, err := svc.VoidOrder(ctx, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+
+	t.Run("void_report_by_reason", func(t *testing.T) {
+		shift := openShift()
+		voider := newID("6")
+		a := sale(saleOpts{shift: shift}, product(5))
+		b := sale(saleOpts{shift: shift}, product(5), product(5))
+		c := sale(saleOpts{shift: shift}, product(5))
+		voidAs(voider, a, shift, service.VoidReasonWrongPayment, service.VoidModeNone)
+		voidAs(voider, b, shift, service.VoidReasonWrongPayment, service.VoidModeNone)
+		voidAs(voider, c, shift, service.VoidReasonDuplicate, service.VoidModeNone)
+		out, _ := reportRows("cashierId=" + voider + "&limit=1")
+		if len(out["data"].([]any)) != 1 || out["meta"].(map[string]any)["total"].(float64) != 3 {
+			t.Fatalf("page/meta = %v", out["meta"])
+		}
+		by := map[string]map[string]any{}
+		for _, r := range out["byReason"].([]any) {
+			by[r.(map[string]any)["reasonCode"].(string)] = r.(map[string]any)
+		}
+		if len(by) != 2 || by["salah_metode_pembayaran"]["voids"].(float64) != 2 || by["salah_metode_pembayaran"]["originalTotal"].(float64) != 300000 ||
+			by["transaksi_ganda"]["voids"].(float64) != 1 || by["transaksi_ganda"]["originalTotal"].(float64) != 100000 {
+			t.Fatalf("byReason = %v", out["byReason"])
+		}
+		tot := out["totals"].(map[string]any)
+		if tot["voids"].(float64) != 3 || tot["originalTotal"].(float64) != 400000 {
+			t.Fatalf("totals over the whole range, not the page = %v", tot)
+		}
+		// CashierID is the voider: the seller's id finds none of these.
+		_, sellerRows := reportRows("cashierId=" + cashier + "&limit=200")
+		for _, id := range []string{a, b, c} {
+			if _, ok := sellerRows[id]; ok {
+				t.Fatalf("order %s listed for the seller id; cashierId must match the voider", id)
+			}
+		}
+		_, byReasonFilter := reportRows("cashierId=" + voider + "&reasonCode=transaksi_ganda")
+		if len(byReasonFilter) != 1 || byReasonFilter[c] == nil {
+			t.Fatalf("reasonCode filter = %v", byReasonFilter)
+		}
+		if code, _ := do(reportTok, http.MethodGet, "/void-report?reasonCode=bogus", nil); code != http.StatusBadRequest {
+			t.Fatalf("bad reasonCode = %d, want 400", code)
+		}
+		if code, _ := do(reportTok, http.MethodGet, "/void-report?cashierId=not-a-uuid", nil); code != http.StatusBadRequest {
+			t.Fatalf("bad cashierId = %d, want 400", code)
+		}
+		if code, _ := do(reportTok, http.MethodGet, "/void-report?dateFrom=nope", nil); code != http.StatusBadRequest {
+			t.Fatalf("bad date = %d, want 400", code)
+		}
+	})
+
+	t.Run("void_report_rows", func(t *testing.T) {
+		shift := openShift()
+		voider := newID("6")
+		ps := []string{product(5), product(5), product(5)}
+		replaced := sale(saleOpts{shift: shift, tenders: `[{"method":"cash","amount":200000},{"method":"card","amount":100000}]`}, ps...)
+		later := sale(saleOpts{shift: shift}, product(5))
+		none := sale(saleOpts{shift: shift}, product(5))
+		marked := sale(saleOpts{shift: shift}, product(5))
+		in := bo(replaced)
+		in.UserID, in.UserName, in.Mode, in.ClientVoidUUID = voider, "VD Voider", service.VoidModeReplace, newID("4")
+		res, err := svc.VoidAndReplaceDirect(ctx, in, service.ReplacementOverride{Tenders: json.RawMessage(`[{"method":"qris","amount":300000}]`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		voidAs(voider, later, shift, service.VoidReasonWrongItems, service.VoidModeLater)
+		voidAs(voider, none, shift, service.VoidReasonTest, service.VoidModeNone)
+		voidAs(voider, marked, shift, service.VoidReasonWrongItems, service.VoidModeLater)
+		if err := svc.MarkVoidNoReplacement(ctx, outlet, marked, adminU, "VD Admin", ""); err != nil {
+			t.Fatal(err)
+		}
+		out, rows := reportRows("cashierId=" + voider + "&limit=200")
+		for id, want := range map[string]string{replaced: "replaced", later: "awaiting_replacement", none: "no_replacement", marked: "no_replacement"} {
+			if rows[id] == nil || rows[id]["state"] != want || rows[id]["kind"] != "void" {
+				t.Fatalf("order %s row = %v, want state %s", id, rows[id], want)
+			}
+		}
+		r := rows[replaced]
+		if r["replacementOrderId"] != res.ReplacementOrderID || r["replacementTotal"].(float64) != 300000 || r["correctionAmount"].(float64) != 0 ||
+			r["originalTotal"].(float64) != 300000 || r["voidedByName"] != "VD Voider" || r["afterClose"] != false {
+			t.Fatalf("replaced row = %v", r)
+		}
+		if ot := r["originalTenders"].([]any); len(ot) != 2 || ot[0].(map[string]any)["method"] != "cash" {
+			t.Fatalf("originalTenders = %v", r["originalTenders"])
+		}
+		if rt := r["replacementTenders"].([]any); len(rt) != 1 || rt[0].(map[string]any)["method"] != "qris" {
+			t.Fatalf("replacementTenders = %v", r["replacementTenders"])
+		}
+		if rows[later]["replacementOrderId"] != nil {
+			t.Fatal("an awaiting row carries a replacement")
+		}
+		tot := out["totals"].(map[string]any)
+		if tot["voids"].(float64) != 4 || tot["originalTotal"].(float64) != 600000 || tot["replacementTotal"].(float64) != 300000 || tot["correctionTotal"].(float64) != 0 {
+			t.Fatalf("totals = %v", tot)
+		}
+		// The replacement later voided drops out of replacementTotal (the money was reversed).
+		in2 := bo(res.ReplacementOrderID)
+		in2.UserID, in2.UserName, in2.ClientVoidUUID = voider, "VD Voider", newID("4")
+		if _, err := svc.VoidOrder(ctx, in2); err != nil {
+			t.Fatal(err)
+		}
+		out, _ = reportRows("cashierId=" + voider + "&limit=200")
+		tot = out["totals"].(map[string]any)
+		if tot["voids"].(float64) != 5 || tot["replacementTotal"].(float64) != 0 {
+			t.Fatalf("totals after voiding the replacement = %v", tot)
+		}
+		// afterClose filter: everything above was voided while the shift was open.
+		if _, closed := reportRows("cashierId=" + voider + "&afterClose=true"); len(closed) != 0 {
+			t.Fatalf("afterClose=true listed %d rows", len(closed))
+		}
+		if _, open := reportRows("cashierId=" + voider + "&afterClose=false&limit=200"); len(open) != 5 {
+			t.Fatalf("afterClose=false listed %d rows, want 5", len(open))
+		}
+	})
+
+	t.Run("void_report_lists_legacy_import", func(t *testing.T) {
+		const day = "2020-01-02"
+		legacy := newID("7")
+		exec(`INSERT INTO orders(id,order_number,order_uuid,idempotency_key,outlet_id,cashier_id,cashier_name,subtotal,total,payment_method,amount_paid,status,business_date)
+		      VALUES($1,'VD-LEGACY',gen_random_uuid(),$2,$3,$4,'VD Kasir',50000,50000,'cash',50000,'cancelled',$5::date)`, legacy, "vd-legacy-"+legacy, outlet, cashier, day)
+		out, rows := reportRows("dateFrom=" + day + "&dateTo=" + day)
+		row := rows[legacy]
+		if row == nil || row["kind"] != "legacy_import" || row["state"] != "legacy" || row["originalTotal"].(float64) != 50000 {
+			t.Fatalf("legacy row = %v", row)
+		}
+		if tot := out["totals"].(map[string]any); tot["voids"].(float64) != 0 || tot["originalTotal"].(float64) != 0 {
+			t.Fatalf("legacy row counted in totals: %v", tot)
+		}
+		if out["meta"].(map[string]any)["total"].(float64) != 1 || len(out["byReason"].([]any)) != 0 {
+			t.Fatalf("meta/byReason = %v / %v", out["meta"], out["byReason"])
+		}
+		// Void-specific filters leave it out.
+		if _, withReason := reportRows("dateFrom=" + day + "&dateTo=" + day + "&reasonCode=lainnya"); len(withReason) != 0 {
+			t.Fatal("legacy row listed under a reason filter")
+		}
+	})
+
+	t.Run("void_report_forbidden", func(t *testing.T) {
+		if code, _ := do(cashierTok, http.MethodGet, "/void-report", nil); code != http.StatusForbidden {
+			t.Fatalf("without view_reports = %d, want 403", code)
+		}
+		// A non-admin whose token names no outlet fails closed, never "all outlets".
+		bare, err := auth.IssueAccess(key, time.Hour, manager, "manager", "", []string{"view_reports"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if code, _ := do(bare, http.MethodGet, "/void-report", nil); code != http.StatusForbidden {
+			t.Fatalf("no outlet = %d, want 403", code)
 		}
 	})
 }
