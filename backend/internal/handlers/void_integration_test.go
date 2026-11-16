@@ -1783,15 +1783,24 @@ func TestVoidPostgres(t *testing.T) {
 
 	t.Run("replacement_points_validated_after_restore", func(t *testing.T) {
 		// Asking for 80 when the sale redeemed 50: the cap is the balance after the restore plus the
-		// reusable 50, never more than the customer can cover (balance 0 + min(50, earn 50)). A locked
-		// replacement is refused whole (both sides roll back), never clamped into the correction.
+		// reusable 50, never more than the customer can cover (balance 0 + min(50, earn 50)). The
+		// replacement uses what is available instead of refusing; the audit is recorded.
 		_, cust, p, id := redeemScenario(t, 0)
-		_, err := svc.VoidAndReplace(ctx, boReplace(id), replRedeem(p, cust, 80))
-		if !errors.Is(err, service.ErrSaleInput) {
-			t.Fatalf("err = %v, want a refusal (locked replacement, 80 > the 50 that can be covered)", err)
+		res, err := svc.VoidAndReplace(ctx, boReplace(id), replRedeem(p, cust, 80))
+		if err != nil {
+			t.Fatal(err)
 		}
-		if status(id) != "completed" || pointsOf(cust) != 0 {
-			t.Fatal("refused replacement changed the sale or the balance")
+		if got := booked(res.ReplacementOrderID); got != (replBooked{50, 50, 0}) {
+			t.Fatalf("replacement redeemed/earned/correction = %+v, want {50 50 0} (80 asked, 50 used)", got)
+		}
+		if got := str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, res.ReplacementOrderID); !strings.Contains(got, "diminta 80, dipakai 50") {
+			t.Fatalf("warning reason = %q, want the requested and used points", got)
+		}
+		if got := ledgerOf(cust); !strings.Contains(got, "redeem:-50>0") {
+			t.Fatalf("ledger = %s", got)
+		}
+		if got := str(`SELECT reason FROM point_transactions WHERE order_id=$1 AND type='redeem'`, res.ReplacementOrderID); !strings.Contains(got, "(diminta 80, dipakai 50)") {
+			t.Fatalf("redeem reason = %q", got)
 		}
 	})
 
@@ -1799,13 +1808,26 @@ func TestVoidPostgres(t *testing.T) {
 		_, cust, p, id := redeemScenario(t, 0)
 		other := customer(0)
 		// The other customer has no points of their own and nothing is reused for them: the locked
-		// replacement is refused, and the original customer is untouched.
-		if _, err := svc.VoidAndReplace(ctx, boReplace(id), replRedeem(p, other, 50)); !errors.Is(err, service.ErrSaleInput) {
-			t.Fatalf("err = %v, want a refusal", err)
+		// replacement redeems 0 (it does not refuse) and the points value lands in the correction.
+		res0, err0 := svc.VoidAndReplace(ctx, boReplace(id), replRedeem(p, other, 50))
+		if err0 != nil {
+			t.Fatal(err0)
 		}
-		if got := pointsOf(cust); got != 0 || status(id) != "completed" {
-			t.Fatalf("refused replacement changed the sale or the balance (%d)", got)
+		if got := booked(res0.ReplacementOrderID); got != (replBooked{0, 100, -5000}) {
+			t.Fatalf("replacement redeemed/earned/correction = %+v, want {0 100 -5000}", got)
 		}
+		if got := str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, res0.ReplacementOrderID); !strings.Contains(got, "diminta 50, dipakai 0") {
+			t.Fatalf("warning reason = %q, want requested 50 used 0", got)
+		}
+		if got := pointsOf(cust); got != 0 {
+			t.Fatalf("original customer balance = %d, want 0", got)
+		}
+	})
+
+	t.Run("replacement_points_zero_requested_by_choice", func(t *testing.T) {
+		_, cust, p, id := redeemScenario(t, 0)
+		other := customer(0)
+		_ = cust
 		// Asking for no points at all is fine: the points value lands in the correction by choice.
 		res, err := svc.VoidAndReplace(ctx, boReplace(id), replRedeem(p, other, 0))
 		if err != nil {
@@ -1889,6 +1911,67 @@ func TestVoidPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("replacement_points_over_reuse_not_funded_by_own_earn", func(t *testing.T) {
+		// Balance untouched (50 after the void), reuse 50, earn 100: asking for 100 must not be funded
+		// from the same sale's earn (a normal sale forbids it). Clamped to 50, editable and locked.
+		shift, cust, p, id := redeemScenario(t, 100)
+		res := sendItem(cashierTok, replaceItem(shift, id, replPayload(cashLines,
+			map[string]any{"customerId": cust, "pointsRedeemed": 100}, p)))
+		repl, _ := res["replacementOrderId"].(string)
+		if res["status"] != "ok" || repl == "" {
+			t.Fatalf("result = %v", res)
+		}
+		if got := booked(repl); got.redeemed != 50 {
+			t.Fatalf("replacement redeemed = %d, want 50 (clamped)", got.redeemed)
+		}
+		if got := pointsOf(cust); got != 100 {
+			t.Fatalf("balance = %d, want 100", got)
+		}
+		_, cust2, p2, id2 := redeemScenario(t, 100)
+		res2, err := svc.VoidAndReplace(ctx, boReplace(id2), replRedeem(p2, cust2, 100))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := booked(res2.ReplacementOrderID); got != (replBooked{50, 100, 0}) {
+			t.Fatalf("locked replacement redeemed/earned/correction = %+v, want {50 100 0} (clamped, no refusal)", got)
+		}
+	})
+
+	t.Run("replacement_points_cheaper_cart_clamps", func(t *testing.T) {
+		// A re-priced 60000 cart earns 60, 50 of it written off: only 10 points are available to reuse.
+		// Locked: 10 are redeemed, the sale still ends at the original 95000 and the gap is the correction.
+		_, cust, p, id := redeemScenario(t, 0)
+		r := replRedeem(p, cust, 50)
+		r.Items[0].Price, r.Items[0].Subtotal = 60000, 60000
+		res, err := svc.VoidAndReplace(ctx, boReplace(id), r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := booked(res.ReplacementOrderID); got != (replBooked{10, 10, 36000}) {
+			t.Fatalf("replacement redeemed/earned/correction = %+v, want {10 10 36000}", got)
+		}
+		if got := one(`SELECT total::int FROM orders WHERE id=$1`, res.ReplacementOrderID); got != 95000 {
+			t.Fatalf("replacement total = %d, want the original 95000", got)
+		}
+		if got := pointsOf(cust); got != 0 {
+			t.Fatalf("balance = %d, want 0", got)
+		}
+	})
+
+	t.Run("replacement_points_exact_available_no_shortfall_note", func(t *testing.T) {
+		_, cust, p, id := redeemScenario(t, 0)
+		res, err := svc.VoidAndReplace(ctx, boReplace(id), replRedeem(p, cust, 50))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := booked(res.ReplacementOrderID); got != (replBooked{50, 50, 0}) {
+			t.Fatalf("replacement redeemed/earned/correction = %+v, want {50 50 0}", got)
+		}
+		if got := str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, res.ReplacementOrderID); strings.Contains(got, "points_shortfall") {
+			t.Fatalf("warning reason = %q, want no shortfall note", got)
+		}
+	})
+
 	t.Run("replacement_points_buat_pengganti", func(t *testing.T) {
 		_, cust, p, id := redeemScenario(t, 0)
 		in := bo(id)
@@ -1898,6 +1981,9 @@ func TestVoidPostgres(t *testing.T) {
 		}
 		if got := pointsOf(cust); got != 0 {
 			t.Fatalf("balance after the void = %d, want 0", got)
+		}
+		if got := one(`SELECT points_restored FROM order_voids WHERE order_id=$1`, id); got != 50 {
+			t.Fatalf("void points_restored = %d, want 50 (the column the reuse reads)", got)
 		}
 		r := replRedeem(p, cust, 50)
 		r.ReplacesOrderID = id
@@ -1910,6 +1996,30 @@ func TestVoidPostgres(t *testing.T) {
 		}
 		if b := pointsOf(cust); b != 0 {
 			t.Fatalf("balance = %d, want 0", b)
+		}
+	})
+
+	t.Run("replacement_points_buat_pengganti_nothing_available", func(t *testing.T) {
+		// The replacement earns nothing (900 cart, earn 0 after the write-off) and the customer has no
+		// points: 0 are redeemed, the replacement is still created, and the points value is the correction.
+		_, cust, p, id := redeemScenario(t, 0)
+		in := bo(id)
+		in.Mode = service.VoidModeLater
+		if _, err := svc.VoidOrder(ctx, in); err != nil {
+			t.Fatal(err)
+		}
+		r := replRedeem(p, cust, 50)
+		r.Items[0].Price, r.Items[0].Subtotal = 900, 900
+		r.ReplacesOrderID = id
+		got, err := svc.CreateReplacementOrder(ctx, r, true, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if b := booked(got.OrderID); b != (replBooked{0, 0, 94100}) {
+			t.Fatalf("replacement redeemed/earned/correction = %+v, want {0 0 94100}", b)
+		}
+		if reason := str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, got.OrderID); !strings.Contains(reason, "diminta 50, dipakai 0") {
+			t.Fatalf("warning reason = %q", reason)
 		}
 	})
 

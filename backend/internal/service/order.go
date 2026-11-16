@@ -565,16 +565,15 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 		pointsRedeemed = in.PointsRedeemed
 		// Void replacement for the same customer: the points the voided sale redeemed were restored
 		// and then partly eaten by the clawback of its earn, so balanceBefore can be short of them.
-		// The replacement may redeem them again out of its own earn (credited first, as in the
-		// ledger): the cap rises by min(pointsReuse, finalEarned), so the balance never goes below 0.
-		available := balanceBefore + min(in.pointsReuse, finalEarned)
+		// The replacement may redeem them again, funded by its own earn (credited first, as in the
+		// ledger): the cap is max(balance, min(reuse, balance + earn)). It never drops below the live
+		// balance, never exceeds the reusable points unless the balance itself is higher, and the
+		// balance never goes below 0 (cap <= balance + earn). A normal sale (reuse 0) is unchanged.
+		available := max(balanceBefore, min(in.pointsReuse, balanceBefore+finalEarned))
 		if pointsRedeemed > available {
-			// A locked replacement (CorrectionTarget set) is refused rather than clamped: a silent clamp
-			// would leave finalTotal above the original's and push the points value into the
-			// correction. Fewer points asked for on purpose (the cashier removed some) stay allowed.
-			if in.CorrectionTarget != nil {
-				return "", false, false, saleInputError("pointsRedeemed", "melebihi poin yang tersedia")
-			}
+			// Use what is there: the replacement redeems the available points, never refuses (a paid
+			// replacement must not park over points). In a locked replacement the shortfall lands in
+			// the correction below, so the sale still ends at the original total.
 			pointsRedeemed = available
 		}
 		redeemAmount = float64(pointsRedeemed) * redemptionRate
@@ -587,14 +586,29 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 			pointsRedeemed = int(res.Total / redemptionRate)
 		}
 	}
+	// Audit of a clamped void replacement: the requested and used points go on the order's warning
+	// (its reason shows as the Orders tooltip) and on the redeem ledger row's reason, so it survives
+	// even when nothing could be redeemed (no ledger row then). No new column.
+	redeemNote := ""
+	if in.ReplacesOrderID != "" && in.PointsRedeemed > pointsRedeemed && hasLoyaltyCustomer {
+		redeemNote = fmt.Sprintf(" (diminta %d, dipakai %d)", in.PointsRedeemed, pointsRedeemed)
+		reason := fmt.Sprintf("points_shortfall%s", redeemNote)
+		discountWarning = true
+		if discountWarnReason == "" {
+			discountWarnReason = reason
+		} else {
+			discountWarnReason += "," + reason
+		}
+	}
 	finalTotal := res.Total - redeemAmount
 	// Void replacement: the sale ends at the target and the gap is "Penyesuaian koreksi". Points
 	// earned are decided above from res.Total, before this adjustment, so the gap never moves them.
 	// Arithmetic: the original stored total T = cart price - points value, i.e. the money it took (its
 	// tenders sum to T). A replacement of the same cart redeeming the same points has finalTotal =
 	// res.Total - redeemAmount = T, so correction = target(T) - T = 0 and its tenders (which must sum
-	// to T when locked) settle exactly. Only points NOT redeemed again (removed, another customer, a
-	// clamp) leave finalTotal above T and land the points value in the negative correction.
+	// to T when locked) settle exactly. Only points NOT redeemed again (removed, another customer, or a
+	// clamp to the points available) leave finalTotal above T and land the points value in the negative
+	// correction; the tenders still sum to T because the target replaces finalTotal for settlement.
 	var correction int64
 	if in.CorrectionTarget != nil {
 		correction = correctionAmount(*in.CorrectionTarget, int64(math.Round(finalTotal)))
@@ -847,7 +861,7 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 				if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
 					CustomerID: in.CustomerID, Type: "redeem", Points: -pointsRedeemed,
 					BalanceAfter: balanceBefore + earned - pointsRedeemed,
-					Reason:       fmt.Sprintf("Penukaran poin di transaksi %s", orderNumber),
+					Reason:       fmt.Sprintf("Penukaran poin di transaksi %s%s", orderNumber, redeemNote),
 					OrderID:      orderID, ByID: in.CashierID, ByName: in.CashierName,
 				}); e != nil {
 					return "", false, false, fmt.Errorf("ledger redeem: %w", e)
