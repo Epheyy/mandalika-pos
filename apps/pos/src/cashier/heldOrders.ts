@@ -50,6 +50,9 @@ export interface HeldOrder {
   dismissedAutoPromotionIds?: string[]
   /** OPTIONAL: notes shown on restore (a void's replacement draft could not recover everything). Unversioned like the field above. */
   restoreNotes?: string[]
+  /** OPTIONAL: points a void's replacement redeems again for the same customer (the voided sale's redemption, restored by
+   *  the server). Restored as the customer's redeemable balance and the points to redeem; picking another customer clears them. */
+  reusePoints?: number
 }
 
 const isHeldOrder = (v: unknown): v is HeldOrder => {

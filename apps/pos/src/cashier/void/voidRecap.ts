@@ -3,6 +3,7 @@ import type { QueuedVoid } from '@mandalika/sync'
 import { VOID_REASONS } from './voidRules'
 
 type Order = components['schemas']['Order']
+type Shift = components['schemas']['Shift']
 
 // Shift recap vs voids (Void phase 3). The recap's figures come from the SERVER's orders of the shift, so:
 //  - a synced void is already out of them (aggregate skips `cancelled`) and its replacement is already in them;
@@ -82,8 +83,10 @@ export function voidRecapOverlay(queued: QueuedVoid[], orders: Order[], shiftId:
   const add = (m: string, v: number) => { byMethod[m] = (byMethod[m] ?? 0) + v; total += v }
   const byId = new Map(orders.map((o) => [o.id, o]))
   for (const v of queued) {
+    // A PARKED void counts too: the server has not applied it, but the cashier already handed the money back, so the
+    // drawer must read as they left it. Once head office resolves or discards it, it leaves the queue and the overlay.
     // An unattributed sale (no originalShiftId) the shift's orders list holds is counted in this shift by the server too.
-    if (v.parked || (v.originalShiftId !== null && v.originalShiftId !== shiftId) || v.orderId === '') continue
+    if ((v.originalShiftId !== null && v.originalShiftId !== shiftId) || v.orderId === '') continue
     // Only a sale the recap actually counted can be taken out of it; a cancelled one already reflects the void.
     const o = byId.get(v.orderId)
     if (!o || o.status === 'cancelled') continue
@@ -97,8 +100,40 @@ export function voidRecapOverlay(queued: QueuedVoid[], orders: Order[], shiftId:
   return { byMethod, total, orders: count }
 }
 
+/** Voids that must be settled before this shift closes: every unacknowledged void (queued or parked) of the shift's
+ *  sales. A void with no originalShiftId (a sale without a shift id) is counted conservatively. */
+export function voidsBlockingShiftClose(queued: readonly QueuedVoid[], shiftId: string): QueuedVoid[] {
+  return queued.filter((v) => v.originalShiftId === null || v.originalShiftId === shiftId)
+}
+
+/** The Tutup Shift refusal text naming the stuck voids' transaction numbers, or null when nothing blocks. */
+export function shiftCloseVoidBlock(queued: readonly QueuedVoid[], shiftId: string): string | null {
+  const stuck = voidsBlockingShiftClose(queued, shiftId)
+  if (stuck.length === 0) return null
+  const names = stuck.map((v) => (v.orderNumber ? `#${v.orderNumber}` : '(tanpa nomor)'))
+  return `Selesaikan pembatalan yang tertunda dulu: ${[...new Set(names)].join(', ')}`
+}
+
 export function applyVoidRecap(byMethod: Record<string, number>, totalSales: number, ov: VoidRecapOverlay) {
   const out: Record<string, number> = { ...byMethod }
   for (const [k, v] of Object.entries(ov.byMethod)) out[k] = (out[k] ?? 0) + v
   return { byMethod: out, totalSales: totalSales + ov.total }
+}
+
+export interface ShiftCorrectionNote {
+  count: number
+  /** The closed snapshot's total sales and what it is after the corrections (both whole figures from the server). */
+  snapshotTotal: number
+  correctedTotal: number
+  /** Net correction per payment method id, zero entries left out. */
+  byMethod: Record<string, number>
+}
+
+/** A closed shift that voids corrected after it closed: the snapshot (`totalSales`, `cashSales`...) stays as it was at close
+ *  and the server reports the corrected figures beside it. Null when nothing corrected it. */
+export function shiftCorrectionNote(s: Pick<Shift, 'status' | 'totalSales' | 'corrections' | 'correctedTotalSales'>): ShiftCorrectionNote | null {
+  const c = s.corrections
+  if (s.status !== 'closed' || !c || c.count <= 0) return null
+  const byMethod = Object.fromEntries(Object.entries(c.byMethod ?? {}).filter(([, v]) => v !== 0))
+  return { count: c.count, snapshotTotal: s.totalSales, correctedTotal: s.correctedTotalSales ?? s.totalSales + Object.values(byMethod).reduce((a, v) => a + v, 0), byMethod }
 }

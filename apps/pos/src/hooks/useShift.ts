@@ -14,6 +14,7 @@ import { getKV } from '@mandalika/sync'
 import { api, authStore } from '../api'
 import { useAuth } from '../auth'
 import { SyncContext } from '../cashier/SyncProvider'
+import { shiftCloseVoidBlock } from '../cashier/void/voidRecap'
 import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
 import {
   OFFLINE_OPEN_MESSAGE,
@@ -184,6 +185,12 @@ export function useShift(): ShiftState {
       if (isPendingOpen(currentShift)) {
         // Opened offline-pending: the server has no id to close yet.
         setShiftError(PENDING_CLOSE_MESSAGE)
+        return false
+      }
+      // A void still in the outbox (queued or parked) must settle first: its money is not on the server yet.
+      const voidBlock = shiftCloseVoidBlock(engine.queuedVoids(), currentShift.id)
+      if (voidBlock) {
+        setShiftError(voidBlock)
         return false
       }
       setIsClosingShift(true)

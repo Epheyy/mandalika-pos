@@ -83,7 +83,10 @@ export function heldOrderFromVoidedOrder(order: Order, now: number): HeldOrder {
   }
   const discount = adjustment(order.discountType, order.discountValue)
   const restoreNotes: string[] = []
-  if (order.customerId) restoreNotes.push('Pilih ulang pelanggan agar poin dan segmen terbaru terpasang')
+  // The voided sale's redeemed points come back with the same customer (the server restores them when it voids), so the
+  // replacement redeems them again; the cashier can lower or remove them. Only a customer picked again loses them.
+  const reusePoints = order.customerId ? Math.max(0, Math.floor(order.pointsRedeemed ?? 0)) : 0
+  if (order.customerId) restoreNotes.push(reusePoints > 0 ? `Poin ${reusePoints} dipakai lagi; segmen terbaru terpasang jika pelanggan dipilih ulang` : 'Pilih ulang pelanggan agar segmen terbaru terpasang')
   if (order.discountCode) restoreNotes.push('Kode Promo lain (jika ada) harus dipasang ulang di Promo & Diskon')
   return {
     v: 1,
@@ -91,7 +94,8 @@ export function heldOrderFromVoidedOrder(order: Order, now: number): HeldOrder {
     name: `Pengganti #${order.orderNumber}`,
     heldAt: now,
     lines,
-    customer: order.customerId ? { id: order.customerId, name: order.customerName ?? '', phone: '', points: 0 } : null,
+    // points = the redeemable balance known here: only what the void gives back (the live balance is not on an Order).
+    customer: order.customerId ? { id: order.customerId, name: order.customerName ?? '', phone: '', points: reusePoints } : null,
     salesman: order.salesmanId ? { id: order.salesmanId, name: order.salesmanName ?? '' } : null,
     notes: order.notes ?? '',
     discount,
@@ -100,8 +104,9 @@ export function heldOrderFromVoidedOrder(order: Order, now: number): HeldOrder {
     promotions: unique(promoIds).map((id) => ({ id, name: id })),
     codes: unique(codes),
     rewardPicks,
-    loyaltyDropped: (order.pointsRedeemed ?? 0) > 0 || loyaltyReward,
+    loyaltyDropped: (!order.customerId && (order.pointsRedeemed ?? 0) > 0) || loyaltyReward,
     ...(restoreNotes.length > 0 ? { restoreNotes } : {}),
+    ...(reusePoints > 0 ? { reusePoints } : {}),
   }
 }
 

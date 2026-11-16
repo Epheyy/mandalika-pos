@@ -28,7 +28,7 @@ import { recapRows, differenceLines } from './recapRows'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { CashAmountInput } from './CashAmountInput'
 import { countedRaw, withCountedRaw } from './recapEntry'
-import { inRecapShift, voidRecapOverlay, voidRecapRows } from './void/voidRecap'
+import { inRecapShift, shiftCloseVoidBlock, shiftCorrectionNote, voidRecapOverlay, voidRecapRows } from './void/voidRecap'
 import { VoidRecapList } from './void/VoidRecapList'
 import { RecapLoadGate, ownsFlags, startRefresh, switchTab } from './recapRefresh'
 
@@ -169,6 +169,7 @@ function ShiftRecapPanelBody({
   const voidList = useMemo(() => [...(queuedVoids ?? [])], [queuedVoids])
   const curShiftId = currentShift?.id ?? ''
   const voidOv = useMemo(() => voidRecapOverlay(voidList, liveOrders ?? [], curShiftId), [voidList, liveOrders, curShiftId])
+  const closeVoidBlock = useMemo(() => (curShiftId ? shiftCloseVoidBlock(voidList, curShiftId) : null), [voidList, curShiftId])
   const voidRows = useMemo(() => voidRecapRows(liveOrders ?? [], voidList, curShiftId), [voidList, liveOrders, curShiftId])
   const cur = live ? recapFigures(live, currentShift, queuedRefunds, liveOrders, voidOv) : null
   const liveOrderCount = (live?.totalOrders ?? 0) + voidOv.orders
@@ -722,8 +723,12 @@ function ShiftRecapPanelBody({
                   <p role="alert" className="text-xs font-semibold text-danger bg-danger-bg border border-danger/30 rounded-control px-3 py-2">{shiftError}</p>
                 )}
                 {queue && <QueueGuardLine pending={queue.pending} parked={queue.parked} />}
+                {closeVoidBlock && (
+                  <p role="alert" data-testid="close-void-block" className="text-xs font-semibold text-danger bg-danger-bg border border-danger/30 rounded-control px-3 py-2">{closeVoidBlock}</p>
+                )}
                 <button
-                  type="button" onClick={() => void handleClose()} disabled={isClosingShift}
+                  type="button" onClick={() => void handleClose()} disabled={isClosingShift || closeVoidBlock !== null}
+                  title={closeVoidBlock ?? undefined}
                   aria-label="Tutup Shift" aria-busy={isClosingShift || undefined}
                   className="bar-primary press-bar tnum flex min-h-16 w-full items-center justify-between px-5 text-base font-bold disabled:opacity-40 disabled:pointer-events-none"
                 >
@@ -828,7 +833,10 @@ function ShiftRecapPanelBody({
                             <span className="text-ink-700 font-semibold">{fmtDate(s.openedAt)}</span>
                             <span className="text-ink-700">Shift {shiftNum}</span>
                             <span className="text-ink-700 truncate pr-2">{s.cashierName}</span>
-                            <span className="tnum text-right font-black text-ink-900">{formatRupiah(s.totalSales)}</span>
+                            <span className="tnum text-right font-black text-ink-900">
+                              {formatRupiah(s.totalSales)}
+                              {shiftCorrectionNote(s) && <span className="block text-[10px] font-semibold text-warn-strong" data-testid="history-corrected-tag">dikoreksi setelah ditutup</span>}
+                            </span>
                           </button>
                         )
                       })
@@ -1042,6 +1050,20 @@ function ShiftRecapPanelBody({
                         </div>
                         <RefundRecapNotes rec={histRecap} />
                         <VoidRecapList rows={voidRecapRows(selectedOrders, [], selected.id)} />
+                        {(() => {
+                          const note = shiftCorrectionNote(selected)
+                          if (!note) return null
+                          return (
+                            <div className="text-xs text-warn-strong space-y-0.5" data-testid="history-corrections">
+                              <div className="font-black">Dikoreksi setelah ditutup ({note.count} pembatalan)</div>
+                              <div className="flex justify-between"><span>Total saat ditutup</span><span className="tnum">{formatRupiah(note.snapshotTotal)}</span></div>
+                              <div className="flex justify-between"><span>Total setelah koreksi</span><span className="tnum">{formatRupiah(note.correctedTotal)}</span></div>
+                              {Object.entries(note.byMethod).map(([id, v]) => (
+                                <div key={id} className="flex justify-between"><span>{paymentMethods.find((m) => m.id === id)?.label ?? id}</span><span className="tnum">{v > 0 ? '+' : '−'}{formatRupiah(Math.abs(v))}</span></div>
+                              ))}
+                            </div>
+                          )
+                        })()}
                         {hasCounted && (
                           <>
                             <div className="flex justify-between text-xs font-bold text-ink-700">

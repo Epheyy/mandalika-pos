@@ -3,7 +3,7 @@ import type { components } from '@mandalika/api'
 import type { QueuedVoid } from '@mandalika/sync'
 import { aggregate } from '../recapAggregate'
 import { applyRefundRecap, recapFigures, refundRecap } from '../refundRecap'
-import { applyVoidRecap, inRecapShift, voidRecapOverlay, voidRecapRows } from './voidRecap'
+import { applyVoidRecap, inRecapShift, shiftCloseVoidBlock, shiftCorrectionNote, voidRecapOverlay, voidRecapRows } from './voidRecap'
 
 type Order = components['schemas']['Order']
 type Shift = components['schemas']['Shift']
@@ -77,9 +77,15 @@ describe('voidRecapOverlay', () => {
   it('overlay ignores a void already reflected as cancelled', () => {
     expect(voidRecapOverlay([qv()], [voided()], 'S')).toEqual({ byMethod: {}, total: 0, orders: 0 })
   })
-  it('ignores parked voids, other shifts, and sales still in the outbox', () => {
+  it('applies a PARKED void like a queued one (the cashier already handed the money back)', () => {
+    const parked = voidRecapOverlay([qv({ parked: true })], [order()], 'S')
+    expect(parked).toEqual(voidRecapOverlay([qv()], [order()], 'S'))
+    expect(parked).toEqual({ byMethod: { cash: -300000, qris: 300000 }, total: 0, orders: 0 })
+    // once it is resolved/discarded it leaves the queue and the overlay is empty again
+    expect(voidRecapOverlay([], [order()], 'S')).toEqual({ byMethod: {}, total: 0, orders: 0 })
+  })
+  it('ignores other shifts and sales still in the outbox', () => {
     const none = { byMethod: {}, total: 0, orders: 0 }
-    expect(voidRecapOverlay([qv({ parked: true })], [order()], 'S')).toEqual(none)
     expect(voidRecapOverlay([qv({ originalShiftId: 'X' })], [order()], 'S')).toEqual(none)
     expect(voidRecapOverlay([qv({ orderId: '' })], [order()], 'S')).toEqual(none)
   })
@@ -111,5 +117,33 @@ describe('voidRecapOverlay for an unattributed sale', () => {
   it('a void of the sale of another shift is still ignored, and so is an unattributed one the orders do not hold', () => {
     expect(voidRecapOverlay([qv({ originalShiftId: 'OTHER' })], [order()], 'S').orders).toBe(0)
     expect(voidRecapOverlay([qv({ originalShiftId: null, orderId: 'missing' })], [order()], 'S').orders).toBe(0)
+  })
+})
+
+describe('shiftCloseVoidBlock', () => {
+  it('names every unacked void of the shift, queued or parked, and ignores other shifts', () => {
+    const msg = shiftCloseVoidBlock([
+      qv({ orderNumber: 'BSD-0001' }), qv({ idempotencyKey: 'k2', orderNumber: 'BSD-0002', parked: true }),
+      qv({ idempotencyKey: 'k3', orderNumber: 'BSD-0009', originalShiftId: 'OLD' }),
+    ], 'S')
+    expect(msg).toBe('Selesaikan pembatalan yang tertunda dulu: #BSD-0001, #BSD-0002')
+  })
+  it('blocks conservatively for an unattributed void and is null when nothing is stuck', () => {
+    expect(shiftCloseVoidBlock([qv({ originalShiftId: null, orderNumber: 'BSD-0003' })], 'S')).toContain('#BSD-0003')
+    expect(shiftCloseVoidBlock([], 'S')).toBeNull()
+    expect(shiftCloseVoidBlock([qv({ originalShiftId: 'OLD' })], 'S')).toBeNull()
+  })
+})
+
+describe('shiftCorrectionNote', () => {
+  const closed = (over: Record<string, unknown> = {}) => ({ status: 'closed', totalSales: 1000000, ...over }) as never
+  it('is null for an open shift, a shift without corrections, and a zero count', () => {
+    expect(shiftCorrectionNote(closed({ status: 'open', corrections: { count: 1, byMethod: {}, items: [] } }))).toBeNull()
+    expect(shiftCorrectionNote(closed())).toBeNull()
+    expect(shiftCorrectionNote(closed({ corrections: { count: 0, byMethod: {}, items: [] } }))).toBeNull()
+  })
+  it('reports the snapshot, the corrected total and the non-zero per-method net', () => {
+    const n = shiftCorrectionNote(closed({ correctedTotalSales: 900000, corrections: { count: 2, byMethod: { cash: -100000, qris: 0 }, items: [] } }))
+    expect(n).toEqual({ count: 2, snapshotTotal: 1000000, correctedTotal: 900000, byMethod: { cash: -100000 } })
   })
 })

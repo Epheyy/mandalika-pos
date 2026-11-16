@@ -68,6 +68,8 @@ export function planHeldRestore(held: HeldOrder, env: HeldRestoreEnv): HeldResto
   const dismissedAuto = Array.isArray(held.dismissedAutoPromotionIds) ? held.dismissedAutoPromotionIds.filter((id) => typeof id === 'string') : []
   if (dismissedAuto.length > 0) push({ type: 'SET_DISMISSED_AUTO_PROMOS', ids: dismissedAuto })
   if (held.customer) push({ type: 'SET_CUSTOMER', customer: heldCustomerRecord(held.customer, held.heldAt) })
+  // SET_CUSTOMER clears the redemption, so a void replacement's reused points are set right after it.
+  if (held.customer && (held.reusePoints ?? 0) > 0) push({ type: 'SET_POINTS_REDEEMED', points: held.reusePoints as number })
   if (held.salesman) push({ type: 'SET_SALESMAN', salesman: held.salesman })
 
   const retired: string[] = []

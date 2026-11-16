@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { components } from '@mandalika/api'
 import { planHeldRestore } from '../heldRestore'
+import { cashierReducer } from '../state/cashierReducer'
 import {
   heldOrderFromVoidedOrder, initialReplacementTenders, lockedReplacementTenders, lockedTendersProblem, replacementCorrection, type VoidDraft,
 } from './voidReplacement'
@@ -99,7 +100,7 @@ describe('heldOrderFromVoidedOrder', () => {
     ])
     expect(h.loyaltyDropped).toBe(false)
     expect(h.restoreNotes).toEqual([
-      'Pilih ulang pelanggan agar poin dan segmen terbaru terpasang',
+      'Pilih ulang pelanggan agar segmen terbaru terpasang',
       'Kode Promo lain (jika ada) harus dipasang ulang di Promo & Diskon',
     ])
   })
@@ -108,14 +109,35 @@ describe('heldOrderFromVoidedOrder', () => {
     expect(h.lines.map((l) => l.productId)).toEqual(['p4'])
     expect(h.loyaltyDropped).toBe(true)
   })
-  it('flags redeemed points and loyalty reward lines for re-picking', () => {
-    expect(heldOrderFromVoidedOrder({ ...order, pointsRedeemed: 50 }, 1).loyaltyDropped).toBe(true)
-    expect(heldOrderFromVoidedOrder(order, 1).loyaltyDropped).toBe(false)
+  it('reuses redeemed points for the same customer instead of dropping them', () => {
+    const h = heldOrderFromVoidedOrder({ ...order, pointsRedeemed: 50 }, 1)
+    expect(h.loyaltyDropped).toBe(false)
+    expect(h.reusePoints).toBe(50)
+    expect(h.customer?.points).toBe(50)
+    expect(h.restoreNotes?.[0]).toMatch(/Poin 50 dipakai lagi/)
+    expect(heldOrderFromVoidedOrder(order, 1).reusePoints).toBeUndefined()
+  })
+  it('a sale without a customer cannot reuse points: they are flagged for re-picking', () => {
+    const h = heldOrderFromVoidedOrder({ ...order, customerId: undefined, customerName: undefined, pointsRedeemed: 50 }, 1)
+    expect(h.reusePoints).toBeUndefined()
+    expect(h.loyaltyDropped).toBe(true)
+  })
+  it('the restore sets the points right after the customer, and picking another customer clears them', () => {
+    const env = { products: [], promotions: [], discountCodes: [], ctx: { now: new Date(), outletId: 'o1', timezone: 'Asia/Jakarta' } } as never
+    const plan = planHeldRestore(heldOrderFromVoidedOrder({ ...order, pointsRedeemed: 50 }, 1), env)
+    expect(plan.result.pointsToRedeem).toBe(50)
+    expect(plan.result.selectedCustomer?.points).toBe(50)
+    const other = cashierReducer(plan.result, { type: 'SET_CUSTOMER', customer: { id: 'cu2', name: 'Lain', phone: '', points: 900, totalSpent: 0, visitCount: 0, createdAt: '' } })
+    expect(other.pointsToRedeem).toBe(0)
+  })
+  it('same cart, same points: the after-points total equals the original payable, so the correction is 0', () => {
+    // original: cart 100000 - 20000 points value = 80000 paid; the replacement quote after points is the same 80000.
+    expect(replacementCorrection(draft({ originalTotal: 80000, amountsLocked: true }), 80000, 'adjust')).toEqual({ correctionTarget: 'original_total', correction: 0 })
   })
   it('is accepted by the held-restore planner', () => {
     const h = heldOrderFromVoidedOrder(order, 1)
     const plan = planHeldRestore(h, { products: [], promotions: [], discountCodes: [], ctx: { now: new Date(), outletId: 'o1', timezone: 'Asia/Jakarta' } } as never)
     expect(plan.actions[0]).toEqual({ type: 'CART_CLEAR' })
-    expect(plan.notes).toContain('Pilih ulang pelanggan agar poin dan segmen terbaru terpasang')
+    expect(plan.notes).toContain('Pilih ulang pelanggan agar segmen terbaru terpasang')
   })
 })
