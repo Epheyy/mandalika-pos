@@ -307,7 +307,10 @@ func replacementFromOriginal(ctx context.Context, tx pgx.Tx, outletID, orderID s
 		in.Surcharge = *surchVal
 	}
 	in.PointsRedeemed = redeemed
-	in.EvalTime = &soldAt // promotions and loyalty rules judge the sale at its own time, not today
+	if soldAt, err = originalSaleTime(ctx, tx, orderID); err != nil {
+		return in, err
+	}
+	in.EvalTime = &soldAt // promotions and loyalty rules judge the sale at its own time (the chain's first sale), not today
 	if ov.CustomerID != nil {
 		if *ov.CustomerID != in.CustomerID {
 			in.CustomerName, in.PointsRedeemed = "", 0 // another customer cannot spend these points

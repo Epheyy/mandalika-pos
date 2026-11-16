@@ -267,15 +267,21 @@ func applyRecoveredPromotions(ctx context.Context, tx pgx.Tx, orderID string, in
 			}
 		}
 	}
-	var rewardPromos []string
-	for _, g := range grants {
-		if !broken[g.PromotionID] {
-			rewardPromos = append(rewardPromos, g.PromotionID)
-		}
-	}
 	codes := in.DiscountCodes
 	if len(codes) == 0 && in.DiscountCode != "" {
 		codes = []string{in.DiscountCode}
+	}
+	// A promotion that one of the copied codes is linked to is applied through that code: naming it
+	// here too would make the sale path skip the code as redundant and lose the code's usage.
+	linked, err := codeLinkedPromotions(ctx, tx, codes)
+	if err != nil {
+		return in, err
+	}
+	var rewardPromos []string
+	for _, g := range grants {
+		if !broken[g.PromotionID] && !linked[g.PromotionID] {
+			rewardPromos = append(rewardPromos, g.PromotionID)
+		}
 	}
 	soldAt := time.Now()
 	if in.EvalTime != nil {
@@ -290,8 +296,50 @@ func applyRecoveredPromotions(ctx context.Context, tx pgx.Tx, orderID string, in
 			"order_id", orderID, "reward_grants_unmatched", len(unrecovered), "reward_promotions_broken", len(broken), "promotion_labels_unmatched", unmatched)
 		in.warnReason = warnPromoNotReproduced
 	}
-	in.Items, in.PromotionIDs = items, ids
+	kept := ids[:0:0]
+	for _, id := range ids {
+		if !linked[id] {
+			kept = append(kept, id)
+		}
+	}
+	in.Items, in.PromotionIDs = items, kept
 	return in, nil
+}
+
+// codeLinkedPromotions is the set of promotion ids the given discount codes are linked to.
+func codeLinkedPromotions(ctx context.Context, tx pgx.Tx, codes []string) (map[string]bool, error) {
+	out := map[string]bool{}
+	if len(codes) == 0 {
+		return out, nil
+	}
+	rows, err := tx.Query(ctx, `SELECT promotion_id::text FROM discount_codes WHERE code = ANY($1) AND promotion_id IS NOT NULL`, codes)
+	if err != nil {
+		return nil, fmt.Errorf("load code-linked promotions: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
+// originalSaleTime is the time the FIRST sale of a replacement chain was made (a replacement made
+// through Backoffice has no client time of its own, so its created_at is the fix time, not the sale
+// time). Walks replaces_order_id to the root. created_at itself is never touched.
+func originalSaleTime(ctx context.Context, tx pgx.Tx, orderID string) (time.Time, error) {
+	var t time.Time
+	err := tx.QueryRow(ctx, `
+		WITH RECURSIVE chain AS (
+		  SELECT id, replaces_order_id, COALESCE(client_created_at, created_at) AS t FROM orders WHERE id=$1
+		  UNION ALL
+		  SELECT o.id, o.replaces_order_id, COALESCE(o.client_created_at, o.created_at)
+		    FROM orders o JOIN chain c ON o.id = c.replaces_order_id)
+		SELECT t FROM chain WHERE replaces_order_id IS NULL`, orderID).Scan(&t)
+	return t, err
 }
 
 // checkReplacementKeepsItems refuses (and so rolls back the whole void) when the replacement sale

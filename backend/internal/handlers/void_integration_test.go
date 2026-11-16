@@ -2983,4 +2983,68 @@ func TestVoidPostgres(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("replacement_promo_code_linked_to_bxgy_keeps_the_code", func(t *testing.T) {
+		shift := openShift()
+		buy, get := product(5), product(5)
+		promo := newID("8")
+		exec(`INSERT INTO promotions(id,name,type,value,combinable,code_only,bxgy_config) VALUES($1,'VD BXGY LINKED','buy_x_get_y',0,true,true,$2::jsonb)`, promo,
+			fmt.Sprintf(`{"buyQuantity":1,"getQuantity":1,"buyProductIds":["%s"],"getProductIds":["%s"],"getDiscountKind":"percentage","getDiscountValue":100}`, buy, get))
+		exec(`INSERT INTO discount_codes(code,promotion_id,type,value,combinable) VALUES('VDLINKBX',$1,'fixed',1,true)`, promo)
+		reward := ln(get, 1, 0)
+		reward.IsReward, reward.RewardPromotionID = true, promo
+		orig := promoOrder(shift, []service.OrderItem{ln(buy, 1, 100000), reward}, func(in *service.CreateOrderInput) {
+			in.DiscountCodes, in.DiscountCode, in.DiscountLabel = []string{"VDLINKBX"}, "VDLINKBX", "VDLINKBX"
+		})
+		if one(`SELECT usage_count FROM discount_codes WHERE code='VDLINKBX'`) != 1 || one(`SELECT count(*) FROM promo_reward_grants WHERE order_id=$1`, orig) != 1 {
+			t.Fatal("fixture: the linked code sale did not use the code and grant the reward")
+		}
+		res, err := payFix(orig, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		repl := res.ReplacementOrderID
+		if got := booked3(repl); got != booked3(orig) || !strings.HasSuffix(got, "/0") {
+			t.Fatalf("replacement = %s, original = %s; want the same with zero correction", got, booked3(orig))
+		}
+		if got := str(`SELECT COALESCE(applied_discount_codes::text,'null') FROM orders WHERE id=$1`, repl); got != `["VDLINKBX"]` {
+			t.Fatalf("applied_discount_codes = %s, want the code kept", got)
+		}
+		if one(`SELECT usage_count FROM discount_codes WHERE code='VDLINKBX'`) != 1 {
+			t.Fatal("usage_count did not come back to the original value")
+		}
+		if one(`SELECT count(*) FROM promo_reward_grants WHERE order_id=$1`, repl) != 1 {
+			t.Fatal("the replacement lost the reward grant")
+		}
+		if w := str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, repl); w != "" {
+			t.Fatalf("unexpected warning %q (a code_only promotion applied through its code is normal)", w)
+		}
+	})
+
+	t.Run("replacement_promo_chain_is_judged_at_the_first_sale_time", func(t *testing.T) {
+		shift := openShift()
+		first, later := pctPromo("VD PCT CHAIN", 10), pctPromo("VD PCT CHAIN", 20)
+		items, _ := threeLines()
+		orig := promoOrder(shift, items, func(in *service.CreateOrderInput) {
+			in.PromotionIDs, in.DiscountLabel = []string{first}, "VD PCT CHAIN"
+			in.DiscountBreakdown = []byte(`[{"label":"VD PCT CHAIN","kind":"percentage","value":10,"amount":30000}]`)
+		})
+		// Sale three days ago; the look-alike promotion was created yesterday, after the sale.
+		exec(`UPDATE orders SET created_at = now() - interval '3 days' WHERE id=$1`, orig)
+		exec(`UPDATE promotions SET created_at = now() - interval '10 days' WHERE id=$1`, first)
+		exec(`UPDATE promotions SET created_at = now() - interval '1 day' WHERE id=$1`, later)
+		r1, err := payFix(orig, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		r2, err := payFix(r1.ReplacementOrderID, service.ReplacementOverride{Tenders: json.RawMessage(`[{"method":"card","amount":270000}]`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{r1.ReplacementOrderID, r2.ReplacementOrderID} {
+			if got := booked3(id); got != "270000/30000/0" {
+				t.Fatalf("replacement %s = %s, want 270000/30000/0 (the promotion created after the sale must not be matched)", id, got)
+			}
+		}
+	})
 }
