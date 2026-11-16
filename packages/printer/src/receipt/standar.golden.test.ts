@@ -12,6 +12,7 @@ import type { ReceiptLayout } from './layout'
 import { LockedBlockError, receiptBytes, renderReceipt } from './render'
 import { EscPosSink } from './sink'
 import { standarLayout } from './standar'
+import { NEW_TEMPLATE_BLOCKS } from './sample'
 
 const hex = (u: Uint8Array): string => Array.from(u, (b) => b.toString(16).padStart(2, '0')).join('')
 
@@ -110,25 +111,37 @@ describe('Standar equals the frozen legacy receipt', () => {
   })
 })
 
+const designerLayout = (): ReceiptLayout => ({ paperWidth: 58, blocks: NEW_TEMPLATE_BLOCKS })
+
 describe('block failures', () => {
   const settings = { headerText: 'TOKO', footerText: 'Terima kasih' } as ReceiptSettings
   const data = DATA_CASES.plain!
 
   it('an unlocked block that throws is skipped and reported; a throwing items block throws LockedBlockError', () => {
-    const base = standarLayout(settings)
-    const badData = { ...data, get dateTime(): Date { throw new Error('boom') } } as ReceiptData
-    // The top transaction block reads dateTime: it is unlocked, so it is skipped and reported.
+    const base = designerLayout()
+    const badData = { ...data, dateTime: { toLocaleString(): string { throw new Error('boom') } } as unknown as Date } as ReceiptData
+    // The transaction block reads dateTime: it is unlocked, so it is skipped and reported.
     const reported: string[] = []
     const sink = new EscPosSink()
     renderReceipt(base, badData, sink, { onBlockError: (id) => reported.push(id) })
-    expect(reported).toEqual(['std-tx-top'])
+    expect(reported).toEqual(['transaction'])
     // A skipped block leaves no partial bytes: same as rendering with the block disabled.
-    const disabled = { ...base, blocks: base.blocks.map((b) => (b.id === 'std-tx-top' ? { ...b, enabled: false } : b)) } as ReceiptLayout
+    const disabled = { ...base, blocks: base.blocks.map((b) => (b.id === 'transaction' ? { ...b, enabled: false } : b)) } as ReceiptLayout
     expect(hex(sink.done())).toBe(hex(receiptBytes(disabled, data)))
 
-    const brokenLines = { ...data, get lines(): ReceiptData['lines'] { throw new Error('items boom') } } as ReceiptData
+    const brokenLines = { ...data, lines: [{ name: 'x', qty: 1, unitPrice: 1n as unknown as number, amount: 1 }] } as ReceiptData // money(1n) throws inside the items block
     expect(() => receiptBytes(base, brokenLines)).toThrow(LockedBlockError)
-    try { receiptBytes(base, brokenLines) } catch (e) { expect((e as LockedBlockError).blockId).toBe('std-items') }
+    try { receiptBytes(base, brokenLines) } catch (e) { expect((e as LockedBlockError).blockId).toBe('items') }
+  })
+
+  it('Standar (compat) rethrows like the legacy receipt instead of printing less', () => {
+    const badData = { ...data, dateTime: { toLocaleString(): string { throw new Error('boom') } } as unknown as Date } as ReceiptData
+    expect(() => buildReceiptV1(badData, settings)).toThrow('boom')
+    expect(() => buildReceipt(badData, settings)).toThrow('boom')
+  })
+
+  it('an unsupported paper width throws instead of printing garbage', () => {
+    expect(() => receiptBytes({ ...designerLayout(), paperWidth: 76 as 58 }, data)).toThrow(/paper width/)
   })
 
   it('a disabled locked block still prints (locked blocks cannot be switched off)', () => {

@@ -169,7 +169,7 @@ export function paymentBlock(b: Of<'payment'>, ctx: BlockCtx): void {
 export function pointsBlock(ctx: BlockCtx): void {
   const { out, cols, data } = ctx
   if (!data.points) return
-  out.line(pad('Perkiraan poin', '+' + money(data.points.earned), cols))
+  out.line(pad('Perkiraan poin', (data.points.earned > 0 ? '+' : '') + money(data.points.earned), cols))
   if (data.points.balance !== null) out.line(pad('Perkiraan saldo', money(data.points.balance), cols))
 }
 

@@ -35,7 +35,9 @@ export class LockedBlockError extends Error {
 /** Characters per line the layout renders at, after the device clamp. */
 export function resolveCols(layout: ReceiptLayout, opts: RenderOptions = {}): number {
   const width = Math.min(layout.paperWidth, opts.maxPaperWidth ?? layout.paperWidth) as PaperWidth
-  return COLS_BY_WIDTH[width]
+  const cols = COLS_BY_WIDTH[width]
+  if (cols === undefined) throw new Error(`unsupported paper width ${String(layout.paperWidth)}`)
+  return cols
 }
 
 /** One line of data text for a designer layout: printable ASCII, no newline. */
@@ -114,6 +116,8 @@ export function renderReceipt(layout: ReceiptLayout, data: ReceiptData, sink: Re
       runBlock(b, { ...ctx, out: rec })
     } catch (e) {
       if (isLockedType(b.type)) throw new LockedBlockError(b.id, e)
+      // Standar must behave like the frozen legacy receipt, which throws on bad input rather than printing less.
+      if (compat) throw e
       opts.onBlockError?.(b.id, e)
       return
     }
