@@ -123,11 +123,12 @@ export function VoidReportTab({ dateFrom, dateTo, outletId }: VoidReportTabProps
   const page = pageOf(state.hal)
   const pageSize = pageSizeOf(state.per)
   const reason = enumOf<string>(state.alasan, REASON_CODES, '')
-  const voider = uuidOf(state.oleh)
   const afterClose = state.tutup === '1'
 
-  // The voider list comes from /users, which is admin-only: other roles filter by reason and after-close only.
+  // The voider list comes from /users, which is admin-only: other roles filter by reason and after-close only,
+  // and a hand-typed ?oleh= is ignored for them (it would filter invisibly).
   const isAdmin = user?.role === 'admin'
+  const voider = isAdmin ? uuidOf(state.oleh) : ''
   const uq = usePolledQuery(async () => (isAdmin ? (await api.listUsers(1, 200)).data : []), [isAdmin], 300000)
   const voiderOptions = [{ value: '', label: 'Semua' }, ...(uq.data ?? []).map((u) => ({ value: u.id, label: u.displayName }))]
 

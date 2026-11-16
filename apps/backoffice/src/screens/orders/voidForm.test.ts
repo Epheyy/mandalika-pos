@@ -90,6 +90,12 @@ describe('retry key', () => {
     const b = nextVoidAttempt(a, voidAttemptKey(base({ reason: 'salah_promo' })), gen)
     expect(b.uuid).toBe('u2')
   })
+  it('a newly counted line changes the body, so the retry gets a fresh uuid; an unchanged body keeps it', () => {
+    const gen = vi.fn().mockReturnValueOnce('u1').mockReturnValueOnce('u2')
+    const a1 = nextVoidAttempt(null, voidAttemptKey(base({ stockChoices: { k1: 'restock' } })), gen)
+    expect(nextVoidAttempt(a1, voidAttemptKey(base({ stockChoices: { k1: 'restock' } })), gen)).toBe(a1)
+    expect(nextVoidAttempt(a1, voidAttemptKey(base({ stockChoices: { k1: 'restock', k2: 'restock' } })), gen).uuid).toBe('u2')
+  })
 })
 
 describe('order helpers', () => {

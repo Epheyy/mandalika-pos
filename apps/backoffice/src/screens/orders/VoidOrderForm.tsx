@@ -41,6 +41,7 @@ function CustomerSearch({ onPick }: { onPick: (c: Customer) => void }) {
   const [query, setQuery] = useState('')
   const [submitted, setSubmitted] = useState('')
   const [results, setResults] = useState<Customer[]>([])
+  const [failed, setFailed] = useState(false)
   const term = customerLookupTerm(phone, query, submitted)
   useEffect(() => {
     if (!term) return
@@ -48,9 +49,9 @@ function CustomerSearch({ onPick }: { onPick: (c: Customer) => void }) {
     const t = setTimeout(async () => {
       try {
         const found = phone ? await api.lookupCustomerByPhone(term) : await api.lookupCustomers(term, 10)
-        if (!ignore) setResults(found)
+        if (!ignore) { setResults(found); setFailed(false) }
       } catch {
-        if (!ignore) setResults([])
+        if (!ignore) { setResults([]); setFailed(true) }
       }
     }, phone ? 0 : 250)
     return () => { clearTimeout(t); ignore = true }
@@ -66,7 +67,8 @@ function CustomerSearch({ onPick }: { onPick: (c: Customer) => void }) {
         />
         {phone && <Button variant="secondary" onClick={() => setSubmitted(query)}>Cari</Button>}
       </div>
-      {term && (
+      {term && failed && <p role="alert" className="text-xs text-danger">Pencarian pelanggan gagal. Coba lagi.</p>}
+      {term && !failed && (
         <div className="max-h-40 overflow-auto rounded-lg border border-paper-2 bg-white">
           {results.length === 0 ? <p className="px-3 py-2 text-xs text-ink-500">Tidak ada pelanggan cocok.</p> : results.map((c) => (
             <button key={c.id} type="button" onClick={() => { onPick(c); setQuery(''); setSubmitted(''); setResults([]) }}
@@ -97,13 +99,23 @@ export function VoidOrderForm({ order, methods, onDone }: Props) {
   const attempt = useRef<VoidAttempt | null>(null)
 
   const bundle = bundleBlocksPerbaiki(order)
+  // Also reloaded after a failed submit: a stock count approved meanwhile adds a counted line that needs a choice.
+  const loadPreview = async (isStale: () => boolean = () => false) => {
+    try {
+      const p = await api.getVoidPreview(order.id)
+      if (isStale()) return
+      setPreview(p)
+      setPreviewErr(null)
+    } catch (e: unknown) {
+      if (!isStale()) setPreviewErr(e instanceof Error ? e.message : 'Pratinjau pembatalan gagal dimuat.')
+    }
+  }
   useEffect(() => {
     if (!open) return
     let ignore = false
-    api.getVoidPreview(order.id)
-      .then((p) => { if (!ignore) setPreview(p) })
-      .catch((e: unknown) => { if (!ignore) setPreviewErr(e instanceof Error ? e.message : 'Pratinjau pembatalan gagal dimuat.') })
+    void loadPreview(() => ignore)
     return () => { ignore = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, order.id])
 
   const reset = () => {
@@ -136,7 +148,8 @@ export function VoidOrderForm({ order, methods, onDone }: Props) {
     if (res.ok) { reset(); await onDone(); return }
     setConfirming(false)
     setErr(res.message)
-    await onDone()
+    // Picks already made stay; a newly counted line shows up defaulting to restock, and the retry key follows the body.
+    await Promise.all([loadPreview(), onDone()])
   }
 
   if (order.status !== 'completed') return null

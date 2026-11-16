@@ -50,7 +50,7 @@ function AddUserModal({ open, onClose, nf, setNf, busy, outlets, error, onSave }
           <Input key={k} label={label} type={type} autoComplete={autoComplete} value={nf[k]} onChange={(e) => setNf((f) => ({ ...f, [k]: e.target.value }))} />
         ))}
         <Field label="Role">
-          <RolePicker value={nf.role} onChange={(r) => setNf((f) => ({ ...f, role: r, permissions: permissionsForRole(r, f.permissions) }))} />
+          <RolePicker value={nf.role} onChange={(r) => setNf((f) => ({ ...f, role: r, permissions: permissionsForRole(r, f.permissions, f.role) }))} />
         </Field>
         <Select
           label="Outlet"

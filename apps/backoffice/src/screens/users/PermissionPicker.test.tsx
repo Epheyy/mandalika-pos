@@ -24,4 +24,11 @@ describe('PermissionPicker', () => {
     expect(permissionsForRole('cashier', ['view_reports'])).toEqual(['view_reports'])
     expect(permissionsForRole('manager', [])).toEqual([])
   })
+
+  it('leaving cashier drops only the auto-ticked void_own_shift', () => {
+    expect(permissionsForRole('manager', ['void_own_shift'], 'cashier')).toEqual([])
+    expect(permissionsForRole('manager', ['void_own_shift', 'view_reports'], 'cashier')).toEqual(['void_own_shift', 'view_reports'])
+    expect(permissionsForRole('manager', ['view_reports'], 'cashier')).toEqual(['view_reports'])
+    expect(permissionsForRole('admin', ['void_own_shift'], 'manager')).toEqual(['void_own_shift'])
+  })
 })

@@ -520,9 +520,11 @@ export interface Api {
   // promo reward grants report
   listPromoRewardGrants: (opts?: { dateFrom?: string; dateTo?: string; outletId?: string; promotionId?: string; productId?: string; page?: number; limit?: number }) => Promise<PromoRewardGrantReport>
 
-  // discount code usage report (SP-Code-2)
+  // void (pembatalan) report
   /** Pembatalan report. `cashierId` is the VOIDER. Totals and byReason cover the whole filtered range, not the page. */
   getVoidReport: (opts?: { dateFrom?: string; dateTo?: string; outletId?: string; reasonCode?: string; cashierId?: string; afterClose?: boolean; page?: number; limit?: number }) => Promise<VoidReport>
+
+  // discount code usage report (SP-Code-2)
   listRefundReport: (opts?: { dateFrom?: string; dateTo?: string; outletId?: string; flag?: 'any' | 'amount_mismatch' | 'over_total'; page?: number; limit?: number }) => Promise<RefundReport>
   getBundleReport: (opts?: { dateFrom?: string; dateTo?: string; outletId?: string }) => Promise<BundleReport>
   listDiscountCodeReport: (opts?: { dateFrom?: string; dateTo?: string; page?: number; limit?: number }) => Promise<DiscountCodeReport>

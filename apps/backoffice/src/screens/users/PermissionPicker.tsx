@@ -18,9 +18,12 @@ const PERMS: Record<string, { label: string; desc: string }> = {
   void_any: { label: 'Batalkan Transaksi', desc: 'Membatalkan transaksi outlet dalam batas waktu (Backoffice) dan membuat pengganti di POS' },
 }
 
-/** Permissions a new cashier starts with: an empty selection gets the own-shift void, anything chosen stays. */
-export function permissionsForRole(role: string, current: readonly string[]): string[] {
-  return role === 'cashier' && current.length === 0 ? ['void_own_shift'] : [...current]
+/** Permissions a new cashier starts with: an empty selection gets the own-shift void, anything chosen stays.
+ *  Leaving `cashier` drops the void only while it is exactly that auto default; a deliberate selection is never removed. */
+export function permissionsForRole(role: string, current: readonly string[], prevRole?: string): string[] {
+  if (role === 'cashier') return current.length === 0 ? ['void_own_shift'] : [...current]
+  if (prevRole === 'cashier' && current.length === 1 && current[0] === 'void_own_shift') return []
+  return [...current]
 }
 
 interface PermissionPickerProps {
