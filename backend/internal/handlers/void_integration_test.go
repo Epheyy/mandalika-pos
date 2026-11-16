@@ -2563,7 +2563,7 @@ func TestVoidPostgres(t *testing.T) {
 		if tot["voids"].(float64) != 4 || tot["originalTotal"].(float64) != 600000 || tot["replacementTotal"].(float64) != 300000 || tot["correctionTotal"].(float64) != 0 {
 			t.Fatalf("totals = %v", tot)
 		}
-		// The replacement later voided drops out of replacementTotal (the money was reversed).
+		// A replacement that is later voided still counts in replacementTotal (= the rows' sum); it is its own void row.
 		in2 := bo(res.ReplacementOrderID)
 		in2.UserID, in2.UserName, in2.ClientVoidUUID = voider, "VD Voider", newID("4")
 		if _, err := svc.VoidOrder(ctx, in2); err != nil {
@@ -2571,8 +2571,8 @@ func TestVoidPostgres(t *testing.T) {
 		}
 		out, _ = reportRows("cashierId=" + voider + "&limit=200")
 		tot = out["totals"].(map[string]any)
-		if tot["voids"].(float64) != 5 || tot["replacementTotal"].(float64) != 0 {
-			t.Fatalf("totals after voiding the replacement = %v", tot)
+		if tot["voids"].(float64) != 5 || tot["replacementTotal"].(float64) != 300000 || tot["correctionTotal"].(float64) != 0 {
+			t.Fatalf("totals after voiding the replacement = %v, want replacementTotal to still equal the rows' sum (300000)", tot)
 		}
 		// afterClose filter: everything above was voided while the shift was open.
 		if _, closed := reportRows("cashierId=" + voider + "&afterClose=true"); len(closed) != 0 {
@@ -2763,6 +2763,7 @@ func TestVoidPostgres(t *testing.T) {
 		})
 		// The sale was three days ago; the promotion ended yesterday.
 		exec(`UPDATE orders SET created_at = now() - interval '3 days' WHERE id=$1`, orig)
+		exec(`UPDATE promotions SET created_at = now() - interval '10 days' WHERE id=$1`, promo)
 		exec(`UPDATE promotions SET start_date = current_date - 10, end_date = current_date - 1 WHERE id=$1`, promo)
 		res, err := payFix(orig, service.ReplacementOverride{})
 		if err != nil {
@@ -2792,6 +2793,9 @@ func TestVoidPostgres(t *testing.T) {
 		// Cannot be reproduced: the sale still ends at the original total, the 30000 is the correction.
 		if got := booked3(res.ReplacementOrderID); got != "270000/0/-30000" {
 			t.Fatalf("replacement = %s, want 270000/0/-30000 (total kept, promotion value as Penyesuaian koreksi)", got)
+		}
+		if w := str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, res.ReplacementOrderID); !strings.Contains(w, "promo_not_reproduced") {
+			t.Fatalf("an unreproduced promotion must be flagged for review, got %q", w)
 		}
 	})
 
@@ -2839,7 +2843,7 @@ func TestVoidPostgres(t *testing.T) {
 		}
 	})
 
-	t.Run("replacement_promo_reward_no_longer_entitled_is_refused", func(t *testing.T) {
+	t.Run("replacement_promo_reward_no_longer_entitled_stays_plain", func(t *testing.T) {
 		shift := openShift()
 		buy, get := product(5), product(5)
 		promo := newID("8")
@@ -2850,18 +2854,21 @@ func TestVoidPostgres(t *testing.T) {
 		orig := promoOrder(shift, []service.OrderItem{ln(buy, 1, 100000), reward}, func(in *service.CreateOrderInput) {
 			in.PromotionIDs, in.DiscountLabel = []string{promo}, "VD BXGY GONE"
 		})
-		// The promotion now needs 9 bought units: the free line would be dropped from the replacement.
+		// The promotion now needs 9 bought units: the free line stays a plain line, flagged for review.
 		exec(`UPDATE promotions SET bxgy_config = jsonb_set(bxgy_config, '{buyQuantity}', '9') WHERE id=$1`, promo)
-		buyStock, getStock := stockOf(buy), stockOf(get)
-		if _, err := payFix(orig, service.ReplacementOverride{}); !errors.Is(err, service.ErrVoidReplacementPromoChanged) {
-			t.Fatalf("err = %v, want ErrVoidReplacementPromoChanged", err)
+		res, err := payFix(orig, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatalf("payment-only fix refused: %v", err)
 		}
-		if status(orig) != "completed" || one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, orig) != 0 ||
-			one(`SELECT count(*) FROM orders WHERE replaces_order_id=$1`, orig) != 0 {
-			t.Fatal("a refused replacement left the void or a replacement behind")
+		repl := res.ReplacementOrderID
+		if got := booked3(repl); got != booked3(orig) || !strings.HasSuffix(got, "/0") || one(`SELECT count(*) FROM order_items WHERE order_id=$1`, repl) != 2 {
+			t.Fatalf("replacement = %s, original = %s; want the same total, zero correction, both lines kept", got, booked3(orig))
 		}
-		if stockOf(buy) != buyStock || stockOf(get) != getStock {
-			t.Fatal("a refused replacement moved stock")
+		if one(`SELECT count(*) FROM promo_reward_grants WHERE order_id=$1`, repl) != 0 {
+			t.Fatal("an unentitled reward still wrote a grant")
+		}
+		if w := str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, repl); !strings.Contains(w, "promo_not_reproduced") {
+			t.Fatalf("warning = %q", w)
 		}
 	})
 
@@ -2876,6 +2883,55 @@ func TestVoidPostgres(t *testing.T) {
 		}
 		if status(orig) != "completed" || one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, orig) != 0 || stockOf(p) != before {
 			t.Fatal("a refused bundle replacement changed the sale, voided it or moved stock")
+		}
+	})
+
+	t.Run("replacement_promo_bxgy_campaign_ended_keeps_free_item_with_warning", func(t *testing.T) {
+		shift := openShift()
+		buy, get := product(5), product(5)
+		promo := newID("8")
+		exec(`INSERT INTO promotions(id,name,type,value,combinable,bxgy_config) VALUES($1,'VD BXGY ENDED','buy_x_get_y',0,true,$2::jsonb)`, promo,
+			fmt.Sprintf(`{"buyQuantity":1,"getQuantity":1,"buyProductIds":["%s"],"getProductIds":["%s"],"getDiscountKind":"percentage","getDiscountValue":100}`, buy, get))
+		reward := ln(get, 1, 0)
+		reward.IsReward, reward.RewardPromotionID = true, promo
+		orig := promoOrder(shift, []service.OrderItem{ln(buy, 1, 100000), reward}, func(in *service.CreateOrderInput) {
+			in.PromotionIDs, in.DiscountLabel = []string{promo}, "VD BXGY ENDED"
+		})
+		// Campaign deactivated and the reward product retired after the sale; a payment fix must still work.
+		exec(`UPDATE promotions SET is_active=false WHERE id=$1`, promo)
+		exec(`UPDATE products SET is_active=false WHERE id=$1`, get)
+		res, err := payFix(orig, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatalf("payment-only fix refused: %v", err)
+		}
+		repl := res.ReplacementOrderID
+		if got := booked3(repl); got != booked3(orig) || !strings.HasSuffix(got, "/0") {
+			t.Fatalf("replacement = %s, original = %s; want the same with zero correction", got, booked3(orig))
+		}
+		if one(`SELECT count(*) FROM order_items WHERE order_id=$1`, repl) != 2 {
+			t.Fatal("the free item was dropped from the replacement")
+		}
+		if w := str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, repl); !strings.Contains(w, "promo_not_reproduced") {
+			t.Fatalf("warning = %q, want promo_not_reproduced", w)
+		}
+	})
+
+	t.Run("replacement_promo_label_match_ignores_promotions_created_after_the_sale", func(t *testing.T) {
+		shift := openShift()
+		old, late := pctPromo("VD PCT LATE", 10), pctPromo("VD PCT LATE", 20)
+		exec(`UPDATE promotions SET created_at = now() + interval '1 hour' WHERE id=$1`, late)
+		items, _ := threeLines()
+		orig := promoOrder(shift, items, func(in *service.CreateOrderInput) {
+			in.PromotionIDs, in.DiscountLabel = []string{old}, "VD PCT LATE"
+			in.DiscountBreakdown = []byte(`[{"label":"VD PCT LATE","kind":"percentage","value":10,"amount":30000}]`)
+		})
+		exec(`UPDATE promotions SET is_active=false WHERE id=$1`, old)
+		res, err := payFix(orig, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := booked3(res.ReplacementOrderID); got != "270000/0/-30000" {
+			t.Fatalf("replacement = %s, want 270000/0/-30000 (the later same-name promotion must not be applied)", got)
 		}
 	})
 }

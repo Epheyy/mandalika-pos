@@ -4782,7 +4782,7 @@ export interface components {
             /** Format: double */
             originalTotal: number;
         };
-        /** @description Over the whole filtered range (not the page). Legacy imports are excluded. replacementTotal and correctionTotal count live replacements only (a replacement that was itself voided is left out). */
+        /** @description Over the whole filtered range (not the page). Legacy imports are excluded. replacementTotal is the sum of every row's replacementTotal (a replacement that was itself voided still counts, and appears as its own void row). correctionTotal counts live replacements only (a voided replacement's correction was reversed with it). */
         VoidReportTotals: {
             voids: number;
             /** Format: double */

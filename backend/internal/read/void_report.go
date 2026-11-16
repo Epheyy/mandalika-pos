@@ -35,9 +35,10 @@ type VoidReportFilters struct {
 // (Buat pengganti after a later void). state: replaced | awaiting_replacement (later, no followup) |
 // no_replacement (marked, or mode none) | legacy.
 //
-// totals and byReason cover the whole filtered range, kind='void' only. replacementTotal and
-// correctionTotal count LIVE replacements (status <> 'cancelled'): a replacement that was itself
-// voided was reversed and must not inflate them.
+// totals and byReason cover the whole filtered range, kind='void' only. replacementTotal counts
+// EVERY replacement (it equals the sum of the rows' replacementTotal; a replacement that was itself
+// voided shows as its own void row). correctionTotal counts LIVE replacements only (status <>
+// 'cancelled'): a voided replacement's correction was reversed with it.
 const voidReportSQL = `
 WITH base AS (
   SELECT v.id AS void_id, o.id AS order_id, o.order_number, 'void'::text AS kind, o.business_date,
@@ -77,7 +78,7 @@ SELECT json_build_object(
   'count', (SELECT count(*) FROM base),
   'totals', (SELECT json_build_object(
       'voids', count(*), 'originalTotal', COALESCE(sum(b.original_total), 0),
-      'replacementTotal', COALESCE(sum(ro.total) FILTER (WHERE ro.status <> 'cancelled'), 0),
+      'replacementTotal', COALESCE(sum(ro.total), 0),
       'correctionTotal', COALESCE(sum(ro.correction_amount) FILTER (WHERE ro.status <> 'cancelled'), 0))
     FROM base b LEFT JOIN orders ro ON ro.id = b.repl_id WHERE b.kind = 'void'),
   'byReason', COALESCE((SELECT json_agg(json_build_object(
