@@ -4,18 +4,16 @@
 // on-screen ReceiptPreview so the printed slip matches what the cashier sees.
 
 import type { components } from '@mandalika/api'
-import { resolveReceiptFlags } from '@mandalika/types'
 import type { ReceiptData, ReceiptDiscountRow, ReceiptLine } from './receipt/data'
+import { receiptBytes } from './receipt/render'
+import { standarLayout } from './receipt/standar'
 import { voidSlipLines } from './receipt/slips'
 import type { VoidSlipData } from './receipt/slips'
 import {
   center as centerAt,
   encodeLegacy,
-  labelRow as labelRowAt,
-  minusRp,
   money,
   pad as padAt,
-  wrap as wrapAt,
 } from './receipt/text'
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
@@ -45,9 +43,7 @@ const CUT = [GS, 0x56, 0x42, 0x00] // partial cut (ignored if unsupported)
 
 // 32-column wrappers over the shared helpers (recap, tanda terima and the void slip stay at COLS).
 const pad = (left: string, right: string): string => padAt(left, right, COLS)
-const wrap = (text: string, maxLines: number): string[] => wrapAt(text, maxLines, COLS)
 const center = (text: string): string => centerAt(text, COLS)
-const labelRow = (b: Buf, label: string, amount: string): void => labelRowAt((l) => b.line(l), label, amount, COLS)
 
 /** Centered bold marker printed top + bottom on a reprinted copy so staff can
  *  tell a duplicate apart from the original slip. */
@@ -77,115 +73,15 @@ class Buf {
 }
 
 /**
- * Build the ESC/POS payload for one receipt copy. `settings.receipt` toggles
- * the same optional rows the HTML preview honors (tax/cashier/customer/etc.).
+ * Build the ESC/POS payload for one receipt copy: the built-in Standar layout (today's receipt, byte for
+ * byte; see __legacy__/buildReceiptV1.ts) rendered by the shared block renderer.
  */
 export function buildReceipt(
   data: ReceiptData,
   settings: ReceiptSettings,
   reprint = false,
 ): Uint8Array {
-  const b = new Buf().raw(INIT)
-  const flags = resolveReceiptFlags(settings)
-
-  b.raw(ALIGN_CENTER)
-  if (settings.headerText) {
-    b.raw(BOLD_ON).raw(DOUBLE_ON).line(settings.headerText).raw(DOUBLE_OFF).raw(BOLD_OFF)
-  }
-  if (settings.footerText && settings.headerText) b.line()
-  b.raw(ALIGN_LEFT)
-
-  if (reprint) reprintLine(b)
-
-  if (data.replacesOrderRef) for (const l of wrap(`Pengganti untuk #${data.replacesOrderRef}`, 2)) b.line(l)
-
-  // The receipt always shows the order id. Sync state is an app concern, not
-  // something the customer's printed receipt should announce.
-  if (flags.showOrderNumber) b.line(pad('No', data.orderRef))
-  b.line(
-    pad(
-      'Tgl',
-      data.dateTime.toLocaleString('id-ID', {
-        day: '2-digit',
-        month: '2-digit',
-        year: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-    ),
-  )
-  b.divider()
-
-  for (const item of data.lines) {
-    const tag = item.isReward ? ` [${(item.rewardLabel ?? 'HADIAH').toUpperCase()}]` : ''
-    for (const l of wrap(item.name + tag, 2)) b.line(l)
-    if (item.variant) b.line(`  ${item.variant}`.slice(0, COLS))
-    for (const piece of item.pieces ?? []) {
-      // Indented bullet (wrap() would trim it); a name longer than the paper continues on one indented line.
-      const text = `  + ${piece}`
-      b.line(text.slice(0, COLS))
-      if (text.length > COLS) b.line(`    ${text.slice(COLS)}`.slice(0, COLS))
-    }
-    // A giveaway at Rp0 prints GRATIS (as the screen does), never a bare "0".
-    const gross = item.amount + (item.lineDiscount?.amount ?? 0)
-    const amountText = item.isReward && item.amount === 0 ? 'GRATIS' : money(gross)
-    b.line(pad(`  ${item.qty} x ${money(item.unitPrice)}`, amountText))
-    if (item.lineDiscount && item.lineDiscount.amount > 0) labelRow(b, `  - ${item.lineDiscount.label}`, minusRp(item.lineDiscount.amount))
-  }
-  b.divider()
-
-  if (flags.showSubtotal) b.line(pad('Subtotal', money(data.subtotal)))
-  // An itemised (C1) slip always prints its deductions and PPN: hiding a row that is inside TOTAL would
-  // make the slip not add up. The Pengaturan toggles still govern pre-C1 receipts.
-  const itemised = data.discounts !== undefined
-  if (itemised || flags.showDiscount) {
-    if (data.discounts) {
-      for (const d of data.discounts) if (d.amount > 0) labelRow(b, `- ${d.label}`, minusRp(d.amount))
-    } else if (data.discountAmount > 0) {
-      // Pre-C1 archived receipt: no per-promo detail, keep today's single row.
-      b.line(pad('Diskon', '-' + money(data.discountAmount)))
-    }
-  }
-  if (data.surcharge && data.surcharge > 0) b.line(pad('Biaya tambahan', money(data.surcharge)))
-  if (data.pointsRedeemed && data.pointsRedeemed.amount > 0) {
-    b.line(pad(`Tukar poin (${data.pointsRedeemed.points})`, minusRp(data.pointsRedeemed.amount)))
-  }
-  if ((itemised || flags.showTax) && data.taxAmount > 0) {
-    b.line(pad('PPN', money(data.taxAmount)))
-  }
-  if (data.rounding) b.line(pad('Pembulatan', (data.rounding > 0 ? '+' : '') + money(data.rounding)))
-  // Void: a signed correction sits inside TOTAL, so it prints whatever the totals switches say.
-  if (data.correctionAmount) b.line(pad('Penyesuaian koreksi', (data.correctionAmount > 0 ? '+' : '') + money(data.correctionAmount)))
-  b.raw(BOLD_ON).line(pad('TOTAL', money(data.total))).raw(BOLD_OFF)
-  if (data.tenders && data.tenders.length > 0) {
-    for (const t of data.tenders) {
-      b.line(pad(t.label, money(t.amount)))
-      if (t.reference) b.line(`  Ref ${t.reference}`.slice(0, COLS))
-    }
-  } else {
-    b.line(pad(data.paymentLabel, money(data.amountPaid)))
-  }
-  if (flags.showChange && data.change > 0) {
-    b.line(pad('Kembalian', money(data.change)))
-  }
-  b.divider()
-
-  if (flags.showCustomerName && data.customerName) {
-    b.line('Pelanggan: ' + data.customerName)
-  }
-  if (flags.showCustomerPhone && data.customerPhone) {
-    b.line('Telp: ' + data.customerPhone)
-  }
-  if (flags.showCashier) b.line('Kasir: ' + data.cashierName)
-
-  if (settings.footerText) {
-    b.line().raw(ALIGN_CENTER).line(settings.footerText).raw(ALIGN_LEFT)
-  }
-
-  if (reprint) reprintLine(b)
-
-  b.raw(FEED_3).raw(CUT)
-  return b.done()
+  return receiptBytes(standarLayout(settings), data, { reprint })
 }
 
 // ── Void slip ────────────────────────────────────────────

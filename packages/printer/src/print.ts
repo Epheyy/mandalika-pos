@@ -5,6 +5,7 @@
 import { Capacitor } from '@capacitor/core'
 import type { components } from '@mandalika/api'
 import { buildReceipt, buildRecap, buildTandaTerima, buildVoidSlip, type ReceiptData, type RecapData, type TandaTerimaData, type VoidSlipData } from './escpos'
+import type { ReceiptLayout } from './receipt/layout'
 import { CapacitorBleTransport } from './ble'
 import { AutoBluetoothTransport } from './autoTransport'
 import { ClassicSppTransport } from './classic'
@@ -121,7 +122,7 @@ export interface VoidSlipJob {
   data: VoidSlipData
   settings: ReceiptSettings
   /** Reserved for the receipt designer; the slip does not read it yet. */
-  layout?: unknown
+  layout?: ReceiptLayout
 }
 
 /** Connect if needed and print a single DIBATALKAN slip. Throws on failure. */

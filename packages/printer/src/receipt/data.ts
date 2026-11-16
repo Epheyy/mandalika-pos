@@ -60,4 +60,8 @@ export interface ReceiptData {
   replacesOrderRef?: string
   /** Void: signed "Penyesuaian koreksi" already inside `total` (non-zero prints a row before TOTAL). */
   correctionAmount?: number
+  /** Designer templates: outlet details for the header block (the pull ships them). */
+  outlet?: { name: string; address?: string | null; phone?: string | null }
+  /** Designer templates: estimated member points (live sale only; the server grants the real ones). */
+  points?: { earned: number; balance: number | null }
 }
