@@ -89,6 +89,9 @@ describe('voidRecapOverlay', () => {
     expect(voidRecapOverlay([qv({ originalShiftId: 'X' })], [order()], 'S')).toEqual(none)
     expect(voidRecapOverlay([qv({ orderId: '' })], [order()], 'S')).toEqual(none)
   })
+  it('does not subtract a sale that is no longer completed (refunded elsewhere)', () => {
+    expect(voidRecapOverlay([qv({ parked: true })], [order({ status: 'refunded' })], 'S')).toEqual({ byMethod: {}, total: 0, orders: 0 })
+  })
   it('ignores a void whose sale is not among the loaded orders', () => {
     expect(voidRecapOverlay([qv()], [], 'S')).toEqual({ byMethod: {}, total: 0, orders: 0 })
   })
@@ -128,8 +131,17 @@ describe('shiftCloseVoidBlock', () => {
     ], 'S')
     expect(msg).toBe('Selesaikan pembatalan yang tertunda dulu: #BSD-0001, #BSD-0002')
   })
-  it('blocks conservatively for an unattributed void and is null when nothing is stuck', () => {
-    expect(shiftCloseVoidBlock([qv({ originalShiftId: null, orderNumber: 'BSD-0003' })], 'S')).toContain('#BSD-0003')
+  it("an unattributed void blocks only when its sale is this shift's (loaded order or still-queued sale)", () => {
+    const nul = (over: Partial<QueuedVoid> = {}) => qv({ originalShiftId: null, orderNumber: 'BSD-0003', ...over })
+    expect(shiftCloseVoidBlock([nul()], 'S', [order()])).toContain('#BSD-0003')
+    expect(shiftCloseVoidBlock([nul({ orderId: '', saleOrderUuid: 'u1' })], 'S')).toContain('#BSD-0003')
+    expect(shiftCloseVoidBlock([nul({ orderId: 'other' })], 'S', [order()])).toBeNull()
+    expect(shiftCloseVoidBlock([nul({ orderId: 'x', saleOrderUuid: 'o1' })], 'S', [order()])).toContain('#BSD-0003')
+    // the list shows exactly what the block names
+    expect(voidRecapRows([order()], [nul()], 'S').map((r) => r.orderNumber)).toEqual(['BSD-0003'])
+    expect(voidRecapRows([order()], [nul({ orderId: 'other' })], 'S')).toEqual([])
+  })
+  it('is null when nothing is stuck', () => {
     expect(shiftCloseVoidBlock([], 'S')).toBeNull()
     expect(shiftCloseVoidBlock([qv({ originalShiftId: 'OLD' })], 'S')).toBeNull()
   })

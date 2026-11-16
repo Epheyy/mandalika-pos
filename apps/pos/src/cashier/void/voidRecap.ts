@@ -27,6 +27,13 @@ export interface VoidRecapRow {
 }
 
 const reasonLabelOf = (code: string): string => VOID_REASONS.find((r) => r.code === code)?.label ?? code
+/** Whether an unacked void belongs to the shift: attributed to it, or unattributed (null originalShiftId) with a sale this
+ *  shift knows (its orders, or a sale still queued here: orderId ''). A null-shift void of any other sale is not this shift's. */
+export function voidInShift(v: Pick<QueuedVoid, 'originalShiftId' | 'orderId' | 'saleOrderUuid'>, shiftId: string, knownIds: ReadonlySet<string>): boolean {
+  if (v.originalShiftId !== null) return v.originalShiftId === shiftId
+  return v.orderId === '' || knownIds.has(v.orderId) || (!!v.saleOrderUuid && knownIds.has(v.saleOrderUuid))
+}
+const idsOf = (orders: readonly Order[]): Set<string> => new Set(orders.map((o) => o.id))
 const sumTenders = (t: readonly { amount: number }[]): number => t.reduce((a, x) => a + x.amount, 0)
 
 /** Cancelled orders of this shift that carry `void` (fsmigrate-imported cancelled orders have none and are not
@@ -47,7 +54,7 @@ export function voidRecapRows(orders: Order[], queued: QueuedVoid[], shiftId: st
   }
   const byId = new Map(orders.map((o) => [o.id, o]))
   for (const v of queued) {
-    if (v.originalShiftId !== shiftId) continue
+    if (!voidInShift(v, shiftId, idsOf(orders))) continue
     const key = v.orderId || v.saleOrderUuid || v.idempotencyKey
     if (seen.has(key)) continue
     seen.add(key)
@@ -87,9 +94,10 @@ export function voidRecapOverlay(queued: QueuedVoid[], orders: Order[], shiftId:
     // drawer must read as they left it. Once head office resolves or discards it, it leaves the queue and the overlay.
     // An unattributed sale (no originalShiftId) the shift's orders list holds is counted in this shift by the server too.
     if ((v.originalShiftId !== null && v.originalShiftId !== shiftId) || v.orderId === '') continue
-    // Only a sale the recap actually counted can be taken out of it; a cancelled one already reflects the void.
+    // Only a completed sale the recap counted can be taken out of it (cancelled already reflects the void; a refunded one
+    // is not subtracted again).
     const o = byId.get(v.orderId)
-    if (!o || o.status === 'cancelled') continue
+    if (!o || o.status !== 'completed') continue
     for (const t of v.originalTenders) add(t.method, -t.amount)
     const hasReplacement = v.mode === 'replace' && (v.replacementTenders?.length ?? 0) > 0
     // The original is still completed on the server, so its replacement (committed in the same item) is not in the
@@ -100,15 +108,17 @@ export function voidRecapOverlay(queued: QueuedVoid[], orders: Order[], shiftId:
   return { byMethod, total, orders: count }
 }
 
-/** Voids that must be settled before this shift closes: every unacknowledged void (queued or parked) of the shift's
- *  sales. A void with no originalShiftId (a sale without a shift id) is counted conservatively. */
-export function voidsBlockingShiftClose(queued: readonly QueuedVoid[], shiftId: string): QueuedVoid[] {
-  return queued.filter((v) => v.originalShiftId === null || v.originalShiftId === shiftId)
+/** Voids that must be settled before this shift closes: every unacknowledged void (queued or parked) of the shift's sales. */
+export function voidsBlockingShiftClose(queued: readonly QueuedVoid[], shiftId: string, orders: readonly Order[] = []): QueuedVoid[] {
+  const ids = idsOf(orders)
+  return queued.filter((v) => voidInShift(v, shiftId, ids))
 }
 
-/** The Tutup Shift refusal text naming the stuck voids' transaction numbers, or null when nothing blocks. */
-export function shiftCloseVoidBlock(queued: readonly QueuedVoid[], shiftId: string): string | null {
-  const stuck = voidsBlockingShiftClose(queued, shiftId)
+/** The Tutup Shift refusal text naming the stuck voids' transaction numbers, or null when nothing blocks. Same membership
+ *  rule as the recap list, so it never names a void the list hides. `orders` are the shift's loaded orders (the hook's
+ *  backstop has none: it blocks attributed voids and voids of still-queued sales only). */
+export function shiftCloseVoidBlock(queued: readonly QueuedVoid[], shiftId: string, orders: readonly Order[] = []): string | null {
+  const stuck = voidsBlockingShiftClose(queued, shiftId, orders)
   if (stuck.length === 0) return null
   const names = stuck.map((v) => (v.orderNumber ? `#${v.orderNumber}` : '(tanpa nomor)'))
   return `Selesaikan pembatalan yang tertunda dulu: ${[...new Set(names)].join(', ')}`

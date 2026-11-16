@@ -169,7 +169,7 @@ function ShiftRecapPanelBody({
   const voidList = useMemo(() => [...(queuedVoids ?? [])], [queuedVoids])
   const curShiftId = currentShift?.id ?? ''
   const voidOv = useMemo(() => voidRecapOverlay(voidList, liveOrders ?? [], curShiftId), [voidList, liveOrders, curShiftId])
-  const closeVoidBlock = useMemo(() => (curShiftId ? shiftCloseVoidBlock(voidList, curShiftId) : null), [voidList, curShiftId])
+  const closeVoidBlock = useMemo(() => (curShiftId ? shiftCloseVoidBlock(voidList, curShiftId, liveOrders ?? []) : null), [voidList, curShiftId, liveOrders])
   const voidRows = useMemo(() => voidRecapRows(liveOrders ?? [], voidList, curShiftId), [voidList, liveOrders, curShiftId])
   const cur = live ? recapFigures(live, currentShift, queuedRefunds, liveOrders, voidOv) : null
   const liveOrderCount = (live?.totalOrders ?? 0) + voidOv.orders

@@ -85,6 +85,8 @@ export function heldOrderFromVoidedOrder(order: Order, now: number): HeldOrder {
   const restoreNotes: string[] = []
   // The voided sale's redeemed points come back with the same customer (the server restores them when it voids), so the
   // replacement redeems them again; the cashier can lower or remove them. Only a customer picked again loses them.
+  // Capped at the voided sale's own redemption, never a cached balance; the server is authoritative on the final clamp
+  // (refuse-vs-clamp for "Buat pengganti" is an owner decision still pending).
   const reusePoints = order.customerId ? Math.max(0, Math.floor(order.pointsRedeemed ?? 0)) : 0
   if (order.customerId) restoreNotes.push(reusePoints > 0 ? `Poin ${reusePoints} dipakai lagi; segmen terbaru terpasang jika pelanggan dipilih ulang` : 'Pilih ulang pelanggan agar segmen terbaru terpasang')
   if (order.discountCode) restoreNotes.push('Kode Promo lain (jika ada) harus dipasang ulang di Promo & Diskon')
