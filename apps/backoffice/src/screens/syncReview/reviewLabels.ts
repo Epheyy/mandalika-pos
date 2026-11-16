@@ -2,6 +2,7 @@ import { format, parseISO } from 'date-fns'
 import { id } from 'date-fns/locale'
 import { SYNC_REVIEW_REASON } from '../../lib/labels/review'
 import { methodLabel } from '../../lib/splitPayment'
+import { voidModeLabel, voidReasonLabel } from '../../lib/labels/void'
 
 const REASONS: Record<string, string> = Object.fromEntries(
   Object.entries(SYNC_REVIEW_REASON).map(([k, v]) => [k, v.label]),
@@ -72,6 +73,7 @@ export function amountFlagLabel(flag: string | null | undefined): string | null 
 const TYPES: Record<string, string> = {
   order: 'Penjualan',
   refund: 'Refund',
+  void: 'Pembatalan',
   shift_open: 'Buka shift',
   shift_close: 'Tutup shift',
   cash_flow: 'Kas masuk/keluar',
@@ -139,6 +141,16 @@ function refundItemsLine(v: unknown): string {
     .join(', ')
 }
 
+/** The replacement sale riding with a parked void: its payment lines as applied, else the sale payload's own. */
+function voidReplacementLine(p: Record<string, unknown>): string | null {
+  if (p.mode !== 'replace') return null
+  const r = (p.replacement ?? {}) as Record<string, unknown>
+  const tenders = tendersLine(p.replacementTenders) || tendersLine(r.tenders)
+  const items = Array.isArray(r.items) && r.items.length > 0 ? `${r.items.length} baris barang` : ''
+  const parts = [items, tenders].filter(Boolean)
+  return `Ya, pengganti ikut terkirim${parts.length ? ` (${parts.join('; ')})` : ''}`
+}
+
 /** Human summary of a review item's payload, per type. Unknown types → []. */
 export function payloadSummary(type: string, p: Record<string, unknown>): Array<[string, string]> {
   switch (type) {
@@ -151,6 +163,18 @@ export function payloadSummary(type: string, p: Record<string, unknown>): Array<
         ...(typeof p.payoutMethod === 'string' && p.payoutMethod.trim() ? [['Dikembalikan lewat', methodLabel(p.payoutMethod)] as [string, string]] : []),
         ['Alasan', str(p.reason)],
       ]
+    case 'void': {
+      const note = typeof p.note === 'string' && p.note.trim() ? p.note.trim() : null
+      const replacement = voidReplacementLine(p)
+      return [
+        ['Struk dibatalkan', str(p.orderNumber)],
+        ['Mode', voidModeLabel(typeof p.mode === 'string' ? p.mode : 'none')],
+        ['Alasan', typeof p.reasonCode === 'string' ? voidReasonLabel(p.reasonCode) : '—'],
+        ...(note ? [['Catatan', note] as [string, string]] : []),
+        ...(typeof p.total === 'number' ? [['Total struk asli', idr(p.total)] as [string, string]] : []),
+        ...(replacement ? [['Pengganti', replacement] as [string, string]] : []),
+      ]
+    }
     case 'order':
       return [
         ['Struk', str(p.orderNumber)],

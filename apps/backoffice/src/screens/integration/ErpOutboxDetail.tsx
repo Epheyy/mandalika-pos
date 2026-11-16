@@ -107,7 +107,7 @@ function DetailView({ item, onClose, onChanged }: { item: ErpOutboxItem; onClose
           {q.error && <p role="alert" className="text-xs text-danger">{q.error}</p>}
           <Json title="Payload" value={q.data?.payload} />
           <Json title="Respons ERP" value={q.data?.erpResponse} />
-          {canRetry(d.status) && (
+          {canRetry(d.status, d.holdReason) && (
             <div>
               <Button onClick={() => { setError(null); setAsking(true) }}>Kirim ulang</Button>
             </div>

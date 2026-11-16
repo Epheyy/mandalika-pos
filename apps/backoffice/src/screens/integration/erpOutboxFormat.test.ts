@@ -82,6 +82,9 @@ describe('erpOutboxFormat', () => {
     expect(canRetry('delivered')).toBe(true)
     expect(canRetry('pending')).toBe(false)
     expect(canRetry('sending')).toBe(false)
+    // A void-held row waits for the ERP reversal (Phase 5); Retry would only be refused by the server.
+    expect(canRetry('held', 'void_erp_pending')).toBe(false)
+    expect(canRetry('held', 'unmapped sku')).toBe(true)
   })
   it('titles empty states per filter', () => {
     expect(emptyTitle('dead')).toBe('Tidak ada dokumen gagal')
@@ -100,6 +103,7 @@ describe('humanReason', () => {
   })
   it('puts a held document in plain words, never the raw reason', () => {
     expect(humanReason({ ...base, holdReason: 'unmapped sku X-1' })).toBe('Ditahan, menunggu ditinjau')
+    expect(humanReason({ ...base, holdReason: 'void_erp_pending' })).toMatch(/^Menunggu integrasi pembatalan ke ERP/)
   })
   it('names who is at fault by HTTP class', () => {
     expect(humanReason({ ...base, lastHttpStatus: 503, lastError: 'ERP down' })).toBe('ERP sedang bermasalah (HTTP 503)')
