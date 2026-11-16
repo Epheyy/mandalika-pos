@@ -74,6 +74,21 @@ describe('designer blocks', () => {
   })
 })
 
+describe('bad data', () => {
+  it('null/undefined text fields print as empty instead of throwing', () => {
+    const bad = { ...SAMPLE_RECEIPT, outlet: { name: null as unknown as string }, lines: [{ name: undefined as unknown as string, qty: 1, unitPrice: 1, amount: 1 }] }
+    expect(() => receiptPreview(newLayout(), bad)).not.toThrow()
+  })
+  it('the shared samples are frozen', () => {
+    expect(Object.isFrozen(NEW_TEMPLATE_BLOCKS)).toBe(true)
+    expect(Object.isFrozen(NEW_TEMPLATE_BLOCKS[0])).toBe(true)
+    expect(Object.isFrozen(SAMPLE_RECEIPT.lines[0])).toBe(true)
+  })
+  it('validateTemplate survives a null block and a missing name', () => {
+    expect(() => validateTemplate({ name: undefined as unknown as string, paperWidth: 58, blocks: [null as unknown as ReceiptBlock] })).not.toThrow()
+  })
+})
+
 describe('validateTemplate', () => {
   const ok = { name: 'Struk', paperWidth: 58, blocks: NEW_TEMPLATE_BLOCKS }
   it('accepts the new-template blocks', () => {

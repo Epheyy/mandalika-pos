@@ -40,10 +40,10 @@ export function validateTemplate(input: { name: string; paperWidth: number; bloc
   const add = (code: string, message: string, blockId?: string): void => {
     issues.push(blockId === undefined ? { code, message } : { blockId, code, message })
   }
-  const blocks = input.blocks as ReadonlyArray<Record<string, unknown> & { id?: string; type?: string }>
+  const blocks = (input.blocks ?? []).map((b) => (b && typeof b === 'object' ? b : {})) as ReadonlyArray<Record<string, unknown> & { id?: string; type?: string }>
 
   // 1. name
-  const nameLen = len(input.name.trim())
+  const nameLen = len(String(input.name ?? '').trim())
   if (nameLen < 1 || nameLen > RECEIPT_LIMITS.nameMax) add('name_invalid', `Nama template harus 1-${RECEIPT_LIMITS.nameMax} karakter.`)
 
   // 2. block count

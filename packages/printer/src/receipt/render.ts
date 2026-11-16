@@ -41,7 +41,7 @@ export function resolveCols(layout: ReceiptLayout, opts: RenderOptions = {}): nu
 }
 
 /** One line of data text for a designer layout: printable ASCII, no newline. */
-const clean = (s: string): string => toPrinterText(s).replace(/\n/g, ' ')
+const clean = (s: string): string => toPrinterText(String(s ?? '')).replace(/\n/g, ' ')
 const cleanOpt = <T extends string | null | undefined>(s: T): T => (typeof s === 'string' ? (clean(s) as T) : s)
 
 /** Every string the slip prints, mapped to printable ASCII before any pad, wrap or centre, so folding
@@ -68,6 +68,16 @@ export function normalizeForPrint(d: ReceiptData): ReceiptData {
     outlet: d.outlet
       ? { name: clean(d.outlet.name), address: cleanOpt(d.outlet.address), phone: cleanOpt(d.outlet.phone) }
       : d.outlet,
+  }
+}
+
+/** Normalisation runs before any block, so a failure there is not a block failure: report it as a locked one
+ *  so callers fall back to the legacy receipt instead of printing nothing. */
+function normalizeData(d: ReceiptData): ReceiptData {
+  try {
+    return normalizeForPrint(d)
+  } catch (e) {
+    throw new LockedBlockError('data', e)
   }
 }
 
@@ -103,7 +113,7 @@ function runBlock(b: ReceiptBlock, ctx: BlockCtx): void {
 export function renderReceipt(layout: ReceiptLayout, data: ReceiptData, sink: ReceiptSink, opts: RenderOptions = {}): void {
   const compat = layout.compat === 'v1'
   const ctx: BlockCtx = {
-    out: sink, cols: resolveCols(layout, opts), compat, data: compat ? data : normalizeForPrint(data),
+    out: sink, cols: resolveCols(layout, opts), compat, data: compat ? data : normalizeData(data),
   }
   const blocks = layout.blocks.filter((b) => b.enabled || isLockedType(b.type))
 

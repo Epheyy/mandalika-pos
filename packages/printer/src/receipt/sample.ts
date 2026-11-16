@@ -3,7 +3,16 @@
 import type { ReceiptData } from './data'
 import type { ReceiptBlock } from './layout'
 
-export const NEW_TEMPLATE_BLOCKS: ReceiptBlock[] = [
+function deepFreeze<T>(o: T): T {
+  if (o && typeof o === 'object' && !(o instanceof Date)) {
+    for (const v of Object.values(o)) deepFreeze(v)
+    Object.freeze(o)
+  }
+  return o
+}
+
+// Frozen: the Backoffice must copy before editing, or every later "new template" would start corrupted.
+export const NEW_TEMPLATE_BLOCKS: ReceiptBlock[] = deepFreeze([
   {
     id: 'header', type: 'header', enabled: true, text: '', size: 'large',
     showOutletName: true, showOutletAddress: true, showOutletPhone: true,
@@ -17,10 +26,10 @@ export const NEW_TEMPLATE_BLOCKS: ReceiptBlock[] = [
   { id: 'divider-3', type: 'divider', enabled: true },
   { id: 'points', type: 'points', enabled: true },
   { id: 'thanks', type: 'text', enabled: true, text: 'Terima kasih!', align: 'center', bold: false, size: 'normal' },
-]
+])
 
 /** The mockup sale: a bundle with three pieces and a bundle discount, QRIS, and member points. */
-export const SAMPLE_RECEIPT: ReceiptData = {
+export const SAMPLE_RECEIPT: ReceiptData = deepFreeze({
   orderRef: 'MND-000123', pending: false, dateTime: new Date('2026-11-12T05:30:00Z'),
   lines: [
     {
@@ -35,4 +44,4 @@ export const SAMPLE_RECEIPT: ReceiptData = {
   customerName: 'Budi Santoso', customerPhone: '08123456789', cashierName: 'Sari',
   outlet: { name: 'Outlet Grand Indonesia', address: 'Jl. M.H. Thamrin No. 1, Jakarta Pusat', phone: '021-5551234' },
   points: { earned: 80, balance: 1240 },
-}
+})
