@@ -23,3 +23,9 @@ export function canSeeNav(id: string, perm: string, user: NavUser | null): boole
   if (id === 'reports') return perms.includes('view_reports') || perms.includes('view_transactions')
   return perms.includes(perm)
 }
+
+/** Whether the Backoffice offers the void actions (the server enforces `void_any`; the UI only hides). */
+export function canVoidAny(user: NavUser | null): boolean {
+  if (!user) return false
+  return user.role === 'admin' || (user.permissions ?? []).includes('void_any')
+}

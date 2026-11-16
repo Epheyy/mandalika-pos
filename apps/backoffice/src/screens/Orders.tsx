@@ -30,6 +30,9 @@ import { refundedByLine } from './refundDisplay'
 import { orderIconClasses, orderStatusLabel, orderStatusTone } from '../lib/orderStatus'
 import { OrderRefundSection } from './orders/OrderRefundSection'
 import { AdminRefundForm } from './orders/AdminRefundForm'
+import { OrderReplacementInfo, OrderVoidInfo } from './orders/OrderVoidInfo'
+import { VoidOrderForm } from './orders/VoidOrderForm'
+import { canVoidAny } from '../lib/navAccess'
 import { quoteWarningTitle, receiptTotalLine } from './quoteDisplay'
 import { orderTimeCsv, orderTimeLabels, pointsRedemptionCell } from './orderTimes'
 
@@ -128,6 +131,7 @@ export function OrdersPanel() {
   const payOptions = withCurrent(paymentFilterOptions(payMethods, orders, historicalPay), fPay)
 
   const canRefund = user?.role === 'admin'
+  const canVoid = canVoidAny(user)
   const reloadAfterRefund = async () => {
     await Promise.all([q.refetch(), sq.refetch()])
   }
@@ -395,6 +399,9 @@ export function OrdersPanel() {
                       )}
                       <OrderRefundSection order={o} methods={payMethods} />
                       {canRefund && <AdminRefundForm order={o} methods={payMethods} onDone={reloadAfterRefund} />}
+                      <OrderReplacementInfo order={o} />
+                      <OrderVoidInfo order={o} canVoid={canVoid} onDone={reloadAfterRefund} />
+                      {canVoid && o.status === 'completed' && <VoidOrderForm order={o} methods={payMethods} onDone={reloadAfterRefund} />}
                     </div>
                   </div>
                 )}

@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { canEditOutlet, canSeeNav } from './navAccess'
+import { canEditOutlet, canSeeNav, canVoidAny } from './navAccess'
+
+describe('canVoidAny', () => {
+  it('lets the admin and a user holding void_any void; nobody else', () => {
+    expect(canVoidAny({ role: 'admin', permissions: [] })).toBe(true)
+    expect(canVoidAny({ role: 'manager', permissions: ['void_any'] })).toBe(true)
+    expect(canVoidAny({ role: 'manager', permissions: ['void_own_shift', 'view_reports'] })).toBe(false)
+    expect(canVoidAny({ role: 'cashier' })).toBe(false)
+    expect(canVoidAny(null)).toBe(false)
+  })
+})
 
 describe('canSeeNav', () => {
   it('canSeeNav shows the Log Error tab only for the admin role, even when a non-admin carries view_error_logs', () => {
