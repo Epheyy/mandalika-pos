@@ -2864,4 +2864,18 @@ func TestVoidPostgres(t *testing.T) {
 			t.Fatal("a refused replacement moved stock")
 		}
 	})
+
+	t.Run("replacement_bundle_order_refused_for_backoffice", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		orig := sale(saleOpts{shift: shift}, p)
+		exec(`UPDATE order_items SET bundle_group=1, bundle_role='large' WHERE order_id=$1`, orig)
+		before := stockOf(p)
+		if _, err := payFix(orig, service.ReplacementOverride{}); err == nil || !strings.Contains(err.Error(), "bundle") {
+			t.Fatalf("err = %v, want the bundle refusal", err)
+		}
+		if status(orig) != "completed" || one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, orig) != 0 || stockOf(p) != before {
+			t.Fatal("a refused bundle replacement changed the sale, voided it or moved stock")
+		}
+	})
 }
