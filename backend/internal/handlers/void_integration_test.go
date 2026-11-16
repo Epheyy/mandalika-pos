@@ -2934,4 +2934,53 @@ func TestVoidPostgres(t *testing.T) {
 			t.Fatalf("replacement = %s, want 270000/0/-30000 (the later same-name promotion must not be applied)", got)
 		}
 	})
+
+	t.Run("direct_void_retry_replays_before_any_recovery", func(t *testing.T) {
+		shift := openShift()
+		anyTok := tok(adminU, "cashier", []string{"void_any"})
+		buy, get := product(5), product(5)
+		promo := newID("8")
+		exec(`INSERT INTO promotions(id,name,type,value,combinable,bxgy_config) VALUES($1,'VD BXGY RETRY','buy_x_get_y',0,true,$2::jsonb)`, promo,
+			fmt.Sprintf(`{"buyQuantity":1,"getQuantity":1,"buyProductIds":["%s"],"getProductIds":["%s"],"getDiscountKind":"percentage","getDiscountValue":100}`, buy, get))
+		reward := ln(get, 1, 0)
+		reward.IsReward, reward.RewardPromotionID = true, promo
+		orig := promoOrder(shift, []service.OrderItem{ln(buy, 1, 100000), reward}, func(in *service.CreateOrderInput) {
+			in.PromotionIDs, in.DiscountLabel = []string{promo}, "VD BXGY RETRY"
+		})
+		body := map[string]any{
+			"reasonCode": "salah_metode_pembayaran", "mode": "replace", "clientVoidUuid": newID("4"),
+			"replacement": map[string]any{"tenders": []any{map[string]any{"method": "qris", "amount": 100000}}},
+		}
+		ids := func(out map[string]any) string {
+			v := out["data"].(map[string]any)["void"].(map[string]any)
+			return fmt.Sprint(v["id"], "/", v["replacementOrderId"])
+		}
+		code, first := do(anyTok, http.MethodPost, "/orders/"+orig+"/void", body)
+		if code != http.StatusOK {
+			t.Fatalf("void+replace = %d %v", code, first)
+		}
+		// Between the original response and the retry the campaign is switched off: a replay must not
+		// re-evaluate anything.
+		exec(`UPDATE promotions SET is_active=false WHERE id=$1`, promo)
+		code, again := do(anyTok, http.MethodPost, "/orders/"+orig+"/void", body)
+		if code != http.StatusOK || ids(again) != ids(first) {
+			t.Fatalf("replace retry = %d %v, want the same void and replacement ids as %s", code, ids(again), ids(first))
+		}
+		if one(`SELECT count(*) FROM orders WHERE replaces_order_id=$1`, orig) != 1 || one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, orig) != 1 {
+			t.Fatal("the retry created a second void or replacement")
+		}
+		// mode later and none replay too.
+		for _, mode := range []string{"later", "none"} {
+			id := sale(saleOpts{shift: shift}, product(5))
+			b := map[string]any{"reasonCode": "transaksi_tes", "mode": mode, "clientVoidUuid": newID("4")}
+			c1, o1 := do(anyTok, http.MethodPost, "/orders/"+id+"/void", b)
+			c2, o2 := do(anyTok, http.MethodPost, "/orders/"+id+"/void", b)
+			if c1 != http.StatusOK || c2 != http.StatusOK || o1["data"].(map[string]any)["void"].(map[string]any)["id"] != o2["data"].(map[string]any)["void"].(map[string]any)["id"] {
+				t.Fatalf("mode %s retry = %d/%d", mode, c1, c2)
+			}
+			if one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, id) != 1 {
+				t.Fatalf("mode %s retry voided twice", mode)
+			}
+		}
+	})
 }
