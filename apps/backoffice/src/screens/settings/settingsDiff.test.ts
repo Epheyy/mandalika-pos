@@ -91,6 +91,18 @@ describe('diffSettings', () => {
   })
 })
 
+describe('voidWindowDays', () => {
+  it('settingsDiff reports a voidWindowDays change and sends it in the save body', () => {
+    const base = normalize(SERVER)
+    expect(base.voidWindowDays).toBe(7)
+    const draft = { ...base, voidWindowDays: 14 }
+    const changes = diffSettings(base, draft)
+    expect(changes).toEqual([{ path: 'voidWindowDays', card: 'void', label: 'Batas waktu pembatalan', from: '7 hari', to: '14 hari' }])
+    expect((buildSaveBody(SERVER, base, draft, changes) as unknown as Record<string, unknown>).voidWindowDays).toBe(14)
+    expect(buildSaveBody(SERVER, base, base, []) as unknown as Record<string, unknown>).not.toHaveProperty('voidWindowDays')
+  })
+})
+
 describe('buildSaveBody', () => {
   const base = normalize(SERVER)
 

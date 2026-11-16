@@ -10,6 +10,9 @@ export const MAX_REDEMPTION_RATE = 100000
 export const MIN_RECEIPT_COPIES = 1
 export const MAX_RECEIPT_COPIES = 5
 
+export const MIN_VOID_WINDOW_DAYS = 1
+export const MAX_VOID_WINDOW_DAYS = 30
+
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 
 export function pointsPerThousandError(v: number | undefined): string | null {
@@ -29,6 +32,14 @@ export function receiptCopiesError(v: number | null | undefined): string | null 
   if (v === undefined || v === null) return null
   if (!isNum(v) || !Number.isInteger(v) || v < MIN_RECEIPT_COPIES || v > MAX_RECEIPT_COPIES) {
     return `Isi bilangan bulat ${MIN_RECEIPT_COPIES}-${MAX_RECEIPT_COPIES}.`
+  }
+  return null
+}
+
+/** Void window in days: a whole number 1-30 (server: app_settings.void_window_days). */
+export function voidWindowError(v: number): string | null {
+  if (!isNum(v) || !Number.isInteger(v) || v < MIN_VOID_WINDOW_DAYS || v > MAX_VOID_WINDOW_DAYS) {
+    return `Batas waktu pembatalan harus ${MIN_VOID_WINDOW_DAYS}–${MAX_VOID_WINDOW_DAYS} hari.`
   }
   return null
 }

@@ -2,7 +2,7 @@ import type { Outlet } from '@mandalika/api'
 import { Button } from '../../ui/Button'
 import { Input, Select, Field } from '../../ui/Field'
 import { SlideOver } from '../../ui/SlideOver'
-import { PermissionPicker } from './PermissionPicker'
+import { PermissionPicker, permissionsForRole } from './PermissionPicker'
 import { RolePicker } from './RolePicker'
 import type { Role } from './roles'
 
@@ -50,7 +50,7 @@ function AddUserModal({ open, onClose, nf, setNf, busy, outlets, error, onSave }
           <Input key={k} label={label} type={type} autoComplete={autoComplete} value={nf[k]} onChange={(e) => setNf((f) => ({ ...f, [k]: e.target.value }))} />
         ))}
         <Field label="Role">
-          <RolePicker value={nf.role} onChange={(r) => setNf((f) => ({ ...f, role: r }))} />
+          <RolePicker value={nf.role} onChange={(r) => setNf((f) => ({ ...f, role: r, permissions: permissionsForRole(r, f.permissions) }))} />
         </Field>
         <Select
           label="Outlet"

@@ -8,7 +8,7 @@ import { isCashMethod, resolveReceiptFlags } from '@mandalika/types'
  * cannot revert another admin's saved changes.
  */
 
-export type CardId = 'tax' | 'payments' | 'split' | 'receipt' | 'stock' | 'shift' | 'approval' | 'transfer' | 'docs' | 'recipe'
+export type CardId = 'tax' | 'payments' | 'split' | 'void' | 'receipt' | 'stock' | 'shift' | 'approval' | 'transfer' | 'docs' | 'recipe'
 export type TabId = 'locations' | 'transaksi' | 'operasional' | 'recipe'
 
 export const CARD_TAB: Record<CardId, TabId> = {
@@ -16,6 +16,7 @@ export const CARD_TAB: Record<CardId, TabId> = {
   tax: 'transaksi',
   payments: 'transaksi',
   split: 'transaksi',
+  void: 'transaksi',
   receipt: 'transaksi',
   shift: 'operasional',
   approval: 'operasional',
@@ -33,6 +34,7 @@ export const CARD_TITLE: Record<CardId, string> = {
   tax: 'Pajak & pembulatan',
   payments: 'Metode pembayaran',
   split: 'Bayar terpisah',
+  void: 'Pembatalan transaksi',
   receipt: 'Struk',
   shift: 'Pengaturan shift',
   approval: 'Persetujuan stok',
@@ -91,6 +93,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoOpenShift: false,
   allowNegativeStock: true,
   receiveApproverRoles: [],
+  voidWindowDays: 7,
 }
 
 const DOC_KEYS = ['brandName', 'logoUrl', 'addressLines', 'phone', 'npwp'] as const
@@ -162,6 +165,7 @@ const FIELDS: FieldSpec[] = [
   ...RECEIPT_FIELDS,
   { path: 'allowNegativeStock', card: 'stock', label: 'Izinkan stok minus', kind: 'bool' },
   { path: 'autoOpenShift', card: 'shift', label: 'Buka shift otomatis', kind: 'bool' },
+  { path: 'voidWindowDays', card: 'void', label: 'Batas waktu pembatalan', kind: 'num', unit: ' hari', fallback: 7 },
   { path: 'inventoryApprovalRequired', card: 'approval', label: 'Wajib persetujuan stok', kind: 'bool' },
   { path: 'documents.brandName', card: 'docs', label: 'Nama merek dokumen', kind: 'text' },
   { path: 'documents.logoUrl', card: 'docs', label: 'Logo dokumen', kind: 'text' },
@@ -417,6 +421,7 @@ export function buildSaveBody(rawFresh: Partial<AppSettings>, fresh: AppSettings
   for (const k of ['recipesEnabled', 'inventoryApprovalRequired', 'splitTenderEnabled'] as const) {
     if (touched(k)) body[k] = !!merged[k]
   }
+  if (touched('voidWindowDays')) body.voidWindowDays = merged.voidWindowDays
   if (touched('documents')) body.documents = { ...merged.documents }
   return body as unknown as AppSettings
 }

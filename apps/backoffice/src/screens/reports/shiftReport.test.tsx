@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { Shift } from '@mandalika/api'
 import { SNAPSHOT_PENDING_HINT, SNAPSHOT_PENDING_LABEL } from './shiftFlags'
 import { csvCell } from '../../lib/csvUtils'
-import { shiftColumns, shiftCsvRow, summarizeShifts } from './shiftReport'
+import { correctedCell, shiftColumns, shiftCsvRow, summarizeShifts } from './shiftReport'
 
 const base = {
   id: 's', outletId: 'o1', cashierName: 'Ayu', openedAt: '2026-11-01T02:00:00Z', startingCash: 100000,
@@ -54,6 +54,7 @@ describe('shiftCsvRow', () => {
     expect(Object.keys(shiftCsvRow(closed, outletName))).toEqual([
       'Kasir', 'Outlet', 'Dibuka', 'Ditutup', 'Status', 'Kas Awal', 'Kas Akhir', 'Total Penjualan', 'Refund penjualan shift',
       'Refund dibayar (Tunai)', 'Jumlah Transaksi', 'Tunai', 'Kartu', 'Transfer', 'QRIS',
+      'Koreksi Total Penjualan', 'Koreksi Jumlah Transaksi', 'Koreksi Tunai', 'Koreksi Kartu', 'Koreksi Transfer', 'Koreksi QRIS',
     ])
   })
 })
@@ -72,5 +73,41 @@ describe('shiftColumns rendering', () => {
     for (const c of cols) expect(renderToStaticMarkup(<>{c.cell(closed)}</>)).not.toContain(SNAPSHOT_PENDING_LABEL)
     const sales = cols.find((c) => c.id === 'penjualan')!
     expect(renderToStaticMarkup(<>{sales.cell(closed)}</>)).toMatch(/500[.,]000/)
+  })
+})
+
+describe('corrected closed shift', () => {
+  const corrected = {
+    ...closed,
+    corrections: {
+      count: 1,
+      byMethod: { cash: -100000 },
+      items: [{ voidId: 'v1', orderId: 'o9', orderNumber: 'INV-0009', kind: 'void', method: 'cash', amount: -100000, createdAt: '2026-11-02T01:00:00Z' }],
+    },
+    correctedTotalSales: 400000, correctedTotalOrders: 6, correctedCashSales: 200000,
+    correctedCardSales: 50000, correctedTransferSales: 100000, correctedQrisSales: 50000,
+  } as unknown as Shift
+  const cols = shiftColumns(outletName)
+  const html = (id: string, s: Shift) => renderToStaticMarkup(<>{cols.find((c) => c.id === id)!.cell(s)}</>)
+
+  it('closed corrected shift shows dikoreksi setelah ditutup and Asli → Setelah koreksi', () => {
+    expect(html('kasir', corrected)).toContain('dikoreksi setelah ditutup')
+    expect(html('penjualan', corrected)).toContain('→')
+    expect(html('tunai', corrected)).toContain('→')
+    expect(html('qris', corrected)).not.toContain('→')
+    expect(html('kasir', closed)).not.toContain('dikoreksi')
+    expect(shiftCsvRow(corrected, outletName)['Koreksi Total Penjualan']).toBe(400000)
+    expect(shiftCsvRow(corrected, outletName)['Kas Akhir']).toBe(650000)
+    expect(shiftCsvRow(closed, outletName)['Koreksi Total Penjualan']).toBe('')
+  })
+  it('corrections list shows each delta with its order number and signed amount', () => {
+    const out = html('kasir', corrected)
+    expect(out).toContain('INV-0009')
+    expect(out).toContain('Batal')
+    expect(out).toContain('\u2212')
+    expect(out).toContain('q=INV-0009')
+  })
+  it('correctedCell shows the plain amount when nothing changed', () => {
+    expect(correctedCell(5, undefined)).toBe(correctedCell(5, 5))
   })
 })
