@@ -1,15 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { resolveReceiptFlags } from '@mandalika/types'
+import { standarLayout } from '@mandalika/printer/render'
 import { DEFAULT_SETTINGS, buildSaveBody, diffSettings, normalize } from './settingsDiff'
-import { TransaksiSection } from './TransaksiSection'
+import { BlockEditor } from './struk/BlockEditor'
 
+// The receipt flags (showTax, showCashier, ...) are now shown by the designer's block editors, built from Standar.
 // Live shape found by QA R11: only some keys stored.
 const STORED = { copies: 1, headerText: '', footerText: '', showCashier: false, showTax: false }
 const serverWith = (receipt: Record<string, unknown>) => ({ ...DEFAULT_SETTINGS, receipt }) as never
 
 // label shown in the UI -> [key, what an absent/null key means on paper]
-const SWITCHES = {
+const CONTROLS = {
   'Nomor pesanan': ['showOrderNumber', true],
   'Dicetak oleh': ['showCashier', false],
   'Nama Pelanggan': ['showCustomerName', true],
@@ -17,35 +19,48 @@ const SWITCHES = {
   'Tampilkan Pajak': ['showTax', false],
   'Tampilkan Diskon': ['showDiscount', true],
   'Tampilkan Subtotal': ['showSubtotal', true],
-  'Tampilkan Kembalian': ['showChange', true],
 } as const
 const STATES = ['absent', 'null', 'false', 'true'] as const
 
-const renderOn = (s: ReturnType<typeof normalize>) =>
-  renderToStaticMarkup(<TransaksiSection s={s} setS={() => {}} newPay="" setNewPay={() => {}} changed={new Set()} changes={[]} />)
-const switchOn = (html: string, label: string) => new RegExp(`aria-checked="(true|false)"[^>]*aria-label="${label}"`).exec(html)![1] === 'true'
+/** Every block editor of Standar for these settings, as markup. */
+const editorsOn = (s: ReturnType<typeof normalize>): string =>
+  standarLayout(s.receipt).blocks
+    .map((b) => renderToStaticMarkup(<BlockEditor block={b} onChange={() => {}} />))
+    .join('')
 
-describe('F35 Backoffice switches read each flag the way the printer does', () => {
-  for (const [label, [key, dflt]] of Object.entries(SWITCHES)) {
+/** Whether the control named `label` is on in any editor: a switch (aria-checked) or a checkbox (checked). */
+const controlOn = (html: string, label: string): boolean => {
+  const tags = [...html.matchAll(new RegExp(`<(?:button|input)[^>]*aria-label="${label}"[^>]*>`, 'g'))].map((m) => m[0])
+  expect(tags.length, label).toBeGreaterThan(0)
+  return tags.some((t) => t.includes('aria-checked="true"') || /\schecked(=""|\s|>)/.test(t))
+}
+
+describe('F35 the designer reads each flag the way the printer does', () => {
+  for (const [label, [key, dflt]] of Object.entries(CONTROLS)) {
     for (const st of STATES) {
       const want = st === 'true' ? true : st === 'false' ? false : dflt
-      it(`${key} ${st}: switch is ${want ? 'ON' : 'OFF'}, no unsaved change on open`, () => {
+      it(`${key} ${st}: control is ${want ? 'ON' : 'OFF'}, no unsaved change on open`, () => {
         const stored = st === 'absent' ? { ...STORED } : { ...STORED, [key]: st === 'null' ? null : st === 'true' }
-        // showCashier/showTax live in STORED as false; an explicit state overrides, 'absent' removes them
         if (st === 'absent') delete (stored as Record<string, unknown>)[key]
         const s = normalize(serverWith(stored))
-        expect(switchOn(renderOn(s), label)).toBe(want)
+        expect(controlOn(editorsOn(s), label)).toBe(want)
         expect(diffSettings(normalize(serverWith(stored)), s)).toEqual([])
       })
     }
   }
 
+  it('the payment editor has no Kembalian switch: change is locked on', () => {
+    const html = editorsOn(normalize(serverWith(STORED)))
+    expect(html).not.toContain('Kembalian"')
+    expect(html).toContain('Pembayaran dan kembalian selalu dicetak.')
+  })
+
   it('the live QA settings: customer phone and discount agree with the paper (phone OFF, discount ON)', () => {
     const s = normalize(serverWith(STORED))
-    const html = renderOn(s)
-    expect(switchOn(html, 'Nomor Telepon')).toBe(false)
-    expect(switchOn(html, 'Tampilkan Diskon')).toBe(true)
-    expect(switchOn(html, 'Tampilkan Pajak')).toBe(false)
+    const html = editorsOn(s)
+    expect(controlOn(html, 'Nomor Telepon')).toBe(false)
+    expect(controlOn(html, 'Tampilkan Diskon')).toBe(true)
+    expect(controlOn(html, 'Tampilkan Pajak')).toBe(false)
     expect(resolveReceiptFlags(s.receipt).showCustomerPhone).toBe(false)
   })
 
@@ -71,12 +86,12 @@ describe('F35 Backoffice switches read each flag the way the printer does', () =
   })
 
   for (const missing of [null, undefined]) {
-    it(`no receipt object (${String(missing)}): switches equal the printer defaults, no unsaved change on open`, () => {
+    it(`no receipt object (${String(missing)}): controls equal the printer defaults, no unsaved change on open`, () => {
       const raw = { ...DEFAULT_SETTINGS, receipt: missing } as never
       const s = normalize(raw)
-      const html = renderOn(s)
-      for (const [label, [key, dflt]] of Object.entries(SWITCHES)) {
-        expect(switchOn(html, label), key).toBe(dflt)
+      const html = editorsOn(s)
+      for (const [label, [key, dflt]] of Object.entries(CONTROLS)) {
+        expect(controlOn(html, label), key).toBe(dflt)
       }
       expect(diffSettings(normalize(raw), s)).toEqual([])
     })

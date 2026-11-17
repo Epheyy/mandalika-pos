@@ -1,9 +1,9 @@
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import type { AppSettings } from '@mandalika/api'
-import { isCashMethod, resolveReceiptFlags } from '@mandalika/types'
+import { isCashMethod } from '@mandalika/types'
 import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '../../ui/Button'
-import { Input, Select, Field } from '../../ui/Field'
+import { Input, Select } from '../../ui/Field'
 import { SettingsCard } from './SettingsCard'
 import { SettingRow } from './SettingRow'
 import { changeAt, type CardId, type Change } from './settingsDiff'
@@ -28,7 +28,6 @@ const PAY_GRID = 'grid grid-cols-[minmax(0,1fr)_6.5rem_3.5rem_2.25rem] items-cen
 
 /** Transaksi tab: Pajak & Pembulatan · Metode Pembayaran · Struk. */
 export function TransaksiSection({ s, setS, newPay, setNewPay, changed, changes }: TransaksiSectionProps) {
-  const receiptFlags = resolveReceiptFlags(s.receipt)
   const [payError, setPayError] = useState<string | null>(null)
   const setReceipt = (k: string, v: unknown) =>
     setS((p) => ({ ...p, receipt: { ...p.receipt, [k]: v } }))
@@ -193,37 +192,7 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed, changes 
         <SettingRow title="Cetak struk otomatis" change={changeAt(changes, 'receipt.autoPrint')}>
           <Switch label="Cetak struk otomatis" checked={!!s.receipt.autoPrint} size="sm" onChange={() => setReceipt('autoPrint', !s.receipt.autoPrint)} />
         </SettingRow>
-        {([['headerText', 'Teks Header'], ['footerText', 'Teks Footer']] as const).map(([k, label]) => (
-          <Input
-            key={k}
-            label={label}
-            type="text"
-            value={s.receipt[k]}
-            onChange={(e) => setReceipt(k, e.target.value)}
-          />
-        ))}
-        <Field label="Tampilan Struk">
-          <div className="border border-paper-2 rounded-xl overflow-hidden">
-            {([
-              ['showOrderNumber', 'Nomor pesanan'],
-              ['showCashier', 'Dicetak oleh'],
-              ['showCustomerName', 'Nama Pelanggan'],
-              ['showCustomerPhone', 'Nomor Telepon'],
-              ['showTax', 'Tampilkan Pajak'],
-              ['showDiscount', 'Tampilkan Diskon'],
-              ['showSubtotal', 'Tampilkan Subtotal'],
-              ['showChange', 'Tampilkan Kembalian'],
-            ] as const).map(([k, label]) => {
-              const on = receiptFlags[k]
-              return (
-              <div key={k} className="flex items-center justify-between px-4 py-3 border-b border-paper-2 last:border-0">
-                <p className="font-bold text-ink-900 text-sm">{label}</p>
-                <Switch label={label} checked={on} size="sm" onChange={() => setReceipt(k, !on)} />
-              </div>
-              )
-            })}
-          </div>
-        </Field>
+        <p className="text-xs text-ink-700">Desain struk ada di Pengaturan › Struk</p>
       </SettingsCard>
     </div>
   )

@@ -17,6 +17,7 @@ export const SHOT_VIEWPORTS = {
   'pos-short': { width: 1280, height: 667 },
   /** The fleet tablet rotated (portrait CSS viewport). */
   'pos-a9-portrait': { width: 602, height: 1006 },
+  'bo-1024': { width: 1024, height: 768 },
   'bo-desktop': { width: 1440, height: 900 },
   'bo-tablet': { width: 768, height: 1024 },
   'bo-phone': { width: 375, height: 812 },
