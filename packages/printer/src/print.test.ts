@@ -249,21 +249,26 @@ describe('graphics switch and the queue after a drain', () => {
     try {
       const started: number[] = []
       let written = 0
+      let lastWriteAt = 0
       const t: PrinterTransport = {
         kind: 'none', isAvailable: async () => true, pickDevice: async () => null,
         connect: async () => { started.push(Date.now()) },
-        write: async (b) => { written += b.length },
+        write: async (b) => { written += b.length; if (started.length === 1) lastWriteAt = Date.now() },
         // the native disconnect sleeps the drain budget before it closes
         disconnect: async () => { await new Promise((r) => setTimeout(r, drainDelayMs(written))); written = 0 },
       }
+      // 5 copies of a payload far past what the cap covers, so the cap (not the byte count) sets the drain.
+      const bigData = { ...data, lines: Array.from({ length: 400 }, (_, i) => ({ name: `Barang ${i}`, qty: 1, unitPrice: 1000, amount: 1000 })) }
       const big = { ...settings, copies: 5 }
-      const first = printReceipt({ transport: t, deviceId: 'd', data, settings: big })
+      const first = printReceipt({ transport: t, deviceId: 'd', data: bigData, settings: big })
       const second = printReceipt({ transport: t, deviceId: 'd', data, settings: big })
-      const lastWriteAt = Date.now()
-      await vi.advanceTimersByTimeAsync(DRAIN_MAX_MS + 1000)
+      await vi.advanceTimersByTimeAsync(DRAIN_MAX_MS - 100)
+      expect(started).toHaveLength(1) // the second job waits out the drain...
+      await vi.advanceTimersByTimeAsync(1100 + 1000)
       await first
-      expect(started).toHaveLength(2)
+      expect(started).toHaveLength(2) // ...and starts within the cap + 1 s after the last write
       expect(started[1]! - lastWriteAt).toBeLessThanOrEqual(DRAIN_MAX_MS + 1000)
+      expect(started[1]! - lastWriteAt).toBeGreaterThanOrEqual(DRAIN_MAX_MS)
       await vi.advanceTimersByTimeAsync(DRAIN_MAX_MS + 1000)
       await second
     } finally {

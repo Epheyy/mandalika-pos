@@ -68,6 +68,7 @@ describe('transfer receive step-up (engine)', () => {
     request.mockResolvedValueOnce({ data: draft })
     expect(await engine.getReceiptTestPrint()).toEqual(draft)
     expect(request.mock.calls[0].slice(0, 2)).toEqual(['GET', '/api/v1/sync/receipt-test-print'])
+    expect(request.mock.calls[0][3]).toEqual({ timeoutMs: 5000 }) // weak Wi-Fi must not hang Tes Cetak
     request.mockRejectedValueOnce(Object.assign(new Error('not found'), { status: 404 }))
     expect(await engine.getReceiptTestPrint()).toBeNull()
     request.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 500 }))

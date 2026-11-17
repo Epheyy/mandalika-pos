@@ -1064,7 +1064,7 @@ export class SyncEngine {
    *  minutes), or null when there is none (the server answers 404). Never stored: the caller prints it once. */
   async getReceiptTestPrint(): Promise<SyncReceiptTemplate | null> {
     try {
-      const r = await this.api.request<{ data: SyncReceiptTemplate }>('GET', '/api/v1/sync/receipt-test-print')
+      const r = await this.api.request<{ data: SyncReceiptTemplate }>('GET', '/api/v1/sync/receipt-test-print', undefined, { timeoutMs: 5000 })
       return r.data
     } catch (e) {
       if ((e as { status?: number } | null)?.status === 404) return null

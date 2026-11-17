@@ -55,7 +55,7 @@ interface PrinterState {
   printTandaTerima: (data: TandaTerimaData, settings: ReceiptSettings, reprint?: boolean) => Promise<void>
   /** DIBATALKAN slip; `layout` is reserved for the receipt designer (the slip does not read it yet). */
   printVoidSlip: (data: VoidSlipData, settings: ReceiptSettings, layout?: ReceiptLayout) => Promise<void>
-  testPrint: (settings: ReceiptSettings, layout?: ReceiptLayout) => Promise<void>
+  testPrint: (settings: ReceiptSettings, layout?: ReceiptLayout, outlet?: ReceiptData['outlet']) => Promise<void>
 }
 
 /** The layout fields of a print job: the device paper clamp, and a report when a template block was skipped or the
@@ -162,9 +162,10 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
   )
 
   const testPrint = useCallback(
-    async (settings: ReceiptSettings, layout?: ReceiptLayout) => {
+    async (settings: ReceiptSettings, layout?: ReceiptLayout, outlet?: ReceiptData['outlet']) => {
       // The mockup sale, so a logo, QR, points and the bundle rows all show what the template does with them.
-      const sample: ReceiptData = { ...SAMPLE_RECEIPT, dateTime: new Date() }
+      // It is marked TES-CETAK and carries this outlet's own details, so it can never pass for a paid sale.
+      const sample: ReceiptData = { ...SAMPLE_RECEIPT, orderRef: 'TES-CETAK', dateTime: new Date(), ...(outlet ? { outlet } : {}) }
       await printReceipt({
         transport: transportRef.current,
         deviceId: pairedId,

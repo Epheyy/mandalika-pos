@@ -15,7 +15,7 @@ import type { components } from '@mandalika/api'
 import { SyncContext } from '../cashier/SyncProvider'
 import { formatRupiah } from '../cashier/pricing'
 import { usePrinter } from '../printer'
-import { chooseTestPrintLayout, deviceGraphics, devicePaperWidth, setDeviceGraphics, setDevicePaperWidth } from '../receiptLayout'
+import { receiptOutlet, chooseTestPrintLayout, deviceGraphics, devicePaperWidth, setDeviceGraphics, setDevicePaperWidth } from '../receiptLayout'
 import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
 import { offlineLockMessage } from '../lib/offlineCap'
 import { TerminalSection } from './TerminalSection'
@@ -143,7 +143,8 @@ export const SettingsScreen = memo(function SettingsScreen({
         engine?.getSnapshot().receiptTemplate,
         settings.receipt,
       )
-      await printer.testPrint(settings.receipt, layout)
+      const snap = engine?.getSnapshot()
+      await printer.testPrint(settings.receipt, layout, snap ? receiptOutlet(snap) : undefined)
       setPrinterMsg(fromDraft ? 'Tes cetak desain dari Backoffice terkirim' : 'Tes cetak terkirim')
     } catch (e: unknown) {
       setPrinterMsg(e instanceof Error ? e.message : 'Gagal mencetak')
