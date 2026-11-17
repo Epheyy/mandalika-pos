@@ -225,6 +225,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			// bucket (each call costs an argon2 hash); the real brake is the server-side
 			// per-user lockout in Postgres.
 			r.Get("/sync/receive-approvers", h.ListReceiveApprovers)
+			// Receipt designer: the draft the Backoffice sent to this outlet for one Tes Cetak (60 minutes).
+			r.Get("/sync/receipt-test-print", h.GetReceiptTestPrint)
 			r.With(mw.RateLimit(c, "pinstep", 20, time.Minute)).
 				Post("/sync/transfer-receive-approvals", h.CreateTransferReceiveApproval)
 
@@ -382,6 +384,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Get("/receipt-templates", h.ListReceiptTemplates)
 				r.Post("/receipt-templates", h.CreateReceiptTemplate)
 				r.Put("/receipt-templates/assign", h.AssignReceiptTemplate)
+				r.Post("/receipt-templates/test-print", h.SendReceiptTestPrint)
 				r.Put("/receipt-templates/{id}", h.UpdateReceiptTemplate)
 				r.Delete("/receipt-templates/{id}", h.DeleteReceiptTemplate)
 				r.Post("/customers/{id}/points/adjust", h.AdjustPoints)

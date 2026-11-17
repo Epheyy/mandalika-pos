@@ -139,3 +139,42 @@ func (h *Handlers) writeTemplate(w http.ResponseWriter, r *http.Request, status 
 	}
 	writeJSON(w, status, api.ReceiptTemplateResponse{Data: t})
 }
+
+// SendReceiptTestPrint stores an unsaved draft for one outlet's tablet to test-print (manage_settings).
+func (h *Handlers) SendReceiptTestPrint(w http.ResponseWriter, r *http.Request) {
+	var body api.ReceiptTestPrintInput
+	if err := httpx.DecodeLoose(r, &body); err != nil {
+		writeDecodeErr(w, err)
+		return
+	}
+	if err := h.Write.SaveReceiptTestPrint(r.Context(), callerUserID(r), body.OutletId.String(), int(body.PaperWidth), body.Blocks); err != nil {
+		if !templateRefusal(w, err) {
+			h.mutated(w, r, err)
+		}
+		return
+	}
+	h.writeTestPrint(w, r, body.OutletId.String())
+}
+
+// GetReceiptTestPrint returns the draft sent to the caller's outlet in the last 60 minutes, else 404.
+func (h *Handlers) GetReceiptTestPrint(w http.ResponseWriter, r *http.Request) {
+	c, _ := h.caller(r)
+	if c.outletID == "" {
+		httpx.Err(w, http.StatusNotFound, "not found")
+		return
+	}
+	h.writeTestPrint(w, r, c.outletID)
+}
+
+func (h *Handlers) writeTestPrint(w http.ResponseWriter, r *http.Request, outletID string) {
+	t, err := h.Repo.ReceiptTestPrint(r.Context(), outletID)
+	if err != nil {
+		if errors.Is(err, read.ErrNotFound) {
+			httpx.Err(w, http.StatusNotFound, "not found")
+			return
+		}
+		writeErr(w, r, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.ReceiptTestPrintResponse{Data: t})
+}

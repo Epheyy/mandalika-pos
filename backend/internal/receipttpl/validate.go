@@ -4,6 +4,8 @@
 package receipttpl
 
 import (
+	"encoding/base64"
+	"regexp"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -23,7 +25,24 @@ const (
 	LabelMax     = 40
 	IDMax        = 64
 	TemplatesMax = 50
+
+	ImageBlocksMax = 2
+	ImageBytesMax  = 11520
+	QRBlocksMax    = 2
+	URLMax         = 300
+	RasterMaxWidth = 384
+	RasterMaxHigh  = 240
 )
+
+var qrURL = regexp.MustCompile(`^https?://[!-~]+$`)
+
+// rasterBytes is what a raster must decode to; 0 when the geometry is unusable.
+func rasterBytes(r *api.ReceiptRaster) int {
+	if r == nil || r.Width < 8 || r.Width%8 != 0 || r.Height < 1 {
+		return 0
+	}
+	return r.Width / 8 * r.Height
+}
 
 // Error is a template refusal: a stable Code and the Indonesian message the Backoffice shows.
 type Error struct {
@@ -36,7 +55,7 @@ func (e *Error) Error() string { return e.Message }
 
 var knownTypes = map[api.ReceiptBlockType]bool{
 	api.Header: true, api.Transaction: true, api.Items: true, api.Totals: true,
-	api.Payment: true, api.Points: true, api.Text: true, api.Divider: true,
+	api.Payment: true, api.Points: true, api.Text: true, api.Divider: true, api.Image: true, api.Qr: true,
 }
 
 // lockedTypes appear exactly once, enabled, in this relative order.
@@ -162,6 +181,26 @@ func Issues(name string, paperWidth int, blocks []api.ReceiptBlock) []*Error {
 	if total > TotalTextMax {
 		add("total_text_too_long", "Total teks maksimal 1500 karakter.", "")
 	}
+	// 4b. image and QR counts
+	images, qrs, imgBytes := 0, 0, 0
+	for _, b := range blocks {
+		switch b.Type {
+		case api.Image:
+			images++
+			imgBytes += rasterBytes(b.Image)
+		case api.Qr:
+			qrs++
+		}
+	}
+	if images > ImageBlocksMax {
+		add("too_many_images", "Maksimal 2 blok logo.", "")
+	}
+	if imgBytes > ImageBytesMax {
+		add("images_too_large", "Ukuran logo terlalu besar.", "")
+	}
+	if qrs > QRBlocksMax {
+		add("too_many_qr", "Maksimal 2 blok QR.", "")
+	}
 	// 5. per block
 	seen := make(map[string]bool, len(blocks))
 	for _, b := range blocks {
@@ -210,6 +249,31 @@ func Issues(name string, paperWidth int, blocks []api.ReceiptBlock) []*Error {
 			}
 			if !printable(t, true) {
 				add("not_printable", "Teks hanya boleh karakter ASCII yang bisa dicetak.", b.Id)
+			}
+			if b.Label != nil && runes(*b.Label) > LabelMax {
+				add("label_too_long", "Label maksimal 40 karakter.", b.Id)
+			}
+		case api.Image:
+			switch r := b.Image; {
+			case r == nil:
+				add("image_invalid", "Gambar logo tidak ada.", b.Id)
+			case r.Width > RasterMaxWidth:
+				add("image_too_wide", "Lebar logo maksimal 384 titik.", b.Id)
+			case r.Height > RasterMaxHigh:
+				add("image_too_tall", "Tinggi logo maksimal 240 titik.", b.Id)
+			default:
+				if dec, err := base64.StdEncoding.Strict().DecodeString(r.Data); err != nil || strings.ContainsAny(r.Data, "\r\n") || rasterBytes(r) == 0 || len(dec) != rasterBytes(r) {
+					add("image_invalid", "Gambar logo rusak.", b.Id)
+				}
+			}
+			if b.Label != nil && runes(*b.Label) > LabelMax {
+				add("label_too_long", "Label maksimal 40 karakter.", b.Id)
+			}
+		case api.Qr:
+			if u := deref(b.Url); runes(u) > URLMax {
+				add("url_too_long", "Alamat QR maksimal 300 karakter.", b.Id)
+			} else if !qrURL.MatchString(u) {
+				add("url_invalid", "Alamat QR harus diawali http:// atau https:// dan hanya berisi karakter ASCII.", b.Id)
 			}
 			if b.Label != nil && runes(*b.Label) > LabelMax {
 				add("label_too_long", "Label maksimal 40 karakter.", b.Id)

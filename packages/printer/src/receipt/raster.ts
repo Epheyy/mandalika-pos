@@ -35,7 +35,7 @@ export function decodeRaster(r: unknown): Uint8Array | null {
   if (data.length % 4 !== 0 || !B64.test(data)) return null
   let bin: string
   try { bin = atob(data) } catch { return null }
-  if (bin.length !== rasterByteLength({ width, height })) return null
+  if (bin.length !== rasterByteLength({ width, height }) || btoa(bin) !== data) return null
   const out = new Uint8Array(bin.length)
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
   return out

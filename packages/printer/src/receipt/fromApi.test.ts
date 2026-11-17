@@ -38,7 +38,7 @@ describe('layoutFromApi', () => {
   })
 
   it('drops an unknown block type and keeps the rest', () => {
-    const l = layoutFromApi(tpl([{ id: 'q', type: 'qr', enabled: true, url: 'https://x.test' }, ...core()]))
+    const l = layoutFromApi(tpl([{ id: 'q', type: 'barcode', enabled: true }, ...core()]))
     expect(l?.blocks.map((b) => b.id)).toEqual(['i', 'o', 'p'])
   })
 

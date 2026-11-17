@@ -309,6 +309,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/receipt-templates/test-print": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send an unsaved receipt draft to one outlet's tablet for a test print (manage_settings); valid for 60 minutes */
+        post: operations["sendReceiptTestPrint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/receipt-templates/assign": {
         parameters: {
             query?: never;
@@ -2408,6 +2425,23 @@ export interface paths {
         };
         /** Users who may approve a transfer receive at the caller's outlet (A08; no PIN hash) */
         get: operations["listReceiveApprovers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync/receipt-test-print": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The receipt draft sent to the caller's outlet for a test print, if one was sent in the last 60 minutes */
+        get: operations["getReceiptTestPrint"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5330,7 +5364,7 @@ export interface components {
         ReceiptBlock: {
             id: string;
             /** @enum {string} */
-            type: "header" | "transaction" | "items" | "totals" | "payment" | "points" | "text" | "divider";
+            type: "header" | "transaction" | "items" | "totals" | "payment" | "points" | "text" | "divider" | "image" | "qr";
             enabled: boolean;
             label?: string;
             text?: string;
@@ -5348,6 +5382,26 @@ export interface components {
             showSubtotal?: boolean;
             showDiscount?: boolean;
             showTax?: boolean;
+            image?: components["schemas"]["ReceiptRaster"];
+            /** @description QR block: an http(s) address, at most 300 printable ASCII characters. */
+            url?: string;
+        };
+        /** @description A 1-bit logo. `data` is base64 of width/8 x height bytes (rows top to bottom, MSB first, 1 = black); width is a multiple of 8 and at most 384, height at most 240. */
+        ReceiptRaster: {
+            width: number;
+            height: number;
+            data: string;
+        };
+        /** @description An unsaved draft to test-print on one outlet's tablet. Replaces any earlier draft for that outlet. */
+        ReceiptTestPrintInput: {
+            /** Format: uuid */
+            outletId: string;
+            /** @enum {integer} */
+            paperWidth: 58 | 80;
+            blocks: components["schemas"]["ReceiptBlock"][];
+        };
+        ReceiptTestPrintResponse: {
+            data: components["schemas"]["SyncReceiptTemplate"];
         };
         ReceiptTemplate: {
             /** Format: uuid */
@@ -7660,6 +7714,50 @@ export interface operations {
                 };
             };
             /** @description the template breaks a rule (locked block missing, text too long, ...); the message names the first issue */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    sendReceiptTestPrint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptTestPrintInput"];
+            };
+        };
+        responses: {
+            /** @description stored for the outlet */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptTestPrintResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description the draft breaks a template rule; the message names the first issue */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12173,6 +12271,31 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    getReceiptTestPrint: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description the draft */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptTestPrintResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
     createTransferReceiveApproval: {

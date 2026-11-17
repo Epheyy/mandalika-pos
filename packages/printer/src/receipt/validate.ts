@@ -84,7 +84,11 @@ export function validateTemplate(input: { name: string; paperWidth: number; bloc
   if (images.length > RECEIPT_LIMITS.imageBlocksMax) add('too_many_images', `Maksimal ${RECEIPT_LIMITS.imageBlocksMax} blok logo.`)
   const rasterBytes = images.reduce((n, b) => {
     const r = b.image as { width?: unknown; height?: unknown } | undefined
-    return n + (typeof r?.width === 'number' && typeof r?.height === 'number' ? rasterByteLength({ width: r.width, height: r.height }) : 0)
+    const w = r?.width, h = r?.height
+    // Only a usable geometry counts, exactly like the Go twin (rasterBytes returns 0 otherwise).
+    return typeof w === 'number' && typeof h === 'number' && Number.isInteger(w) && Number.isInteger(h) && w >= 8 && w % 8 === 0 && h >= 1
+      ? n + rasterByteLength({ width: w, height: h })
+      : n
   }, 0)
   if (rasterBytes > RECEIPT_LIMITS.imageBytesMax) add('images_too_large', 'Ukuran logo terlalu besar.')
   if (blocks.filter((b) => b.type === 'qr').length > RECEIPT_LIMITS.qrBlocksMax) add('too_many_qr', `Maksimal ${RECEIPT_LIMITS.qrBlocksMax} blok QR.`)

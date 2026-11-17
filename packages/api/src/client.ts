@@ -27,6 +27,8 @@ export type ReceiptTemplate = S['ReceiptTemplate']
 export type ReceiptTemplateInput = S['ReceiptTemplateInput']
 export type ReceiptTemplateAssignInput = S['ReceiptTemplateAssignInput']
 export type SyncReceiptTemplate = S['SyncReceiptTemplate']
+export type ReceiptTestPrintInput = S['ReceiptTestPrintInput']
+export type ReceiptRaster = S['ReceiptRaster']
 export type BundleSettings = S['BundleSettings']
 export type BundleSettingsInput = S['BundleSettingsInput']
 export type BundleCatalog = S['BundleCatalog']
@@ -577,6 +579,10 @@ export interface Api {
   deleteReceiptTemplate: (id: string) => Promise<void>
   /** An absent `templateId` moves the listed outlets back to the default (Standar). */
   assignReceiptTemplate: (input: ReceiptTemplateAssignInput) => Promise<void>
+  /** Backoffice: sends an unsaved draft to one outlet's tablet for a test print (valid 60 minutes). */
+  sendReceiptTestPrint: (input: ReceiptTestPrintInput) => Promise<SyncReceiptTemplate>
+  /** Tablet: the draft sent to this outlet in the last 60 minutes, or null when there is none (404). */
+  getReceiptTestPrint: () => Promise<SyncReceiptTemplate | null>
   reportSummary: (params?: ReportSummaryParams) => Promise<ReportSummary>
   /** Ringkasan numbers aggregated on the server (windows, trend granularity); a 404 means an older backend. */
   reportDashboard: (params: DashboardAggregateParams) => Promise<DashboardAggregate>
@@ -1305,6 +1311,15 @@ export function createClient(opts: ClientOptions): Api {
     },
     assignReceiptTemplate: async (input) => {
       await request('PUT', `${API}/receipt-templates/assign`, input)
+    },
+    sendReceiptTestPrint: (input) => data<SyncReceiptTemplate>('POST', `${API}/receipt-templates/test-print`, input),
+    getReceiptTestPrint: async () => {
+      try {
+        return await data<SyncReceiptTemplate>('GET', `${API}/sync/receipt-test-print`)
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return null
+        throw e
+      }
     },
     reportSummary: (params) =>
       data<ReportSummary>('GET', `${API}/reports/summary${qs(params)}`),

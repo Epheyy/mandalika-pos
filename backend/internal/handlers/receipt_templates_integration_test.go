@@ -43,7 +43,7 @@ func TestReceiptTemplatesPostgres(t *testing.T) {
 	      VALUES($1,'rt-admin@example.invalid','x','RT Admin','admin',NULL)`, adminU)
 
 	rd, wr := read.New(pool), write.New(pool)
-	h := New(rd, nil, nil, wr, nil, nil, nil)
+	h := New(rd, nil, auth.NewStore(pool), wr, nil, nil, nil)
 	key := []byte(secret)
 	tok := func(perms []string) string {
 		role := "admin"
@@ -65,7 +65,9 @@ func TestReceiptTemplatesPostgres(t *testing.T) {
 		r.Put("/receipt-templates/assign", h.AssignReceiptTemplate)
 		r.Put("/receipt-templates/{id}", h.UpdateReceiptTemplate)
 		r.Delete("/receipt-templates/{id}", h.DeleteReceiptTemplate)
+		r.Post("/receipt-templates/test-print", h.SendReceiptTestPrint)
 	})
+	router.Get("/sync/receipt-test-print", h.GetReceiptTestPrint)
 	do := func(perms []string, method, path string, body any) (int, map[string]any) {
 		t.Helper()
 		var buf bytes.Buffer
@@ -488,6 +490,113 @@ func TestReceiptTemplatesPostgres(t *testing.T) {
 		}
 		if assignedTo(outA) == nil {
 			t.Fatal("a refused assign must not unassign outlets")
+		}
+	})
+
+	// Phase 4: the test-print relay.
+	rasterOK := map[string]any{"width": 16, "height": 2, "data": "VVVVVQ=="} // 4 bytes
+	draftBlocks := func() []map[string]any {
+		return append([]map[string]any{
+			{"id": "lg", "type": "image", "enabled": true, "image": rasterOK, "align": "center"},
+			{"id": "qr", "type": "qr", "enabled": true, "url": "https://mandalikaperfume.co.id/ulasan", "align": "center"},
+		}, core()...)
+	}
+	sendDraft := func(outlet string, blocks []map[string]any) (int, map[string]any) {
+		return do(admin, http.MethodPost, "/receipt-templates/test-print", map[string]any{"outletId": outlet, "paperWidth": 58, "blocks": blocks})
+	}
+	tabletGet := func(outlet string) (int, map[string]any) {
+		s, err := auth.IssueAccess(key, time.Hour, adminU, "cashier", outlet, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := httptest.NewRequest(http.MethodGet, "/sync/receipt-test-print", nil)
+		r.Header.Set("Authorization", "Bearer "+s)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, r)
+		var out map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &out)
+		return w.Code, out
+	}
+
+	t.Run("test_print_round_trip_for_outlet", func(t *testing.T) {
+		before := versionOf(outB)
+		if code, body := sendDraft(outB, draftBlocks()); code != http.StatusOK {
+			t.Fatalf("send = %d %v", code, body)
+		}
+		code, body := tabletGet(outB)
+		if code != http.StatusOK {
+			t.Fatalf("get = %d %v", code, body)
+		}
+		data := body["data"].(map[string]any)
+		blocks := data["blocks"].([]any)
+		if len(blocks) != 5 || blocks[0].(map[string]any)["type"] != "image" || blocks[1].(map[string]any)["url"] != "https://mandalikaperfume.co.id/ulasan" {
+			t.Fatalf("draft not returned intact: %v", data)
+		}
+		if int(data["paperWidth"].(float64)) != 58 {
+			t.Fatalf("paperWidth = %v", data["paperWidth"])
+		}
+		if versionOf(outB) != before {
+			t.Fatal("a test print must not bump the outlet's content version")
+		}
+		// a newer draft replaces the older one
+		if code, _ := sendDraft(outB, withText("Baru")); code != http.StatusOK {
+			t.Fatal("second send refused")
+		}
+		_, body = tabletGet(outB)
+		if got := body["data"].(map[string]any)["blocks"].([]any); len(got) != 4 {
+			t.Fatalf("the newer draft should replace the older, got %d blocks", len(got))
+		}
+	})
+
+	t.Run("test_print_expires_after_60_min", func(t *testing.T) {
+		sendDraft(outB, withText("Lama"))
+		exec(`UPDATE receipt_test_prints SET created_at = now() - interval '61 minutes' WHERE outlet_id=$1`, outB)
+		if code, _ := tabletGet(outB); code != http.StatusNotFound {
+			t.Fatalf("an expired draft must be 404, got %d", code)
+		}
+		exec(`UPDATE receipt_test_prints SET created_at = now() - interval '59 minutes' WHERE outlet_id=$1`, outB)
+		if code, _ := tabletGet(outB); code != http.StatusOK {
+			t.Fatalf("a 59-minute-old draft must still be served, got %d", code)
+		}
+	})
+
+	t.Run("test_print_other_outlet_404", func(t *testing.T) {
+		sendDraft(outA, withText("Untuk A"))
+		if code, _ := tabletGet(outC); code != http.StatusNotFound {
+			t.Fatalf("outlet C has no draft, got %d", code)
+		}
+	})
+
+	noItems := func(b []map[string]any) []map[string]any { return append([]map[string]any{b[0]}, b[2:]...) }
+	t.Run("test_print_refusals", func(t *testing.T) {
+		if code, _ := sendDraft(outA, noItems(withText("x"))); code != http.StatusUnprocessableEntity {
+			t.Fatalf("a draft without items must be 422, got %d", code)
+		}
+		bad := draftBlocks()
+		bad[1]["url"] = "ftp://x.id"
+		if code, _ := sendDraft(outA, bad); code != http.StatusUnprocessableEntity {
+			t.Fatalf("a bad QR url must be 422, got %d", code)
+		}
+		if code, _ := sendDraft("00000000-0000-4000-8f10-0000000000ff", withText("x")); code != http.StatusNotFound {
+			t.Fatalf("an unknown outlet must be 404, got %d", code)
+		}
+		if code, _ := do([]string{"view_reports"}, http.MethodPost, "/receipt-templates/test-print",
+			map[string]any{"outletId": outA, "paperWidth": 58, "blocks": withText("x")}); code != http.StatusForbidden {
+			t.Fatalf("a non-admin must be 403, got %d", code)
+		}
+	})
+
+	t.Run("a_template_with_logo_and_qr_saves_and_ships_in_the_pull", func(t *testing.T) {
+		id := create("Logo", nil)
+		code, body := do(admin, http.MethodPut, "/receipt-templates/"+id, map[string]any{
+			"name": "Logo", "paperWidth": 58, "version": 1, "blocks": draftBlocks()})
+		if code != http.StatusOK {
+			t.Fatalf("update = %d %v", code, body)
+		}
+		do(admin, http.MethodPut, "/receipt-templates/assign", map[string]any{"templateId": id, "outletIds": []string{outC}})
+		b := pull(outC)
+		if b.ReceiptTemplate == nil || len(b.ReceiptTemplate.Blocks) != 5 || b.ReceiptTemplate.Blocks[0].Image == nil || b.ReceiptTemplate.Blocks[0].Image.Width != 16 {
+			t.Fatalf("pull should carry the raster, got %+v", b.ReceiptTemplate)
 		}
 	})
 }
