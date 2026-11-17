@@ -80,6 +80,32 @@ describe('refund review texts', () => {
   })
 })
 
+describe('void review items', () => {
+  it('labels the type', () => {
+    expect(typeLabel('void')).toBe('Pembatalan')
+  })
+  it('summarises a void without a replacement', () => {
+    const rows = Object.fromEntries(payloadSummary('void', { orderNumber: 'A-12', mode: 'none', reasonCode: 'salah_barang', total: 150000 }))
+    expect(rows['Struk dibatalkan']).toBe('A-12')
+    expect(rows.Mode).toBe('Batalkan saja')
+    expect(rows.Alasan).toBe('Salah barang')
+    expect(rows['Total struk asli']).toContain('150.000')
+    expect(rows.Pengganti).toBeUndefined()
+    expect(rows.Catatan).toBeUndefined()
+  })
+  it('shows the note and the paid replacement that rides with a void', () => {
+    const rows = Object.fromEntries(payloadSummary('void', {
+      orderNumber: 'A-12', mode: 'replace', reasonCode: 'lainnya', note: ' salah input metode ',
+      replacementTenders: [{ method: 'qris', amount: 150000 }], replacement: { items: [{}, {}] },
+    }))
+    expect(rows.Mode).toBe('Batalkan & perbaiki')
+    expect(rows.Catatan).toBe('salah input metode')
+    expect(rows.Pengganti).toContain('Ya, pengganti ikut terkirim')
+    expect(rows.Pengganti).toContain('2 baris barang')
+    expect(rows.Pengganti).toContain('150.000')
+  })
+})
+
 describe('URL filters', () => {
   it('keeps a known reason and an outlet uuid, and drops anything else', () => {
     expect(reasonFilterOf('forbidden')).toBe('forbidden')

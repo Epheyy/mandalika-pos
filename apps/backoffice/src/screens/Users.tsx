@@ -113,7 +113,7 @@ export default function Users() {
   const [unlocking, setUnlocking] = useState(false)
 
   const [addOpen, setAddOpen] = useState(false)
-  const [nf, setNf] = useState({ displayName: '', email: '', password: '', role: 'cashier' as Role, outletId: '', permissions: [] as string[] })
+  const [nf, setNf] = useState({ displayName: '', email: '', password: '', role: 'cashier' as Role, outletId: '', permissions: ['void_own_shift'] as string[] })
 
   const [roleOpen, setRoleOpen] = useState(false)
   const [editingRole, setEditingRole] = useState<CustomRole | null>(null)
@@ -172,7 +172,7 @@ export default function Users() {
       })
       setAddOpen(false)
       toast({ message: `Pengguna ${nf.displayName.trim()} ditambahkan`, tone: 'ok' })
-      setNf({ displayName: '', email: '', password: '', role: 'cashier', outletId: '', permissions: [] })
+      setNf({ displayName: '', email: '', password: '', role: 'cashier', outletId: '', permissions: ['void_own_shift'] })
       await uq.refetch()
     } catch (e: unknown) {
       setAddError(errorText(e, 'Gagal menambah pengguna. Coba lagi.'))

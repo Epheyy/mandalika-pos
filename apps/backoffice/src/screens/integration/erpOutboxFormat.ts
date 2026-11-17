@@ -19,8 +19,14 @@ export const KIND_ORDER = Object.keys(KIND_LABEL) as ErpKind[]
 
 export const kindLabel = (k: ErpKind): string => KIND_LABEL[k] ?? k
 
-/** Statuses a document can be re-queued from (server answers 409 for pending/sending). */
-export function canRetry(s: ErpStatus): boolean {
+/** The hold reason of a void's documents (and a replacement's) until the ERP reversal ships; the server refuses Retry on it. */
+export const VOID_ERP_HOLD = 'void_erp_pending'
+
+export const isVoidErpHold = (holdReason: string | null | undefined): boolean => holdReason === VOID_ERP_HOLD
+
+/** Statuses a document can be re-queued from (server answers 409 for pending/sending, and for a void-held row). */
+export function canRetry(s: ErpStatus, holdReason?: string | null): boolean {
+  if (isVoidErpHold(holdReason)) return false
   return s === 'dead' || s === 'held' || s === 'delivered' || s === 'replayed'
 }
 
@@ -127,6 +133,7 @@ export const emptyTitle = (status: ErpStatus | ''): string =>
  * "Detail teknis"; a table row never shows an HTTP error body. Null when there is nothing to say.
  */
 export function humanReason(i: Pick<ErpOutboxItem, 'holdReason' | 'lastError' | 'lastHttpStatus'>): string | null {
+  if (isVoidErpHold(i.holdReason)) return 'Menunggu integrasi pembatalan ke ERP (belum tersedia); akan dikirim otomatis setelah siap'
   if (i.holdReason) return 'Ditahan, menunggu ditinjau'
   const http = i.lastHttpStatus
   if (http === 401 || http === 403) return `ERP menolak akses (HTTP ${http}), periksa kredensial`

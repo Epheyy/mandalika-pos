@@ -142,6 +142,8 @@ type CreateOrderInput struct {
 	// redeemed when the same customer is charged again: the redemption cap rises by
 	// min(pointsReuse, the replacement's earn) so the replacement can spend them again.
 	pointsReuse int
+	// warnReason (void replacement only, never taken from the caller) is added to the discount warning.
+	warnReason string
 	// EvalTime and ClockSkew are set by the sync batch only (A05): the bounded time promo
 	// and loyalty rules run at when ClientCreated disagrees with the server's evidence.
 	// ClientCreated stays the recorded fact; EvalTime only changes the evaluation.
@@ -404,6 +406,13 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 		return "", false, false, err
 	}
 	discountWarnReason = withClockSkewWarning(discountWarnReason, in.ClockSkew, len(promos) > 0 || len(appliedCodes) > 0)
+	if in.warnReason != "" { // server-internal (void replacement): a review note, never a refusal
+		if discountWarnReason == "" {
+			discountWarnReason = in.warnReason
+		} else {
+			discountWarnReason += "," + in.warnReason
+		}
+	}
 	discountWarning := discountWarnReason != ""
 
 	settings, err := loadAppSettings(ctx, tx)

@@ -55,6 +55,7 @@ const CATALOGUE_WRITES = [
   'approveStockCount',
   'approveAdjustmentRequest',
   'refundOrder',
+  'voidOrder',
 ] as const satisfies ReadonlyArray<keyof Api>
 
 /** The client with the catalogue-changing writes wrapped: once settled (even failed: it may half-apply) => signal. */

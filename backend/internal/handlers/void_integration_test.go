@@ -1262,6 +1262,7 @@ func TestVoidPostgres(t *testing.T) {
 	router.Get("/orders/{id}/void-preview", h.VoidPreview)
 	router.With(mw.RequirePermission("void_any")).Post("/orders/{id}/void/no-replacement", h.MarkVoidNoReplacement)
 	router.Get("/shifts", h.Shifts)
+	router.With(mw.RequirePermission("view_reports")).Get("/void-report", h.VoidReport)
 	do := func(token, method, path string, body any) (int, map[string]any) {
 		t.Helper()
 		var buf bytes.Buffer
@@ -2442,6 +2443,608 @@ func TestVoidPostgres(t *testing.T) {
 		}
 		if got := byProduct[other]; got.sold != 0 || got.refunded != 0 {
 			t.Fatalf("another outlet's voided order leaked: %+v", got)
+		}
+	})
+
+	// ── Phase 4, Task 4.1: the Pembatalan report ─────────────────────────────────────────────
+	reportTok := tok(manager, "manager", []string{"view_reports"})
+	reportRows := func(q string) (map[string]any, map[string]map[string]any) {
+		t.Helper()
+		code, out := do(reportTok, http.MethodGet, "/void-report?"+q, nil)
+		if code != http.StatusOK {
+			t.Fatalf("void-report?%s = %d %v", q, code, out)
+		}
+		byOrder := map[string]map[string]any{}
+		for _, r := range out["data"].([]any) {
+			row := r.(map[string]any)
+			byOrder[row["orderId"].(string)] = row
+		}
+		return out, byOrder
+	}
+	voidAs := func(voider, orderID, shift string, reason service.VoidReasonCode, mode service.VoidMode) service.VoidResult {
+		t.Helper()
+		in := voidIn(orderID, shift)
+		in.UserID, in.UserName, in.Reason, in.Mode = voider, "VD Voider", reason, mode
+		res, err := svc.VoidOrder(ctx, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+
+	t.Run("void_report_by_reason", func(t *testing.T) {
+		shift := openShift()
+		voider := newID("6")
+		a := sale(saleOpts{shift: shift}, product(5))
+		b := sale(saleOpts{shift: shift}, product(5), product(5))
+		c := sale(saleOpts{shift: shift}, product(5))
+		voidAs(voider, a, shift, service.VoidReasonWrongPayment, service.VoidModeNone)
+		voidAs(voider, b, shift, service.VoidReasonWrongPayment, service.VoidModeNone)
+		voidAs(voider, c, shift, service.VoidReasonDuplicate, service.VoidModeNone)
+		out, _ := reportRows("cashierId=" + voider + "&limit=1")
+		if len(out["data"].([]any)) != 1 || out["meta"].(map[string]any)["total"].(float64) != 3 {
+			t.Fatalf("page/meta = %v", out["meta"])
+		}
+		by := map[string]map[string]any{}
+		for _, r := range out["byReason"].([]any) {
+			by[r.(map[string]any)["reasonCode"].(string)] = r.(map[string]any)
+		}
+		if len(by) != 2 || by["salah_metode_pembayaran"]["voids"].(float64) != 2 || by["salah_metode_pembayaran"]["originalTotal"].(float64) != 300000 ||
+			by["transaksi_ganda"]["voids"].(float64) != 1 || by["transaksi_ganda"]["originalTotal"].(float64) != 100000 {
+			t.Fatalf("byReason = %v", out["byReason"])
+		}
+		tot := out["totals"].(map[string]any)
+		if tot["voids"].(float64) != 3 || tot["originalTotal"].(float64) != 400000 {
+			t.Fatalf("totals over the whole range, not the page = %v", tot)
+		}
+		// CashierID is the voider: the seller's id finds none of these.
+		_, sellerRows := reportRows("cashierId=" + cashier + "&limit=200")
+		for _, id := range []string{a, b, c} {
+			if _, ok := sellerRows[id]; ok {
+				t.Fatalf("order %s listed for the seller id; cashierId must match the voider", id)
+			}
+		}
+		_, byReasonFilter := reportRows("cashierId=" + voider + "&reasonCode=transaksi_ganda")
+		if len(byReasonFilter) != 1 || byReasonFilter[c] == nil {
+			t.Fatalf("reasonCode filter = %v", byReasonFilter)
+		}
+		if code, _ := do(reportTok, http.MethodGet, "/void-report?reasonCode=bogus", nil); code != http.StatusBadRequest {
+			t.Fatalf("bad reasonCode = %d, want 400", code)
+		}
+		if code, _ := do(reportTok, http.MethodGet, "/void-report?cashierId=not-a-uuid", nil); code != http.StatusBadRequest {
+			t.Fatalf("bad cashierId = %d, want 400", code)
+		}
+		if code, _ := do(reportTok, http.MethodGet, "/void-report?dateFrom=nope", nil); code != http.StatusBadRequest {
+			t.Fatalf("bad date = %d, want 400", code)
+		}
+	})
+
+	t.Run("void_report_rows", func(t *testing.T) {
+		shift := openShift()
+		voider := newID("6")
+		ps := []string{product(5), product(5), product(5)}
+		replaced := sale(saleOpts{shift: shift, tenders: `[{"method":"cash","amount":200000},{"method":"card","amount":100000}]`}, ps...)
+		later := sale(saleOpts{shift: shift}, product(5))
+		none := sale(saleOpts{shift: shift}, product(5))
+		marked := sale(saleOpts{shift: shift}, product(5))
+		in := bo(replaced)
+		in.UserID, in.UserName, in.Mode, in.ClientVoidUUID = voider, "VD Voider", service.VoidModeReplace, newID("4")
+		res, err := svc.VoidAndReplaceDirect(ctx, in, service.ReplacementOverride{Tenders: json.RawMessage(`[{"method":"qris","amount":300000}]`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		voidAs(voider, later, shift, service.VoidReasonWrongItems, service.VoidModeLater)
+		voidAs(voider, none, shift, service.VoidReasonTest, service.VoidModeNone)
+		voidAs(voider, marked, shift, service.VoidReasonWrongItems, service.VoidModeLater)
+		if err := svc.MarkVoidNoReplacement(ctx, outlet, marked, adminU, "VD Admin", ""); err != nil {
+			t.Fatal(err)
+		}
+		out, rows := reportRows("cashierId=" + voider + "&limit=200")
+		for id, want := range map[string]string{replaced: "replaced", later: "awaiting_replacement", none: "no_replacement", marked: "no_replacement"} {
+			if rows[id] == nil || rows[id]["state"] != want || rows[id]["kind"] != "void" {
+				t.Fatalf("order %s row = %v, want state %s", id, rows[id], want)
+			}
+		}
+		r := rows[replaced]
+		if r["replacementOrderId"] != res.ReplacementOrderID || r["replacementTotal"].(float64) != 300000 || r["correctionAmount"].(float64) != 0 ||
+			r["originalTotal"].(float64) != 300000 || r["voidedByName"] != "VD Voider" || r["afterClose"] != false {
+			t.Fatalf("replaced row = %v", r)
+		}
+		if ot := r["originalTenders"].([]any); len(ot) != 2 || ot[0].(map[string]any)["method"] != "cash" {
+			t.Fatalf("originalTenders = %v", r["originalTenders"])
+		}
+		if rt := r["replacementTenders"].([]any); len(rt) != 1 || rt[0].(map[string]any)["method"] != "qris" {
+			t.Fatalf("replacementTenders = %v", r["replacementTenders"])
+		}
+		if rows[later]["replacementOrderId"] != nil {
+			t.Fatal("an awaiting row carries a replacement")
+		}
+		tot := out["totals"].(map[string]any)
+		if tot["voids"].(float64) != 4 || tot["originalTotal"].(float64) != 600000 || tot["replacementTotal"].(float64) != 300000 || tot["correctionTotal"].(float64) != 0 {
+			t.Fatalf("totals = %v", tot)
+		}
+		// A replacement that is later voided still counts in replacementTotal (= the rows' sum); it is its own void row.
+		in2 := bo(res.ReplacementOrderID)
+		in2.UserID, in2.UserName, in2.ClientVoidUUID = voider, "VD Voider", newID("4")
+		if _, err := svc.VoidOrder(ctx, in2); err != nil {
+			t.Fatal(err)
+		}
+		out, _ = reportRows("cashierId=" + voider + "&limit=200")
+		tot = out["totals"].(map[string]any)
+		if tot["voids"].(float64) != 5 || tot["replacementTotal"].(float64) != 300000 || tot["correctionTotal"].(float64) != 0 {
+			t.Fatalf("totals after voiding the replacement = %v, want replacementTotal to still equal the rows' sum (300000)", tot)
+		}
+		// afterClose filter: everything above was voided while the shift was open.
+		if _, closed := reportRows("cashierId=" + voider + "&afterClose=true"); len(closed) != 0 {
+			t.Fatalf("afterClose=true listed %d rows", len(closed))
+		}
+		if _, open := reportRows("cashierId=" + voider + "&afterClose=false&limit=200"); len(open) != 5 {
+			t.Fatalf("afterClose=false listed %d rows, want 5", len(open))
+		}
+	})
+
+	t.Run("void_report_lists_legacy_import", func(t *testing.T) {
+		const day = "2020-01-02"
+		legacy := newID("7")
+		exec(`INSERT INTO orders(id,order_number,order_uuid,idempotency_key,outlet_id,cashier_id,cashier_name,subtotal,total,payment_method,amount_paid,status,business_date)
+		      VALUES($1,'VD-LEGACY',gen_random_uuid(),$2,$3,$4,'VD Kasir',50000,50000,'cash',50000,'cancelled',$5::date)`, legacy, "vd-legacy-"+legacy, outlet, cashier, day)
+		out, rows := reportRows("dateFrom=" + day + "&dateTo=" + day)
+		row := rows[legacy]
+		if row == nil || row["kind"] != "legacy_import" || row["state"] != "legacy" || row["originalTotal"].(float64) != 50000 {
+			t.Fatalf("legacy row = %v", row)
+		}
+		if tot := out["totals"].(map[string]any); tot["voids"].(float64) != 0 || tot["originalTotal"].(float64) != 0 {
+			t.Fatalf("legacy row counted in totals: %v", tot)
+		}
+		if out["meta"].(map[string]any)["total"].(float64) != 1 || len(out["byReason"].([]any)) != 0 {
+			t.Fatalf("meta/byReason = %v / %v", out["meta"], out["byReason"])
+		}
+		// Void-specific filters leave it out.
+		if _, withReason := reportRows("dateFrom=" + day + "&dateTo=" + day + "&reasonCode=lainnya"); len(withReason) != 0 {
+			t.Fatal("legacy row listed under a reason filter")
+		}
+	})
+
+	t.Run("void_report_forbidden", func(t *testing.T) {
+		if code, _ := do(cashierTok, http.MethodGet, "/void-report", nil); code != http.StatusForbidden {
+			t.Fatalf("without view_reports = %d, want 403", code)
+		}
+		// A non-admin whose token names no outlet fails closed, never "all outlets".
+		bare, err := auth.IssueAccess(key, time.Hour, manager, "manager", "", []string{"view_reports"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if code, _ := do(bare, http.MethodGet, "/void-report", nil); code != http.StatusForbidden {
+			t.Fatalf("no outlet = %d, want 403", code)
+		}
+	})
+
+	// ── Phase 4, Part B: a Backoffice replacement keeps the original's promotions ──────────────
+	ln := func(pid string, qty int, price float64) service.OrderItem {
+		return service.OrderItem{ProductID: pid, ProductName: "VD", VariantSize: size, Price: price, Quantity: qty, Subtotal: price * float64(qty)}
+	}
+	// promoOrder sells online, like the POS does, with whatever promotion fields mod sets.
+	promoOrder := func(shift string, items []service.OrderItem, mod func(*service.CreateOrderInput)) string {
+		t.Helper()
+		in := service.CreateOrderInput{
+			IdempotencyKey: "vd-promo-" + newID("4"), OrderUUID: newID("4"), OutletID: outlet,
+			CashierID: cashier, CashierName: "VD Kasir", Items: items, PaymentMethod: "cash", AmountPaid: 1_000_000, ShiftID: shift,
+		}
+		mod(&in)
+		id, dup, _, err := svc.CreateOrder(ctx, in)
+		if err != nil || dup {
+			t.Fatalf("promo sale: dup=%v err=%v", dup, err)
+		}
+		// Pay exactly the total (no change), so the stored tender is what the store received.
+		exec(`UPDATE orders SET amount_paid=total, change=0 WHERE id=$1`, id)
+		exec(`UPDATE order_tenders SET amount=(SELECT total FROM orders WHERE id=$1) WHERE order_id=$1`, id)
+		return id
+	}
+	booked3 := func(id string) string {
+		return str(`SELECT total::bigint||'/'||discount_amount::bigint||'/'||correction_amount::bigint FROM orders WHERE id=$1`, id)
+	}
+	// payFix is a Backoffice "Salah metode pembayaran": same sale, paid by QRIS.
+	payFix := func(orig string, ov service.ReplacementOverride) (service.VoidResult, error) {
+		in := bo(orig)
+		in.Mode, in.ClientVoidUUID = service.VoidModeReplace, newID("4")
+		if ov.Tenders == nil {
+			ov.Tenders = json.RawMessage(fmt.Sprintf(`[{"method":"qris","amount":%d}]`, one(`SELECT total::int FROM orders WHERE id=$1`, orig)))
+		}
+		return svc.VoidAndReplaceDirect(ctx, in, ov)
+	}
+	pctPromo := func(name string, value int) string {
+		id := newID("8")
+		exec(`INSERT INTO promotions(id,name,type,value,combinable) VALUES($1,$2,'percentage',$3,true)`, id, name, value)
+		return id
+	}
+	threeLines := func() ([]service.OrderItem, []string) {
+		ps := []string{product(5), product(5), product(5)}
+		return []service.OrderItem{ln(ps[0], 1, 100000), ln(ps[1], 1, 100000), ln(ps[2], 1, 100000)}, ps
+	}
+
+	t.Run("replacement_promo_percentage_zero_correction", func(t *testing.T) {
+		shift := openShift()
+		promo := pctPromo("VD PCT 10", 10)
+		items, _ := threeLines()
+		orig := promoOrder(shift, items, func(in *service.CreateOrderInput) {
+			in.PromotionIDs, in.DiscountLabel = []string{promo}, "VD PCT 10"
+			in.DiscountBreakdown = []byte(`[{"label":"VD PCT 10","kind":"percentage","value":10,"amount":30000}]`)
+		})
+		if got := booked3(orig); got != "270000/30000/0" {
+			t.Fatalf("fixture: original total/discount/correction = %s", got)
+		}
+		res, err := payFix(orig, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := booked3(res.ReplacementOrderID); got != "270000/30000/0" {
+			t.Fatalf("replacement total/discount/correction = %s, want 270000/30000/0 (the promotion is re-applied, no correction)", got)
+		}
+		if str(`SELECT string_agg(method||':'||amount::int::text, ',') FROM order_tenders WHERE order_id=$1`, res.ReplacementOrderID) != "qris:270000" {
+			t.Fatal("replacement tenders")
+		}
+		if one(`SELECT count(*) FROM shift_corrections WHERE order_id IN ($1,$2)`, orig, res.ReplacementOrderID) != 0 {
+			t.Fatal("an open shift got correction rows")
+		}
+	})
+
+	t.Run("replacement_promo_bxgy_free_item_zero_correction", func(t *testing.T) {
+		shift := openShift()
+		buy, get := product(5), product(5)
+		promo := newID("8")
+		exec(`INSERT INTO promotions(id,name,type,value,combinable,bxgy_config) VALUES($1,'VD BXGY','buy_x_get_y',0,true,$2::jsonb)`, promo,
+			fmt.Sprintf(`{"buyQuantity":1,"getQuantity":1,"buyProductIds":["%s"],"getProductIds":["%s"],"getDiscountKind":"percentage","getDiscountValue":100}`, buy, get))
+		reward := ln(get, 1, 0)
+		reward.IsReward, reward.RewardPromotionID = true, promo
+		orig := promoOrder(shift, []service.OrderItem{ln(buy, 1, 100000), reward}, func(in *service.CreateOrderInput) {
+			in.PromotionIDs, in.DiscountLabel = []string{promo}, "VD BXGY"
+			in.DiscountBreakdown = []byte(`[{"label":"VD BXGY","kind":"buy_x_get_y","value":0,"amount":100000}]`)
+		})
+		if got := booked3(orig); !strings.HasPrefix(got, "100000/") || one(`SELECT count(*) FROM promo_reward_grants WHERE order_id=$1`, orig) != 1 {
+			t.Fatalf("fixture: %s / grants %d", got, one(`SELECT count(*) FROM promo_reward_grants WHERE order_id=$1`, orig))
+		}
+		getStock := stockOf(get)
+		res, err := payFix(orig, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		repl := res.ReplacementOrderID
+		if got := booked3(repl); got != booked3(orig) || !strings.HasSuffix(got, "/0") {
+			t.Fatalf("replacement = %s, original = %s; want the same with zero correction", got, booked3(orig))
+		}
+		if one(`SELECT count(*) FROM promo_reward_grants WHERE order_id=$1 AND promotion_id=$2`, repl, promo) != 1 {
+			t.Fatal("the replacement did not write its reward grant")
+		}
+		if str(`SELECT string_agg(refund_group, ',' ORDER BY line_no) FROM order_items WHERE order_id=$1`, repl) !=
+			str(`SELECT string_agg(refund_group, ',' ORDER BY line_no) FROM order_items WHERE order_id=$1`, orig) {
+			t.Fatal("the replacement's refund groups differ from the original's")
+		}
+		if stockOf(get) != getStock {
+			t.Fatalf("free item stock %d -> %d, want unchanged by void+replace", getStock, stockOf(get))
+		}
+	})
+
+	t.Run("replacement_promo_tiered_code_and_manual_zero_correction", func(t *testing.T) {
+		shift := openShift()
+		tier := newID("8")
+		exec(`INSERT INTO promotions(id,name,type,value,combinable,tiered_config) VALUES($1,'VD TIER','tiered',0,true,$2::jsonb)`, tier,
+			`{"tiers":[{"minSubtotal":200000,"kind":"percentage","value":10}]}`)
+		exec(`INSERT INTO discount_codes(code,type,value,combinable) VALUES('VDTIERCODE','fixed',5000,true)`)
+		items, _ := threeLines()
+		orig := promoOrder(shift, items, func(in *service.CreateOrderInput) {
+			in.PromotionIDs, in.DiscountCodes, in.DiscountCode = []string{tier}, []string{"VDTIERCODE"}, "VDTIERCODE"
+			in.ManualKind, in.ManualValue = service.DiscountFixed, 2000
+			in.DiscountLabel = "VD TIER"
+			in.DiscountBreakdown = []byte(`[{"label":"Diskon Manual","kind":"fixed","value":2000,"amount":2000},{"label":"VD TIER","kind":"tiered","value":10,"amount":30000},{"label":"VDTIERCODE","kind":"fixed","value":5000,"amount":5000}]`)
+		})
+		before := booked3(orig)
+		if !strings.HasSuffix(before, "/0") || strings.HasPrefix(before, "300000/") {
+			t.Fatalf("fixture: %s", before)
+		}
+		res, err := payFix(orig, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := booked3(res.ReplacementOrderID); got != before {
+			t.Fatalf("replacement = %s, original = %s (tiered + code + manual must reproduce)", got, before)
+		}
+		if one(`SELECT usage_count FROM discount_codes WHERE code='VDTIERCODE'`) != 1 {
+			t.Fatal("the code is used once: released by the void, taken again by the replacement")
+		}
+	})
+
+	t.Run("replacement_promo_judged_at_sale_time_not_now", func(t *testing.T) {
+		shift := openShift()
+		promo := pctPromo("VD PCT PAST", 10)
+		items, _ := threeLines()
+		orig := promoOrder(shift, items, func(in *service.CreateOrderInput) {
+			in.PromotionIDs, in.DiscountLabel = []string{promo}, "VD PCT PAST"
+			in.DiscountBreakdown = []byte(`[{"label":"VD PCT PAST","kind":"percentage","value":10,"amount":30000}]`)
+		})
+		// The sale was three days ago; the promotion ended yesterday.
+		exec(`UPDATE orders SET created_at = now() - interval '3 days' WHERE id=$1`, orig)
+		exec(`UPDATE promotions SET created_at = now() - interval '10 days' WHERE id=$1`, promo)
+		exec(`UPDATE promotions SET start_date = current_date - 10, end_date = current_date - 1 WHERE id=$1`, promo)
+		res, err := payFix(orig, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := booked3(res.ReplacementOrderID); got != "270000/30000/0" {
+			t.Fatalf("replacement = %s, want 270000/30000/0", got)
+		}
+		if str(`SELECT discount_warning::text FROM orders WHERE id=$1`, res.ReplacementOrderID) != "false" {
+			t.Fatalf("an expired-since promotion was flagged: %s", str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, res.ReplacementOrderID))
+		}
+	})
+
+	t.Run("replacement_promo_deactivated_since_lands_in_correction", func(t *testing.T) {
+		shift := openShift()
+		promo := pctPromo("VD PCT OFF", 10)
+		items, _ := threeLines()
+		orig := promoOrder(shift, items, func(in *service.CreateOrderInput) {
+			in.PromotionIDs, in.DiscountLabel = []string{promo}, "VD PCT OFF"
+			in.DiscountBreakdown = []byte(`[{"label":"VD PCT OFF","kind":"percentage","value":10,"amount":30000}]`)
+		})
+		exec(`UPDATE promotions SET is_active=false WHERE id=$1`, promo)
+		res, err := payFix(orig, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Cannot be reproduced: the sale still ends at the original total, the 30000 is the correction.
+		if got := booked3(res.ReplacementOrderID); got != "270000/0/-30000" {
+			t.Fatalf("replacement = %s, want 270000/0/-30000 (total kept, promotion value as Penyesuaian koreksi)", got)
+		}
+		if w := str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, res.ReplacementOrderID); !strings.Contains(w, "promo_not_reproduced") {
+			t.Fatalf("an unreproduced promotion must be flagged for review, got %q", w)
+		}
+	})
+
+	t.Run("replacement_promo_same_name_is_not_guessed", func(t *testing.T) {
+		shift := openShift()
+		a, b := pctPromo("VD PCT TWIN", 10), pctPromo("VD PCT TWIN", 20)
+		_ = b
+		items, _ := threeLines()
+		orig := promoOrder(shift, items, func(in *service.CreateOrderInput) {
+			in.PromotionIDs, in.DiscountLabel = []string{a}, "VD PCT TWIN"
+			in.DiscountBreakdown = []byte(`[{"label":"VD PCT TWIN","kind":"percentage","value":10,"amount":30000}]`)
+		})
+		res, err := payFix(orig, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := booked3(res.ReplacementOrderID); got != "270000/0/-30000" {
+			t.Fatalf("replacement = %s, want 270000/0/-30000 (two promotions share the name: none is guessed)", got)
+		}
+	})
+
+	t.Run("replacement_promo_customer_change_with_assigned_code", func(t *testing.T) {
+		shift := openShift()
+		custA, custB := customer(0), customer(0)
+		exec(`INSERT INTO discount_codes(code,type,value,combinable,customer_id) VALUES('VDCUSTCODE','fixed',5000,true,$1)`, custA)
+		items, _ := threeLines()
+		orig := promoOrder(shift, items, func(in *service.CreateOrderInput) {
+			in.CustomerID, in.DiscountCodes, in.DiscountCode, in.DiscountLabel = custA, []string{"VDCUSTCODE"}, "VDCUSTCODE", "VDCUSTCODE"
+			in.DiscountBreakdown = []byte(`[{"label":"VDCUSTCODE","kind":"fixed","value":5000,"amount":5000}]`)
+		})
+		if got := booked3(orig); got != "295000/5000/0" {
+			t.Fatalf("fixture: %s", got)
+		}
+		res, err := payFix(orig, service.ReplacementOverride{CustomerID: &custB})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("customer change on a customer-assigned code: %s, warning %q", booked3(res.ReplacementOrderID),
+			str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, res.ReplacementOrderID))
+		if got := booked3(res.ReplacementOrderID); got != "295000/5000/0" {
+			t.Fatalf("replacement = %s, want 295000/5000/0", got)
+		}
+		if w := str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, res.ReplacementOrderID); !strings.Contains(w, "wrong_customer") {
+			t.Fatalf("the ineligible code must be flagged for review, got %q", w)
+		}
+	})
+
+	t.Run("replacement_promo_reward_no_longer_entitled_stays_plain", func(t *testing.T) {
+		shift := openShift()
+		buy, get := product(5), product(5)
+		promo := newID("8")
+		exec(`INSERT INTO promotions(id,name,type,value,combinable,bxgy_config) VALUES($1,'VD BXGY GONE','buy_x_get_y',0,true,$2::jsonb)`, promo,
+			fmt.Sprintf(`{"buyQuantity":1,"getQuantity":1,"buyProductIds":["%s"],"getProductIds":["%s"],"getDiscountKind":"percentage","getDiscountValue":100}`, buy, get))
+		reward := ln(get, 1, 0)
+		reward.IsReward, reward.RewardPromotionID = true, promo
+		orig := promoOrder(shift, []service.OrderItem{ln(buy, 1, 100000), reward}, func(in *service.CreateOrderInput) {
+			in.PromotionIDs, in.DiscountLabel = []string{promo}, "VD BXGY GONE"
+		})
+		// The promotion now needs 9 bought units: the free line stays a plain line, flagged for review.
+		exec(`UPDATE promotions SET bxgy_config = jsonb_set(bxgy_config, '{buyQuantity}', '9') WHERE id=$1`, promo)
+		res, err := payFix(orig, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatalf("payment-only fix refused: %v", err)
+		}
+		repl := res.ReplacementOrderID
+		if got := booked3(repl); got != booked3(orig) || !strings.HasSuffix(got, "/0") || one(`SELECT count(*) FROM order_items WHERE order_id=$1`, repl) != 2 {
+			t.Fatalf("replacement = %s, original = %s; want the same total, zero correction, both lines kept", got, booked3(orig))
+		}
+		if one(`SELECT count(*) FROM promo_reward_grants WHERE order_id=$1`, repl) != 0 {
+			t.Fatal("an unentitled reward still wrote a grant")
+		}
+		if w := str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, repl); !strings.Contains(w, "promo_not_reproduced") {
+			t.Fatalf("warning = %q", w)
+		}
+	})
+
+	t.Run("replacement_bundle_order_refused_for_backoffice", func(t *testing.T) {
+		shift := openShift()
+		p := product(5)
+		orig := sale(saleOpts{shift: shift}, p)
+		exec(`UPDATE order_items SET bundle_group=1, bundle_role='large' WHERE order_id=$1`, orig)
+		before := stockOf(p)
+		if _, err := payFix(orig, service.ReplacementOverride{}); err == nil || !strings.Contains(err.Error(), "bundle") {
+			t.Fatalf("err = %v, want the bundle refusal", err)
+		}
+		if status(orig) != "completed" || one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, orig) != 0 || stockOf(p) != before {
+			t.Fatal("a refused bundle replacement changed the sale, voided it or moved stock")
+		}
+	})
+
+	t.Run("replacement_promo_bxgy_campaign_ended_keeps_free_item_with_warning", func(t *testing.T) {
+		shift := openShift()
+		buy, get := product(5), product(5)
+		promo := newID("8")
+		exec(`INSERT INTO promotions(id,name,type,value,combinable,bxgy_config) VALUES($1,'VD BXGY ENDED','buy_x_get_y',0,true,$2::jsonb)`, promo,
+			fmt.Sprintf(`{"buyQuantity":1,"getQuantity":1,"buyProductIds":["%s"],"getProductIds":["%s"],"getDiscountKind":"percentage","getDiscountValue":100}`, buy, get))
+		reward := ln(get, 1, 0)
+		reward.IsReward, reward.RewardPromotionID = true, promo
+		orig := promoOrder(shift, []service.OrderItem{ln(buy, 1, 100000), reward}, func(in *service.CreateOrderInput) {
+			in.PromotionIDs, in.DiscountLabel = []string{promo}, "VD BXGY ENDED"
+		})
+		// Campaign deactivated and the reward product retired after the sale; a payment fix must still work.
+		exec(`UPDATE promotions SET is_active=false WHERE id=$1`, promo)
+		exec(`UPDATE products SET is_active=false WHERE id=$1`, get)
+		res, err := payFix(orig, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatalf("payment-only fix refused: %v", err)
+		}
+		repl := res.ReplacementOrderID
+		if got := booked3(repl); got != booked3(orig) || !strings.HasSuffix(got, "/0") {
+			t.Fatalf("replacement = %s, original = %s; want the same with zero correction", got, booked3(orig))
+		}
+		if one(`SELECT count(*) FROM order_items WHERE order_id=$1`, repl) != 2 {
+			t.Fatal("the free item was dropped from the replacement")
+		}
+		if w := str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, repl); !strings.Contains(w, "promo_not_reproduced") {
+			t.Fatalf("warning = %q, want promo_not_reproduced", w)
+		}
+	})
+
+	t.Run("replacement_promo_label_match_ignores_promotions_created_after_the_sale", func(t *testing.T) {
+		shift := openShift()
+		old, late := pctPromo("VD PCT LATE", 10), pctPromo("VD PCT LATE", 20)
+		exec(`UPDATE promotions SET created_at = now() + interval '1 hour' WHERE id=$1`, late)
+		items, _ := threeLines()
+		orig := promoOrder(shift, items, func(in *service.CreateOrderInput) {
+			in.PromotionIDs, in.DiscountLabel = []string{old}, "VD PCT LATE"
+			in.DiscountBreakdown = []byte(`[{"label":"VD PCT LATE","kind":"percentage","value":10,"amount":30000}]`)
+		})
+		exec(`UPDATE promotions SET is_active=false WHERE id=$1`, old)
+		res, err := payFix(orig, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := booked3(res.ReplacementOrderID); got != "270000/0/-30000" {
+			t.Fatalf("replacement = %s, want 270000/0/-30000 (the later same-name promotion must not be applied)", got)
+		}
+	})
+
+	t.Run("direct_void_retry_replays_before_any_recovery", func(t *testing.T) {
+		shift := openShift()
+		anyTok := tok(adminU, "cashier", []string{"void_any"})
+		buy, get := product(5), product(5)
+		promo := newID("8")
+		exec(`INSERT INTO promotions(id,name,type,value,combinable,bxgy_config) VALUES($1,'VD BXGY RETRY','buy_x_get_y',0,true,$2::jsonb)`, promo,
+			fmt.Sprintf(`{"buyQuantity":1,"getQuantity":1,"buyProductIds":["%s"],"getProductIds":["%s"],"getDiscountKind":"percentage","getDiscountValue":100}`, buy, get))
+		reward := ln(get, 1, 0)
+		reward.IsReward, reward.RewardPromotionID = true, promo
+		orig := promoOrder(shift, []service.OrderItem{ln(buy, 1, 100000), reward}, func(in *service.CreateOrderInput) {
+			in.PromotionIDs, in.DiscountLabel = []string{promo}, "VD BXGY RETRY"
+		})
+		body := map[string]any{
+			"reasonCode": "salah_metode_pembayaran", "mode": "replace", "clientVoidUuid": newID("4"),
+			"replacement": map[string]any{"tenders": []any{map[string]any{"method": "qris", "amount": 100000}}},
+		}
+		ids := func(out map[string]any) string {
+			v := out["data"].(map[string]any)["void"].(map[string]any)
+			return fmt.Sprint(v["id"], "/", v["replacementOrderId"])
+		}
+		code, first := do(anyTok, http.MethodPost, "/orders/"+orig+"/void", body)
+		if code != http.StatusOK {
+			t.Fatalf("void+replace = %d %v", code, first)
+		}
+		// Between the original response and the retry the campaign is switched off: a replay must not
+		// re-evaluate anything.
+		exec(`UPDATE promotions SET is_active=false WHERE id=$1`, promo)
+		code, again := do(anyTok, http.MethodPost, "/orders/"+orig+"/void", body)
+		if code != http.StatusOK || ids(again) != ids(first) {
+			t.Fatalf("replace retry = %d %v, want the same void and replacement ids as %s", code, ids(again), ids(first))
+		}
+		if one(`SELECT count(*) FROM orders WHERE replaces_order_id=$1`, orig) != 1 || one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, orig) != 1 {
+			t.Fatal("the retry created a second void or replacement")
+		}
+		// mode later and none replay too.
+		for _, mode := range []string{"later", "none"} {
+			id := sale(saleOpts{shift: shift}, product(5))
+			b := map[string]any{"reasonCode": "transaksi_tes", "mode": mode, "clientVoidUuid": newID("4")}
+			c1, o1 := do(anyTok, http.MethodPost, "/orders/"+id+"/void", b)
+			c2, o2 := do(anyTok, http.MethodPost, "/orders/"+id+"/void", b)
+			if c1 != http.StatusOK || c2 != http.StatusOK || o1["data"].(map[string]any)["void"].(map[string]any)["id"] != o2["data"].(map[string]any)["void"].(map[string]any)["id"] {
+				t.Fatalf("mode %s retry = %d/%d", mode, c1, c2)
+			}
+			if one(`SELECT count(*) FROM order_voids WHERE order_id=$1`, id) != 1 {
+				t.Fatalf("mode %s retry voided twice", mode)
+			}
+		}
+	})
+
+	t.Run("replacement_promo_code_linked_to_bxgy_keeps_the_code", func(t *testing.T) {
+		shift := openShift()
+		buy, get := product(5), product(5)
+		promo := newID("8")
+		exec(`INSERT INTO promotions(id,name,type,value,combinable,code_only,bxgy_config) VALUES($1,'VD BXGY LINKED','buy_x_get_y',0,true,true,$2::jsonb)`, promo,
+			fmt.Sprintf(`{"buyQuantity":1,"getQuantity":1,"buyProductIds":["%s"],"getProductIds":["%s"],"getDiscountKind":"percentage","getDiscountValue":100}`, buy, get))
+		exec(`INSERT INTO discount_codes(code,promotion_id,type,value,combinable) VALUES('VDLINKBX',$1,'fixed',1,true)`, promo)
+		reward := ln(get, 1, 0)
+		reward.IsReward, reward.RewardPromotionID = true, promo
+		orig := promoOrder(shift, []service.OrderItem{ln(buy, 1, 100000), reward}, func(in *service.CreateOrderInput) {
+			in.DiscountCodes, in.DiscountCode, in.DiscountLabel = []string{"VDLINKBX"}, "VDLINKBX", "VDLINKBX"
+		})
+		if one(`SELECT usage_count FROM discount_codes WHERE code='VDLINKBX'`) != 1 || one(`SELECT count(*) FROM promo_reward_grants WHERE order_id=$1`, orig) != 1 {
+			t.Fatal("fixture: the linked code sale did not use the code and grant the reward")
+		}
+		res, err := payFix(orig, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		repl := res.ReplacementOrderID
+		if got := booked3(repl); got != booked3(orig) || !strings.HasSuffix(got, "/0") {
+			t.Fatalf("replacement = %s, original = %s; want the same with zero correction", got, booked3(orig))
+		}
+		if got := str(`SELECT COALESCE(applied_discount_codes::text,'null') FROM orders WHERE id=$1`, repl); got != `["VDLINKBX"]` {
+			t.Fatalf("applied_discount_codes = %s, want the code kept", got)
+		}
+		if one(`SELECT usage_count FROM discount_codes WHERE code='VDLINKBX'`) != 1 {
+			t.Fatal("usage_count did not come back to the original value")
+		}
+		if one(`SELECT count(*) FROM promo_reward_grants WHERE order_id=$1`, repl) != 1 {
+			t.Fatal("the replacement lost the reward grant")
+		}
+		if w := str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, repl); w != "" {
+			t.Fatalf("unexpected warning %q (a code_only promotion applied through its code is normal)", w)
+		}
+	})
+
+	t.Run("replacement_promo_chain_is_judged_at_the_first_sale_time", func(t *testing.T) {
+		shift := openShift()
+		first, later := pctPromo("VD PCT CHAIN", 10), pctPromo("VD PCT CHAIN", 20)
+		items, _ := threeLines()
+		orig := promoOrder(shift, items, func(in *service.CreateOrderInput) {
+			in.PromotionIDs, in.DiscountLabel = []string{first}, "VD PCT CHAIN"
+			in.DiscountBreakdown = []byte(`[{"label":"VD PCT CHAIN","kind":"percentage","value":10,"amount":30000}]`)
+		})
+		// Sale three days ago; the look-alike promotion was created yesterday, after the sale.
+		exec(`UPDATE orders SET created_at = now() - interval '3 days' WHERE id=$1`, orig)
+		exec(`UPDATE promotions SET created_at = now() - interval '10 days' WHERE id=$1`, first)
+		exec(`UPDATE promotions SET created_at = now() - interval '1 day' WHERE id=$1`, later)
+		r1, err := payFix(orig, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		r2, err := payFix(r1.ReplacementOrderID, service.ReplacementOverride{Tenders: json.RawMessage(`[{"method":"card","amount":270000}]`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{r1.ReplacementOrderID, r2.ReplacementOrderID} {
+			if got := booked3(id); got != "270000/30000/0" {
+				t.Fatalf("replacement %s = %s, want 270000/30000/0 (the promotion created after the sale must not be matched)", id, got)
+			}
 		}
 	})
 }

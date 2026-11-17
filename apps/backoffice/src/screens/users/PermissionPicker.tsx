@@ -14,6 +14,16 @@ const PERMS: Record<string, { label: string; desc: string }> = {
   manage_inventory: { label: 'Kelola Gudang', desc: 'Gudang, barang masuk & stok' },
   request_stock: { label: 'Ajukan Permintaan Barang', desc: 'Membuat dan mengirim permintaan barang dari outlet ke gudang' },
   resolve_sync_review: { label: 'Tinjauan Sinkron', desc: 'Melihat dan menyelesaikan item sinkron yang ditolak tablet (semua outlet)' },
+  void_own_shift: { label: 'Batalkan Transaksi Shift Sendiri', desc: 'Membatalkan transaksi di shift yang sedang buka (POS)' },
+  void_any: { label: 'Batalkan Transaksi', desc: 'Membatalkan transaksi outlet dalam batas waktu (Backoffice) dan membuat pengganti di POS' },
+}
+
+/** Permissions a new cashier starts with: an empty selection gets the own-shift void, anything chosen stays.
+ *  Leaving `cashier` drops the void only while it is exactly that auto default; a deliberate selection is never removed. */
+export function permissionsForRole(role: string, current: readonly string[], prevRole?: string): string[] {
+  if (role === 'cashier') return current.length === 0 ? ['void_own_shift'] : [...current]
+  if (prevRole === 'cashier' && current.length === 1 && current[0] === 'void_own_shift') return []
+  return [...current]
 }
 
 interface PermissionPickerProps {

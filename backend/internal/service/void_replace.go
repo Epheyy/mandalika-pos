@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -249,17 +250,24 @@ func (s *OrderService) VoidAndReplaceDirect(ctx context.Context, in VoidInput, o
 	if err != nil {
 		return VoidResult{}, err
 	}
+	if !res.Replayed {
+		if err := checkReplacementKeepsItems(ctx, tx, in.OrderID, res.ReplacementOrderID); err != nil {
+			return VoidResult{}, err
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return VoidResult{}, err
 	}
 	return res, nil
 }
 
-// replacementFromOriginal rebuilds the sale input of an order from its stored rows. Promotions are
-// not stored on the order, so they are not re-evaluated: VoidAndReplaceTx forces the total to the
-// original's for every Backoffice replacement and any gap lands in "Penyesuaian koreksi". Applied
-// discount codes, the manual discount and surcharge, redeemed points and notes are copied. These
-// reads are unlocked: voidCore re-reads the order under its row lock and decides eligibility.
+// replacementFromOriginal rebuilds the sale input of an order from its stored rows. Applied discount
+// codes, the manual discount and surcharge, redeemed points and notes are copied. Promotions are not
+// stored on the order, so applyRecoveredPromotions recovers them (reward grants, discount labels)
+// and the sale path prices them again at the ORIGINAL sale's time (EvalTime), not now. Whatever
+// cannot be reproduced exactly still lands in "Penyesuaian koreksi", because VoidAndReplaceTx forces
+// the total to the original's for every Backoffice replacement. These reads are unlocked: voidCore
+// re-reads the order under its row lock and decides eligibility.
 func replacementFromOriginal(ctx context.Context, tx pgx.Tx, outletID, orderID string, ov ReplacementOverride, key string) (CreateOrderInput, error) {
 	in := CreateOrderInput{IdempotencyKey: key, OrderUUID: uuid.NewString(), OutletID: outletID, Offline: true}
 	var cust, custName, discType, surchType, discCode, notes, salesmanID, salesmanName, label *string
@@ -267,13 +275,15 @@ func replacementFromOriginal(ctx context.Context, tx pgx.Tx, outletID, orderID s
 	var codes []string
 	var breakdown []byte
 	var redeemed int
+	var soldAt time.Time
 	err := tx.QueryRow(ctx,
 		`SELECT customer_id::text, customer_name, discount_type, discount_value, surcharge_type, surcharge_value,
 		        discount_code, COALESCE(applied_discount_codes,'[]'::jsonb), points_redeemed, notes,
-		        salesman_id::text, salesman_name, discount_label, discount_breakdown, cashier_id::text, cashier_name
+		        salesman_id::text, salesman_name, discount_label, discount_breakdown, cashier_id::text, cashier_name,
+		        COALESCE(client_created_at, created_at)
 		   FROM orders WHERE id=$1 AND outlet_id=$2`, orderID, outletID).
 		Scan(&cust, &custName, &discType, &discVal, &surchType, &surchVal, &discCode, &codes, &redeemed, &notes,
-			&salesmanID, &salesmanName, &label, &breakdown, &in.CashierID, &in.CashierName)
+			&salesmanID, &salesmanName, &label, &breakdown, &in.CashierID, &in.CashierName, &soldAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return in, ErrVoidNotFound
 	}
@@ -297,6 +307,10 @@ func replacementFromOriginal(ctx context.Context, tx pgx.Tx, outletID, orderID s
 		in.Surcharge = *surchVal
 	}
 	in.PointsRedeemed = redeemed
+	if soldAt, err = originalSaleTime(ctx, tx, orderID); err != nil {
+		return in, err
+	}
+	in.EvalTime = &soldAt // promotions and loyalty rules judge the sale at its own time (the chain's first sale), not today
 	if ov.CustomerID != nil {
 		if *ov.CustomerID != in.CustomerID {
 			in.CustomerName, in.PointsRedeemed = "", 0 // another customer cannot spend these points
@@ -305,27 +319,34 @@ func replacementFromOriginal(ctx context.Context, tx pgx.Tx, outletID, orderID s
 	}
 
 	rows, err := tx.Query(ctx,
-		`SELECT product_id::text, product_name, variant_size, price, quantity, subtotal, is_bundle, bundle_group IS NOT NULL
+		`SELECT product_id::text, product_name, variant_size, price, quantity, subtotal, is_bundle, bundle_group IS NOT NULL,
+		        COALESCE(refund_group, '')
 		   FROM order_items WHERE order_id=$1 ORDER BY line_no NULLS LAST, id`, orderID)
 	if err != nil {
 		return in, err
 	}
 	defer rows.Close()
+	var groups []string
 	for rows.Next() {
 		var it OrderItem
 		var inSet bool
-		if err := rows.Scan(&it.ProductID, &it.ProductName, &it.VariantSize, &it.Price, &it.Quantity, &it.Subtotal, &it.IsBundle, &inSet); err != nil {
+		var group string
+		if err := rows.Scan(&it.ProductID, &it.ProductName, &it.VariantSize, &it.Price, &it.Quantity, &it.Subtotal, &it.IsBundle, &inSet, &group); err != nil {
 			return in, err
 		}
 		if inSet {
 			return in, errReplaceBundleBackoffice
 		}
 		in.Items = append(in.Items, it)
+		groups = append(groups, group)
 	}
 	if err := rows.Err(); err != nil {
 		return in, err
 	}
 	rows.Close()
+	if in, err = applyRecoveredPromotions(ctx, tx, orderID, in, groups); err != nil {
+		return in, err
+	}
 
 	if len(ov.Tenders) > 0 {
 		in.Tenders = ov.Tenders

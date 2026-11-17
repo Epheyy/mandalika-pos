@@ -823,6 +823,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/void-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pembatalan report, one row per voided sale (newest first), view_reports; outlet-scoped like the other reports */
+        get: operations["getVoidReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/oversell-report": {
         parameters: {
             query?: never;
@@ -4707,6 +4724,80 @@ export interface components {
             data: components["schemas"]["RefundReportRow"][];
             meta: components["schemas"]["Meta"];
         };
+        VoidReportTender: {
+            method: string;
+            /** Format: double */
+            amount: number;
+        };
+        VoidReportRow: {
+            /** Format: uuid */
+            orderId: string;
+            orderNumber: string;
+            /**
+             * @description legacy_import: a cancelled order with no void record (fsmigrate import). Listed, never counted in totals.
+             * @enum {string}
+             */
+            kind: "void" | "legacy_import";
+            /** @enum {string} */
+            state: "replaced" | "awaiting_replacement" | "no_replacement" | "legacy";
+            /**
+             * Format: date
+             * @description The original sale's business day.
+             */
+            businessDate: string;
+            outletName: string;
+            /** @description Cashier of the original sale. */
+            soldByName: string;
+            /** Format: date-time */
+            voidedAt?: string;
+            /** @description Who voided it (the voider, not the seller). */
+            voidedByName?: string;
+            deviceId?: string;
+            /** @enum {string} */
+            source?: "pos" | "backoffice";
+            reasonCode?: string;
+            note?: string;
+            /** @description The sale's shift had already closed when it was voided. */
+            afterClose: boolean;
+            /** Format: double */
+            originalTotal: number;
+            originalTenders: components["schemas"]["VoidReportTender"][];
+            /** Format: uuid */
+            replacementOrderId?: string;
+            replacementOrderNumber?: string;
+            /** Format: double */
+            replacementTotal?: number;
+            replacementTenders?: components["schemas"]["VoidReportTender"][];
+            /**
+             * Format: double
+             * @description Penyesuaian koreksi on the replacement (original total minus what the replacement priced to).
+             */
+            correctionAmount?: number;
+            /** @description Lines a stock count had already covered when the sale was voided. */
+            countedLines: number;
+        };
+        VoidReasonTotal: {
+            reasonCode: string;
+            voids: number;
+            /** Format: double */
+            originalTotal: number;
+        };
+        /** @description Over the whole filtered range (not the page). Legacy imports are excluded. replacementTotal is the sum of every row's replacementTotal (a replacement that was itself voided still counts, and appears as its own void row). correctionTotal counts live replacements only (a voided replacement's correction was reversed with it). */
+        VoidReportTotals: {
+            voids: number;
+            /** Format: double */
+            originalTotal: number;
+            /** Format: double */
+            replacementTotal: number;
+            /** Format: double */
+            correctionTotal: number;
+        };
+        VoidReport: {
+            data: components["schemas"]["VoidReportRow"][];
+            meta: components["schemas"]["Meta"];
+            totals: components["schemas"]["VoidReportTotals"];
+            byReason: components["schemas"]["VoidReasonTotal"][];
+        };
         Order: {
             /** Format: uuid */
             id: string;
@@ -8475,6 +8566,54 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RefundReport"];
                 };
+            };
+        };
+    };
+    getVoidReport: {
+        parameters: {
+            query?: {
+                /** @description Inclusive business day of the ORIGINAL sale (YYYY-MM-DD). 400 when unparseable. */
+                dateFrom?: string;
+                /** @description Inclusive business day of the ORIGINAL sale (YYYY-MM-DD). 400 when unparseable. */
+                dateTo?: string;
+                outletId?: string;
+                /** @description One of the seven void reason codes; 400 otherwise. Excludes legacy imports. */
+                reasonCode?: string;
+                /** @description The VOIDER (user id), not the seller. Excludes legacy imports. */
+                cashierId?: string;
+                /** @description true | false. Excludes legacy imports. */
+                afterClose?: boolean;
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoidReport"];
+                };
+            };
+            /** @description bad date, reasonCode, cashierId or afterClose */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no view_reports, or a non-admin with no active outlet */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

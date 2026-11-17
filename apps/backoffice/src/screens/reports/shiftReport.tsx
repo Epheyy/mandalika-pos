@@ -6,6 +6,7 @@ import { BRAND } from '../../lib/brand'
 import type { Column } from '../../ui/DataTable'
 import { csvDateTime } from '../orderTimes'
 import { CASH_REFUNDS_PAID_HEADER, cashRefundsPaidCell } from '../refundDisplay'
+import { ShiftCorrectionsList } from './ShiftCorrectionsList'
 import { NEGATIVE_STARTING_CASH_HINT, SNAPSHOT_PENDING_HINT, SNAPSHOT_PENDING_LABEL, isSnapshotPending, startingCashBadge } from './shiftFlags'
 
 const money = (n: number) => BRAND.currency.format(n)
@@ -13,6 +14,16 @@ const whenShort = (iso: string | null | undefined) => (iso ? format(parseISO(iso
 
 export const REFUND_SHIFT_LABEL = 'Refund penjualan shift'
 export const REFUND_SHIFT_HINT = 'Mengikuti shift yang membuat penjualan. Tab Unduh data menghitung refund pada hari refund, jadi angkanya bisa berbeda.'
+
+export const CORRECTED_TAG = 'dikoreksi setelah ditutup'
+
+/** "Asli → Setelah koreksi" when a void changed the figure after the shift closed, else the plain amount. */
+export function correctedCell(original: number, corrected?: number): string {
+  if (corrected === undefined || corrected === original) return money(original)
+  return `${money(original)} → ${money(corrected)}`
+}
+
+const isCorrected = (s: Shift): boolean => s.status === 'closed' && !!s.corrections
 
 /** A close-time snapshot cell: "Belum dihitung" for an open shift, else the closed-shift cell. */
 function snapshotCell(s: Shift, closed: () => ReactNode): ReactNode {
@@ -34,7 +45,9 @@ export function shiftColumns(outletName: (id: string) => string): Column<Shift>[
         return (
           <span className="font-bold">
             {s.cashierName}
+            {isCorrected(s) && <span className="ml-2 rounded bg-warn-bg px-1.5 py-0.5 text-[10px] font-bold text-warn-strong">{CORRECTED_TAG}</span>}
             {badge && <span className="ml-2 rounded bg-danger/10 px-1.5 py-0.5 text-[10px] font-bold text-danger" title={`${NEGATIVE_STARTING_CASH_HINT} Kas awal: ${money(s.startingCash)}`}>{badge}</span>}
+            {isCorrected(s) && s.corrections && <ShiftCorrectionsList corrections={s.corrections} />}
           </span>
         )
       },
@@ -49,11 +62,11 @@ export function shiftColumns(outletName: (id: string) => string): Column<Shift>[
     { id: 'transaksi', header: 'Transaksi', align: 'right', cell: (s) => snapshotCell(s, () => <span className="font-bold">{s.totalOrders}</span>) },
     { id: 'refund', header: REFUND_SHIFT_LABEL, align: 'right', cell: (s) => snapshotCell(s, () => <span className="font-bold text-danger" title={REFUND_SHIFT_HINT}>{money(s.totalRefunds || 0)}</span>) },
     { id: 'refund-tunai', header: CASH_REFUNDS_PAID_HEADER, align: 'right', cell: (s) => <span className="text-xs">{cashRefundsPaidCell(s, money)}</span> },
-    { id: 'penjualan', header: 'Penjualan', align: 'right', cell: (s) => snapshotCell(s, () => <span className="font-black">{money(s.totalSales)}</span>) },
-    { id: 'tunai', header: 'Tunai', align: 'right', cell: (s) => snapshotCell(s, () => <span className="text-xs">{money(s.cashSales)}</span>) },
-    { id: 'qris', header: 'QRIS', align: 'right', cell: (s) => snapshotCell(s, () => <span className="text-xs">{money(s.qrisSales)}</span>) },
-    { id: 'transfer', header: 'Transfer', align: 'right', cell: (s) => snapshotCell(s, () => <span className="text-xs">{money(s.transferSales)}</span>) },
-    { id: 'kartu', header: 'Kartu', align: 'right', cell: (s) => snapshotCell(s, () => <span className="text-xs">{money(s.cardSales)}</span>) },
+    { id: 'penjualan', header: 'Penjualan', align: 'right', cell: (s) => snapshotCell(s, () => <span className="font-black">{correctedCell(s.totalSales, s.correctedTotalSales)}</span>) },
+    { id: 'tunai', header: 'Tunai', align: 'right', cell: (s) => snapshotCell(s, () => <span className="text-xs">{correctedCell(s.cashSales, s.correctedCashSales)}</span>) },
+    { id: 'qris', header: 'QRIS', align: 'right', cell: (s) => snapshotCell(s, () => <span className="text-xs">{correctedCell(s.qrisSales, s.correctedQrisSales)}</span>) },
+    { id: 'transfer', header: 'Transfer', align: 'right', cell: (s) => snapshotCell(s, () => <span className="text-xs">{correctedCell(s.transferSales, s.correctedTransferSales)}</span>) },
+    { id: 'kartu', header: 'Kartu', align: 'right', cell: (s) => snapshotCell(s, () => <span className="text-xs">{correctedCell(s.cardSales, s.correctedCardSales)}</span>) },
   ]
 }
 
@@ -83,6 +96,8 @@ export function summarizeShifts(shifts: readonly Shift[]): ShiftSummary {
 export function shiftCsvRow(s: Shift, outletName: (id: string) => string): Record<string, string | number> {
   const pending = isSnapshotPending(s)
   const snap = (n: number) => (pending ? SNAPSHOT_PENDING_LABEL : n)
+  // Blank when no void corrected this shift, so the original columns above stay the close-time snapshot.
+  const koreksi = (n: number | undefined) => (isCorrected(s) && n !== undefined ? n : '')
   return {
     Kasir: s.cashierName,
     Outlet: outletName(s.outletId),
@@ -99,5 +114,11 @@ export function shiftCsvRow(s: Shift, outletName: (id: string) => string): Recor
     Kartu: snap(s.cardSales),
     Transfer: snap(s.transferSales),
     QRIS: snap(s.qrisSales),
+    'Koreksi Total Penjualan': koreksi(s.correctedTotalSales),
+    'Koreksi Jumlah Transaksi': koreksi(s.correctedTotalOrders),
+    'Koreksi Tunai': koreksi(s.correctedCashSales),
+    'Koreksi Kartu': koreksi(s.correctedCardSales),
+    'Koreksi Transfer': koreksi(s.correctedTransferSales),
+    'Koreksi QRIS': koreksi(s.correctedQrisSales),
   }
 }

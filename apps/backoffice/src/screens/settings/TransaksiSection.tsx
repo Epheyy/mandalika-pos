@@ -11,7 +11,7 @@ import { IconButton } from '../../ui/IconButton'
 import { Switch } from '../../ui/Switch'
 import { SplitTenderCard } from './SplitTenderCard'
 import { isSplitMethodId } from '../../lib/splitPayment'
-import { receiptCopiesError } from '../../lib/inputRules'
+import { receiptCopiesError, voidWindowError } from '../../lib/inputRules'
 
 interface TransaksiSectionProps {
   s: AppSettings
@@ -161,6 +161,22 @@ export function TransaksiSection({ s, setS, newPay, setNewPay, changed, changes 
       </SettingsCard>
 
       <SplitTenderCard changed={changed.has('split')} change={changeAt(changes, 'splitTenderEnabled')} enabled={!!s.splitTenderEnabled} onChange={(v) => setS((p) => ({ ...p, splitTenderEnabled: v }))} />
+
+      <SettingsCard changed={changed.has('void')} title="Pembatalan transaksi" className="p-6 space-y-5">
+        <Input
+          label="Batas waktu pembatalan (hari)"
+          type="number"
+          min={1}
+          max={30}
+          step={1}
+          value={Number.isNaN(s.voidWindowDays) ? '' : (s.voidWindowDays ?? 7)}
+          hint="1–30 hari setelah hari transaksi. Bawaan 7."
+          error={voidWindowError(s.voidWindowDays ?? 7)}
+          onChange={(e) => setS((p) => ({ ...p, voidWindowDays: e.target.value === '' ? NaN : Number(e.target.value) }))}
+          className="w-32"
+        />
+        {changeAt(changes, 'voidWindowDays') && <p className="text-xs font-bold text-warn-strong">Sebelumnya {changeAt(changes, 'voidWindowDays')?.from}</p>}
+      </SettingsCard>
 
       {/* Sub-section: Struk */}
       <SettingsCard changed={changed.has('receipt')} title="Struk" className="p-6 space-y-5">

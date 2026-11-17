@@ -6,6 +6,7 @@ import {
   unitCostError,
   defaultUnitCostError,
   wholeQtyError,
+  voidWindowError,
 } from './inputRules'
 
 describe('loyalty rate rules', () => {
@@ -54,5 +55,14 @@ describe('ingredient default unit cost', () => {
     expect(defaultUnitCostError('x')).not.toBeNull()
     expect(defaultUnitCostError('Infinity')).not.toBeNull()
     expect(defaultUnitCostError('1e20')).toContain('terlalu besar')
+  })
+})
+
+describe('voidWindowError', () => {
+  it('voidWindowError rejects 0, 31, 2.5', () => {
+    for (const v of [0, 31, 2.5, NaN]) expect(voidWindowError(v)).toBe('Batas waktu pembatalan harus 1–30 hari.')
+  })
+  it('accepts 1, 7 and 30', () => {
+    for (const v of [1, 7, 30]) expect(voidWindowError(v)).toBeNull()
   })
 })

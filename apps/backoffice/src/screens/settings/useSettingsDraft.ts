@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import type { AppSettings } from '@mandalika/api'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
-import { receiptCopiesError } from '../../lib/inputRules'
+import { receiptCopiesError, voidWindowError } from '../../lib/inputRules'
 import {
   applyChanges,
   buildSaveBody,
@@ -64,6 +64,11 @@ export function useSettingsDraft() {
     const invalid = receiptCopiesError(stateRef.current.draft.receipt.copies)
     if (invalid) {
       setStatus({ kind: 'error', message: `Jumlah salinan struk: ${invalid}` })
+      return false
+    }
+    const voidInvalid = voidWindowError(stateRef.current.draft.voidWindowDays ?? 7)
+    if (voidInvalid) {
+      setStatus({ kind: 'error', message: voidInvalid })
       return false
     }
     savingRef.current = true
