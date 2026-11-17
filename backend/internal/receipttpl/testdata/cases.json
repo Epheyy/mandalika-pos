@@ -1676,5 +1676,408 @@
     "valid": false,
     "code": "compat_field",
     "tsOnly": true
+  },
+  {
+    "name": "blank name and no blocks reports the name first",
+    "template": {
+      "name": " ",
+      "paperWidth": 58,
+      "blocks": []
+    },
+    "valid": false,
+    "code": "name_invalid"
+  },
+  {
+    "name": "bad paper width and no blocks reports the width first",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 70,
+      "blocks": []
+    },
+    "valid": false,
+    "code": "paper_width_invalid"
+  },
+  {
+    "name": "60 non-ascii runes in the name",
+    "template": {
+      "name": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "61 non-ascii runes in the name",
+    "template": {
+      "name": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "name_invalid"
+  },
+  {
+    "name": "40 non-ascii runes in a label",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "x",
+          "type": "text",
+          "enabled": true,
+          "text": "ok",
+          "align": "center",
+          "bold": false,
+          "size": "normal",
+          "label": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "41 non-ascii runes in a label",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "x",
+          "type": "text",
+          "enabled": true,
+          "text": "ok",
+          "align": "center",
+          "bold": false,
+          "size": "normal",
+          "label": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9"
+        }
+      ]
+    },
+    "valid": false,
+    "code": "label_too_long"
+  },
+  {
+    "name": "emoji counts as one rune in a label",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "x",
+          "type": "text",
+          "enabled": true,
+          "text": "ok",
+          "align": "center",
+          "bold": false,
+          "size": "normal",
+          "label": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "a name of only a byte order mark is blank",
+    "template": {
+      "name": "\ufeff",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "name_invalid"
+  },
+  {
+    "name": "a name of a next-line character is not blank",
+    "template": {
+      "name": "\u0085",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "unknown align",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "x",
+          "type": "text",
+          "enabled": true,
+          "text": "a",
+          "align": "justify",
+          "bold": false,
+          "size": "normal"
+        }
+      ]
+    },
+    "valid": false,
+    "code": "bad_enum"
+  },
+  {
+    "name": "unknown size",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "h",
+          "type": "header",
+          "enabled": true,
+          "text": "TOKO",
+          "size": "huge",
+          "showOutletName": true,
+          "showOutletAddress": true,
+          "showOutletPhone": true
+        },
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "bad_enum"
+  },
+  {
+    "name": "unknown style",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "t",
+          "type": "transaction",
+          "enabled": true,
+          "fields": [
+            "orderNumber",
+            "date"
+          ],
+          "style": "grid"
+        },
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "bad_enum"
+  },
+  {
+    "name": "unknown transaction field",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "t",
+          "type": "transaction",
+          "enabled": true,
+          "fields": [
+            "foo"
+          ],
+          "style": "columns"
+        },
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "bad_enum"
   }
 ]

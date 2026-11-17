@@ -22,6 +22,11 @@ export type DiscountCode = S['DiscountCode']
 export type LoyaltyCondition = S['LoyaltyCondition']
 export type LoyaltySettings = S['LoyaltySettings']
 export type AppSettings = S['AppSettings']
+export type ReceiptBlock = S['ReceiptBlock']
+export type ReceiptTemplate = S['ReceiptTemplate']
+export type ReceiptTemplateInput = S['ReceiptTemplateInput']
+export type ReceiptTemplateAssignInput = S['ReceiptTemplateAssignInput']
+export type SyncReceiptTemplate = S['SyncReceiptTemplate']
 export type BundleSettings = S['BundleSettings']
 export type BundleSettingsInput = S['BundleSettingsInput']
 export type BundleCatalog = S['BundleCatalog']
@@ -565,6 +570,13 @@ export interface Api {
   /** `fresh` adds a nonce query so the server's shared read cache (keyed on the query string) cannot serve a stale copy. */
   getAppSettings: (opts?: { fresh?: boolean }) => Promise<AppSettings>
   updateAppSettings: (input: AppSettings) => Promise<AppSettings>
+  listReceiptTemplates: () => Promise<ReceiptTemplate[]>
+  createReceiptTemplate: (input: ReceiptTemplateInput) => Promise<ReceiptTemplate>
+  /** `input.version` is the version the editor loaded; a stale one is a 409. */
+  updateReceiptTemplate: (id: string, input: ReceiptTemplateInput) => Promise<ReceiptTemplate>
+  deleteReceiptTemplate: (id: string) => Promise<void>
+  /** An absent `templateId` moves the listed outlets back to the default (Standar). */
+  assignReceiptTemplate: (input: ReceiptTemplateAssignInput) => Promise<void>
   reportSummary: (params?: ReportSummaryParams) => Promise<ReportSummary>
   /** Ringkasan numbers aggregated on the server (windows, trend granularity); a 404 means an older backend. */
   reportDashboard: (params: DashboardAggregateParams) => Promise<DashboardAggregate>
@@ -1285,6 +1297,15 @@ export function createClient(opts: ClientOptions): Api {
     getAppSettings: (opts) =>
       data<AppSettings>('GET', `${API}/settings/app${opts?.fresh ? `?_=${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}` : ''}`),
     updateAppSettings: (input) => data<AppSettings>('PUT', `${API}/settings/app`, input),
+    listReceiptTemplates: () => data<ReceiptTemplate[]>('GET', `${API}/receipt-templates`),
+    createReceiptTemplate: (input) => data<ReceiptTemplate>('POST', `${API}/receipt-templates`, input),
+    updateReceiptTemplate: (id, input) => data<ReceiptTemplate>('PUT', `${API}/receipt-templates/${id}`, input),
+    deleteReceiptTemplate: async (id) => {
+      await request('DELETE', `${API}/receipt-templates/${id}`)
+    },
+    assignReceiptTemplate: async (input) => {
+      await request('PUT', `${API}/receipt-templates/assign`, input)
+    },
     reportSummary: (params) =>
       data<ReportSummary>('GET', `${API}/reports/summary${qs(params)}`),
     reportDashboard: (params) =>

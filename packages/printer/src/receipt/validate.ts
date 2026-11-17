@@ -29,6 +29,10 @@ export interface LayoutIssue {
 const KNOWN_TYPES = ['header', 'transaction', 'items', 'totals', 'payment', 'points', 'text', 'divider']
 /** Fields only the built-in Standar layout (compat) may carry; a stored template never has them. */
 const COMPAT_FIELDS: Record<string, string[]> = { '*': ['spaceBefore', 'spaceAfter'], payment: ['showChange'] }
+const ALIGNS = ['left', 'center', 'right']
+const SIZES = ['normal', 'large']
+const STYLES = ['columns', 'inline']
+const TX_FIELDS = ['orderNumber', 'date', 'cashier', 'customerName', 'customerPhone']
 const PRINTABLE = /^[\x20-\x7e]*$/
 const PRINTABLE_MULTILINE = /^[\x20-\x7e\n]*$/
 
@@ -76,6 +80,10 @@ export function validateTemplate(input: { name: string; paperWidth: number; bloc
   for (const b of blocks) {
     const type = b.type ?? ''
     if (!KNOWN_TYPES.includes(type)) { add('unknown_type', `Jenis blok "${type}" tidak dikenal.`, b.id); continue }
+    if (b.align !== undefined && !ALIGNS.includes(b.align as string)) add('bad_enum', 'Perataan tidak dikenal.', b.id)
+    if (b.size !== undefined && !SIZES.includes(b.size as string)) add('bad_enum', 'Ukuran teks tidak dikenal.', b.id)
+    if (b.style !== undefined && !STYLES.includes(b.style as string)) add('bad_enum', 'Gaya baris tidak dikenal.', b.id)
+    if (Array.isArray(b.fields) && b.fields.some((f) => !TX_FIELDS.includes(f as string))) add('bad_enum', 'Kolom transaksi tidak dikenal.', b.id)
     for (const f of [...COMPAT_FIELDS['*']!, ...(COMPAT_FIELDS[type] ?? [])]) {
       if (f in b) add('compat_field', `Kolom "${f}" hanya untuk layout Standar.`, b.id)
     }

@@ -5,6 +5,7 @@ package receipttpl
 
 import (
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/mandalika/pos-backend/internal/api"
@@ -12,15 +13,15 @@ import (
 
 // Limits mirror RECEIPT_LIMITS in packages/printer/src/receipt/validate.ts.
 const (
-	BlocksMin     = 3
-	BlocksMax     = 30
-	NameMax       = 60
-	TextMax       = 500
-	TextLinesMax  = 12
-	TotalTextMax  = 1500
-	TitleMax      = 64
-	LabelMax      = 40
-	TemplatesMax  = 50
+	BlocksMin    = 3
+	BlocksMax    = 30
+	NameMax      = 60
+	TextMax      = 500
+	TextLinesMax = 12
+	TotalTextMax = 1500
+	TitleMax     = 64
+	LabelMax     = 40
+	TemplatesMax = 50
 )
 
 // Error is a template refusal: a stable Code and the Indonesian message the Backoffice shows.
@@ -48,6 +49,18 @@ func isLocked(t api.ReceiptBlockType) bool {
 	}
 	return false
 }
+
+// jsSpace matches what JavaScript's String.trim removes, so both validators trim the same set.
+func jsSpace(r rune) bool {
+	switch r {
+	case 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0xFEFF, 0x2028, 0x2029:
+		return true
+	}
+	return unicode.Is(unicode.Zs, r)
+}
+
+// TrimName trims a template name the way the Backoffice does.
+func TrimName(s string) string { return strings.TrimFunc(s, jsSpace) }
 
 func runes(s string) int { return utf8.RuneCountInString(s) }
 
@@ -77,7 +90,7 @@ func Issues(name string, paperWidth int, blocks []api.ReceiptBlock) []*Error {
 	add := func(code, msg, blockID string) { out = append(out, &Error{Code: code, Message: msg, BlockID: blockID}) }
 
 	// 1. name and paper width
-	if n := runes(strings.TrimSpace(name)); n < 1 || n > NameMax {
+	if n := runes(TrimName(name)); n < 1 || n > NameMax {
 		add("name_invalid", "Nama template harus 1-60 karakter.", "")
 	}
 	if paperWidth != 58 && paperWidth != 80 {
@@ -155,6 +168,23 @@ func Issues(name string, paperWidth int, blocks []api.ReceiptBlock) []*Error {
 			continue
 		}
 		t := deref(b.Text)
+		if b.Align != nil && !b.Align.Valid() {
+			add("bad_enum", "Perataan tidak dikenal.", b.Id)
+		}
+		if b.Size != nil && !b.Size.Valid() {
+			add("bad_enum", "Ukuran teks tidak dikenal.", b.Id)
+		}
+		if b.Style != nil && !b.Style.Valid() {
+			add("bad_enum", "Gaya baris tidak dikenal.", b.Id)
+		}
+		if b.Fields != nil {
+			for _, f := range *b.Fields {
+				if !f.Valid() {
+					add("bad_enum", "Kolom transaksi tidak dikenal.", b.Id)
+					break
+				}
+			}
+		}
 		switch b.Type {
 		case api.Header:
 			if runes(t) > TitleMax {
