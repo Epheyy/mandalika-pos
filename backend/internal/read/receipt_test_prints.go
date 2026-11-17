@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -37,6 +38,7 @@ func (r *Repo) ReceiptTestPrint(ctx context.Context, outletID string) (api.SyncR
 		return out, err
 	}
 	if err := json.Unmarshal(raw, &out.Blocks); err != nil {
+		slog.Warn("receipt test print skipped: blocks are not a block list", "outlet_id", outletID, "err", err)
 		return out, ErrNotFound
 	}
 	out.Id = uuid.Nil

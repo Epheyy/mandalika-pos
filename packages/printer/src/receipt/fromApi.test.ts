@@ -42,6 +42,19 @@ describe('layoutFromApi', () => {
     expect(l?.blocks.map((b) => b.id)).toEqual(['i', 'o', 'p'])
   })
 
+  it('keeps a valid logo and QR block, and drops a malformed raster or a bad url', () => {
+    const good = [
+      { id: 'lg', type: 'image', enabled: true, image: { width: 16, height: 2, data: 'VVVVVQ==' }, align: 'center' },
+      { id: 'qr', type: 'qr', enabled: true, url: 'https://mandalikaperfume.co.id/x', align: 'center' },
+    ]
+    expect(layoutFromApi(tpl([...good, ...core()]))?.blocks.map((b) => b.id)).toEqual(['lg', 'qr', 'i', 'o', 'p'])
+    const bad = [
+      { id: 'lg', type: 'image', enabled: true, image: { width: 16, height: 2, data: 'AAAA' }, align: 'center' },
+      { id: 'qr', type: 'qr', enabled: true, url: 'ftp://x.id', align: 'center' },
+    ]
+    expect(layoutFromApi(tpl([...bad, ...core()]))?.blocks.map((b) => b.id)).toEqual(['i', 'o', 'p'])
+  })
+
   it('drops an unlocked block with an ill-typed field and keeps the rest', () => {
     const l = layoutFromApi(tpl([{ id: 't', type: 'text', enabled: true, text: 5, align: 'center', bold: false, size: 'normal' }, ...core()]))
     expect(l?.blocks.map((b) => b.id)).toEqual(['i', 'o', 'p'])
