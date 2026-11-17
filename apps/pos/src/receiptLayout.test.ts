@@ -63,15 +63,25 @@ const memKV = () => {
 }
 
 describe('device printer settings', () => {
-  it('default to 58mm with graphics on, and read what was saved', () => {
+  it('default to 58mm with graphics OFF, and read what was saved', () => {
     const kv = memKV()
     expect(devicePaperWidth(kv)).toBe(58)
-    expect(deviceGraphics(kv)).toBe(true)
+    expect(deviceGraphics(kv)).toBe(false) // unset means off
     setDevicePaperWidth(80, kv)
-    setDeviceGraphics(false, kv)
-    expect(devicePaperWidth(kv)).toBe(80)
-    expect(deviceGraphics(kv)).toBe(false)
     setDeviceGraphics(true, kv)
+    expect(devicePaperWidth(kv)).toBe(80)
+    expect(deviceGraphics(kv)).toBe(true)
+    setDeviceGraphics(false, kv)
+    expect(deviceGraphics(kv)).toBe(false)
+  })
+
+  it('only the saved value "on" turns graphics on', () => {
+    const kv = memKV()
+    for (const v of ['off', '', 'true', '1', 'ON']) {
+      kv.set('mandalika.pos.printerGraphics', v)
+      expect(deviceGraphics(kv), v).toBe(false)
+    }
+    kv.set('mandalika.pos.printerGraphics', 'on')
     expect(deviceGraphics(kv)).toBe(true)
   })
 

@@ -218,7 +218,10 @@ export function designerReducer(state: DesignerState, action: DesignerAction): D
       if (!canAdd(state.layout.blocks, action.block)) return state
       const s = leaveCompat(state)
       const id = nextId(`add-${action.block}`, s.layout.blocks)
-      return { ...withBlocks(s, [...s.layout.blocks, freshBlock(action.block, id)]), editingId: id }
+      const fresh = freshBlock(action.block, id)
+      // A new Logo goes to the top (where it prints on the paper); every other block appends.
+      const blocks = action.block === 'image' ? [fresh, ...s.layout.blocks] : [...s.layout.blocks, fresh]
+      return { ...withBlocks(s, blocks), editingId: id }
     }
     case 'remove': {
       const block = state.layout.blocks.find((b) => b.id === action.id)

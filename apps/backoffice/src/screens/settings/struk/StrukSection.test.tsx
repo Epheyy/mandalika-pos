@@ -219,6 +219,8 @@ describe('Cetak tes di tablet', () => {
     expect(dialog).toContain('role="dialog"')
     expect(dialog).toContain('MV Outlet Dua')
     expect(dialog).toContain('Kirim')
+    expect(dialog).toContain('hanya jika')
+    expect(dialog).toContain('Cetak logo &amp; QR')
   })
 })
 

@@ -130,11 +130,23 @@ describe('image and QR blocks', () => {
 
   it('adding an image starts as a valid blank raster and opens its editor', () => {
     const s = designerReducer(fresh(), { type: 'add', block: 'image' })
-    const b = s.layout.blocks.at(-1)!
+    const b = s.layout.blocks[0]!
     expect(b.type).toBe('image')
     expect(s.editingId).toBe(b.id)
     expect(s.dirty).toBe(true)
     expect(validateTemplate({ name: 'x', paperWidth: 58, blocks: s.layout.blocks })).toEqual([])
+  })
+
+  it('a new Logo goes to the top of the list and a QR appends at the end', () => {
+    const base = fresh()
+    const withLogo = designerReducer(base, { type: 'add', block: 'image' })
+    expect(withLogo.layout.blocks[0]!.type).toBe('image')
+    expect(withLogo.layout.blocks.slice(1).map((b) => b.id)).toEqual(base.layout.blocks.map((b) => b.id))
+    const withQr = designerReducer(withLogo, { type: 'add', block: 'qr' })
+    expect(withQr.layout.blocks.at(-1)!.type).toBe('qr')
+    expect(withQr.layout.blocks[0]!.type).toBe('image')
+    const second = designerReducer(withQr, { type: 'add', block: 'image' })
+    expect(second.layout.blocks.slice(0, 2).map((b) => b.type)).toEqual(['image', 'image'])
   })
 
   it('adding a QR block uses a placeholder address that validates', () => {

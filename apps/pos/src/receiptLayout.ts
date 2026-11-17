@@ -21,10 +21,11 @@ export function devicePaperWidth(kv: Pick<KV, 'get'> = getKV()): PaperWidth {
   return kv.get(PAPER_WIDTH_KEY) === '80' ? 80 : DEVICE_PAPER_WIDTH_DEFAULT
 }
 
-/** Whether this tablet's printer takes raster images and QR codes (`Cetak logo & QR`). On unless switched off:
- *  raster and QR support cannot be detected over Bluetooth, so the cashier decides after a test print. */
+/** Whether this tablet's printer takes raster images and QR codes (`Cetak logo & QR`). OFF unless the saved value is
+ *  'on' (owner decision, 2026-11-17): raster and QR support cannot be detected over Bluetooth, an unsupported command
+ *  prints garbage, so someone turns it on after a successful test print. Off prints no logo and the QR as text. */
 export function deviceGraphics(kv: Pick<KV, 'get'> = getKV()): boolean {
-  return kv.get(GRAPHICS_KEY) !== 'off'
+  return kv.get(GRAPHICS_KEY) === 'on'
 }
 
 export function setDevicePaperWidth(width: PaperWidth, kv: Pick<KV, 'set'> = getKV()): void {

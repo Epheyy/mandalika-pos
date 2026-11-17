@@ -63,6 +63,9 @@ function TestPrintBody({ outlets, draftLayout, api, onClose }: TestPrintDialogPr
           ))}
         </Select>
       )}
+      <p className="mt-3 text-xs text-ink-700">
+        Logo dan QR tercetak di tablet hanya jika <b>Cetak logo &amp; QR</b> menyala di Pengaturan › Cetakan tablet itu.
+      </p>
       {result && (
         <p
           role={result.kind === 'error' ? 'alert' : 'status'}

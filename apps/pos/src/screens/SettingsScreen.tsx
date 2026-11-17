@@ -343,7 +343,7 @@ export const SettingsScreen = memo(function SettingsScreen({
                     </div>
                     <Toggle label="Cetak logo & QR" checked={graphicsOn} onChange={chooseGraphics} />
                     <p className="text-[11px] text-ink-700">
-                      Matikan jika logo atau QR tercetak berantakan: logo dilewati dan QR dicetak sebagai tautan teks.
+                      Nyalakan setelah tes cetak berhasil. Saat mati, logo dilewati dan QR dicetak sebagai tautan teks.
                     </p>
                   </div>
 
