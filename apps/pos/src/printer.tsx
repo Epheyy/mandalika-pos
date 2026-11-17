@@ -29,7 +29,8 @@ import {
 } from '@mandalika/printer'
 import { getKV } from '@mandalika/sync'
 import { reportErrors } from './lib/errorReporter'
-import { DEVICE_PAPER_WIDTH_DEFAULT } from './receiptLayout'
+import { SAMPLE_RECEIPT } from '@mandalika/printer/render'
+import { deviceGraphics, devicePaperWidth } from './receiptLayout'
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
 
@@ -63,7 +64,8 @@ function receiptLayoutOptions(layout: ReceiptLayout | undefined, orderRef: strin
   if (!layout) return {}
   return {
     layout,
-    maxPaperWidth: DEVICE_PAPER_WIDTH_DEFAULT,
+    maxPaperWidth: devicePaperWidth(),
+    graphics: deviceGraphics(),
     onLayoutError: (e: unknown) => {
       void reportErrors([{
         source: 'print', kind: 'receipt_template', action: `Cetak struk ${orderRef}`,
@@ -161,25 +163,8 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
 
   const testPrint = useCallback(
     async (settings: ReceiptSettings, layout?: ReceiptLayout) => {
-      const now = new Date()
-      const sample: ReceiptData = {
-        orderRef: 'TEST',
-        pending: false,
-        dateTime: now,
-        lines: [
-          { name: 'Tes Cetak', qty: 1, unitPrice: 1000, amount: 1000 },
-        ],
-        subtotal: 1000,
-        discountAmount: 0,
-        taxAmount: 0,
-        total: 1000,
-        paymentLabel: 'Tunai',
-        amountPaid: 1000,
-        change: 0,
-        customerName: null,
-        customerPhone: null,
-        cashierName: 'Kasir',
-      }
+      // The mockup sale, so a logo, QR, points and the bundle rows all show what the template does with them.
+      const sample: ReceiptData = { ...SAMPLE_RECEIPT, dateTime: new Date() }
       await printReceipt({
         transport: transportRef.current,
         deviceId: pairedId,

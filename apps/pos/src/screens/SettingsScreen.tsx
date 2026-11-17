@@ -15,7 +15,7 @@ import type { components } from '@mandalika/api'
 import { SyncContext } from '../cashier/SyncProvider'
 import { formatRupiah } from '../cashier/pricing'
 import { usePrinter } from '../printer'
-import { resolveReceiptLayout } from '../receiptLayout'
+import { chooseTestPrintLayout, deviceGraphics, devicePaperWidth, setDeviceGraphics, setDevicePaperWidth } from '../receiptLayout'
 import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
 import { offlineLockMessage } from '../lib/offlineCap'
 import { TerminalSection } from './TerminalSection'
@@ -128,12 +128,23 @@ export const SettingsScreen = memo(function SettingsScreen({
     }
   }
 
+  const [paperWidth, setPaperWidth] = useState(() => devicePaperWidth())
+  const [graphicsOn, setGraphicsOn] = useState(() => deviceGraphics())
+  const choosePaperWidth = (w: 58 | 80) => { setDevicePaperWidth(w); setPaperWidth(w) }
+  const chooseGraphics = (on: boolean) => { setDeviceGraphics(on); setGraphicsOn(on) }
+
   const handleTestPrint = async () => {
     setPrinterBusy(true)
     setPrinterMsg(null)
     try {
-      await printer.testPrint(settings.receipt, resolveReceiptLayout(engine?.getSnapshot().receiptTemplate, settings.receipt))
-      setPrinterMsg('Tes cetak terkirim')
+      // A draft the Backoffice sent for this outlet prints once (online); otherwise the outlet's own layout.
+      const { layout, fromDraft } = await chooseTestPrintLayout(
+        () => (engine ? engine.getReceiptTestPrint() : Promise.resolve(null)),
+        engine?.getSnapshot().receiptTemplate,
+        settings.receipt,
+      )
+      await printer.testPrint(settings.receipt, layout)
+      setPrinterMsg(fromDraft ? 'Tes cetak desain dari Backoffice terkirim' : 'Tes cetak terkirim')
     } catch (e: unknown) {
       setPrinterMsg(e instanceof Error ? e.message : 'Gagal mencetak')
     } finally {
@@ -309,6 +320,30 @@ export const SettingsScreen = memo(function SettingsScreen({
                         Tes Cetak
                       </Button>
                     )}
+                  </div>
+
+                  <div className="surface-group rounded-control p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-ink-900">Lebar kertas</span>
+                      <div role="radiogroup" aria-label="Lebar kertas" className="flex gap-1">
+                        {([58, 80] as const).map((w) => (
+                          <button
+                            key={w}
+                            type="button"
+                            role="radio"
+                            aria-checked={paperWidth === w}
+                            onClick={() => choosePaperWidth(w)}
+                            className={`press min-h-11 px-3 rounded-control text-xs font-semibold ${paperWidth === w ? 'bg-brand-strong text-white' : 'bg-paper-2 text-ink-900'}`}
+                          >
+                            {w}mm
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <Toggle label="Cetak logo & QR" checked={graphicsOn} onChange={chooseGraphics} />
+                    <p className="text-[11px] text-ink-700">
+                      Matikan jika logo atau QR tercetak berantakan: logo dilewati dan QR dicetak sebagai tautan teks.
+                    </p>
                   </div>
 
                   {bonded !== null && (

@@ -62,6 +62,18 @@ describe('transfer receive step-up (engine)', () => {
     expect(request.mock.calls[0].slice(0, 2)).toEqual(['GET', '/api/v1/sync/receive-approvers'])
   })
 
+  it('getReceiptTestPrint returns the draft, and null on a 404', async () => {
+    const { engine, request } = make()
+    const draft = { id: '00000000-0000-0000-0000-000000000000', version: 0, paperWidth: 58, blocks: [] }
+    request.mockResolvedValueOnce({ data: draft })
+    expect(await engine.getReceiptTestPrint()).toEqual(draft)
+    expect(request.mock.calls[0].slice(0, 2)).toEqual(['GET', '/api/v1/sync/receipt-test-print'])
+    request.mockRejectedValueOnce(Object.assign(new Error('not found'), { status: 404 }))
+    expect(await engine.getReceiptTestPrint()).toBeNull()
+    request.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 500 }))
+    await expect(engine.getReceiptTestPrint()).rejects.toThrow('boom')
+  })
+
   it('start() scrubs a legacy PIN from queued transfer_receive rows, once', async () => {
     const { engine } = make()
     await engine.outbox.add('transfer_receive', 'd:legacy', { transferId: 't1', pin: '1234' })
