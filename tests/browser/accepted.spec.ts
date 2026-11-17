@@ -209,7 +209,7 @@ test('BO-SETTINGS-GUARD Pengaturan shows no save bar on open, guards leaving wit
 
 test('BO-RECEIPT-DESIGNER Pengaturan > Struk shows Standar from the receipt settings, reorders and toggles blocks, switches to 80mm, saves a template without Standar-only fields and assigns outlets that survive a reload', async ({ page }, info) => {
   const result = await receiptDesignerFlow(page as ScenarioPage)
-  expect(result).toHaveLength(5)
+  expect(result).toHaveLength(6)
   await evidence(info, result)
 })
 

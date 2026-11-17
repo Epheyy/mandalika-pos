@@ -29,7 +29,7 @@ export interface DesignerState {
   adjustments: CompatAdjustment[]
 }
 
-export type AddableBlock = 'text' | 'divider' | 'points' | 'transaction' | 'header'
+export type AddableBlock = 'text' | 'divider' | 'points' | 'transaction' | 'header' | 'image' | 'qr'
 
 export type DesignerAction =
   | { type: 'load'; template: ReceiptTemplate }
@@ -44,6 +44,19 @@ export type DesignerAction =
   | { type: 'setWidth'; paperWidth: PaperWidth }
   | { type: 'rename'; name: string }
   | { type: 'select'; id: string | null }
+
+/** An image or QR block is capped at 2 each; the other kinds only share the 30-block cap. */
+export function canAdd(blocks: readonly ReceiptBlock[], kind: AddableBlock): boolean {
+  if (blocks.length >= RECEIPT_LIMITS.blocksMax) return false
+  if (kind === 'image') return blocks.filter((b) => b.type === 'image').length < RECEIPT_LIMITS.imageBlocksMax
+  if (kind === 'qr') return blocks.filter((b) => b.type === 'qr').length < RECEIPT_LIMITS.qrBlocksMax
+  return true
+}
+
+/** A valid blank 8x1 raster: the logo editor asks for a picture right after the block is added. */
+const BLANK_RASTER = { width: 8, height: 1, data: btoa(String.fromCharCode(0)) }
+/** An obvious placeholder that passes validation until the admin types the real address. */
+const QR_PLACEHOLDER_URL = 'https://example.com'
 
 const LOCKED_ORDER = ['items', 'totals', 'payment'] as const
 
@@ -118,6 +131,8 @@ function freshBlock(kind: AddableBlock, id: string): ReceiptBlock {
     case 'divider': return { id, type: 'divider', enabled: true }
     case 'points': return { id, type: 'points', enabled: true }
     case 'transaction': return { id, type: 'transaction', enabled: true, fields: ['orderNumber', 'date'], style: 'columns' }
+    case 'image': return { id, type: 'image', enabled: true, image: { ...BLANK_RASTER }, align: 'center' }
+    case 'qr': return { id, type: 'qr', enabled: true, url: QR_PLACEHOLDER_URL, align: 'center' }
     case 'header':
       return { id, type: 'header', enabled: true, text: '', size: 'large', showOutletName: true, showOutletAddress: false, showOutletPhone: false }
   }
@@ -199,7 +214,7 @@ export function designerReducer(state: DesignerState, action: DesignerAction): D
       return withBlocks(s, s.layout.blocks.map((b) => (b.id === action.id ? { ...b, ...patch } as ReceiptBlock : b)))
     }
     case 'add': {
-      if (state.layout.blocks.length >= RECEIPT_LIMITS.blocksMax) return state
+      if (!canAdd(state.layout.blocks, action.block)) return state
       const s = leaveCompat(state)
       const id = nextId(`add-${action.block}`, s.layout.blocks)
       return { ...withBlocks(s, [...s.layout.blocks, freshBlock(action.block, id)]), editingId: id }

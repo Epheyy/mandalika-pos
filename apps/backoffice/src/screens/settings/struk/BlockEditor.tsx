@@ -1,14 +1,19 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { RECEIPT_LIMITS, toPrinterText, type ReceiptBlock, type TxField } from '@mandalika/printer/render'
+import { Button } from '../../../ui/Button'
 import { Input, Textarea } from '../../../ui/Field'
 import { Switch } from '../../../ui/Switch'
 import { cn } from '../../../ui/cn'
+import { fileToRaster, urlToRaster } from './imageToRaster'
+import { rasterToBmpDataUrl } from './rasterPreview'
 
 type Patch = Partial<ReceiptBlock>
 
 interface BlockEditorProps {
   block: ReceiptBlock
   onChange: (patch: Patch) => void
+  /** `documents.logoUrl`; without it the logo editor has no "Ambil logo brand" button. */
+  brandLogoUrl?: string
 }
 
 /** A small segmented choice (Normal | Besar), as in the mockup. */
@@ -103,16 +108,25 @@ function PrintableText({ label, value, multiline, maxLength, onChange }: {
 }
 
 /** The per-type form opened under the selected row. Locked blocks (items, totals, payment) have no on/off here. */
-export function BlockEditor({ block, onChange }: BlockEditorProps) {
+export function BlockEditor({ block, onChange, brandLogoUrl }: BlockEditorProps) {
   return (
     <div data-testid={`editor-${block.type}`} className="mb-1 ml-6 mt-1.5 space-y-2 rounded-r-lg border-l-2 border-brand-strong bg-paper-1 p-3">
-      <EditorBody block={block} onChange={onChange} />
+      <EditorBody block={block} onChange={onChange} brandLogoUrl={brandLogoUrl} />
     </div>
   )
 }
 
-function EditorBody({ block, onChange }: BlockEditorProps) {
+function EditorBody({ block, onChange, brandLogoUrl }: BlockEditorProps) {
   switch (block.type) {
+    case 'image':
+      return <ImageEditor image={block.image} align={block.align} brandLogoUrl={brandLogoUrl} onChange={onChange} />
+    case 'qr':
+      return (
+        <>
+          <QrUrlField url={block.url} onChange={(url) => onChange({ url })} />
+          <Row label="Rata"><Seg label="Perataan QR" value={block.align} options={ALIGN_OPTIONS} onChange={(align) => onChange({ align })} /></Row>
+        </>
+      )
     case 'header':
       return (
         <>
@@ -179,4 +193,74 @@ function EditorBody({ block, onChange }: BlockEditorProps) {
     case 'divider':
       return <p className="text-xs text-ink-700">Garis pemisah selebar kertas.</p>
   }
+}
+
+/** Why a QR address cannot be saved, in the words the shared validator uses; null when it is fine. */
+function qrUrlIssue(url: string): string | null {
+  if ([...url].length > RECEIPT_LIMITS.urlMax) return `Alamat QR maksimal ${RECEIPT_LIMITS.urlMax} karakter.`
+  if (!/^https?:\/\/[!-~]+$/.test(url)) return 'Alamat QR harus diawali http:// atau https:// dan hanya berisi karakter ASCII.'
+  return null
+}
+
+/** The QR address with a live `n/300` counter. Typing past 300 is allowed so the admin sees the error; Simpan refuses it. */
+function QrUrlField({ url, onChange }: { url: string; onChange: (url: string) => void }) {
+  const issue = qrUrlIssue(url)
+  const count = [...url].length
+  return (
+    <div>
+      <Input
+        label="Alamat web (URL)" type="text" inputMode="url" value={url} error={issue ?? undefined}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <p data-testid="qr-counter" className={cn('mt-1 text-[11px]', issue ? 'text-danger' : 'text-ink-700')}>{count}/{RECEIPT_LIMITS.urlMax}</p>
+    </div>
+  )
+}
+
+function ImageEditor({ image, align, brandLogoUrl, onChange }: {
+  image: Extract<ReceiptBlock, { type: 'image' }>['image']
+  align: 'left' | 'center' | 'right'
+  brandLogoUrl?: string
+  onChange: (patch: Patch) => void
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const run = async (load: () => Promise<typeof image>) => {
+    setBusy(true)
+    setError(null)
+    try {
+      onChange({ image: await load() } as Patch)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Gagal memuat gambar.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  const preview = rasterToBmpDataUrl(image)
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" aria-label="Unggah logo" className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            e.target.value = ''
+            if (file) void run(() => fileToRaster(file))
+          }}
+        />
+        <Button size="sm" variant="secondary" loading={busy} onClick={() => fileRef.current?.click()}>Unggah logo</Button>
+        {brandLogoUrl && <Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(() => urlToRaster(brandLogoUrl))}>Ambil logo brand</Button>}
+      </div>
+      {error && <p role="alert" className="text-xs font-bold text-danger">{error}</p>}
+      {preview && (
+        <img
+          src={preview} alt="Hasil logo untuk printer" width={image.width} height={image.height}
+          className="max-w-full border border-paper-2 bg-white" style={{ imageRendering: 'pixelated' }}
+        />
+      )}
+      <p className="text-xs text-ink-700">Gambar diubah jadi hitam-putih dan dimuat dalam 384 x 240 titik. Pratinjau ini yang dicetak.</p>
+      <Row label="Rata"><Seg label="Perataan logo" value={align} options={ALIGN_OPTIONS} onChange={(a) => onChange({ align: a })} /></Row>
+    </>
+  )
 }

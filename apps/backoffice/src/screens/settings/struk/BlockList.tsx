@@ -19,9 +19,13 @@ export const BLOCK_NAMES: Record<ReceiptBlockType, string> = {
   points: 'Poin member',
   text: 'Teks',
   divider: 'Garis',
+  image: 'Logo',
+  qr: 'QR code',
 }
 
 const BLOCK_HINTS: Partial<Record<ReceiptBlockType, string>> = {
+  image: 'dari outlet / unggah',
+  qr: 'alamat web di struk',
   header: 'judul, nama, alamat, telepon',
   transaction: 'no., tanggal, kasir, pelanggan',
   points: 'perkiraan poin member',
@@ -40,9 +44,10 @@ interface RowProps {
   block: ReceiptBlock
   selected: boolean
   dispatch: (a: DesignerAction) => void
+  brandLogoUrl?: string
 }
 
-function BlockRow({ block, selected, dispatch }: RowProps) {
+function BlockRow({ block, selected, dispatch, brandLogoUrl }: RowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id })
   const style: CSSProperties = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 }
   const locked = isLockedType(block.type)
@@ -88,7 +93,7 @@ function BlockRow({ block, selected, dispatch }: RowProps) {
           </IconButton>
         )}
       </div>
-      {selected && <BlockEditor block={block} onChange={(patch) => dispatch({ type: 'edit', id: block.id, patch })} />}
+      {selected && <BlockEditor block={block} brandLogoUrl={brandLogoUrl} onChange={(patch) => dispatch({ type: 'edit', id: block.id, patch })} />}
     </li>
   )
 }
@@ -97,10 +102,12 @@ interface BlockListProps {
   blocks: readonly ReceiptBlock[]
   editingId: string | null
   dispatch: (a: DesignerAction) => void
+  /** `documents.logoUrl`, for the logo editor's "Ambil logo brand". */
+  brandLogoUrl?: string
 }
 
 /** The sortable block list. Drag with the grip, or focus it and use Space, the arrow keys and Space. */
-export function BlockList({ blocks, editingId, dispatch }: BlockListProps) {
+export function BlockList({ blocks, editingId, dispatch, brandLogoUrl }: BlockListProps) {
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
@@ -117,7 +124,7 @@ export function BlockList({ blocks, editingId, dispatch }: BlockListProps) {
       <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
         <ul aria-label="Blok struk">
           {blocks.map((b) => (
-            <BlockRow key={b.id} block={b} selected={editingId === b.id} dispatch={dispatch} />
+            <BlockRow key={b.id} block={b} selected={editingId === b.id} dispatch={dispatch} brandLogoUrl={brandLogoUrl} />
           ))}
         </ul>
       </SortableContext>

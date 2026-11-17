@@ -6,6 +6,7 @@ import { useUnsavedChanges } from '../../../lib/useUnsavedChanges'
 import { ConfirmDialog } from '../../../ui/ConfirmDialog'
 import { designerReducer, type DesignerState } from './designerReducer'
 import { AssignOutletsDialog, NameDialog } from './Dialogs'
+import { TestPrintDialog } from './TestPrintDialog'
 import {
   STALE_SAVE_COPY, inUseCopy, needsVirtualStandar, saveDesign, standarOutletIds, unusableTemplateIds,
 } from './receiptTemplates'
@@ -18,7 +19,7 @@ type ReceiptSettings = components['schemas']['ReceiptSettings']
 // A move inside Pengaturan › Struk is not a leave; moving to another tab or screen is (the draft would be lost).
 const STRUK_SCOPE = [routeById('settings')?.path ?? 'pengaturan', 'struk'] as const
 
-type Dialog = null | 'new' | 'duplicate' | 'rename' | 'delete' | 'assign'
+type Dialog = null | 'new' | 'duplicate' | 'rename' | 'delete' | 'assign' | 'test'
 type Pending = null | { run: () => void }
 
 const initState = (settings: ReceiptSettings): DesignerState =>
@@ -26,7 +27,7 @@ const initState = (settings: ReceiptSettings): DesignerState =>
 
 /** Pengaturan › Struk: the receipt designer. Standar is the saved default template, or one built from the
  *  receipt settings until someone saves it. */
-export function StrukSection({ receiptSettings }: { receiptSettings: ReceiptSettings }) {
+export function StrukSection({ receiptSettings, brandLogoUrl }: { receiptSettings: ReceiptSettings; brandLogoUrl?: string }) {
   const data = useReceiptTemplates()
   const { templates, outlets, loaded, loadError, reload } = data
   const [state, dispatch] = useReducer(designerReducer, receiptSettings, initState)
@@ -171,6 +172,8 @@ export function StrukSection({ receiptSettings }: { receiptSettings: ReceiptSett
         onDelete={() => { setDeleteError(null); setDialog('delete') }}
         onAssign={() => { setAssignError(null); setDialog('assign') }}
         onSave={() => void onSave()}
+        onTestPrint={() => setDialog('test')}
+        brandLogoUrl={brandLogoUrl}
         onReload={() => void onReloadServerCopy()}
       />
 
@@ -198,6 +201,13 @@ export function StrukSection({ receiptSettings }: { receiptSettings: ReceiptSett
         error={deleteError}
         onConfirm={() => (deleteBlockedBy > 0 ? setDialog(null) : onDelete())}
         onCancel={() => setDialog(null)}
+      />
+      <TestPrintDialog
+        open={dialog === 'test'}
+        outlets={outlets}
+        draftLayout={state.layout}
+        api={api}
+        onClose={() => setDialog(null)}
       />
       <AssignOutletsDialog
         open={dialog === 'assign'}

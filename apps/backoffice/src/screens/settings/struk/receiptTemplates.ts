@@ -1,6 +1,6 @@
-import { ApiError, type ReceiptTemplate, type ReceiptTemplateAssignInput } from '@mandalika/api'
+import { ApiError, type ReceiptTemplate, type ReceiptTemplateAssignInput, type ReceiptTestPrintInput } from '@mandalika/api'
 import { layoutFromApi, validateTemplate, type ReceiptBlock } from '@mandalika/printer/render'
-import { toBody, type CompatAdjustment, type DesignerState } from './designerReducer'
+import { fromCompat, toBody, type CompatAdjustment, type DesignerState } from './designerReducer'
 
 // Pure helpers around the template API: what the screen lists, what it warns about, and how a save ends.
 
@@ -67,5 +67,34 @@ export function describeAdjustment(a: CompatAdjustment): string {
     case 'clipped_chars': return `Teks dipotong jadi ${[...a.after].length} karakter`
     case 'clipped_lines': return `Teks dipotong jadi ${a.after.split('\n').length} baris`
     case 'change_locked': return 'Kembalian selalu tercetak'
+  }
+}
+
+/** The slice of the API client the test print uses. */
+export interface TestPrintApi {
+  sendReceiptTestPrint: (input: ReceiptTestPrintInput) => Promise<unknown>
+}
+
+export const testPrintSentCopy = (outletName: string): string =>
+  `Terkirim. Di tablet outlet ${outletName}, buka Pengaturan › Printer lalu ketuk Tes Cetak (berlaku 60 menit).`
+
+export type TestPrintResult = { kind: 'ok'; message: string } | { kind: 'error'; message: string }
+
+/** Sends the current draft (saved or not) to one outlet's tablet. Like a save, it never carries the compat-only fields. */
+export async function sendTestPrint(
+  api: TestPrintApi,
+  outlet: { id: string; name: string },
+  layout: DesignerState['layout'],
+): Promise<TestPrintResult> {
+  const { layout: stored } = fromCompat(layout)
+  try {
+    await api.sendReceiptTestPrint({
+      outletId: outlet.id,
+      paperWidth: stored.paperWidth,
+      blocks: stored.blocks as unknown as ReceiptTestPrintInput['blocks'],
+    })
+    return { kind: 'ok', message: testPrintSentCopy(outlet.name) }
+  } catch (e) {
+    return { kind: 'error', message: e instanceof Error && e.message ? e.message : 'Gagal mengirim tes cetak.' }
   }
 }

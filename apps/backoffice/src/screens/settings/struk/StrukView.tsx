@@ -1,9 +1,10 @@
+import { useState } from 'react'
 import type { ReceiptTemplate } from '@mandalika/api'
 import { RECEIPT_LIMITS, type PaperWidth } from '@mandalika/printer/render'
 import { Button } from '../../../ui/Button'
 import { Card } from '../../../ui/Card'
 import { BlockList } from './BlockList'
-import { pendingAdjustments, type DesignerAction, type DesignerState } from './designerReducer'
+import { canAdd, pendingAdjustments, type DesignerAction, type DesignerState } from './designerReducer'
 import { ReceiptPaper } from './ReceiptPaper'
 import { ADJUSTED_NOTICE, UNUSABLE_TEMPLATE_COPY, describeAdjustment } from './receiptTemplates'
 import { TemplateBar } from './TemplateBar'
@@ -35,7 +36,15 @@ export interface StrukViewProps {
   onDelete: () => void
   onAssign: () => void
   onSave: () => void
+  onTestPrint: () => void
+  /** `documents.logoUrl`, for the logo editor's "Ambil logo brand". */
+  brandLogoUrl?: string
   onReload: () => void
+}
+
+const LIMIT_HINT: Partial<Record<AddableBlock, string>> = {
+  image: `Maksimal ${RECEIPT_LIMITS.imageBlocksMax} logo.`,
+  qr: `Maksimal ${RECEIPT_LIMITS.qrBlocksMax} QR code.`,
 }
 
 const ADD_CHOICES: ReadonlyArray<{ block: AddableBlock; label: string }> = [
@@ -44,11 +53,15 @@ const ADD_CHOICES: ReadonlyArray<{ block: AddableBlock; label: string }> = [
   { block: 'points', label: 'Poin member' },
   { block: 'transaction', label: 'Info transaksi' },
   { block: 'header', label: 'Judul & info outlet' },
+  { block: 'image', label: 'Logo' },
+  { block: 'qr', label: 'QR code' },
 ]
 
 /** The designer screen without its data fetching: block list and editor on the left, paper preview on the right. */
 export function StrukView(p: StrukViewProps) {
   const { state } = p
+  // Mirrors the tablet's per-device `Cetak logo & QR` switch.
+  const [graphics, setGraphics] = useState(true)
   const adjustments = pendingAdjustments(state)
   const atLimit = state.layout.blocks.length >= RECEIPT_LIMITS.blocksMax
   const warned = state.templateId !== null && p.unusable.has(state.templateId)
@@ -64,6 +77,7 @@ export function StrukView(p: StrukViewProps) {
           showVirtualStandar={p.showVirtualStandar}
           unusable={p.unusable}
           selectedKey={p.selectedKey}
+          unsavedName={state.name}
           paperWidth={state.layout.paperWidth}
           usedBy={p.usedBy}
           canDelete={state.templateId !== null && !state.isDefault}
@@ -98,11 +112,11 @@ export function StrukView(p: StrukViewProps) {
         <Card className="p-4">
           <h3 className="font-black text-ink-900">Blok struk</h3>
           <p className="text-xs text-ink-700">Seret untuk mengubah urutan. Blok bergembok selalu dicetak.</p>
-          <BlockList blocks={state.layout.blocks} editingId={state.editingId} dispatch={p.dispatch} />
+          <BlockList blocks={state.layout.blocks} editingId={state.editingId} dispatch={p.dispatch} brandLogoUrl={p.brandLogoUrl} />
           {p.addOpen ? (
             <div className="mt-2 flex flex-wrap gap-2 rounded-xl border border-dashed border-brand-strong p-2">
               {ADD_CHOICES.map((c) => (
-                <Button key={c.block} size="sm" variant="secondary" onClick={() => { p.dispatch({ type: 'add', block: c.block }); p.onToggleAdd() }}>{c.label}</Button>
+                <Button key={c.block} size="sm" variant="secondary" disabled={!canAdd(state.layout.blocks, c.block)} title={canAdd(state.layout.blocks, c.block) ? undefined : LIMIT_HINT[c.block]} onClick={() => { p.dispatch({ type: 'add', block: c.block }); p.onToggleAdd() }}>{c.label}</Button>
               ))}
               <Button size="sm" variant="ghost" onClick={p.onToggleAdd}>Batal</Button>
             </div>
@@ -121,9 +135,14 @@ export function StrukView(p: StrukViewProps) {
 
         <Card className="p-4">
           <h3 className="mb-3 font-black text-ink-900">Pratinjau</h3>
-          <ReceiptPaper layout={state.layout} />
+          <ReceiptPaper layout={state.layout} graphics={graphics} />
           <p className="mt-2 text-center text-[11px] text-ink-700">Contoh transaksi. Pratinjau digambar oleh kode yang sama dengan printer.</p>
+          <label className="mt-2 flex items-center justify-center gap-1.5 text-xs font-bold text-ink-700">
+            <input type="checkbox" className="accent-brand-strong" checked={graphics} onChange={(e) => setGraphics(e.target.checked)} />
+            Cetak logo &amp; QR
+          </label>
           <div className="mt-3 flex justify-center gap-2">
+            <Button variant="secondary" onClick={p.onTestPrint}>Cetak tes di tablet</Button>
             <Button loading={p.saving} onClick={p.onSave} disabled={!state.dirty && state.templateId !== null}>Simpan</Button>
           </div>
         </Card>

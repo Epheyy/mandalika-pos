@@ -108,7 +108,7 @@ export default function SettingsScreen() {
       )}
 
       {/* ── Struk: the receipt designer (own save and leave guard, not the settings save bar) ── */}
-      {section === 'struk' && <StrukSection receiptSettings={s.receipt} />}
+      {section === 'struk' && <StrukSection receiptSettings={s.receipt} brandLogoUrl={s.documents?.logoUrl || undefined} />}
 
       {/* ── Operasional: Shift · Persetujuan Transfer · Dokumen ── */}
       {section === 'operasional' && (
