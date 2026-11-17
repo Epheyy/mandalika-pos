@@ -291,6 +291,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/receipt-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List receipt templates with the outlets that use each (manage_settings) */
+        get: operations["listReceiptTemplates"];
+        put?: never;
+        /** Create a receipt template (manage_settings) */
+        post: operations["createReceiptTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/receipt-templates/assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Move outlets onto a receipt template, or back to the default (manage_settings) */
+        put: operations["assignReceiptTemplate"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/receipt-templates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Save a receipt template (manage_settings); needs the loaded version */
+        put: operations["updateReceiptTemplate"];
+        post?: never;
+        /** Delete a receipt template (manage_settings) */
+        delete: operations["deleteReceiptTemplate"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/customers": {
         parameters: {
             query?: never;
@@ -5269,6 +5324,80 @@ export interface components {
             showSubtotal?: boolean | null;
             showChange?: boolean | null;
         };
+        /** @enum {string} */
+        TxField: "orderNumber" | "date" | "cashier" | "customerName" | "customerPhone";
+        /** @description One block of a receipt template. A flat schema: `type` picks the block and only that block's fields are read. `items`, `totals` and `payment` are locked (exactly once, enabled, in that order). Every optional field is absent when unused and never null. */
+        ReceiptBlock: {
+            id: string;
+            /** @enum {string} */
+            type: "header" | "transaction" | "items" | "totals" | "payment" | "points" | "text" | "divider";
+            enabled: boolean;
+            label?: string;
+            text?: string;
+            /** @enum {string} */
+            size?: "normal" | "large";
+            /** @enum {string} */
+            align?: "left" | "center" | "right";
+            bold?: boolean;
+            showOutletName?: boolean;
+            showOutletAddress?: boolean;
+            showOutletPhone?: boolean;
+            fields?: components["schemas"]["TxField"][];
+            /** @enum {string} */
+            style?: "columns" | "inline";
+            showSubtotal?: boolean;
+            showDiscount?: boolean;
+            showTax?: boolean;
+        };
+        ReceiptTemplate: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @enum {integer} */
+            paperWidth: 58 | 80;
+            blocks: components["schemas"]["ReceiptBlock"][];
+            /** @description True only for the saved Standar template; it applies to every outlet without an assignment. */
+            isDefault: boolean;
+            /** @description Bumped on every save; a stale update is refused with 409. */
+            version: number;
+            /** @description Outlets that print this template, including the unassigned outlets for the default template. */
+            outletIds: string[];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ReceiptTemplateInput: {
+            name: string;
+            /** @enum {integer} */
+            paperWidth: 58 | 80;
+            blocks: components["schemas"]["ReceiptBlock"][];
+            /** @description Required on update: the version the editor loaded. */
+            version?: number;
+            /** @description Read on create only (saving Standar), and refused while a default exists. Ignored on update. */
+            isDefault?: boolean;
+        };
+        ReceiptTemplateListResponse: {
+            data: components["schemas"]["ReceiptTemplate"][];
+        };
+        ReceiptTemplateResponse: {
+            data: components["schemas"]["ReceiptTemplate"];
+        };
+        ReceiptTemplateAssignInput: {
+            outletIds: string[];
+            /**
+             * Format: uuid
+             * @description Absent means the default (Standar), including while it is still virtual.
+             */
+            templateId?: string;
+        };
+        /** @description The outlet's resolved receipt template as the tablet receives it in the pull. */
+        SyncReceiptTemplate: {
+            /** Format: uuid */
+            id: string;
+            version: number;
+            /** @enum {integer} */
+            paperWidth: 58 | 80;
+            blocks: components["schemas"]["ReceiptBlock"][];
+        };
         AppSettings: {
             taxEnabled: boolean;
             taxRate: number;
@@ -5666,6 +5795,11 @@ export interface components {
             stockSeq?: number;
             outletCode?: string | null;
             outletName?: string | null;
+            /** @description The outlet's address for the receipt header. Optional and NOT nullable; absent = none. */
+            outletAddress?: string;
+            /** @description The outlet's phone for the receipt header. Optional and NOT nullable; absent = none. */
+            outletPhone?: string;
+            receiptTemplate?: components["schemas"]["SyncReceiptTemplate"];
             /**
              * @description The outlet's timezone; promo hours, active days and start/end dates are evaluated on this clock. Absent (older servers) means Asia/Jakarta.
              * @enum {string}
@@ -7454,6 +7588,202 @@ export interface operations {
             };
             /** @description invalid bundle prices */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listReceiptTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description templates */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptTemplateListResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createReceiptTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptTemplateInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptTemplateResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description the name is taken, a default already exists, or the template limit is reached */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description the template breaks a rule (locked block missing, text too long, ...); the message names the first issue */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    assignReceiptTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptTemplateAssignInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateReceiptTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptTemplateInput"];
+            };
+        };
+        responses: {
+            /** @description saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptTemplateResponse"];
+                };
+            };
+            /** @description invalid body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description stale version, or the name is taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description the template breaks a rule (locked block missing, text too long, ...); the message names the first issue */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    deleteReceiptTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description the default template, or one still used by outlets */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

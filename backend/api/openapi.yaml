@@ -2335,6 +2335,82 @@ components:
         showDiscount: { type: boolean, nullable: true }
         showSubtotal: { type: boolean, nullable: true }
         showChange: { type: boolean, nullable: true }
+    TxField:
+      type: string
+      enum: [orderNumber, date, cashier, customerName, customerPhone]
+    ReceiptBlock:
+      type: object
+      description: >-
+        One block of a receipt template. A flat schema: `type` picks the block and only that block's
+        fields are read. `items`, `totals` and `payment` are locked (exactly once, enabled, in that order).
+        Every optional field is absent when unused and never null.
+      required: [id, type, enabled]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [header, transaction, items, totals, payment, points, text, divider] }
+        enabled: { type: boolean }
+        label: { type: string }
+        text: { type: string }
+        size: { type: string, enum: [normal, large] }
+        align: { type: string, enum: [left, center, right] }
+        bold: { type: boolean }
+        showOutletName: { type: boolean }
+        showOutletAddress: { type: boolean }
+        showOutletPhone: { type: boolean }
+        fields: { type: array, items: { $ref: '#/components/schemas/TxField' } }
+        style: { type: string, enum: [columns, inline] }
+        showSubtotal: { type: boolean }
+        showDiscount: { type: boolean }
+        showTax: { type: boolean }
+    ReceiptTemplate:
+      type: object
+      required: [id, name, paperWidth, blocks, isDefault, version, outletIds, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        paperWidth: { type: integer, enum: [58, 80] }
+        blocks: { type: array, items: { $ref: '#/components/schemas/ReceiptBlock' } }
+        isDefault: { type: boolean, description: "True only for the saved Standar template; it applies to every outlet without an assignment." }
+        version: { type: integer, description: "Bumped on every save; a stale update is refused with 409." }
+        outletIds:
+          type: array
+          items: { type: string, format: uuid }
+          description: Outlets that print this template, including the unassigned outlets for the default template.
+        updatedAt: { type: string, format: date-time }
+    ReceiptTemplateInput:
+      type: object
+      required: [name, paperWidth, blocks]
+      properties:
+        name: { type: string }
+        paperWidth: { type: integer, enum: [58, 80] }
+        blocks: { type: array, items: { $ref: '#/components/schemas/ReceiptBlock' } }
+        version: { type: integer, description: "Required on update: the version the editor loaded." }
+        isDefault: { type: boolean, description: "Read on create only (saving Standar), and refused while a default exists. Ignored on update." }
+    ReceiptTemplateListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/ReceiptTemplate' } }
+    ReceiptTemplateResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ReceiptTemplate' }
+    ReceiptTemplateAssignInput:
+      type: object
+      required: [outletIds]
+      properties:
+        outletIds: { type: array, items: { type: string, format: uuid } }
+        templateId: { type: string, format: uuid, description: "Absent means the default (Standar), including while it is still virtual." }
+    SyncReceiptTemplate:
+      type: object
+      required: [id, version, paperWidth, blocks]
+      description: The outlet's resolved receipt template as the tablet receives it in the pull.
+      properties:
+        id: { type: string, format: uuid }
+        version: { type: integer }
+        paperWidth: { type: integer, enum: [58, 80] }
+        blocks: { type: array, items: { $ref: '#/components/schemas/ReceiptBlock' } }
     AppSettings:
       type: object
       required: [taxEnabled, taxRate, roundingEnabled, roundingType, paymentMethods, receipt, autoOpenShift, allowNegativeStock]
@@ -2775,6 +2851,10 @@ components:
             and NOT nullable; absent = no signal.
         outletCode: { type: string, nullable: true }
         outletName: { type: string, nullable: true }
+        outletAddress: { type: string, description: "The outlet's address for the receipt header. Optional and NOT nullable; absent = none." }
+        outletPhone: { type: string, description: "The outlet's phone for the receipt header. Optional and NOT nullable; absent = none." }
+        receiptTemplate:
+          $ref: '#/components/schemas/SyncReceiptTemplate'
         outletTimezone:
           type: string
           enum: [Asia/Jakarta, Asia/Makassar, Asia/Jayapura]
@@ -4292,6 +4372,92 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/OkResponse' }
         '400': { description: 'invalid bundle prices', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/receipt-templates:
+    get:
+      operationId: listReceiptTemplates
+      tags: [settings]
+      summary: List receipt templates with the outlets that use each (manage_settings)
+      responses:
+        '200':
+          description: templates
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptTemplateListResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createReceiptTemplate
+      tags: [settings]
+      summary: Create a receipt template (manage_settings)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReceiptTemplateInput' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptTemplateResponse' }
+        '400': { description: 'invalid body', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: 'the name is taken, a default already exists, or the template limit is reached', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: 'the template breaks a rule (locked block missing, text too long, ...); the message names the first issue', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/receipt-templates/assign:
+    put:
+      operationId: assignReceiptTemplate
+      tags: [settings]
+      summary: Move outlets onto a receipt template, or back to the default (manage_settings)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReceiptTemplateAssignInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '400': { description: 'invalid body', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/receipt-templates/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      operationId: updateReceiptTemplate
+      tags: [settings]
+      summary: Save a receipt template (manage_settings); needs the loaded version
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReceiptTemplateInput' }
+      responses:
+        '200':
+          description: saved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptTemplateResponse' }
+        '400': { description: 'invalid body', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'stale version, or the name is taken', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: 'the template breaks a rule (locked block missing, text too long, ...); the message names the first issue', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      operationId: deleteReceiptTemplate
+      tags: [settings]
+      summary: Delete a receipt template (manage_settings)
+      responses:
+        '200':
+          description: deleted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'the default template, or one still used by outlets', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/customers:
     post:
       operationId: createCustomer

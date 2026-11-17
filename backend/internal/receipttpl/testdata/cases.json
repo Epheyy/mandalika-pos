@@ -1,0 +1,1680 @@
+[
+  {
+    "name": "minimal template of the three locked blocks",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "full template",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "h",
+          "type": "header",
+          "enabled": true,
+          "text": "TOKO",
+          "size": "normal",
+          "showOutletName": true,
+          "showOutletAddress": true,
+          "showOutletPhone": true
+        },
+        {
+          "id": "t",
+          "type": "transaction",
+          "enabled": true,
+          "fields": [
+            "orderNumber",
+            "date"
+          ],
+          "style": "columns"
+        },
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "pt",
+          "type": "points",
+          "enabled": false
+        },
+        {
+          "id": "x",
+          "type": "text",
+          "enabled": true,
+          "text": "Terima kasih",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        },
+        {
+          "id": "d",
+          "type": "divider",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "empty blocks",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": []
+    },
+    "valid": false,
+    "code": "too_few_blocks"
+  },
+  {
+    "name": "two blocks",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "too_few_blocks"
+  },
+  {
+    "name": "payment missing",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "d",
+          "type": "divider",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "locked_missing"
+  },
+  {
+    "name": "payment disabled",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": false
+        }
+      ]
+    },
+    "valid": false,
+    "code": "locked_disabled"
+  },
+  {
+    "name": "items disabled",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": false
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "locked_disabled"
+  },
+  {
+    "name": "totals before items",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "locked_order"
+  },
+  {
+    "name": "payment before totals",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "locked_order"
+  },
+  {
+    "name": "items twice",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "i2",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "locked_order"
+  },
+  {
+    "name": "31 blocks",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "d0",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d1",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d2",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d3",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d4",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d5",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d6",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d7",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d8",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d9",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d10",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d11",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d12",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d13",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d14",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d15",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d16",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d17",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d18",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d19",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d20",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d21",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d22",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d23",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d24",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d25",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d26",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d27",
+          "type": "divider",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "too_many_blocks"
+  },
+  {
+    "name": "30 blocks",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "d0",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d1",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d2",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d3",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d4",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d5",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d6",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d7",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d8",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d9",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d10",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d11",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d12",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d13",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d14",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d15",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d16",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d17",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d18",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d19",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d20",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d21",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d22",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d23",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d24",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d25",
+          "type": "divider",
+          "enabled": true
+        },
+        {
+          "id": "d26",
+          "type": "divider",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "blank name",
+    "template": {
+      "name": "  ",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "name_invalid"
+  },
+  {
+    "name": "61 character name",
+    "template": {
+      "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "name_invalid"
+  },
+  {
+    "name": "60 character name",
+    "template": {
+      "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "name may be any utf-8",
+    "template": {
+      "name": "Struk \u00e9\u00e8 \u2014",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "paper width 70",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 70,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "paper_width_invalid"
+  },
+  {
+    "name": "paper width 80",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 80,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "text of 500 characters",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "x",
+          "type": "text",
+          "enabled": true,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "text of 501 characters",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "x",
+          "type": "text",
+          "enabled": true,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        }
+      ]
+    },
+    "valid": false,
+    "code": "text_too_long"
+  },
+  {
+    "name": "text of 12 lines",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "x",
+          "type": "text",
+          "enabled": true,
+          "text": "a\na\na\na\na\na\na\na\na\na\na\na",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "text of 13 lines",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "x",
+          "type": "text",
+          "enabled": true,
+          "text": "a\na\na\na\na\na\na\na\na\na\na\na\na",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        }
+      ]
+    },
+    "valid": false,
+    "code": "too_many_lines"
+  },
+  {
+    "name": "text with e acute",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "x",
+          "type": "text",
+          "enabled": true,
+          "text": "Caf\u00e9",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        }
+      ]
+    },
+    "valid": false,
+    "code": "not_printable"
+  },
+  {
+    "name": "header title of 64 characters",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "h",
+          "type": "header",
+          "enabled": true,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": "normal",
+          "showOutletName": true,
+          "showOutletAddress": true,
+          "showOutletPhone": true
+        },
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "header title of 65 characters",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "h",
+          "type": "header",
+          "enabled": true,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": "normal",
+          "showOutletName": true,
+          "showOutletAddress": true,
+          "showOutletPhone": true
+        },
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "title_too_long"
+  },
+  {
+    "name": "header title with e acute",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "h",
+          "type": "header",
+          "enabled": true,
+          "text": "Caf\u00e9",
+          "size": "normal",
+          "showOutletName": true,
+          "showOutletAddress": true,
+          "showOutletPhone": true
+        },
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "not_printable"
+  },
+  {
+    "name": "header title with a newline",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "h",
+          "type": "header",
+          "enabled": true,
+          "text": "a\nb",
+          "size": "normal",
+          "showOutletName": true,
+          "showOutletAddress": true,
+          "showOutletPhone": true
+        },
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "not_printable"
+  },
+  {
+    "name": "label of 40 characters",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "x",
+          "type": "text",
+          "enabled": true,
+          "text": "ok",
+          "align": "center",
+          "bold": false,
+          "size": "normal",
+          "label": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "label of 41 characters",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "x",
+          "type": "text",
+          "enabled": true,
+          "text": "ok",
+          "align": "center",
+          "bold": false,
+          "size": "normal",
+          "label": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ]
+    },
+    "valid": false,
+    "code": "label_too_long"
+  },
+  {
+    "name": "label may be any utf-8",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "x",
+          "type": "text",
+          "enabled": true,
+          "text": "ok",
+          "align": "center",
+          "bold": false,
+          "size": "normal",
+          "label": "Catatan \u00e9"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "1500 characters of text in total",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "a",
+          "type": "text",
+          "enabled": true,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        },
+        {
+          "id": "b",
+          "type": "text",
+          "enabled": true,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        },
+        {
+          "id": "c",
+          "type": "text",
+          "enabled": true,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "1600 characters of text in total",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "a",
+          "type": "text",
+          "enabled": true,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        },
+        {
+          "id": "b",
+          "type": "text",
+          "enabled": true,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        },
+        {
+          "id": "c",
+          "type": "text",
+          "enabled": true,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        },
+        {
+          "id": "d",
+          "type": "text",
+          "enabled": true,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        }
+      ]
+    },
+    "valid": false,
+    "code": "total_text_too_long"
+  },
+  {
+    "name": "header text counts toward the total",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "h",
+          "type": "header",
+          "enabled": true,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size": "normal",
+          "showOutletName": true,
+          "showOutletAddress": true,
+          "showOutletPhone": true
+        },
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "0",
+          "type": "text",
+          "enabled": true,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        },
+        {
+          "id": "1",
+          "type": "text",
+          "enabled": true,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        },
+        {
+          "id": "2",
+          "type": "text",
+          "enabled": true,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        },
+        {
+          "id": "z",
+          "type": "text",
+          "enabled": true,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "align": "center",
+          "bold": false,
+          "size": "normal"
+        }
+      ]
+    },
+    "valid": false,
+    "code": "total_text_too_long"
+  },
+  {
+    "name": "qr block is unknown until phase 4",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "q",
+          "type": "qr",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "unknown_type"
+  },
+  {
+    "name": "image block is unknown until phase 4",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "q",
+          "type": "image",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "unknown_type"
+  },
+  {
+    "name": "made-up block type",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "q",
+          "type": "bogus",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "unknown_type"
+  },
+  {
+    "name": "standar-only field spaceAfter on a header",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "h",
+          "type": "header",
+          "enabled": true,
+          "text": "TOKO",
+          "size": "normal",
+          "showOutletName": true,
+          "showOutletAddress": true,
+          "showOutletPhone": true,
+          "spaceAfter": true
+        },
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "compat_field",
+    "tsOnly": true
+  },
+  {
+    "name": "standar-only field spaceBefore on a text",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        },
+        {
+          "id": "x",
+          "type": "text",
+          "enabled": true,
+          "text": "a",
+          "align": "center",
+          "bold": false,
+          "size": "normal",
+          "spaceBefore": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "compat_field",
+    "tsOnly": true
+  },
+  {
+    "name": "standar-only field showChange on payment",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true,
+          "showChange": false
+        }
+      ]
+    },
+    "valid": false,
+    "code": "compat_field",
+    "tsOnly": true
+  }
+]

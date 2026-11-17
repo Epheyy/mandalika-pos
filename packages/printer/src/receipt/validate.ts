@@ -42,9 +42,11 @@ export function validateTemplate(input: { name: string; paperWidth: number; bloc
   }
   const blocks = (input.blocks ?? []).map((b) => (b && typeof b === 'object' ? b : {})) as ReadonlyArray<Record<string, unknown> & { id?: string; type?: string }>
 
-  // 1. name
+  // 1. name and paper width
   const nameLen = len(String(input.name ?? '').trim())
   if (nameLen < 1 || nameLen > RECEIPT_LIMITS.nameMax) add('name_invalid', `Nama template harus 1-${RECEIPT_LIMITS.nameMax} karakter.`)
+
+  if (input.paperWidth !== 58 && input.paperWidth !== 80) add('paper_width_invalid', 'Lebar kertas harus 58mm atau 80mm.')
 
   // 2. block count
   if (blocks.length < RECEIPT_LIMITS.blocksMin) add('too_few_blocks', `Template minimal ${RECEIPT_LIMITS.blocksMin} blok.`)
