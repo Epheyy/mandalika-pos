@@ -145,7 +145,7 @@ export const NEW_STANDAR_NAME = 'Standar'
 export function designerReducer(state: DesignerState, action: DesignerAction): DesignerState {
   switch (action.type) {
     case 'load': {
-      // A template the tablet would refuse still opens, so it can be repaired; the screen warns about it.
+      // A template the tablet would refuse still opens so the admin can see and copy it; the screen warns about it.
       const layout = layoutFromApi(action.template)
         ?? { paperWidth: action.template.paperWidth, blocks: action.template.blocks as unknown as ReceiptBlock[] }
       return {
@@ -201,7 +201,7 @@ export function designerReducer(state: DesignerState, action: DesignerAction): D
     case 'add': {
       if (state.layout.blocks.length >= RECEIPT_LIMITS.blocksMax) return state
       const s = leaveCompat(state)
-      const id = nextId(action.block, s.layout.blocks)
+      const id = nextId(`add-${action.block}`, s.layout.blocks)
       return { ...withBlocks(s, [...s.layout.blocks, freshBlock(action.block, id)]), editingId: id }
     }
     case 'remove': {

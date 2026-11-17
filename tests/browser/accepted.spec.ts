@@ -7,6 +7,7 @@ import { stockCardFlow } from './backoffice-stockcard-scenarios'
 import { refundReportFlow, adminPartialRefundFlow } from './backoffice-refund-scenarios'
 import { splitOrderFlow, splitToggleFlow } from './backoffice-split-scenarios'
 import { settingsGuardFlow } from './backoffice-settings-scenarios'
+import { receiptDesignerFlow } from './backoffice-receipt-scenarios'
 import { routeDeepLinkFlow, routeGuardFlow } from './backoffice-route-scenarios'
 import { kitShellFlow } from './backoffice-kit-scenarios'
 import { routeBackFlow } from './backoffice-back-scenarios'
@@ -202,6 +203,12 @@ test('BO-SPLIT-TOGGLE Bayar terpisah is off by default with the D-50 warning, as
 
 test('BO-SETTINGS-GUARD Pengaturan shows no save bar on open, guards leaving with unsaved edits, and saves only changed fields merged onto a fresh GET', async ({ page }, info) => {
   const result = await settingsGuardFlow(page as ScenarioPage)
+  expect(result).toHaveLength(5)
+  await evidence(info, result)
+})
+
+test('BO-RECEIPT-DESIGNER Pengaturan > Struk shows Standar from the receipt settings, reorders and toggles blocks, switches to 80mm, saves a template without Standar-only fields and assigns outlets that survive a reload', async ({ page }, info) => {
+  const result = await receiptDesignerFlow(page as ScenarioPage)
   expect(result).toHaveLength(5)
   await evidence(info, result)
 })

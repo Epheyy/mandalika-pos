@@ -284,6 +284,12 @@
       "source": "tests/browser/backoffice-settings-scenarios.ts"
     },
     {
+      "id": "BO-RECEIPT-DESIGNER",
+      "finding": "RD-P3",
+      "description": "Pengaturan > Struk: with no template the designer shows Standar built from the receipt settings with Hapus off and three locked rows; a new template reorders Poin member above Daftar barang by keyboard, toggles a text block and switches to 80mm (48 columns); Simpan posts the design without compat, spaceAfter, spaceBefore or showChange; assigning two outlets shows Dipakai di 2 outlet after a reload",
+      "source": "tests/browser/backoffice-receipt-scenarios.ts"
+    },
+    {
       "id": "BO-ROUTE-DEEPLINK",
       "finding": "D1b",
       "description": "Routed tabs and views: #/laporan/refund survives a reload and fills the breadcrumb; a bare #/laporan or an unknown tab shows the first tab and a tab click writes the path with Back and Forward moving between tabs; #/inventori/transfer/<id> opens the detail after a reload and Kembali returns to the list; #/inventori/bahan shows the first tab until recipesEnabled loads, then lands on Bahan with the URL untouched",

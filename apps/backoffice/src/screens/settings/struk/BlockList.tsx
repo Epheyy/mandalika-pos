@@ -58,7 +58,7 @@ function BlockRow({ block, selected, dispatch }: RowProps) {
       >
         <button
           type="button"
-          aria-label={`Geser blok ${name}`}
+          aria-label={`Seret blok ${name}`}
           className="flex h-8 w-6 flex-shrink-0 cursor-grab touch-none items-center justify-center rounded text-ink-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-strong"
           {...attributes}
           {...listeners}

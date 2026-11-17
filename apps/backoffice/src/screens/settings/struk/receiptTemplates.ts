@@ -53,7 +53,9 @@ export async function saveDesign(api: TemplateApi, state: DesignerState): Promis
       : await api.updateReceiptTemplate(state.templateId, body)
     return { kind: 'ok', template }
   } catch (e) {
-    if (e instanceof ApiError && e.status === 409) return { kind: 'stale' }
+    // The server sends 409 for a stale version, a taken name, a second Standar and the 50 template cap; only the first
+    // is "stale". The others carry their own message.
+    if (e instanceof ApiError && e.status === 409 && state.templateId !== null && e.message === STALE_SAVE_COPY) return { kind: 'stale' }
     return { kind: 'error', message: errorMessage(e) }
   }
 }

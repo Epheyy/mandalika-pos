@@ -152,7 +152,7 @@ function EditorBody({ block, onChange }: BlockEditorProps) {
               <Switch label={label} size="sm" checked={block[key]} onChange={(on) => onChange({ [key]: on })} />
             </div>
           ))}
-          <p className="text-xs text-ink-700">TOTAL selalu dicetak. Baris diskon dan pajak tetap tercetak bila ada potongan di transaksi.</p>
+          <p className="text-xs text-ink-700">Total selalu dicetak. Baris diskon dan pajak tetap tercetak bila ada potongan di transaksi.</p>
         </>
       )
     case 'payment':

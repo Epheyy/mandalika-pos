@@ -90,7 +90,7 @@ export function StrukSection({ receiptSettings }: { receiptSettings: ReceiptSett
     if (result.kind === 'ok') {
       await reload()
       dispatch({ type: 'load', template: result.template })
-      setNotice({ tone: 'ok', text: 'Template tersimpan. Tablet memakainya saat sinkron berikutnya.' })
+      setNotice({ tone: 'ok', text: 'Template tersimpan. Tablet mengambilnya saat sinkron berikutnya.' })
     } else if (result.kind === 'stale') {
       // Keep the draft; the list is refreshed so "Muat ulang" shows the server copy.
       await reload()
@@ -102,10 +102,14 @@ export function StrukSection({ receiptSettings }: { receiptSettings: ReceiptSett
 
   const onReloadServerCopy = async () => {
     const list = await reload()
+    if (list === null) {
+      setNotice({ tone: 'error', text: 'Gagal memuat ulang template. Coba lagi.', reload: true })
+      return
+    }
     setNotice(null)
-    const mine = list?.find((t) => t.id === state.templateId)
+    const mine = list.find((t) => t.id === state.templateId)
     if (mine) dispatch({ type: 'load', template: mine })
-    else openDefault(list ?? templates)
+    else openDefault(list)
   }
 
   const onDelete = async () => {
@@ -120,7 +124,7 @@ export function StrukSection({ receiptSettings }: { receiptSettings: ReceiptSett
     }
     const list = await reload()
     setDialog(null)
-    openDefault(list ?? [])
+    openDefault(list ?? templates.filter((x) => x.id !== t.id))
   }
 
   const onAssign = async (outletIds: string[]) => {
@@ -208,7 +212,7 @@ export function StrukSection({ receiptSettings }: { receiptSettings: ReceiptSett
 
       <ConfirmDialog
         open={pending !== null}
-        title="Buang perubahan desain?"
+        title="Buang perubahan desain struk?"
         consequence="Ada perubahan yang belum disimpan. Kalau dilanjutkan, perubahan ini hilang."
         confirmLabel="Buang perubahan"
         cancelLabel="Tetap di sini"

@@ -118,7 +118,7 @@ describe('saveDesign', () => {
   })
 
   it('a 409 on save is stale, and the draft is untouched', async () => {
-    const api = fakeApi({ updateReceiptTemplate: vi.fn().mockRejectedValue(new ApiError(409, 'stale')) })
+    const api = fakeApi({ updateReceiptTemplate: vi.fn().mockRejectedValue(new ApiError(409, STALE_SAVE_COPY)) })
     const loaded = designerReducer(virtual(), { type: 'load', template: template() })
     const edited = designerReducer(loaded, { type: 'rename', name: 'Dirubah' })
     expect(await saveDesign(api, edited)).toEqual({ kind: 'stale' })
@@ -135,9 +135,9 @@ describe('saveDesign', () => {
   })
 
   it('other server errors surface their message', async () => {
-    const api = fakeApi({ createReceiptTemplate: vi.fn().mockRejectedValue(new ApiError(422, 'Nama sudah dipakai')) })
+    const api = fakeApi({ createReceiptTemplate: vi.fn().mockRejectedValue(new ApiError(409, 'Nama template sudah dipakai.')) })
     const s = designerReducer(virtual(), { type: 'newTemplate', name: 'Baru', paperWidth: 58 })
-    expect(await saveDesign(api, s)).toEqual({ kind: 'error', message: 'Nama sudah dipakai' })
+    expect(await saveDesign(api, s)).toEqual({ kind: 'error', message: 'Nama template sudah dipakai.' })
   })
 })
 
@@ -147,5 +147,25 @@ describe('outlet helpers', () => {
     expect(standarOutletIds(t, ['a', 'b', 'c', 'd'])).toEqual(['c', 'd'])
     expect(needsVirtualStandar(t)).toBe(true)
     expect(needsVirtualStandar([...t, template({ id: '4', isDefault: true })])).toBe(false)
+  })
+})
+
+describe('409 reasons other than a stale version', () => {
+  it('a taken name on a template that is still unsaved is an error, not stale', async () => {
+    const api: TemplateApi = {
+      createReceiptTemplate: vi.fn().mockRejectedValue(new ApiError(409, 'Nama template sudah dipakai.')),
+      updateReceiptTemplate: vi.fn(), deleteReceiptTemplate: vi.fn(), assignReceiptTemplate: vi.fn(),
+    }
+    const s = designerReducer(virtual(), { type: 'newTemplate', name: 'Promo', paperWidth: 58 })
+    expect(await saveDesign(api, s)).toEqual({ kind: 'error', message: 'Nama template sudah dipakai.' })
+  })
+
+  it('a taken name on a saved template shows the server message, not the stale copy', async () => {
+    const api: TemplateApi = {
+      createReceiptTemplate: vi.fn(), deleteReceiptTemplate: vi.fn(), assignReceiptTemplate: vi.fn(),
+      updateReceiptTemplate: vi.fn().mockRejectedValue(new ApiError(409, 'Nama template sudah dipakai.')),
+    }
+    const s = designerReducer(virtual(), { type: 'load', template: template() })
+    expect(await saveDesign(api, s)).toEqual({ kind: 'error', message: 'Nama template sudah dipakai.' })
   })
 })

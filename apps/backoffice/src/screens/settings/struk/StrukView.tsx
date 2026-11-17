@@ -94,7 +94,7 @@ export function StrukView(p: StrukViewProps) {
         )}
       </Card>
 
-      <div className="grid items-start gap-4 lg:grid-cols-[1.15fr_1fr]">
+      <div inert={p.saving} aria-busy={p.saving} className="grid items-start gap-4 xl:grid-cols-[1.15fr_1fr]">
         <Card className="p-4">
           <h3 className="font-black text-ink-900">Blok struk</h3>
           <p className="text-xs text-ink-700">Seret untuk mengubah urutan. Blok bergembok selalu dicetak.</p>
