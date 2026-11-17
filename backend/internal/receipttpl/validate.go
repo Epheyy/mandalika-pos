@@ -214,6 +214,10 @@ func Issues(name string, paperWidth int, blocks []api.ReceiptBlock) []*Error {
 			add("unknown_type", `Jenis blok "`+string(b.Type)+`" tidak dikenal.`, b.Id)
 			continue
 		}
+		// image and url belong to their own blocks; stored anywhere else they would ride along in every pull.
+		if (b.Type != api.Image && b.Image != nil) || (b.Type != api.Qr && b.Url != nil) {
+			add("stray_field", "Kolom gambar atau alamat QR hanya untuk blok logo dan QR.", b.Id)
+		}
 		t := deref(b.Text)
 		if b.Align != nil && !b.Align.Valid() {
 			add("bad_enum", "Perataan tidak dikenal.", b.Id)

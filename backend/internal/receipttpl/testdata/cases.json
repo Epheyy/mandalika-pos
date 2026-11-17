@@ -3035,5 +3035,83 @@
     },
     "valid": false,
     "code": "image_invalid"
+  },
+  {
+    "name": "a text block carrying a url",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "t",
+          "type": "text",
+          "enabled": true,
+          "text": "x",
+          "align": "left",
+          "bold": false,
+          "size": "normal",
+          "url": "https://a.id"
+        },
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "stray_field"
+  },
+  {
+    "name": "a divider carrying a raster",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "d",
+          "type": "divider",
+          "enabled": true,
+          "image": {
+            "width": 8,
+            "height": 1,
+            "data": "AA=="
+          }
+        },
+        {
+          "id": "i",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "stray_field"
   }
 ]

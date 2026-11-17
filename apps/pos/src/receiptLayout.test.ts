@@ -113,7 +113,7 @@ describe('chooseTestPrintLayout', () => {
 
     const none = await chooseTestPrintLayout(async () => null, good, receipt)
     expect(none.fromDraft).toBe(false)
-    expect(none.layout.blocks.map((b) => b.id)).toEqual(['i', 'o', 'p'])
+    expect(none.layout.blocks.map((b) => b.id)).toEqual(['cetak-tes', 'i', 'o', 'p']) // the outlet's own layout is marked too
   })
 
   it('falls back to the outlet layout when offline, or when the draft cannot be trusted', async () => {
@@ -122,6 +122,7 @@ describe('chooseTestPrintLayout', () => {
     const broken = await chooseTestPrintLayout(async () => ({ ...draft, blocks: [draft.blocks[0]!] }), undefined, receipt)
     expect(broken.fromDraft).toBe(false)
     expect(broken.layout.compat).toBe('v1')
+    expect(broken.layout.blocks[0]).toMatchObject({ text: '*** CETAK TES ***' }) // Standar is marked as well
   })
 
   it('a sale after a Tes Cetak with a relay draft prints the pulled template, not the draft', async () => {

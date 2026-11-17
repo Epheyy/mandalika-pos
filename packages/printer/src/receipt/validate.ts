@@ -102,6 +102,8 @@ export function validateTemplate(input: { name: string; paperWidth: number; bloc
     else if (seen.has(id)) add('bad_id', 'Id blok harus unik.', b.id)
     seen.add(id)
     if (!KNOWN_TYPES.includes(type)) { add('unknown_type', `Jenis blok "${type}" tidak dikenal.`, b.id); continue }
+    // image and url belong to their own blocks; stored anywhere else they would ride along in every pull.
+    if ((type !== 'image' && b.image != null) || (type !== 'qr' && b.url != null)) add('stray_field', 'Kolom gambar atau alamat QR hanya untuk blok logo dan QR.', b.id)
     if (b.align !== undefined && !ALIGNS.includes(b.align as string)) add('bad_enum', 'Perataan tidak dikenal.', b.id)
     if (b.size !== undefined && !SIZES.includes(b.size as string)) add('bad_enum', 'Ukuran teks tidak dikenal.', b.id)
     if (b.style !== undefined && !STYLES.includes(b.style as string)) add('bad_enum', 'Gaya baris tidak dikenal.', b.id)

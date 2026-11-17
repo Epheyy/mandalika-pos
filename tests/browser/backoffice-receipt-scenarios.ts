@@ -141,6 +141,10 @@ export const receiptDesignerFlow = async (page: ScenarioPage) => {
   if (process.env.A34C_RUN_DIR) await captureShot(page, 'struk-designer', RECEIPT_SHOTS)
   results.push({ step: 'toggle-and-width' })
 
+  // the QR still holds the placeholder address, which Simpan refuses: give it a real one first
+  await page.getByRole('button', { name: /^QR code/ }).click()
+  await page.getByLabel('Alamat web (URL)').fill('https://mandalikaperfume.co.id/ulasan')
+
   // (d) Simpan: the POST carries the design and none of the Standar-only fields
   await page.getByRole('button', { name: 'Simpan', exact: true }).click()
   await page.getByText('Template tersimpan').waitFor()

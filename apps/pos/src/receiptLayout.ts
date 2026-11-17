@@ -49,12 +49,10 @@ export async function chooseTestPrintLayout(
   } catch {
     draft = null // offline or the server is older: print the outlet's layout
   }
-  const layout = draft ? layoutFromApi(draft) : null
-  if (layout) {
-    const banner = { id: 'cetak-tes', type: 'text' as const, enabled: true, text: '*** CETAK TES ***', align: 'center' as const, bold: true, size: 'normal' as const }
-    return { layout: { ...layout, blocks: [banner, ...layout.blocks] }, fromDraft: true }
-  }
-  return { layout: resolveReceiptLayout(template, receipt), fromDraft: false }
+  const layout = (draft ? layoutFromApi(draft) : null) ?? resolveReceiptLayout(template, receipt)
+  // Every Tes Cetak slip says so at the top, so the sample sale can never pass for a real paid receipt.
+  const banner = { id: 'cetak-tes', type: 'text' as const, enabled: true, text: '*** CETAK TES ***', align: 'center' as const, bold: true, size: 'normal' as const }
+  return { layout: { ...layout, blocks: [banner, ...layout.blocks] }, fromDraft: draft !== null && layoutFromApi(draft) !== null }
 }
 
 /** The pulled template as a layout, or Standar when there is none or it fails the locked-block rules. */
