@@ -64,7 +64,7 @@ describe('layoutFromApi', () => {
     expect(l.paperWidth).toBe(80)
     const wide = receiptPreview(l, SAMPLE_RECEIPT, { maxPaperWidth: 80 })
     const narrow = receiptPreview(l, SAMPLE_RECEIPT, { maxPaperWidth: 58 })
-    const width = (lines: typeof wide) => Math.max(...lines.map((p) => p.text.length * (p.large ? 2 : 1)))
+    const width = (lines: typeof wide) => Math.max(...lines.map((p) => (p.kind === 'text' ? p.text.length * (p.large ? 2 : 1) : 0)))
     expect(width(narrow)).toBeLessThanOrEqual(COLS_BY_WIDTH[58])
     expect(width(wide)).toBeGreaterThan(COLS_BY_WIDTH[58])
     expect(width(wide)).toBeLessThanOrEqual(COLS_BY_WIDTH[80])

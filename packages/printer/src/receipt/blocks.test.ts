@@ -72,7 +72,7 @@ describe('designer blocks', () => {
   it('the reprint mark and replacement mark print after the header run', () => {
     const rows = texts(newLayout(), { ...SAMPLE_RECEIPT, replacesOrderRef: 'MND-1' })
     expect(rows.filter((t) => t === '*** CETAK ULANG (REPRINT) ***')).toHaveLength(0)
-    const rp = receiptPreview(newLayout(), { ...SAMPLE_RECEIPT, replacesOrderRef: 'MND-1' }, { reprint: true }).map((l) => l.text)
+    const rp = receiptPreview(newLayout(), { ...SAMPLE_RECEIPT, replacesOrderRef: 'MND-1' }, { reprint: true }).flatMap((l) => (l.kind === 'text' ? [l.text] : []))
     expect(rp.filter((t) => t === '*** CETAK ULANG (REPRINT) ***')).toHaveLength(2)
     expect(rp.indexOf('Pengganti untuk #MND-1')).toBe(rp.indexOf('*** CETAK ULANG (REPRINT) ***') + 1)
   })
