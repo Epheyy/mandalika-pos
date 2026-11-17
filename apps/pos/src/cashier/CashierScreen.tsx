@@ -351,6 +351,11 @@ export default function CashierScreen() {
   const settings = snapshot.appSettings ?? DEFAULT_SETTINGS
   // The outlet's receipt layout: its pulled template, or the built-in Standar (today's receipt) when it has none.
   const receiptLayout = useMemo(() => resolveReceiptLayout(snapshot.receiptTemplate, settings.receipt), [snapshot.receiptTemplate, settings.receipt])
+  // A template that arrived but cannot be trusted prints Standar; say so, so head office learns the template is dead.
+  const templateRefused = !!snapshot.receiptTemplate && receiptLayout.compat === 'v1'
+  useEffect(() => {
+    if (templateRefused) void reportErrors([{ source: 'print', kind: 'receipt_template', action: 'Pakai template struk', message: 'Template struk ditolak (blok wajib tidak lengkap); mencetak Standar', outletName: snapshot.outletName }])
+  }, [templateRefused, snapshot.receiptTemplate, snapshot.outletName])
   const loyalty = snapshot.loyaltySettings ?? DEFAULT_LOYALTY
 
   const { actions: cartActions, derived } = useCart({ state, dispatch, settings, loyalty })

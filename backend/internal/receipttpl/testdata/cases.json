@@ -2079,5 +2079,120 @@
     },
     "valid": false,
     "code": "bad_enum"
+  },
+  {
+    "name": "empty block id",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "bad_id"
+  },
+  {
+    "name": "duplicate block id",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "a",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "b",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "a",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "bad_id"
+  },
+  {
+    "name": "block id of 64 characters",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "block id of 65 characters",
+    "template": {
+      "name": "Struk",
+      "paperWidth": 58,
+      "blocks": [
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "type": "items",
+          "enabled": true
+        },
+        {
+          "id": "o",
+          "type": "totals",
+          "enabled": true,
+          "showSubtotal": true,
+          "showDiscount": true,
+          "showTax": true
+        },
+        {
+          "id": "p",
+          "type": "payment",
+          "enabled": true
+        }
+      ]
+    },
+    "valid": false,
+    "code": "bad_id"
   }
 ]

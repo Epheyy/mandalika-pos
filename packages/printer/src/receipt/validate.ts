@@ -12,6 +12,7 @@ export const RECEIPT_LIMITS = {
   totalTextMax: 1500,
   titleMax: 64,
   labelMax: 40,
+  idMax: 64,
   templatesMax: 50,
   imageBlocksMax: 2,
   imageBytesMax: 11_520,
@@ -77,8 +78,13 @@ export function validateTemplate(input: { name: string; paperWidth: number; bloc
   if (totalText > RECEIPT_LIMITS.totalTextMax) add('total_text_too_long', `Total teks maksimal ${RECEIPT_LIMITS.totalTextMax} karakter.`)
 
   // 5. per block: type, text, label, (url, image: Phase 4)
+  const seen = new Set<string>()
   for (const b of blocks) {
     const type = b.type ?? ''
+    const id = typeof b.id === 'string' ? b.id : ''
+    if (id === '' || len(id) > RECEIPT_LIMITS.idMax) add('bad_id', 'Setiap blok harus punya id 1-64 karakter.', b.id)
+    else if (seen.has(id)) add('bad_id', 'Id blok harus unik.', b.id)
+    seen.add(id)
     if (!KNOWN_TYPES.includes(type)) { add('unknown_type', `Jenis blok "${type}" tidak dikenal.`, b.id); continue }
     if (b.align !== undefined && !ALIGNS.includes(b.align as string)) add('bad_enum', 'Perataan tidak dikenal.', b.id)
     if (b.size !== undefined && !SIZES.includes(b.size as string)) add('bad_enum', 'Ukuran teks tidak dikenal.', b.id)

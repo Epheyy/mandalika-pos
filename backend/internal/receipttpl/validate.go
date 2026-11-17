@@ -21,6 +21,7 @@ const (
 	TotalTextMax = 1500
 	TitleMax     = 64
 	LabelMax     = 40
+	IDMax        = 64
 	TemplatesMax = 50
 )
 
@@ -162,7 +163,14 @@ func Issues(name string, paperWidth int, blocks []api.ReceiptBlock) []*Error {
 		add("total_text_too_long", "Total teks maksimal 1500 karakter.", "")
 	}
 	// 5. per block
+	seen := make(map[string]bool, len(blocks))
 	for _, b := range blocks {
+		if b.Id == "" || runes(b.Id) > IDMax {
+			add("bad_id", "Setiap blok harus punya id 1-64 karakter.", b.Id)
+		} else if seen[b.Id] {
+			add("bad_id", "Id blok harus unik.", b.Id)
+		}
+		seen[b.Id] = true
 		if !knownTypes[b.Type] {
 			add("unknown_type", `Jenis blok "`+string(b.Type)+`" tidak dikenal.`, b.Id)
 			continue

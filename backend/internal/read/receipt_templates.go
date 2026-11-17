@@ -33,8 +33,10 @@ func scanReceiptTemplates(rows pgx.Rows) ([]api.ReceiptTemplate, error) {
 		if err := rows.Scan(&id, &t.Name, &width, &raw, &t.IsDefault, &t.Version, &updated, &ids); err != nil {
 			return nil, err
 		}
-		if err := json.Unmarshal(raw, &t.Blocks); err != nil {
-			return nil, err
+		// A hand-edited row must not make the whole list unloadable: show it with no blocks so it can be fixed.
+		if err := json.Unmarshal(raw, &t.Blocks); err != nil || t.Blocks == nil {
+			slog.Warn("receipt template listed without blocks: stored blocks are not a block list", "template_id", id, "err", err)
+			t.Blocks = []api.ReceiptBlock{}
 		}
 		var err error
 		if t.Id, err = uuid.Parse(id); err != nil {

@@ -38,6 +38,13 @@ describe('CashierScreen passes the receipt layout to every print', () => {
   })
 })
 
+describe('printer.tsx clamps every layout print to the device paper', () => {
+  it('passes maxPaperWidth: DEVICE_PAPER_WIDTH_DEFAULT with the layout', () => {
+    const printerSrc = readFileSync(new URL('../printer.tsx', import.meta.url), 'utf8')
+    expect(printerSrc).toContain('maxPaperWidth: DEVICE_PAPER_WIDTH_DEFAULT')
+  })
+})
+
 describe('receipt extras reach the slip data', () => {
   const quote = { quotedTotal: 1000, receiptSnapshot: { v: 2, lines: [], subtotal: 1000, discountAmount: 0, discounts: [], surchargeAmount: 0, redeemAmount: 0, roundingAmount: 0, taxAmount: 0, amountPaid: 1000, change: 0 } } as never
   const base = { orderRef: 'T1', dateTime: new Date(0), paymentLabel: 'Tunai', customerName: null, customerPhone: null, cashierName: 'Kasir' }
