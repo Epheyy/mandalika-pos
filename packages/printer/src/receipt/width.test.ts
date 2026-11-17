@@ -89,9 +89,10 @@ describe('no printed line exceeds the paper width', () => {
           expect(lines.length).toBeGreaterThan(10)
           for (const l of lines) expect(l.text.length * (l.large ? 2 : 1), JSON.stringify(l)).toBeLessThanOrEqual(cols)
           const preview = receiptPreview(layout, data, { reprint })
-          for (const p of preview) expect(p.text.length * (p.large ? 2 : 1), JSON.stringify(p)).toBeLessThanOrEqual(cols)
-          expect(preview.map((p) => p.text)).toEqual(lines.map((l) => l.text))
-          expect(preview.map((p) => p.large)).toEqual(lines.map((l) => l.large))
+          const tp = preview.filter((p): p is Extract<typeof p, { kind: 'text' }> => p.kind === 'text')
+          for (const p of tp) expect(p.text.length * (p.large ? 2 : 1), JSON.stringify(p)).toBeLessThanOrEqual(cols)
+          expect(tp.map((p) => p.text)).toEqual(lines.map((l) => l.text))
+          expect(tp.map((p) => p.large)).toEqual(lines.map((l) => l.large))
         })
       }
     }

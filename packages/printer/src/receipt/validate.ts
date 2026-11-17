@@ -2,6 +2,8 @@
 // this returns all of them, in the same order, so issues[0] equals Go's).
 
 import { LOCKED_TYPES, type ReceiptBlock } from './layout'
+import { QR_URL_MAX } from './qr'
+import { RASTER_MAX_HEIGHT, RASTER_MAX_WIDTH, decodeRaster, rasterByteLength } from './raster'
 
 export const RECEIPT_LIMITS = {
   blocksMin: 3,
@@ -17,7 +19,7 @@ export const RECEIPT_LIMITS = {
   imageBlocksMax: 2,
   imageBytesMax: 11_520,
   qrBlocksMax: 2,
-  urlMax: 300,
+  urlMax: QR_URL_MAX,
   uploadBytesMax: 2 * 1024 * 1024,
 } as const
 
@@ -27,7 +29,7 @@ export interface LayoutIssue {
   message: string
 }
 
-const KNOWN_TYPES = ['header', 'transaction', 'items', 'totals', 'payment', 'points', 'text', 'divider']
+const KNOWN_TYPES = ['header', 'transaction', 'items', 'totals', 'payment', 'points', 'text', 'divider', 'image', 'qr']
 /** Fields only the built-in Standar layout (compat) may carry; a stored template never has them. */
 const COMPAT_FIELDS: Record<string, string[]> = { '*': ['spaceBefore', 'spaceAfter'], payment: ['showChange'] }
 const ALIGNS = ['left', 'center', 'right']
@@ -77,7 +79,17 @@ export function validateTemplate(input: { name: string; paperWidth: number; bloc
   const totalText = blocks.reduce((n, b) => n + (b.type === 'text' || b.type === 'header' ? len(String(b.text ?? '')) : 0), 0)
   if (totalText > RECEIPT_LIMITS.totalTextMax) add('total_text_too_long', `Total teks maksimal ${RECEIPT_LIMITS.totalTextMax} karakter.`)
 
-  // 5. per block: type, text, label, (url, image: Phase 4)
+  // 4b. image and QR counts
+  const images = blocks.filter((b) => b.type === 'image')
+  if (images.length > RECEIPT_LIMITS.imageBlocksMax) add('too_many_images', `Maksimal ${RECEIPT_LIMITS.imageBlocksMax} blok logo.`)
+  const rasterBytes = images.reduce((n, b) => {
+    const r = b.image as { width?: unknown; height?: unknown } | undefined
+    return n + (typeof r?.width === 'number' && typeof r?.height === 'number' ? rasterByteLength({ width: r.width, height: r.height }) : 0)
+  }, 0)
+  if (rasterBytes > RECEIPT_LIMITS.imageBytesMax) add('images_too_large', 'Ukuran logo terlalu besar.')
+  if (blocks.filter((b) => b.type === 'qr').length > RECEIPT_LIMITS.qrBlocksMax) add('too_many_qr', `Maksimal ${RECEIPT_LIMITS.qrBlocksMax} blok QR.`)
+
+  // 5. per block: type, text, label, image, url
   const seen = new Set<string>()
   for (const b of blocks) {
     const type = b.type ?? ''
@@ -103,6 +115,20 @@ export function validateTemplate(input: { name: string; paperWidth: number; bloc
       if (len(t) > RECEIPT_LIMITS.textMax) add('text_too_long', `Teks maksimal ${RECEIPT_LIMITS.textMax} karakter.`, b.id)
       if (t.split('\n').length > RECEIPT_LIMITS.textLinesMax) add('too_many_lines', `Teks maksimal ${RECEIPT_LIMITS.textLinesMax} baris.`, b.id)
       if (!PRINTABLE_MULTILINE.test(t)) add('not_printable', 'Teks hanya boleh karakter ASCII yang bisa dicetak.', b.id)
+      if (b.label !== undefined && len(String(b.label)) > RECEIPT_LIMITS.labelMax) add('label_too_long', `Label maksimal ${RECEIPT_LIMITS.labelMax} karakter.`, b.id)
+    }
+    if (type === 'image') {
+      const r = b.image as { width?: unknown; height?: unknown } | null | undefined
+      if (typeof r !== 'object' || r === null) add('image_invalid', 'Gambar logo tidak ada.', b.id)
+      else if (typeof r.width === 'number' && r.width > RASTER_MAX_WIDTH) add('image_too_wide', `Lebar logo maksimal ${RASTER_MAX_WIDTH} titik.`, b.id)
+      else if (typeof r.height === 'number' && r.height > RASTER_MAX_HEIGHT) add('image_too_tall', `Tinggi logo maksimal ${RASTER_MAX_HEIGHT} titik.`, b.id)
+      else if (decodeRaster(r) === null) add('image_invalid', 'Gambar logo rusak.', b.id)
+      if (b.label !== undefined && len(String(b.label)) > RECEIPT_LIMITS.labelMax) add('label_too_long', `Label maksimal ${RECEIPT_LIMITS.labelMax} karakter.`, b.id)
+    }
+    if (type === 'qr') {
+      const u = typeof b.url === 'string' ? b.url : ''
+      if (len(u) > RECEIPT_LIMITS.urlMax) add('url_too_long', `Alamat QR maksimal ${RECEIPT_LIMITS.urlMax} karakter.`, b.id)
+      else if (!/^https?:\/\/[!-~]+$/.test(u)) add('url_invalid', 'Alamat QR harus diawali http:// atau https:// dan hanya berisi karakter ASCII.', b.id)
       if (b.label !== undefined && len(String(b.label)) > RECEIPT_LIMITS.labelMax) add('label_too_long', `Label maksimal ${RECEIPT_LIMITS.labelMax} karakter.`, b.id)
     }
   }

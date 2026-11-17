@@ -1,5 +1,7 @@
 // Output targets for the receipt renderer: ESC/POS bytes for the printer, text lines for the preview.
 
+import { RASTER_BAND_ROWS, decodeRaster, type ReceiptRaster } from './raster'
+import { qrBytes } from './qr'
 import { encodeLegacy } from './text'
 
 export type Align = 'left' | 'center' | 'right'
@@ -14,6 +16,10 @@ export type Cmd =
 export interface ReceiptSink {
   cmd(c: Cmd): void
   line(text?: string): void
+  /** A raster image (`GS v 0`). A malformed raster prints nothing. */
+  image(r: ReceiptRaster): void
+  /** A QR code (`GS ( k`). */
+  qr(data: string, moduleSize: number): void
 }
 
 const ESC = 0x1b
@@ -42,12 +48,28 @@ export class EscPosSink implements ReceiptSink {
   line(text = ''): void {
     this.parts.push(...encodeLegacy(text), LF)
   }
+  image(r: ReceiptRaster): void {
+    const bytes = decodeRaster(r)
+    if (!bytes) return
+    const rowBytes = r.width / 8
+    for (let y = 0; y < r.height; y += RASTER_BAND_ROWS) {
+      const rows = Math.min(RASTER_BAND_ROWS, r.height - y)
+      this.parts.push(GS, 0x76, 0x30, 0x00, rowBytes & 0xff, rowBytes >> 8, rows & 0xff, rows >> 8)
+      for (let i = y * rowBytes; i < (y + rows) * rowBytes; i++) this.parts.push(bytes[i]!)
+    }
+  }
+  qr(data: string, moduleSize: number): void {
+    this.parts.push(...qrBytes(data, moduleSize))
+  }
   done(): Uint8Array {
     return Uint8Array.from(this.parts)
   }
 }
 
-export type PreviewLine = { kind: 'text'; text: string; align: Align; bold: boolean; large: boolean }
+export type PreviewLine =
+  | { kind: 'text'; text: string; align: Align; bold: boolean; large: boolean }
+  | { kind: 'image'; raster: ReceiptRaster; align: Align }
+  | { kind: 'qr'; data: string; align: Align }
 
 /** Collects what the printer would print. Text is mapped like the bytes are, then split at the printer's own
  *  wrap width (`cols`, or `cols / 2` for large text), so a preview line is never wider than the paper. */
@@ -80,6 +102,14 @@ export class PreviewSink implements ReceiptSink {
     for (let i = 0; i < printed.length; i += width) {
       this.lines.push({ kind: 'text', text: printed.slice(i, i + width), ...state })
     }
+  }
+
+  image(r: ReceiptRaster): void {
+    if (decodeRaster(r)) this.lines.push({ kind: 'image', raster: r, align: this.align })
+  }
+
+  qr(data: string): void {
+    this.lines.push({ kind: 'qr', data, align: this.align })
   }
 
   done(): PreviewLine[] {

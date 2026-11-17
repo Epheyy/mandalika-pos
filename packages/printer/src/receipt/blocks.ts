@@ -6,6 +6,8 @@
 import type { ReceiptSink, Align } from './sink'
 import type { ReceiptData } from './data'
 import type { ReceiptBlock, TxField } from './layout'
+import { decodeRaster } from './raster'
+import { isPrintableQrUrl, qrModuleSize } from './qr'
 import { labelRow, minusRp, money, pad, toPrinterText, wrap } from './text'
 
 export interface BlockCtx {
@@ -14,6 +16,8 @@ export interface BlockCtx {
   cols: number
   /** Standar: keep today's bytes. */
   compat: boolean
+  /** The device can print raster images and QR codes; off prints the logo as nothing and the QR as text. */
+  graphics: boolean
   /** Already normalised (`normalizeForPrint`) unless compat. */
   data: ReceiptData
 }
@@ -199,4 +203,24 @@ export function textBlock(b: Of<'text'>, ctx: BlockCtx): void {
 
 function alignCmd(out: ReceiptSink, a: Align): void {
   out.cmd(a === 'center' ? 'alignCenter' : a === 'right' ? 'alignRight' : 'alignLeft')
+}
+
+/** The logo. Skipped when graphics are off or the raster is malformed; never throws. */
+export function imageBlock(b: Of<'image'>, ctx: BlockCtx): void {
+  if (!ctx.graphics || !decodeRaster(b.image)) return
+  alignCmd(ctx.out, b.align)
+  ctx.out.image(b.image)
+  ctx.out.cmd('alignLeft')
+}
+
+/** The QR. With graphics off, or a URL the printer cannot take, the URL prints as wrapped text instead. */
+export function qrBlock(b: Of<'qr'>, ctx: BlockCtx): void {
+  const { out, cols } = ctx
+  alignCmd(out, b.align)
+  if (ctx.graphics && isPrintableQrUrl(b.url)) {
+    out.qr(b.url, qrModuleSize(b.url.length))
+  } else {
+    for (const l of wrapAll(toPrinterText(String(b.url ?? '')).replace(/\n/g, ' '), cols)) out.line(l)
+  }
+  out.cmd('alignLeft')
 }
