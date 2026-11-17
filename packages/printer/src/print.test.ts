@@ -9,7 +9,10 @@ vi.mock('@capacitor/core', () => ({
   registerPlugin: () => ({}),
 }))
 
+import { buildReceipt } from './escpos'
+import { buildReceiptV1 } from './__legacy__/buildReceiptV1'
 import { createTransport, printReceipt, printVoidSlip } from './print'
+import type { ReceiptLayout } from './receipt/layout'
 import type { PrinterTransport } from './transport'
 import type { PrintJob } from './print'
 
@@ -137,5 +140,72 @@ describe('printVoidSlip', () => {
     const { t } = recorder()
     const slipData = { orderRef: 'MND-1', total: 1, reasonLabel: 'x', voidedBy: 'x', dateTime: 'x' }
     await expect(printVoidSlip({ transport: t, deviceId: null, data: slipData, settings })).rejects.toThrow(/^Gagal/)
+  })
+})
+
+describe('printReceipt with a layout', () => {
+  const full = { ...settings, headerText: 'TOKO', footerText: 'Terima kasih' }
+  const goodLayout = (): ReceiptLayout => ({
+    paperWidth: 58,
+    blocks: [
+      { id: 't', type: 'text', enabled: true, text: 'HALO', align: 'center', bold: false, size: 'normal' },
+      { id: 'i', type: 'items', enabled: true },
+      { id: 'o', type: 'totals', enabled: true, showSubtotal: true, showDiscount: true, showTax: true },
+      { id: 'p', type: 'payment', enabled: true },
+    ],
+  })
+  function capture(copies = 1) {
+    const writes: Uint8Array[] = []
+    const calls: string[] = []
+    const t: PrinterTransport = {
+      kind: 'none',
+      isAvailable: async () => true,
+      pickDevice: async () => null,
+      connect: async () => { calls.push('connect') },
+      write: async (b) => { writes.push(b); calls.push('write') },
+      disconnect: async () => { calls.push('disconnect') },
+    }
+    return { t, writes, calls, settings: { ...full, copies } }
+  }
+  const text = (b: Uint8Array) => new TextDecoder('latin1').decode(b)
+
+  it('prints Standar bytes (buildReceipt) when there is no layout', async () => {
+    const c = capture()
+    await printReceipt({ transport: c.t, deviceId: 'AA', data, settings: c.settings })
+    expect(Array.from(c.writes[0]!)).toEqual(Array.from(buildReceipt(data, c.settings)))
+  })
+
+  it('renders the template and keeps copies, the queue order and the write path', async () => {
+    const c = capture(3)
+    await printReceipt({ transport: c.t, deviceId: 'AA', data, settings: c.settings, layout: goodLayout(), maxPaperWidth: 58 })
+    expect(c.calls).toEqual(['connect', 'write', 'write', 'write', 'disconnect'])
+    expect(text(c.writes[0]!)).toContain('HALO')
+    expect(Array.from(c.writes[0]!)).toEqual(Array.from(c.writes[2]!))
+  })
+
+  it('prints buildReceiptV1 bytes and calls onLayoutError when the layout cannot render', async () => {
+    const c = capture()
+    const errors: unknown[] = []
+    const broken = { ...goodLayout(), paperWidth: 70 } as unknown as ReceiptLayout
+    await printReceipt({ transport: c.t, deviceId: 'AA', data, settings: c.settings, layout: broken, onLayoutError: (e) => errors.push(e) })
+    expect(errors).toHaveLength(1)
+    expect(Array.from(c.writes[0]!)).toEqual(Array.from(buildReceiptV1(data, c.settings, false)))
+  })
+
+  it('skips a throwing text block, reports it, and still prints items, totals and payment', async () => {
+    const c = capture()
+    const errors: unknown[] = []
+    const layout = goodLayout()
+    layout.blocks[0] = { id: 't', type: 'text', enabled: true, text: { not: 'a string' } as unknown as string, align: 'left', bold: false, size: 'normal' }
+    await printReceipt({ transport: c.t, deviceId: 'AA', data, settings: c.settings, layout, onLayoutError: (e) => errors.push(e) })
+    expect(errors).toHaveLength(1)
+    const out = text(c.writes[0]!)
+    expect(out).toContain('TOTAL')
+    expect(out).not.toContain('not a string')
+  })
+
+  it('still reports a missing printer in Indonesian', async () => {
+    const c = capture()
+    await expect(printReceipt({ transport: c.t, deviceId: null, data, settings: c.settings, layout: goodLayout() })).rejects.toThrow(/^Gagal/)
   })
 })

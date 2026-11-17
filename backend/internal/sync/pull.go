@@ -107,7 +107,13 @@ func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (Pull
 	// Outlet name → POS so the recap/print read the active outlet, not a constant.
 	// Outlet timezone -> POS so its promo twin gates hours/dates on the outlet clock (A28).
 	var code, name, tz, address, phone *string
-	if e := e.Pool.QueryRow(ctx, `SELECT code, name, timezone, address, phone FROM outlets WHERE id=$1`, outletID).Scan(&code, &name, &tz, &address, &phone); e == nil {
+	// A failed read (not a missing outlet) fails the pull, so the tablet keeps its last good snapshot instead
+	// of swapping in one with an empty outlet code, name and receipt header.
+	oe := e.Pool.QueryRow(ctx, `SELECT code, name, timezone, address, phone FROM outlets WHERE id=$1`, outletID).Scan(&code, &name, &tz, &address, &phone)
+	if oe != nil && !errors.Is(oe, pgx.ErrNoRows) {
+		return b, oe
+	}
+	if oe == nil {
 		if address != nil {
 			b.OutletAddress = *address
 		}

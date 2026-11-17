@@ -170,7 +170,7 @@ export function receiptAddsUp(data: ReceiptData): boolean {
 /** The printed receipt: money and lines come ONLY from the quote. */
 export function receiptFromQuote(
   quote: ReceiptQuote,
-  extras: Pick<ReceiptData, 'orderRef' | 'dateTime' | 'paymentLabel' | 'customerName' | 'customerPhone' | 'cashierName'>,
+  extras: Pick<ReceiptData, 'orderRef' | 'dateTime' | 'paymentLabel' | 'customerName' | 'customerPhone' | 'cashierName' | 'outlet' | 'points'>,
   /** Name of a promotion by id, for a Diskon Bundle row; absent or unknown prints "Diskon Bundle". */
   promotionName: (id: string) => string | undefined = () => undefined,
 ): ReceiptData {

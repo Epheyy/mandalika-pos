@@ -470,4 +470,24 @@ func TestReceiptTemplatesPostgres(t *testing.T) {
 			t.Fatal("an assigned outlet still gets its template without a default")
 		}
 	})
+
+	t.Run("pull_assigned_row_gone_and_no_default_omits_the_template", func(t *testing.T) {
+		tmp := create("Hilang 2", nil)
+		do(admin, http.MethodPut, "/receipt-templates/assign", map[string]any{"templateId": tmp, "outletIds": []string{outC}})
+		exec(`UPDATE receipt_templates SET is_default=false WHERE id=$1`, standar)
+		defer exec(`UPDATE receipt_templates SET is_default=true WHERE id=$1`, standar)
+		exec(`DELETE FROM receipt_templates WHERE id=$1`, tmp)
+		if b := pull(outC); b.ReceiptTemplate != nil {
+			t.Fatalf("assigned row gone and no default: want none, got %+v", b.ReceiptTemplate)
+		}
+	})
+
+	t.Run("assign_requires_outletIds", func(t *testing.T) {
+		if code, _ := do(admin, http.MethodPut, "/receipt-templates/assign", map[string]any{"templateId": tplA}); code != http.StatusBadRequest {
+			t.Fatalf("assign without outletIds = %d", code)
+		}
+		if assignedTo(outA) == nil {
+			t.Fatal("a refused assign must not unassign outlets")
+		}
+	})
 }

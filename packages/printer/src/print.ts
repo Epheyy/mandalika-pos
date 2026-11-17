@@ -5,7 +5,9 @@
 import { Capacitor } from '@capacitor/core'
 import type { components } from '@mandalika/api'
 import { buildReceipt, buildRecap, buildTandaTerima, buildVoidSlip, type ReceiptData, type RecapData, type TandaTerimaData, type VoidSlipData } from './escpos'
-import type { ReceiptLayout } from './receipt/layout'
+import { buildReceiptV1 } from './__legacy__/buildReceiptV1'
+import type { PaperWidth, ReceiptLayout } from './receipt/layout'
+import { receiptBytes } from './receipt/render'
 import { CapacitorBleTransport } from './ble'
 import { AutoBluetoothTransport } from './autoTransport'
 import { ClassicSppTransport } from './classic'
@@ -65,6 +67,31 @@ export interface PrintJob {
   settings: ReceiptSettings
   /** Stamp a "CETAK ULANG (REPRINT)" marker on the slip. Default false. */
   reprint?: boolean
+  /** The outlet's receipt template. Absent = the built-in Standar layout (today's bytes). */
+  layout?: ReceiptLayout
+  /** The tablet's paper width: a wider template reflows to it. Only read with `layout`. */
+  maxPaperWidth?: PaperWidth
+  /** Called when a template block was skipped, or the whole template fell back to the legacy receipt. */
+  onLayoutError?: (e: unknown) => void
+}
+
+/**
+ * The payload of one receipt copy. With a layout it renders the template; if that throws for any reason
+ * (a locked block failed, a bug) it reports and prints the frozen legacy receipt instead, never the
+ * renderer again, so a template can never cost the sale its receipt.
+ */
+function receiptPayload(job: PrintJob): Uint8Array {
+  if (!job.layout) return buildReceipt(job.data, job.settings, job.reprint)
+  try {
+    return receiptBytes(job.layout, job.data, {
+      reprint: job.reprint,
+      maxPaperWidth: job.maxPaperWidth,
+      onBlockError: (_id, e) => job.onLayoutError?.(e),
+    })
+  } catch (e) {
+    job.onLayoutError?.(e)
+    return buildReceiptV1(job.data, job.settings, job.reprint)
+  }
 }
 
 /**
@@ -77,7 +104,7 @@ export async function printReceipt(job: PrintJob): Promise<void> {
   await sendJob(
     job.transport,
     job.deviceId,
-    () => buildReceipt(job.data, job.settings, job.reprint),
+    () => receiptPayload(job),
     copies,
   )
 }

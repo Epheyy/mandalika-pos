@@ -115,7 +115,7 @@ func ReceiptTemplateForOutlet(ctx context.Context, q RowQuerier, outletID string
 	if t.Id, err = uuid.Parse(id); err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal(raw, &t.Blocks); err != nil {
+	if err := json.Unmarshal(raw, &t.Blocks); err != nil || len(t.Blocks) == 0 {
 		slog.Warn("receipt template skipped: blocks are not a block list", "template_id", id, "err", err)
 		return nil, nil
 	}

@@ -108,7 +108,7 @@ export const REFUND_VIA_HISTORY_OFFLINE = 'Refund struk ini lewat Riwayat saat o
 
 /** The slip for a reprint from a local receipt, built from the stored A10 snapshot only. Null when there is
  *  nothing trustworthy to print (no snapshot, or no quoted total). Never touches the outbox. */
-export function reprintReceiptData(r: LocalReceipt): ReceiptData | null {
+export function reprintReceiptData(r: LocalReceipt, outlet?: ReceiptData['outlet']): ReceiptData | null {
   if (!isSnapshot(r.receiptSnapshot) || typeof r.quotedTotal !== 'number') return null
   const data = receiptFromQuote({ quotedTotal: r.quotedTotal, receiptSnapshot: r.receiptSnapshot }, {
     orderRef: r.orderNumber,
@@ -117,6 +117,7 @@ export function reprintReceiptData(r: LocalReceipt): ReceiptData | null {
     customerName: null,
     customerPhone: null,
     cashierName: '-',
+    ...(outlet ? { outlet } : {}),
   })
   // Void: a replacement sale's slip keeps its "Pengganti untuk" line on a reprint (the correction row comes from the snapshot).
   return r.replacesOrderNumber ? { ...data, replacesOrderRef: r.replacesOrderNumber } : data

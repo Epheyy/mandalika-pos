@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -36,6 +37,7 @@ const (
 	msgDeleteStandar   = "Template Standar tidak bisa dihapus."
 
 	templatesResource = "receipt_templates"
+	templatesLockKey  = 7260952301 // pg_advisory_xact_lock key: serialises receipt template writes
 	pgUniqueViolation = "23505"
 	idxTemplateName   = "receipt_templates_name_uq"
 	idxTemplateDef    = "receipt_templates_default_uq"
@@ -67,10 +69,17 @@ func (r *Repo) runTemplateTx(ctx context.Context, fn func(pgx.Tx) ([]string, err
 		return err
 	}
 	defer t.Rollback(ctx)
+	// Template writes are rare admin actions: one lock serialises them, so the outlets a write bumps are
+	// exactly the outlets whose resolved template it changed (a default edit and a move back to the default
+	// cannot interleave), the 50-template cap holds, and the version bumps always run in the same order.
+	if _, err := t.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, templatesLockKey); err != nil {
+		return err
+	}
 	outlets, err := fn(t)
 	if err != nil {
 		return templateConflict(err)
 	}
+	sort.Strings(outlets)
 	if err := bumpVersionOutlets(ctx, t, templatesResource, outlets); err != nil {
 		return fmt.Errorf("bump version: %w", err)
 	}

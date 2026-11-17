@@ -105,6 +105,10 @@ func (h *Handlers) AssignReceiptTemplate(w http.ResponseWriter, r *http.Request)
 		writeDecodeErr(w, err)
 		return
 	}
+	if body.OutletIds == nil {
+		httpx.Err(w, http.StatusBadRequest, "outletIds wajib diisi")
+		return
+	}
 	var tid *string
 	if body.TemplateId != nil {
 		s := body.TemplateId.String()
