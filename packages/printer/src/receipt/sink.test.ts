@@ -35,7 +35,7 @@ describe('sinks', () => {
     p.cmd('largeOff'); p.cmd('boldOff'); p.cmd('alignLeft')
     p.line('plain')
     const lines = p.done()
-    expect(lines.map((l) => l.text.length)).toEqual([16, 16, 8, 5])
+    expect(lines.map((l) => (l.kind === 'text' ? l.text.length : -1))).toEqual([16, 16, 8, 5])
     expect(lines[0]).toMatchObject({ align: 'center', bold: true, large: true })
     expect(lines[3]).toMatchObject({ align: 'left', bold: false, large: false })
   })
@@ -43,7 +43,7 @@ describe('sinks', () => {
   it('PreviewSink text equals what the bytes print (middle dot becomes -, smiley becomes ?)', () => {
     const p = new PreviewSink(32)
     p.line('a·b☺')
-    expect(p.done()[0]!.text).toBe('a-b?')
+    expect(p.done()[0]).toMatchObject({ text: 'a-b?' })
   })
 
   it('PreviewSink keeps an empty line and resets on init', () => {
