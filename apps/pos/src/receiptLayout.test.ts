@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildReceipt, type ReceiptData } from '@mandalika/printer'
+import { buildReceipt, type ReceiptData, type ReceiptLayout } from '@mandalika/printer'
 import { receiptBytes } from '@mandalika/printer/render'
 import { chooseTestPrintLayout, deviceGraphics, devicePaperWidth, receiptOutlet, receiptPoints, resolveReceiptLayout, setDeviceGraphics, setDevicePaperWidth } from './receiptLayout'
 
@@ -82,9 +82,11 @@ describe('device printer settings', () => {
   })
 
   it('Lebar kertas 80 lets a 48-column template print at 48', () => {
-    const layout = { paperWidth: 80 as const, blocks: [
-      { id: 'd', type: 'divider' as const, enabled: true },
-      ...good.blocks,
+    const layout: ReceiptLayout = { paperWidth: 80, blocks: [
+      { id: 'd', type: 'divider', enabled: true },
+      { id: 'i', type: 'items', enabled: true },
+      { id: 'o', type: 'totals', enabled: true, showSubtotal: true, showDiscount: true, showTax: true },
+      { id: 'p', type: 'payment', enabled: true },
     ] }
     const kv = memKV()
     const count = (w: number): number => {
