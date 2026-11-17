@@ -41,6 +41,7 @@ function TestPrintBody({ outlets, draftLayout, api, onClose }: TestPrintDialogPr
 
   return (
     <Modal
+      confirmDiscard={false}
       open
       onClose={onClose}
       title="Cetak tes di tablet"

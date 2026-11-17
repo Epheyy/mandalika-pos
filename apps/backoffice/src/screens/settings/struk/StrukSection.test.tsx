@@ -101,6 +101,18 @@ describe('saveDesign', () => {
     deleteReceiptTemplate: vi.fn(), assignReceiptTemplate: vi.fn(), ...over,
   })
 
+  it('refuses to save a QR block that still holds the placeholder address', async () => {
+    const api = fakeApi()
+    const fresh = designerReducer(virtual(), { type: 'newTemplate', name: 'Dengan QR', paperWidth: 58 })
+    const withQr = designerReducer(fresh, { type: 'add', block: 'qr' })
+    const result = await saveDesign(api, withQr)
+    expect(result).toMatchObject({ kind: 'invalid' })
+    expect(api.createReceiptTemplate).not.toHaveBeenCalled()
+    const qr = withQr.layout.blocks.find((b) => b.type === 'qr')!
+    const edited = designerReducer(withQr, { type: 'edit', id: qr.id, patch: { url: 'https://mandalikaperfume.co.id/ulasan' } })
+    expect((await saveDesign(api, edited)).kind).toBe('ok')
+  })
+
   it('with no templates, Standar built from receipt settings is created, with no compat fields', async () => {
     const api = fakeApi()
     const result = await saveDesign(api, virtual())

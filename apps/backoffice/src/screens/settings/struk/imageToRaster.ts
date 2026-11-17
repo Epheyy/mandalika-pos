@@ -34,6 +34,7 @@ async function blobToRaster(blob: Blob): Promise<ReceiptRaster> {
     if (!ctx) throw new Error('canvas unavailable')
     ctx.fillStyle = '#fff'
     ctx.fillRect(0, 0, paddedW, h)
+    ctx.imageSmoothingQuality = 'high'
     ctx.drawImage(bitmap, Math.floor((paddedW - w) / 2), 0, w, h)
     return ditherToRaster(ctx.getImageData(0, 0, paddedW, h).data, paddedW, h)
   } finally {

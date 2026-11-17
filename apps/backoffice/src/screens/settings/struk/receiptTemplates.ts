@@ -1,6 +1,6 @@
 import { ApiError, type ReceiptTemplate, type ReceiptTemplateAssignInput, type ReceiptTestPrintInput } from '@mandalika/api'
 import { layoutFromApi, validateTemplate, type ReceiptBlock } from '@mandalika/printer/render'
-import { fromCompat, toBody, type CompatAdjustment, type DesignerState } from './designerReducer'
+import { QR_PLACEHOLDER_URL, fromCompat, toBody, type CompatAdjustment, type DesignerState } from './designerReducer'
 
 // Pure helpers around the template API: what the screen lists, what it warns about, and how a save ends.
 
@@ -47,6 +47,9 @@ export async function saveDesign(api: TemplateApi, state: DesignerState): Promis
   // The server and the tablet are the guards; this only spares a round trip for what the shared validator knows.
   const [first] = validateTemplate({ name: body.name, paperWidth: body.paperWidth, blocks: body.blocks as unknown as ReceiptBlock[] })
   if (first) return { kind: 'invalid', message: first.message }
+  if (body.blocks.some((b) => b.type === 'qr' && b.url === QR_PLACEHOLDER_URL)) {
+    return { kind: 'invalid', message: 'Alamat QR masih contoh. Isi alamat QR yang sebenarnya dulu.' }
+  }
   try {
     const template = state.templateId === null
       ? await api.createReceiptTemplate(body)

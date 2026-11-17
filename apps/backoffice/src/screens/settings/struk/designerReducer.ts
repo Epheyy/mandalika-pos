@@ -56,7 +56,8 @@ export function canAdd(blocks: readonly ReceiptBlock[], kind: AddableBlock): boo
 /** A valid blank 8x1 raster: the logo editor asks for a picture right after the block is added. */
 const BLANK_RASTER = { width: 8, height: 1, data: btoa(String.fromCharCode(0)) }
 /** An obvious placeholder that passes validation until the admin types the real address. */
-const QR_PLACEHOLDER_URL = 'https://example.com'
+/** What a new QR block starts with; saving it unchanged is refused so no receipt prints a QR to a placeholder. */
+export const QR_PLACEHOLDER_URL = 'https://example.com'
 
 const LOCKED_ORDER = ['items', 'totals', 'payment'] as const
 
