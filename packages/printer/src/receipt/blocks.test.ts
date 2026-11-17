@@ -2,10 +2,14 @@ import { describe, it, expect } from 'vitest'
 import { NEW_TEMPLATE_BLOCKS, SAMPLE_RECEIPT } from './sample'
 import type { ReceiptBlock, ReceiptLayout } from './layout'
 import { receiptPreview } from './render'
+import type { PreviewLine } from './sink'
 import { RECEIPT_LIMITS, validateTemplate } from './validate'
 import { DATA_CASES } from './fixtures'
 
-const texts = (layout: ReceiptLayout, data = SAMPLE_RECEIPT): string[] => receiptPreview(layout, data).map((l) => l.text)
+type TextLine = Extract<PreviewLine, { kind: 'text' }>
+const textLines = (layout: ReceiptLayout, data = SAMPLE_RECEIPT): TextLine[] =>
+  receiptPreview(layout, data).filter((l): l is TextLine => l.kind === 'text')
+const texts = (layout: ReceiptLayout, data = SAMPLE_RECEIPT): string[] => textLines(layout, data).map((l) => l.text)
 const newLayout = (blocks: ReceiptBlock[] = NEW_TEMPLATE_BLOCKS, paperWidth: 58 | 80 = 58): ReceiptLayout => ({ paperWidth, blocks })
 
 describe('designer blocks', () => {
@@ -34,7 +38,7 @@ describe('designer blocks', () => {
   })
 
   it('header prints outlet name, address and phone centred', () => {
-    const lines = receiptPreview(newLayout(), SAMPLE_RECEIPT)
+    const lines = textLines(newLayout(), SAMPLE_RECEIPT)
     for (const part of ['Outlet Grand Indonesia', 'Jl. M.H. Thamrin', '021-5551234']) {
       const l = lines.find((x) => x.text.includes(part))
       expect(l?.align, part).toBe('center')
@@ -60,7 +64,7 @@ describe('designer blocks', () => {
   it('text block honours align, bold and large and wraps at half width when large', () => {
     const blocks = [...NEW_TEMPLATE_BLOCKS.slice(0, -1),
       { id: 'big', type: 'text', enabled: true, text: 'x'.repeat(40), align: 'right', bold: true, size: 'large' } as ReceiptBlock]
-    const big = receiptPreview(newLayout(blocks), SAMPLE_RECEIPT).filter((l) => l.large && l.text.startsWith('xx'))
+    const big = textLines(newLayout(blocks), SAMPLE_RECEIPT).filter((l) => l.large && l.text.startsWith('xx'))
     expect(big.map((l) => l.text.length)).toEqual([16, 16, 8])
     expect(big[0]).toMatchObject({ align: 'right', bold: true, large: true })
   })
@@ -68,7 +72,7 @@ describe('designer blocks', () => {
   it('the reprint mark and replacement mark print after the header run', () => {
     const rows = texts(newLayout(), { ...SAMPLE_RECEIPT, replacesOrderRef: 'MND-1' })
     expect(rows.filter((t) => t === '*** CETAK ULANG (REPRINT) ***')).toHaveLength(0)
-    const rp = receiptPreview(newLayout(), { ...SAMPLE_RECEIPT, replacesOrderRef: 'MND-1' }, { reprint: true }).map((l) => l.text)
+    const rp = receiptPreview(newLayout(), { ...SAMPLE_RECEIPT, replacesOrderRef: 'MND-1' }, { reprint: true }).flatMap((l) => (l.kind === 'text' ? [l.text] : []))
     expect(rp.filter((t) => t === '*** CETAK ULANG (REPRINT) ***')).toHaveLength(2)
     expect(rp.indexOf('Pengganti untuk #MND-1')).toBe(rp.indexOf('*** CETAK ULANG (REPRINT) ***') + 1)
   })

@@ -5,10 +5,12 @@ import { layoutFromApi, validateTemplate, type ReceiptBlock } from '@mandalika/p
 import { designerReducer, toBody, type DesignerState } from './designerReducer'
 import { printableHint } from './BlockEditor'
 import {
-  STALE_SAVE_COPY, UNUSABLE_TEMPLATE_COPY, ADJUSTED_NOTICE, saveDesign, standarOutletIds, unusableTemplateIds, needsVirtualStandar,
+  STALE_SAVE_COPY, UNUSABLE_TEMPLATE_COPY, ADJUSTED_NOTICE, saveDesign, sendTestPrint, standarOutletIds, unusableTemplateIds, needsVirtualStandar,
   type TemplateApi,
 } from './receiptTemplates'
 import { StrukView, type StrukViewProps } from './StrukView'
+import { ReceiptPaper } from './ReceiptPaper'
+import { TestPrintDialog } from './TestPrintDialog'
 import { VIRTUAL_KEY } from './TemplateBar'
 
 const settings = { copies: 1, headerText: 'Toko Kita', footerText: 'Terima kasih' } as never
@@ -21,7 +23,7 @@ const view = (state: DesignerState, over: Partial<StrukViewProps> = {}): string 
     <StrukView
       state={state} dispatch={() => {}} templates={[]} showVirtualStandar unusable={new Set()} selectedKey={VIRTUAL_KEY}
       usedBy={2} notice={null} saving={false} addOpen={false} onToggleAdd={() => {}} onSelect={() => {}} onNew={() => {}}
-      onDuplicate={() => {}} onRename={() => {}} onDelete={() => {}} onAssign={() => {}} onSave={() => {}} onReload={() => {}}
+      onDuplicate={() => {}} onRename={() => {}} onDelete={() => {}} onAssign={() => {}} onSave={() => {}} onTestPrint={() => {}} onReload={() => {}}
       {...over}
     />,
   )
@@ -99,6 +101,18 @@ describe('saveDesign', () => {
     deleteReceiptTemplate: vi.fn(), assignReceiptTemplate: vi.fn(), ...over,
   })
 
+  it('refuses to save a QR block that still holds the placeholder address', async () => {
+    const api = fakeApi()
+    const fresh = designerReducer(virtual(), { type: 'newTemplate', name: 'Dengan QR', paperWidth: 58 })
+    const withQr = designerReducer(fresh, { type: 'add', block: 'qr' })
+    const result = await saveDesign(api, withQr)
+    expect(result).toMatchObject({ kind: 'invalid' })
+    expect(api.createReceiptTemplate).not.toHaveBeenCalled()
+    const qr = withQr.layout.blocks.find((b) => b.type === 'qr')!
+    const edited = designerReducer(withQr, { type: 'edit', id: qr.id, patch: { url: 'https://mandalikaperfume.co.id/ulasan' } })
+    expect((await saveDesign(api, edited)).kind).toBe('ok')
+  })
+
   it('with no templates, Standar built from receipt settings is created, with no compat fields', async () => {
     const api = fakeApi()
     const result = await saveDesign(api, virtual())
@@ -167,5 +181,106 @@ describe('409 reasons other than a stale version', () => {
     }
     const s = designerReducer(virtual(), { type: 'load', template: template() })
     expect(await saveDesign(api, s)).toEqual({ kind: 'error', message: 'Nama template sudah dipakai.' })
+  })
+})
+
+describe('Cetak tes di tablet', () => {
+  const outlet = { id: '00000000-0000-4000-8f6a-0000000000a2', name: 'MV Outlet Dua' }
+
+  it('posts the unsaved draft for the chosen outlet, without compat-only fields', async () => {
+    const sendReceiptTestPrint = vi.fn().mockResolvedValue({})
+    const draft = designerReducer(virtual(), { type: 'rename', name: 'Belum disimpan' })
+    expect(draft.dirty).toBe(true)
+    expect(draft.layout.compat).toBeTruthy()
+    const result = await sendTestPrint({ sendReceiptTestPrint }, outlet, draft.layout)
+    expect(result).toEqual({
+      kind: 'ok',
+      message: 'Terkirim. Di tablet outlet MV Outlet Dua, buka Pengaturan › Printer lalu ketuk Tes Cetak (berlaku 60 menit).',
+    })
+    const input = sendReceiptTestPrint.mock.calls[0]![0]
+    expect(input.outletId).toBe(outlet.id)
+    expect(input.paperWidth).toBe(draft.layout.paperWidth)
+    expect(input.blocks.length).toBe(draft.layout.blocks.length)
+    expect(Object.keys(input).sort()).toEqual(['blocks', 'outletId', 'paperWidth'])
+    for (const k of ['compat', 'spaceAfter', 'spaceBefore', 'showChange']) expect(JSON.stringify(input)).not.toContain(k)
+  })
+
+  it('shows the server message when it refuses the draft (422)', async () => {
+    const sendReceiptTestPrint = vi.fn().mockRejectedValue(new ApiError(422, 'Alamat QR maksimal 300 karakter.'))
+    expect(await sendTestPrint({ sendReceiptTestPrint }, outlet, virtual().layout))
+      .toEqual({ kind: 'error', message: 'Alamat QR maksimal 300 karakter.' })
+  })
+
+  it('the toolbar has the button, and the dialog asks for an outlet', () => {
+    expect(view(virtual())).toContain('Cetak tes di tablet')
+    const dialog = renderToStaticMarkup(
+      <TestPrintDialog open outlets={[outlet]} draftLayout={virtual().layout} api={{ sendReceiptTestPrint: vi.fn() }} onClose={() => {}} />,
+    )
+    expect(dialog).toContain('role="dialog"')
+    expect(dialog).toContain('MV Outlet Dua')
+    expect(dialog).toContain('Kirim')
+    expect(dialog).toContain('hanya jika')
+    expect(dialog).toContain('Cetak logo &amp; QR')
+  })
+})
+
+describe('QR and logo blocks', () => {
+  const withQr = (url: string): DesignerState => {
+    const s = designerReducer(designerReducer(virtual(), { type: 'newTemplate', name: 'Baru', paperWidth: 58 }), { type: 'add', block: 'qr' })
+    return designerReducer(s, { type: 'edit', id: s.editingId!, patch: { url } as never })
+  }
+
+  it('the QR editor counts the address against 300', () => {
+    expect(view(withQr('https://a.example/x'))).toContain('19/300')
+    expect(view(withQr('https://' + 'a'.repeat(300)))).toContain('308/300')
+  })
+
+  it('Simpan is refused above 300 characters and for ftp://, with the validator message, and calls no API', async () => {
+    for (const url of ['https://' + 'a'.repeat(300), 'ftp://example.com/x']) {
+      const create = vi.fn()
+      const result = await saveDesign({ createReceiptTemplate: create, updateReceiptTemplate: vi.fn(), deleteReceiptTemplate: vi.fn(), assignReceiptTemplate: vi.fn() }, withQr(url))
+      expect(result.kind).toBe('invalid')
+      expect(create).not.toHaveBeenCalled()
+    }
+    expect(view(withQr('https://' + 'a'.repeat(300)))).toContain('Alamat QR maksimal 300 karakter.')
+    expect(view(withQr('ftp://example.com/x'))).toContain('Alamat QR harus diawali http:// atau https://')
+  })
+
+  it('the add menu disables a third logo or QR', () => {
+    let s = designerReducer(virtual(), { type: 'newTemplate', name: 'Baru', paperWidth: 58 })
+    for (const k of ['image', 'image', 'qr', 'qr'] as const) s = designerReducer(s, { type: 'add', block: k })
+    const html = view(s, { addOpen: true })
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Logo<\/button>/)
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>QR code<\/button>/)
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*>Teks<\/button>/)
+  })
+
+  it('the preview draws a logo image and a QR placeholder with the address', () => {
+    let s = designerReducer(designerReducer(virtual(), { type: 'newTemplate', name: 'Baru', paperWidth: 58 }), { type: 'add', block: 'image' })
+    s = designerReducer(s, { type: 'add', block: 'qr' })
+    const html = view(s)
+    expect(html).toContain('data-testid="preview-image"')
+    expect(html).toContain('data:image/bmp;base64,')
+    expect(html).toContain('data-testid="preview-qr"')
+    expect(html).toContain('https://example.com')
+  })
+
+  it('Cetak logo & QR off shows the address as text instead of the placeholder and logo', () => {
+    let s = designerReducer(designerReducer(virtual(), { type: 'newTemplate', name: 'Baru', paperWidth: 58 }), { type: 'add', block: 'image' })
+    s = designerReducer(s, { type: 'add', block: 'qr' })
+    const off = renderToStaticMarkup(<ReceiptPaper layout={s.layout} graphics={false} />)
+    expect(off).not.toContain('data-testid="preview-qr"')
+    expect(off).not.toContain('data-testid="preview-image"')
+    expect(off).toContain('https://example.com')
+    expect(view(s)).toContain('Cetak logo &amp; QR')
+  })
+})
+
+describe('the template select for an unsaved template', () => {
+  it('shows the typed name, not "Template baru"', () => {
+    const s = designerReducer(virtual(), { type: 'newTemplate', name: 'Promo Lebaran', paperWidth: 58 })
+    const html = view(s, { selectedKey: '__new__' })
+    expect(html).toContain('>Promo Lebaran</option>')
+    expect(html).not.toContain('>Template baru</option>')
   })
 })

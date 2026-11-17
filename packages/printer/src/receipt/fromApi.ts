@@ -6,6 +6,8 @@
 // payment block in order is refused, and the caller prints Standar instead.
 
 import type { PaperWidth, ReceiptBlock, ReceiptLayout, TxField } from './layout'
+import { isPrintableQrUrl } from './qr'
+import { decodeRaster } from './raster'
 import { validateTemplate } from './validate'
 
 const TX_FIELDS: readonly TxField[] = ['orderNumber', 'date', 'cashier', 'customerName', 'customerPhone']
@@ -69,6 +71,19 @@ function readBlock(b: unknown): ReceiptBlock | null {
     }
     case 'divider':
       return { id, type: 'divider', enabled: b.enabled }
+    case 'image': {
+      const label = str(b.label); const align = oneOf(b.align, ['left', 'center', 'right'] as const)
+      if (anyBad(label, align) || decodeRaster(b.image) === null) return null
+      return {
+        id, type: 'image', enabled: b.enabled, ...(typeof label === 'string' ? { label } : {}),
+        image: b.image as { width: number; height: number; data: string }, align: or(align, 'center'),
+      }
+    }
+    case 'qr': {
+      const label = str(b.label); const align = oneOf(b.align, ['left', 'center', 'right'] as const)
+      if (anyBad(label, align) || !isPrintableQrUrl(b.url)) return null
+      return { id, type: 'qr', enabled: b.enabled, ...(typeof label === 'string' ? { label } : {}), url: b.url, align: or(align, 'center') }
+    }
     default:
       return null // a block type a newer Backoffice added
   }

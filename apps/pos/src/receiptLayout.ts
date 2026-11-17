@@ -5,12 +5,56 @@
 
 import type { components } from '@mandalika/api'
 import { layoutFromApi, standarLayout, type PaperWidth, type ReceiptData, type ReceiptLayout } from '@mandalika/printer'
+import { getKV, type KV } from '@mandalika/sync'
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
 type Bundle = components['schemas']['SyncPullBundle']
 
-/** Every tablet assumes a 58mm printer until Phase 4 adds the per-device setting. A wider template reflows to it. */
+/** A tablet assumes a 58mm printer until its `Lebar kertas` setting says otherwise. A wider template reflows to it. */
 export const DEVICE_PAPER_WIDTH_DEFAULT: PaperWidth = 58
+
+export const PAPER_WIDTH_KEY = 'mandalika.pos.printerPaperWidth'
+export const GRAPHICS_KEY = 'mandalika.pos.printerGraphics'
+
+/** This tablet's printer paper width (`Lebar kertas`): '80' means 80mm, anything else 58mm. */
+export function devicePaperWidth(kv: Pick<KV, 'get'> = getKV()): PaperWidth {
+  return kv.get(PAPER_WIDTH_KEY) === '80' ? 80 : DEVICE_PAPER_WIDTH_DEFAULT
+}
+
+/** Whether this tablet's printer takes raster images and QR codes (`Cetak logo & QR`). OFF unless the saved value is
+ *  'on' (owner decision, 2026-11-17): raster and QR support cannot be detected over Bluetooth, an unsupported command
+ *  prints garbage, so someone turns it on after a successful test print. Off prints no logo and the QR as text. */
+export function deviceGraphics(kv: Pick<KV, 'get'> = getKV()): boolean {
+  return kv.get(GRAPHICS_KEY) === 'on'
+}
+
+export function setDevicePaperWidth(width: PaperWidth, kv: Pick<KV, 'set'> = getKV()): void {
+  kv.set(PAPER_WIDTH_KEY, String(width))
+}
+
+export function setDeviceGraphics(on: boolean, kv: Pick<KV, 'set'> = getKV()): void {
+  kv.set(GRAPHICS_KEY, on ? 'on' : 'off')
+}
+
+/** What one Tes Cetak tap prints: the draft the Backoffice sent to this outlet (online, within 60 minutes), else the
+ *  outlet's own layout. A draft is used for that one print only: never stored, never used for a sale, so a newer
+ *  saved template always wins at the till. */
+export async function chooseTestPrintLayout(
+  getDraft: () => Promise<Bundle['receiptTemplate'] | null>,
+  template: Bundle['receiptTemplate'],
+  receipt: ReceiptSettings,
+): Promise<{ layout: ReceiptLayout; fromDraft: boolean }> {
+  let draft: Bundle['receiptTemplate'] | null = null
+  try {
+    draft = await getDraft()
+  } catch {
+    draft = null // offline or the server is older: print the outlet's layout
+  }
+  const layout = (draft ? layoutFromApi(draft) : null) ?? resolveReceiptLayout(template, receipt)
+  // Every Tes Cetak slip says so at the top, so the sample sale can never pass for a real paid receipt.
+  const banner = { id: 'cetak-tes', type: 'text' as const, enabled: true, text: '*** CETAK TES ***', align: 'center' as const, bold: true, size: 'normal' as const }
+  return { layout: { ...layout, blocks: [banner, ...layout.blocks] }, fromDraft: draft !== null && layoutFromApi(draft) !== null }
+}
 
 /** The pulled template as a layout, or Standar when there is none or it fails the locked-block rules. */
 export function resolveReceiptLayout(template: Bundle['receiptTemplate'], receipt: ReceiptSettings): ReceiptLayout {

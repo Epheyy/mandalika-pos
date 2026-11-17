@@ -2347,7 +2347,7 @@ components:
       required: [id, type, enabled]
       properties:
         id: { type: string }
-        type: { type: string, enum: [header, transaction, items, totals, payment, points, text, divider] }
+        type: { type: string, enum: [header, transaction, items, totals, payment, points, text, divider, image, qr] }
         enabled: { type: boolean }
         label: { type: string }
         text: { type: string }
@@ -2362,6 +2362,29 @@ components:
         showSubtotal: { type: boolean }
         showDiscount: { type: boolean }
         showTax: { type: boolean }
+        image: { $ref: '#/components/schemas/ReceiptRaster' }
+        url: { type: string, description: "QR block: an http(s) address, at most 300 printable ASCII characters." }
+    ReceiptRaster:
+      type: object
+      required: [width, height, data]
+      description: A 1-bit logo. `data` is base64 of width/8 x height bytes (rows top to bottom, MSB first, 1 = black); width is a multiple of 8 and at most 384, height at most 240.
+      properties:
+        width: { type: integer }
+        height: { type: integer }
+        data: { type: string }
+    ReceiptTestPrintInput:
+      type: object
+      required: [outletId, paperWidth, blocks]
+      description: An unsaved draft to test-print on one outlet's tablet. Replaces any earlier draft for that outlet.
+      properties:
+        outletId: { type: string, format: uuid }
+        paperWidth: { type: integer, enum: [58, 80] }
+        blocks: { type: array, items: { $ref: '#/components/schemas/ReceiptBlock' } }
+    ReceiptTestPrintResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SyncReceiptTemplate' }
     ReceiptTemplate:
       type: object
       required: [id, name, paperWidth, blocks, isDefault, version, outletIds, updatedAt]
@@ -4403,6 +4426,26 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { description: 'the name is taken, a default already exists, or the template limit is reached', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { description: 'the template breaks a rule (locked block missing, text too long, ...); the message names the first issue', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/receipt-templates/test-print:
+    post:
+      operationId: sendReceiptTestPrint
+      tags: [settings]
+      summary: Send an unsaved receipt draft to one outlet's tablet for a test print (manage_settings); valid for 60 minutes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReceiptTestPrintInput' }
+      responses:
+        '200':
+          description: stored for the outlet
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptTestPrintResponse' }
+        '400': { description: 'invalid body', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { description: 'the draft breaks a template rule; the message names the first issue', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/receipt-templates/assign:
     put:
       operationId: assignReceiptTemplate
@@ -6978,6 +7021,21 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ReceiveApproverListResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/sync/receipt-test-print:
+    get:
+      operationId: getReceiptTestPrint
+      tags: [sync]
+      summary: The receipt draft sent to the caller's outlet for a test print, if one was sent in the last 60 minutes
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      responses:
+        '200':
+          description: the draft
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptTestPrintResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/sync/transfer-receive-approvals:
     post:
       operationId: createTransferReceiveApproval

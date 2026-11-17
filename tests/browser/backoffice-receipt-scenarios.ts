@@ -29,6 +29,7 @@ export const receiptDesignerFlow = async (page: ScenarioPage) => {
   const results: object[] = []
   const posts: Json[] = []
   const assigns: Json[] = []
+  const testPrints: Json[] = []
   let stored: Json | null = null
 
   await page.unrouteAll({ behavior: 'wait' })
@@ -39,6 +40,10 @@ export const receiptDesignerFlow = async (page: ScenarioPage) => {
     if (url.pathname.includes('/auth/')) return route.fulfill({ json: { data: { access: 'SYNTHETIC-NON-TOKEN', refresh: 'SYNTHETIC-NON-TOKEN', user } } })
     if (url.pathname.endsWith('/outlets')) return route.fulfill({ json: { data: OUTLETS } })
     if (url.pathname.endsWith('/settings/app')) return route.fulfill({ json: { data: SETTINGS } })
+    if (url.pathname.endsWith('/receipt-templates/test-print') && method === 'POST') {
+      testPrints.push(JSON.parse(req.postData() ?? '{}') as Json)
+      return route.fulfill({ json: { data: { id: 'draft', name: 'tes', paperWidth: 80, blocks: [], version: 1, isDefault: false } } })
+    }
     if (url.pathname.endsWith('/receipt-templates/assign') && method === 'PUT') {
       const body = JSON.parse(req.postData() ?? '{}') as Json
       assigns.push(body)
@@ -91,10 +96,54 @@ export const receiptDesignerFlow = async (page: ScenarioPage) => {
   check((await thanks.getAttribute('aria-checked')) === 'false', 'the text block switched off')
   await page.getByRole('radio', { name: '80mm', exact: true }).click()
   check((await page.locator('[data-testid="receipt-paper"]').getAttribute('data-cols')) === '48', '80mm gives 48 columns')
+  // a QR block: the preview shows the placeholder, then Cetak tes di tablet sends the unsaved draft
+  await page.getByRole('button', { name: '+ Tambah blok' }).click()
+  await page.getByRole('button', { name: 'QR code', exact: true }).click()
+  await page.getByTestId('editor-qr').waitFor()
+  await page.locator('[data-testid="preview-qr"]').waitFor()
+  check((await page.getByTestId('qr-counter').innerText()) === '19/300', 'the QR counter starts at 19/300')
+  // a logo: a generated 300x100 picture goes through the real decode, fit, pad and dither path (300 pads to 304 dots)
+  await page.getByRole('button', { name: '+ Tambah blok' }).click()
+  await page.getByRole('button', { name: 'Logo', exact: true }).click()
+  await page.getByTestId('editor-image').waitFor()
+  await page.locator('input[aria-label="Unggah logo"]').evaluate(async (input: HTMLInputElement) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 300
+    canvas.height = 100
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, 300, 100)
+    ctx.fillStyle = '#000'
+    ctx.font = 'bold 40px Georgia, serif'
+    ctx.fillText('MANDALIKA', 16, 64)
+    ctx.strokeRect(4, 4, 292, 92)
+    const blob = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'))
+    const dt = new DataTransfer()
+    dt.items.add(new File([blob], 'logo.png', { type: 'image/png' }))
+    input.files = dt.files
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  await page.waitForFunction(() => document.querySelector('[data-testid="editor-image"] img')?.getAttribute('width') === '304')
+  check((await page.locator('[data-testid="preview-image"] img').count()) >= 1, 'the preview draws the logo')
+  await page.getByRole('button', { name: 'Cetak tes di tablet', exact: true }).scrollIntoViewIfNeeded()
+  if (process.env.A34C_RUN_DIR) await captureShot(page, 'p4-struk-logo-qr', RECEIPT_SHOTS)
+  await page.getByRole('button', { name: 'Cetak tes di tablet', exact: true }).click()
+  const testDialog = page.locator('[role="dialog"]')
+  await testDialog.getByLabel('Outlet').selectOption({ label: 'MV Outlet Dua' })
+  await testDialog.getByRole('button', { name: 'Kirim', exact: true }).click()
+  await testDialog.getByText('Terkirim. Di tablet outlet MV Outlet Dua').waitFor()
+  check(testPrints.length === 1 && testPrints[0]!.outletId === OUTLETS[1]!.id && testPrints[0]!.paperWidth === 80, `test print body ${JSON.stringify(testPrints[0])?.slice(0, 120)}`)
+  check(JSON.stringify(testPrints[0]).includes('"type":"image"') && JSON.stringify(testPrints[0]).includes('"type":"qr"') && !JSON.stringify(testPrints[0]).includes('compat'), 'test print carries the QR block and no compat')
+  await testDialog.getByRole('button', { name: 'Selesai', exact: true }).click()
+  results.push({ step: 'qr-and-test-print' })
   await page.getByRole('button', { name: /^Judul & info outlet/ }).click() // open an editor for the screenshot
   await page.getByTestId('editor-header').waitFor()
   if (process.env.A34C_RUN_DIR) await captureShot(page, 'struk-designer', RECEIPT_SHOTS)
   results.push({ step: 'toggle-and-width' })
+
+  // the QR still holds the placeholder address, which Simpan refuses: give it a real one first
+  await page.getByRole('button', { name: /^QR code/ }).click()
+  await page.getByLabel('Alamat web (URL)').fill('https://mandalikaperfume.co.id/ulasan')
 
   // (d) Simpan: the POST carries the design and none of the Standar-only fields
   await page.getByRole('button', { name: 'Simpan', exact: true }).click()

@@ -38,8 +38,21 @@ describe('layoutFromApi', () => {
   })
 
   it('drops an unknown block type and keeps the rest', () => {
-    const l = layoutFromApi(tpl([{ id: 'q', type: 'qr', enabled: true, url: 'https://x.test' }, ...core()]))
+    const l = layoutFromApi(tpl([{ id: 'q', type: 'barcode', enabled: true }, ...core()]))
     expect(l?.blocks.map((b) => b.id)).toEqual(['i', 'o', 'p'])
+  })
+
+  it('keeps a valid logo and QR block, and drops a malformed raster or a bad url', () => {
+    const good = [
+      { id: 'lg', type: 'image', enabled: true, image: { width: 16, height: 2, data: 'VVVVVQ==' }, align: 'center' },
+      { id: 'qr', type: 'qr', enabled: true, url: 'https://mandalikaperfume.co.id/x', align: 'center' },
+    ]
+    expect(layoutFromApi(tpl([...good, ...core()]))?.blocks.map((b) => b.id)).toEqual(['lg', 'qr', 'i', 'o', 'p'])
+    const bad = [
+      { id: 'lg', type: 'image', enabled: true, image: { width: 16, height: 2, data: 'AAAA' }, align: 'center' },
+      { id: 'qr', type: 'qr', enabled: true, url: 'ftp://x.id', align: 'center' },
+    ]
+    expect(layoutFromApi(tpl([...bad, ...core()]))?.blocks.map((b) => b.id)).toEqual(['i', 'o', 'p'])
   })
 
   it('drops an unlocked block with an ill-typed field and keeps the rest', () => {
@@ -64,7 +77,7 @@ describe('layoutFromApi', () => {
     expect(l.paperWidth).toBe(80)
     const wide = receiptPreview(l, SAMPLE_RECEIPT, { maxPaperWidth: 80 })
     const narrow = receiptPreview(l, SAMPLE_RECEIPT, { maxPaperWidth: 58 })
-    const width = (lines: typeof wide) => Math.max(...lines.map((p) => p.text.length * (p.large ? 2 : 1)))
+    const width = (lines: typeof wide) => Math.max(...lines.map((p) => (p.kind === 'text' ? p.text.length * (p.large ? 2 : 1) : 0)))
     expect(width(narrow)).toBeLessThanOrEqual(COLS_BY_WIDTH[58])
     expect(width(wide)).toBeGreaterThan(COLS_BY_WIDTH[58])
     expect(width(wide)).toBeLessThanOrEqual(COLS_BY_WIDTH[80])

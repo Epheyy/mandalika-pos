@@ -39,9 +39,10 @@ describe('CashierScreen passes the receipt layout to every print', () => {
 })
 
 describe('printer.tsx clamps every layout print to the device paper', () => {
-  it('passes maxPaperWidth: DEVICE_PAPER_WIDTH_DEFAULT with the layout', () => {
+  it('passes the tablet Lebar kertas and Cetak logo & QR settings with the layout', () => {
     const printerSrc = readFileSync(new URL('../printer.tsx', import.meta.url), 'utf8')
-    expect(printerSrc).toContain('maxPaperWidth: DEVICE_PAPER_WIDTH_DEFAULT')
+    expect(printerSrc).toContain('maxPaperWidth: devicePaperWidth()')
+    expect(printerSrc).toContain('graphics: deviceGraphics()')
   })
 })
 

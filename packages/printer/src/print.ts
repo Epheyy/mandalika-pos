@@ -71,6 +71,8 @@ export interface PrintJob {
   layout?: ReceiptLayout
   /** The tablet's paper width: a wider template reflows to it. Only read with `layout`. */
   maxPaperWidth?: PaperWidth
+  /** The device can print raster images and QR codes (the `Cetak logo & QR` switch). Default true; off prints no logo and the QR as text. Only read with `layout`. */
+  graphics?: boolean
   /** Called when a template block was skipped, or the whole template fell back to the legacy receipt. */
   onLayoutError?: (e: unknown) => void
 }
@@ -86,6 +88,7 @@ function receiptPayload(job: PrintJob): Uint8Array {
     return receiptBytes(job.layout, job.data, {
       reprint: job.reprint,
       maxPaperWidth: job.maxPaperWidth,
+      graphics: job.graphics,
       onBlockError: (_id, e) => job.onLayoutError?.(e),
     })
   } catch (e) {

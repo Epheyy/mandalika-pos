@@ -16,9 +16,16 @@ export function findBonded(
   return devices.find((d) => d.address.toLowerCase() === want)
 }
 
-const DRAIN_BASE_MS = 300
-const DRAIN_BYTES_PER_MS = 8
-const DRAIN_MAX_MS = 3000
+export const DRAIN_BASE_MS = 300
+export const DRAIN_BYTES_PER_MS = 8
+export const DRAIN_MAX_MS = 3000
+
+/** The largest receipt copy the TEMPLATE limits allow for a 60-line sale (a worst-case template at 58mm or 80mm,
+ *  rounded up to the next 1,000 bytes; pinned by worstCase.test.ts). Cart lines are not capped, so a 120-line sale
+ *  is bigger (about 41 KB measured): Task 4.5 sizes the drain with that in mind.
+ *  NOTE (Task 4.5): DRAIN_BYTES_PER_MS and DRAIN_MAX_MS are still today's values until the real SPP rate is
+ *  measured on the RPP02N; at 8 bytes/ms the 3 s cap covers about 21 KB, less than one worst-case copy. */
+export const MAX_RECEIPT_PAYLOAD_BYTES = 31_000
 
 /** How long to keep the socket open after the last write so the printer's
  *  buffer empties before we close (the OS may drop unsent bytes on close). */

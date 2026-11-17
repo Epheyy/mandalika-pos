@@ -1,5 +1,6 @@
 // The receipt layout model: an ordered list of blocks plus the paper width.
 
+import type { ReceiptRaster } from './raster'
 import type { Align } from './sink'
 
 export type PaperWidth = 58 | 80
@@ -24,6 +25,8 @@ export type ReceiptBlock =
       size: 'normal' | 'large'; spaceBefore?: boolean
     }
   | { id: string; type: 'divider'; enabled: boolean }
+  | { id: string; type: 'image'; enabled: boolean; label?: string; image: ReceiptRaster; align: Align }
+  | { id: string; type: 'qr'; enabled: boolean; label?: string; url: string; align: Align }
 
 export type ReceiptBlockType = ReceiptBlock['type']
 

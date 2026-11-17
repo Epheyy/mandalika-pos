@@ -27,6 +27,7 @@ type BatchResult = components['schemas']['SyncBatchResult']
 type VersionInfo = components['schemas']['SyncVersion']
 type Transfer = components['schemas']['Transfer']
 type ReceiveApprover = components['schemas']['ReceiveApprover']
+type SyncReceiptTemplate = components['schemas']['SyncReceiptTemplate']
 type TransferReceiveApproval = components['schemas']['TransferReceiveApproval']
 type ReviewReport = components['schemas']['SyncReviewReport']
 type ReviewReportRequest = components['schemas']['SyncReviewReportRequest']
@@ -1057,6 +1058,18 @@ export class SyncEngine {
   newReceiveKey(): { orderUuid: string; idempotencyKey: string } {
     const orderUuid = uuid()
     return { orderUuid, idempotencyKey: this.key(orderUuid) }
+  }
+
+  /** Receipt designer, online only: the draft the Backoffice sent to this outlet for one Tes Cetak (valid 60
+   *  minutes), or null when there is none (the server answers 404). Never stored: the caller prints it once. */
+  async getReceiptTestPrint(): Promise<SyncReceiptTemplate | null> {
+    try {
+      const r = await this.api.request<{ data: SyncReceiptTemplate }>('GET', '/api/v1/sync/receipt-test-print', undefined, { timeoutMs: 5000 })
+      return r.data
+    } catch (e) {
+      if ((e as { status?: number } | null)?.status === 404) return null
+      throw e
+    }
   }
 
   /** A08, online only: who may approve a receive at this outlet (never includes a PIN hash). */

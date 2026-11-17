@@ -25,6 +25,8 @@ interface ModalProps {
   size?: Size
   /** Pad the body (default true). Set false for full-bleed list bodies. */
   padded?: boolean
+  /** Ask before closing a dialog whose inputs changed (default true). Off for send-only dialogs. */
+  confirmDiscard?: boolean
   children: ReactNode
 }
 
@@ -45,6 +47,7 @@ function ModalBody({
   footer,
   size = 'md',
   padded = true,
+  confirmDiscard = true,
   children,
 }: Omit<ModalProps, 'open'>) {
   const dirty = useRef(false)
@@ -93,7 +96,7 @@ function ModalBody({
           MAX[size],
         )}
         onChangeCapture={() => {
-          dirty.current = true
+          if (confirmDiscard) dirty.current = true
         }}
       >
         {(title || subtitle) && (

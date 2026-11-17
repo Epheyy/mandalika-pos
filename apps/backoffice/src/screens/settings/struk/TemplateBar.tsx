@@ -13,6 +13,8 @@ interface TemplateBarProps {
   unusable: ReadonlySet<string>
   /** The select value: a template id, or VIRTUAL_KEY. */
   selectedKey: string
+  /** What the select shows for a template that is not saved yet: its own name. */
+  unsavedName: string
   paperWidth: PaperWidth
   /** "Dipakai di N outlet", or null while the template is unsaved. */
   usedBy: number | null
@@ -38,7 +40,7 @@ export function TemplateBar(p: TemplateBarProps) {
     <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
       <div className="min-w-44">
         <Select label="Template" value={p.selectedKey} onChange={(e) => p.onSelect(e.target.value)}>
-          {!known && <option value={p.selectedKey}>Template baru</option>}
+          {!known && <option value={p.selectedKey}>{p.unsavedName.trim() || 'Template baru'}</option>}
           {options.map((o) => (
             <option key={o.key} value={o.key}>{o.label}</option>
           ))}

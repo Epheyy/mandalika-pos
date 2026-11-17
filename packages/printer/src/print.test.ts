@@ -15,6 +15,7 @@ import { createTransport, printReceipt, printVoidSlip } from './print'
 import type { ReceiptLayout } from './receipt/layout'
 import type { PrinterTransport } from './transport'
 import type { PrintJob } from './print'
+import { DRAIN_MAX_MS, drainDelayMs } from './linkChoice'
 
 const settings = { copies: 1, headerText: 'TOKO', footerText: '', showTax: true } as PrintJob['settings']
 const data: PrintJob['data'] = {
@@ -207,5 +208,71 @@ describe('printReceipt with a layout', () => {
   it('still reports a missing printer in Indonesian', async () => {
     const c = capture()
     await expect(printReceipt({ transport: c.t, deviceId: null, data, settings: c.settings, layout: goodLayout() })).rejects.toThrow(/^Gagal/)
+  })
+})
+
+describe('graphics switch and the queue after a drain', () => {
+  const qrLayout: ReceiptLayout = {
+    paperWidth: 58,
+    blocks: [
+      { id: 'q', type: 'qr', enabled: true, url: 'https://mandalikaperfume.co.id/x', align: 'center' },
+      { id: 'i', type: 'items', enabled: true },
+      { id: 'o', type: 'totals', enabled: true, showSubtotal: true, showDiscount: true, showTax: true },
+      { id: 'p', type: 'payment', enabled: true },
+    ],
+  }
+  const capture = () => {
+    const writes: Uint8Array[] = []
+    const t: PrinterTransport = {
+      kind: 'none', isAvailable: async () => true, pickDevice: async () => null,
+      connect: async () => {}, write: async (b) => { writes.push(b) }, disconnect: async () => {},
+    }
+    return { t, writes }
+  }
+  const has = (b: Uint8Array, seq: number[]) => b.some((_, i) => seq.every((v, j) => b[i + j] === v))
+
+  it('graphics off prints the QR url as text on the sale', async () => {
+    const { t, writes } = capture()
+    await printReceipt({ transport: t, deviceId: 'd', data, settings, layout: qrLayout, graphics: false })
+    expect(has(writes[0]!, [0x1d, 0x28, 0x6b])).toBe(false)
+    expect(String.fromCharCode(...writes[0]!)).toContain('https://mandalikaperfume.co.id/x')
+  })
+
+  it('graphics on (the default) sends the QR commands', async () => {
+    const { t, writes } = capture()
+    await printReceipt({ transport: t, deviceId: 'd', data, settings, layout: qrLayout })
+    expect(has(writes[0]!, [0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00])).toBe(true)
+  })
+
+  it('runExclusive frees the queue within DRAIN_MAX_MS + 1 s after the last write', async () => {
+    vi.useFakeTimers()
+    try {
+      const started: number[] = []
+      let written = 0
+      let lastWriteAt = 0
+      const t: PrinterTransport = {
+        kind: 'none', isAvailable: async () => true, pickDevice: async () => null,
+        connect: async () => { started.push(Date.now()) },
+        write: async (b) => { written += b.length; if (started.length === 1) lastWriteAt = Date.now() },
+        // the native disconnect sleeps the drain budget before it closes
+        disconnect: async () => { await new Promise((r) => setTimeout(r, drainDelayMs(written))); written = 0 },
+      }
+      // 5 copies of a payload far past what the cap covers, so the cap (not the byte count) sets the drain.
+      const bigData = { ...data, lines: Array.from({ length: 400 }, (_, i) => ({ name: `Barang ${i}`, qty: 1, unitPrice: 1000, amount: 1000 })) }
+      const big = { ...settings, copies: 5 }
+      const first = printReceipt({ transport: t, deviceId: 'd', data: bigData, settings: big })
+      const second = printReceipt({ transport: t, deviceId: 'd', data, settings: big })
+      await vi.advanceTimersByTimeAsync(DRAIN_MAX_MS - 100)
+      expect(started).toHaveLength(1) // the second job waits out the drain...
+      await vi.advanceTimersByTimeAsync(1100 + 1000)
+      await first
+      expect(started).toHaveLength(2) // ...and starts within the cap + 1 s after the last write
+      expect(started[1]! - lastWriteAt).toBeLessThanOrEqual(DRAIN_MAX_MS + 1000)
+      expect(started[1]! - lastWriteAt).toBeGreaterThanOrEqual(DRAIN_MAX_MS)
+      await vi.advanceTimersByTimeAsync(DRAIN_MAX_MS + 1000)
+      await second
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

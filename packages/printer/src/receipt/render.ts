@@ -6,9 +6,10 @@ import {
   type PaperWidth, type ReceiptBlock, type ReceiptLayout,
 } from './layout'
 import {
-  dividerBlock, headerBlock, itemsBlock, paymentBlock, pointsBlock, replacementMark, reprintMark, textBlock,
+  dividerBlock, headerBlock, imageBlock, qrBlock, itemsBlock, paymentBlock, pointsBlock, replacementMark, reprintMark, textBlock,
   totalsBlock, transactionBlock, type BlockCtx,
 } from './blocks'
+import type { ReceiptRaster } from './raster'
 import { EscPosSink, PreviewSink, type Cmd, type PreviewLine, type ReceiptSink } from './sink'
 import { toPrinterText } from './text'
 
@@ -16,6 +17,8 @@ export interface RenderOptions {
   reprint?: boolean
   /** The tablet's paper width: the layout renders at the narrower of the two. */
   maxPaperWidth?: PaperWidth
+  /** The device can print raster images and QR codes (default true). Off: no logo, and the QR prints as text. */
+  graphics?: boolean
   /** An unlocked block threw and was skipped. */
   onBlockError?: (blockId: string, e: unknown) => void
 }
@@ -83,12 +86,16 @@ function normalizeData(d: ReceiptData): ReceiptData {
 
 /** Records a sink's calls so a block that throws half way leaves nothing behind. */
 class Recorder implements ReceiptSink {
-  private ops: Array<{ c: Cmd } | { t: string | undefined }> = []
+  private ops: Array<{ c: Cmd } | { t: string | undefined } | { i: ReceiptRaster } | { q: string; m: number }> = []
   cmd(c: Cmd): void { this.ops.push({ c }) }
   line(text?: string): void { this.ops.push({ t: text }) }
+  image(r: ReceiptRaster): void { this.ops.push({ i: r }) }
+  qr(data: string, moduleSize: number): void { this.ops.push({ q: data, m: moduleSize }) }
   replayTo(sink: ReceiptSink): void {
     for (const op of this.ops) {
       if ('c' in op) sink.cmd(op.c)
+      else if ('i' in op) sink.image(op.i)
+      else if ('q' in op) sink.qr(op.q, op.m)
       else sink.line(op.t)
     }
   }
@@ -104,6 +111,8 @@ function runBlock(b: ReceiptBlock, ctx: BlockCtx): void {
     case 'points': return pointsBlock(ctx)
     case 'text': return textBlock(b, ctx)
     case 'divider': return dividerBlock(ctx)
+    case 'image': return imageBlock(b, ctx)
+    case 'qr': return qrBlock(b, ctx)
     default: throw new Error(`unknown receipt block type "${(b as { type: string }).type}"`)
   }
 }
@@ -113,12 +122,12 @@ function runBlock(b: ReceiptBlock, ctx: BlockCtx): void {
 export function renderReceipt(layout: ReceiptLayout, data: ReceiptData, sink: ReceiptSink, opts: RenderOptions = {}): void {
   const compat = layout.compat === 'v1'
   const ctx: BlockCtx = {
-    out: sink, cols: resolveCols(layout, opts), compat, data: compat ? data : normalizeData(data),
+    out: sink, cols: resolveCols(layout, opts), compat, graphics: opts.graphics !== false, data: compat ? data : normalizeData(data),
   }
   const blocks = layout.blocks.filter((b) => b.enabled || isLockedType(b.type))
 
   sink.cmd('init')
-  // The marks sit after the leading run of header blocks.
+  // The marks sit after the leading run of header and logo blocks.
   let i = 0
   const play = (b: ReceiptBlock): void => {
     const rec = new Recorder()
@@ -133,7 +142,7 @@ export function renderReceipt(layout: ReceiptLayout, data: ReceiptData, sink: Re
     }
     rec.replayTo(sink)
   }
-  while (i < blocks.length && blocks[i]!.type === 'header') play(blocks[i++]!)
+  while (i < blocks.length && (blocks[i]!.type === 'header' || blocks[i]!.type === 'image')) play(blocks[i++]!)
   if (opts.reprint) reprintMark(sink)
   replacementMark(ctx)
   for (; i < blocks.length; i++) play(blocks[i]!)
