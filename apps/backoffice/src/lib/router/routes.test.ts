@@ -109,7 +109,7 @@ describe('screen tabs', () => {
   it('keeps the Laporan and Inventori tab keys the browser scenarios click', () => {
     expect(tabsOf('reports').map((t) => t.key)).toEqual(['orders', 'export', 'shifts', 'grants', 'codeReport', 'refund', 'bundles', 'voids', 'oversell'])
     expect(tabsOf('warehouses').map((t) => t.key)).toEqual(['stok', 'transfer', 'barangMasuk', 'bahan', 'opname'])
-    expect(tabsOf('settings').map((t) => t.key)).toEqual(['locations', 'transaksi', 'operasional', 'recipe'])
+    expect(tabsOf('settings').map((t) => t.key)).toEqual(['locations', 'transaksi', 'struk', 'operasional', 'recipe'])
   })
 
   it('canSeeTab: admin sees all, others need the tab permission, no permission means anyone', () => {

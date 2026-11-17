@@ -116,6 +116,7 @@ const SYNC_REVIEW_TABS: readonly RouteTab[] = [tab('open', 'terbuka', 'Terbuka')
 const SETTINGS_TABS: readonly RouteTab[] = [
   tab('locations', 'outlet-gudang', 'Outlet & Gudang'),
   tab('transaksi', 'transaksi', 'Transaksi'),
+  tab('struk', 'struk', 'Struk'),
   tab('operasional', 'operasional', 'Operasional'),
   tab('recipe', 'resep-bahan', 'Resep & Bahan'),
 ]

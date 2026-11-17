@@ -9,7 +9,7 @@ import { isCashMethod, resolveReceiptFlags } from '@mandalika/types'
  */
 
 export type CardId = 'tax' | 'payments' | 'split' | 'void' | 'receipt' | 'stock' | 'shift' | 'approval' | 'transfer' | 'docs' | 'recipe'
-export type TabId = 'locations' | 'transaksi' | 'operasional' | 'recipe'
+export type TabId = 'locations' | 'transaksi' | 'struk' | 'operasional' | 'recipe'
 
 export const CARD_TAB: Record<CardId, TabId> = {
   stock: 'locations',

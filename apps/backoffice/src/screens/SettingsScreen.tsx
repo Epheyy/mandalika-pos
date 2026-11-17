@@ -15,6 +15,7 @@ import { LocationsSection } from './settings/LocationsSection'
 import { SettingsCard } from './settings/SettingsCard'
 import { SettingRow } from './settings/SettingRow'
 import { TransaksiSection } from './settings/TransaksiSection'
+import { StrukSection } from './settings/struk/StrukSection'
 import { Switch } from '../ui/Switch'
 import { SAVED_MESSAGE, useSettingsDraft } from './settings/useSettingsDraft'
 import { CARD_TITLE, changeAt, type TabId } from './settings/settingsDiff'
@@ -105,6 +106,9 @@ export default function SettingsScreen() {
       {section === 'transaksi' && (
         <TransaksiSection s={s} setS={setS} newPay={newPay} setNewPay={setNewPay} changed={changed} changes={changes} />
       )}
+
+      {/* ── Struk: the receipt designer (own save and leave guard, not the settings save bar) ── */}
+      {section === 'struk' && <StrukSection receiptSettings={s.receipt} />}
 
       {/* ── Operasional: Shift · Persetujuan Transfer · Dokumen ── */}
       {section === 'operasional' && (
