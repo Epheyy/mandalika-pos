@@ -12,6 +12,7 @@ export const RECEIPT_LIMITS = {
   totalTextMax: 1500,
   titleMax: 64,
   labelMax: 40,
+  idMax: 64,
   templatesMax: 50,
   imageBlocksMax: 2,
   imageBytesMax: 11_520,
@@ -29,6 +30,10 @@ export interface LayoutIssue {
 const KNOWN_TYPES = ['header', 'transaction', 'items', 'totals', 'payment', 'points', 'text', 'divider']
 /** Fields only the built-in Standar layout (compat) may carry; a stored template never has them. */
 const COMPAT_FIELDS: Record<string, string[]> = { '*': ['spaceBefore', 'spaceAfter'], payment: ['showChange'] }
+const ALIGNS = ['left', 'center', 'right']
+const SIZES = ['normal', 'large']
+const STYLES = ['columns', 'inline']
+const TX_FIELDS = ['orderNumber', 'date', 'cashier', 'customerName', 'customerPhone']
 const PRINTABLE = /^[\x20-\x7e]*$/
 const PRINTABLE_MULTILINE = /^[\x20-\x7e\n]*$/
 
@@ -42,9 +47,11 @@ export function validateTemplate(input: { name: string; paperWidth: number; bloc
   }
   const blocks = (input.blocks ?? []).map((b) => (b && typeof b === 'object' ? b : {})) as ReadonlyArray<Record<string, unknown> & { id?: string; type?: string }>
 
-  // 1. name
+  // 1. name and paper width
   const nameLen = len(String(input.name ?? '').trim())
   if (nameLen < 1 || nameLen > RECEIPT_LIMITS.nameMax) add('name_invalid', `Nama template harus 1-${RECEIPT_LIMITS.nameMax} karakter.`)
+
+  if (input.paperWidth !== 58 && input.paperWidth !== 80) add('paper_width_invalid', 'Lebar kertas harus 58mm atau 80mm.')
 
   // 2. block count
   if (blocks.length < RECEIPT_LIMITS.blocksMin) add('too_few_blocks', `Template minimal ${RECEIPT_LIMITS.blocksMin} blok.`)
@@ -71,9 +78,18 @@ export function validateTemplate(input: { name: string; paperWidth: number; bloc
   if (totalText > RECEIPT_LIMITS.totalTextMax) add('total_text_too_long', `Total teks maksimal ${RECEIPT_LIMITS.totalTextMax} karakter.`)
 
   // 5. per block: type, text, label, (url, image: Phase 4)
+  const seen = new Set<string>()
   for (const b of blocks) {
     const type = b.type ?? ''
+    const id = typeof b.id === 'string' ? b.id : ''
+    if (id === '' || len(id) > RECEIPT_LIMITS.idMax) add('bad_id', 'Setiap blok harus punya id 1-64 karakter.', b.id)
+    else if (seen.has(id)) add('bad_id', 'Id blok harus unik.', b.id)
+    seen.add(id)
     if (!KNOWN_TYPES.includes(type)) { add('unknown_type', `Jenis blok "${type}" tidak dikenal.`, b.id); continue }
+    if (b.align !== undefined && !ALIGNS.includes(b.align as string)) add('bad_enum', 'Perataan tidak dikenal.', b.id)
+    if (b.size !== undefined && !SIZES.includes(b.size as string)) add('bad_enum', 'Ukuran teks tidak dikenal.', b.id)
+    if (b.style !== undefined && !STYLES.includes(b.style as string)) add('bad_enum', 'Gaya baris tidak dikenal.', b.id)
+    if (Array.isArray(b.fields) && b.fields.some((f) => !TX_FIELDS.includes(f as string))) add('bad_enum', 'Kolom transaksi tidak dikenal.', b.id)
     for (const f of [...COMPAT_FIELDS['*']!, ...(COMPAT_FIELDS[type] ?? [])]) {
       if (f in b) add('compat_field', `Kolom "${f}" hanya untuk layout Standar.`, b.id)
     }

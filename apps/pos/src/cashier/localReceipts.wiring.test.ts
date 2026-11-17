@@ -33,7 +33,7 @@ describe('CashierScreen local receipts wiring (A41)', () => {
   it('reprints a local receipt with the REPRINT marker, never through the sale gate or the outbox', () => {
     const reprint = fn('reprintLocal')
     expect(reprint).toContain('reprintReceiptData(')
-    expect(reprint).toMatch(/\.print\([^)]*true\)/)
+    expect(reprint).toMatch(/\.print\([^)]*true, receiptLayout\)/)
     expect(reprint).not.toMatch(/enqueue|saleGate|submitGate|refundGate/)
   })
 

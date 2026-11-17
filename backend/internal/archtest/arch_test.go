@@ -30,7 +30,7 @@ const (
 var tiers = map[string]tier{
 	"api": leaf, "apperr": leaf, "bizday": leaf, "phone": leaf, "custrules": leaf, "promotionkeys": leaf,
 	"redact": leaf, "ota": leaf, "csvimport": leaf, "uploads": leaf, "httpx": leaf,
-	"clientip": leaf, "rules": leaf, "tenderlines": leaf,
+	"clientip": leaf, "rules": leaf, "tenderlines": leaf, "receipttpl": leaf,
 	"db": infra, "ledger": infra, "cache": infra, "config": infra, "observability": infra,
 	"auth": platform, "middleware": platform,
 	"read": domain, "write": domain, "service": domain, "bundles": domain,

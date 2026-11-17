@@ -28,6 +28,8 @@ import {
   type VoidSlipData,
 } from '@mandalika/printer'
 import { getKV } from '@mandalika/sync'
+import { reportErrors } from './lib/errorReporter'
+import { DEVICE_PAPER_WIDTH_DEFAULT } from './receiptLayout'
 
 type ReceiptSettings = components['schemas']['ReceiptSettings']
 
@@ -46,12 +48,29 @@ interface PrinterState {
   pairTo: (deviceId: string, name: string) => void
   pair: () => Promise<boolean>
   unpair: () => void
-  print: (data: ReceiptData, settings: ReceiptSettings, reprint?: boolean) => Promise<void>
+  /** `layout` is the outlet's receipt layout (Standar when it has no template); a wider one reflows to this tablet's paper. */
+  print: (data: ReceiptData, settings: ReceiptSettings, reprint?: boolean, layout?: ReceiptLayout) => Promise<void>
   printRecap: (data: RecapData, settings: ReceiptSettings) => Promise<void>
   printTandaTerima: (data: TandaTerimaData, settings: ReceiptSettings, reprint?: boolean) => Promise<void>
   /** DIBATALKAN slip; `layout` is reserved for the receipt designer (the slip does not read it yet). */
   printVoidSlip: (data: VoidSlipData, settings: ReceiptSettings, layout?: ReceiptLayout) => Promise<void>
-  testPrint: (settings: ReceiptSettings) => Promise<void>
+  testPrint: (settings: ReceiptSettings, layout?: ReceiptLayout) => Promise<void>
+}
+
+/** The layout fields of a print job: the device paper clamp, and a report when a template block was skipped or the
+ *  whole template fell back to the legacy receipt (the sale still prints either way). */
+function receiptLayoutOptions(layout: ReceiptLayout | undefined, orderRef: string) {
+  if (!layout) return {}
+  return {
+    layout,
+    maxPaperWidth: DEVICE_PAPER_WIDTH_DEFAULT,
+    onLayoutError: (e: unknown) => {
+      void reportErrors([{
+        source: 'print', kind: 'receipt_template', action: `Cetak struk ${orderRef}`,
+        message: e instanceof Error ? e.message : 'template struk gagal dirender',
+      }])
+    },
+  }
 }
 
 const PrinterCtx = createContext<PrinterState | null>(null)
@@ -102,13 +121,14 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
   }, [kv])
 
   const print = useCallback(
-    async (data: ReceiptData, settings: ReceiptSettings, reprint?: boolean) => {
+    async (data: ReceiptData, settings: ReceiptSettings, reprint?: boolean, layout?: ReceiptLayout) => {
       await printReceipt({
         transport: transportRef.current,
         deviceId: pairedId,
         data,
         settings,
         reprint,
+        ...receiptLayoutOptions(layout, data.orderRef),
       })
     },
     [pairedId],
@@ -140,7 +160,7 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
   )
 
   const testPrint = useCallback(
-    async (settings: ReceiptSettings) => {
+    async (settings: ReceiptSettings, layout?: ReceiptLayout) => {
       const now = new Date()
       const sample: ReceiptData = {
         orderRef: 'TEST',
@@ -165,6 +185,7 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
         deviceId: pairedId,
         data: sample,
         settings,
+        ...receiptLayoutOptions(layout, sample.orderRef),
       })
     },
     [pairedId],

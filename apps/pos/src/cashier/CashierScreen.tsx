@@ -89,6 +89,7 @@ import type { BxgyRewardPick } from './BxgyRewardModal'
 import type { BundleAssignment } from './bundle'
 import { api, authStore } from '../api'
 import { reportErrors } from '../lib/errorReporter'
+import { receiptOutlet, receiptPoints, resolveReceiptLayout } from '../receiptLayout'
 import { diagnosticExportMessages, shareFailedSyncDiagnostics } from '../lib/failedSyncDiagnostics'
 import { track } from '../lib/activityLog'
 import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
@@ -348,6 +349,13 @@ export default function CashierScreen() {
   const discountCodes = snapshot.discountCodes ?? []
   const outletTimezone = snapshot.outletTimezone // A28: promo clock = outlet-local; absent (old server) = WIB in promoValidate
   const settings = snapshot.appSettings ?? DEFAULT_SETTINGS
+  // The outlet's receipt layout: its pulled template, or the built-in Standar (today's receipt) when it has none.
+  const receiptLayout = useMemo(() => resolveReceiptLayout(snapshot.receiptTemplate, settings.receipt), [snapshot.receiptTemplate, settings.receipt])
+  // A template that arrived but cannot be trusted prints Standar; say so, so head office learns the template is dead.
+  const templateRefused = !!snapshot.receiptTemplate && receiptLayout.compat === 'v1'
+  useEffect(() => {
+    if (templateRefused) void reportErrors([{ source: 'print', kind: 'receipt_template', action: 'Pakai template struk', message: 'Template struk ditolak (blok wajib tidak lengkap); mencetak Standar', outletName: snapshot.outletName }])
+  }, [templateRefused, snapshot.receiptTemplate, snapshot.outletName])
   const loyalty = snapshot.loyaltySettings ?? DEFAULT_LOYALTY
 
   const { actions: cartActions, derived } = useCart({ state, dispatch, settings, loyalty })
@@ -463,7 +471,7 @@ export default function CashierScreen() {
     getGate: () => voidGateInputs(false), getPreview: (id) => api.getVoidPreview(id),
     ensureShift, offlineLock, askConfirm: (c) => setConfirm(c), showToast,
     closePanels: () => { setShowHistory(false); setShowLocalReceipts(false) },
-    printSlip: async (data) => { if (printer.isPaired) await printer.printVoidSlip(data, settings.receipt) },
+    printSlip: async (data) => { if (printer.isPaired) await printer.printVoidSlip(data, settings.receipt, receiptLayout) },
   })
 
   // C6 D-62: an unfinished split payment survives an app kill (the draft owns the sale's order uuid).
@@ -1051,6 +1059,8 @@ export default function CashierScreen() {
         customerName: state.selectedCustomer?.name ?? null,
         customerPhone: state.selectedCustomer?.phone ?? null,
         cashierName: user?.displayName ?? 'Kasir',
+        outlet: receiptOutlet(snapshot),
+        points: receiptPoints(loyalty.enabled && hasFeature('loyalty'), state.selectedCustomer?.points, derived),
       }, (id) => promotions.find((p) => p.id === id)?.name)
       if (voidDraft) receipt.replacesOrderRef = voidDraft.orderNumber
       lastReceipt.current = receipt
@@ -1062,7 +1072,7 @@ export default function CashierScreen() {
       // Auto-print on every successful sale when a printer is paired.
       if (printer.isPaired) {
         const printReceipt = () => printer
-          .print(receipt, settings.receipt)
+          .print(receipt, settings.receipt, false, receiptLayout)
           .catch((e: unknown) => {
             const msg = e instanceof Error ? e.message : 'Gagal mencetak'
             setPrintError(msg)
@@ -1071,7 +1081,7 @@ export default function CashierScreen() {
         // Void: the DIBATALKAN slip first (only now that the void is saved), then the replacement receipt.
         if (voidDraft?.kind === 'void_and_replace') {
           printer
-            .printVoidSlip(voidSlipData({ draft: voidDraft, voidedBy: user?.displayName ?? 'Kasir', replacementRef: orderNo, at: saleAt }), settings.receipt)
+            .printVoidSlip(voidSlipData({ draft: voidDraft, voidedBy: user?.displayName ?? 'Kasir', replacementRef: orderNo, at: saleAt }), settings.receipt, receiptLayout)
             .catch((e: unknown) => {
               const msg = e instanceof Error ? e.message : 'Gagal mencetak'
               setPrintError(msg)
@@ -1092,7 +1102,7 @@ export default function CashierScreen() {
     }
     setPrintError(null)
     printer
-      .print(lastReceipt.current, settings.receipt)
+      .print(lastReceipt.current, settings.receipt, false, receiptLayout)
       .catch((e: unknown) => {
         const msg = e instanceof Error ? e.message : 'Gagal mencetak'
         setPrintError(msg)
@@ -1104,10 +1114,10 @@ export default function CashierScreen() {
   // anything and never goes through the sale gate; the customer is not stored locally, so none is printed.
   const reprintLocal = (r: LocalReceipt) => {
     if (!printer.isPaired) { showToast('Pasangkan printer untuk cetak ulang struk'); return }
-    const receipt = reprintReceiptData(r)
+    const receipt = reprintReceiptData(r, receiptOutlet(snapshot))
     if (!receipt) { showToast('Struk ini tidak punya rincian yang bisa dicetak'); return }
     printer
-      .print(receipt, settings.receipt, true)
+      .print(receipt, settings.receipt, true, receiptLayout)
       .catch((e: unknown) => {
         const msg = e instanceof Error ? e.message : 'Gagal mencetak struk'
         showToast(msg)
@@ -1160,9 +1170,10 @@ export default function CashierScreen() {
       customerName: o.customerName ?? null,
       customerPhone: null,
       cashierName: o.cashierName,
+      outlet: receiptOutlet(snapshot),
     }
     printer
-      .print(receipt, settings.receipt, true)
+      .print(receipt, settings.receipt, true, receiptLayout)
       .catch((e: unknown) => {
         const msg = e instanceof Error ? e.message : 'Gagal mencetak struk'
         showToast(msg)

@@ -65,6 +65,12 @@ type PullBundle struct {
 	OutletCode     string `json:"outletCode"`
 	OutletName     string `json:"outletName"`
 	OutletTimezone string `json:"outletTimezone,omitempty"`
+	// OutletAddress and OutletPhone feed the receipt header; empty (omitted) = none.
+	OutletAddress string `json:"outletAddress,omitempty"`
+	OutletPhone   string `json:"outletPhone,omitempty"`
+	// ReceiptTemplate is the outlet's resolved receipt template (assigned, else the default); nil
+	// (omitted) = none, and the tablet prints its built-in Standar layout.
+	ReceiptTemplate *api.SyncReceiptTemplate `json:"receiptTemplate,omitempty"`
 	// OutletGiveaway (C3) is the outlet's enabled per-sale giveaway so the POS can show and count
 	// it offline; nil (omitted) = none. The sale path still decides what is taken.
 	OutletGiveaway    *read.PullGiveaway `json:"outletGiveaway,omitempty"`
@@ -100,8 +106,20 @@ func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (Pull
 	// Outlet code → POS so it can build {OUTLET}-{DEV}{SEQ} order numbers offline.
 	// Outlet name → POS so the recap/print read the active outlet, not a constant.
 	// Outlet timezone -> POS so its promo twin gates hours/dates on the outlet clock (A28).
-	var code, name, tz *string
-	if e := e.Pool.QueryRow(ctx, `SELECT code, name, timezone FROM outlets WHERE id=$1`, outletID).Scan(&code, &name, &tz); e == nil {
+	var code, name, tz, address, phone *string
+	// A failed read (not a missing outlet) fails the pull, so the tablet keeps its last good snapshot instead
+	// of swapping in one with an empty outlet code, name and receipt header.
+	oe := e.Pool.QueryRow(ctx, `SELECT code, name, timezone, address, phone FROM outlets WHERE id=$1`, outletID).Scan(&code, &name, &tz, &address, &phone)
+	if oe != nil && !errors.Is(oe, pgx.ErrNoRows) {
+		return b, oe
+	}
+	if oe == nil {
+		if address != nil {
+			b.OutletAddress = *address
+		}
+		if phone != nil {
+			b.OutletPhone = *phone
+		}
 		if tz != nil {
 			b.OutletTimezone = *tz
 		}
@@ -115,6 +133,11 @@ func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (Pull
 	// Like every other read here a failure fails the pull: the tablet then keeps its last good
 	// snapshot instead of swapping in one that silently lacks the giveaway.
 	if b.OutletGiveaway, err = read.OutletGiveawayForPull(ctx, e.Pool, outletID); err != nil {
+		return b, err
+	}
+	// Same rule for the receipt template: a read error fails the pull so the tablet keeps its last
+	// good snapshot (and the template in it) instead of silently falling back to Standar.
+	if b.ReceiptTemplate, err = read.ReceiptTemplateForOutlet(ctx, e.Pool, outletID); err != nil {
 		return b, err
 	}
 	// Outlet-scoped: POS receives this outlet's resolved stock/price, only products
