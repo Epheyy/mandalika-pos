@@ -151,7 +151,37 @@ func TestReceiptTemplatesPostgres(t *testing.T) {
 		return b
 	}
 
-	_ = pull
+	t.Run("pull_omits_receiptTemplate_without_rows", func(t *testing.T) {
+		b := pull(outA)
+		if b.ReceiptTemplate != nil {
+			t.Fatalf("no template rows, yet the pull carries %v", b.ReceiptTemplate.Id)
+		}
+		raw, err := json.Marshal(b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var keys map[string]json.RawMessage
+		_ = json.Unmarshal(raw, &keys)
+		if _, ok := keys["receiptTemplate"]; ok {
+			t.Fatal("receiptTemplate must be absent from the JSON, not null")
+		}
+	})
+
+	t.Run("pull_carries_outlet_address_phone", func(t *testing.T) {
+		a := pull(outA)
+		if a.OutletAddress != "Jl. Kuta 1" || a.OutletPhone != "0361 111" {
+			t.Fatalf("outlet A address/phone = %q / %q", a.OutletAddress, a.OutletPhone)
+		}
+		raw, _ := json.Marshal(pull(outB))
+		var keys map[string]json.RawMessage
+		_ = json.Unmarshal(raw, &keys)
+		if _, ok := keys["outletAddress"]; ok {
+			t.Fatal("an outlet without an address must omit outletAddress, not send null or an empty string")
+		}
+		if _, ok := keys["outletPhone"]; ok {
+			t.Fatal("an outlet without a phone must omit outletPhone")
+		}
+	})
 
 	t.Run("requires_manage_settings", func(t *testing.T) {
 		if code, _ := do([]string{"view_reports"}, http.MethodGet, "/receipt-templates", nil); code != http.StatusForbidden {
@@ -388,5 +418,56 @@ func TestReceiptTemplatesPostgres(t *testing.T) {
 			t.Fatalf("51st template = %d %v", code, body)
 		}
 		exec(`DELETE FROM receipt_templates WHERE name LIKE 'Bulk %'`)
+	})
+
+	t.Run("pull_carries_assigned_template", func(t *testing.T) {
+		b := pull(outA)
+		if b.ReceiptTemplate == nil || b.ReceiptTemplate.Id.String() != tplA {
+			t.Fatalf("outlet A should get Promo, got %+v", b.ReceiptTemplate)
+		}
+		if b.ReceiptTemplate.Version < 4 || int(b.ReceiptTemplate.PaperWidth) != 58 || len(b.ReceiptTemplate.Blocks) != 4 {
+			t.Fatalf("template payload = %+v", b.ReceiptTemplate)
+		}
+	})
+
+	t.Run("pull_falls_back_to_default", func(t *testing.T) {
+		exec(`UPDATE outlets SET receipt_template_id=NULL WHERE id=$1`, outC)
+		b := pull(outC)
+		if b.ReceiptTemplate == nil || b.ReceiptTemplate.Id.String() != standar {
+			t.Fatalf("an unassigned outlet should get Standar, got %+v", b.ReceiptTemplate)
+		}
+	})
+
+	t.Run("pull_succeeds_when_the_assigned_row_is_gone", func(t *testing.T) {
+		tmp := create("Hilang", nil)
+		do(admin, http.MethodPut, "/receipt-templates/assign", map[string]any{"templateId": tmp, "outletIds": []string{outC}})
+		if b := pull(outC); b.ReceiptTemplate == nil || b.ReceiptTemplate.Id.String() != tmp {
+			t.Fatal("setup: outlet C should get the new template")
+		}
+		exec(`DELETE FROM receipt_templates WHERE id=$1`, tmp)
+		b := pull(outC)
+		if b.ReceiptTemplate == nil || b.ReceiptTemplate.Id.String() != standar {
+			t.Fatalf("with the assigned row gone the pull must fall back to the default, got %+v", b.ReceiptTemplate)
+		}
+	})
+
+	t.Run("pull_skips_a_row_whose_blocks_are_not_a_list", func(t *testing.T) {
+		exec(`UPDATE receipt_templates SET blocks='{}'::jsonb WHERE id=$1`, standar)
+		b := pull(outC)
+		if b.ReceiptTemplate != nil {
+			t.Fatalf("a corrupt row must not be shipped, got %+v", b.ReceiptTemplate)
+		}
+		exec(`UPDATE receipt_templates SET blocks=$2::jsonb WHERE id=$1`, standar, `[{"id":"i","type":"items","enabled":true},{"id":"o","type":"totals","enabled":true},{"id":"p","type":"payment","enabled":true}]`)
+	})
+
+	t.Run("pull_without_a_default_gives_unassigned_outlets_nothing", func(t *testing.T) {
+		exec(`UPDATE receipt_templates SET is_default=false WHERE id=$1`, standar)
+		defer exec(`UPDATE receipt_templates SET is_default=true WHERE id=$1`, standar)
+		if b := pull(outC); b.ReceiptTemplate != nil {
+			t.Fatalf("no default and no assignment: want none, got %+v", b.ReceiptTemplate)
+		}
+		if b := pull(outA); b.ReceiptTemplate == nil || b.ReceiptTemplate.Id.String() != tplA {
+			t.Fatal("an assigned outlet still gets its template without a default")
+		}
 	})
 }
