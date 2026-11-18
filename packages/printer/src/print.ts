@@ -8,6 +8,8 @@ import { buildReceipt, buildRecap, buildTandaTerima, buildVoidSlip, type Receipt
 import { buildReceiptV1 } from './__legacy__/buildReceiptV1'
 import type { PaperWidth, ReceiptLayout } from './receipt/layout'
 import { receiptBytes } from './receipt/render'
+import { refundSlipBytes, voidSlipBytes, type RefundSlipData } from './receipt/slips'
+import { standarLayout } from './receipt/standar'
 import { CapacitorBleTransport } from './ble'
 import { AutoBluetoothTransport } from './autoTransport'
 import { ClassicSppTransport } from './classic'
@@ -146,16 +148,68 @@ export async function printTandaTerima(job: TandaTerimaJob): Promise<void> {
   )
 }
 
-export interface VoidSlipJob {
+/** The layout options every template-framed print carries (the receipt job's own, reused by the slips). */
+interface FramedJobOptions {
+  /** The outlet's receipt template. Absent = the built-in Standar layout. */
+  layout?: ReceiptLayout
+  /** The tablet's paper width: a wider template reflows to it. */
+  maxPaperWidth?: PaperWidth
+  /** The `Cetak logo & QR` switch. Default true when omitted, so a POS caller must pass the tablet's setting. */
+  graphics?: boolean
+  /** Called when a template block was skipped, or the whole template fell back. */
+  onLayoutError?: (e: unknown) => void
+}
+
+export interface VoidSlipJob extends FramedJobOptions {
   transport: PrinterTransport
   deviceId: string | null
   data: VoidSlipData
   settings: ReceiptSettings
-  /** Reserved for the receipt designer; the slip does not read it yet. */
-  layout?: ReceiptLayout
+}
+
+/** The DIBATALKAN slip framed by the template; if that throws it reports and prints the plain slip, so a template
+ *  can never cost the void its slip. */
+function voidSlipPayload(job: VoidSlipJob): Uint8Array {
+  try {
+    return voidSlipBytes(job.layout ?? standarLayout(job.settings), job.data, {
+      maxPaperWidth: job.maxPaperWidth,
+      graphics: job.graphics,
+      onBlockError: (_id, e) => job.onLayoutError?.(e),
+    })
+  } catch (e) {
+    job.onLayoutError?.(e)
+    return buildVoidSlip(job.data)
+  }
 }
 
 /** Connect if needed and print a single DIBATALKAN slip. Throws on failure. */
 export async function printVoidSlip(job: VoidSlipJob): Promise<void> {
-  await sendJob(job.transport, job.deviceId, () => buildVoidSlip(job.data), 1)
+  await sendJob(job.transport, job.deviceId, () => voidSlipPayload(job), 1)
+}
+
+export interface RefundSlipJob extends FramedJobOptions {
+  transport: PrinterTransport
+  deviceId: string | null
+  data: RefundSlipData
+  settings: ReceiptSettings
+}
+
+/** The REFUND slip framed by the template; if that throws it reports and renders it once more on Standar with no
+ *  graphics (the plainest frame). A second failure propagates to the caller. */
+function refundSlipPayload(job: RefundSlipJob): Uint8Array {
+  try {
+    return refundSlipBytes(job.layout ?? standarLayout(job.settings), job.data, {
+      maxPaperWidth: job.maxPaperWidth,
+      graphics: job.graphics,
+      onBlockError: (_id, e) => job.onLayoutError?.(e),
+    })
+  } catch (e) {
+    job.onLayoutError?.(e)
+    return refundSlipBytes(standarLayout(job.settings), job.data, { graphics: false })
+  }
+}
+
+/** Connect if needed and print a single REFUND slip (one copy). Throws on failure; the refund itself is already queued. */
+export async function printRefundSlip(job: RefundSlipJob): Promise<void> {
+  await sendJob(job.transport, job.deviceId, () => refundSlipPayload(job), 1)
 }

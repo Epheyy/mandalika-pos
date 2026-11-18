@@ -18,12 +18,14 @@ import {
   createTransport,
   printReceipt,
   printRecap,
+  printRefundSlip,
   printTandaTerima,
   printVoidSlip,
   type PrinterTransport,
   type ReceiptData,
   type ReceiptLayout,
   type RecapData,
+  type RefundSlipData,
   type TandaTerimaData,
   type VoidSlipData,
 } from '@mandalika/printer'
@@ -53,8 +55,10 @@ interface PrinterState {
   print: (data: ReceiptData, settings: ReceiptSettings, reprint?: boolean, layout?: ReceiptLayout) => Promise<void>
   printRecap: (data: RecapData, settings: ReceiptSettings) => Promise<void>
   printTandaTerima: (data: TandaTerimaData, settings: ReceiptSettings, reprint?: boolean) => Promise<void>
-  /** DIBATALKAN slip; `layout` is reserved for the receipt designer (the slip does not read it yet). */
+  /** DIBATALKAN slip framed by the outlet's template (`layout`; Standar when absent). */
   printVoidSlip: (data: VoidSlipData, settings: ReceiptSettings, layout?: ReceiptLayout) => Promise<void>
+  /** REFUND slip framed by the outlet's template, one copy. Throws on a print failure; the refund is already queued. */
+  printRefundSlip: (data: RefundSlipData, settings: ReceiptSettings, layout?: ReceiptLayout) => Promise<void>
   testPrint: (settings: ReceiptSettings, layout?: ReceiptLayout, outlet?: ReceiptData['outlet']) => Promise<void>
 }
 
@@ -69,6 +73,23 @@ function receiptLayoutOptions(layout: ReceiptLayout | undefined, orderRef: strin
     onLayoutError: (e: unknown) => {
       void reportErrors([{
         source: 'print', kind: 'receipt_template', action: `Cetak struk ${orderRef}`,
+        message: e instanceof Error ? e.message : 'template struk gagal dirender',
+      }])
+    },
+  }
+}
+
+/** The layout fields of a slip job (DIBATALKAN, REFUND). Unlike a sale, a slip always carries the tablet's own paper
+ *  width and `Cetak logo & QR` switch: the renderer's default is graphics ON, so omitting them would send raster bytes
+ *  to a printer whose switch is off. */
+function slipLayoutOptions(layout: ReceiptLayout | undefined, orderRef: string, what: string) {
+  return {
+    layout,
+    maxPaperWidth: devicePaperWidth(),
+    graphics: deviceGraphics(),
+    onLayoutError: (e: unknown) => {
+      void reportErrors([{
+        source: 'print', kind: 'receipt_template', action: `${what} ${orderRef}`,
         message: e instanceof Error ? e.message : 'template struk gagal dirender',
       }])
     },
@@ -184,7 +205,20 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
         deviceId: pairedId,
         data,
         settings,
-        layout,
+        ...slipLayoutOptions(layout, data.orderRef, 'Cetak slip batal'),
+      })
+    },
+    [pairedId],
+  )
+
+  const doPrintRefundSlip = useCallback(
+    async (data: RefundSlipData, settings: ReceiptSettings, layout?: ReceiptLayout) => {
+      await printRefundSlip({
+        transport: transportRef.current,
+        deviceId: pairedId,
+        data,
+        settings,
+        ...slipLayoutOptions(layout, data.orderRef, 'Cetak struk refund'),
       })
     },
     [pairedId],
@@ -203,9 +237,10 @@ export function PrinterProvider({ children }: { children: ReactNode }) {
       printRecap: doPrintRecap,
       printTandaTerima: doPrintTandaTerima,
       printVoidSlip: doPrintVoidSlip,
+      printRefundSlip: doPrintRefundSlip,
       testPrint,
     }),
-    [supported, pairedName, pairedId, listBonded, pairTo, pair, unpair, print, doPrintRecap, doPrintTandaTerima, doPrintVoidSlip, testPrint],
+    [supported, pairedName, pairedId, listBonded, pairTo, pair, unpair, print, doPrintRecap, doPrintTandaTerima, doPrintVoidSlip, doPrintRefundSlip, testPrint],
   )
 
   return <PrinterCtx.Provider value={value}>{children}</PrinterCtx.Provider>

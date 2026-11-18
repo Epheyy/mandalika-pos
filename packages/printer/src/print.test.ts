@@ -9,9 +9,11 @@ vi.mock('@capacitor/core', () => ({
   registerPlugin: () => ({}),
 }))
 
-import { buildReceipt } from './escpos'
+import { buildReceipt, buildVoidSlip as buildVoidSlipRef } from './escpos'
 import { buildReceiptV1 } from './__legacy__/buildReceiptV1'
-import { createTransport, printReceipt, printVoidSlip } from './print'
+import { createTransport, printReceipt, printRefundSlip, printVoidSlip } from './print'
+import { ditherToRaster } from './receipt/raster'
+import type { RefundSlipData } from './receipt/slips'
 import type { ReceiptLayout } from './receipt/layout'
 import type { PrinterTransport } from './transport'
 import type { PrintJob } from './print'
@@ -274,5 +276,68 @@ describe('graphics switch and the queue after a drain', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('framed slips honour the tablet graphics switch', () => {
+  const rgba = new Uint8ClampedArray(64 * 8 * 4).map((_, i) => (i % 4 === 3 ? 255 : (i >> 2) % 3 === 0 ? 0 : 255))
+  const logoLayout: ReceiptLayout = {
+    paperWidth: 58,
+    blocks: [
+      { id: 'img', type: 'image', enabled: true, image: ditherToRaster(rgba, 64, 8), align: 'center' },
+      { id: 'h', type: 'header', enabled: true, text: 'MANDALIKA', size: 'normal', showOutletName: false, showOutletAddress: false, showOutletPhone: false },
+      { id: 'i', type: 'items', enabled: true },
+      { id: 'o', type: 'totals', enabled: true, showSubtotal: true, showDiscount: true, showTax: true },
+      { id: 'p', type: 'payment', enabled: true },
+    ],
+  }
+  const refund: RefundSlipData = {
+    orderRef: 'R1', dateTime: new Date('2026-05-29T00:00:00Z'), lines: [{ name: 'Parfum', qty: 1, amount: 1000 }],
+    total: 1000, payoutLabel: 'Tunai', cashierName: 'Kasir',
+  }
+  const slip = { orderRef: 'R1', total: 1000, reasonLabel: 'Salah', voidedBy: 'Kasir', dateTime: '29/05/26 10.00' }
+  const capture = () => {
+    const writes: Uint8Array[] = []
+    const t: PrinterTransport = {
+      kind: 'none', isAvailable: async () => true, pickDevice: async () => null,
+      connect: async () => {}, write: async (b) => { writes.push(b) }, disconnect: async () => {},
+    }
+    return { t, writes }
+  }
+  const has = (b: Uint8Array, seq: number[]) => b.some((_, i) => seq.every((v, j) => b[i + j] === v))
+  const GS_V0 = [0x1d, 0x76, 0x30]
+  const GS_K = [0x1d, 0x28, 0x6b]
+
+  it('void slip with graphics off sends no raster or QR bytes; on, the logo prints; one copy', async () => {
+    const off = capture()
+    await printVoidSlip({ transport: off.t, deviceId: 'd', data: slip, settings: { ...settings, copies: 3 }, layout: logoLayout, graphics: false })
+    expect(off.writes).toHaveLength(1)
+    expect(has(off.writes[0]!, GS_V0) || has(off.writes[0]!, GS_K)).toBe(false)
+    const on = capture()
+    await printVoidSlip({ transport: on.t, deviceId: 'd', data: slip, settings, layout: logoLayout, graphics: true })
+    expect(has(on.writes[0]!, GS_V0)).toBe(true)
+  })
+
+  it('refund slip with graphics off sends no raster or QR bytes; on, the logo prints; one copy', async () => {
+    const off = capture()
+    await printRefundSlip({ transport: off.t, deviceId: 'd', data: refund, settings: { ...settings, copies: 3 }, layout: logoLayout, graphics: false })
+    expect(off.writes).toHaveLength(1)
+    expect(has(off.writes[0]!, GS_V0) || has(off.writes[0]!, GS_K)).toBe(false)
+    const on = capture()
+    await printRefundSlip({ transport: on.t, deviceId: 'd', data: refund, settings, layout: logoLayout, graphics: true })
+    expect(has(on.writes[0]!, GS_V0)).toBe(true)
+  })
+
+  it('a template that throws falls back (void: plain slip, refund: Standar) and reports', async () => {
+    const broken = { paperWidth: 58, blocks: [{ id: 'x', type: 'items', enabled: true }] } as unknown as ReceiptLayout
+    Object.defineProperty(broken, 'blocks', { get() { throw new Error('bad template') } })
+    const errs: unknown[] = []
+    const v = capture()
+    await printVoidSlip({ transport: v.t, deviceId: 'd', data: slip, settings, layout: broken, onLayoutError: (e) => errs.push(e) })
+    expect(Array.from(v.writes[0]!)).toEqual(Array.from(buildVoidSlipRef(slip)))
+    const r = capture()
+    await printRefundSlip({ transport: r.t, deviceId: 'd', data: refund, settings, layout: broken, onLayoutError: (e) => errs.push(e) })
+    expect(String.fromCharCode(...r.writes[0]!)).toContain('TOTAL REFUND')
+    expect(errs).toHaveLength(2)
   })
 })
