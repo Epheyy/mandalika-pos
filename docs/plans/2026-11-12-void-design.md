@@ -268,6 +268,8 @@ a replacement is allowed; the chain stays visible.
 
 ### ERP *(rec, needs the ERP developer)*
 
+> **Amended 2026-11-18** (from the ERP code, see the void plan Phase 5): the ERP is a stock ledger only. Tenders are stored as information and never booked, so "reverse every payment line" has no ERP meaning, and the ERP cannot "keep the money twice". A void is sent as a `refund` document (quantities ≥ 0, `refund_of_movement_id` set, `ref.type: "void"`); a void that restocks nothing is not sent. Dates stay as the POS ledger records them; there is no period lock (only a 6-month age limit); counts and adjustments are deltas. The text below is the original proposal.
+
 - The reversal of the original sale must return the stock **and reverse every payment
   line**.
 - It must be sent even when no stock moves, for example when every line was skipped as
