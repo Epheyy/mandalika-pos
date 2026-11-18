@@ -117,6 +117,22 @@ function runBlock(b: ReceiptBlock, ctx: BlockCtx): void {
   }
 }
 
+/** Run one block into `sink`, atomically: a block that throws half way leaves nothing behind. An unlocked block
+ *  that throws is skipped (reported through `onBlockError`); a locked one raises LockedBlockError. */
+export function playBlock(b: ReceiptBlock, ctx: BlockCtx, sink: ReceiptSink, opts: RenderOptions): void {
+  const rec = new Recorder()
+  try {
+    runBlock(b, { ...ctx, out: rec })
+  } catch (e) {
+    if (isLockedType(b.type)) throw new LockedBlockError(b.id, e)
+    // Standar must behave like the frozen legacy receipt, which throws on bad input rather than printing less.
+    if (ctx.compat) throw e
+    opts.onBlockError?.(b.id, e)
+    return
+  }
+  rec.replayTo(sink)
+}
+
 /** Render `layout` for `data` into `sink`. An unlocked block that throws is skipped (and reported through
  *  `onBlockError`); a locked block that throws raises LockedBlockError. */
 export function renderReceipt(layout: ReceiptLayout, data: ReceiptData, sink: ReceiptSink, opts: RenderOptions = {}): void {
@@ -129,19 +145,7 @@ export function renderReceipt(layout: ReceiptLayout, data: ReceiptData, sink: Re
   sink.cmd('init')
   // The marks sit after the leading run of header and logo blocks.
   let i = 0
-  const play = (b: ReceiptBlock): void => {
-    const rec = new Recorder()
-    try {
-      runBlock(b, { ...ctx, out: rec })
-    } catch (e) {
-      if (isLockedType(b.type)) throw new LockedBlockError(b.id, e)
-      // Standar must behave like the frozen legacy receipt, which throws on bad input rather than printing less.
-      if (compat) throw e
-      opts.onBlockError?.(b.id, e)
-      return
-    }
-    rec.replayTo(sink)
-  }
+  const play = (b: ReceiptBlock): void => playBlock(b, ctx, sink, opts)
   while (i < blocks.length && (blocks[i]!.type === 'header' || blocks[i]!.type === 'image')) play(blocks[i++]!)
   if (opts.reprint) reprintMark(sink)
   replacementMark(ctx)

@@ -50,6 +50,7 @@ import { ShiftBar } from './ShiftBar'
 import { ReceiptPreview } from './ReceiptPreview'
 import { orderStateFor } from './orderState'
 import { RefundDialog, type RefundConfirmInput } from './RefundDialog'
+import { buildRefundSlipData, printRefundSlipSafely } from './refundSlipData'
 import type { RefundCache } from './refundSelection'
 import type { HistoryFocus } from './OrderHistoryPanel'
 import { withSaleLineData } from './saleLineData'
@@ -471,7 +472,7 @@ export default function CashierScreen() {
     getGate: () => voidGateInputs(false), getPreview: (id) => api.getVoidPreview(id),
     ensureShift, offlineLock, askConfirm: (c) => setConfirm(c), showToast,
     closePanels: () => { setShowHistory(false); setShowLocalReceipts(false) },
-    printSlip: async (data) => { if (printer.isPaired) await printer.printVoidSlip(data, settings.receipt, receiptLayout) },
+    printSlip: async (data) => { if (printer.isPaired) await printer.printVoidSlip({ ...data, outlet: receiptOutlet(snapshot) }, settings.receipt, receiptLayout) },
   })
 
   // C6 D-62: an unfinished split payment survives an app kill (the draft owns the sale's order uuid).
@@ -1081,7 +1082,7 @@ export default function CashierScreen() {
         // Void: the DIBATALKAN slip first (only now that the void is saved), then the replacement receipt.
         if (voidDraft?.kind === 'void_and_replace') {
           printer
-            .printVoidSlip(voidSlipData({ draft: voidDraft, voidedBy: user?.displayName ?? 'Kasir', replacementRef: orderNo, at: saleAt }), settings.receipt, receiptLayout)
+            .printVoidSlip({ ...voidSlipData({ draft: voidDraft, voidedBy: user?.displayName ?? 'Kasir', replacementRef: orderNo, at: saleAt }), outlet: receiptOutlet(snapshot) }, settings.receipt, receiptLayout)
             .catch((e: unknown) => {
               const msg = e instanceof Error ? e.message : 'Gagal mencetak'
               setPrintError(msg)
@@ -1206,14 +1207,20 @@ export default function CashierScreen() {
     if (ids.some((k) => voided.has(k))) { setRefundError(REFUND_VOIDED); return }
     if (ids.some((k) => synced.has(k))) { setRefundError(REFUND_DONE); return }
     if (ids.some((k) => queuedIds.has(k) || queuedUuids.has(k))) { setRefundError(REFUND_QUEUED); return }
+    // One read of the refund memory feeds both the plan and the slip, so they cannot disagree.
+    const slipCache = refundCacheFor(ids)
     const plan = planRefundSubmit({
-      refundOrder, orderId, reason: input.reason, reasonCode: input.reasonCode, selection: input.selection, cache: refundCacheFor(ids), payoutMethod: input.payoutMethod, payoutPicked: input.payoutPicked, methods: settings.paymentMethods,
+      refundOrder, orderId, reason: input.reason, reasonCode: input.reasonCode, selection: input.selection, cache: slipCache, payoutMethod: input.payoutMethod, payoutPicked: input.payoutPicked, methods: settings.paymentMethods,
       canRefund: canRefund(user), shiftId: shift.currentShift?.id, sale: refundSale ?? undefined,
     })
     if (plan.kind === 'error') {
       setRefundError(plan.message)
       return
     }
+    // The slip is built after the refund is saved, but from the queued payload and `slipCache` (the refund memory read
+    // before queuing, which queuing changes), so it shows what was saved. A failure only costs the slip (it is built
+    // inside the guard below), never the refund.
+    const slipOrder = refundOrder
     setIsRefunding(true)
     const outcome = await refundGate.current.run(() => engine.enqueue('refund', { ...plan.payload }))
     if (outcome.status === 'busy') return
@@ -1226,6 +1233,21 @@ export default function CashierScreen() {
     setRefundOrder(null)
     setRefundSale(null)
     kitToast.showToast(`Refund${refundedNumber ? ` ${refundedNumber}` : ''} diproses — stok dipulihkan saat terkirim`, { tone: 'ok' })
+    // Print the REFUND slip only now that the refund is saved. Not awaited: it never blocks, delays or undoes the refund.
+    if (slipOrder) {
+      void printRefundSlipSafely({
+        isPaired: printer.isPaired,
+        build: () => buildRefundSlipData({
+          order: slipOrder, payload: plan.payload, cache: slipCache, methods: settings.paymentMethods,
+          cashierName: user?.displayName ?? 'Kasir', at: new Date(), outlet: receiptOutlet(snapshot),
+        }),
+        print: (data) => printer.printRefundSlip(data, settings.receipt, receiptLayout),
+        orderRef: slipOrder.orderNumber,
+        outletName: snapshot.outletName,
+        onFailure: (msg) => showToast(msg),
+        report: (r) => { void reportErrors([r]) },
+      })
+    }
   }
 
   // A08: only called after the server minted a grant; the queued receive carries its id, never a PIN.
