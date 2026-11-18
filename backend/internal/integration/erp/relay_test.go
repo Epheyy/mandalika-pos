@@ -428,8 +428,12 @@ func TestNewRelayDefaults(t *testing.T) {
 	}
 }
 
-func TestClaimSQLExcludesVoidHold(t *testing.T) {
-	if !strings.Contains(claimSQL, "<> 'void_erp_pending'") {
-		t.Fatal("claimSQL must never claim a void_erp_pending row")
+// Migration 0094 released every void_erp_pending row and nothing sets the reason any more, so
+// the claim and the admin retry no longer exclude it.
+func TestClaimAndRetryDoNotExcludeVoidHold(t *testing.T) {
+	for name, sql := range map[string]string{"claimSQL": claimSQL, "retrySQL": retrySQL} {
+		if strings.Contains(sql, "void_erp_pending") {
+			t.Fatalf("%s still mentions void_erp_pending", name)
+		}
 	}
 }

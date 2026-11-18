@@ -38,6 +38,26 @@ const (
 var knownKinds = map[string]bool{
 	"sale": true, "refund": true, "transfer_out": true, "transfer_in": true, "transfer_cancel": true,
 	"receipt": true, "adjust": true, "count": true, "opening": true, "write_off": true,
+	"void": true, // internal kind; goes on the wire as "refund" (wireKind)
+}
+
+// wireKind maps an internal document kind to the kind the ERP contract knows. The ERP has no
+// void kind, so a void is a refund document with ref.type "void". When the ERP adds a void
+// kind, this is the one line to change.
+func wireKind(kind string) string {
+	if kind == "void" {
+		return "refund"
+	}
+	return kind
+}
+
+// wireRefType is the ref.type that goes on the wire: the void document's ledger ref_type is
+// "order", but the ERP is told "void" so a reader can tell it from a customer refund.
+func wireRefType(kind, refType string) string {
+	if kind == "void" {
+		return "void"
+	}
+	return refType
 }
 
 // nonCashTenderMethods are the non-cash payment methods the contract defines. POS payment
@@ -135,12 +155,12 @@ func BuildDocument(in BuildInput) (doc StockDocument, holdReason string, err err
 
 	doc = StockDocument{
 		DocumentID: h.DocumentID,
-		Kind:       h.Kind,
+		Kind:       wireKind(h.Kind),
 		Source:     buildSource(in),
 		Location:   DocumentLocation{Type: h.LocationType, Code: in.LocationCode, Slug: in.LocationSlug},
 		OccurredAt: in.Movements[0].OccurredAt.UTC().Format(time.RFC3339),
 		RecordedAt: h.CreatedAt.UTC().Format(time.RFC3339),
-		Ref:        DocumentRef{Type: h.RefType, ID: h.RefID, Number: h.RefNumber},
+		Ref:        DocumentRef{Type: wireRefType(h.Kind, h.RefType), ID: h.RefID, Number: h.RefNumber},
 		Lines:      make([]StockLine, 0, len(in.Movements)),
 	}
 	if h.PartCount > 1 {
@@ -208,7 +228,12 @@ func buildSource(in BuildInput) DocumentSource {
 	return src
 }
 
+// lineKind is the kind a line is built as: a void's lines are refund lines (positive qty,
+// refund_of_movement_id, the refunded line's price).
+func lineKind(kind string) string { return wireKind(kind) }
+
 func buildLine(kind string, m MovementRow, order *OrderInfo) StockLine {
+	kind = lineKind(kind)
 	line := StockLine{
 		MovementID: m.ID, FgCode: m.FgCode,
 		Qty: int64(m.Qty), QtyBefore: int64(m.QtyBefore), QtyAfter: int64(m.QtyAfter),
@@ -255,6 +280,8 @@ func buildTenders(h OutboxHeader, order *OrderInfo, methods []api.PaymentMethodC
 	switch h.Kind {
 	case "sale":
 		return saleTenders(order, methods)
+	case "void":
+		return negatedSaleTenders(order, methods)
 	case "refund":
 		method := order.RefundMethod
 		if method == "" {
@@ -318,6 +345,16 @@ func saleTenders(order *OrderInfo, methods []api.PaymentMethodConfig) []Tender {
 	return kept
 }
 
+// negatedSaleTenders is the original sale's tenders with every amount negated: the stored
+// header of a void reads as a full reversal. The ERP books no money (stock ledger only).
+func negatedSaleTenders(order *OrderInfo, methods []api.PaymentMethodConfig) []Tender {
+	out := saleTenders(order, methods)
+	for i := range out {
+		out[i].Amount = -out[i].Amount
+	}
+	return out
+}
+
 // legacyRefundKey reports whether key is the pre-C4a whole-order refund key "refund:<orderId>",
 // the only refund document that may fall back to -order.Total when its refund row is missing.
 func legacyRefundKey(key, orderID string) bool { return key == "refund:"+orderID }
@@ -377,7 +414,7 @@ func LoadBuildInput(ctx context.Context, q Querier, h OutboxHeader, brand string
 		return in, err
 	}
 	in.Movements = ms
-	if (h.Kind == "sale" || h.Kind == "refund") && h.RefType == "order" {
+	if (h.Kind == "sale" || h.Kind == "refund" || h.Kind == "void") && h.RefType == "order" {
 		if in.Order, err = loadOrder(ctx, q, h.RefID); err != nil {
 			return in, err
 		}

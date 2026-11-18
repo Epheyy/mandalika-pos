@@ -126,7 +126,7 @@ func TestVoidPostgres(t *testing.T) {
 		      INSERT INTO point_transactions(customer_id,type,points,balance_after) SELECT id,'void',1,1 FROM c`)
 	})
 
-	t.Run("void_erp_held", func(t *testing.T) {
+	t.Run("void_enqueues_pending", func(t *testing.T) {
 		const (
 			prod     = "00000000-0000-4000-9100-0000000000c1"
 			plainO   = "00000000-0000-4000-9100-0000000000d1"
@@ -183,58 +183,80 @@ func TestVoidPostgres(t *testing.T) {
 			}
 			return r
 		}
-		for _, k := range []string{voidDoc, "sale:vd-erp-repl", "refund:vd-erp-repl"} {
-			r := get(k)
-			if r.status != "held" || r.hold != ledger.VoidERPHoldReason || r.next.After(time.Now().Add(time.Minute)) {
-				t.Fatalf("%s outbox = %+v, want held/%s with a finite next_attempt_at", k, r, ledger.VoidERPHoldReason)
+		// Every void-related document enqueues as a plain pending row now (migration 0094).
+		for _, k := range []string{voidDoc, "sale:vd-erp-repl", "refund:vd-erp-repl", otherDoc} {
+			if r := get(k); r.status != "pending" || r.hold != "" {
+				t.Fatalf("%s outbox = %+v, want pending with no hold reason", k, r)
 			}
-		}
-		if r := get(otherDoc); r.status != "pending" || r.hold != "" {
-			t.Fatalf("plain sale outbox = %+v, want pending", r)
 		}
 
-		// The relay claims the plain sale only: the held rows stay put.
-		exec(`UPDATE erp_outbox SET next_attempt_at = now() - interval '1 hour' WHERE status IN ('held','pending')`)
-		p := &obrPoster{reply: obrAnswer(500, `{}`)}
-		rep := obrRun(t, ctx, obrRelay(pool, p, erp.Config{}))
-		for _, k := range []string{voidDoc, "sale:vd-erp-repl", "refund:vd-erp-repl"} {
-			r := get(k)
-			if r.status != "held" || r.hold != ledger.VoidERPHoldReason {
-				t.Fatalf("%s after a relay run = %+v, want untouched held/%s", k, r, ledger.VoidERPHoldReason)
-			}
-			var attempts int
-			var docID string
-			if err := pool.QueryRow(ctx, `SELECT attempts, document_id::text FROM erp_outbox WHERE doc_key=$1`, k).Scan(&attempts, &docID); err != nil || attempts != 0 {
-				t.Fatalf("%s attempts = %d, %v; a held void row must never be claimed", k, attempts, err)
-			}
-			if n := len(p.callsFor(docID)); n != 0 {
-				t.Fatalf("%s was posted to the ERP %d times", k, n)
-			}
+		// The void row builds as a refund on the wire.
+		var h erp.OutboxHeader
+		var part, partCount int
+		if err := pool.QueryRow(ctx, `SELECT id::text, document_id::text, kind, location_type, location_id::text, ref_type, ref_id::text,
+		    COALESCE(ref_number,''), part, part_count, created_at FROM erp_outbox WHERE doc_key=$1`, voidDoc).Scan(
+			&h.ID, &h.DocumentID, &h.Kind, &h.LocationType, &h.LocationID, &h.RefType, &h.RefID, &h.RefNumber, &part, &partCount, &h.CreatedAt); err != nil {
+			t.Fatal(err)
 		}
-		if rep.Claimed != 1 {
-			t.Fatalf("relay claimed %d rows, want only the plain sale", rep.Claimed)
+		h.Part, h.PartCount = part, partCount
+		if h.Kind != "void" {
+			t.Fatalf("void outbox kind = %q, want the internal kind void", h.Kind)
 		}
-		// The admin list scans held rows (a finite next_attempt_at; 'infinity' would break pgx).
-		items, total, err := erp.List(ctx, pool, "held", "", 50, 0)
-		if err != nil || total < 3 || len(items) < 3 {
-			t.Fatalf("erp.List held = %d items, total %d, err %v", len(items), total, err)
+		in, err := erp.LoadBuildInput(ctx, pool, h, "mandalika")
+		if err != nil {
+			t.Fatalf("LoadBuildInput(void): %v", err)
 		}
-		if _, _, err := erp.List(ctx, pool, "", "void", 50, 0); err != nil {
-			t.Fatalf("erp.List kind=void: %v", err)
+		if in.Order == nil {
+			t.Fatal("LoadBuildInput(void) did not load the original order")
+		}
+		in.LocationCode = "VD-1"
+		for i := range in.Movements {
+			in.Movements[i].FgCode = "FG-VD"
+		}
+		doc, hold, err := erp.BuildDocument(in)
+		if err != nil || hold != "" {
+			t.Fatalf("BuildDocument(void): hold=%q err=%v", hold, err)
+		}
+		if doc.Kind != "refund" || doc.Ref.Type != "void" || doc.Ref.ID != origO || doc.Lines[0].Qty <= 0 {
+			t.Fatalf("void wire document = kind %s ref %+v qty %d, want refund/void/%s/>0", doc.Kind, doc.Ref, doc.Lines[0].Qty, origO)
+		}
+		if len(doc.Tenders) != 1 || doc.Tenders[0].Amount != -1000 {
+			t.Fatalf("void tenders = %+v, want the sale's cash negated", doc.Tenders)
+		}
+
+		if items, _, err := erp.List(ctx, pool, "", "void", 50, 0); err != nil || len(items) == 0 {
+			t.Fatalf("erp.List kind=void = %d items, %v", len(items), err)
 		}
 	})
 
-	t.Run("erp_retry_refuses_void_hold", func(t *testing.T) {
-		var id string
-		if err := pool.QueryRow(ctx, `SELECT id::text FROM erp_outbox WHERE doc_key='void:vd-erp-held'`).Scan(&id); err != nil {
+	t.Run("void_erp_released", func(t *testing.T) {
+		// Rows Void phase 1 parked before migration 0094 (the migration ran on an empty database).
+		exec(`UPDATE erp_outbox SET status='held', hold_reason='void_erp_pending', next_attempt_at=now() + interval '1 day'
+		       WHERE doc_key IN ('void:vd-erp-held','sale:vd-erp-repl','refund:vd-erp-repl')`)
+		exec(`UPDATE erp_outbox SET status='held', hold_reason='outlet belum terhubung ke ERP' WHERE doc_key='sale:vd-erp-plain'`)
+		raw, err := os.ReadFile(filepath.Join("..", "db", "migrations", "0094_void_erp_release.sql"))
+		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := erp.Retry(ctx, pool, id); !errors.Is(err, erp.ErrNotRetryable) {
-			t.Fatalf("Retry on a void-held row = %v, want ErrNotRetryable", err)
+		exec(string(raw))
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM erp_outbox WHERE hold_reason='void_erp_pending'`).Scan(&n); err != nil || n != 0 {
+			t.Fatalf("rows still holding void_erp_pending = %d, %v", n, err)
 		}
-		var status, hold string
-		if err := pool.QueryRow(ctx, `SELECT status, COALESCE(hold_reason,'') FROM erp_outbox WHERE id=$1`, id).Scan(&status, &hold); err != nil || status != "held" || hold != ledger.VoidERPHoldReason {
-			t.Fatalf("row after Retry = %s/%s, %v", status, hold, err)
+		for _, k := range []string{"void:vd-erp-held", "sale:vd-erp-repl", "refund:vd-erp-repl"} {
+			var st, hold string
+			var due bool
+			if err := pool.QueryRow(ctx, `SELECT status, COALESCE(hold_reason,''), next_attempt_at <= now() FROM erp_outbox WHERE doc_key=$1`, k).Scan(&st, &hold, &due); err != nil {
+				t.Fatal(err)
+			}
+			if st != "pending" || hold != "" || !due {
+				t.Fatalf("%s after 0094 = %s/%s due=%v, want pending, no hold, due now", k, st, hold, due)
+			}
+		}
+		// A hold for another reason is left alone.
+		var st string
+		if err := pool.QueryRow(ctx, `SELECT status FROM erp_outbox WHERE doc_key='sale:vd-erp-plain'`).Scan(&st); err != nil || st != "held" {
+			t.Fatalf("an unrelated hold changed to %q, %v", st, err)
 		}
 	})
 
@@ -382,8 +404,8 @@ func TestVoidPostgres(t *testing.T) {
 		if n := one(`SELECT count(*) FROM order_refunds WHERE order_id=$1`, id); n != 0 {
 			t.Fatalf("a void wrote %d order_refunds rows", n)
 		}
-		if n := one(`SELECT count(*) FROM erp_outbox WHERE doc_key=$1 AND status='held'`, "void:"+res.VoidID); n != 1 {
-			t.Fatalf("held void outbox rows = %d, want 1", n)
+		if n := one(`SELECT count(*) FROM erp_outbox WHERE doc_key=$1 AND status='pending'`, "void:"+res.VoidID); n != 1 {
+			t.Fatalf("pending void outbox rows = %d, want 1", n)
 		}
 		closeShift(shift) // the closed shift no longer counts the sale
 		if one(`SELECT total_orders FROM shifts WHERE id=$1`, shift) != 0 || one(`SELECT total_sales::int FROM shifts WHERE id=$1`, shift) != 0 || one(`SELECT cash_sales::int FROM shifts WHERE id=$1`, shift) != 0 {
@@ -1008,7 +1030,7 @@ func TestVoidPostgres(t *testing.T) {
 		}
 	})
 
-	t.Run("replacement_erp_held", func(t *testing.T) {
+	t.Run("replacement_enqueues_pending", func(t *testing.T) {
 		shift := openShift()
 		p := product(5)
 		id := sale(saleOpts{shift: shift}, p)
@@ -1022,8 +1044,8 @@ func TestVoidPostgres(t *testing.T) {
 		if err := pool.QueryRow(ctx, `SELECT status, COALESCE(hold_reason,'') FROM erp_outbox WHERE doc_key=$1`, "sale:"+res.ReplacementOrderID).Scan(&st, &hold); err != nil {
 			t.Fatal(err)
 		}
-		if st != "held" || hold != ledger.VoidERPHoldReason {
-			t.Fatalf("replacement sale outbox = %s/%s, want held/%s", st, hold, ledger.VoidERPHoldReason)
+		if st != "pending" || hold != "" {
+			t.Fatalf("replacement sale outbox = %s/%s, want pending with no hold reason", st, hold)
 		}
 		if got := str(`SELECT status FROM erp_outbox WHERE doc_key=$1`, "sale:"+id); got == "held" {
 			t.Fatalf("the original sale document was held")

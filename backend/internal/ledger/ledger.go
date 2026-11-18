@@ -42,14 +42,11 @@ const (
 	KindCount          Kind = "count"
 	KindOpening        Kind = "opening"
 	KindWriteOff       Kind = "write_off"
-	// KindVoid is the stock a voided sale returns (Void, migration 0092). Its ERP document is
-	// held until the reversal contract exists (VoidERPHoldReason).
+	// KindVoid is the stock a voided sale returns (Void, migration 0092). Its ERP document goes
+	// out as a refund (erp.wireKind).
 	KindVoid Kind = "void"
 )
 
-// VoidERPHoldReason marks erp_outbox rows the relay must not send yet: void documents, and
-// the documents of a replacement sale, wait for the ERP reversal contract (Void phase 5).
-const VoidERPHoldReason = "void_erp_pending"
 
 var validKinds = map[Kind]bool{
 	KindSale: true, KindRefund: true, KindTransferOut: true, KindTransferIn: true,
