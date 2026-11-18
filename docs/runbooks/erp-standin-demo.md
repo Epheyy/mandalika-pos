@@ -461,6 +461,14 @@ still says "not merged"; stale). The POS relay matches it since commit `3410ea3c
    ```
    Do this only once per outlet, before the first send to the real ERP: after that, a resend of a delivered row is
    the admin Retry (it keeps the frozen body, so the ERP answers `replayed`).
+   **Void rows (Void Phase 5, migration 0094).** The requeue lifts every hold, including any `void` document
+   (`kind='void'`, sent to the ERP as a `refund` with `ref.type: "void"`). Run it only on a backend that has this
+   phase: an older relay marks a `void` row dead as an unknown kind. A void that restocked nothing has no outbox
+   row and is never sent (the ERP tracks stock only). The ERP rejects a document older than 6 months, so cut over
+   before the oldest backlog rows pass that age.
+   **Deploying 0094:** pause the `erp-relay` Scheduler job from the tagged deploy until promote. Otherwise a tick
+   that reaches the OLD revision marks the released `void` rows dead (unknown kind). Recovery: requeue
+   `status='dead' AND kind='void' AND payload IS NULL AND last_error='erp: unknown document kind'`.
 8. **ERP:** imports FG stock QTY 0 for that outlet in the current month. From then on the ERP stops its own
    import, adjust and reject of FG stock at that outlet. This is the single-writer rule, and plan 1 relies on it
    alone.

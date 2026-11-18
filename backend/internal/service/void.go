@@ -428,7 +428,7 @@ func voidCountedAfter(ctx context.Context, tx voidQuerier, outletID, productID, 
 }
 
 // restockVoidLines returns the restock lines to stock and writes the ledger document of kind
-// 'void' (held for the ERP until Phase 5). Plain upserts in the locked order, then ledger reads.
+// 'void' (sent to the ERP as a refund document). Plain upserts in the locked order, then ledger reads.
 func restockVoidLines(ctx context.Context, tx pgx.Tx, in VoidInput, voidID, orderNumber string, items []voidItem) error {
 	doc := ledger.Document{
 		Key: "void:" + voidID, Kind: ledger.KindVoid,
@@ -455,7 +455,7 @@ func restockVoidLines(ctx context.Context, tx pgx.Tx, in VoidInput, voidID, orde
 		})
 	}
 	if len(doc.Lines) == 0 {
-		return nil // stockless void: no outbox row; Phase 5 backfills from order_voids.erp_document_key
+		return nil // stockless void: no outbox row, and it is never sent: the ERP tracks stock only
 	}
 	_, err := ledger.RecordDeltas(ctx, tx, doc)
 	return err

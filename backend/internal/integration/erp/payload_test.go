@@ -45,8 +45,8 @@ func TestBuildDocumentEveryKind(t *testing.T) {
 	for kind := range knownKinds {
 		t.Run(kind, func(t *testing.T) {
 			doc := mustBuild(t, input(kind, movement("a", -1)))
-			if doc.Kind != kind || doc.Lines[0].Reason != kind {
-				t.Errorf("kind/reason = %s/%s, want %s", doc.Kind, doc.Lines[0].Reason, kind)
+			if doc.Kind != wireKind(kind) || doc.Lines[0].Reason != wireKind(kind) {
+				t.Errorf("kind/reason = %s/%s, want %s", doc.Kind, doc.Lines[0].Reason, wireKind(kind))
 			}
 			if doc.Source.System != "pos" || doc.Source.Brand != "mandalika" ||
 				doc.Source.DeviceID != "tab-07" || doc.Source.Actor != "kasir-01" {
@@ -56,7 +56,7 @@ func TestBuildDocumentEveryKind(t *testing.T) {
 				t.Errorf("timestamps = %s / %s", doc.OccurredAt, doc.RecordedAt)
 			}
 			if doc.Location != (DocumentLocation{Type: "outlet", Code: "KMG", Slug: "kemang"}) ||
-				doc.Ref.ID != "ref1" || doc.Ref.Number != "KMG-1" {
+				doc.Ref.ID != "ref1" || doc.Ref.Number != "KMG-1" || doc.Ref.Type != wireRefType(kind, "order") {
 				t.Errorf("location/ref = %+v / %+v", doc.Location, doc.Ref)
 			}
 			if doc.Lines[0].Flags == nil {

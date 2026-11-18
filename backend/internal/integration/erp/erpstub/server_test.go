@@ -576,3 +576,18 @@ func TestDocumentIDCaseChangeReplays(t *testing.T) {
 		t.Fatalf("id case change must replay: %s", rec.Body.String())
 	}
 }
+
+// A void goes on the wire as a refund document (ref.type "void", positive qty, negated tenders,
+// refund_of_movement_id): the stand-in must book it like a customer refund.
+func TestVoidAsRefundDocumentIsAccepted(t *testing.T) {
+	e := newEnv(t, "")
+	line := ln(1, "FG-001", 2)
+	line["refund_of_movement_id"] = mid(99)
+	body := docBody(1, "refund", line)
+	body["ref"] = map[string]any{"type": "void", "id": "orig-order", "number": "KMG-1"}
+	body["tenders"] = []map[string]any{{"method": "cash", "amount": -100000}, {"method": "qris", "amount": -50000}}
+	expectStatus(t, e.post(mustJSON(t, body)), http.StatusOK)
+	if got := e.qty("outlet", "KMG", "FG-001"); got != 2 {
+		t.Fatalf("balance after a void-as-refund = %d, want +2", got)
+	}
+}
