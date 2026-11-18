@@ -47,7 +47,6 @@ const (
 	KindVoid Kind = "void"
 )
 
-
 var validKinds = map[Kind]bool{
 	KindSale: true, KindRefund: true, KindTransferOut: true, KindTransferIn: true,
 	KindTransferCancel: true, KindReceipt: true, KindAdjust: true, KindCount: true,
