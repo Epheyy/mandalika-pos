@@ -1,6 +1,7 @@
 # POS -> staging ERP joint test: stock documents (sale, void, void-and-replace, refund)
 
-Date: 2026-11-18. Status: **Part 1 done (prepared, NOTHING sent to staging).** Part 2 results are appended below once the owner's go-ahead arrives.
+Date: 2026-11-18. Status: **Part 1 and Part 2 done. All 6 steps PASS; idempotent re-send PASS.** Owner approved sending exactly these 6 documents (about 10:27 UTC).
+
 
 - Local backend (this worktree, `prod-hardening` at 18a2f168) on :8080, database `erp_joint` created fresh in the `roletest` Postgres (port 5433), so it holds no opening, backfill or other earlier rows.
 - ERP: `https://staging-erp.mandalika.web.id/api/integration/v1`, client `pos_mandalika`, key read at launch from GCP Secret Manager as a process env var only (never written down).
@@ -354,3 +355,30 @@ Outbox row `e5407373-0f69-478c-b832-3900f8f9d0f2`, local kind `refund`, wire kin
   ]
 }
 ```
+
+---
+
+# Part 2 results (sent 2026-11-18 about 10:27 UTC, local relay one row per pass)
+
+Each row was released alone (`next_attempt_at = now()`), one `POST /internal/erp/relay` pass, then `GET /outlets/BSD/stock`. The staging stock list omits FGs at 0 (shown as `[]`).
+
+| # | Step | Document id (Idempotency-Key) | ERP answer | Outbox status | BSD after, FG-A / FG-B (got = expected) | Result |
+|---|------|-------------------------------|-----------|---------------|------------------------------------------|--------|
+| 1 | S1 sale, 2 x PP100E-24H | d2f564ab-1a2c-5032-b65e-8c51a225ff63 | 200 `applied` | delivered | -2 / 0 | PASS |
+| 2 | S1 void (kind refund, ref.type void), +2 | f8b2effd-c09e-55bd-a469-e33155b11ce6 | 200 `applied` | delivered | 0 / 0 | PASS |
+| 3 | S2 sale, 1 x PP100E-24H | 1f183533-4104-57c4-b051-ac7cfd340e85 | 200 `applied` | delivered | -1 / 0 | PASS |
+| 4 | S2 void (kind refund, ref.type void), +1 | 2b541481-7b24-5be4-8f73-a696ac2e36f0 | 200 `applied` | delivered | 0 / 0 | PASS |
+| 5 | S2 replacement sale, 1 x PP100E-DAY | 4346bcdd-5c6c-532b-886b-e9ca3ab24ce1 | 200 `applied` | delivered | 0 / -1 | PASS |
+| 6 | R refund of the replacement, +1 x PP100E-DAY | 5fd89fa1-625f-5a0e-8729-cca18e9b7f85 | 200 `applied` | delivered | 0 / 0 | PASS |
+
+No 4xx or 5xx answer on any step. Every relay pass reported claimed 1, delivered 1, held 0, dead 0.
+
+## Idempotency
+
+- A relay pass with nothing due: claimed 0, nothing sent.
+- Re-send of step 1 (row reset to pending, same document_id): ERP answered 200 `replayed` with the same movement_id; outbox status `replayed`, attempts 2; BSD stock unchanged (`[]`, no double posting).
+- The opening receipt row `294b80e0` stayed parked and was never sent.
+
+## Left behind on staging (the ERP has no delete)
+
+Six applied stock documents at BSD (listed above), net effect zero on both FGs. Staging holds stock-movement history for PP100E-24H and PP100E-DAY at BSD from these documents. The step 1 sale was also presented a second time and answered `replayed`.
