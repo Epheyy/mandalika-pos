@@ -36,3 +36,18 @@ export function outletToggleBody(o: Outlet): OutletInput {
     ...(o.timezone ? { timezone: o.timezone } : {}),
   }
 }
+
+/** ERP-length outlet code: 2-20 chars of A-Z/0-9/hyphen, starting and ending with a letter or digit. */
+export const OUTLET_CODE_RE = /^[A-Z0-9][A-Z0-9-]{0,18}[A-Z0-9]$/
+
+export function isValidOutletCode(code: string): boolean {
+  return OUTLET_CODE_RE.test(code)
+}
+
+/**
+ * Order-number prefix the tablet derives from an outlet code: uppercase, strip non A-Z0-9,
+ * first 4. Keep in sync with outletPart in apps/pos/src/cashier/orderRef.ts. Empty code shows JKT.
+ */
+export function outletOrderPrefix(code: string): string {
+  return code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4) || 'JKT'
+}

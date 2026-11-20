@@ -7,7 +7,7 @@ import { uploadImage, getThumbnailUrl } from '../../lib/uploadImage'
 import { Button } from '../../ui/Button'
 import { Input, Textarea, Field, Select } from '../../ui/Field'
 import { DEFAULT_TIMEZONE, OUTLET_TIMEZONES, type OutletTimezone } from '../../lib/businessDay'
-import { outletFormBody, type OutletFormValues } from './outletBody'
+import { isValidOutletCode, outletFormBody, outletOrderPrefix, type OutletFormValues } from './outletBody'
 import { Modal } from '../../ui/Modal'
 import { OutletGiveawaySection } from './OutletGiveawaySection'
 
@@ -70,8 +70,8 @@ export function OutletFormModal({ editing, onClose, onDone }: Props) {
       return
     }
     const code = form.code.trim().toUpperCase()
-    if (!/^[A-Z0-9]{2,4}$/.test(code)) {
-      setErr('Kode wajib 2–4 huruf/angka (mis. JKT) — dipakai sebagai prefix no. order')
+    if (!isValidOutletCode(code)) {
+      setErr('Kode wajib 2–20 huruf/angka/tanda hubung (mis. BSD atau TSM-CBB), sama dengan kode outlet di ERP.')
       return
     }
     setBusy(true)
@@ -124,19 +124,20 @@ export function OutletFormModal({ editing, onClose, onDone }: Props) {
           label="Kode *"
           type="text"
           value={form.code}
-          maxLength={4}
+          maxLength={20}
           onChange={(e) =>
             setForm((f) => ({
               ...f,
-              code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''),
+              code: e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''),
             }))
           }
           placeholder="mis. JKT"
           className="uppercase tracking-widest"
           hint={
             <>
-              2–4 huruf/angka, unik. Prefix nomor order:{' '}
-              <span className="font-mono">{(form.code || 'JKT')}-A0042</span>
+              2–20 huruf/angka/tanda hubung, unik; samakan dengan kode outlet di ERP. Prefix nomor order (4
+              huruf/angka pertama):{' '}
+              <span className="font-mono">{outletOrderPrefix(form.code)}-A0042</span>
             </>
           }
         />
