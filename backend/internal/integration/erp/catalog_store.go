@@ -41,7 +41,10 @@ func (l pgLocker) TryLock(ctx context.Context) (func(context.Context) error, boo
 }
 
 // pgStore implements runStore over pgx.
-type pgStore struct{ Pool *pgxpool.Pool }
+type pgStore struct {
+	Pool         *pgxpool.Pool
+	ProductBrand string // brand of products the pull creates; existing products are never touched
+}
 
 var _ runStore = (*pgStore)(nil)
 
@@ -363,7 +366,7 @@ func (p *pgStore) ApplyFG(ctx context.Context, items []erpapi.IntegrationFG) (pa
 		func(fg erpapi.IntegrationFG) string { return "fg " + fg.Slug },
 		skipUnchangedFG,
 		func(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG) (itemOutcome, error) {
-			return applyFGItem(ctx, q, fg, genders[GroupKey(fg)])
+			return applyFGItem(ctx, q, fg, genders[GroupKey(fg)], p.ProductBrand)
 		}, "products", "categories")
 }
 
@@ -508,7 +511,7 @@ func lockProduct(ctx context.Context, q pgx.Tx, productID string) error {
 // product's name, category, brand, sellable or images (the POS owns them once the product
 // exists, mapping v3 §6.4), and never deletes. gender is the page's majority ERP gender of
 // the FG's group: the category default of a fragrance product this FG creates.
-func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, gender erpapi.IntegrationFGGender) (itemOutcome, error) {
+func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, gender erpapi.IntegrationFGGender, brand string) (itemOutcome, error) {
 	if strings.TrimSpace(fg.Slug) == "" || strings.TrimSpace(fg.Code) == "" || strings.TrimSpace(fg.Name) == "" {
 		return itemOutcome{}, itemError("missing slug, code or name")
 	}
@@ -575,9 +578,9 @@ func applyFGItem(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, gender 
 		label := VariantLabel(fg)
 		var pcreated bool
 		if fg.IsOthers {
-			productID, pcreated, catCreated, err = othersProduct(ctx, q, fg, active)
+			productID, pcreated, catCreated, err = othersProduct(ctx, q, fg, active, brand)
 		} else {
-			productID, pcreated, out.note, err = fragranceProduct(ctx, q, fg, gender, active)
+			productID, pcreated, out.note, err = fragranceProduct(ctx, q, fg, gender, active, brand)
 			if _, known := erpmap.Line(derefOr(fg.Category)); !known {
 				out.note = joinNotes(out.note, fmt.Sprintf("fg %s: ERP category %q is not in the line table, labelled %q", fg.Code, derefOr(fg.Category), label))
 			}
@@ -624,7 +627,7 @@ const othersCategory = "ERP: bukan untuk dijual"
 // othersProduct finds (locking) or creates the product of one ERP "others" item: one
 // product per item, keyed by its code, never a variant of a priced product. The product is
 // created not sellable; its name carries the code so it never reads like the fragrance.
-func othersProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, active bool) (id string, created, catCreated bool, err error) {
+func othersProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, active bool, brand string) (id string, created, catCreated bool, err error) {
 	key := OthersGroupKey(fg.Code)
 	id, _, found, err := productByGroupKey(ctx, q, key)
 	if err != nil || found {
@@ -637,8 +640,8 @@ func othersProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, activ
 	}
 	if err := q.QueryRow(ctx, `
 		INSERT INTO products (name, brand, category_id, sellable, is_active, erp_group_key)
-		VALUES ($1,'',$2::text::uuid,false,$3,$4) RETURNING id::text`,
-		OthersProductName(fg.Name, fg.Code), catID, active, key).Scan(&id); err != nil {
+		VALUES ($1,$5,$2::text::uuid,false,$3,$4) RETURNING id::text`,
+		OthersProductName(fg.Name, fg.Code), catID, active, key, brand).Scan(&id); err != nil {
 		return "", false, false, err
 	}
 	return id, true, catCreated, nil
@@ -652,7 +655,7 @@ func othersProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, activ
 // rework code), disambiguated with the fragrance code when that name is taken, filed under the POS category of the group's ERP gender when that category
 // exists (owner decision (a); never created), not sellable (D20). created reports a new row;
 // note reports a disambiguated name.
-func fragranceProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, gender erpapi.IntegrationFGGender, active bool) (id string, created bool, note string, err error) {
+func fragranceProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, gender erpapi.IntegrationFGGender, active bool, brand string) (id string, created bool, note string, err error) {
 	key := GroupKey(fg)
 	id, _, found, err := productByGroupKey(ctx, q, key)
 	if err != nil || found {
@@ -681,8 +684,8 @@ func fragranceProduct(ctx context.Context, q pgx.Tx, fg erpapi.IntegrationFG, ge
 	}
 	if err := q.QueryRow(ctx, `
 		INSERT INTO products (name, brand, category_id, sellable, is_active, erp_group_key)
-		VALUES ($1,'',$2::text::uuid,false,$3,$4) RETURNING id::text`,
-		name, catID, active, key).Scan(&id); err != nil {
+		VALUES ($1,$5,$2::text::uuid,false,$3,$4) RETURNING id::text`,
+		name, catID, active, key, brand).Scan(&id); err != nil {
 		return "", false, "", err
 	}
 	return id, true, note, nil

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -35,7 +36,8 @@ func NewErpCatalogRunner(cfg *config.Config, pool *pgxpool.Pool, logger *slog.Lo
 	}
 	// 20 s budget (+5 s run grace) keeps an HTTP-triggered run inside the server's 30 s
 	// write timeout; long first runs use cmd/erp-catalog-pull with -budget.
-	return &erp.Syncer{Pool: pool, Source: client, Logger: logger, Budget: httpPullBudget}
+	return &erp.Syncer{Pool: pool, Source: client, Logger: logger, Budget: httpPullBudget,
+		ProductBrand: strings.ToUpper(config.LoadERPRelay(cfg).Brand)}
 }
 
 const (
