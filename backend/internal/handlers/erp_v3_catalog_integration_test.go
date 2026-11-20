@@ -55,6 +55,7 @@ func erProductOf(t *testing.T, ctx context.Context, pool *pgxpool.Pool, sku stri
 func erV3CatalogSubtests(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Run("v3-real-catalog-one-product-per-fragrance", func(t *testing.T) {
 		e := newErEnv(t, ctx, pool, 0)
+		e.syncer.ProductBrand = "MANDALIKA" // the existing products below carry "Mandalika": the pull must leave that alone
 		erPosOutlet(t, ctx, pool, "Mandalika PMS", "PMS", "", "", "")
 		slugs := e.erLoadSample()
 		v := func(size, sku string) erPosVariant { return erPosVariant{size, sku, slugs[sku]} }
@@ -127,6 +128,10 @@ func erV3CatalogSubtests(t *testing.T, ctx context.Context, pool *pgxpool.Pool) 
 			erWant(t, c.sku+" product", erProductOf(t, ctx, pool, c.sku), c.product)
 			erWant(t, c.sku+" labels", erLabels(t, ctx, pool, c.sku), c.labels)
 		}
+		for _, sku := range []string{"PP120E-24H", "KEM-GIF"} { // a new fragrance product and a new others product
+			erWant(t, sku+" brand", erStr(t, ctx, pool, `SELECT p.brand FROM product_variants v JOIN products p ON p.id=v.product_id WHERE v.sku=$1`, sku), "MANDALIKA")
+		}
+		erWantInt(t, "only the pre-existing products keep a different brand", erCount(t, ctx, pool, `SELECT count(*) FROM products WHERE brand<>'MANDALIKA'`), len(existing))
 		erWantInt(t, "every unlinked others item is its own not-for-sale product", erCount(t, ctx, pool, `
 			SELECT count(*) FROM product_variants v JOIN products p ON p.id=v.product_id
 			 WHERE v.price=0 AND v.size='Satuan' AND p.erp_group_key='erp:'||v.sku AND NOT p.sellable

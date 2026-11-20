@@ -102,6 +102,10 @@ type Syncer struct {
 	Logger   *slog.Logger     // optional
 	PageSize int              // catalog page size; default MaxTake
 
+	// ProductBrand is the brand given to products the pull creates (the deployment's ERP
+	// brand, upper-cased); empty keeps the empty brand. Existing products keep theirs.
+	ProductBrand string
+
 	// test seams; nil means the pgx implementations over Pool
 	store  runStore
 	locker locker
@@ -202,7 +206,7 @@ func (s *Syncer) deps() (runStore, locker, error) {
 			return nil, nil, errors.New("erp: syncer has no Pool")
 		}
 		if st == nil {
-			st = &pgStore{Pool: s.Pool}
+			st = &pgStore{Pool: s.Pool, ProductBrand: s.ProductBrand}
 		}
 		if lk == nil {
 			lk = pgLocker{Pool: s.Pool}
