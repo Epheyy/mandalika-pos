@@ -17,22 +17,6 @@
       "expires": "2027-01-12",
       "remediation": "Re-check at expiry for a fixed x/crypto release or a vulndb withdrawal; the exception cannot outlive the 90-day window without a new review.",
       "review_reference": "A38 dependency-security blockers, CI run 38591378373"
-    },
-    {
-      "id": "GHSA-fc5q-39xc-vjpf",
-      "ecosystem": "npm",
-      "package": "picomatch",
-      "version_range": ">=4.0.4 <=4.0.5",
-      "scope": "build",
-      "reachability": "build_executed",
-      "reason": "ReDoS (CVE-2026-112366): an attacker-supplied single-branch repeated extglob such as +(*) causes exponential backtracking. Every picomatch release up to 4.0.7 (the latest) is affected and there is no patched version. picomatch 4.0.4 and 4.0.5 are build and test tooling only (vite 8.1.6, vitest 4.1.12, and tinyglobby 0.2.16/0.2.17 with fdir 6.5.0; versions pinned by the root pnpm overrides); they match glob patterns from the repository's own build configuration, never patterns from users, tablets or network input, and nothing from picomatch is bundled into the POS, the Backoffice or the Go backend.",
-      "compensating_control": "Builds run only from this repository's own config in CI and on the release machine; no product code passes user-controlled input to a glob matcher. Any change that feeds external input to picomatch, minimatch or tinyglobby must remove this exception in the same commit. Bumping picomatch outside 4.0.4-4.0.5 also requires deleting or narrowing this entry (an unmatched exception fails the gate).",
-      "owner": "Mandalika POS owner (repository owner)",
-      "reviewer": "reffyvee (repository owner), approved 2026-11-18; drafted by Claude Opus 5.5",
-      "created": "2026-11-18",
-      "expires": "2027-02-16",
-      "remediation": "Move the vite/tinyglobby picomatch overrides to the first patched picomatch release and delete this entry; re-check at expiry, the exception cannot outlive the 90-day window without a new review.",
-      "review_reference": "PR #158 dependency-security failure, CI run 44245876897 (advisory updated 2026-11-17)"
     }
   ],
   "licenses": [
