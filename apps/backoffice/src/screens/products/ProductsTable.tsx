@@ -91,7 +91,7 @@ export function ProductsTable({ rows, catName, loading, error, onRetry, selected
         </div>
       ),
     },
-    { id: 'category', header: 'Kategori', cell: (p) => <span className="block min-w-24 text-sm text-ink-900">{catName(p.categoryId)}</span> },
+    { id: 'category', header: 'Kategori', cell: (p) => <span className="block min-w-24 text-sm text-ink-900 2xl:whitespace-nowrap">{catName(p.categoryId)}</span> },
     {
       id: 'stock',
       header: 'Varian & Stok',
@@ -101,8 +101,8 @@ export function ProductsTable({ rows, catName, loading, error, onRetry, selected
       id: 'status',
       header: 'Status',
       cell: (p) => (
-        // On a narrow screen the source tags wrap under the switch; the switch and its word stay together.
-        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 py-1.5">
+        // Below 2xl the source tags may wrap under the switch; the switch and its word always stay together.
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 py-1.5 2xl:flex-nowrap">
           <span className="flex items-center gap-1.5 whitespace-nowrap">
             {/* Read-only here: the status is changed inside the editor, where the whole product is saved at once. */}
             <Switch checked={p.isActive} onChange={noop} disabled size="sm" label={`Status ${p.name}`} className={READ_ONLY_SWITCH} />
