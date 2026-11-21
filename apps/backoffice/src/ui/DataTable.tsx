@@ -54,7 +54,8 @@ export interface DataTableProps<Row> {
   /** <Pagination/> or "Muat lebih banyak". */
   footer?: ReactNode
   /** Fixed body-row height in px (mock: 52). This is the row's minimum height (a `<tr>` height never clips): keep cells on one line
-   *  (`whitespace-nowrap`, a truncating tag cell) so rows stay even. Unset keeps the content-sized rows. */
+   *  (`whitespace-nowrap`, a truncating tag cell) so rows stay even; a cell that must wrap just makes its own row taller.
+   *  Unset keeps the content-sized rows. */
   rowHeight?: number
 }
 
@@ -225,7 +226,9 @@ export function DataTable<Row>({
         </div>
       )}
 
-      <div ref={wrapperRef} className={overflowing ? 'overflow-x-auto' : 'overflow-x-clip'}>
+      {/* relative: an absolutely positioned cell child (an sr-only note) must take this box as its containing block, or it
+          escapes the clip/scroll here and widens <main>'s scroll range past the card (Produk over-scroll, 2026-11-21). */}
+      <div ref={wrapperRef} className={cn('relative', overflowing ? 'overflow-x-auto' : 'overflow-x-clip')}>
         <table ref={tableRef} className="w-full border-collapse text-sm">
           <caption className="sr-only">{caption}</caption>
           <thead>

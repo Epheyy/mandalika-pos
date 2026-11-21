@@ -444,6 +444,9 @@ describe('K2: DataTable single scroll', () => {
     expect(html).toContain('overflow-clip')
     expect(html).toContain('overflow-x-clip')
   })
+  it('positions the table wrapper, so an sr-only cell note cannot widen the page scroller past the card', () => {
+    expect(html).toContain('class="relative overflow-x-clip"')
+  })
   it('draws the sticky header border as a shadow, not a border', () => {
     expect(html).toContain('shadow-[inset_0_-1px_0')
   })
