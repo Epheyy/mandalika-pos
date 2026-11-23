@@ -49,7 +49,7 @@ func movementLocationAllowed(r *http.Request, locType, locID string) bool {
 		return true
 	}
 	sc := scope(r)
-	return sc.CrossAll || (sc.OutletID != "" && strings.EqualFold(sc.OutletID, locID))
+	return sc.CrossAll || (!noActiveOutlet(sc) && strings.EqualFold(sc.OutletID, locID))
 }
 
 // parseMovementBound reads a from/to value: a calendar day in the location zone (a `to` day is

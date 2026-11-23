@@ -72,12 +72,18 @@ func (h *Handlers) invalidate(r *http.Request) {
 }
 
 // scope resolves the outlet boundary from the validated token context plus an
-// admin-only ?outletId override ("all" = cross-outlet).
+// ?outletId override ("all" = cross-outlet). Admins and all-outlets managers may name any
+// outlet or "all"; a restricted manager may name only an outlet they cover. Everyone else
+// is clamped to the active outlet, and a caller with none resolves to read.NoOutlet,
+// never "" (the read repos treat an empty OutletID as every outlet): fail closed.
 func scope(r *http.Request) read.Scope {
 	role, _ := r.Context().Value(auth.CtxRole).(string)
 	outlet, _ := r.Context().Value(auth.CtxOutletID).(string)
-	if role == "admin" {
-		switch q := r.URL.Query().Get("outletId"); {
+	cov := auth.CoverageFrom(r.Context())
+	q := r.URL.Query().Get("outletId")
+	switch {
+	case role == "admin" || (role == "manager" && cov.All):
+		switch {
 		case q == "all":
 			return read.Scope{CrossAll: true}
 		case q != "":
@@ -85,8 +91,19 @@ func scope(r *http.Request) read.Scope {
 		case outlet == "":
 			return read.Scope{CrossAll: true}
 		}
+	case role == "manager" && q != "" && q != "all" && cov.Covers(q):
+		return read.Scope{OutletID: q}
+	}
+	if outlet == "" {
+		return read.Scope{OutletID: read.NoOutlet}
 	}
 	return read.Scope{OutletID: outlet}
+}
+
+// noActiveOutlet reports a scope that names no outlet and is not cross-outlet: the caller
+// has no active outlet to read or write against.
+func noActiveOutlet(sc read.Scope) bool {
+	return !sc.CrossAll && (sc.OutletID == "" || sc.OutletID == read.NoOutlet)
 }
 
 func pageLimit(r *http.Request) (int, int) {
@@ -549,7 +566,7 @@ func (h *Handlers) BundleReport(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), bundleReportTimeout)
 	defer cancel()
 	sc := scope(r)
-	if !sc.CrossAll && sc.OutletID == "" {
+	if noActiveOutlet(sc) {
 		// A non-admin with no outlet must never read as "all outlets": fail closed.
 		httpx.Err(w, http.StatusForbidden, "Outlet aktif belum dipilih untuk akun ini.")
 		return
@@ -580,7 +597,7 @@ func (h *Handlers) RefundReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sc := scope(r)
-	if !sc.CrossAll && sc.OutletID == "" {
+	if noActiveOutlet(sc) {
 		// A non-admin with no outlet must never read as "all outlets": fail closed.
 		httpx.Err(w, http.StatusForbidden, "Outlet aktif belum dipilih untuk akun ini.")
 		return
@@ -629,7 +646,7 @@ func (h *Handlers) VoidReport(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), bundleReportTimeout)
 	defer cancel()
 	sc := scope(r)
-	if !sc.CrossAll && sc.OutletID == "" {
+	if noActiveOutlet(sc) {
 		// A non-admin with no outlet must never read as "all outlets": fail closed.
 		httpx.Err(w, http.StatusForbidden, "Outlet aktif belum dipilih untuk akun ini.")
 		return
