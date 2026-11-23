@@ -80,10 +80,10 @@ func RequireAuth(cfg *config.Config, opts ...AuthOption) func(http.Handler) http
 					return
 				}
 			}
-			// A restricted manager may only narrow to a covered outlet; "all" or an
-			// uncovered id would widen past coverage.
+			// A restricted manager may only name a covered outlet. "all" is ignored (scope keeps
+			// using the active outlet for non-admins, so nothing widens); an uncovered id is refused.
 			if claims.Role == "manager" && !cov.All {
-				if q := r.URL.Query().Get("outletId"); q != "" && !cov.Covers(q) {
+				if q := r.URL.Query().Get("outletId"); q != "" && q != "all" && !cov.Covers(q) {
 					httpx.Err(w, http.StatusForbidden, "outlet not permitted")
 					return
 				}
