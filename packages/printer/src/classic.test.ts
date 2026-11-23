@@ -31,7 +31,7 @@ describe('ClassicSppTransport', () => {
     await t.write(new Uint8Array(500))
     await t.write(new Uint8Array(300))
     await t.disconnect()
-    expect(plugin.disconnect).toHaveBeenLastCalledWith({ drainMs: 400 })
+    expect(plugin.disconnect).toHaveBeenLastCalledWith({ drainMs: 700 })
     await t.disconnect()
     expect(plugin.disconnect).toHaveBeenLastCalledWith({ drainMs: 0 })
   })

@@ -1,9 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { isPrintableQrUrl, qrBytes, qrModuleSize } from './qr'
+import { isNativeQrUrl, isPrintableQrUrl, qrBytes, qrModuleSize } from './qr'
 
 describe('qr', () => {
-  it('uses module size 6 up to 50 chars, 5 up to 120, 4 up to 300', () => {
-    expect([qrModuleSize(1), qrModuleSize(50), qrModuleSize(51), qrModuleSize(120), qrModuleSize(121), qrModuleSize(300)]).toEqual([6, 6, 5, 5, 4, 4])
+  it('uses module size 4, the size the RPP02N printed and scanned up to 80 characters', () => {
+    expect([qrModuleSize(), qrModuleSize(38), qrModuleSize(80)]).toEqual([4, 4, 4])
+  })
+
+  it('draws a native QR only up to 80 characters (the RPP02N refuses longer addresses)', () => {
+    expect(isNativeQrUrl('https://' + 'a'.repeat(72))).toBe(true) // 80
+    expect(isNativeQrUrl('https://' + 'a'.repeat(73))).toBe(false) // 81
+    expect(isNativeQrUrl('ftp://a.id')).toBe(false)
   })
 
   it('accepts http(s) printable urls up to 300 chars only', () => {

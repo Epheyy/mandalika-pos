@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react'
-import { RECEIPT_LIMITS, toPrinterText, type ReceiptBlock, type TxField } from '@mandalika/printer/render'
+import { QR_NATIVE_URL_MAX, RECEIPT_LIMITS, toPrinterText, type ReceiptBlock, type TxField } from '@mandalika/printer/render'
 import { Button } from '../../../ui/Button'
 import { Input, Textarea } from '../../../ui/Field'
 import { Switch } from '../../../ui/Switch'
@@ -213,6 +213,11 @@ function QrUrlField({ url, onChange }: { url: string; onChange: (url: string) =>
         onChange={(e) => onChange(e.target.value)}
       />
       <p data-testid="qr-counter" className={cn('mt-1 text-[11px]', issue ? 'text-danger' : 'text-ink-700')}>{count}/{RECEIPT_LIMITS.urlMax}</p>
+      {!issue && count > QR_NATIVE_URL_MAX && (
+        <p data-testid="qr-long-hint" className="mt-1 text-[11px] text-ink-700">
+          Lebih dari {QR_NATIVE_URL_MAX} karakter: printer RPP02N tidak bisa membuat kotak QR sepanjang ini, jadi alamat dicetak sebagai teks.
+        </p>
+      )}
     </div>
   )
 }

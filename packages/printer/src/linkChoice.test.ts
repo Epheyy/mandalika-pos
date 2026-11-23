@@ -36,8 +36,9 @@ describe('drainDelayMs', () => {
   it.each([
     [0, 0],
     [1, 301],
-    [800, 400],
-    [100000, 3000],
+    [800, 700],
+    [100000, 50300],
+    [10_000_000, 80000],
   ])('%i bytes -> %i ms', (bytes, ms) => expect(drainDelayMs(bytes)).toBe(ms))
 })
 
@@ -51,7 +52,7 @@ describe('toBase64', () => {
 })
 
 describe('drain budget for logos', () => {
-  it('drainDelayMs never exceeds DRAIN_MAX_MS, however many copies of the largest receipt were written', () => {
+  it('drainDelayMs never exceeds DRAIN_MAX_MS, however many bytes were written', () => {
     for (const copies of [1, 2, 3, 4, 5]) {
       expect(drainDelayMs(copies * MAX_RECEIPT_PAYLOAD_BYTES)).toBeLessThanOrEqual(DRAIN_MAX_MS)
     }
@@ -60,16 +61,22 @@ describe('drain budget for logos', () => {
   })
 
   it('grows with the bytes written until the cap', () => {
-    expect(drainDelayMs(1000)).toBe(DRAIN_BASE_MS + 125)
+    expect(drainDelayMs(1000)).toBe(DRAIN_BASE_MS + 500)
     expect(drainDelayMs(2000)).toBeGreaterThan(drainDelayMs(1000))
   })
 
-  // Task 4.5 replaces DRAIN_BYTES_PER_MS / DRAIN_MAX_MS with the rate measured on the RPP02N. Until then they are
-  // today's values and cover about 21 KB, which is LESS than one worst-case copy (31 KB). The assertion below is the
-  // plan's test and is parked, not passing, on purpose.
-  it.todo('covers 5 x MAX_RECEIPT_PAYLOAD_BYTES at the measured rate (needs the Task 4.5 measurement)')
+  it('covers 5 x MAX_RECEIPT_PAYLOAD_BYTES at the measured rate, under the cap', () => {
+    const needMs = DRAIN_BASE_MS + Math.ceil((5 * MAX_RECEIPT_PAYLOAD_BYTES) / DRAIN_BYTES_PER_MS)
+    expect(drainDelayMs(5 * MAX_RECEIPT_PAYLOAD_BYTES)).toBe(needMs)
+    expect(needMs).toBeLessThanOrEqual(DRAIN_MAX_MS)
+  })
 
-  it('records how much the current constants cover, so Task 4.5 sees what it must change', () => {
-    expect((DRAIN_MAX_MS - DRAIN_BASE_MS) * DRAIN_BYTES_PER_MS).toBe(21_600)
+  it('waits long enough for the RPP02N: the measured cases and the margin', () => {
+    // 3 copies of a 6.4 KB logo slip lost the third copy at 5.0 s and printed in full at 7.5 s.
+    expect(drainDelayMs(3 * 6423)).toBeGreaterThanOrEqual(7500)
+    // 12 copies of a 0.6 KB text slip printed in full at 3.2 s; the budget must not be shorter than what worked.
+    expect(drainDelayMs(12 * 598)).toBeGreaterThanOrEqual(3200)
+    // The old rule (8 bytes/ms, 3 s cap) lost four of five 12.5 KB copies.
+    expect(drainDelayMs(5 * 12460)).toBeGreaterThan(3000 * 5)
   })
 })

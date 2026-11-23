@@ -3,9 +3,17 @@
 
 export const QR_URL_MAX = 300
 
-/** Dots per module: bigger for short URLs (easier to scan), smaller so a 300-character URL still fits 58mm. */
-export function qrModuleSize(len: number): number {
-  return len <= 50 ? 6 : len <= 120 ? 5 : 4
+/** The RPP02N (Task 4.5, 2026-11-23) answers `QR CREAT ERR` and prints no code for an address of about 120 characters or
+ *  more at any module size (120 failed at sizes 3 and 4, 300 at sizes 2 to 4) and for a 38-character one at size 6 with
+ *  level M. Printed AND scanned on it: 38 characters at size 5, 80 characters at size 4. So the printer draws a QR only
+ *  up to 80 characters, at size 4 (about 164 dots for 80 characters, inside what the printer takes); a longer address
+ *  prints as wrapped text, like with graphics off. */
+export const QR_NATIVE_URL_MAX = 80
+export const QR_NATIVE_MODULE_SIZE = 4
+
+/** Dots per module for a QR the printer can draw. */
+export function qrModuleSize(_len?: number): number {
+  return QR_NATIVE_MODULE_SIZE
 }
 
 /** True when `url` may be printed as a QR: http(s), printable ASCII, 1-300 characters. */
@@ -14,6 +22,11 @@ export function isPrintableQrUrl(url: unknown): url is string {
     && url.length > 0
     && url.length <= QR_URL_MAX
     && /^https?:\/\/[\x21-\x7e]+$/.test(url)
+}
+
+/** True when the printer may draw `url` as a QR: printable and at most 80 characters (see QR_NATIVE_URL_MAX). */
+export function isNativeQrUrl(url: unknown): url is string {
+  return isPrintableQrUrl(url) && url.length <= QR_NATIVE_URL_MAX
 }
 
 /** The five `GS ( k` commands, as exact bytes. */

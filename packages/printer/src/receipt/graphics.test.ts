@@ -10,7 +10,7 @@ const rgba = (w: number, h: number): Uint8ClampedArray => {
   return a
 }
 const LOGO = ditherToRaster(rgba(384, 150), 384, 150)
-const URL = 'https://mandalikaperfume.co.id/ulasan?ref=' + 'x'.repeat(40)
+const URL = 'https://mandalikaperfume.co.id/ulasan?ref=' + 'x'.repeat(20)
 
 const core: ReceiptBlock[] = [
   { id: 'i', type: 'items', enabled: true },
@@ -61,6 +61,13 @@ describe('graphics blocks', () => {
     expect(String.fromCharCode(...b)).toContain('https://mandalikaperfume.co.id')
     const preview = receiptPreview(l, SAMPLE_RECEIPT, { graphics: false })
     expect(preview.every((p) => p.kind === 'text' && p.text.length <= COLS_BY_WIDTH[58])).toBe(true)
+  })
+
+  it('a QR url over 80 chars (the RPP02N limit) prints as text, not as a QR command', () => {
+    const mid = { ...qr, url: 'https://' + 'a'.repeat(73) } as ReceiptBlock
+    const b = receiptBytes(layout([mid]), SAMPLE_RECEIPT)
+    expect(find(b, [0x1d, 0x28, 0x6b])).toBe(-1)
+    expect(String.fromCharCode(...b)).toContain('https://aaaa')
   })
 
   it('a QR url over 300 chars prints as text and never throws', () => {
