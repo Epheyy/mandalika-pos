@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/mandalika/pos-backend/internal/coverage"
 )
 
 // Postgres is the refresh-token authority. Every issue / rotation / logout /
@@ -131,8 +133,8 @@ func (s *Store) rotateTx(ctx context.Context, in RotateInput, adopt bool) (*Rota
 
 	var revokedBefore *time.Time
 	u, err := scanUser(ctx, tx, tx.QueryRow(ctx,
-		`SELECT id, email, display_name, role, outlet_id, photo_url, perm_version, refresh_revoked_before
-		   FROM users WHERE id=$1 FOR SHARE`, rc.UserID), &revokedBefore)
+		`SELECT u.id, u.email, u.display_name, u.role, u.outlet_id, u.photo_url, u.perm_version, `+coverage.SelectCols+`, u.refresh_revoked_before
+		   FROM users u WHERE u.id=$1 FOR SHARE OF u`, rc.UserID), &revokedBefore)
 	if err != nil {
 		return nil, err // ErrNotFound -> 401, anything else -> 503
 	}

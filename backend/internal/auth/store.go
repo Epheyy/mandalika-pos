@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mandalika/pos-backend/internal/apperr"
+	"github.com/mandalika/pos-backend/internal/coverage"
 	"github.com/mandalika/pos-backend/internal/rules"
 )
 
@@ -21,9 +22,18 @@ type User struct {
 	OutletID    string   `json:"outletId,omitempty"`
 	PhotoURL    string   `json:"photoURL,omitempty"`
 	Permissions []string `json:"permissions"`
+	// OutletIDs is the home outlet first, then any extra outlets; [] when none.
+	OutletIDs []string `json:"outletIds"`
+	// AllOutlets marks a manager who covers every outlet (then OutletIDs is empty).
+	AllOutlets bool `json:"allOutlets"`
 	// PermVersion is users.perm_version. Never serialized: it is a token claim, not API surface.
 	PermVersion  int64 `json:"-"`
 	passwordHash string
+}
+
+// Coverage is the set of outlets the user may act on.
+func (u *User) Coverage() coverage.Coverage {
+	return coverage.Of(u.Role, u.OutletID, u.OutletIDs, u.AllOutlets)
 }
 
 var ErrNotFound = errors.New("user not found")
@@ -71,7 +81,8 @@ type querier interface {
 func scanUser(ctx context.Context, q querier, row pgx.Row, extra ...any) (*User, error) {
 	u := &User{}
 	var outlet, photo *string
-	dest := append([]any{&u.ID, &u.Email, &u.DisplayName, &u.Role, &outlet, &photo, &u.PermVersion}, extra...)
+	var extraOutlets []string
+	dest := append([]any{&u.ID, &u.Email, &u.DisplayName, &u.Role, &outlet, &photo, &u.PermVersion, &u.AllOutlets, &extraOutlets}, extra...)
 	err := row.Scan(dest...)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -85,6 +96,7 @@ func scanUser(ctx context.Context, q querier, row pgx.Row, extra ...any) (*User,
 	if photo != nil {
 		u.PhotoURL = *photo
 	}
+	u.OutletIDs = coverage.Merge(u.OutletID, extraOutlets)
 	perms, err := permissionsOf(ctx, q, u.ID)
 	if err != nil {
 		return nil, err
@@ -96,8 +108,8 @@ func scanUser(ctx context.Context, q querier, row pgx.Row, extra ...any) (*User,
 func (s *Store) byEmailRow(ctx context.Context, email string) (*User, error) {
 	var hash string
 	u, err := scanUser(ctx, s.Pool, s.Pool.QueryRow(ctx,
-		`SELECT id, email, display_name, role, outlet_id, photo_url, perm_version, password_hash
-		   FROM users WHERE email = $1`, email), &hash)
+		`SELECT u.id, u.email, u.display_name, u.role, u.outlet_id, u.photo_url, u.perm_version, `+coverage.SelectCols+`, u.password_hash
+		   FROM users u WHERE u.email = $1`, email), &hash)
 	if err != nil {
 		return nil, err
 	}
@@ -107,8 +119,8 @@ func (s *Store) byEmailRow(ctx context.Context, email string) (*User, error) {
 
 func (s *Store) ByID(ctx context.Context, id string) (*User, error) {
 	return scanUser(ctx, s.Pool, s.Pool.QueryRow(ctx,
-		`SELECT id, email, display_name, role, outlet_id, photo_url, perm_version
-		   FROM users WHERE id = $1`, id))
+		`SELECT u.id, u.email, u.display_name, u.role, u.outlet_id, u.photo_url, u.perm_version, `+coverage.SelectCols+`
+		   FROM users u WHERE u.id = $1`, id))
 }
 
 // permissionsOf returns the user's permissions. A query error is returned, never

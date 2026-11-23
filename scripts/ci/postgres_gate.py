@@ -75,6 +75,7 @@ GATES = (
     ("BN", "TestBundlesPostgres", 26481, "bn"),
     ("VD", "TestVoidPostgres", 26482, "vd"),
     ("RT", "TestReceiptTemplatesPostgres", 26483, "rt"),
+    ("OCV", "TestOutletCoveragePostgres", 26484, "ocv"),
 )
 # Fixture ports must stay below Linux's default ephemeral range (32768-60999): an earlier test's client socket can
 # be assigned a fixed port in that range and stay busy (open or TIME-WAIT) and fail the next fixture start with
