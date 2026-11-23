@@ -70,15 +70,25 @@ func RequireAuth(cfg *config.Config, opts ...AuthOption) func(http.Handler) http
 			ctx := context.WithValue(r.Context(), auth.CtxUserID, claims.UserID)
 			ctx = context.WithValue(ctx, auth.CtxRole, claims.Role)
 			// Active outlet: X-Outlet-Id header validated against token, else token outlet.
+			cov := claims.Coverage()
 			outlet := claims.OutletID
 			if h := r.Header.Get("X-Outlet-Id"); h != "" {
-				if claims.Role == "admin" || h == claims.OutletID {
+				if claims.Role == "admin" || cov.All || cov.Covers(h) {
 					outlet = h
 				} else {
 					httpx.Err(w, http.StatusForbidden, "outlet not permitted")
 					return
 				}
 			}
+			// A restricted manager may only narrow to a covered outlet; "all" or an
+			// uncovered id would widen past coverage.
+			if claims.Role == "manager" && !cov.All {
+				if q := r.URL.Query().Get("outletId"); q != "" && !cov.Covers(q) {
+					httpx.Err(w, http.StatusForbidden, "outlet not permitted")
+					return
+				}
+			}
+			ctx = context.WithValue(ctx, auth.CtxCoverage, cov)
 			ctx = context.WithValue(ctx, auth.CtxOutletID, outlet)
 			ctx = context.WithValue(ctx, auth.CtxPerms, claims.Permissions)
 			next.ServeHTTP(w, r.WithContext(ctx))

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/mandalika/pos-backend/internal/coverage"
 )
 
 type Claims struct {
@@ -15,6 +16,11 @@ type Claims struct {
 	// PermVersion is users.perm_version at issue time. Absent (every token issued
 	// before the column existed) reads as 0, the column default.
 	PermVersion int64 `json:"pv,omitempty"`
+	// OutletIDs (ocv) is a manager's covered outlets, only when there are two or more;
+	// a single-outlet manager relies on OutletID. AllOutlets (oall) is a manager who
+	// covers every outlet. Admin and cashier tokens never carry either.
+	OutletIDs  []string `json:"ocv,omitempty"`
+	AllOutlets bool     `json:"oall,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -35,6 +41,12 @@ func IssueAccess(secret []byte, ttl time.Duration, uid, role, outletID string, p
 
 // IssueAccessV issues an access token carrying the user's rights version.
 func IssueAccessV(secret []byte, ttl time.Duration, uid, role, outletID string, perms []string, pv int64) (string, error) {
+	return IssueAccessCov(secret, ttl, uid, role, outletID, perms, pv, coverage.Coverage{})
+}
+
+// IssueAccessCov issues an access token that also carries a manager's outlet coverage.
+// The ocv/oall claims are written for managers only; a zero Coverage omits them.
+func IssueAccessCov(secret []byte, ttl time.Duration, uid, role, outletID string, perms []string, pv int64, cov coverage.Coverage) (string, error) {
 	now := time.Now()
 	c := Claims{
 		UserID: uid, Role: role, OutletID: outletID, Permissions: perms, PermVersion: pv,
@@ -44,7 +56,28 @@ func IssueAccessV(secret []byte, ttl time.Duration, uid, role, outletID string, 
 			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 		},
 	}
+	if role == "manager" {
+		if cov.All {
+			c.AllOutlets = true
+		} else if len(cov.OutletIDs) >= 2 {
+			c.OutletIDs = cov.OutletIDs
+		}
+	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString(secret)
+}
+
+// Coverage is the outlet coverage a token grants. Tokens without coverage claims
+// fall back to the single OutletID, and to nothing when that is empty (fail closed).
+func (c Claims) Coverage() coverage.Coverage {
+	switch {
+	case c.Role == "admin" || c.AllOutlets:
+		return coverage.Coverage{All: true}
+	case len(c.OutletIDs) > 0:
+		return coverage.Coverage{OutletIDs: c.OutletIDs}
+	case c.OutletID != "":
+		return coverage.Coverage{OutletIDs: []string{c.OutletID}}
+	}
+	return coverage.Coverage{}
 }
 
 // SignRefresh signs a refresh token with a caller-chosen jti, iat and exp. The
