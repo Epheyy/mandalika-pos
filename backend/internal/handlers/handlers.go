@@ -106,6 +106,15 @@ func noActiveOutlet(sc read.Scope) bool {
 	return !sc.CrossAll && (sc.OutletID == "" || sc.OutletID == read.NoOutlet)
 }
 
+// requireActiveOutlet refuses (403, before any cache entry) a caller with no active outlet.
+func requireActiveOutlet(w http.ResponseWriter, r *http.Request) bool {
+	if noActiveOutlet(scope(r)) {
+		httpx.Err(w, http.StatusForbidden, "Outlet aktif belum dipilih untuk akun ini.")
+		return false
+	}
+	return true
+}
+
 func pageLimit(r *http.Request) (int, int) {
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	if page < 1 {
@@ -165,6 +174,9 @@ func (h *Handlers) Products(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !requireActiveOutlet(w, r) {
+		return
+	}
 	h.cached(w, r, ckey(r), func() (any, int, error) {
 		p, l := pageLimit(r)
 		var rows []api.Product
@@ -183,6 +195,9 @@ func (h *Handlers) Products(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) Product(w http.ResponseWriter, r *http.Request) {
+	if !requireActiveOutlet(w, r) {
+		return
+	}
 	h.cached(w, r, ckey(r), func() (any, int, error) {
 		v, err := h.Repo.Product(r.Context(), scope(r), chi.URLParam(r, "id"))
 		if err != nil {

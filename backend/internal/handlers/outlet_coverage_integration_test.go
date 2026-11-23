@@ -107,6 +107,22 @@ func TestOutletCoveragePostgres(t *testing.T) {
 		router := chi.NewRouter()
 		router.Use(mw.RequireAuth(&config.Config{AccessSecret: secret}))
 		router.Get("/products", h.Products)
+		router.Get("/products/{id}", h.Product)
+		call := func(path, uid, home string, cov coverage.Coverage, header string) *httptest.ResponseRecorder {
+			t.Helper()
+			tok, err := auth.IssueAccessCov(secret, time.Hour, uid, "manager", home, nil, 0, cov)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := httptest.NewRequest("GET", path, nil)
+			r.Header.Set("Authorization", "Bearer "+tok)
+			if header != "" {
+				r.Header.Set("X-Outlet-Id", header)
+			}
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, r)
+			return w
+		}
 		stockSeen := func(uid, home string, cov coverage.Coverage, header string) int {
 			t.Helper()
 			tok, err := auth.IssueAccessCov(secret, time.Hour, uid, "manager", home, nil, 0, cov)
@@ -138,9 +154,11 @@ func TestOutletCoveragePostgres(t *testing.T) {
 			}
 			return body.Data[0].Variants[0].Stock
 		}
-		// Unassigned manager: scoped to no outlet, so no outlet's stock leaks (0, not 7).
-		if got := stockSeen(mgr4, "", coverage.Coverage{}, ""); got != 0 {
-			t.Fatalf("unassigned manager saw stock %d, want 0", got)
+		// Unassigned manager: refused on both endpoints, never a cross-outlet or empty-outlet read.
+		for _, path := range []string{"/products", "/products/" + prod} {
+			if w := call(path, mgr4, "", coverage.Coverage{}, ""); w.Code != 403 {
+				t.Fatalf("unassigned manager GET %s = %d %s, want 403", path, w.Code, w.Body.String())
+			}
 		}
 		// All-outlets manager without a header: cross-outlet (summed) catalogue.
 		if got := stockSeen(mgr2, "", coverage.Coverage{All: true}, ""); got != 7 {
