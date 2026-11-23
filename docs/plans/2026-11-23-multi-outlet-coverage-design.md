@@ -19,10 +19,16 @@ can only be given one outlet or all of them. Found while setting up users on the
    that tablet's outlet.
 4. **Approval and receive-PIN rights follow coverage**: a Manajer may approve inventory documents and give the
    receive PIN for any covered outlet (the Settings approver-role rule still applies).
-5. **"Semua Outlet" for a Manajer stays and means "covers every outlet"**, including outlets added later:
-   switcher over all outlets plus the combined all-outlet view they have today, tablet login anywhere,
-   approve anywhere. This also removes today's inconsistency where POS refused such an account.
-6. The server is the authority: an outlet outside a user's coverage is refused (403), not only hidden.
+5. **A Manajer can be set to "Semua Outlet" = covers every outlet**, including outlets added later:
+   switcher over all outlets plus a combined all-outlet view, tablet login anywhere, approve anywhere.
+   **Granted only by an explicit setting** (owner, after the builder check showed that today such an
+   account is mostly refused: only catalogue-style reads fall through to "all"; reports, orders, stock
+   counts, approvals, receive PIN and POS refuse it). A Manajer saved today with no outlet stays blocked
+   until the owner ticks "Semua Outlet" or gives them outlets. Nobody gains powers at deploy.
+6. **Refund and void from the combined view stay admin-only** (owner): a Manajer-"all" in the combined view
+   is refused with a message to pick the order's outlet in the switcher first (`handlers/orders.go:226-239`,
+   `handlers/orders_void.go:24-30` keep their admin-only "order's own outlet" path).
+7. The server is the authority: an outlet outside a user's coverage is refused (403), not only hidden.
 
 ## Non-goals
 
@@ -54,15 +60,18 @@ can only be given one outlet or all of them. Found while setting up users on the
 
 ## Data model
 
-- **No schema migration needed.** `user_outlets(user_id, outlet_id)` already exists in
-  `0001_init.sql:36` (PK `(user_id, outlet_id)`, both FKs `ON DELETE CASCADE`) and has 0 rows.
+- `user_outlets(user_id, outlet_id)` already exists in `0001_init.sql:36` (PK `(user_id, outlet_id)`,
+  both FKs `ON DELETE CASCADE`) and has 0 rows: reused as is.
+- **One migration (0097):** `users.all_outlets boolean NOT NULL DEFAULT false`, with a CHECK that
+  `all_outlets` implies `outlet_id IS NULL`. Additive; the previous backend ignores it (rollback-safe).
 - Meaning of a user's outlet fields:
 
 | Role | `users.outlet_id` | `user_outlets` rows | Coverage |
 |---|---|---|---|
 | admin | any / NULL | none (ignored) | every outlet (unchanged) |
 | manager, specific | home outlet (required) | the **other** covered outlets | home ∪ rows |
-| manager, "Semua Outlet" | NULL | none | every outlet ("all") |
+| manager, "Semua Outlet" | NULL, `all_outlets = true` | none | every outlet ("all") |
+| manager, unassigned | NULL, `all_outlets = false` | none | none: refused like today |
 | cashier | the one outlet (required on save) | none | that outlet |
 
   **(Claude's call)** rows hold only the extra outlets, so coverage = home ∪ rows and the home outlet is
@@ -79,11 +88,11 @@ outlet), with a single `Covers(outletID) bool` (case-insensitive) used everywher
 
 ### Token
 
-- New claim (name left to the builder, e.g. `ocv`): the covered outlet ids for a specific manager; absent for
-  admin, cashier and manager-"all". `outlet_id` claim stays the home outlet.
+- New claims (names left to the builder): the covered outlet ids for a specific manager, and an "all"
+  flag for manager-"all"; both absent for admin and cashier. `outlet_id` claim stays the home outlet.
 - Coverage is loaded with the user on login and refresh (`auth/store.go` user loads, `IssueAccessV`).
-- **Legacy tokens** (no claim): coverage = `{outlet_id}` for a non-admin with an outlet; a manager with no
-  outlet = "all" (today's behaviour). Cashier with no outlet = no coverage.
+- **Legacy tokens** (no claims): coverage = `{outlet_id}` for a non-admin with an outlet; a non-admin with
+  no outlet = no coverage (fail-closed). They are refused and refreshed anyway once `perm_version` moves.
 
 ### Active outlet (middleware.go ~line 72)
 
@@ -99,8 +108,8 @@ outlet), with a single `Covers(outletID) bool` (case-insensitive) used everywher
   header = cross-outlet).
 - manager-specific: `?outletId=` honoured only when covered; `all` or an uncovered id → 403. Otherwise the
   active outlet (never `""`).
-- **(Claude's call)** cashier with no outlet: scoped reads answer 403 "no active outlet" instead of today's
-  fall-through to all outlets (that account is already refused by POS; this closes the API path).
+- **(Claude's call)** any non-admin with no coverage (unassigned manager, cashier with no outlet): scoped
+  reads answer 403 "no active outlet" instead of today's catalogue-read fall-through to all outlets.
 
 ### Places that compare a user's outlet today — all switch to coverage
 
@@ -115,8 +124,14 @@ outlet), with a single `Covers(outletID) bool` (case-insensitive) used everywher
 - `handlers/inventory_approvals.go` `locationInScope`, `handlers/inventory_movements.go`
   `movementLocationAllowed`: where admin gets every location, manager-"all" does too; a specific manager is
   checked against the active outlet as today.
+- `read/users.go:13-24` `ReceiveApprovingUsers` (the POS receive-approver picker) filters
+  `u.outlet_id = $1 OR u.role = 'admin'`: it must list users whose coverage includes the outlet, or Goal 4
+  fails on the tablet even though `ReceiveScope` accepts them. The builder also greps SQL for other
+  `outlet_id = ` user filters, not only Go `role == "admin"` branches.
+- `scope()` returns only `read.Scope` and feeds every cache key (`ckey`); refusing from it means a
+  `(Scope, ok)` shape or a guard at each caller. Builder's choice; it is a wider change than one function.
 - The builder sweeps every other `role == "admin"` outlet branch (scout list in the plan) and classifies it:
-  **scope** branches extend to manager-"all"; **rights** branches (settings, users, etc.) stay admin-only.
+  **scope** branches extend to manager-"all"; **rights** branches (settings, users, refund/void from the combined view, etc.) stay admin-only.
 
 ### User admin API
 
@@ -124,13 +139,16 @@ outlet), with a single `Covers(outletID) bool` (case-insensitive) used everywher
   the home outlet. Create/Update requests accept optional `outletIds`.
 - Validation (server, not only the form):
   - cashier: `outletId` required; `outletIds` absent or exactly `[outletId]`.
-  - manager: either `outletId` set and `outletIds` contains it (≥1), or both empty = "Semua Outlet".
+  - manager: either `allOutlets: true` with `outletId`/`outletIds` empty, or `outletId` set and
+    `outletIds` contains it (≥1). Saving a manager with neither is refused.
+  - `User` and the requests also carry `allOutlets: boolean`; turning it on or off bumps `perm_version`.
   - admin: `outletIds` must be empty.
   - every id must be an existing outlet.
 - Any change to the coverage set bumps `perm_version` in the same transaction (the existing UpdateUser
   rights path; `auth/rights_guard_test.go` must keep passing).
-- Open-shift rule (`ErrOpenShiftMove`, `auth/store.go:171-176`) **(Claude's call)**: a change that drops
-  an outlet where the user has an open shift is refused; adding outlets is always allowed.
+- Open-shift rule (`ErrOpenShiftMove`, `auth/store.go` ~176-185) **(Claude's call)**: a change that drops
+  an outlet where the user has an open shift is refused; adding outlets is always allowed. Today's
+  `hasOpenShift` (`store.go:43-47`) checks any open shift, so this needs a per-outlet variant.
 - OpenAPI first (`backend/api/openapi.yaml`), regenerate Go and TS. Watch the `$ref`+`nullable` codegen gotcha
   and the codegen-gate exact test list (`scripts/ci/codegen_gate.py`) if a top-level test is added in
   `internal/api` or `internal/codegen`.
@@ -139,8 +157,10 @@ outlet), with a single `Covers(outletID) bool` (case-insensitive) used everywher
 
 - **User form** (Tambah/Edit Pengguna):
   - Kasir: one outlet select, required (no "Semua Outlet").
-  - Manajer: choice "Semua Outlet" or "Outlet tertentu"; for the latter a checklist of outlets (≥1) and an
-    "Outlet utama" select limited to the ticked ones (defaults to the first ticked).
+  - Manajer: choice "Semua Outlet" (sets `allOutlets`) or "Outlet tertentu"; for the latter a checklist of
+    outlets (≥1) and an "Outlet utama" select limited to the ticked ones (defaults to the first ticked).
+    Editing an existing Manajer with no outlet and no flag opens with neither chosen and cannot be saved
+    until one is picked.
   - Admin: hidden, as today.
 - **User list**: Outlet column shows the home outlet plus "+N" (tooltip lists the rest) or "Semua Outlet".
 - **Outlet switcher** (`outlet.tsx`): shown for admin, manager-"all", and a manager with ≥2 covered outlets.
@@ -169,7 +189,9 @@ outlet), with a single `Covers(outletID) bool` (case-insensitive) used everywher
 - Backend unit/integration: middleware header allowed/refused per role (covered, uncovered, legacy token,
   manager-"all", cashier); `scope()` never returns an empty outlet for a specific manager; sync attribution
   covered/uncovered; `ApproverCovers` and `ReceiveScope` covered/uncovered/"all"; user create/update
-  validation table + `perm_version` bump on coverage change + a token issued before the change refused after.
+  validation table + `perm_version` bump on coverage or `allOutlets` change + a token issued before the change
+  refused after; an unassigned manager (no outlet, flag off) refused everywhere incl. catalogue reads;
+  manager-"all" refund/void in the combined view refused.
 - Backoffice: user form (Kasir single required, Manajer all vs specific, utama limited to ticked), switcher
   visibility and list, active-outlet screens.
 - POS: `terminalBinding` cases above.
@@ -177,7 +199,7 @@ outlet), with a single `Covers(outletID) bool` (case-insensitive) used everywher
 
 ## Release (each step needs the owner's typed go-ahead)
 
-Backend first (no migration; old clients keep working: an old POS compares the home outlet and stays
+Backend first (migration 0097 runs at deploy; additive; old clients keep working: an old POS compares the home outlet and stays
 fail-closed), then Backoffice publish, then POS OTA. Then the owner sets coverage for their supervisors.
 
 ## Left to the builder
