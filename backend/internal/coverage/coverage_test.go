@@ -18,6 +18,7 @@ func TestOf(t *testing.T) {
 		{"manager all outlets", "manager", "", nil, true, Coverage{All: true}},
 		{"manager home plus extras deduped", "manager", "A", []string{"B", "a"}, false, Coverage{OutletIDs: []string{"A", "B"}}},
 		{"manager unassigned", "manager", "", []string{}, false, Coverage{OutletIDs: []string{}}},
+		{"manager without home ignores extras", "manager", "", []string{"B"}, false, Coverage{OutletIDs: []string{}}},
 		{"cashier home only", "cashier", "A", []string{"B"}, false, Coverage{OutletIDs: []string{"A"}}},
 		{"cashier unassigned", "cashier", "", nil, false, Coverage{OutletIDs: []string{}}},
 		{"unknown role", "ghost", "A", nil, true, Coverage{}},

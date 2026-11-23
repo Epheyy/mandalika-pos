@@ -82,7 +82,8 @@ func scanUser(ctx context.Context, q querier, row pgx.Row, extra ...any) (*User,
 	u := &User{}
 	var outlet, photo *string
 	var extraOutlets []string
-	dest := append([]any{&u.ID, &u.Email, &u.DisplayName, &u.Role, &outlet, &photo, &u.PermVersion, &u.AllOutlets, &extraOutlets}, extra...)
+	var allOutlets bool
+	dest := append([]any{&u.ID, &u.Email, &u.DisplayName, &u.Role, &outlet, &photo, &u.PermVersion, &allOutlets, &extraOutlets}, extra...)
 	err := row.Scan(dest...)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -96,7 +97,14 @@ func scanUser(ctx context.Context, q querier, row pgx.Row, extra ...any) (*User,
 	if photo != nil {
 		u.PhotoURL = *photo
 	}
-	u.OutletIDs = coverage.Merge(u.OutletID, extraOutlets)
+	// The wire fields mirror the ENFORCED coverage, not raw rows: a cashier's leftover
+	// user_outlets or flag, or a home-less manager's extras, never surface.
+	cov := coverage.Of(u.Role, u.OutletID, extraOutlets, allOutlets)
+	u.AllOutlets = cov.All && u.Role == "manager"
+	u.OutletIDs = []string{}
+	if !cov.All && cov.OutletIDs != nil {
+		u.OutletIDs = cov.OutletIDs
+	}
 	perms, err := permissionsOf(ctx, q, u.ID)
 	if err != nil {
 		return nil, err

@@ -32,9 +32,9 @@ func (c Coverage) Covers(outletID string) bool {
 	return false
 }
 
-// Merge returns home first, then extras, deduped case-insensitively; an empty home is dropped.
+// merge returns home first, then extras, deduped case-insensitively; an empty home is dropped.
 // Never nil.
-func Merge(home string, extras []string) []string {
+func merge(home string, extras []string) []string {
 	out := []string{}
 	add := func(id string) {
 		if id == "" {
@@ -63,9 +63,13 @@ func Of(role, home string, extras []string, allOutlets bool) Coverage {
 		if allOutlets {
 			return Coverage{All: true}
 		}
-		return Coverage{OutletIDs: Merge(home, extras)}
+		if home == "" {
+			// No home outlet and not all-outlets: unassigned, whatever user_outlets holds.
+			return Coverage{OutletIDs: []string{}}
+		}
+		return Coverage{OutletIDs: merge(home, extras)}
 	case "cashier":
-		return Coverage{OutletIDs: Merge(home, nil)}
+		return Coverage{OutletIDs: merge(home, nil)}
 	}
 	return Coverage{}
 }

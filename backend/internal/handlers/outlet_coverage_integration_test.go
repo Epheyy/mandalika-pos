@@ -15,6 +15,8 @@ func TestOutletCoveragePostgres(t *testing.T) {
 		outB = "00000000-0000-4000-8f20-000000000002"
 		mgr1 = "00000000-0000-4000-8f20-000000000011"
 		mgr2 = "00000000-0000-4000-8f20-000000000012"
+		csh1 = "00000000-0000-4000-8f20-000000000013"
+		mgr3 = "00000000-0000-4000-8f20-000000000014"
 	)
 	exec := func(q string, args ...any) {
 		t.Helper()
@@ -47,6 +49,29 @@ func TestOutletCoveragePostgres(t *testing.T) {
 		}
 		if !u.Coverage().Covers(outB) {
 			t.Fatal("all-outlets manager must cover every outlet")
+		}
+	})
+
+	t.Run("wire fields follow enforced coverage", func(t *testing.T) {
+		exec(`INSERT INTO users(id,email,password_hash,display_name,role,outlet_id)
+		      VALUES($1,'ocv-c1@example.invalid','x','C1','cashier',$2)`, csh1, outA)
+		exec(`INSERT INTO user_outlets(user_id,outlet_id) VALUES($1,$2)`, csh1, outB)
+		u, err := store.ByID(ctx, csh1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if u.AllOutlets || !reflect.DeepEqual(u.OutletIDs, []string{outA}) {
+			t.Fatalf("cashier = all=%v ids=%v", u.AllOutlets, u.OutletIDs)
+		}
+		exec(`INSERT INTO users(id,email,password_hash,display_name,role,outlet_id)
+		      VALUES($1,'ocv-m3@example.invalid','x','M3','manager',NULL)`, mgr3)
+		exec(`INSERT INTO user_outlets(user_id,outlet_id) VALUES($1,$2)`, mgr3, outB)
+		u, err = store.ByID(ctx, mgr3)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if u.AllOutlets || u.OutletIDs == nil || len(u.OutletIDs) != 0 || u.Coverage().Covers(outB) {
+			t.Fatalf("home-less manager = all=%v ids=%#v", u.AllOutlets, u.OutletIDs)
 		}
 	})
 
