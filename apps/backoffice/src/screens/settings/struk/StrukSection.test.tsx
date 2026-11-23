@@ -246,6 +246,11 @@ describe('QR and logo blocks', () => {
     expect(view(withQr('ftp://example.com/x'))).toContain('Alamat QR harus diawali http:// atau https://')
   })
 
+  it('warns that an address over 80 characters prints as text on the RPP02N, and not below', () => {
+    expect(view(withQr('https://' + 'a'.repeat(73)))).toContain('qr-long-hint') // 81 characters
+    expect(view(withQr('https://' + 'a'.repeat(72)))).not.toContain('qr-long-hint') // 80
+  })
+
   it('the add menu disables a third logo or QR', () => {
     let s = designerReducer(virtual(), { type: 'newTemplate', name: 'Baru', paperWidth: 58 })
     for (const k of ['image', 'image', 'qr', 'qr'] as const) s = designerReducer(s, { type: 'add', block: k })

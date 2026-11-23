@@ -7,7 +7,7 @@ import type { ReceiptSink, Align } from './sink'
 import type { ReceiptData } from './data'
 import type { ReceiptBlock, TxField } from './layout'
 import { decodeRaster } from './raster'
-import { isPrintableQrUrl, qrModuleSize } from './qr'
+import { isNativeQrUrl, qrModuleSize } from './qr'
 import { labelRow, minusRp, money, pad, toPrinterText, wrap } from './text'
 
 export interface BlockCtx {
@@ -213,12 +213,12 @@ export function imageBlock(b: Of<'image'>, ctx: BlockCtx): void {
   ctx.out.cmd('alignLeft')
 }
 
-/** The QR. With graphics off, or a URL the printer cannot take, the URL prints as wrapped text instead. */
+/** The QR. With graphics off, or an address the printer cannot draw (over 80 characters, see qr.ts), the URL prints as wrapped text instead. */
 export function qrBlock(b: Of<'qr'>, ctx: BlockCtx): void {
   const { out, cols } = ctx
   alignCmd(out, b.align)
-  if (ctx.graphics && isPrintableQrUrl(b.url)) {
-    out.qr(b.url, qrModuleSize(b.url.length))
+  if (ctx.graphics && isNativeQrUrl(b.url)) {
+    out.qr(b.url, qrModuleSize())
   } else {
     for (const l of wrapAll(toPrinterText(String(b.url ?? '')).replace(/\n/g, ' '), cols)) out.line(l)
   }
