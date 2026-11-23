@@ -135,7 +135,8 @@ outlet), with a single `Covers(outletID) bool` (case-insensitive) used everywher
 
 ### User admin API
 
-- `User` gains `outletIds: string[]` (full coverage including home; empty for admin/"all"). `outletId` stays
+- `User` gains `outletIds: string[]` (home first, then the extra outlets; empty when the user has no home
+  outlet) and `allOutlets: boolean`. `outletId` stays
   the home outlet. Create/Update requests accept optional `outletIds`.
 - Validation (server, not only the form):
   - cashier: `outletId` required; `outletIds` absent or exactly `[outletId]`.
