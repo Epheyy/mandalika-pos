@@ -43,7 +43,7 @@ func main() {
 
 	store := auth.NewStore(database.Pool)
 	id, err := store.CreateUser(ctx,
-		cfg.SeedAdminEmail, cfg.SeedAdminPass, cfg.SeedAdminName, "admin", "", nil)
+		cfg.SeedAdminEmail, cfg.SeedAdminPass, cfg.SeedAdminName, "admin", "", nil, nil, false)
 	if err != nil {
 		log.Fatalf("create admin: %v", err)
 	}

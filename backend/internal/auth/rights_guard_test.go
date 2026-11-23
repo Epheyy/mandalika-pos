@@ -22,8 +22,9 @@ var rightsWrites = func() []*regexp.Regexp {
 	)
 	users := fmt.Sprintf(tbl, "users")
 	perms := fmt.Sprintf(tbl, "user_permissions")
+	outlets := fmt.Sprintf(tbl, "user_outlets")
 	const wb = `\b` // word boundary: users_archive is not users
-	cols := wb + `(?:role|outlet_id|password_hash)` + wb
+	cols := wb + `(?:role|outlet_id|all_outlets|password_hash)` + wb
 	return []*regexp.Regexp{
 		regexp.MustCompile(`(?is)UPDATE\s+` + users + alias + `\s+SET` + tail + `*?` + cols),
 		regexp.MustCompile(`(?is)INSERT\s+INTO\s+` + users + alias + wb + tail + `*?ON\s+CONFLICT` + tail + `*?DO\s+UPDATE\s+SET` + tail + `*?` + cols),
@@ -31,6 +32,9 @@ var rightsWrites = func() []*regexp.Regexp {
 		regexp.MustCompile(`(?is)INSERT\s+INTO\s+` + perms + wb),
 		regexp.MustCompile(`(?is)UPDATE\s+` + perms + wb),
 		regexp.MustCompile(`(?is)DELETE\s+FROM\s+` + perms + wb),
+		regexp.MustCompile(`(?is)INSERT\s+INTO\s+` + outlets + wb),
+		regexp.MustCompile(`(?is)UPDATE\s+` + outlets + wb),
+		regexp.MustCompile(`(?is)DELETE\s+FROM\s+` + outlets + wb),
 		regexp.MustCompile(`(?is)DELETE\s+FROM\s+` + users + wb),
 	}
 }()
@@ -54,6 +58,11 @@ func TestRightsWriteRegexFixtures(t *testing.T) {
 		`UPDATE users AS u SET outlet_id=NULL`,
 		`UPDATE user_permissions SET permission='x'`,
 		`UPDATE public."user_permissions" SET permission='x'`,
+		`UPDATE users SET all_outlets=true WHERE id=$1`,
+		`UPDATE users SET outlet_id=$1, all_outlets=$2 WHERE id=$3`,
+		`INSERT INTO user_outlets (user_id, outlet_id) VALUES ($1,$2)`,
+		`DELETE FROM user_outlets WHERE user_id=$1`,
+		`UPDATE public."user_outlets" SET outlet_id=$1`,
 		`DELETE FROM public.users WHERE id=$1`,
 		`DELETE FROM "users" WHERE id=$1`,
 		`DELETE FROM user_permissions WHERE user_id=$1`,
@@ -67,6 +76,7 @@ func TestRightsWriteRegexFixtures(t *testing.T) {
 		`UPDATE users SET photo_url=$1, receive_pin_hash=NULL WHERE id=$2`,
 		`SELECT role, outlet_id FROM users WHERE id=$1 FOR NO KEY UPDATE`,
 		`SELECT permission FROM user_permissions WHERE user_id=$1`,
+		`SELECT uo.outlet_id FROM user_outlets uo WHERE uo.user_id=$1`,
 		`UPDATE shifts SET status='closed' WHERE cashier_id=$1`,
 		`DELETE FROM refresh_tokens WHERE user_id=$1`,
 		`INSERT INTO users (id,email) VALUES ($1,$2) ON CONFLICT (id) DO NOTHING`,

@@ -1,15 +1,20 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/go-chi/chi/v5"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/mandalika/pos-backend/internal/auth"
+	"github.com/mandalika/pos-backend/internal/cache"
 	"github.com/mandalika/pos-backend/internal/config"
 	"github.com/mandalika/pos-backend/internal/coverage"
 	mw "github.com/mandalika/pos-backend/internal/middleware"
@@ -167,6 +172,245 @@ func TestOutletCoveragePostgres(t *testing.T) {
 		// A manager covering [A,B] with active outlet B sees only B.
 		if got := stockSeen(mgr1, outA, coverage.Coverage{OutletIDs: []string{outA, outB}}, outB); got != 4 {
 			t.Fatalf("manager [A,B] active B saw stock %d, want 4", got)
+		}
+	})
+	// ---- user admin API writes coverage (Task 4) ---------------------------------
+	const outC = "00000000-0000-4000-8f20-000000000003"
+	exec(`INSERT INTO outlets(id,name,code) VALUES ($1,'OCV C','OCC')`, outC)
+	rd, wr, svc := read.New(pool), write.New(pool), service.NewOrderService(pool)
+	rc := redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()})
+	t.Cleanup(func() { _ = rc.Close() })
+	pv := auth.NewPermVersions(cache.NewFromClient(rc), store.LoadPermVersion, auth.PermVersionOptions{})
+	store.Versions = pv
+	h := New(rd, nil, store, wr, svc, syncpkg.New(pool, rd, svc, wr), nil)
+	secret := []byte("OCV-SYNTHETIC-TEST-KEY")
+	api := chi.NewRouter()
+	api.Post("/users", h.CreateUser)
+	api.Put("/users/{id}", h.UpdateUser)
+	api.Get("/users/{id}", h.GetUser)
+	guarded := chi.NewRouter()
+	guarded.Use(mw.RequireAuth(&config.Config{AccessSecret: secret}, mw.WithRevocation(pv)))
+	guarded.Get("/products", h.Products)
+
+	type userData struct {
+		ID         string   `json:"id"`
+		OutletID   *string  `json:"outletId"`
+		OutletIDs  []string `json:"outletIds"`
+		AllOutlets bool     `json:"allOutlets"`
+	}
+	send := func(method, path string, body any) (int, string, userData) {
+		t.Helper()
+		raw, err := json.Marshal(body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := httptest.NewRequest(method, path, bytes.NewReader(raw))
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		api.ServeHTTP(w, r)
+		var out struct {
+			Data  userData `json:"data"`
+			Error string   `json:"error"`
+		}
+		_ = json.Unmarshal(w.Body.Bytes(), &out)
+		return w.Code, out.Error, out.Data
+	}
+	permVersion := func(uid string) int64 {
+		t.Helper()
+		var v int64
+		if err := pool.QueryRow(ctx, `SELECT perm_version FROM users WHERE id=$1`, uid).Scan(&v); err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	seq := 0
+	create := func(role string, extra map[string]any) userData {
+		t.Helper()
+		seq++
+		body := map[string]any{
+			"email": fmt.Sprintf("ocv-api%d@example.invalid", seq), "password": "Ocv-synthetic-pw-1",
+			"displayName": fmt.Sprintf("API %d", seq), "role": role,
+		}
+		for k, v := range extra {
+			body[k] = v
+		}
+		code, errText, u := send("POST", "/users", body)
+		if code != 201 {
+			t.Fatalf("create %s %v = %d %q", role, extra, code, errText)
+		}
+		return u
+	}
+	wantErr := func(label string, code int, errText string, wantCode int, wantText string) {
+		t.Helper()
+		if code != wantCode || errText != wantText {
+			t.Fatalf("%s = %d %q, want %d %q", label, code, errText, wantCode, wantText)
+		}
+	}
+
+	t.Run("create carries coverage and validates", func(t *testing.T) {
+		m := create("manager", map[string]any{"outletId": outA, "outletIds": []string{outA, outB}})
+		if m.AllOutlets || !reflect.DeepEqual(m.OutletIDs, []string{outA, outB}) {
+			t.Fatalf("manager [A,B] = all=%v ids=%v", m.AllOutlets, m.OutletIDs)
+		}
+		all := create("manager", map[string]any{"allOutlets": true})
+		if !all.AllOutlets || all.OutletIDs == nil || len(all.OutletIDs) != 0 || all.OutletID != nil {
+			t.Fatalf("manager all = %+v", all)
+		}
+		c := create("cashier", map[string]any{"outletId": outA})
+		if !reflect.DeepEqual(c.OutletIDs, []string{outA}) {
+			t.Fatalf("cashier ids = %v", c.OutletIDs)
+		}
+		adm := create("admin", nil)
+		if adm.AllOutlets || len(adm.OutletIDs) != 0 {
+			t.Fatalf("admin = %+v", adm)
+		}
+		body := func(role string, extra map[string]any) map[string]any {
+			seq++
+			b := map[string]any{"email": fmt.Sprintf("ocv-api%d@example.invalid", seq), "password": "Ocv-synthetic-pw-1",
+				"displayName": "Bad", "role": role}
+			for k, v := range extra {
+				b[k] = v
+			}
+			return b
+		}
+		code, e, _ := send("POST", "/users", body("cashier", map[string]any{"outletId": outA, "outletIds": []string{outA, outB}}))
+		wantErr("cashier [A,B]", code, e, 400, "Kasir harus ditempatkan di tepat satu outlet.")
+		code, e, _ = send("POST", "/users", body("manager", map[string]any{}))
+		wantErr("manager nothing", code, e, 400, "Manajer perlu Semua Outlet atau minimal satu outlet.")
+		code, e, _ = send("POST", "/users", body("manager", map[string]any{"outletId": outC, "outletIds": []string{outA, outB}}))
+		wantErr("home outside list", code, e, 400, "Outlet utama harus termasuk outlet yang dicakup.")
+		code, e, _ = send("POST", "/users", body("admin", map[string]any{"allOutlets": true}))
+		wantErr("admin all", code, e, 400, "Admin tidak memakai daftar outlet.")
+		code, e, _ = send("POST", "/users", body("manager", map[string]any{"outletId": outA, "allOutlets": true}))
+		wantErr("all with home", code, e, 400, "Semua Outlet tidak bisa digabung dengan outlet utama.")
+		code, e, _ = send("POST", "/users", body("manager", map[string]any{"outletId": outA, "outletIds": []string{outA, "00000000-0000-4000-8f20-0000000000ff"}}))
+		wantErr("unknown outlet", code, e, 400, "Outlet tidak ditemukan.")
+	})
+
+	t.Run("update coverage bumps perm_version and refuses the old token", func(t *testing.T) {
+		m := create("manager", map[string]any{"outletId": outA, "outletIds": []string{outA, outB}})
+		before := permVersion(m.ID)
+		cov := coverage.Coverage{OutletIDs: []string{outA, outB}}
+		oldTok, err := auth.IssueAccessCov(secret, time.Hour, m.ID, "manager", outA, nil, before, cov)
+		if err != nil {
+			t.Fatal(err)
+		}
+		get := func(tok string) int {
+			r := httptest.NewRequest("GET", "/products", nil)
+			r.Header.Set("Authorization", "Bearer "+tok)
+			r.Header.Set("X-Outlet-Id", outB)
+			w := httptest.NewRecorder()
+			guarded.ServeHTTP(w, r)
+			return w.Code
+		}
+		if got := get(oldTok); got != 200 {
+			t.Fatalf("before the change: %d", got)
+		}
+		code, e, u := send("PUT", "/users/"+m.ID, map[string]any{"outletIds": []string{outA}})
+		if code != 200 || !reflect.DeepEqual(u.OutletIDs, []string{outA}) {
+			t.Fatalf("update to [A] = %d %q ids=%v", code, e, u.OutletIDs)
+		}
+		if got := permVersion(m.ID); got != before+1 {
+			t.Fatalf("perm_version %d, want %d", got, before+1)
+		}
+		// The 401 is the refreshable one; a 403 would never make the client refresh.
+		if got := get(oldTok); got != 401 {
+			t.Fatalf("old token with X-Outlet-Id B = %d, want 401 (revoked)", got)
+		}
+		// An unchanged list does not bump.
+		if code, e, _ := send("PUT", "/users/"+m.ID, map[string]any{"outletIds": []string{outA}}); code != 200 {
+			t.Fatalf("same list = %d %q", code, e)
+		}
+		if got := permVersion(m.ID); got != before+1 {
+			t.Fatalf("an unchanged list bumped perm_version to %d", got)
+		}
+	})
+
+	t.Run("open shift guards dropping a covered outlet", func(t *testing.T) {
+		m := create("manager", map[string]any{"outletId": outA, "outletIds": []string{outA, outB}})
+		exec(`INSERT INTO shifts(outlet_id,cashier_id,cashier_name,status,opened_at)
+		      VALUES($1,$2,'API','open',now())`, outB, m.ID)
+		code, e, _ := send("PUT", "/users/"+m.ID, map[string]any{"outletIds": []string{outA}})
+		wantErr("drop B with an open shift", code, e, 409, auth.ErrOpenShiftMove.Error())
+		if code, e, u := send("PUT", "/users/"+m.ID, map[string]any{"outletIds": []string{outA, outB, outC}}); code != 200 ||
+			!reflect.DeepEqual(u.OutletIDs, []string{outA, outB, outC}) {
+			t.Fatalf("adding C = %d %q ids=%v", code, e, u.OutletIDs)
+		}
+		// Moving the home off A is the unchanged home-move rule, still refused with an open shift.
+		code, e, _ = send("PUT", "/users/"+m.ID, map[string]any{"outletId": nil, "outletIds": []string{}, "allOutlets": true})
+		wantErr("to all-outlets (home cleared) with an open shift", code, e, 409, auth.ErrOpenShiftMove.Error())
+	})
+
+	t.Run("all outlets bumps and strict merged validation", func(t *testing.T) {
+		m := create("manager", map[string]any{"outletId": outA, "outletIds": []string{outA, outB}})
+		before := permVersion(m.ID)
+		code, e, u := send("PUT", "/users/"+m.ID, map[string]any{"outletId": nil, "outletIds": []string{}, "allOutlets": true})
+		if code != 200 || !u.AllOutlets || u.OutletID != nil || len(u.OutletIDs) != 0 {
+			t.Fatalf("all on = %d %q %+v", code, e, u)
+		}
+		if got := permVersion(m.ID); got != before+1 {
+			t.Fatalf("turning all outlets on: perm_version %d, want %d", got, before+1)
+		}
+		var rows int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM user_outlets WHERE user_id=$1`, m.ID).Scan(&rows); err != nil || rows != 0 {
+			t.Fatalf("extras left behind after all outlets: %d %v", rows, err)
+		}
+		// Home plus the flag in one request: refused, never the 23514 CHECK as a 500.
+		code, e, _ = send("PUT", "/users/"+m.ID, map[string]any{"outletId": outA})
+		wantErr("home while all-outlets", code, e, 400, "Semua Outlet tidak bisa digabung dengan outlet utama.")
+		// Role change to cashier keeps the extras it would carry: strict, no silent clearing.
+		x := create("manager", map[string]any{"outletId": outA, "outletIds": []string{outA, outB}})
+		code, e, _ = send("PUT", "/users/"+x.ID, map[string]any{"role": "cashier"})
+		wantErr("manager with extras to cashier", code, e, 400, "Kasir harus ditempatkan di tepat satu outlet.")
+		if code, e, u := send("PUT", "/users/"+x.ID, map[string]any{"role": "cashier", "outletIds": []string{outA}}); code != 200 ||
+			!reflect.DeepEqual(u.OutletIDs, []string{outA}) {
+			t.Fatalf("to cashier with [A] = %d %q ids=%v", code, e, u.OutletIDs)
+		}
+		// A legacy manager with no outlet at all cannot be saved without choosing.
+		const legacy = "00000000-0000-4000-8f20-0000000000c1"
+		exec(`INSERT INTO users(id,email,password_hash,display_name,role)
+		      VALUES($1,'ocv-legacy@example.invalid','x','Legacy','manager')`, legacy)
+		code, e, _ = send("PUT", "/users/"+legacy, map[string]any{"displayName": "Legacy 2"})
+		wantErr("legacy manager edited without choosing", code, e, 400, "Manajer perlu Semua Outlet atau minimal satu outlet.")
+		if code, e, u := send("PUT", "/users/"+legacy, map[string]any{"outletId": outB, "outletIds": []string{outB}}); code != 200 ||
+			!reflect.DeepEqual(u.OutletIDs, []string{outB}) {
+			t.Fatalf("legacy manager after choosing = %d %q ids=%v", code, e, u.OutletIDs)
+		}
+	})
+
+	t.Run("users API and auth agree on coverage", func(t *testing.T) {
+		rows, err := pool.Query(ctx, `SELECT id::text FROM users WHERE email LIKE 'ocv-%@example.invalid'`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ids []string
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				t.Fatal(err)
+			}
+			ids = append(ids, id)
+		}
+		rows.Close()
+		if len(ids) < 8 {
+			t.Fatalf("expected a spread of users, got %d", len(ids))
+		}
+		for _, id := range ids {
+			au, err := store.ByID(ctx, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			u, err := rd.User(ctx, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := make([]string, len(u.OutletIds))
+			for i, o := range u.OutletIds {
+				got[i] = o.String()
+			}
+			if u.AllOutlets != au.AllOutlets || !reflect.DeepEqual(got, au.OutletIDs) {
+				t.Fatalf("%s (%s): users API all=%v ids=%v, auth all=%v ids=%v", au.Email, au.Role, u.AllOutlets, got, au.AllOutlets, au.OutletIDs)
+			}
 		}
 	})
 }

@@ -3324,6 +3324,8 @@ export interface components {
             role: "admin" | "manager" | "cashier";
             /** Format: uuid */
             outletId?: string | null;
+            outletIds: string[];
+            allOutlets: boolean;
             photoURL?: string | null;
             permissions: string[];
             /** Format: date-time */
@@ -3354,6 +3356,8 @@ export interface components {
             role: "admin" | "manager" | "cashier";
             /** Format: uuid */
             outletId?: string | null;
+            outletIds?: string[];
+            allOutlets?: boolean;
             permissions?: string[];
         };
         UpdateUserRequest: {
@@ -3362,6 +3366,8 @@ export interface components {
             role?: "admin" | "manager" | "cashier";
             /** Format: uuid */
             outletId?: string | null;
+            outletIds?: string[];
+            allOutlets?: boolean;
             photoURL?: string | null;
             permissions?: string[];
         };

@@ -273,13 +273,16 @@ components:
         limit: { type: integer }
     User:
       type: object
-      required: [id, email, displayName, role, permissions, createdAt]
+      required: [id, email, displayName, role, permissions, outletIds, allOutlets, createdAt]
       properties:
         id: { type: string, format: uuid }
         email: { type: string, format: email }
         displayName: { type: string }
         role: { type: string, enum: [admin, manager, cashier] }
         outletId: { type: string, format: uuid, nullable: true }
+        # Full enforced coverage, home first; [] for an admin and for an all-outlets or unassigned manager.
+        outletIds: { type: array, items: { type: string, format: uuid } }
+        allOutlets: { type: boolean }
         photoURL: { type: string, nullable: true }
         permissions:
           type: array
@@ -317,6 +320,8 @@ components:
         displayName: { type: string }
         role: { type: string, enum: [admin, manager, cashier] }
         outletId: { type: string, format: uuid, nullable: true }
+        outletIds: { type: array, items: { type: string, format: uuid } }
+        allOutlets: { type: boolean }
         permissions: { type: array, items: { type: string } }
     UpdateUserRequest:
       type: object
@@ -324,6 +329,8 @@ components:
         displayName: { type: string }
         role: { type: string, enum: [admin, manager, cashier] }
         outletId: { type: string, format: uuid, nullable: true }
+        outletIds: { type: array, items: { type: string, format: uuid } }
+        allOutlets: { type: boolean }
         photoURL: { type: string, nullable: true }
         permissions: { type: array, items: { type: string } }
     Outlet:
