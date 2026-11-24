@@ -136,6 +136,29 @@ describe('connection state from the version poll', () => {
   })
 })
 
+describe('overlapping polls (the 15 s timeout outlives the 12 s cadence)', () => {
+  it('a hung poll that times out while a newer one is still in flight still names the cause', async () => {
+    vi.useFakeTimers()
+    try {
+      const hang = (ms: number, err: Error) => new Promise<never>((_r, rej) => setTimeout(() => rej(err), ms))
+      const timeout = () => Object.assign(new Error('Server tidak menjawab tepat waktu, coba lagi'), { status: 0, kind: 'timeout' })
+      const request = vi.fn()
+      request.mockImplementationOnce(() => hang(15_000, timeout())).mockImplementationOnce(() => hang(15_000, timeout()))
+      const probe = vi.fn(async () => true)
+      const engine = new SyncEngine({ request } as unknown as ApiLike, {}, controllableKV().kv, { actor: null, probeHost: probe })
+      void engine.checkVersion() // poll A
+      await vi.advanceTimersByTimeAsync(12_000)
+      void engine.checkVersion() // poll B starts and hangs too
+      await vi.advanceTimersByTimeAsync(3_000) // A times out at 15 s; B is still in flight
+      expect(request).toHaveBeenCalledTimes(2)
+      expect(engine.isReachable()).toBe(false)
+      expect(engine.connectionState()).toBe('server_problem')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('connection state beyond the poll', () => {
   it('starts online when the browser is online and no_internet when it is not', () => {
     expect(make([versionOk]).engine.connectionState()).toBe('online')

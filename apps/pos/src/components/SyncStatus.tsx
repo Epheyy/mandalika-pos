@@ -224,8 +224,9 @@ export const SyncStatus = memo(function SyncStatus({
   const hasFailed = review.length > 0
   const rows = acknowledged ? review.filter((f) => !acknowledged.has(f.idempotencyKey)) : review
   const hiddenCount = review.length - rows.length
-  // Offline is its own, normal state: never describe it as a server problem.
-  const showStuck = isOnline && stuck.length > 0
+  // No internet is its own, normal state: never describe it as a server problem. A server problem may list the
+  // items that keep failing (the server is what fails them).
+  const showStuck = (isOnline || connection === 'server_problem') && stuck.length > 0
   const showAccount = isOnline && accountProblem !== null
   const updateAvailable = wall.raised
   const enginePending = useStockPending()

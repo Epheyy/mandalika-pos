@@ -460,8 +460,10 @@ export class SyncEngine {
   private wall: WallState
   private reachable: boolean = ONLINE()
   private connection: ConnectionState = ONLINE() ? 'online' : 'no_internet'
-  /** Numbers each version poll so a slow probe of an older poll cannot overwrite a newer answer. */
+  /** Numbers each version poll; `versionSettled` is the newest one that has answered. An older poll's cause is dropped only
+   *  once a newer poll has settled (a poll still in flight must not discard it: the 15 s timeout outlives the 12 s cadence). */
   private versionTicket = 0
+  private versionSettled = 0
   private readonly probe: (() => Promise<boolean>) | undefined
   /** The server's Retry-After pause (A29). Deliberately NOT cleared by resetBackoff, flushNow, retry or `online`. */
   private readonly hold = new ServerHold()
@@ -953,6 +955,7 @@ export class SyncEngine {
     if (this.hold.active(Date.now())) return this.wall
     const ticket = ++this.versionTicket
     if (!ONLINE()) {
+      this.versionSettled = ticket
       this.setReachable(false)
       this.setConnection('no_internet')
       return this.wall
@@ -964,6 +967,7 @@ export class SyncEngine {
         undefined,
         { timeoutMs: VERSION_TIMEOUT_MS },
       )
+      this.versionSettled = Math.max(this.versionSettled, ticket)
       this.setReachable(true)
       // A05: only a 2xx counts as contact (the 4xx branch below never does).
       this.noteContact(r.data.contact)
@@ -986,6 +990,7 @@ export class SyncEngine {
       if (failure.kind === 'account' || failure.kind === 'rejected' || failure.kind === 'unauthorized') {
         // A 4xx means the server ANSWERED: reachable, but this account/outlet is refused
         // (e.g. 403 no active outlet). Not "offline" and not a reason to block selling.
+        this.versionSettled = Math.max(this.versionSettled, ticket)
         this.setReachable(true)
         if (failure.kind !== 'unauthorized') this.accountProblemMsg = ACCOUNT_PROBLEM_MESSAGE
       } else {
@@ -1002,7 +1007,9 @@ export class SyncEngine {
    *  probed once (the host answering means the tablet's internet works). A newer poll's result is never overwritten. */
   private async refineConnection(err: unknown, ticket: number): Promise<void> {
     const cause = answeredByServer(err) || (await this.hostAnswers()) ? 'server_problem' : 'no_internet'
-    if (ticket === this.versionTicket && !this.reachable) this.setConnection(cause)
+    if (ticket <= this.versionSettled || this.reachable) return
+    this.versionSettled = ticket
+    this.setConnection(cause)
   }
 
   private async hostAnswers(): Promise<boolean> {

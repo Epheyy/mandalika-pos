@@ -314,6 +314,14 @@ describe('SyncStatus connection cause (A29)', () => {
     expect(html).not.toContain('Server')
   })
 
+  it('stuck items are listed under a server problem but never under no internet', () => {
+    const stuck = [item('a')]
+    expect(render({ ...offline, connection: 'server_problem', stuck, pendingCount: 1, open: true })).toContain('Tertunda berulang (1)')
+    const noNet = render({ ...offline, connection: 'no_internet', stuck, pendingCount: 1, open: true })
+    expect(noNet).not.toContain('Tertunda berulang')
+    expect(noNet).not.toContain('Server')
+  })
+
   it('the 12 h cap chips keep their wording for either cause', () => {
     const cap = { isOnline: false, offlineCap: { level: 'locked' as const, offlineMs: 12.2 * 3_600_000 } }
     expect(render({ ...cap, connection: 'server_problem' })).toContain('Offline terkunci · hubungi admin')
