@@ -162,7 +162,7 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 	var priorComputed, priorAmount, prevClawed, prevRestored int64
 	if err := tx.QueryRow(ctx,
 		`SELECT count(*), COALESCE(max(seq),0), COALESCE(sum(round(computed_amount)),0)::bigint,
-		        COALESCE(sum(round(amount)),0)::bigint, COALESCE(sum(points_clawed),0)::bigint,
+		        COALESCE(sum(round(amount)),0)::bigint, COALESCE(sum(points_clawed + points_debt_added),0)::bigint,
 		        COALESCE(sum(points_restored),0)::bigint
 		   FROM order_refunds WHERE order_id=$1`, orderID).
 		Scan(&refundCount, &maxSeq, &priorComputed, &priorAmount, &prevClawed, &prevRestored); err != nil {
@@ -231,9 +231,9 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 	// Points (D-37), computed now (the customer row is locked) and applied after the order
 	// writes: the cumulative proportional share of the computed value refunded so far (the
 	// completing refund settles exactly), minus what earlier refunds actually took. The floor
-	// at 0 applies per refund; a shortfall is not lost: the next refund's target minus what was actually taken re-claws it.
-	var clawed, restored, afterClaw, newBal int64
-	var forgiven int64
+	// at 0 applies per refund; a shortfall is not lost: it is recorded as points debt (points_debt_added), counted as taken by the next refund's cumulative claw, and recovered from future earn.
+	var clawed, restored, afterRestore, newBal int64
+	var debtAdded int64
 	if o.custID != nil && *o.custID != "" {
 		var bal int
 		if e := tx.QueryRow(ctx, `SELECT points FROM customers WHERE id=$1 FOR UPDATE`, *o.custID).Scan(&bal); e != nil {
@@ -241,11 +241,13 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 		}
 		cum := priorComputed + computed
 		clawWant := max(ClawTarget(o.earned, cum, o.total, completes)-prevClawed, 0)
-		clawed = int64(write.PointsClawback(bal, int(clawWant)))
-		forgiven = clawWant - clawed
+		// Restore first: the redeemed points go back before the earn is clawed, so a customer at 0 who
+		// earned 10 and redeemed 50 ends a full refund at 40, not 50. The floor applies to bal+restored.
 		restored = max(ClawTarget(o.redeemed, cum, o.total, completes)-prevRestored, 0)
-		afterClaw = int64(bal) - clawed
-		newBal = afterClaw + restored
+		afterRestore = int64(bal) + restored
+		clawed = int64(write.PointsClawback(int(afterRestore), int(clawWant)))
+		debtAdded = clawWant - clawed // not forgiven: the shortfall becomes the customer's points debt (A20)
+		newBal = afterRestore - clawed
 	}
 
 	payoutMethod, payoutSource, err := resolveRefundPayout(ctx, tx, orderID, o.paymentMethod, in.PayoutMethod, in.PayoutPicked)
@@ -258,12 +260,12 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO order_refunds (id, order_id, outlet_id, seq, scope, amount, computed_amount, claimed_amount, amount_warning,
 		        payment_method, reason, reason_code, shift_id, refunded_by, refunded_by_name,
-		        device_id, client_refund_uuid, ledger_document_key, points_clawed, points_restored, payout_source)
+		        device_id, client_refund_uuid, ledger_document_key, points_clawed, points_restored, payout_source, points_debt_added)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10,$11,NULLIF($12,''),NULLIF($13::text,'')::uuid,
-		        NULLIF($14::text,'')::uuid,NULLIF($15,''),NULLIF($16,''),NULLIF($17::text,'')::uuid,$18,$19,$20,$21)`,
+		        NULLIF($14::text,'')::uuid,NULLIF($15,''),NULLIF($16,''),NULLIF($17::text,'')::uuid,$18,$19,$20,$21,$22)`,
 		refundID, orderID, outletID, maxSeq+1, refundScope(completes, refundCount), amount, computed, claimedKept, amountWarning,
 		payoutMethod, reason, reasonCode, in.ShiftID, in.UserID, in.UserName,
-		in.DeviceID, in.ClientRefundUUID, "refund:"+refundID, clawed, restored, payoutSource); err != nil {
+		in.DeviceID, in.ClientRefundUUID, "refund:"+refundID, clawed, restored, payoutSource, debtAdded); err != nil {
 		return RefundResult{}, fmt.Errorf("insert order_refunds: %w", err)
 	}
 
@@ -358,30 +360,30 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 	// included), so the proportional claw covers them. Condition application rows are
 	// immutable order-time facts and are intentionally not reversed.
 	if o.custID != nil && *o.custID != "" {
-		if clawed > 0 {
-			clawReason := fmt.Sprintf("Pembatalan poin dari refund %s", o.orderNumber)
-			if forgiven > 0 {
-				clawReason += fmt.Sprintf(" (%d poin tidak cukup saldo, ditagih di refund berikutnya jika ada)", forgiven)
-			}
-			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
-				CustomerID: *o.custID, Type: "refund", Points: -int(clawed),
-				BalanceAfter: int(afterClaw), Reason: clawReason, OrderID: orderID,
-			}); e != nil {
-				return RefundResult{}, fmt.Errorf("ledger refund clawback: %w", e)
-			}
-		}
 		if restored > 0 {
 			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
 				CustomerID: *o.custID, Type: "refund", Points: int(restored),
-				BalanceAfter: int(newBal),
+				BalanceAfter: int(afterRestore),
 				Reason:       fmt.Sprintf("Pengembalian poin tukar dari refund %s", o.orderNumber),
 				OrderID:      orderID,
 			}); e != nil {
 				return RefundResult{}, fmt.Errorf("ledger refund restore: %w", e)
 			}
 		}
-		if clawed > 0 || restored > 0 {
-			if _, e := tx.Exec(ctx, `UPDATE customers SET points=$2 WHERE id=$1`, *o.custID, int(newBal)); e != nil {
+		if clawed > 0 || debtAdded > 0 {
+			clawReason := fmt.Sprintf("Pembatalan poin dari refund %s", o.orderNumber)
+			if debtAdded > 0 {
+				clawReason += fmt.Sprintf(" (%d poin tidak cukup saldo, menjadi utang poin dan dipotong dari poin berikutnya)", debtAdded)
+			}
+			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
+				CustomerID: *o.custID, Type: "refund", Points: -int(clawed), DebtDelta: int(debtAdded),
+				BalanceAfter: int(newBal), Reason: clawReason, OrderID: orderID,
+			}); e != nil {
+				return RefundResult{}, fmt.Errorf("ledger refund clawback: %w", e)
+			}
+		}
+		if clawed > 0 || restored > 0 || debtAdded > 0 {
+			if _, e := tx.Exec(ctx, `UPDATE customers SET points=$2, points_debt=points_debt+$3 WHERE id=$1`, *o.custID, int(newBal), int(debtAdded)); e != nil {
 				return RefundResult{}, fmt.Errorf("update points on refund: %w", e)
 			}
 		}

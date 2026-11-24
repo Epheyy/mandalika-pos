@@ -1025,6 +1025,7 @@ components:
         phone: { type: string }
         email: { type: string, nullable: true }
         points: { type: integer }
+        pointsDebt: { type: integer, description: 'Refund points the balance could not cover; recovered from future sale earnings.' }
         totalSpent: { type: number, format: double }
         visitCount: { type: integer }
         lastVisit: { type: string, format: date-time, nullable: true }
@@ -1106,6 +1107,7 @@ components:
         id: { type: string, format: uuid }
         type: { type: string, enum: [earn, redeem, adjust, refund, void] }
         points: { type: integer }
+        debtDelta: { type: integer, description: Signed change of the points debt in this entry (0 when none). points may be 0 when only the debt moved. }
         balanceAfter: { type: integer }
         reason: { type: string, nullable: true }
         orderId: { type: string, format: uuid, nullable: true }
@@ -1686,6 +1688,7 @@ components:
         bundleDiscountConfig:
           allOf: [{ $ref: '#/components/schemas/BundleDiscountConfig' }]
           nullable: true
+        version: { type: integer, description: 'Starts at 1 and is bumped on every rule edit. Absent from older servers.' }
         createdAt: { type: string, format: date-time }
     PromotionListResponse:
       type: object
@@ -1718,6 +1721,7 @@ components:
         endDate: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
         combinable: { type: boolean, nullable: true }
+        version: { type: integer, description: 'Starts at 1 and is bumped on every edit. Absent from older servers.' }
     DiscountCodeListResponse:
       type: object
       required: [data]
@@ -2085,6 +2089,9 @@ components:
         kind: { type: string, nullable: true }
         value: { type: number, format: double, nullable: true }
         amount: { type: number, format: double }
+        promotionId: { type: string, description: 'The promotion (direct, or the one a code links to) the sale was priced with.' }
+        promotionVersion: { type: integer, description: Version of that promotion when the sale was priced. }
+        codeVersion: { type: integer, description: Version of the discount code when the sale was priced. }
     ErrorBreadcrumb:
       type: object
       required: [at, label]

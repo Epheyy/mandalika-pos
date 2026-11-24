@@ -367,6 +367,7 @@ export const CheckoutPanel = memo(function CheckoutPanel({
                         min={0}
                         max={customerPoints}
                         value={pointsToRedeem || ''}
+                        disabled={!isOnline}
                         onChange={(e) =>
                           onPointsRedeemedChange(Math.min(customerPoints, Math.max(0, parseInt(e.target.value) || 0)))
                         }
@@ -377,11 +378,13 @@ export const CheckoutPanel = memo(function CheckoutPanel({
                       <button
                         type="button"
                         onClick={() => onPointsRedeemedChange(customerPoints)}
-                        className="min-h-11 px-4 bg-reward-bg text-reward rounded-control text-xs font-semibold"
+                        disabled={!isOnline}
+                        className="min-h-11 px-4 bg-reward-bg text-reward rounded-control text-xs font-semibold disabled:opacity-50"
                       >
                         Semua
                       </button>
                     </div>
+                    {!isOnline && <p className="text-xs font-semibold text-reward mt-1">Tukar poin butuh internet</p>}
                     <p className="text-xs text-ink-500 mt-1">
                       Tersedia {customerPoints} poin
                       {pointsToRedeem > 0 && derived.redeemAmount > 0

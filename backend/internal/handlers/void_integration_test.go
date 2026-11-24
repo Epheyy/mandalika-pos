@@ -1550,6 +1550,89 @@ func TestVoidPostgres(t *testing.T) {
 		}
 	})
 
+	// A20: the part of an earn that paid points debt at sale time is put back as debt by a void, never erased.
+	t.Run("void_reinstates_points_debt", func(t *testing.T) {
+		debtOf := func(cust string) int { return one(`SELECT points_debt FROM customers WHERE id=$1`, cust) }
+		// settledSale: a sale that earned `earn` points of which `settled` paid debt; the customer then holds
+		// `balance` points and `debt` points of debt (what that sale left behind).
+		settledSale := func(shift, cust string, earn, settled, balance, debt int, p string) string {
+			id := sale(saleOpts{shift: shift, cust: cust, earned: earn}, p)
+			exec(`UPDATE orders SET points_debt_settled=$2 WHERE id=$1`, id, settled)
+			exec(`UPDATE customers SET points=$2, points_debt=$3 WHERE id=$1`, cust, balance, debt)
+			return id
+		}
+		debtRow := func(order string) (int, int, int) {
+			return one(`SELECT count(*) FROM point_transactions WHERE order_id=$1 AND type='void' AND points=0 AND debt_delta>0`, order),
+				one(`SELECT COALESCE(sum(debt_delta),0)::int FROM point_transactions WHERE order_id=$1 AND type='void'`, order),
+				one(`SELECT COALESCE(min(balance_after),0)::int FROM point_transactions WHERE order_id=$1 AND type='void' AND debt_delta>0`, order)
+		}
+		t.Run("all_earn_settled_debt", func(t *testing.T) {
+			shift := openShift()
+			cust := customer(0)
+			id := settledSale(shift, cust, 50, 50, 0, 0, product(5))
+			res, err := svc.VoidOrder(ctx, voidIn(id, shift))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if debtOf(cust) != 50 || pointsOf(cust) != 0 {
+				t.Fatalf("debt=%d points=%d, want debt 50 points 0", debtOf(cust), pointsOf(cust))
+			}
+			if one(`SELECT points_forgiven FROM order_voids WHERE id=$1`, res.VoidID) != 0 || one(`SELECT points_debt_reinstated FROM order_voids WHERE id=$1`, res.VoidID) != 50 ||
+				one(`SELECT points_clawed FROM order_voids WHERE id=$1`, res.VoidID) != 0 {
+				t.Fatal("audit: want forgiven 0, clawed 0, reinstated 50")
+			}
+			if n, sum, bal := debtRow(id); n != 1 || sum != 50 || bal != 0 {
+				t.Fatalf("ledger: debt rows=%d debt_delta sum=%d balance_after=%d, want one row +50 at balance 0", n, sum, bal)
+			}
+		})
+		t.Run("partly_settled", func(t *testing.T) {
+			shift := openShift()
+			cust := customer(0)
+			id := settledSale(shift, cust, 50, 30, 20, 0, product(5))
+			res, err := svc.VoidOrder(ctx, voidIn(id, shift))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if debtOf(cust) != 30 || pointsOf(cust) != 0 {
+				t.Fatalf("debt=%d points=%d, want debt 30 points 0", debtOf(cust), pointsOf(cust))
+			}
+			if one(`SELECT points_forgiven FROM order_voids WHERE id=$1`, res.VoidID) != 0 || one(`SELECT points_clawed FROM order_voids WHERE id=$1`, res.VoidID) != 20 ||
+				one(`SELECT points_debt_reinstated FROM order_voids WHERE id=$1`, res.VoidID) != 30 {
+				t.Fatal("audit: want clawed 20, forgiven 0, reinstated 30")
+			}
+			if n, sum, _ := debtRow(id); n != 1 || sum != 30 {
+				t.Fatalf("ledger: debt rows=%d sum=%d, want one row +30", n, sum)
+			}
+		})
+		t.Run("replacement_settles_reinstated_debt", func(t *testing.T) {
+			shift := openShift()
+			cust := customer(0)
+			p := product(5)
+			id := settledSale(shift, cust, 100, 100, 0, 0, p)
+			withLoyalty(t)
+			in := voidIn(id, shift)
+			in.Mode = service.VoidModeReplace
+			r := replIn(`[{"method":"cash","amount":100000}]`, p)
+			r.CustomerID = cust
+			res, err := svc.VoidAndReplace(ctx, in, r)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// forgiven excludes the reinstated debt, so the replacement withholds nothing and its earn
+			// of 100 pays the 100 debt back: debt 0, balance 0, no double count.
+			if one(`SELECT points_forgiven FROM order_voids WHERE id=$1`, res.VoidID) != 0 || one(`SELECT replacement_points_deducted FROM order_voids WHERE id=$1`, res.VoidID) != 0 {
+				t.Fatal("audit: the reinstated debt must not count as forgiven or deducted")
+			}
+			if one(`SELECT points_debt_settled FROM orders WHERE id=$1`, res.ReplacementOrderID) != 100 || debtOf(cust) != 0 || pointsOf(cust) != 0 {
+				t.Fatalf("replacement settled=%d debt=%d points=%d, want 100 / 0 / 0",
+					one(`SELECT points_debt_settled FROM orders WHERE id=$1`, res.ReplacementOrderID), debtOf(cust), pointsOf(cust))
+			}
+			if got := one(`SELECT COALESCE(sum(debt_delta),0)::int FROM point_transactions WHERE customer_id=$1 AND order_id IN ($2,$3)`, cust, id, res.ReplacementOrderID); got != 0 {
+				t.Fatalf("ledger debt_delta over void + replacement = %d, want 0 (+100 reinstated, -100 settled)", got)
+			}
+		})
+	})
+
 	t.Run("replacement_points_deducted_chain", func(t *testing.T) {
 		// Sale earns 100, all spent. Void 1 writes off 100 and Repl 1 earns 0. Voiding Repl 1 claws
 		// nothing, so the write-off must carry to Repl 2: the customer ends at 0, not 100.

@@ -125,6 +125,8 @@ export interface LinkedPromotionInfo {
   value: number
   applicableProductIds?: string[] | null
   isBOGO: boolean
+  /** Promotion version at selection time (A10); absent when the cached promotion predates it. */
+  version?: number
   bxgyConfig?: Promotion['bxgyConfig']
   tieredConfig?: Promotion['tieredConfig']
   bundleConfig?: Promotion['bundleConfig']
@@ -136,6 +138,8 @@ export interface AppliedPromoCode {
   value: number
   type: Promotion['type']
   combinable?: boolean
+  /** Code version at selection time (A10); absent when the cached code predates it. */
+  version?: number
   /** Present only for codes that link to a promotion (SP-Promo-3c). */
   promotion?: LinkedPromotionInfo
 }
@@ -180,12 +184,14 @@ export function decideApplyCode(
         value: promo.value,
         type: promo.type,
         combinable: promo.combinable ?? false,
+        ...(dc.version === undefined ? {} : { version: dc.version }),
         promotion: {
           id: promo.id,
           type: promo.type,
           value: promo.value,
           applicableProductIds: promo.applicableProductIds,
           isBOGO: promo.type === 'bogo',
+          ...(promo.version === undefined ? {} : { version: promo.version }),
           bxgyConfig: promo.bxgyConfig ?? null,
           tieredConfig: promo.tieredConfig ?? null,
           bundleConfig: promo.bundleConfig ?? null,
@@ -198,5 +204,5 @@ export function decideApplyCode(
   // Unlinked code: today's behavior unchanged
   if (codeViolations.length > 0) return { ok: false, reason: violationMessage(codeViolations[0]) }
   // Twin of the server's unlinked-code branch: the code's own flag gates stacking (a missing flag is exclusive).
-  return { ok: true, code: { code: dc.code, value: dc.value, type: dc.type, combinable: dc.combinable ?? false } }
+  return { ok: true, code: { code: dc.code, value: dc.value, type: dc.type, combinable: dc.combinable ?? false, ...(dc.version === undefined ? {} : { version: dc.version }) } }
 }

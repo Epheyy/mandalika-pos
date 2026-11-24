@@ -97,7 +97,7 @@ it.each(['bundle', 'buy_x_get_y'] as const)('direct and linked %s share physical
   const metadata = buildPromotionMetadata(linked, price(linked))
   expect(metadata).toMatchObject({ promotionIds: [], promotionId: null, discountCodes: ['Raw-Winner'], discountCode: 'Raw-Winner', discountLabel: 'Raw-Winner' })
   // Physical savings are already in item prices, never applied a second time.
-  expect(metadata.discountBreakdown).toEqual([{ label: 'Raw-Winner', kind: type, value: 0, amount: 0 }])
+  expect(metadata.discountBreakdown).toEqual([{ label: 'Raw-Winner', kind: type, value: 0, amount: 0, promotionId: p.id }])
 })
 
 it('BXGY picker preview/cancel is a pure no-op; confirm aggregates exactly the earned picks', () => {

@@ -23,6 +23,7 @@ const promotionObj = `json_build_object('id',id,'name',name,'description',descri
 		   'tieredConfig',tiered_config,
 		   'bundleConfig',bundle_config,
 		   'bundleDiscountConfig',bundle_discount_config,
+		   'version',version,
 		   'createdAt',created_at)`
 
 const discountCodeObj = `json_build_object('id',id,'code',code,'promotionId',promotion_id,
@@ -31,6 +32,7 @@ const discountCodeObj = `json_build_object('id',id,'code',code,'promotionId',pro
 		   'customerId',customer_id,'customerName',(SELECT name FROM customers WHERE id=discount_codes.customer_id),
 		   'usageCount',usage_count,'isActive',is_active,
 		   'startDate',start_date,'endDate',end_date,'combinable',combinable,
+		   'version',version,
 		   'createdAt',created_at)`
 
 func (r *Repo) Promotions(ctx context.Context) ([]api.Promotion, int, error) {

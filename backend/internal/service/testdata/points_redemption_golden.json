@@ -1,0 +1,19 @@
+[
+  {"name": "integer rate, normal", "requested": 10, "available": 100, "rate": 100, "total": 50000, "expected": {"points": 10, "amount": 1000}},
+  {"name": "integer rate capped by total (half point rounds up)", "requested": 2000, "available": 2000, "rate": 100, "total": 95550, "expected": {"points": 956, "amount": 95550}},
+  {"name": "integer rate capped by total (exact multiple)", "requested": 2000, "available": 2000, "rate": 100, "total": 95500, "expected": {"points": 955, "amount": 95500}},
+  {"name": "total below one point costs one point (A22 rule a)", "requested": 1, "available": 1, "rate": 100, "total": 50, "expected": {"points": 1, "amount": 50}},
+  {"name": "value equals total exactly", "requested": 10, "available": 10, "rate": 100, "total": 1000, "expected": {"points": 10, "amount": 1000}},
+  {"name": "float edge: 7 / 0.7 is 10.000000000000002", "requested": 100, "available": 100, "rate": 0.7, "total": 7, "expected": {"points": 10, "amount": 7}},
+  {"name": "fractional rate 0.7, value below total rounds half up", "requested": 5, "available": 5, "rate": 0.7, "total": 7, "expected": {"points": 5, "amount": 4}},
+  {"name": "fractional rate 1.5 rounds 4.5 up", "requested": 3, "available": 10, "rate": 1.5, "total": 1000, "expected": {"points": 3, "amount": 5}},
+  {"name": "fractional rate 0.3", "requested": 10, "available": 10, "rate": 0.3, "total": 1000, "expected": {"points": 10, "amount": 3}},
+  {"name": "fractional rate 2.5 rounds 7.5 up", "requested": 3, "available": 10, "rate": 2.5, "total": 1000, "expected": {"points": 3, "amount": 8}},
+  {"name": "fractional rate 0.1 rounds 2.5 up", "requested": 25, "available": 25, "rate": 0.1, "total": 1000, "expected": {"points": 25, "amount": 3}},
+  {"name": "fractional rate 2.5 capped by total", "requested": 100, "available": 100, "rate": 2.5, "total": 99, "expected": {"points": 40, "amount": 99}},
+  {"name": "requested above available", "requested": 500, "available": 120, "rate": 100, "total": 1000000, "expected": {"points": 120, "amount": 12000}},
+  {"name": "requested below what covers the total", "requested": 5, "available": 100, "rate": 100, "total": 95550, "expected": {"points": 5, "amount": 500}},
+  {"name": "available limits below the cover", "requested": 2000, "available": 900, "rate": 100, "total": 95550, "expected": {"points": 900, "amount": 90000}},
+  {"name": "no available points", "requested": 10, "available": 0, "rate": 100, "total": 50000, "expected": {"points": 0, "amount": 0}},
+  {"name": "zero total", "requested": 10, "available": 10, "rate": 100, "total": 0, "expected": {"points": 0, "amount": 0}}
+]

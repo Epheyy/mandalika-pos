@@ -142,7 +142,7 @@ it('pricing and capture project stale duplicate draft identities without mutatin
   Object.freeze(state)
   expect(quote(state).total).toBe(90000)
   expect(buildPromotionMetadata(state, quote(state))).toEqual({ promotionIds: ['P'], promotionId: 'P', discountCodes: [], discountCode: null,
-    discountLabel: 'Ten percent', discountBreakdown: [{ label: 'Ten percent', kind: 'tiered', value: 0, amount: 10000 }] })
+    discountLabel: 'Ten percent', discountBreakdown: [{ label: 'Ten percent', kind: 'tiered', value: 0, amount: 10000, promotionId: 'P' }] })
   expect(state).toEqual(before)
   const removed = cashierReducer(state, { type: 'REMOVE_PROMOTION', id: 'P' })
   expect(removed.appliedPromotions).toEqual([])
@@ -192,7 +192,7 @@ it('capture keeps manual discount evidence independent of promotion identity', (
   const metadata = buildPromotionMetadata(state, { subtotal: 100000, manualDiscountAmount: 5000 })
   expect(metadata.discountBreakdown).toEqual([
     { label: 'Diskon Manual', kind: 'fixed', value: 5000, amount: 5000 },
-    { label: 'Ten percent', kind: 'tiered', value: 0, amount: 10000 },
+    { label: 'Ten percent', kind: 'tiered', value: 0, amount: 10000, promotionId: 'P' },
   ])
 })
 

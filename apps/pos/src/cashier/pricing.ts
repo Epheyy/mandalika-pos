@@ -336,7 +336,22 @@ export function linkedPromoShape(c: AppliedPromoCode): Promotion {
     combinable: c.combinable,
     isActive: true,
     createdAt: '',
+    ...(c.promotion.version === undefined ? {} : { version: c.promotion.version }),
   }
+}
+
+// Float noise (7 / 0.7 = 10.000000000000002) must not cost an extra point; Go uses the same epsilon.
+const POINTS_COVER_EPSILON = 1e-9
+
+// The ONE points-consumed rule (A22 rule a), mirrored by Go RedeemPoints and pinned by
+// backend/internal/service/testdata/points_redemption_golden.json. When the value of the points covers
+// the total the bill becomes Rp0 and the customer spends up to one point extra (ceil), capped at p.
+export function redeemPoints(requested: number, available: number, rate: number, total: number): { points: number; amount: number } {
+  const p = Math.min(requested, available)
+  if (!(p > 0) || !(rate > 0) || !(total > 0)) return { points: 0, amount: 0 }
+  const value = Math.round(p * rate)
+  if (value >= total) return { points: Math.min(p, Math.ceil(total / rate - POINTS_COVER_EPSILON)), amount: total }
+  return { points: p, amount: value }
 }
 
 export function computePricing(input: PricingInput): PricingResult {
@@ -430,9 +445,7 @@ export function computePricing(input: PricingInput): PricingResult {
   let redeemedPoints = 0
   let redeemAmount = 0
   if (loyalty.enabled && hasCustomer && pointsRedeemed > 0 && rate > 0) {
-    redeemedPoints = Math.min(pointsRedeemed, customerPoints)
-    redeemAmount = Math.min(Math.round(redeemedPoints * rate), total)
-    redeemedPoints = Math.min(redeemedPoints, Math.floor(redeemAmount / rate))
+    ;({ points: redeemedPoints, amount: redeemAmount } = redeemPoints(pointsRedeemed, customerPoints, rate, total))
   }
   total = total - redeemAmount
 

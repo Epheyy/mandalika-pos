@@ -1477,12 +1477,13 @@ func TestRefundLinesPostgres(t *testing.T) {
 		if r1.amount != 0 || r1.clawed != 0 || r1.restor != 0 || after.points != before.points || status(oid) != "partially_refunded" {
 			t.Fatalf("a partial refund of a Rp0 order restores/claws nothing: %+v points %d -> %d", r1, before.points, after.points)
 		}
-		// the customer has spent the earned points meanwhile: the claw is forgiven, never negative
+		// the customer has spent the earned points meanwhile: the redeemed points restored first fund the claw, never negative
 		exec(`UPDATE customers SET points=0 WHERE id=$1`, cu)
 		wantOK("final refund", rf(o, rp(oid, [2]int{1, 1}), ""))
 		rs := refunds(oid)
 		fin := custRow(cu)
-		if len(rs) != 2 || rs[1].clawed != 0 || rs[0].restor+rs[1].restor != redeemed || fin.points != redeemed || status(oid) != "refunded" {
+		// the redeemed points are restored first (T5), so the earn is clawed from them, not forgiven
+		if len(rs) != 2 || rs[1].clawed != earned || rs[0].restor+rs[1].restor != redeemed || fin.points != redeemed-earned || status(oid) != "refunded" {
 			t.Fatalf("final refund of a Rp0 order: %+v points=%d", rs, fin.points)
 		}
 		if num(`SELECT count(*) FROM customers WHERE points < 0`) != 0 {
@@ -1645,6 +1646,157 @@ func TestRefundLinesPostgres(t *testing.T) {
 			SELECT 'refund','outlet',$1::uuid,$2::uuid,'std',1,0,1,'order',$3::uuid,'refund:'||$4,gen_random_uuid(),now()`, o.id, lp, lo, li)
 		if sq, _, n := seqOf(lp); n != 1 || sq != 1 {
 			t.Fatalf("legacy refund movement: seq=%d n=%d", sq, n)
+		}
+	})
+
+	sub("15 refund restores the redeemed points BEFORE it claws the earn (T5): ledger order, partial cumulative, short balance", func(t *testing.T) {
+		defer exec(`UPDATE loyalty_settings SET enabled=false, points_per_thousand=0, redemption_rate=0 WHERE id=1`)
+		exec(`UPDATE loyalty_settings SET enabled=true, points_per_thousand=1, redemption_rate=100 WHERE id=1`)
+		o := newOutlet()
+		ledger := func(oid string) (rows []struct{ pts, after int64 }) {
+			cur.Helper()
+			rs, err := pool.Query(ctx, `SELECT points, balance_after FROM point_transactions WHERE order_id=$1 AND type='refund' ORDER BY ctid`, oid)
+			if err != nil {
+				cur.Fatal(err)
+			}
+			defer rs.Close()
+			for rs.Next() {
+				var r struct{ pts, after int64 }
+				if err := rs.Scan(&r.pts, &r.after); err != nil {
+					cur.Fatal(err)
+				}
+				rows = append(rows, r)
+			}
+			return
+		}
+		// bal 0, earned 10, redeemed 50: a full refund ends at 50 - 10 = 40 (it used to end at 50)
+		p1 := newProduct(o, 10000)
+		cu := newCustomer(50)
+		oid := sell(o, saleOpt{customer: cu, items: []map[string]any{line(p1, 1, 10000)}, extra: map[string]any{"pointsRedeemed": 50}})
+		if num(`SELECT points_earned FROM orders WHERE id=$1`, oid) != 10 || num(`SELECT points_redeemed FROM orders WHERE id=$1`, oid) != 50 {
+			t.Fatalf("fixture: earned/redeemed")
+		}
+		exec(`UPDATE customers SET points=0 WHERE id=$1`, cu)
+		wantOK("full refund", rf(o, rp(oid, [2]int{0, 1}), ""))
+		r := refunds(oid)[0]
+		if r.clawed != 10 || r.restor != 50 || custRow(cu).points != 40 {
+			t.Fatalf("full refund: %+v points=%d, want clawed 10 restored 50 points 40", r, custRow(cu).points)
+		}
+		if l := ledger(oid); len(l) != 2 || l[0].pts != 50 || l[0].after != 50 || l[1].pts != -10 || l[1].after != 40 {
+			t.Fatalf("ledger must be restore +50 (after 50) then claw -10 (after 40): %+v", l)
+		}
+
+		// partial refunds: cumulative proportional, the final refund settles; balance never negative
+		pA, pB := newProduct(o, 30000), newProduct(o, 20000)
+		cu2 := newCustomer(100)
+		o2 := sell(o, saleOpt{customer: cu2, items: []map[string]any{line(pA, 1, 30000), line(pB, 1, 20000)}, extra: map[string]any{"pointsRedeemed": 100}})
+		earned, redeemed := num(`SELECT points_earned FROM orders WHERE id=$1`, o2), num(`SELECT points_redeemed FROM orders WHERE id=$1`, o2)
+		if earned != 50 || redeemed != 100 {
+			t.Fatalf("fixture o2: earned=%d redeemed=%d", earned, redeemed)
+		}
+		exec(`UPDATE customers SET points=0 WHERE id=$1`, cu2)
+		wantOK("o2 partial", rf(o, rp(o2, [2]int{0, 1}), ""))
+		r1 := refunds(o2)[0]
+		if r1.clawed > r1.restor || custRow(cu2).points != r1.restor-r1.clawed || r1.restor == 0 {
+			t.Fatalf("o2 partial: %+v points=%d, want points = restored - clawed", r1, custRow(cu2).points)
+		}
+		wantOK("o2 final", rf(o, rp(o2, [2]int{1, 1}), ""))
+		rs := refunds(o2)
+		if rs[0].clawed+rs[1].clawed != earned || rs[0].restor+rs[1].restor != redeemed || custRow(cu2).points != redeemed-earned {
+			t.Fatalf("o2 final: %+v points=%d, want clawed %d restored %d points %d", rs, custRow(cu2).points, earned, redeemed, redeemed-earned)
+		}
+
+		// even bal+restored is short: the claw floors at what is there and never goes negative
+		pC := newProduct(o, 50000)
+		cu3 := newCustomer(0)
+		o3 := sell(o, saleOpt{customer: cu3, items: []map[string]any{line(pC, 1, 50000)}})
+		exec(`UPDATE customers SET points=0 WHERE id=$1`, cu3)
+		wantOK("o3 full", rf(o, rp(o3, [2]int{0, 1}), ""))
+		if r3 := refunds(o3)[0]; r3.clawed != 0 || r3.restor != 0 || custRow(cu3).points != 0 || num(`SELECT points_debt FROM customers WHERE id=$1`, cu3) != 50 || num(`SELECT points_debt_added FROM order_refunds WHERE order_id=$1`, o3) != 50 {
+			t.Fatalf("o3: %+v points=%d, nothing to claw from, the 50-point shortfall must become debt", r3, custRow(cu3).points)
+		}
+		// a debt-only refund still leaves an auditable ledger row: 0 points, +50 debt
+		if n := num(`SELECT count(*) FROM point_transactions WHERE order_id=$1 AND type='refund' AND points=0 AND debt_delta=50 AND balance_after=0`, o3); n != 1 {
+			t.Fatalf("o3: debt-only refund ledger rows = %d, want exactly one (points 0, debt_delta +50)", n)
+		}
+		if num(`SELECT count(*) FROM customers WHERE points < 0`) != 0 {
+			t.Fatal("a refund must never leave points negative")
+		}
+	})
+
+	// ─────────────────────────────────────────────────────────────────────────────
+	sub("16 refund shortfall becomes a points debt, recovered from future earn (A20), never clawed twice", func(t *testing.T) {
+		defer exec(`UPDATE loyalty_settings SET enabled=false, points_per_thousand=0, redemption_rate=0 WHERE id=1`)
+		exec(`UPDATE loyalty_settings SET enabled=true, points_per_thousand=1, redemption_rate=100 WHERE id=1`)
+		o := newOutlet()
+		debt := func(c string) int64 { cur.Helper(); return num(`SELECT points_debt FROM customers WHERE id=$1`, c) }
+		// full refund of an order whose earn the balance cannot cover: the whole 50 becomes debt
+		pA := newProduct(o, 50000)
+		cu := newCustomer(0)
+		oid := sell(o, saleOpt{customer: cu, items: []map[string]any{line(pA, 1, 50000)}})
+		exec(`UPDATE customers SET points=0 WHERE id=$1`, cu)
+		wantOK("full refund", rf(o, rp(oid, [2]int{0, 1}), ""))
+		if debt(cu) != 50 || custRow(cu).points != 0 || num(`SELECT points_debt_added FROM order_refunds WHERE order_id=$1`, oid) != 50 {
+			t.Fatalf("shortfall: debt=%d points=%d, want debt 50 points 0", debt(cu), custRow(cu).points)
+		}
+		if n := num(`SELECT count(*) FROM point_transactions WHERE order_id=$1 AND type='refund' AND debt_delta=50`, oid); n != 1 {
+			t.Fatalf("shortfall ledger rows with debt_delta +50 = %d, want 1", n)
+		}
+		// a partial earn leaves the rest of the debt: earn 30 pays 30, balance stays 0
+		pB := newProduct(o, 30000)
+		s1 := sell(o, saleOpt{customer: cu, items: []map[string]any{line(pB, 1, 30000)}})
+		if debt(cu) != 20 || custRow(cu).points != 0 {
+			t.Fatalf("after a 30-point earn: debt=%d points=%d, want debt 20 points 0", debt(cu), custRow(cu).points)
+		}
+		rows, err := pool.Query(ctx, `SELECT type, points, balance_after, debt_delta FROM point_transactions WHERE order_id=$1 ORDER BY ctid`, s1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		type lr struct {
+			typ               string
+			pts, after, debtD int64
+		}
+		var got []lr
+		for rows.Next() {
+			var r lr
+			if err := rows.Scan(&r.typ, &r.pts, &r.after, &r.debtD); err != nil {
+				t.Fatal(err)
+			}
+			got = append(got, r)
+		}
+		rows.Close()
+		if len(got) != 2 || got[0] != (lr{"earn", 30, 30, 0}) || got[1] != (lr{"refund", -30, 0, -30}) {
+			t.Fatalf("sale ledger must be earn +30 then debt recovery -30 (debt_delta -30): %+v", got)
+		}
+		// the next earn clears the rest: earn 50 pays 20, balance 30
+		pC := newProduct(o, 50000)
+		sell(o, saleOpt{customer: cu, items: []map[string]any{line(pC, 1, 50000)}})
+		if debt(cu) != 0 || custRow(cu).points != 30 {
+			t.Fatalf("after a 50-point earn: debt=%d points=%d, want debt 0 points 30", debt(cu), custRow(cu).points)
+		}
+
+		// a second refund of the same order never claws the first one's shortfall again
+		pD, pE := newProduct(o, 30000), newProduct(o, 20000)
+		cu2 := newCustomer(0)
+		o2 := sell(o, saleOpt{customer: cu2, items: []map[string]any{line(pD, 1, 30000), line(pE, 1, 20000)}})
+		earned := num(`SELECT points_earned FROM orders WHERE id=$1`, o2)
+		exec(`UPDATE customers SET points=0 WHERE id=$1`, cu2)
+		wantOK("o2 partial", rf(o, rp(o2, [2]int{0, 1}), ""))
+		d1 := debt(cu2)
+		if d1 <= 0 {
+			t.Fatalf("the partial refund must leave debt, got %d", d1)
+		}
+		exec(`UPDATE customers SET points=100 WHERE id=$1`, cu2)
+		wantOK("o2 final", rf(o, rp(o2, [2]int{1, 1}), ""))
+		rs := refunds(o2)
+		var sumDebt int64
+		sumDebt = num(`SELECT COALESCE(sum(points_debt_added),0) FROM order_refunds WHERE order_id=$1`, o2)
+		// R1 took d1 as debt (balance 0); R2 claws only the rest of the earn from the 100-point balance
+		if rs[0].clawed != 0 || rs[1].clawed != earned-d1 || sumDebt != d1 || debt(cu2) != d1 || custRow(cu2).points != 100-(earned-d1) {
+			t.Fatalf("o2: %+v sumDebt=%d debt=%d points=%d earned=%d d1=%d", rs, sumDebt, debt(cu2), custRow(cu2).points, earned, d1)
+		}
+		if num(`SELECT count(*) FROM customers WHERE points < 0 OR points_debt < 0`) != 0 {
+			t.Fatal("neither points nor points_debt may go negative")
 		}
 	})
 

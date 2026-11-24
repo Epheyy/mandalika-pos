@@ -8,6 +8,16 @@ Last updated: 2026-11-24 by Claude (Opus 5.5) - live checks on the BSD tablet do
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-24: **A10 / A23 / A20 / A21 / A22 PROMO + POINTS SLICE: PR open, not merged** (branch `claude/a10-a23-promos-0ed554`, plan `docs/plans/2026-11-24-a10-a23-promos-plan.md`, migrations **0099** `promotion_versions` + **0100** `points_debt`; 0098 is #166). Opus plan + review ("ship with fixes", fixes done), Sonnet implementer.
+> - **A10 version stamp:** `promotions.version` / `discount_codes.version` bump on rule edits only; POS stamps `promotionId` / `promotionVersion` / `codeVersion` into `discountBreakdown` (optional, server never rejects on them).
+> - **A22 rule (a) / A10 points parity:** one shared `RedeemPoints` (Go) / `redeemPoints` (TS) with shared golden vectors; points cover the bill → `ceil(bill/rate)` (eps 1e-9), bill Rp0. Server amounts now rounded like the POS (behaviour change on fractional rates and the cap).
+> - **Refund points order (behaviour change):** restore redeemed points first, then claw the earn from balance+restored.
+> - **A20 points debt:** a refund claw shortfall becomes `customers.points_debt` (no double claw), paid first from future earn; a void reinstates debt its sale had settled (`orders.points_debt_settled`); merge carries it; every debt move is a `point_transactions` row (`debt_delta`). Void's own shortfall write-off (`points_forgiven`) unchanged.
+> - **A21:** POS points box disabled offline ("Butuh internet"); an offline sale never carries redeemed points. Server spend check deferred.
+> - **A23:** PL gate gains linked-vs-direct fixed / unscoped % / separate-set BXGY / bundle; POS mirror test. bundle_discount not covered.
+> - **Stacked-promo naming: closed** (POS receipt, history, Backoffice itemise `discountBreakdown`; printed totals block prints every row and "Tukar poin").
+> - **Release:** backend first, then POS OTA right after. Keep loyalty OFF until the fleet runs the new OTA (old OTA floors points → the new server sees a Rp50-style shortfall on a cap). A18 cross-outlet returns waits for this merge (`refund.go`).
+
 > 2026-11-24: **A29 CLIENT HALF BUILT, PR into `prod-hardening` (branch `a29-tablet-half`, gate `gate/a29-tablet-half`); NOT merged, NOT released.** Plan `docs/plans/2026-11-24-a29-client-half.md` (Opus), Sonnet implementer, Opus review (approve with fixes; 3 MEDIUM fixed: pollInbound honours the hold, a stale version poll can't overwrite a newer success, navigator offline beats the hold).
 > - **Deadlines:** every API call has one (default 35 s; imports 240 s; movement exports 90 s; `/sync/version` 15 s; `/sync/pull` 60 s; batch/review/refresh unchanged). A timed-out write says "cek dulu apakah perubahan sudah tersimpan".
 > - **Retry-After:** read from the header (or body `retryAfterSeconds`) on 429/503; the engine keeps a server hold (≤ 30 min, jitter adds only) that "Kirim sekarang", reset and the online event cannot clear. **Backend one-liner:** CORS now exposes `Retry-After`; before it, no browser/WebView client could read it (server half was curl-tested).

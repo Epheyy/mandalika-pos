@@ -17,6 +17,8 @@ export function buildPromotionMetadata(
     ...appliedPromotions.map(p => ({
       label: p.name, kind: p.type, value: p.value,
       amount: calcPromoDiscount(p, state.cart, derived.subtotal),
+      promotionId: p.id,
+      ...(p.version === undefined ? {} : { promotionVersion: p.version }),
     })),
     ...appliedPromoCodes.map(c => ({
       label: c.code, kind: c.promotion ? c.promotion.type : c.type,
@@ -26,6 +28,10 @@ export function buildPromotionMetadata(
         : c.type === 'percentage'
           ? Math.round(derived.subtotal * (c.value / 100))
           : Math.min(c.value, derived.subtotal),
+      // A10: which promotion and which versions priced this line; absent for caches that predate versions.
+      ...(c.promotion ? { promotionId: c.promotion.id } : {}),
+      ...(c.promotion?.version === undefined ? {} : { promotionVersion: c.promotion.version }),
+      ...(c.version === undefined ? {} : { codeVersion: c.version }),
     })),
   ]
   return {

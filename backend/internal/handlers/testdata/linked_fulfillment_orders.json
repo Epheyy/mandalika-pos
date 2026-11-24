@@ -141,7 +141,8 @@
               "label": "buy_x_get_y",
               "kind": "buy_x_get_y",
               "value": 0,
-              "amount": 0
+              "amount": 0,
+              "promotionId": "00000000-0000-4000-8300-000000000003"
             }
           ],
           "orderUuid": "00000000-0000-4000-8300-000000000101",
@@ -199,7 +200,8 @@
               "label": "Raw-LF-buy_x_get_y",
               "kind": "buy_x_get_y",
               "value": 0,
-              "amount": 0
+              "amount": 0,
+              "promotionId": "00000000-0000-4000-8300-000000000003"
             }
           ],
           "orderUuid": "00000000-0000-4000-8300-000000000102",
@@ -257,7 +259,8 @@
               "label": "bundle",
               "kind": "bundle",
               "value": 0,
-              "amount": 0
+              "amount": 0,
+              "promotionId": "00000000-0000-4000-8300-000000000004"
             }
           ],
           "orderUuid": "00000000-0000-4000-8300-000000000103",
@@ -315,7 +318,8 @@
               "label": "Raw-LF-bundle",
               "kind": "bundle",
               "value": 0,
-              "amount": 0
+              "amount": 0,
+              "promotionId": "00000000-0000-4000-8300-000000000004"
             }
           ],
           "orderUuid": "00000000-0000-4000-8300-000000000104",

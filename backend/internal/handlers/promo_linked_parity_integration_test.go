@@ -81,34 +81,50 @@ func TestPromoLinkedParityPostgres(t *testing.T) {
 	exec(t, `UPDATE loyalty_settings SET enabled=false`)
 	exec(t, `UPDATE app_settings SET tax_enabled=false,rounding_enabled=false`)
 
+	// A reward line carries the promotion's net price (Net) and is stamped with the promotion, as the POS does.
 	type line struct {
-		ID  string
-		Qty int
+		ID     string
+		Qty    int
+		Reward bool
+		Net    float64
 	}
 	cases := []struct {
-		Name, PromoID, Type, Code, Scope, BXGY, Tiered string
-		Value                                          float64
-		Cart                                           []line
-		Total, Discount                                float64
+		Name, PromoID, Type, Code, Scope, BXGY, Tiered, Bundle string
+		Value                                                  float64
+		Cart                                                   []line
+		Total, Discount                                        float64
+		Grants                                                 int
+		RewardNet                                              float64
 	}{
 		{Name: "tiered", PromoID: "00000000-0000-4000-8500-000000000101", Type: "tiered", Code: "Raw-PL-tiered",
 			Tiered: `{"tiers":[{"minSubtotal":50000,"kind":"percentage","value":10}]}`,
-			Cart:   []line{{p1, 1}}, Total: 90000, Discount: 10000},
+			Cart:   []line{{ID: p1, Qty: 1}}, Total: 90000, Discount: 10000},
 		{Name: "scoped_percentage", PromoID: "00000000-0000-4000-8500-000000000102", Type: "percentage", Code: "Raw-PL-pct", Value: 20,
-			Scope: `["` + p1 + `"]`, Cart: []line{{p1, 1}, {p2, 1}}, Total: 130000, Discount: 20000},
+			Scope: `["` + p1 + `"]`, Cart: []line{{ID: p1, Qty: 1}, {ID: p2, Qty: 1}}, Total: 130000, Discount: 20000},
 		{Name: "bogo", PromoID: "00000000-0000-4000-8500-000000000103", Type: "bogo", Code: "Raw-PL-bogo",
-			Cart: []line{{p2, 2}}, Total: 50000, Discount: 50000},
+			Cart: []line{{ID: p2, Qty: 2}}, Total: 50000, Discount: 50000},
 		{Name: "bxgy_same_set", PromoID: "00000000-0000-4000-8500-000000000104", Type: "buy_x_get_y", Code: "Raw-PL-bxgy",
 			BXGY: `{"buyQuantity":1,"getQuantity":1,"buyProductIds":["` + p2 + `"],"getProductIds":[],"getDiscountKind":"percentage","getDiscountValue":100,"maxApplications":0}`,
-			Cart: []line{{p2, 4}}, Total: 100000, Discount: 100000},
+			Cart: []line{{ID: p2, Qty: 4}}, Total: 100000, Discount: 100000},
+		{Name: "fixed_amount", PromoID: "00000000-0000-4000-8500-000000000105", Type: "fixed", Code: "Raw-PL-fixed", Value: 7000,
+			Cart: []line{{ID: p1, Qty: 1}, {ID: p2, Qty: 1}}, Total: 143000, Discount: 7000},
+		{Name: "unscoped_percentage", PromoID: "00000000-0000-4000-8500-000000000106", Type: "percentage", Code: "Raw-PL-unscoped", Value: 10,
+			Cart: []line{{ID: p1, Qty: 1}, {ID: p2, Qty: 1}}, Total: 135000, Discount: 15000},
+		// Separate-set BXGY and bundle price physically: the reward line already carries the net price.
+		{Name: "bxgy_separate_set", PromoID: "00000000-0000-4000-8500-000000000107", Type: "buy_x_get_y", Code: "Raw-PL-bxgy-sep",
+			BXGY: `{"buyQuantity":1,"getQuantity":1,"buyProductIds":["` + p1 + `"],"getProductIds":["` + p2 + `"],"getDiscountKind":"percentage","getDiscountValue":50}`,
+			Cart: []line{{ID: p1, Qty: 1}, {ID: p2, Qty: 1, Reward: true, Net: 25000}}, Total: 125000, Grants: 1, RewardNet: 25000},
+		{Name: "bundle", PromoID: "00000000-0000-4000-8500-000000000108", Type: "bundle", Code: "Raw-PL-bundle",
+			Bundle: `{"slots":[{"productKeys":["` + p1 + `"],"quantity":1},{"productKeys":["` + p2 + `"],"quantity":1}],"bundlePrice":120000}`,
+			Cart:   []line{{ID: p1, Qty: 1}, {ID: p2, Qty: 1, Reward: true, Net: 20000}}, Total: 120000, Grants: 1, RewardNet: 20000},
 	}
 	for _, c := range cases {
 		scope := c.Scope
 		if scope == "" {
 			scope = "[]"
 		}
-		exec(t, `INSERT INTO promotions(id,name,type,value,combinable,code_only,applicable_product_ids,bxgy_config,tiered_config)
-		      VALUES($1,$2,$3,$4,true,false,$5::jsonb,NULLIF($6,'')::jsonb,NULLIF($7,'')::jsonb)`, c.PromoID, c.Name, c.Type, c.Value, scope, c.BXGY, c.Tiered)
+		exec(t, `INSERT INTO promotions(id,name,type,value,combinable,code_only,applicable_product_ids,bxgy_config,tiered_config,bundle_config)
+		      VALUES($1,$2,$3,$4,true,false,$5::jsonb,NULLIF($6,'')::jsonb,NULLIF($7,'')::jsonb,NULLIF($8,'')::jsonb)`, c.PromoID, c.Name, c.Type, c.Value, scope, c.BXGY, c.Tiered, c.Bundle)
 		// The code's own flat value is a decoy: a linked code must price from the promotion.
 		exec(t, `INSERT INTO discount_codes(code,promotion_id,type,value,combinable) VALUES($1,$2,'fixed',987,true)`, c.Code, c.PromoID)
 	}
@@ -130,6 +146,8 @@ func TestPromoLinkedParityPostgres(t *testing.T) {
 		warning         bool
 		appliedCodes    []string
 		body, key       string
+		grants          int
+		rewardNet       float64
 	}
 	place := func(t *testing.T, c int, promoIDs, codes []string, fullPay bool) outcome {
 		t.Helper()
@@ -138,9 +156,17 @@ func TestPromoLinkedParityPostgres(t *testing.T) {
 		var items []map[string]any
 		var subtotal float64
 		for _, l := range cases[c].Cart {
-			sub := prices[l.ID] * float64(l.Qty)
+			price := prices[l.ID]
+			if l.Reward {
+				price = l.Net
+			}
+			sub := price * float64(l.Qty)
 			subtotal += sub
-			items = append(items, map[string]any{"productId": l.ID, "productName": l.ID, "variantSize": "M", "price": prices[l.ID], "quantity": l.Qty, "subtotal": sub})
+			item := map[string]any{"productId": l.ID, "productName": l.ID, "variantSize": "M", "price": price, "quantity": l.Qty, "subtotal": sub}
+			if l.Reward {
+				item["isReward"], item["rewardPromotionId"] = true, cases[c].PromoID
+			}
+			items = append(items, item)
 		}
 		// Tender is the hand-computed expected total. The tender rule rejects only
 		// underpayment, so a server total above it fails loudly here; fullPay tenders
@@ -167,6 +193,9 @@ func TestPromoLinkedParityPostgres(t *testing.T) {
 		if err = json.Unmarshal(applied, &o.appliedCodes); err != nil {
 			t.Fatal(err)
 		}
+		if err = pool.QueryRow(ctx, `SELECT count(*),COALESCE(sum(reward_price),0) FROM promo_reward_grants WHERE order_id=(SELECT id FROM orders WHERE idempotency_key=$1)`, uuid).Scan(&o.grants, &o.rewardNet); err != nil {
+			t.Fatal(err)
+		}
 		return o
 	}
 	usage := func(t *testing.T, code string) (n int) {
@@ -188,6 +217,10 @@ func TestPromoLinkedParityPostgres(t *testing.T) {
 			}
 			if l.total != d.total || l.discount != d.discount || l.warning {
 				t.Fatalf("linked total=%v discount=%v warning=%v differs from direct %v/%v", l.total, l.discount, l.warning, d.total, d.discount)
+			}
+			// Reward and bundle lines: the same grants and net price whether the promotion came directly or by code.
+			if d.grants != c.Grants || d.rewardNet != c.RewardNet || l.grants != d.grants || l.rewardNet != d.rewardNet {
+				t.Fatalf("reward lines direct=%d/%v linked=%d/%v want %d/%v", d.grants, d.rewardNet, l.grants, l.rewardNet, c.Grants, c.RewardNet)
 			}
 			if len(d.appliedCodes) != 0 || len(l.appliedCodes) != 1 || l.appliedCodes[0] != c.Code {
 				t.Fatalf("code provenance direct=%v linked=%v", d.appliedCodes, l.appliedCodes)

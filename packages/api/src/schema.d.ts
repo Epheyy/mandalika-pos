@@ -3999,6 +3999,8 @@ export interface components {
             phone: string;
             email?: string | null;
             points: number;
+            /** @description Refund points the balance could not cover; recovered from future sale earnings. */
+            pointsDebt?: number;
             /** Format: double */
             totalSpent: number;
             visitCount: number;
@@ -4076,6 +4078,8 @@ export interface components {
             /** @enum {string} */
             type: "earn" | "redeem" | "adjust" | "refund" | "void";
             points: number;
+            /** @description Signed change of the points debt in this entry (0 when none). points may be 0 when only the debt moved. */
+            debtDelta?: number;
             balanceAfter: number;
             reason?: string | null;
             /** Format: uuid */
@@ -4602,6 +4606,8 @@ export interface components {
             tieredConfig?: components["schemas"]["TieredConfig"] | null;
             bundleConfig?: components["schemas"]["BundleConfig"] | null;
             bundleDiscountConfig?: components["schemas"]["BundleDiscountConfig"] | null;
+            /** @description Starts at 1 and is bumped on every rule edit. Absent from older servers. */
+            version?: number;
             /** Format: date-time */
             createdAt: string;
         };
@@ -4632,6 +4638,8 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             combinable?: boolean | null;
+            /** @description Starts at 1 and is bumped on every edit. Absent from older servers. */
+            version?: number;
         };
         DiscountCodeListResponse: {
             data: components["schemas"]["DiscountCode"][];
@@ -5099,6 +5107,12 @@ export interface components {
             value?: number | null;
             /** Format: double */
             amount: number;
+            /** @description The promotion (direct, or the one a code links to) the sale was priced with. */
+            promotionId?: string;
+            /** @description Version of that promotion when the sale was priced. */
+            promotionVersion?: number;
+            /** @description Version of the discount code when the sale was priced. */
+            codeVersion?: number;
         };
         ErrorBreadcrumb: {
             at: string;

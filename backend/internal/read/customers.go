@@ -28,7 +28,7 @@ const segmentSel = `(SELECT json_build_object('id',s.id,'name',s.name,'color',s.
 const segmentIdSel = `(SELECT s.id FROM customer_segments s WHERE ` + segmentMatch + ` ORDER BY s.sort_order, s.created_at LIMIT 1)`
 
 const customerObj = `json_build_object('id',id,'name',name,'phone',phone,
-  'email',email,'points',points,'totalSpent',total_spent,'visitCount',visit_count,
+  'email',email,'points',points,'pointsDebt',points_debt,'totalSpent',total_spent,'visitCount',visit_count,
   'lastVisit',last_visit,'birthday',birthday,'anniversary',anniversary,
   'notes',notes,'createdAt',created_at,
   'segment', ` + segmentSel + `)`
@@ -42,7 +42,7 @@ const customerObj = `json_build_object('id',id,'name',name,'phone',phone,
 // `customers.id`. Aliasing the outer table (e.g. `FROM customers c`) would
 // silently return empty tags.
 const customerObjWithTags = `json_build_object('id',id,'name',name,'phone',phone,
-  'email',email,'points',points,'totalSpent',total_spent,'visitCount',visit_count,
+  'email',email,'points',points,'pointsDebt',points_debt,'totalSpent',total_spent,'visitCount',visit_count,
   'lastVisit',last_visit,'birthday',birthday,'anniversary',anniversary,
   'notes',notes,'createdAt',created_at,
   'segment', ` + segmentSel + `,
@@ -114,7 +114,7 @@ func (r *Repo) CustomerByPhone(ctx context.Context, rawPhone string) ([]api.Cust
 // customerPosObj is the reduced customer the cashier may see: what the POS needs to
 // attach a customer and show points. No email, birthday, anniversary, notes or tags.
 const customerPosObj = `json_build_object('id',id,'name',name,'phone',phone,
-  'points',points,'totalSpent',total_spent,'visitCount',visit_count,
+  'points',points,'pointsDebt',points_debt,'totalSpent',total_spent,'visitCount',visit_count,
   'createdAt',created_at,'segment', ` + segmentSel + `)`
 
 // CustomerByPhoneNorm is the cashier lookup: live (not merged-away) customers whose
@@ -177,7 +177,7 @@ func (r *Repo) Interactions(ctx context.Context, customerID string, page, limit 
 // PointTransactions returns a customer's points ledger, newest-first, paginated.
 func (r *Repo) PointTransactions(ctx context.Context, customerID string, page, limit int) ([]api.PointTransaction, int, error) {
 	const sql = `SELECT json_build_object(
-		  'id', pt.id, 'type', pt.type, 'points', pt.points, 'balanceAfter', pt.balance_after,
+		  'id', pt.id, 'type', pt.type, 'points', pt.points, 'debtDelta', pt.debt_delta, 'balanceAfter', pt.balance_after,
 		  'reason', pt.reason, 'orderId', pt.order_id, 'orderNumber', o.order_number,
 		  'createdByName', pt.created_by_name, 'createdAt', pt.created_at), count(*) OVER() AS total
 		FROM point_transactions pt
