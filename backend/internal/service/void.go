@@ -120,6 +120,7 @@ type voidOrderRow struct {
 	status, orderNumber, paymentMethod string
 	custID, discountCode, deviceID     *string
 	shiftID, voidID                    *string
+	cashierID                          string // read by voidCore and VoidPreview only (own-sale rule)
 	appliedCodes                       []string
 	earned, redeemed, total            int64
 	createdAt                          time.Time
@@ -178,10 +179,10 @@ func voidCore(ctx context.Context, tx pgx.Tx, in VoidInput, voidID string, extra
 	err = tx.QueryRow(ctx,
 		`SELECT status, order_number, customer_id::text, points_earned, points_redeemed, discount_code,
 		        COALESCE(applied_discount_codes,'[]'::jsonb), round(total)::bigint, payment_method,
-		        device_id::text, shift_id::text, void_id::text, created_at, business_date::text
+		        device_id::text, shift_id::text, void_id::text, created_at, business_date::text, COALESCE(cashier_id::text,'')
 		   FROM orders WHERE id=$1 AND outlet_id=$2 FOR UPDATE`, in.OrderID, in.OutletID).
 		Scan(&o.status, &o.orderNumber, &o.custID, &o.earned, &o.redeemed, &o.discountCode, &o.appliedCodes,
-			&o.total, &o.paymentMethod, &o.deviceID, &o.shiftID, &o.voidID, &o.createdAt, &o.businessDate)
+			&o.total, &o.paymentMethod, &o.deviceID, &o.shiftID, &o.voidID, &o.createdAt, &o.businessDate, &o.cashierID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ap, ErrVoidNotFound
 	}
@@ -257,7 +258,7 @@ func loadVoidFacts(ctx context.Context, tx voidQuerier, lock bool, in VoidInput,
 	}
 	f := voidFacts{
 		Status: o.status, HasVoid: o.voidID != nil, OutletID: in.OutletID,
-		CreatedAt: o.createdAt, BusinessDate: o.businessDate,
+		CreatedAt: o.createdAt, BusinessDate: o.businessDate, CashierID: o.cashierID,
 	}
 	if o.deviceID != nil {
 		f.DeviceID = *o.deviceID

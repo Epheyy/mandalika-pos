@@ -77,8 +77,8 @@ var (
 )
 
 func ownShiftFacts() (voidFacts, VoidInput) {
-	f := voidFacts{Status: "completed", OutletID: "o1", DeviceID: "dev1", CreatedAt: voidT0, ShiftID: "s1", ShiftStatus: "open", CallerShiftStatus: "open", CallerShiftOpenedAt: &voidOpened}
-	in := VoidInput{OutletID: "o1", Source: VoidSourcePOS, CallerShiftID: "s1", EnvelopeDeviceID: "dev1", CanVoidOwnShift: true}
+	f := voidFacts{Status: "completed", OutletID: "o1", DeviceID: "dev1", CashierID: "u1", CreatedAt: voidT0, ShiftID: "s1", ShiftStatus: "open", CallerShiftStatus: "open", CallerShiftOpenedAt: &voidOpened}
+	in := VoidInput{OutletID: "o1", UserID: "u1", Source: VoidSourcePOS, CallerShiftID: "s1", EnvelopeDeviceID: "dev1", CanVoidOwnShift: true}
 	return f, in
 }
 
@@ -90,6 +90,54 @@ func TestDecideVoidAuthorityOwnShift(t *testing.T) {
 	in.CanVoidOwnShift = false
 	if _, err := decideVoidAuthority(f, in); !errors.Is(err, ErrVoidForbidden) {
 		t.Fatalf("without the permission err = %v, want forbidden", err)
+	}
+}
+
+// Void policy 2026-11-24: void_own_shift covers only the caller's own sales; a colleague's sale in the same open
+// shift (the shared outlet shift) needs void_any.
+func TestDecideVoidAuthorityColleaguesSale(t *testing.T) {
+	f, in := ownShiftFacts()
+	f.CashierID = "u2"
+	if _, err := decideVoidAuthority(f, in); !errors.Is(err, ErrVoidNotOwnSale) {
+		t.Fatalf("colleague's sale, own shift only: err = %v, want ErrVoidNotOwnSale", err)
+	}
+	in.CanVoidAny = true
+	if got, err := decideVoidAuthority(f, in); err != nil || got != VoidAny {
+		t.Fatalf("colleague's sale with void_any: got %q %v, want any", got, err)
+	}
+	// Shift membership still decides the amounts: the colleague's sale in the caller's open shift stays editable.
+	if !inCallerOpenShift(f, in) {
+		t.Fatal("inCallerOpenShift must stay true for a colleague's sale in the caller's open shift")
+	}
+	// A sale with no recorded seller is nobody's own; so is an unknown voider.
+	f, in = ownShiftFacts()
+	f.CashierID = ""
+	if _, err := decideVoidAuthority(f, in); !errors.Is(err, ErrVoidNotOwnSale) {
+		t.Fatalf("sale without a seller: err = %v, want ErrVoidNotOwnSale", err)
+	}
+	f, in = ownShiftFacts()
+	in.UserID = ""
+	if _, err := decideVoidAuthority(f, in); !errors.Is(err, ErrVoidNotOwnSale) {
+		t.Fatalf("voider without an id: err = %v, want ErrVoidNotOwnSale", err)
+	}
+	// A caller without void_own_shift keeps the plain forbidden answer.
+	f, in = ownShiftFacts()
+	f.CashierID, in.CanVoidOwnShift = "u2", false
+	if _, err := decideVoidAuthority(f, in); !errors.Is(err, ErrVoidForbidden) || errors.Is(err, ErrVoidNotOwnSale) {
+		t.Fatalf("no permission at all: err = %v, want forbidden", err)
+	}
+}
+
+// O5: an unattributed sale rung on this tablet since the shift opened is the caller's only when they rang it.
+func TestDecideVoidAuthorityUnattributedColleaguesSale(t *testing.T) {
+	f, in := ownShiftFacts()
+	f.ShiftID, f.ShiftStatus, f.CashierID = "", "", "u2"
+	if _, err := decideVoidAuthority(f, in); !errors.Is(err, ErrVoidNotOwnSale) {
+		t.Fatalf("unattributed colleague's sale: err = %v, want ErrVoidNotOwnSale", err)
+	}
+	in.CanVoidAny = true
+	if got, err := decideVoidAuthority(f, in); err != nil || got != VoidAny {
+		t.Fatalf("with void_any: got %q %v, want any", got, err)
 	}
 }
 

@@ -98,10 +98,12 @@ type VoidResult struct {
 
 // voidFacts are the rows the pure rules decide on, read under the void's locks.
 type voidFacts struct {
-	Status              string
-	RefundCount         int
-	HasVoid             bool
-	OutletID, DeviceID  string
+	Status             string
+	RefundCount        int
+	HasVoid            bool
+	OutletID, DeviceID string
+	// CashierID is the sale's seller (orders.cashier_id). Own-shift authority needs it to equal the voiding user.
+	CashierID           string
 	CreatedAt           time.Time
 	BusinessDate, Today string // YYYY-MM-DD, the outlet's zone
 	WindowDays          int
@@ -123,6 +125,7 @@ var (
 	ErrVoidNotCompleted       = apperr.New(apperr.Conflict, "Hanya transaksi selesai yang dapat dibatalkan.")
 	ErrVoidForbidden          = apperr.New(apperr.Forbidden, "Izin membatalkan transaksi ini tidak dimiliki.")
 	ErrVoidCountNeedsChoice   = apperr.New(apperr.Conflict, "Stock opname sudah menghitung barang di transaksi ini. Lakukan pembatalan saat online agar pilihan stok bisa dibuat.")
+	ErrVoidNotOwnSale         = apperr.New(apperr.Forbidden, "Transaksi ini dicatat kasir lain. Pembatalannya perlu izin membatalkan semua transaksi.")
 	ErrVoidShiftClosed        = apperr.New(apperr.Forbidden, "Shift transaksi ini sudah ditutup. Batalkan lewat Backoffice oleh pengguna dengan izin Batalkan Transaksi.")
 	ErrVoidReasonInvalid      = apperr.New(apperr.Rejected, "Alasan pembatalan tidak valid.")
 	ErrVoidNoteRequired       = apperr.New(apperr.Rejected, "Catatan wajib diisi minimal 10 karakter untuk alasan Lainnya.")

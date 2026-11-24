@@ -2487,6 +2487,7 @@ func TestVoidPostgres(t *testing.T) {
 		t.Helper()
 		in := voidIn(orderID, shift)
 		in.UserID, in.UserName, in.Reason, in.Mode = voider, "VD Voider", reason, mode
+		in.CanVoidAny = true // the voider is not the seller: void_own_shift alone no longer covers a colleague's sale (policy 2026-11-24)
 		res, err := svc.VoidOrder(ctx, in)
 		if err != nil {
 			t.Fatal(err)
@@ -2647,6 +2648,88 @@ func TestVoidPostgres(t *testing.T) {
 		if sum != tot["replacementTotal"].(float64) {
 			t.Fatalf("sum of the standing rows = %v, totals.replacementTotal = %v", sum, tot["replacementTotal"])
 		}
+	})
+
+	// ── Void policy 2026-11-24, item 4: void_own_shift covers only the caller's OWN sales ──
+	t.Run("void_own_shift_only_own_sales", func(t *testing.T) {
+		authorityOf := func(orderID string) string { return str(`SELECT authority FROM order_voids WHERE order_id=$1`, orderID) }
+		colleagues := func(shift string) string {
+			id := sale(saleOpts{shift: shift}, product(5))
+			exec(`UPDATE orders SET cashier_id=$2, cashier_name='VD Admin' WHERE id=$1`, id, adminU)
+			return id
+		}
+		t.Run("service", func(t *testing.T) {
+			shift := openShift()
+			mine, theirs := sale(saleOpts{shift: shift}, product(5)), colleagues(shift)
+			if _, err := svc.VoidOrder(ctx, voidIn(theirs, shift)); !errors.Is(err, service.ErrVoidNotOwnSale) {
+				t.Fatalf("colleague's sale with void_own_shift only: err = %v, want ErrVoidNotOwnSale", err)
+			}
+			if status(theirs) != "completed" {
+				t.Fatal("a refused void changed the order")
+			}
+			if _, err := svc.VoidOrder(ctx, voidIn(mine, shift)); err != nil || authorityOf(mine) != "own_shift" {
+				t.Fatalf("own sale: err = %v, authority %q, want own_shift", err, authorityOf(mine))
+			}
+			withAny := voidIn(theirs, shift)
+			withAny.CanVoidAny = true
+			if _, err := svc.VoidOrder(ctx, withAny); err != nil || authorityOf(theirs) != "any" {
+				t.Fatalf("colleague's sale with void_any: err = %v, authority %q, want any", err, authorityOf(theirs))
+			}
+		})
+		t.Run("unattributed_colleague_sale_O5", func(t *testing.T) {
+			shift := openShift()
+			device := newID("4")
+			mk := func(cashierID string) string {
+				id := sale(saleOpts{shift: shift}, product(5))
+				exec(`UPDATE orders SET shift_id=NULL, device_id=$2, cashier_id=$3 WHERE id=$1`, id, device, cashierID)
+				return id
+			}
+			in := func(orderID string) service.VoidInput {
+				v := voidIn(orderID, shift)
+				v.EnvelopeDeviceID = device
+				return v
+			}
+			theirs, mine := mk(adminU), mk(cashier)
+			if _, err := svc.VoidOrder(ctx, in(theirs)); !errors.Is(err, service.ErrVoidNotOwnSale) {
+				t.Fatalf("unattributed colleague's sale: err = %v, want ErrVoidNotOwnSale", err)
+			}
+			if _, err := svc.VoidOrder(ctx, in(mine)); err != nil || authorityOf(mine) != "own_shift" {
+				t.Fatalf("unattributed own sale: err = %v, authority %q", err, authorityOf(mine))
+			}
+		})
+		t.Run("sync_and_preview", func(t *testing.T) {
+			shift := openShift()
+			theirs := colleagues(shift)
+			res := sendItem(cashierTok, voidItem(shift, theirs, nil))
+			if res["status"] != "error" || res["code"] != "forbidden" || res["retryable"] != false ||
+				!strings.Contains(fmt.Sprint(res["error"]), "dicatat kasir lain") {
+				t.Fatalf("sync void of a colleague's sale = %v, want a non-retryable forbidden naming the other cashier", res)
+			}
+			if status(theirs) != "completed" {
+				t.Fatal("a refused void changed the order")
+			}
+			code, body := do(cashierTok, http.MethodGet, "/orders/"+theirs+"/void-preview", nil)
+			data, _ := body["data"].(map[string]any)
+			if code != http.StatusOK || data["eligible"] == true || !strings.Contains(fmt.Sprint(data["refusal"]), "dicatat kasir lain") {
+				t.Fatalf("preview of a colleague's sale = %d %v, want a refusal", code, body)
+			}
+			// void_any lifts it, and the audit says so.
+			both := tok(cashier, "cashier", []string{"void_own_shift", "void_any"})
+			if res := sendItem(both, voidItem(shift, theirs, nil)); res["status"] != "ok" || authorityOf(theirs) != "any" {
+				t.Fatalf("with void_any: %v, authority %q", res, authorityOf(theirs))
+			}
+		})
+		t.Run("colleague_sale_replacement_stays_editable", func(t *testing.T) {
+			// Shift membership, not the authority value, decides whether the replacement amounts are editable.
+			shift := openShift()
+			theirs := colleagues(shift)
+			both := tok(cashier, "cashier", []string{"void_own_shift", "void_any"})
+			code, body := do(both, http.MethodGet, "/orders/"+theirs+"/void-preview", nil)
+			data, _ := body["data"].(map[string]any)
+			if code != http.StatusOK || data["authority"] != "any" || data["amountsLocked"] != false {
+				t.Fatalf("preview = %d %v, want authority any with the amounts still editable (same open shift)", code, body)
+			}
+		})
 	})
 
 	t.Run("void_report_lists_legacy_import", func(t *testing.T) {

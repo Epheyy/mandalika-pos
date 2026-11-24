@@ -60,7 +60,9 @@ func (s *OrderService) VoidAndReplaceTx(ctx context.Context, tx pgx.Tx, in VoidI
 	}
 
 	shiftOpen := ap.Facts.ShiftID != "" && ap.Facts.ShiftStatus == "open"
-	forced := !(ap.Authority == VoidOwnShift && in.Source == VoidSourcePOS && shiftOpen)
+	// Keyed on shift membership, not on the authority value: a colleague's sale in the caller's open shift is judged
+	// VoidAny now (own-sale rule), but the replacement is as editable there as it always was.
+	forced := !(inCallerOpenShift(ap.Facts, in) && in.Source == VoidSourcePOS && shiftOpen)
 	repl = pinReplacement(repl, ap)
 	switch {
 	case forced:

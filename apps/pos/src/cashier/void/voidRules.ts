@@ -24,6 +24,7 @@ export const VOID_NOTE_MAX = 500
 export const VOID_NOTE_MIN_LAINNYA = 10
 export const VOID_NOTE_REQUIRED = 'Catatan wajib diisi minimal 10 karakter untuk alasan Lainnya.'
 export const VOID_BLOCKED_NO_PERMISSION = 'Butuh izin batalkan transaksi'
+export const VOID_BLOCKED_NOT_OWN_SALE = 'Transaksi ini dicatat kasir lain. Pembatalannya perlu izin membatalkan semua transaksi.'
 export const VOID_BLOCKED_BACKOFFICE = 'Batalkan lewat Backoffice'
 export const VOID_BLOCKED_QUEUED = 'Pembatalan menunggu terkirim'
 export const VOID_BLOCKED_REFUNDED = 'Sudah direfund'
@@ -71,7 +72,7 @@ export type VoidAvailability =
 
 export interface VoidAvailabilityInput {
   order: Order | LocalVoidSale
-  user: { role: string; permissions?: readonly string[] | null } | null
+  user: { id?: string; role: string; permissions?: readonly string[] | null } | null
   deviceId: string
   currentShift: Pick<Shift, 'id' | 'status' | 'openedAt'> | null
   queuedVoidIds: ReadonlySet<string>
@@ -141,6 +142,10 @@ function voidAvailabilityBase(i: VoidAvailabilityInput): VoidAvailability {
     own = here && notBefore(local ? o.capturedAt : o.createdAt, shift.openedAt)
   }
   if (!own) return blocked(VOID_BLOCKED_BACKOFFICE)
+  // Void policy 2026-11-24: void_own_shift covers only the caller's own sales. A colleague's sale in the shared shift needs
+  // void_any. A sale rung on this tablet (local) counts as own; with either id unknown the server decides (it re-judges anyway).
+  const colleagues = !local && !!o.cashierId && !!i.user?.id && o.cashierId !== i.user.id
+  if (colleagues) return canVoidAny(i.user) ? { kind: 'void' } : blocked(VOID_BLOCKED_NOT_OWN_SALE)
   return canVoidOwnShift(i.user) ? { kind: 'void' } : blocked(VOID_BLOCKED_NO_PERMISSION)
 }
 

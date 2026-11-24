@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { components } from '@mandalika/api'
 import type { AppUser, Shift } from '@mandalika/types'
 import {
-  buildVoidPayload, parkedVoidNote, voidAvailability, voidDetail, voidReasonProblem, VOID_REASONS, type LocalVoidSale,
+  buildVoidPayload, parkedVoidNote, voidAvailability, voidDetail, voidReasonProblem, VOID_BLOCKED_NOT_OWN_SALE, VOID_REASONS, type LocalVoidSale,
 } from './voidRules'
 
 type Order = components['schemas']['Order']
@@ -201,5 +201,22 @@ describe('buildVoidPayload applied tenders', () => {
     expect(p.tendersApplied).toBe(true)
     expect(p.replacementTenders).toEqual([{ method: 'tunai-2', amount: 85000 }])
     expect(buildVoidPayload({ order: order(), reason: 'salah_barang', note: '', mode: 'none' })).not.toHaveProperty('replacementTenders')
+  })
+})
+
+describe('voidAvailability: own sales only (void policy 2026-11-24)', () => {
+  const me = (permissions: string[]): AppUser => ({ id: 'u1', role: 'cashier', permissions } as unknown as AppUser)
+  const sale = (cashierId: string) => order({ cashierId } as Partial<Order>)
+  it('offers an own sale in the open shift with void_own_shift', () => {
+    expect(voidAvailability({ ...base, user: me(['void_own_shift']), order: sale('u1') })).toEqual({ kind: 'void' })
+  })
+  it("blocks a colleague's sale in the same shift without void_any, with the server's wording", () => {
+    expect(voidAvailability({ ...base, user: me(['void_own_shift']), order: sale('u2') })).toEqual({ kind: 'blocked', label: VOID_BLOCKED_NOT_OWN_SALE })
+  })
+  it("offers a colleague's sale with void_any", () => {
+    expect(voidAvailability({ ...base, user: me(['void_own_shift', 'void_any']), order: sale('u2') })).toEqual({ kind: 'void' })
+  })
+  it('leaves the call to the server when an id is unknown', () => {
+    expect(voidAvailability({ ...base, user: user(['void_own_shift']), order: sale('u2') })).toEqual({ kind: 'void' })
   })
 })
