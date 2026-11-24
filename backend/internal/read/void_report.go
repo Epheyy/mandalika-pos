@@ -36,9 +36,12 @@ type VoidReportFilters struct {
 // no_replacement (marked, or mode none) | legacy.
 //
 // totals and byReason cover the whole filtered range, kind='void' only. replacementTotal counts
-// EVERY replacement (it equals the sum of the rows' replacementTotal; a replacement that was itself
-// voided shows as its own void row). correctionTotal counts LIVE replacements only (status <>
-// 'cancelled'): a voided replacement's correction was reversed with it.
+// the replacements still STANDING (status <> 'cancelled'): "money corrected". A replacement that
+// was itself voided left its money out again and shows as its own void row (whose own replacement,
+// if any, counts instead), so the invariant is replacementTotal = the sum of the rows'
+// replacementTotal where the row's replacementStanding is true. correctionTotal counts the same
+// live replacements: a voided replacement's correction was reversed with it. originalTotal counts
+// every voided sale.
 const voidReportSQL = `
 WITH base AS (
   SELECT v.id AS void_id, o.id AS order_id, o.order_number, 'void'::text AS kind, o.business_date,
@@ -78,7 +81,7 @@ SELECT json_build_object(
   'count', (SELECT count(*) FROM base),
   'totals', (SELECT json_build_object(
       'voids', count(*), 'originalTotal', COALESCE(sum(b.original_total), 0),
-      'replacementTotal', COALESCE(sum(ro.total), 0),
+      'replacementTotal', COALESCE(sum(ro.total) FILTER (WHERE ro.status <> 'cancelled'), 0),
       'correctionTotal', COALESCE(sum(ro.correction_amount) FILTER (WHERE ro.status <> 'cancelled'), 0))
     FROM base b LEFT JOIN orders ro ON ro.id = b.repl_id WHERE b.kind = 'void'),
   'byReason', COALESCE((SELECT json_agg(json_build_object(
@@ -95,6 +98,7 @@ SELECT json_build_object(
         'afterClose', b.after_close, 'originalTotal', b.original_total, 'originalTenders', b.original_tenders,
         'replacementOrderId', b.repl_id, 'replacementOrderNumber', ro.order_number,
         'replacementTotal', ro.total, 'correctionAmount', ro.correction_amount,
+        'replacementStanding', COALESCE(ro.status <> 'cancelled', false),
         'replacementTenders', (SELECT jsonb_agg(jsonb_build_object('method', t.method, 'amount', t.amount) ORDER BY t.seq)
                                  FROM order_tenders t WHERE t.order_id = b.repl_id),
         'countedLines', CASE WHEN b.void_id IS NULL THEN 0 ELSE

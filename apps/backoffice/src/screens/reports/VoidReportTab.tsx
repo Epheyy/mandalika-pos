@@ -17,7 +17,7 @@ import { ExportButton } from '../../ui/ExportButton'
 import { FilterBar } from '../../ui/FilterBar'
 import { Pagination } from '../../ui/Pagination'
 import { PAGING_SCHEMA, enumOf, isAnswerFor, pageOf, pageSizeOf, pageToClamp, totalPagesOf, uuidOf } from './reportFilters'
-import { formatVoidTime, reasonCards, tendersText, voidCsvRecords, voidStateLabel } from './voidReport'
+import { formatVoidTime, reasonCards, replacementVoided, tendersText, voidCsvRecords, voidStateLabel } from './voidReport'
 
 interface VoidListState {
   alasan: string
@@ -98,6 +98,7 @@ const COLUMNS: Column<VoidReportRow>[] = [
       <span className="block">
         <span className="font-mono font-bold">{r.replacementOrderNumber}</span>
         <span className="block text-xs text-ink-700">{r.replacementTotal != null ? money(r.replacementTotal) : ''} {tendersText(r.replacementTenders)}</span>
+        {replacementVoided(r) && <Badge tone="neutral">dibatalkan</Badge>}
       </span>
     ) : '—',
   },
@@ -202,7 +203,7 @@ export function VoidReportTab({ dateFrom, dateTo, outletId }: VoidReportTabProps
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="p-4"><p className="text-xl font-black text-gray-900">{String(totals?.voids ?? 0)}</p><p className="text-xs text-ink-500">Pembatalan</p></Card>
         <Card className="p-4"><p className="text-xl font-black text-gray-900">{money(totals?.originalTotal ?? 0)}</p><p className="text-xs text-ink-500">Total asli</p></Card>
-        <Card className="p-4"><p className="text-xl font-black text-gray-900">{money(totals?.replacementTotal ?? 0)}</p><p className="text-xs text-ink-500">Total pengganti</p></Card>
+        <Card className="p-4"><p className="text-xl font-black text-gray-900">{money(totals?.replacementTotal ?? 0)}</p><p className="text-xs text-ink-500">Pengganti berlaku</p></Card>
         <Card className="p-4"><p className="text-xl font-black text-gray-900">{money(totals?.correctionTotal ?? 0)}</p><p className="text-xs text-ink-500">Penyesuaian koreksi</p></Card>
       </div>
 

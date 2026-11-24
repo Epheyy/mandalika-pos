@@ -76,10 +76,26 @@ func matchesCallerShift(f voidFacts, in VoidInput) bool {
 		f.CallerShiftOpenedAt != nil && !f.CreatedAt.Before(*f.CallerShiftOpenedAt)
 }
 
-// decideVoidAuthority says why the caller may void this sale, or refuses.
+// inCallerOpenShift: the caller holds void_own_shift and the sale belongs to the shift they are working, which is
+// still open. This is shift membership, NOT the authority: whether the replacement's amounts stay editable keys on it
+// (AmountsLocked in the preview, `forced` in VoidAndReplaceTx), so a colleague's sale in the same shift keeps
+// behaving as before even though its authority is now VoidAny.
+func inCallerOpenShift(f voidFacts, in VoidInput) bool {
+	return in.CanVoidOwnShift && f.CallerShiftStatus == "open" && matchesCallerShift(f, in)
+}
+
+// ownSale: the voiding user rang the sale (orders.cashier_id == the capture-time user). With the shared terminal
+// account per tablet this means "rung under the same account". A sale with no recorded seller is nobody's own.
+func ownSale(f voidFacts, in VoidInput) bool {
+	return f.CashierID != "" && in.UserID != "" && f.CashierID == in.UserID
+}
+
+// decideVoidAuthority says why the caller may void this sale, or refuses. Void policy 2026-11-24: void_own_shift
+// covers only the caller's OWN sales in their open shift; a colleague's sale there needs void_any.
 func decideVoidAuthority(f voidFacts, in VoidInput) (VoidAuthority, error) {
 	matches := matchesCallerShift(f, in)
-	if matches && f.CallerShiftStatus == "open" && in.CanVoidOwnShift {
+	own := inCallerOpenShift(f, in)
+	if own && ownSale(f, in) {
 		return VoidOwnShift, nil
 	}
 	// A POS void of a sale in the caller's own shift, after that shift closed, is refused even for
@@ -89,6 +105,9 @@ func decideVoidAuthority(f voidFacts, in VoidInput) (VoidAuthority, error) {
 	}
 	if in.CanVoidAny {
 		return VoidAny, nil
+	}
+	if own {
+		return "", ErrVoidNotOwnSale
 	}
 	return "", ErrVoidForbidden
 }

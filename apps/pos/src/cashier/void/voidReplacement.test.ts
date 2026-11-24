@@ -3,7 +3,7 @@ import type { components } from '@mandalika/api'
 import { planHeldRestore } from '../heldRestore'
 import { cashierReducer } from '../state/cashierReducer'
 import {
-  heldOrderFromVoidedOrder, initialReplacementTenders, lockedReplacementTenders, lockedTendersProblem, replacementCorrection, type VoidDraft,
+  heldOrderFromVoidedOrder, initialReplacementTenders, lockedReplacementTenders, lockedTendersProblem, replacementCorrection, startsInSingleMethod, type VoidDraft,
 } from './voidReplacement'
 
 type Order = components['schemas']['Order']
@@ -42,6 +42,13 @@ describe('tenders', () => {
     expect(lockedReplacementTenders([{ method: 'qris', amount: 60000 }, { method: 'cash', amount: 100000 }], 100000, cash))
       .toEqual([{ method: 'qris', amount: 60000 }, { method: 'cash', amount: 40000 }])
     expect(lockedReplacementTenders([{ method: 'qris', amount: 100000 }], 100000, cash)).toEqual([{ method: 'qris', amount: 100000 }])
+  })
+})
+
+describe('startsInSingleMethod', () => {
+  it('is true only for the wrong-payment-method reason', () => {
+    expect(startsInSingleMethod(draft({ reason: 'salah_metode_pembayaran' }))).toBe(true)
+    expect(startsInSingleMethod(draft({ reason: 'salah_barang' }))).toBe(false)
   })
 })
 

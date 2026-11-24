@@ -50,6 +50,9 @@ describe('voidRequestBody', () => {
     const b = voidRequestBody(base({ choice: 'perbaiki', tenders, customerId: 'c-1' }), UUID)
     expect(b.mode).toBe('replace')
     expect(b.replacement).toEqual({ tenders, customerId: 'c-1' })
+    // "Tanpa pelanggan" is an explicit empty id; absent keeps the original's customer.
+    expect(voidRequestBody(base({ choice: 'perbaiki', tenders, customerId: '' }), UUID).replacement).toEqual({ tenders, customerId: '' })
+    expect(voidRequestBody(base({ choice: 'perbaiki', tenders }), UUID).replacement).toEqual({ tenders })
     expect(Object.keys(b)).not.toContain('items')
     expect(voidRequestBody(base({ choice: 'perbaiki', tenders }), UUID).replacement).toEqual({ tenders })
   })

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { cashierReducer, CASHIER_INITIAL_STATE } from './cashierReducer'
 import type { components } from '@mandalika/api'
+import type { VoidDraft } from '../void/voidReplacement'
 
 const promo = (id: string, combinable: boolean) =>
   ({ id, name: id, type: 'percentage', value: 10, combinable }) as any
@@ -677,5 +678,20 @@ describe('C6 split tender reducer', () => {
       type: 'SPLIT_RESTORE', orderUuid: 'u-9', tenders: [{ method: 'qris', amount: 751_000 }],
     })
     expect(s).toMatchObject({ splitMode: true, splitOrderUuid: 'u-9', tenders: [{ method: 'qris', amount: 751_000 }], isCheckoutOpen: true })
+  })
+})
+
+describe('OPEN_CHECKOUT for a void replacement', () => {
+  const voidDraft = (reason: VoidDraft['reason'], over: Partial<VoidDraft> = {}): VoidDraft => ({
+    orderId: 'o1', orderNumber: 'BSD-1', originalTotal: 20_000, originalTenders: [{ method: 'tunai', amount: 20_000 }],
+    reason, note: '', stockChoices: {}, shiftId: 's1', amountsLocked: false, kind: 'void_and_replace', replacementUuid: 'r-1', ...over,
+  })
+  const open = (d: VoidDraft) => cashierReducer({ ...CASHIER_INITIAL_STATE, voidDraft: d }, { type: 'OPEN_CHECKOUT', defaultMethod: 'tunai' })
+  it('wrong payment method opens in single-method mode with no tender pre-filled, even when locked', () => {
+    expect(open(voidDraft('salah_metode_pembayaran'))).toMatchObject({ isCheckoutOpen: true, splitMode: false, tenders: [] })
+    expect(open(voidDraft('salah_metode_pembayaran', { amountsLocked: true, kind: 'create_replacement' }))).toMatchObject({ splitMode: false, tenders: [] })
+  })
+  it('any other reason still opens with the original tenders in split mode', () => {
+    expect(open(voidDraft('salah_barang'))).toMatchObject({ splitMode: true, tenders: [{ method: 'tunai', amount: 20_000 }], splitOrderUuid: 'r-1' })
   })
 })

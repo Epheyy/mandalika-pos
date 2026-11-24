@@ -28,10 +28,10 @@ func (s *OrderService) VoidPreview(ctx context.Context, outletID, orderID string
 	err := s.Pool.QueryRow(ctx,
 		`SELECT status, order_number, customer_id::text, points_earned, points_redeemed, discount_code,
 		        COALESCE(applied_discount_codes,'[]'::jsonb), round(total)::bigint, payment_method,
-		        device_id::text, shift_id::text, void_id::text, created_at, business_date::text
+		        device_id::text, shift_id::text, void_id::text, created_at, business_date::text, COALESCE(cashier_id::text,'')
 		   FROM orders WHERE id=$1 AND outlet_id=$2`, orderID, outletID).
 		Scan(&o.status, &o.orderNumber, &o.custID, &o.earned, &o.redeemed, &o.discountCode, &o.appliedCodes,
-			&o.total, &o.paymentMethod, &o.deviceID, &o.shiftID, &o.voidID, &o.createdAt, &o.businessDate)
+			&o.total, &o.paymentMethod, &o.deviceID, &o.shiftID, &o.voidID, &o.createdAt, &o.businessDate, &o.cashierID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return out, ErrVoidNotFound
 	}
@@ -62,7 +62,7 @@ func (s *OrderService) VoidPreview(ctx context.Context, outletID, orderID string
 		a := api.VoidPreviewAuthority(authority)
 		out.Authority, out.Eligible = &a, true
 		// Amounts are editable only for an own-shift void while the sale's shift is still open.
-		out.AmountsLocked = !(authority == VoidOwnShift && facts.ShiftStatus == "open")
+		out.AmountsLocked = !(inCallerOpenShift(facts, in) && facts.ShiftStatus == "open")
 	}
 
 	rows, err := s.Pool.Query(ctx,

@@ -116,6 +116,10 @@ export function heldOrderFromVoidedOrder(order: Order, now: number): HeldOrder {
  *  forces it), whatever the draft's flag says. */
 export const isLocked = (d: Pick<VoidDraft, 'amountsLocked' | 'kind'>): boolean => d.amountsLocked || d.kind === 'create_replacement'
 
+/** A wrong-payment-method void starts the replacement in single-method mode with nothing pre-filled, so the cashier picks
+ *  the right method in one tap. Locked drafts still pay exactly what the store received (checked at confirm, not here). */
+export const startsInSingleMethod = (d: Pick<VoidDraft, 'reason'>): boolean => d.reason === 'salah_metode_pembayaran'
+
 /** The replacement starts with the original's applied payment lines (a copy). */
 export function initialReplacementTenders(d: VoidDraft): TenderLine[] {
   return d.originalTenders.map((t) => ({ ...t }))

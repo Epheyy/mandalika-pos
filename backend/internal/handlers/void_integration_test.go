@@ -2570,6 +2570,7 @@ func TestVoidPostgres(t *testing.T) {
 		t.Helper()
 		in := voidIn(orderID, shift)
 		in.UserID, in.UserName, in.Reason, in.Mode = voider, "VD Voider", reason, mode
+		in.CanVoidAny = true // the voider is not the seller: void_own_shift alone no longer covers a colleague's sale (policy 2026-11-24)
 		res, err := svc.VoidOrder(ctx, in)
 		if err != nil {
 			t.Fatal(err)
@@ -2668,16 +2669,23 @@ func TestVoidPostgres(t *testing.T) {
 		if tot["voids"].(float64) != 4 || tot["originalTotal"].(float64) != 600000 || tot["replacementTotal"].(float64) != 300000 || tot["correctionTotal"].(float64) != 0 {
 			t.Fatalf("totals = %v", tot)
 		}
-		// A replacement that is later voided still counts in replacementTotal (= the rows' sum); it is its own void row.
+		if r["replacementStanding"] != true || rows[later]["replacementStanding"] != false {
+			t.Fatalf("replacementStanding: replaced row = %v, later row = %v, want true / false", r["replacementStanding"], rows[later]["replacementStanding"])
+		}
+		// A replacement that is later voided no longer counts in replacementTotal (void policy 2026-11-24: only the
+		// replacements still standing are "money corrected"); it is its own void row.
 		in2 := bo(res.ReplacementOrderID)
 		in2.UserID, in2.UserName, in2.ClientVoidUUID = voider, "VD Voider", newID("4")
 		if _, err := svc.VoidOrder(ctx, in2); err != nil {
 			t.Fatal(err)
 		}
-		out, _ = reportRows("cashierId=" + voider + "&limit=200")
+		out, rows = reportRows("cashierId=" + voider + "&limit=200")
 		tot = out["totals"].(map[string]any)
-		if tot["voids"].(float64) != 5 || tot["replacementTotal"].(float64) != 300000 || tot["correctionTotal"].(float64) != 0 {
-			t.Fatalf("totals after voiding the replacement = %v, want replacementTotal to still equal the rows' sum (300000)", tot)
+		if tot["voids"].(float64) != 5 || tot["replacementTotal"].(float64) != 0 || tot["correctionTotal"].(float64) != 0 {
+			t.Fatalf("totals after voiding the replacement = %v, want replacementTotal 0 (nothing stands any more)", tot)
+		}
+		if rows[replaced]["replacementStanding"] != false || rows[replaced]["replacementTotal"].(float64) != 300000 {
+			t.Fatalf("the voided replacement's row = %v, want it shown (replacementTotal 300000) but not standing", rows[replaced])
 		}
 		// afterClose filter: everything above was voided while the shift was open.
 		if _, closed := reportRows("cashierId=" + voider + "&afterClose=true"); len(closed) != 0 {
@@ -2686,6 +2694,127 @@ func TestVoidPostgres(t *testing.T) {
 		if _, open := reportRows("cashierId=" + voider + "&afterClose=false&limit=200"); len(open) != 5 {
 			t.Fatalf("afterClose=false listed %d rows, want 5", len(open))
 		}
+	})
+
+	t.Run("void_report_replacement_standing_chain", func(t *testing.T) {
+		shift := openShift()
+		voider := newID("6")
+		a := sale(saleOpts{shift: shift}, product(5))
+		inA := bo(a)
+		inA.UserID, inA.UserName, inA.Mode, inA.ClientVoidUUID = voider, "VD Voider", service.VoidModeReplace, newID("4")
+		resA, err := svc.VoidAndReplaceDirect(ctx, inA, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		inB := bo(resA.ReplacementOrderID)
+		inB.UserID, inB.UserName, inB.Mode, inB.ClientVoidUUID = voider, "VD Voider", service.VoidModeReplace, newID("4")
+		resB, err := svc.VoidAndReplaceDirect(ctx, inB, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, rows := reportRows("cashierId=" + voider + "&limit=200")
+		tot := out["totals"].(map[string]any)
+		// A (100000) voided with replacement B, B voided with replacement C: only C stands.
+		if tot["voids"].(float64) != 2 || tot["originalTotal"].(float64) != 200000 || tot["replacementTotal"].(float64) != 100000 {
+			t.Fatalf("totals = %v, want 2 voids, originalTotal 200000, replacementTotal 100000 (C only)", tot)
+		}
+		if rows[a]["replacementStanding"] != false || rows[resA.ReplacementOrderID]["replacementStanding"] != true ||
+			rows[resA.ReplacementOrderID]["replacementOrderId"] != resB.ReplacementOrderID {
+			t.Fatalf("rows: A = %v, B = %v, want A not standing, B's replacement C standing", rows[a], rows[resA.ReplacementOrderID])
+		}
+		sum := 0.0
+		for _, r := range rows {
+			if r["replacementStanding"] == true {
+				sum += r["replacementTotal"].(float64)
+			}
+		}
+		if sum != tot["replacementTotal"].(float64) {
+			t.Fatalf("sum of the standing rows = %v, totals.replacementTotal = %v", sum, tot["replacementTotal"])
+		}
+	})
+
+	// ── Void policy 2026-11-24, item 4: void_own_shift covers only the caller's OWN sales ──
+	t.Run("void_own_shift_only_own_sales", func(t *testing.T) {
+		authorityOf := func(orderID string) string {
+			return str(`SELECT authority FROM order_voids WHERE order_id=$1`, orderID)
+		}
+		colleagues := func(shift string) string {
+			id := sale(saleOpts{shift: shift}, product(5))
+			exec(`UPDATE orders SET cashier_id=$2, cashier_name='VD Admin' WHERE id=$1`, id, adminU)
+			return id
+		}
+		t.Run("service", func(t *testing.T) {
+			shift := openShift()
+			mine, theirs := sale(saleOpts{shift: shift}, product(5)), colleagues(shift)
+			if _, err := svc.VoidOrder(ctx, voidIn(theirs, shift)); !errors.Is(err, service.ErrVoidNotOwnSale) {
+				t.Fatalf("colleague's sale with void_own_shift only: err = %v, want ErrVoidNotOwnSale", err)
+			}
+			if status(theirs) != "completed" {
+				t.Fatal("a refused void changed the order")
+			}
+			if _, err := svc.VoidOrder(ctx, voidIn(mine, shift)); err != nil || authorityOf(mine) != "own_shift" {
+				t.Fatalf("own sale: err = %v, authority %q, want own_shift", err, authorityOf(mine))
+			}
+			withAny := voidIn(theirs, shift)
+			withAny.CanVoidAny = true
+			if _, err := svc.VoidOrder(ctx, withAny); err != nil || authorityOf(theirs) != "any" {
+				t.Fatalf("colleague's sale with void_any: err = %v, authority %q, want any", err, authorityOf(theirs))
+			}
+		})
+		t.Run("unattributed_colleague_sale_O5", func(t *testing.T) {
+			shift := openShift()
+			device := newID("4")
+			mk := func(cashierID string) string {
+				id := sale(saleOpts{shift: shift}, product(5))
+				exec(`UPDATE orders SET shift_id=NULL, device_id=$2, cashier_id=$3 WHERE id=$1`, id, device, cashierID)
+				return id
+			}
+			in := func(orderID string) service.VoidInput {
+				v := voidIn(orderID, shift)
+				v.EnvelopeDeviceID = device
+				return v
+			}
+			theirs, mine := mk(adminU), mk(cashier)
+			if _, err := svc.VoidOrder(ctx, in(theirs)); !errors.Is(err, service.ErrVoidNotOwnSale) {
+				t.Fatalf("unattributed colleague's sale: err = %v, want ErrVoidNotOwnSale", err)
+			}
+			if _, err := svc.VoidOrder(ctx, in(mine)); err != nil || authorityOf(mine) != "own_shift" {
+				t.Fatalf("unattributed own sale: err = %v, authority %q", err, authorityOf(mine))
+			}
+		})
+		t.Run("sync_and_preview", func(t *testing.T) {
+			shift := openShift()
+			theirs := colleagues(shift)
+			res := sendItem(cashierTok, voidItem(shift, theirs, nil))
+			if res["status"] != "error" || res["code"] != "forbidden" || res["retryable"] != false ||
+				!strings.Contains(fmt.Sprint(res["error"]), "dicatat kasir lain") {
+				t.Fatalf("sync void of a colleague's sale = %v, want a non-retryable forbidden naming the other cashier", res)
+			}
+			if status(theirs) != "completed" {
+				t.Fatal("a refused void changed the order")
+			}
+			code, body := do(cashierTok, http.MethodGet, "/orders/"+theirs+"/void-preview", nil)
+			data, _ := body["data"].(map[string]any)
+			if code != http.StatusOK || data["eligible"] == true || !strings.Contains(fmt.Sprint(data["refusal"]), "dicatat kasir lain") {
+				t.Fatalf("preview of a colleague's sale = %d %v, want a refusal", code, body)
+			}
+			// void_any lifts it, and the audit says so.
+			both := tok(cashier, "cashier", []string{"void_own_shift", "void_any"})
+			if res := sendItem(both, voidItem(shift, theirs, nil)); res["status"] != "ok" || authorityOf(theirs) != "any" {
+				t.Fatalf("with void_any: %v, authority %q", res, authorityOf(theirs))
+			}
+		})
+		t.Run("colleague_sale_replacement_stays_editable", func(t *testing.T) {
+			// Shift membership, not the authority value, decides whether the replacement amounts are editable.
+			shift := openShift()
+			theirs := colleagues(shift)
+			both := tok(cashier, "cashier", []string{"void_own_shift", "void_any"})
+			code, body := do(both, http.MethodGet, "/orders/"+theirs+"/void-preview", nil)
+			data, _ := body["data"].(map[string]any)
+			if code != http.StatusOK || data["authority"] != "any" || data["amountsLocked"] != false {
+				t.Fatalf("preview = %d %v, want authority any with the amounts still editable (same open shift)", code, body)
+			}
+		})
 	})
 
 	t.Run("void_report_lists_legacy_import", func(t *testing.T) {
@@ -3151,5 +3280,217 @@ func TestVoidPostgres(t *testing.T) {
 				t.Fatalf("replacement %s = %s, want 270000/30000/0 (the promotion created after the sale must not be matched)", id, got)
 			}
 		}
+	})
+
+	// ── Void policy 2026-11-24, item 1: the shared outlet shift cannot close while another tablet holds a parked void ──
+	router.Post("/sync/review-items", h.ReportSyncReviewItems)
+	router.Get("/shifts/current", h.CurrentShift)
+	router.Post("/shifts/{id}/close", h.CloseShift)
+	t.Run("shift_close_blocked_by_parked_void", func(t *testing.T) {
+		const outletZ = "00000000-0000-4000-9100-0000000000f1"
+		exec(`INSERT INTO outlets(id,name) VALUES($1,'VD Outlet Z')`, outletZ)
+		parked := func(t *testing.T, tokn, reviewKey string, payload map[string]any) {
+			t.Helper()
+			code, body := do(tokn, http.MethodPost, "/sync/review-items", map[string]any{"items": []any{map[string]any{
+				"idempotencyKey": reviewKey, "type": "void", "reviewCode": "forbidden", "reviewReason": "ditolak",
+				"clientCreatedAt": time.Now().UTC().Format(time.RFC3339Nano), "payload": payload,
+			}}})
+			if code != http.StatusOK {
+				t.Fatalf("review report = %d %v", code, body)
+			}
+		}
+		closeItem := func(shift string) map[string]any {
+			uid := newID("4")
+			return map[string]any{
+				"type": "shift_close", "idempotencyKey": "vd-devB:" + uid, "payload": map[string]any{"shiftId": shift, "closingCash": 0},
+				"envelope": map[string]any{"v": 1, "outletId": outlet, "userId": cashier, "deviceId": "vd-devB", "capturedAt": time.Now().UTC().Format(time.RFC3339), "shiftId": shift},
+			}
+		}
+		wantBlocked := func(t *testing.T, res map[string]any, shift string) {
+			t.Helper()
+			if res["status"] != "error" || res["code"] != "busy" || res["retryable"] != true {
+				t.Fatalf("close result = %v, want a retryable busy refusal", res)
+			}
+			if str(`SELECT status FROM shifts WHERE id=$1`, shift) != "open" {
+				t.Fatal("a refused close changed the shift")
+			}
+		}
+		wantClosed := func(t *testing.T, res map[string]any, shift string) {
+			t.Helper()
+			if res["status"] != "ok" || str(`SELECT status FROM shifts WHERE id=$1`, shift) != "closed" {
+				t.Fatalf("close result = %v, shift %s, want closed", res, str(`SELECT status FROM shifts WHERE id=$1`, shift))
+			}
+		}
+		keyOf := func() string { return "vd-devA:" + newID("4") }
+		saleIn := func(shift string) (id, uuid, number string) {
+			id = sale(saleOpts{shift: shift}, product(5))
+			return id, str(`SELECT order_uuid::text FROM orders WHERE id=$1`, id), str(`SELECT order_number FROM orders WHERE id=$1`, id)
+		}
+
+		t.Run("blocked_then_resolved", func(t *testing.T) {
+			shift := openShift()
+			id, _, number := saleIn(shift)
+			reviewKey := keyOf()
+			parked(t, cashierTok, reviewKey, map[string]any{"orderId": id, "orderNumber": number, "originalShiftId": shift})
+			item := closeItem(shift)
+			wantBlocked(t, sendItem(cashierTok, item), shift)
+			// The same queued close (same key) lands by itself once head office resolves the item.
+			exec(`UPDATE sync_review_items SET resolved_at=now(), resolved_by=$2, resolution_note='ok' WHERE idempotency_key=$1`, reviewKey, adminU)
+			wantClosed(t, sendItem(cashierTok, item), shift)
+		})
+		// Void policy 1b: a close held across a business-day change is a head-office review item, not a retry.
+		closeAt := func(shift string, captured time.Time, cash float64) map[string]any {
+			item := closeItem(shift)
+			item["payload"] = map[string]any{"shiftId": shift, "closingCash": cash}
+			item["envelope"].(map[string]any)["capturedAt"] = captured.UTC().Format(time.RFC3339)
+			return item
+		}
+		const dayAgo = -36 * time.Hour // always an earlier business day in any outlet zone
+		wantRefusedForGood := func(t *testing.T, res map[string]any, shift string) {
+			t.Helper()
+			if res["status"] != "error" || res["code"] != "rejected" || res["retryable"] != false {
+				t.Fatalf("close result = %v, want a permanent rejected refusal", res)
+			}
+			msg := fmt.Sprint(res["error"])
+			for _, want := range []string{"Tutup shift tidak diterapkan", "kas terhitung Rp 1.250.000", "Tinjauan Sinkron", "hari bisnis sudah berganti", "Shift masih terbuka"} {
+				if !strings.Contains(msg, want) {
+					t.Fatalf("refusal text %q lacks %q", msg, want)
+				}
+			}
+			if str(`SELECT status FROM shifts WHERE id=$1`, shift) != "open" ||
+				str(`SELECT coalesce(closed_at::text,'-')||'|'||coalesce(closing_cash::text,'-') FROM shifts WHERE id=$1`, shift) != "-|-" {
+				t.Fatal("a permanently refused close changed the shift or wrote a snapshot")
+			}
+		}
+		t.Run("held_past_day_captured_today_stays_retryable", func(t *testing.T) {
+			shift := openShift()
+			id, _, number := saleIn(shift)
+			parked(t, cashierTok, keyOf(), map[string]any{"orderId": id, "orderNumber": number, "originalShiftId": shift})
+			wantBlocked(t, sendItem(cashierTok, closeAt(shift, time.Now(), 1250000)), shift)
+		})
+		t.Run("held_past_day_captured_yesterday_still_blocked_is_permanent", func(t *testing.T) {
+			shift := openShift()
+			id, _, number := saleIn(shift)
+			parked(t, cashierTok, keyOf(), map[string]any{"orderId": id, "orderNumber": number, "originalShiftId": shift})
+			res := sendItem(cashierTok, closeAt(shift, time.Now().Add(dayAgo), 1250000))
+			wantRefusedForGood(t, res, shift)
+			if !strings.Contains(fmt.Sprint(res["error"]), "#"+number) {
+				t.Fatalf("refusal text %v does not name the void #%s", res["error"], number)
+			}
+		})
+		t.Run("held_past_day_resolved_after_capture_still_permanent_and_retry_refuses_again", func(t *testing.T) {
+			shift := openShift()
+			id, _, number := saleIn(shift)
+			reviewKey := keyOf()
+			parked(t, cashierTok, reviewKey, map[string]any{"orderId": id, "orderNumber": number, "originalShiftId": shift})
+			item := closeAt(shift, time.Now().Add(dayAgo), 1250000)
+			wantRefusedForGood(t, sendItem(cashierTok, item), shift)
+			// Head office resolves the void after the count was taken: a re-sent close (same key) must not land.
+			exec(`UPDATE sync_review_items SET resolved_at=now(), resolved_by=$2, resolution_note='ok' WHERE idempotency_key=$1`, reviewKey, adminU)
+			wantRefusedForGood(t, sendItem(cashierTok, item), shift)
+			// A fresh count captured today lands (the cashier closes again after the resolution).
+			wantClosed(t, sendItem(cashierTok, closeAt(shift, time.Now(), 1250000)), shift)
+		})
+		t.Run("held_past_day_resolved_before_capture_closes", func(t *testing.T) {
+			shift := openShift()
+			id, _, number := saleIn(shift)
+			reviewKey := keyOf()
+			parked(t, cashierTok, reviewKey, map[string]any{"orderId": id, "orderNumber": number, "originalShiftId": shift})
+			exec(`UPDATE sync_review_items SET resolved_at=now()-interval '48 hours', resolved_by=$2, resolution_note='ok' WHERE idempotency_key=$1`, reviewKey, adminU)
+			wantClosed(t, sendItem(cashierTok, closeAt(shift, time.Now().Add(dayAgo), 1250000)), shift)
+		})
+		t.Run("held_past_day_never_blocked_closes_as_before", func(t *testing.T) {
+			shift := openShift()
+			saleIn(shift)
+			wantClosed(t, sendItem(cashierTok, closeAt(shift, time.Now().Add(dayAgo), 1250000)), shift)
+		})
+		t.Run("acked_later_does_not_block", func(t *testing.T) {
+			shift := openShift()
+			id, _, number := saleIn(shift)
+			reviewKey := keyOf()
+			parked(t, cashierTok, reviewKey, map[string]any{"orderId": id, "orderNumber": number, "originalShiftId": shift})
+			exec(`INSERT INTO operation_receipts(idempotency_key,op_type,scope,fingerprint,outcome) VALUES($1,'void','x','f','{}'::jsonb)`, reviewKey)
+			wantClosed(t, sendItem(cashierTok, closeItem(shift)), shift)
+		})
+		t.Run("unattributed_matched_through_the_sale", func(t *testing.T) {
+			for _, byUUID := range []bool{false, true} {
+				shift := openShift()
+				id, uuid, number := saleIn(shift)
+				payload := map[string]any{"orderNumber": number, "originalShiftId": nil}
+				if byUUID {
+					payload["saleOrderUuid"] = uuid
+				} else {
+					payload["orderId"] = id
+				}
+				parked(t, cashierTok, keyOf(), payload)
+				wantBlocked(t, sendItem(cashierTok, closeItem(shift)), shift)
+			}
+		})
+		t.Run("sale_of_another_shift_does_not_block", func(t *testing.T) {
+			old := openShift()
+			oldID, _, oldNumber := saleIn(old)
+			shift := openShift() // closes the older shift
+			parked(t, cashierTok, keyOf(), map[string]any{"orderId": oldID, "orderNumber": oldNumber})
+			wantClosed(t, sendItem(cashierTok, closeItem(shift)), shift)
+		})
+		t.Run("cancelled_sale_still_blocks", func(t *testing.T) {
+			// A void parked as "already voided elsewhere" may mean the cash went back twice: attributed or not, it blocks.
+			for _, attributed := range []bool{true, false} {
+				shift := openShift()
+				id, _, number := saleIn(shift)
+				exec(`UPDATE orders SET status='cancelled' WHERE id=$1`, id)
+				payload := map[string]any{"orderId": id, "orderNumber": number}
+				if attributed {
+					payload["originalShiftId"] = shift
+				}
+				parked(t, cashierTok, keyOf(), payload)
+				wantBlocked(t, sendItem(cashierTok, closeItem(shift)), shift)
+			}
+		})
+		t.Run("void_attributed_to_another_shift_does_not_block", func(t *testing.T) {
+			other := openShift()
+			otherID, _, otherNumber := saleIn(other)
+			shift := openShift() // closes the older shift
+			parked(t, cashierTok, keyOf(), map[string]any{"orderId": otherID, "orderNumber": otherNumber, "originalShiftId": other})
+			wantClosed(t, sendItem(cashierTok, closeItem(shift)), shift)
+		})
+		t.Run("another_outlets_report_does_not_block", func(t *testing.T) {
+			shift := openShift()
+			id, _, number := saleIn(shift)
+			zTok, err := auth.IssueAccess(key, time.Hour, cashier, "cashier", outletZ, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			parked(t, zTok, keyOf(), map[string]any{"orderId": id, "orderNumber": number, "originalShiftId": shift})
+			wantClosed(t, sendItem(cashierTok, closeItem(shift)), shift)
+		})
+		t.Run("direct_close_and_current_shift_read", func(t *testing.T) {
+			shift := openShift()
+			id, _, number := saleIn(shift)
+			reviewKey := keyOf()
+			parked(t, cashierTok, reviewKey, map[string]any{"orderId": id, "orderNumber": number, "originalShiftId": shift})
+			code, body := do(cashierTok, http.MethodGet, "/shifts/current", nil)
+			data, _ := body["data"].(map[string]any)
+			pending, _ := data["pendingVoidReviews"].([]any)
+			if code != http.StatusOK || len(pending) != 1 || pending[0].(map[string]any)["orderNumber"] != number {
+				t.Fatalf("current shift = %d %v, want pendingVoidReviews [%s]", code, body, number)
+			}
+			code, body = do(cashierTok, http.MethodPost, "/shifts/"+shift+"/close", map[string]any{"closingCash": 0})
+			if code != http.StatusConflict || !strings.Contains(fmt.Sprint(body["error"]), "Tinjauan Sinkron") {
+				t.Fatalf("direct close = %d %v, want the 409 refusal naming Tinjauan Sinkron", code, body)
+			}
+			if str(`SELECT status FROM shifts WHERE id=$1`, shift) != "open" {
+				t.Fatal("a refused direct close changed the shift")
+			}
+			exec(`UPDATE sync_review_items SET resolved_at=now(), resolved_by=$2, resolution_note='ok' WHERE idempotency_key=$1`, reviewKey, adminU)
+			code, body = do(cashierTok, http.MethodGet, "/shifts/current", nil)
+			data, _ = body["data"].(map[string]any)
+			if _, has := data["pendingVoidReviews"]; code != http.StatusOK || (has && len(data["pendingVoidReviews"].([]any)) != 0) {
+				t.Fatalf("resolved: current shift = %d %v, want no pending list", code, body)
+			}
+			if code, body = do(cashierTok, http.MethodPost, "/shifts/"+shift+"/close", map[string]any{"closingCash": 0}); code != http.StatusOK {
+				t.Fatalf("direct close after resolve = %d %v", code, body)
+			}
+		})
 	})
 }

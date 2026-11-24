@@ -6,6 +6,9 @@ import (
 	"errors"
 	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/tenderlines"
+	"github.com/mandalika/pos-backend/internal/voidreview"
+	"math"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -59,6 +62,126 @@ func validateShiftOutlet(ctx context.Context, q rowQueryRower, outletID, shiftID
 }
 
 var ErrShiftOpen = apperr.New(apperr.Conflict, "a shift is already open for this outlet")
+
+// ErrShiftCloseVoidPending refuses a shift close while another tablet holds a parked void of this shift that head
+// office has not resolved (void policy 2026-11-24). Busy: nothing was applied, so a queued close stays RETRYABLE on
+// the tablet and lands by itself once Tinjauan Sinkron resolves the item; a permanent code would park the close as a
+// second review item. The returned error carries the order numbers and matches this sentinel with errors.Is.
+var ErrShiftCloseVoidPending = apperr.New(apperr.Busy, shiftCloseVoidPendingMsg)
+
+const shiftCloseVoidPendingMsg = "Tutup shift ditunda: ada pembatalan di perangkat lain yang menunggu Tinjauan Sinkron kantor pusat."
+
+type shiftCloseVoidPendingErr struct{ msg string }
+
+func (e shiftCloseVoidPendingErr) Error() string          { return e.msg }
+func (e shiftCloseVoidPendingErr) ErrorCode() apperr.Code { return apperr.Busy }
+func (e shiftCloseVoidPendingErr) Is(target error) bool   { return target == ErrShiftCloseVoidPending }
+
+// maxPendingVoidNames bounds how many transaction numbers the refusal text lists; maxVoidNameRunes bounds each one
+// (the number is tablet-written).
+const (
+	maxPendingVoidNames = 5
+	maxVoidNameRunes    = 40
+)
+
+// ErrShiftCloseHeldPastDay refuses, for good, a queued close whose business day has changed while another tablet's
+// parked void held the shift (void policy 1b). Rejected: not retryable, so the tablet parks it and reports it to
+// Tinjauan Sinkron instead of resending; the shift stays open and no snapshot is written.
+var ErrShiftCloseHeldPastDay = apperr.New(apperr.Rejected, "Tutup shift tidak diterapkan: ditahan pembatalan di perangkat lain dan hari bisnis sudah berganti.")
+
+type shiftCloseHeldPastDayErr struct{ msg string }
+
+func (e shiftCloseHeldPastDayErr) Error() string          { return e.msg }
+func (e shiftCloseHeldPastDayErr) ErrorCode() apperr.Code { return apperr.Rejected }
+func (e shiftCloseHeldPastDayErr) Is(target error) bool   { return target == ErrShiftCloseHeldPastDay }
+
+// closeTiming is the sync path's view of when a close was captured. The zero value (the HTTP path, which closes
+// online with no capture time) keeps the plain same-day hold.
+type closeTiming struct{ capturedAt, now time.Time }
+
+// voidHoldNames runs a voidreview query and returns how many items it found and the first few "#number" labels.
+func voidHoldNames(ctx context.Context, tx pgx.Tx, sql string, args ...any) (int, []string, error) {
+	rows, err := tx.Query(ctx, sql, args...)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer rows.Close()
+	var numbers []string
+	count := 0
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			return 0, nil, err
+		}
+		count++
+		if n = clipRunes(n, maxVoidNameRunes); n != "" && len(numbers) < maxPendingVoidNames {
+			numbers = append(numbers, "#"+n)
+		}
+	}
+	return count, numbers, rows.Err()
+}
+
+func clipRunes(s string, n int) string {
+	if r := []rune(s); len(r) > n {
+		return string(r[:n])
+	}
+	return s
+}
+
+// checkNoPendingVoidReviews refuses the close when an open review item of another tablet's parked void belongs to
+// the shift (truth: sync_review_items, see package voidreview). Runs under the shift's row lock. Same business day
+// (or no capture time): a retryable Busy. A queued close captured on an earlier business day that a parked void held
+// at capture time (unresolved then, or resolved since) is refused for good, so it can never land later with totals
+// that include sales after the count.
+func checkNoPendingVoidReviews(ctx context.Context, tx pgx.Tx, outletID, shiftID string, closingCash float64, t closeTiming) error {
+	if !t.capturedAt.IsZero() {
+		zone, err := outletZone(ctx, tx, outletID)
+		if err != nil {
+			return err
+		}
+		if bizDate(t.capturedAt, zone) < bizDate(t.now, zone) {
+			count, numbers, err := voidHoldNames(ctx, tx, voidreview.HeldAtSQL, shiftID, t.capturedAt)
+			if err != nil {
+				return err
+			}
+			if count > 0 {
+				return heldPastDayErr(ctx, tx, shiftID, closingCash, numbers, zone)
+			}
+		}
+	}
+	count, numbers, err := voidHoldNames(ctx, tx, voidreview.PendingSQL, shiftID)
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return nil
+	}
+	msg := shiftCloseVoidPendingMsg
+	if len(numbers) > 0 {
+		msg = strings.TrimSuffix(msg, ".") + " (" + strings.Join(numbers, ", ") + ")."
+	}
+	return shiftCloseVoidPendingErr{msg: msg}
+}
+
+func bizDate(t time.Time, zone *time.Location) string { return t.In(zone).Format("2006-01-02") }
+
+// heldPastDayErr words the permanent refusal for the review screen: which shift, the counted cash, why it was held and
+// what head office does next. Closing is only ever done from a cashier tablet (the Backoffice has no close action),
+// and the open shift reappears there because a parked close is not overlaid.
+func heldPastDayErr(ctx context.Context, tx pgx.Tx, shiftID string, closingCash float64, numbers []string, zone *time.Location) error {
+	var openedAt time.Time
+	if err := tx.QueryRow(ctx, `SELECT opened_at FROM shifts WHERE id=$1`, shiftID).Scan(&openedAt); err != nil {
+		return err
+	}
+	by := "pembatalan di perangkat lain"
+	if len(numbers) > 0 {
+		by = "pembatalan " + strings.Join(numbers, ", ") + " di perangkat lain"
+	}
+	return shiftCloseHeldPastDayErr{msg: "Tutup shift tidak diterapkan: shift dibuka " + openedAt.In(zone).Format("02/01/2006 15:04") +
+		", kas terhitung Rp " + formatRupiahID(int64(math.Round(closingCash))) + ", ditahan karena " + by +
+		" menunggu Tinjauan Sinkron dan hari bisnis sudah berganti. Shift masih terbuka di server. Setelah kantor pusat" +
+		" menyelesaikan pembatalan itu di Tinjauan Sinkron, tutup shift lagi dari kasir (Tutup Shift) dan hitung ulang kas."}
+}
 
 type OpenShiftInput struct {
 	OutletID     string
@@ -163,6 +286,17 @@ func (s *OrderService) CloseShift(ctx context.Context, outletID, shiftID string,
 
 // CloseShiftTx is CloseShift inside a caller-owned transaction.
 func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, shiftID string, closingCash float64, counted map[string]float64) error {
+	return s.closeShiftTx(ctx, tx, outletID, shiftID, closingCash, counted, closeTiming{})
+}
+
+// CloseShiftCapturedTx is CloseShiftTx for a queued close with a capture time (sync path): a close held by another
+// tablet's parked void across a business-day change is refused for good (ErrShiftCloseHeldPastDay). now is the
+// server's current time.
+func (s *OrderService) CloseShiftCapturedTx(ctx context.Context, tx pgx.Tx, outletID, shiftID string, closingCash float64, counted map[string]float64, capturedAt, now time.Time) error {
+	return s.closeShiftTx(ctx, tx, outletID, shiftID, closingCash, counted, closeTiming{capturedAt: capturedAt, now: now})
+}
+
+func (s *OrderService) closeShiftTx(ctx context.Context, tx pgx.Tx, outletID, shiftID string, closingCash float64, counted map[string]float64, timing closeTiming) error {
 	var countedJSON []byte
 	if len(counted) > 0 {
 		b, err := json.Marshal(counted)
@@ -184,6 +318,9 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 	}
 	if status == "closed" {
 		return nil
+	}
+	if err := checkNoPendingVoidReviews(ctx, tx, outletID, shiftID, closingCash, timing); err != nil {
+		return err
 	}
 	cashIDs, err := shiftCashMethodIDs(ctx, tx, shiftID)
 	if err != nil {

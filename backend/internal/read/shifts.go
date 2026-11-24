@@ -3,11 +3,13 @@ package read
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/oapi-codegen/nullable"
 
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/rules"
+	"github.com/mandalika/pos-backend/internal/voidreview"
 )
 
 const shiftObj = `json_build_object('id',s.id,'outletId',s.outlet_id,'businessDate',s.business_date,
@@ -122,9 +124,47 @@ func (r *Repo) CurrentShift(ctx context.Context, sc Scope) (api.Shift, error) {
 		args = append(args, sc.OutletID)
 		cond = " AND s.outlet_id=$1"
 	}
-	return r.oneShift(ctx,
+	v, err := r.oneShift(ctx,
 		`SELECT `+shiftObj+` FROM shifts s WHERE s.status='open'`+cond+
 			` ORDER BY s.opened_at DESC LIMIT 1`, args...)
+	if err != nil {
+		return v, err
+	}
+	// The pending list is advisory for the POS (the close itself stays strict in CloseShiftTx), so a failing query
+	// must not take the whole current-shift read down.
+	if err := r.fillPendingVoidReviews(ctx, &v); err != nil {
+		slog.Error("current shift: pending void reviews unavailable", "outlet_id", v.OutletId.String(), "shift_id", v.Id.String(), "err", err)
+	}
+	return v, nil
+}
+
+// fillPendingVoidReviews lists the parked voids other tablets reported for this open shift that head office has not
+// resolved (void policy 2026-11-24): the POS refuses Tutup Shift up front instead of queueing a close the server
+// would hold. Only the current-shift read carries it. The query is shared with CloseShiftTx (package voidreview).
+func (r *Repo) fillPendingVoidReviews(ctx context.Context, s *api.Shift) error {
+	rows, err := r.Pool.Query(ctx, voidreview.PendingSQL, s.Id.String())
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	type pendingReview = struct {
+		OrderNumber string `json:"orderNumber"`
+	}
+	var list []pendingReview
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			return err
+		}
+		list = append(list, pendingReview{OrderNumber: n})
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if len(list) > 0 {
+		s.PendingVoidReviews = &list
+	}
+	return nil
 }
 
 func (r *Repo) CashFlows(ctx context.Context, s Scope, shiftID string, page, limit int) ([]api.CashFlow, int, error) {

@@ -70,6 +70,10 @@ func (h *Handlers) closeShift(w http.ResponseWriter, r *http.Request,
 	}
 	c, _ := resolveCaller(r)
 	if err := close(r.Context(), c.outletID, chi.URLParam(r, "id"), body.ClosingCash, body.CountedByMethod); err != nil {
+		if errors.Is(err, service.ErrShiftCloseVoidPending) {
+			httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err)) // nothing applied; retry once head office resolves the item
+			return
+		}
 		writeErr(w, r, http.StatusBadRequest, err)
 		return
 	}

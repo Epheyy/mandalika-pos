@@ -4870,6 +4870,8 @@ export interface components {
             replacementOrderNumber?: string;
             /** Format: double */
             replacementTotal?: number;
+            /** @description True when the row's replacement exists and is not cancelled (it counts in totals.replacementTotal). False when there is no replacement or the replacement was itself voided. */
+            replacementStanding?: boolean;
             replacementTenders?: components["schemas"]["VoidReportTender"][];
             /**
              * Format: double
@@ -4885,7 +4887,7 @@ export interface components {
             /** Format: double */
             originalTotal: number;
         };
-        /** @description Over the whole filtered range (not the page). Legacy imports are excluded. replacementTotal is the sum of every row's replacementTotal (a replacement that was itself voided still counts, and appears as its own void row). correctionTotal counts live replacements only (a voided replacement's correction was reversed with it). */
+        /** @description Over the whole filtered range (not the page). Legacy imports are excluded. replacementTotal counts only the replacements still standing (status not cancelled): it is the sum of the rows' replacementTotal where replacementStanding is true. A replacement that was itself voided no longer counts (its money is out again) and appears as its own void row. correctionTotal counts the same live replacements (a voided replacement's correction was reversed with it). originalTotal counts every voided sale. */
         VoidReportTotals: {
             voids: number;
             /** Format: double */
@@ -5234,6 +5236,10 @@ export interface components {
             correctedTransferSales?: number;
             /** Format: double */
             correctedQrisSales?: number;
+            pendingVoidReviews?: {
+                /** @description The sale's transaction number as the tablet reported it; empty when the report carries none. */
+                orderNumber: string;
+            }[];
         };
         ShiftCorrectionItem: {
             /** Format: uuid */
