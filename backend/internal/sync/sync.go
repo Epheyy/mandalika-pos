@@ -447,7 +447,8 @@ func (e *Engine) processOneWithSeq(ctx context.Context, c Caller, it BatchItem,
 			return fail(err)
 		}
 		id, err := e.keyed(ctx, c, it, func(tx pgx.Tx) (string, error) {
-			return p.ShiftID, e.Orders.CloseShiftTx(ctx, tx, c.OutletID, p.ShiftID, p.ClosingCash, p.CountedByMethod)
+			// Capture time decides whether a close held by a parked void outlived its business day (void policy 1b).
+			return p.ShiftID, e.Orders.CloseShiftCapturedTx(ctx, tx, c.OutletID, p.ShiftID, p.ClosingCash, p.CountedByMethod, decodeEnvelope(it).CapturedAt, e.now())
 		})
 		if err != nil {
 			return fail(err)

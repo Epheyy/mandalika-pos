@@ -3253,6 +3253,72 @@ func TestVoidPostgres(t *testing.T) {
 			exec(`UPDATE sync_review_items SET resolved_at=now(), resolved_by=$2, resolution_note='ok' WHERE idempotency_key=$1`, reviewKey, adminU)
 			wantClosed(t, sendItem(cashierTok, item), shift)
 		})
+		// Void policy 1b: a close held across a business-day change is a head-office review item, not a retry.
+		closeAt := func(shift string, captured time.Time, cash float64) map[string]any {
+			item := closeItem(shift)
+			item["payload"] = map[string]any{"shiftId": shift, "closingCash": cash}
+			item["envelope"].(map[string]any)["capturedAt"] = captured.UTC().Format(time.RFC3339)
+			return item
+		}
+		const dayAgo = -36 * time.Hour // always an earlier business day in any outlet zone
+		wantRefusedForGood := func(t *testing.T, res map[string]any, shift string) {
+			t.Helper()
+			if res["status"] != "error" || res["code"] != "rejected" || res["retryable"] != false {
+				t.Fatalf("close result = %v, want a permanent rejected refusal", res)
+			}
+			msg := fmt.Sprint(res["error"])
+			for _, want := range []string{"Tutup shift tidak diterapkan", "kas terhitung Rp 1.250.000", "Tinjauan Sinkron", "hari bisnis sudah berganti", "Shift masih terbuka"} {
+				if !strings.Contains(msg, want) {
+					t.Fatalf("refusal text %q lacks %q", msg, want)
+				}
+			}
+			if str(`SELECT status FROM shifts WHERE id=$1`, shift) != "open" ||
+				str(`SELECT coalesce(closed_at::text,'-')||'|'||coalesce(closing_cash::text,'-') FROM shifts WHERE id=$1`, shift) != "-|-" {
+				t.Fatal("a permanently refused close changed the shift or wrote a snapshot")
+			}
+		}
+		t.Run("held_past_day_captured_today_stays_retryable", func(t *testing.T) {
+			shift := openShift()
+			id, _, number := saleIn(shift)
+			parked(t, cashierTok, keyOf(), map[string]any{"orderId": id, "orderNumber": number, "originalShiftId": shift})
+			wantBlocked(t, sendItem(cashierTok, closeAt(shift, time.Now(), 1250000)), shift)
+		})
+		t.Run("held_past_day_captured_yesterday_still_blocked_is_permanent", func(t *testing.T) {
+			shift := openShift()
+			id, _, number := saleIn(shift)
+			parked(t, cashierTok, keyOf(), map[string]any{"orderId": id, "orderNumber": number, "originalShiftId": shift})
+			res := sendItem(cashierTok, closeAt(shift, time.Now().Add(dayAgo), 1250000))
+			wantRefusedForGood(t, res, shift)
+			if !strings.Contains(fmt.Sprint(res["error"]), "#"+number) {
+				t.Fatalf("refusal text %v does not name the void #%s", res["error"], number)
+			}
+		})
+		t.Run("held_past_day_resolved_after_capture_still_permanent_and_retry_refuses_again", func(t *testing.T) {
+			shift := openShift()
+			id, _, number := saleIn(shift)
+			reviewKey := keyOf()
+			parked(t, cashierTok, reviewKey, map[string]any{"orderId": id, "orderNumber": number, "originalShiftId": shift})
+			item := closeAt(shift, time.Now().Add(dayAgo), 1250000)
+			wantRefusedForGood(t, sendItem(cashierTok, item), shift)
+			// Head office resolves the void after the count was taken: a re-sent close (same key) must not land.
+			exec(`UPDATE sync_review_items SET resolved_at=now(), resolved_by=$2, resolution_note='ok' WHERE idempotency_key=$1`, reviewKey, adminU)
+			wantRefusedForGood(t, sendItem(cashierTok, item), shift)
+			// A fresh count captured today lands (the cashier closes again after the resolution).
+			wantClosed(t, sendItem(cashierTok, closeAt(shift, time.Now(), 1250000)), shift)
+		})
+		t.Run("held_past_day_resolved_before_capture_closes", func(t *testing.T) {
+			shift := openShift()
+			id, _, number := saleIn(shift)
+			reviewKey := keyOf()
+			parked(t, cashierTok, reviewKey, map[string]any{"orderId": id, "orderNumber": number, "originalShiftId": shift})
+			exec(`UPDATE sync_review_items SET resolved_at=now()-interval '48 hours', resolved_by=$2, resolution_note='ok' WHERE idempotency_key=$1`, reviewKey, adminU)
+			wantClosed(t, sendItem(cashierTok, closeAt(shift, time.Now().Add(dayAgo), 1250000)), shift)
+		})
+		t.Run("held_past_day_never_blocked_closes_as_before", func(t *testing.T) {
+			shift := openShift()
+			saleIn(shift)
+			wantClosed(t, sendItem(cashierTok, closeAt(shift, time.Now().Add(dayAgo), 1250000)), shift)
+		})
 		t.Run("acked_later_does_not_block", func(t *testing.T) {
 			shift := openShift()
 			id, _, number := saleIn(shift)
