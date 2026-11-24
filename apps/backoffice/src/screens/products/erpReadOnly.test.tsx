@@ -152,6 +152,18 @@ describe('OutletFormModal for an ERP-linked outlet', () => {
   })
 })
 
+describe('OutletFormModal for an outlet pending setup', () => {
+  const hint = 'Outlet ini dibuat dari ERP. Periksa zona waktu, staf dan struk sebelum mengaktifkan.'
+  it('shows the setup hint only while setupPending is true', () => {
+    const pending = renderToStaticMarkup(<OutletFormModal editing={outlet({ setupPending: true })} onClose={noop} onDone={noop} />)
+    expect(pending).toContain(hint)
+    const done = renderToStaticMarkup(<OutletFormModal editing={outlet({ setupPending: false })} onClose={noop} onDone={noop} />)
+    expect(done).not.toContain(hint)
+    const adding = renderToStaticMarkup(<OutletFormModal editing={null} onClose={noop} onDone={noop} />)
+    expect(adding).not.toContain(hint)
+  })
+})
+
 describe('validateProductForm for ERP rows', () => {
   const zero: ProductVariant = { ...linkedVariant, price: 0 }
   it('lets an ERP-linked product without a category save', () => {

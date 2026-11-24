@@ -138,6 +138,7 @@ export function LocationsSection() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold text-ink-900 text-[15px]">{o.name}</span>
                     {!o.isActive && <Badge tone="neutral">Nonaktif</Badge>}
+                    {o.setupPending && <Badge tone="neutral">Dari ERP · belum diatur</Badge>}
                   </div>
                   {o.code && (
                     <span className="text-xs text-ink-700 font-mono">{o.code}</span>
