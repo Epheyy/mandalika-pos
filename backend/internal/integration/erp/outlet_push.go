@@ -137,7 +137,7 @@ func (s *Syncer) pushOutlets(ctx context.Context, ps outletPushStore, stopAt tim
 			break
 		}
 		if !s.now().Before(stopAt) {
-			return stop("push stopped: run budget")
+			return stop("outlet push stopped: run budget")
 		}
 		code := strings.ToUpper(c.Code)
 		if !ValidPOSOutletCode(code) {
@@ -145,10 +145,17 @@ func (s *Syncer) pushOutlets(ctx context.Context, ps outletPushStore, stopAt tim
 			continue
 		}
 		res.Attempted++
-		r, outcome, detail, err := s.Pusher.CreateOutlet(ctx, OutletCreate{
+		// The call ends at the earlier of stopAt and the client's own timeout. A cut-off call
+		// is not a failure: the Idempotency-Key makes the next run's retry safe.
+		pctx, cancel := context.WithTimeout(ctx, stopAt.Sub(s.now()))
+		r, outcome, detail, err := s.Pusher.CreateOutlet(pctx, OutletCreate{
 			ExternalID: c.ID, Code: code, Name: c.Name, Address: c.Address, Phone: c.Phone,
 		})
+		cancel()
 		if err != nil {
+			if ctx.Err() == nil { // only the call's own deadline fired, not the run's
+				return stop("outlet push stopped: run budget")
+			}
 			return stop("outlet push stopped: %v", err)
 		}
 		switch outcome {

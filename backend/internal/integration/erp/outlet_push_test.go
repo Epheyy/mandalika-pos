@@ -52,13 +52,18 @@ type pushAnswer struct {
 type fakeCreator struct {
 	calls   []OutletCreate
 	onCall  func()
+	block   bool                  // wait for the call's ctx to end, then report it
 	answers map[string]pushAnswer // by code; missing = created with slug = lower(code)
 }
 
-func (f *fakeCreator) CreateOutlet(_ context.Context, in OutletCreate) (OutletCreateResult, OutletCreateOutcome, string, error) {
+func (f *fakeCreator) CreateOutlet(ctx context.Context, in OutletCreate) (OutletCreateResult, OutletCreateOutcome, string, error) {
 	f.calls = append(f.calls, in)
 	if f.onCall != nil {
 		f.onCall()
+	}
+	if f.block {
+		<-ctx.Done()
+		return OutletCreateResult{}, OutletUnavailable, "", ctx.Err()
 	}
 	if a, ok := f.answers[in.Code]; ok {
 		return a.res, a.outcome, a.detail, a.err
@@ -217,7 +222,7 @@ func TestPushStopsWhenTheBudgetReserveIsReachedAndFinishedGoodsStillRun(t *testi
 	cr.onCall = func() { *h.clock = h.clock.Add(31 * time.Second) } // budget is 1 min, reserve 30 s
 	r := mustRun(t, h, ModeFull)
 	p := r.OutletPush
-	if p.Status != PushStopped || len(cr.calls) != 1 || len(ps.linked) != 1 || len(p.Notes) != 1 || p.Notes[0] != "push stopped: run budget" {
+	if p.Status != PushStopped || len(cr.calls) != 1 || len(ps.linked) != 1 || len(p.Notes) != 1 || p.Notes[0] != "outlet push stopped: run budget" {
 		t.Fatalf("push %+v calls %d", p, len(cr.calls))
 	}
 	if r.Status != StatusCompleted || len(r.Resources) != 2 || r.Resources[1].Status != StatusCompleted {
@@ -240,5 +245,30 @@ func TestPushSlugUniqueViolationIsNotedAndContinues(t *testing.T) {
 	p := mustRun(t, h, ModeFull).OutletPush
 	if p.Status != PushCompleted || len(cr.calls) != 2 || p.Linked != 1 || len(p.Notes) != 1 || !strings.Contains(p.Notes[0], "aaa") {
 		t.Fatalf("push %+v calls %d", p, len(cr.calls))
+	}
+}
+
+func TestPushCallIsCutOffAtTheReserveAndFinishedGoodsStillRun(t *testing.T) {
+	h, ps, cr := pushHarness(cand("AAA"), cand("BBB"))
+	h.syn.Budget = 100 * time.Millisecond // reserve 50 ms of real time for the call
+	cr.block = true
+	r := mustRun(t, h, ModeFull)
+	p := r.OutletPush
+	if p.Status != PushStopped || len(cr.calls) != 1 || len(ps.linked) != 0 || len(p.Notes) != 1 || p.Notes[0] != "outlet push stopped: run budget" {
+		t.Fatalf("push %+v calls %d", p, len(cr.calls))
+	}
+	if r.Status != StatusCompleted || len(r.Resources) != 2 || r.Resources[1].Status != StatusCompleted {
+		t.Fatalf("finished goods did not complete: %+v", r)
+	}
+}
+
+func TestPushParentCancellationIsNotABudgetStop(t *testing.T) {
+	cr := &fakeCreator{block: true}
+	s := &Syncer{Pusher: cr}
+	ctx, cancel := context.WithCancel(context.Background())
+	cr.onCall = cancel
+	p := s.pushOutlets(ctx, &fakePushStore{cands: []pushCandidate{cand("AAA")}}, time.Now().Add(time.Minute))
+	if p.Status != PushStopped || len(p.Notes) != 1 || strings.Contains(p.Notes[0], "run budget") {
+		t.Fatalf("push %+v", p)
 	}
 }
