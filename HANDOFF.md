@@ -8,6 +8,16 @@ Last updated: 2026-11-24 by Claude (Opus 5.5) - live checks on the BSD tablet do
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-24: **A10 / A23 / A20 / A21 / A22 PROMO + POINTS SLICE: PR open, not merged** (branch `claude/a10-a23-promos-0ed554`, plan `docs/plans/2026-11-24-a10-a23-promos-plan.md`, migrations **0099** `promotion_versions` + **0100** `points_debt`; 0098 is #166). Opus plan + review ("ship with fixes", fixes done), Sonnet implementer.
+> - **A10 version stamp:** `promotions.version` / `discount_codes.version` bump on rule edits only; POS stamps `promotionId` / `promotionVersion` / `codeVersion` into `discountBreakdown` (optional, server never rejects on them).
+> - **A22 rule (a) / A10 points parity:** one shared `RedeemPoints` (Go) / `redeemPoints` (TS) with shared golden vectors; points cover the bill → `ceil(bill/rate)` (eps 1e-9), bill Rp0. Server amounts now rounded like the POS (behaviour change on fractional rates and the cap).
+> - **Refund points order (behaviour change):** restore redeemed points first, then claw the earn from balance+restored.
+> - **A20 points debt:** a refund claw shortfall becomes `customers.points_debt` (no double claw), paid first from future earn; a void reinstates debt its sale had settled (`orders.points_debt_settled`); merge carries it; every debt move is a `point_transactions` row (`debt_delta`). Void's own shortfall write-off (`points_forgiven`) unchanged.
+> - **A21:** POS points box disabled offline ("Butuh internet"); an offline sale never carries redeemed points. Server spend check deferred.
+> - **A23:** PL gate gains linked-vs-direct fixed / unscoped % / separate-set BXGY / bundle; POS mirror test. bundle_discount not covered.
+> - **Stacked-promo naming: closed** (POS receipt, history, Backoffice itemise `discountBreakdown`; printed totals block prints every row and "Tukar poin").
+> - **Release:** backend first, then POS OTA right after. Keep loyalty OFF until the fleet runs the new OTA (old OTA floors points → the new server sees a Rp50-style shortfall on a cap). A18 cross-outlet returns waits for this merge (`refund.go`).
+
 > 2026-11-24: **LIVE CHECKS DONE on the BSD test tablet** (R9RY4009WBJ, APK 2.3 + OTA 2.21.0, printer RPPO2N 58mm, "Cetak logo & QR" ON; Backoffice signed in by the owner; backend `relay1124`, ERP relay ON). Driven over adb taps + screenshots; owner watched the printer.
 > - Backoffice signed-in walkthroughs: Pengaturan > Struk ("Standar" template on all 27 outlets, Logo + QR 31 chars) and Laporan > Bundle load with no console errors.
 > - Tes Cetak: printed (BT connect 3.4 s, job 3.8 s). Backoffice "Cetak tes di tablet" relay: the draft is NOT pushed; the NEXT Tes Cetak on that outlet prints it ("Tes cetak desain dari Backoffice terkirim", 3.8 s).
