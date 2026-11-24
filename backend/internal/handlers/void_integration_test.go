@@ -2652,7 +2652,9 @@ func TestVoidPostgres(t *testing.T) {
 
 	// ── Void policy 2026-11-24, item 4: void_own_shift covers only the caller's OWN sales ──
 	t.Run("void_own_shift_only_own_sales", func(t *testing.T) {
-		authorityOf := func(orderID string) string { return str(`SELECT authority FROM order_voids WHERE order_id=$1`, orderID) }
+		authorityOf := func(orderID string) string {
+			return str(`SELECT authority FROM order_voids WHERE order_id=$1`, orderID)
+		}
 		colleagues := func(shift string) string {
 			id := sale(saleOpts{shift: shift}, product(5))
 			exec(`UPDATE orders SET cashier_id=$2, cashier_name='VD Admin' WHERE id=$1`, id, adminU)
