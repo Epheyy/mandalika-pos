@@ -69,6 +69,11 @@ type OpenShiftInput struct {
 	// StartingCashWarning flags a shift accepted with a negative opening cash (sync route only;
 	// the direct route refuses negatives before this point). The amount is stored as sent.
 	StartingCashWarning bool
+	// Authorize, when set, runs once the cashier's user row is share-locked. An admin's
+	// coverage change, home move or delete holds that row and commits before the lock is
+	// granted, so a check here reads the cashier's current outlets, not the ones the caller
+	// loaded at request start. A non-nil error refuses the open.
+	Authorize func(ctx context.Context, tx pgx.Tx) error
 }
 
 // OpenShift creates an open shift; rejects a second concurrent open shift for
@@ -107,6 +112,11 @@ func (s *OrderService) OpenShiftTx(ctx context.Context, tx pgx.Tx, in OpenShiftI
 	var one int
 	if err := tx.QueryRow(ctx, `SELECT 1 FROM users WHERE id=$1 FOR SHARE`, in.CashierID).Scan(&one); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return "", err
+	}
+	if in.Authorize != nil {
+		if err := in.Authorize(ctx, tx); err != nil {
+			return "", err
+		}
 	}
 	var n int
 	if err := tx.QueryRow(ctx,

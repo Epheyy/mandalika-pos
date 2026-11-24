@@ -5,6 +5,7 @@ package coverage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -98,4 +99,24 @@ func Load(ctx context.Context, q Querier, userID string) (role, home string, cov
 		home = *homeP
 	}
 	return role, home, Of(role, home, extras, all), nil
+}
+
+// Guard is a shift-open check (service.OpenShiftInput.Authorize): it re-reads the user's
+// coverage inside tx and returns refusal when the user no longer covers outletID or no longer
+// exists. Run it while holding the user row lock, so an admin's coverage change, home move or
+// delete is either already committed and seen, or waits for this transaction.
+func Guard(userID, outletID string, refusal error) func(context.Context, pgx.Tx) error {
+	return func(ctx context.Context, tx pgx.Tx) error {
+		_, _, cov, err := Load(ctx, tx, userID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return refusal
+		}
+		if err != nil {
+			return err
+		}
+		if !cov.Covers(outletID) {
+			return refusal
+		}
+		return nil
+	}
 }
