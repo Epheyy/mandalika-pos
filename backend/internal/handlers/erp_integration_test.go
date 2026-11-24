@@ -1070,6 +1070,7 @@ func TestErpIntegrationPostgres(t *testing.T) {
 	})
 
 	erV3Subtests(t, ctx, pool)
+	erPushSubtests(t, ctx, pool)
 
 	t.Run("pull-creates-retail-and-popup-off", func(t *testing.T) {
 		e := newErEnv(t, ctx, pool, 0)

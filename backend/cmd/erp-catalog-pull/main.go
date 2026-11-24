@@ -103,6 +103,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	defer database.Close()
 
 	syncer := &erp.Syncer{Pool: database.Pool, Source: client, Budget: opts.Budget, ProductBrand: strings.ToUpper(config.LoadERPRelay(cfg).Brand), Logger: slog.New(slog.NewTextHandler(stderr, nil))}
+	if cfg.ERPIntegrationEnabled && cfg.ERPOutletPushEnabled {
+		syncer.Pusher = erp.NewOutletCreateClient(cfg.ERPBaseURL, cfg.ERPAPIKey, 0)
+	}
 	rep, err := syncer.Run(ctx, opts.Mode)
 	// Any run may have committed pages (failed and errored runs included).
 	_, redisSet := os.LookupEnv("REDIS_URL")

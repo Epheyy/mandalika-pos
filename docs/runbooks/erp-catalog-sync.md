@@ -101,6 +101,22 @@ gcloud run services update mandalika-pos --region asia-southeast2 --project mand
   --update-env-vars ERP_INTEGRATION_ENABLED=true,ERP_BASE_URL=https://<erp-host>/api/integration/v1
 ```
 
+### Outlet push (POS to ERP), off by default
+
+With `ERP_OUTLET_PUSH_ENABLED=true` (and `ERP_INTEGRATION_ENABLED=true`) every pull, after the outlets
+resource completes and before finished goods, creates the POS outlets that are active, unlinked and have a
+valid code in the ERP: `POST {ERP_BASE_URL}/outlets`, type `RETAIL`, `Idempotency-Key` = external_id = the
+outlet UUID, at most 10 per run, oldest first. The created ERP outlet is linked (`erp_slug`, `erp_code`) and
+the `outlets` content version is bumped. The pull runs first, so an ERP outlet with the same code is linked,
+not created again. A 404/405 (endpoint not there yet), a 5xx or a timeout stops the step for this run; a
+rejected or code-taken outlet is noted and skipped. Results appear in the run log (`erp outlet push`) and as
+`outletPush` in the pull report (CLI JSON output only; the HTTP trigger body is unchanged); there is no run row or watermark. An invalid
+non-empty value of the variable fails config validation at boot, like `ERP_INTEGRATION_ENABLED`.
+
+Before turning it on: the ERP key needs the scope `integration:outlet:write`, the ERP must serve the outlet
+create endpoint, and the owner must approve (it writes to the ERP). Never test it against the production
+ERP by hand; use the stub or staging. Turn it off again with `ERP_OUTLET_PUSH_ENABLED=false` (new revision).
+
 First full run: use the CLI from a trusted machine, from `backend/`, with a long budget (an HTTP-triggered
 run is capped at 20 s). The CLI never runs migrations. Inject the Neon DSN from Secret Manager explicitly:
 `config.Load` also reads `backend/.env`, which points at the LOCAL database.

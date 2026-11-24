@@ -229,6 +229,7 @@ func TestValidateERP(t *testing.T) {
 		{"enabled unparseable url", "development", func(c *Config) { enable(c); c.ERPBaseURL = "http://[::1" }, "absolute"},
 		{"prod requires https", "production", func(c *Config) { enable(c); c.ERPBaseURL = "http://erp.example.com/api/integration/v1" }, "https"},
 		{"bad enabled flag", "development", func(c *Config) { c.erpEnabledBad = true }, "ERP_INTEGRATION_ENABLED"},
+		{"bad push flag", "development", func(c *Config) { c.erpOutletPushBad = true }, "ERP_OUTLET_PUSH_ENABLED"},
 		{"prod short scheduler token", "production", func(c *Config) { c.ERPSchedulerToken = "short" }, "ERP_SCHEDULER_TOKEN"},
 		{"prod long scheduler token", "production", func(c *Config) { c.ERPSchedulerToken = strings.Repeat("t", 32) }, ""},
 		{"prod unset scheduler token", "production", func(c *Config) { c.ERPSchedulerToken = "" }, ""},
