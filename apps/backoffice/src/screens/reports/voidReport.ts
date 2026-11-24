@@ -19,6 +19,12 @@ export function voidStateLabel(r: Pick<VoidReportRow, 'state'>): string {
   }
 }
 
+/** A replacement that was itself voided no longer counts as money corrected (the server leaves it out of
+ *  totals.replacementTotal and sets replacementStanding false on the row). */
+export function replacementVoided(r: Pick<VoidReportRow, 'replacementOrderNumber' | 'replacementStanding'>): boolean {
+  return !!r.replacementOrderNumber && r.replacementStanding === false
+}
+
 /** "cash 100.000 + qris 50.000": the raw method ids, as the CSV and the audit trail name them. */
 export function tendersText(tenders: readonly Tender[] | undefined): string {
   return (tenders ?? []).map((t) => `${t.method} ${amountText(t.amount)}`).join(' + ')
@@ -26,7 +32,7 @@ export function tendersText(tenders: readonly Tender[] | undefined): string {
 
 export const VOID_CSV_HEADERS = [
   'No. asli', 'Tanggal', 'Outlet', 'Kasir penjual', 'Alasan', 'Catatan', 'Dibatalkan oleh', 'Perangkat', 'Sumber', 'Waktu batal',
-  'Setelah tutup', 'Total asli', 'Metode asli', 'No. pengganti', 'Total pengganti', 'Metode pengganti', 'Penyesuaian koreksi',
+  'Setelah tutup', 'Total asli', 'Metode asli', 'No. pengganti', 'Total pengganti', 'Pengganti berlaku', 'Metode pengganti', 'Penyesuaian koreksi',
   'Barang terhitung opname', 'Status',
 ] as const
 
@@ -48,6 +54,7 @@ export function voidCsvRow(r: VoidReportRow): string[] {
     tendersText(r.originalTenders),
     r.replacementOrderNumber ?? '',
     r.replacementTotal != null ? String(r.replacementTotal) : '',
+    r.replacementOrderNumber ? (replacementVoided(r) ? 'tidak (dibatalkan)' : 'ya') : '',
     tendersText(r.replacementTenders),
     r.correctionAmount != null ? String(r.correctionAmount) : '',
     String(r.countedLines),

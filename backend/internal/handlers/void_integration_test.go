@@ -2585,16 +2585,23 @@ func TestVoidPostgres(t *testing.T) {
 		if tot["voids"].(float64) != 4 || tot["originalTotal"].(float64) != 600000 || tot["replacementTotal"].(float64) != 300000 || tot["correctionTotal"].(float64) != 0 {
 			t.Fatalf("totals = %v", tot)
 		}
-		// A replacement that is later voided still counts in replacementTotal (= the rows' sum); it is its own void row.
+		if r["replacementStanding"] != true || rows[later]["replacementStanding"] != false {
+			t.Fatalf("replacementStanding: replaced row = %v, later row = %v, want true / false", r["replacementStanding"], rows[later]["replacementStanding"])
+		}
+		// A replacement that is later voided no longer counts in replacementTotal (void policy 2026-11-24: only the
+		// replacements still standing are "money corrected"); it is its own void row.
 		in2 := bo(res.ReplacementOrderID)
 		in2.UserID, in2.UserName, in2.ClientVoidUUID = voider, "VD Voider", newID("4")
 		if _, err := svc.VoidOrder(ctx, in2); err != nil {
 			t.Fatal(err)
 		}
-		out, _ = reportRows("cashierId=" + voider + "&limit=200")
+		out, rows = reportRows("cashierId=" + voider + "&limit=200")
 		tot = out["totals"].(map[string]any)
-		if tot["voids"].(float64) != 5 || tot["replacementTotal"].(float64) != 300000 || tot["correctionTotal"].(float64) != 0 {
-			t.Fatalf("totals after voiding the replacement = %v, want replacementTotal to still equal the rows' sum (300000)", tot)
+		if tot["voids"].(float64) != 5 || tot["replacementTotal"].(float64) != 0 || tot["correctionTotal"].(float64) != 0 {
+			t.Fatalf("totals after voiding the replacement = %v, want replacementTotal 0 (nothing stands any more)", tot)
+		}
+		if rows[replaced]["replacementStanding"] != false || rows[replaced]["replacementTotal"].(float64) != 300000 {
+			t.Fatalf("the voided replacement's row = %v, want it shown (replacementTotal 300000) but not standing", rows[replaced])
 		}
 		// afterClose filter: everything above was voided while the shift was open.
 		if _, closed := reportRows("cashierId=" + voider + "&afterClose=true"); len(closed) != 0 {
@@ -2602,6 +2609,43 @@ func TestVoidPostgres(t *testing.T) {
 		}
 		if _, open := reportRows("cashierId=" + voider + "&afterClose=false&limit=200"); len(open) != 5 {
 			t.Fatalf("afterClose=false listed %d rows, want 5", len(open))
+		}
+	})
+
+	t.Run("void_report_replacement_standing_chain", func(t *testing.T) {
+		shift := openShift()
+		voider := newID("6")
+		a := sale(saleOpts{shift: shift}, product(5))
+		inA := bo(a)
+		inA.UserID, inA.UserName, inA.Mode, inA.ClientVoidUUID = voider, "VD Voider", service.VoidModeReplace, newID("4")
+		resA, err := svc.VoidAndReplaceDirect(ctx, inA, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		inB := bo(resA.ReplacementOrderID)
+		inB.UserID, inB.UserName, inB.Mode, inB.ClientVoidUUID = voider, "VD Voider", service.VoidModeReplace, newID("4")
+		resB, err := svc.VoidAndReplaceDirect(ctx, inB, service.ReplacementOverride{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, rows := reportRows("cashierId=" + voider + "&limit=200")
+		tot := out["totals"].(map[string]any)
+		// A (100000) voided with replacement B, B voided with replacement C: only C stands.
+		if tot["voids"].(float64) != 2 || tot["originalTotal"].(float64) != 200000 || tot["replacementTotal"].(float64) != 100000 {
+			t.Fatalf("totals = %v, want 2 voids, originalTotal 200000, replacementTotal 100000 (C only)", tot)
+		}
+		if rows[a]["replacementStanding"] != false || rows[resA.ReplacementOrderID]["replacementStanding"] != true ||
+			rows[resA.ReplacementOrderID]["replacementOrderId"] != resB.ReplacementOrderID {
+			t.Fatalf("rows: A = %v, B = %v, want A not standing, B's replacement C standing", rows[a], rows[resA.ReplacementOrderID])
+		}
+		sum := 0.0
+		for _, r := range rows {
+			if r["replacementStanding"] == true {
+				sum += r["replacementTotal"].(float64)
+			}
+		}
+		if sum != tot["replacementTotal"].(float64) {
+			t.Fatalf("sum of the standing rows = %v, totals.replacementTotal = %v", sum, tot["replacementTotal"])
 		}
 	})
 

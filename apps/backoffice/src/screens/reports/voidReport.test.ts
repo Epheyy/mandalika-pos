@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { VoidReportRow } from '@mandalika/api'
-import { VOID_CSV_HEADERS, reasonCards, tendersText, voidCsvRecords, voidCsvRow, voidStateLabel } from './voidReport'
+import { VOID_CSV_HEADERS, reasonCards, replacementVoided, tendersText, voidCsvRecords, voidCsvRow, voidStateLabel } from './voidReport'
 
 const row = (over: Partial<VoidReportRow> = {}): VoidReportRow => ({
   orderId: 'o1', orderNumber: 'ORD-1', kind: 'void', state: 'replaced', businessDate: '2026-11-10', outletName: 'BSD', soldByName: 'Sari',
@@ -35,6 +35,18 @@ describe('voidCsvRow', () => {
     expect(r[VOID_CSV_HEADERS.indexOf('Total pengganti')]).toBe('')
     expect(r[VOID_CSV_HEADERS.indexOf('Metode pengganti')]).toBe('')
     expect(voidCsvRow(row({ kind: 'legacy_import', state: 'legacy', reasonCode: undefined, voidedAt: undefined }))[VOID_CSV_HEADERS.indexOf('Alasan')]).toBe('')
+  })
+  it('says whether the replacement still stands (a voided one is not money corrected any more)', () => {
+    const col = VOID_CSV_HEADERS.indexOf('Pengganti berlaku')
+    expect(voidCsvRow(row({ replacementStanding: true }))[col]).toBe('ya')
+    expect(voidCsvRow(row({ replacementStanding: false }))[col]).toBe('tidak (dibatalkan)')
+    expect(voidCsvRow(row({ replacementOrderNumber: undefined, replacementStanding: false }))[col]).toBe('')
+  })
+  it('replacementVoided only flags a replacement that exists and is not standing', () => {
+    expect(replacementVoided(row({ replacementStanding: false }))).toBe(true)
+    expect(replacementVoided(row({ replacementStanding: true }))).toBe(false)
+    expect(replacementVoided(row({ replacementStanding: undefined }))).toBe(false)
+    expect(replacementVoided(row({ replacementOrderNumber: undefined, replacementStanding: false }))).toBe(false)
   })
   it('records are keyed by header', () => {
     expect(Object.keys(voidCsvRecords([row()])[0]!)).toEqual([...VOID_CSV_HEADERS])

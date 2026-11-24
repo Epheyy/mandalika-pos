@@ -1883,6 +1883,7 @@ components:
         replacementOrderId: { type: string, format: uuid }
         replacementOrderNumber: { type: string }
         replacementTotal: { type: number, format: double }
+        replacementStanding: { type: boolean, description: "True when the row's replacement exists and is not cancelled (it counts in totals.replacementTotal). False when there is no replacement or the replacement was itself voided." }
         replacementTenders: { type: array, items: { $ref: '#/components/schemas/VoidReportTender' } }
         correctionAmount: { type: number, format: double, description: "Penyesuaian koreksi on the replacement (original total minus what the replacement priced to)." }
         countedLines: { type: integer, description: "Lines a stock count had already covered when the sale was voided." }
@@ -1896,7 +1897,7 @@ components:
     VoidReportTotals:
       type: object
       required: [voids, originalTotal, replacementTotal, correctionTotal]
-      description: "Over the whole filtered range (not the page). Legacy imports are excluded. replacementTotal is the sum of every row's replacementTotal (a replacement that was itself voided still counts, and appears as its own void row). correctionTotal counts live replacements only (a voided replacement's correction was reversed with it)."
+      description: "Over the whole filtered range (not the page). Legacy imports are excluded. replacementTotal counts only the replacements still standing (status not cancelled): it is the sum of the rows' replacementTotal where replacementStanding is true. A replacement that was itself voided no longer counts (its money is out again) and appears as its own void row. correctionTotal counts the same live replacements (a voided replacement's correction was reversed with it). originalTotal counts every voided sale."
       properties:
         voids: { type: integer }
         originalTotal: { type: number, format: double }
