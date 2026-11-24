@@ -967,6 +967,11 @@ export class SyncEngine {
       capturedAt,
     }
     if (a.shiftId) env.shiftId = a.shiftId
+    else {
+      // Shift-less capture: name the still-queued shift_open so the server attaches this item to it.
+      const openKey = this.pendingShiftOpenKey(a.outletId)
+      if (openKey) env.shiftOpenKey = openKey
+    }
     if (a.appVersion) env.appVersion = a.appVersion
     // A05 evidence for the server's offline cap; omitted until a contact is known.
     const ev = this.contacts.evidence(this.newestCaptureMs())
@@ -976,6 +981,17 @@ export class SyncEngine {
       if (ev.contact) env.contact = ev.contact
     }
     return env
+  }
+
+  /** Idempotency key of the newest not-acked shift_open at this outlet that no later pending
+   *  shift_close closes: exactly the pending shift the header overlays. Undefined when none. */
+  private pendingShiftOpenKey(outletId: string): string | undefined {
+    const ops = this.outbox
+      .all()
+      .filter((i) => (i.type === 'shift_open' || i.type === 'shift_close') && i.status !== 'acked' && i.envelope?.outletId === outletId)
+      .sort((a, b) => a.seq - b.seq)
+    const last = ops[ops.length - 1]
+    return last?.type === 'shift_open' ? last.idempotencyKey : undefined
   }
 
   /** A successful online contact (A05). It also resets the newest-capture high water: only items

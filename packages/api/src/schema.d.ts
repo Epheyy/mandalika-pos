@@ -5926,6 +5926,8 @@ export interface components {
              * @description Device-measured time offline (ms) at capture.
              */
             offlineMs?: number;
+            /** @description Idempotency key of the tablet's still-queued shift_open, stamped only when shiftId is absent, so the server can attach the item to that shift once it opens. */
+            shiftOpenKey?: string;
         };
         SyncReviewReport: {
             idempotencyKey: string;

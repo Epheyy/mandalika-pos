@@ -224,3 +224,45 @@ describe('summarizeQueue / foreign parked items (A04 H1)', () => {
     expect(engine.reviewItems()).toHaveLength(1)
   })
 })
+
+describe('shift-less capture links the pending shift_open (shiftOpenKey)', () => {
+  const offline = () => vi.fn().mockRejectedValue(new TypeError('offline'))
+  const noShift = () => ({ outletId: 'outlet-a', userId: 'user-a', shiftId: null })
+
+  it('stamps the key of the pending shift_open on later items without a shift id', async () => {
+    const { engine } = make(offline(), noShift)
+    const { idempotencyKey: openKey } = await engine.enqueue('shift_open', { startingCash: 0 })
+    await engine.enqueue('order', { total: 1 })
+    await engine.enqueue('cash_flow', { type: 'in', amount: 1 })
+    const [open, order, flow] = engine.outbox.all()
+    expect(open.envelope!.shiftOpenKey).toBeUndefined()
+    expect(order.envelope!.shiftOpenKey).toBe(openKey)
+    expect(flow.envelope!.shiftOpenKey).toBe(openKey)
+  })
+
+  it('never stamps it when the shift id is known', async () => {
+    const { engine } = make(offline(), () => actorA)
+    await engine.enqueue('shift_open', { startingCash: 0 })
+    await engine.enqueue('order', { total: 1 })
+    expect(engine.outbox.all()[1].envelope!.shiftOpenKey).toBeUndefined()
+  })
+
+  it('does not stamp it without a pending open, for another outlet, or after a pending close', async () => {
+    const { engine } = make(offline(), noShift)
+    await engine.enqueue('order', { total: 1 })
+    expect(engine.outbox.all()[0].envelope!.shiftOpenKey).toBeUndefined()
+
+    let outlet = 'outlet-b'
+    const other = make(offline(), () => ({ outletId: outlet, userId: 'user-a', shiftId: null }))
+    await other.engine.enqueue('shift_open', { startingCash: 0 })
+    outlet = 'outlet-a'
+    await other.engine.enqueue('order', { total: 1 })
+    expect(other.engine.outbox.all()[1].envelope!.shiftOpenKey).toBeUndefined()
+
+    const closed = make(offline(), noShift)
+    await closed.engine.enqueue('shift_open', { startingCash: 0 })
+    await closed.engine.enqueue('shift_close', { shiftId: 's', closingCash: 0 })
+    await closed.engine.enqueue('order', { total: 1 })
+    expect(closed.engine.outbox.all()[2].envelope!.shiftOpenKey).toBeUndefined()
+  })
+})
