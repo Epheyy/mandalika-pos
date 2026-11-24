@@ -21,12 +21,12 @@ Rules from the sandbox pull against the production ERP: `docs/integration/2026-1
 | FG `gender` | category of a NEW fragrance product only: majority gender of the page's group → MAN / WOMAN / UNISEX, matched to an existing POS category (never created; none → no category) |
 | FG `size` + `unit` | size part of the label, set ONCE at creation. `unit` is the ERP stock unit (Pcs): 110 + Pcs = `110ml` |
 | FG `status` DISCONTINUE, or `deleted_at` | variant `is_active = false` (never deleted) |
-| outlet `slug` / `code` | link only: `outlets.erp_slug` / `erp_code` of the one unlinked POS outlet whose code equals the ERP code or slug. Never creates an outlet; never links `type = ONLINE`; unlinked ERP outlets are a run note |
-| outlet name / address / phone | **never written** (POS-owned) |
+| outlet `slug` / `code` | links `outlets.erp_slug` / `erp_code` of the one unlinked POS outlet whose code equals the ERP code or slug. With no such outlet, a RETAIL or POPUP ERP outlet is CREATED: `is_active = false`, `setup_pending = true`, code = upper-cased ERP code (rule `^[A-Z0-9][A-Z0-9-]{0,18}[A-Z0-9]$`), default timezone, plus a `content_versions` row. An invalid code, or a code another outlet already holds, is a run note (not created). `type = ONLINE` is never linked or created (run note). The pull never switches an outlet on; an admin finishes the setup and activates it |
+| outlet name / address / phone | copied ONCE when the pull creates the outlet; **never written** on an existing outlet (POS-owned) |
 | outlet `deleted_at` | outlet `is_active = false` |
 
 Never touched by the pull on an existing row: product name, category, brand, sellable, images; variant
-size, price, barcode, images; outlet name, address, phone, code; bundles, recipes, loyalty, stock. The POS
+size, price, barcode, images; outlet name, address, phone, code (set only when the pull creates the outlet); bundles, recipes, loyalty, stock. The POS
 owns these and they are editable in the backoffice even on linked rows (only a linked variant's size and SKU,
 removing a linked variant and deleting a linked product stay locked). What the ERP says about each size is
 kept on the variant (`erp_name`, `erp_category`) as the drift record.
