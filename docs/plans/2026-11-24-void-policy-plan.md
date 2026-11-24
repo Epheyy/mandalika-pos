@@ -105,3 +105,22 @@ seed seller ≠ voider and expect VoidOwnShift: update on purpose and list them.
 ## Gates before push
 
 Full PostgreSQL gate (`python scripts/ci/postgres_gate.py`), `go test ./...`, `corepack pnpm quality:ci`.
+
+## 1b. Held close after the business day changes (owner 2026-11-24: "(b) Review item")
+
+A `shift_close` held by another device's parked void waits (retryable Busy) only within the business day (outlet
+zone, Asia/Jakarta) it was captured in. On the sync path, when the close's capture business date (envelope
+`capturedAt`) is before today's business date AND the shift has a parked-void review row for it (same membership
+as `voidreview.PendingSQL`, the `operation_receipts` exclusion kept) that was unresolved at capture time or
+resolved after it (`resolved_at IS NULL OR resolved_at > captured_at`), the server refuses it PERMANENTLY
+(non-retryable). Shift stays open, no snapshot is written. The tablet parks it and reports it to Tinjauan Sinkron.
+The second condition means a "Coba lagi" after head office resolves the void still cannot land a close whose totals
+would include sales after the count. Before the day changes, behaviour is unchanged. Normal late offline closes
+(never blocked) are untouched. The HTTP close path (online, no capture time) keeps the 409.
+
+Copy (Indonesian, through safeDomainText): which shift (opened date/time), the counted cash, why it was held, and
+what head office does next (verified against the real close path for a still-open shift).
+
+Gate subtests: captured today + blocked → retryable Busy; captured yesterday + still blocked → permanent
+refusal, shift open; captured yesterday + void resolved after capture → still permanent refusal; captured
+yesterday + never blocked → closes as before.
