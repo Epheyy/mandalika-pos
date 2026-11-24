@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/mandalika/pos-backend/internal/auth"
+	"github.com/mandalika/pos-backend/internal/coverage"
 	"github.com/mandalika/pos-backend/internal/httpx"
 	"github.com/mandalika/pos-backend/internal/write"
 )
@@ -15,6 +16,7 @@ type callerID struct {
 	outletID, userID, name string
 	// role and homeOutletID are read from the users row, never from the request (A04).
 	role, homeOutletID string
+	coverage           coverage.Coverage
 }
 
 func (h *Handlers) caller(r *http.Request) (callerID, error) {
@@ -23,7 +25,7 @@ func (h *Handlers) caller(r *http.Request) (callerID, error) {
 	c := callerID{outletID: outlet, userID: uid}
 	if u, err := h.Store.ByID(r.Context(), uid); err == nil {
 		c.name = u.DisplayName
-		c.role, c.homeOutletID = u.Role, u.OutletID
+		c.role, c.homeOutletID, c.coverage = u.Role, u.OutletID, u.Coverage()
 		if c.outletID == "" {
 			c.outletID = u.OutletID
 		}

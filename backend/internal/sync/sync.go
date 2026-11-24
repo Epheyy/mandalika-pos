@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mandalika/pos-backend/internal/apperr"
+	"github.com/mandalika/pos-backend/internal/coverage"
 	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/service"
 	"github.com/mandalika/pos-backend/internal/write"
@@ -563,8 +564,8 @@ func approverAllowed(role string, approverRoles []string) bool {
 }
 
 // receiveScope: see write.ReceiveScope (shared with the in-transaction re-check).
-func receiveScope(callerOutlet, destOutlet, approverRole, approverOutlet string) string {
-	return write.ReceiveScope(callerOutlet, destOutlet, approverRole, approverOutlet)
+func receiveScope(callerOutlet, destOutlet, approverRole string, approver coverage.Coverage) string {
+	return write.ReceiveScope(callerOutlet, destOutlet, approverRole, approver)
 }
 
 type transferReceivePayload struct {

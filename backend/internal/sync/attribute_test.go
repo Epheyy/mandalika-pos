@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/mandalika/pos-backend/internal/apperr"
+	"github.com/mandalika/pos-backend/internal/coverage"
 	"github.com/mandalika/pos-backend/internal/service"
 )
 
@@ -54,7 +55,7 @@ func env(mut func(*Envelope)) json.RawMessage {
 }
 
 func cashier() Caller {
-	return Caller{OutletID: "header-outlet", UserID: "u1", Role: "cashier", HomeOutletID: "X"}
+	return Caller{OutletID: "header-outlet", UserID: "u1", Role: "cashier", HomeOutletID: "X", Coverage: coverage.Coverage{OutletIDs: []string{"X"}}}
 }
 
 func code(t *testing.T, err error) (apperr.Code, bool) {
@@ -101,7 +102,9 @@ func TestAttributeEnvelopeRules(t *testing.T) {
 		"open": shiftOpen, "closed": shiftClosed, "other": shiftOtherOutlet,
 	}}
 	e := &Engine{Lookup: lk}
-	admin := Caller{OutletID: "header-outlet", UserID: "u1", Role: "admin"}
+	admin := Caller{OutletID: "header-outlet", UserID: "u1", Role: "admin", Coverage: coverage.Coverage{All: true}}
+	manager := Caller{UserID: "u1", Role: "manager", HomeOutletID: "X", Coverage: coverage.Coverage{OutletIDs: []string{"X", "Y"}}}
+	managerAll := Caller{UserID: "u1", Role: "manager", Coverage: coverage.Coverage{All: true}}
 	for _, tc := range []struct {
 		name     string
 		c        Caller
@@ -111,11 +114,16 @@ func TestAttributeEnvelopeRules(t *testing.T) {
 		wantOut  string
 	}{
 		{"cashier ok", cashier(), "dev:1", env(nil), "", "X"},
-		{"cashier home compare ignores case", Caller{UserID: "u1", Role: "cashier", HomeOutletID: "x"}, "dev:1", env(nil), "", "X"},
+		{"cashier home compare ignores case", Caller{UserID: "u1", Role: "cashier", HomeOutletID: "x", Coverage: coverage.Coverage{OutletIDs: []string{"x"}}}, "dev:1", env(nil), "", "X"},
 		{"cashier other outlet", cashier(), "dev:1", env(func(e *Envelope) { e.OutletID = "Y" }), apperr.ActorMismatch, ""},
 		{"cashier without stored outlet", Caller{UserID: "u1", Role: "cashier"}, "dev:1", env(nil), apperr.ActorMismatch, ""},
 		{"admin any existing outlet", admin, "dev:1", env(func(e *Envelope) { e.OutletID = "Y" }), "", "Y"},
 		{"admin unknown outlet", admin, "dev:1", env(func(e *Envelope) { e.OutletID = "nope" }), apperr.ActorMismatch, ""},
+		{"manager covering a home outlet", manager, "dev:1", env(nil), "", "X"},
+		{"manager covering an extra outlet", manager, "dev:1", env(func(e *Envelope) { e.OutletID = "Y" }), "", "Y"},
+		{"manager uncovered outlet", manager, "dev:1", env(func(e *Envelope) { e.OutletID = "Z" }), apperr.ActorMismatch, ""},
+		{"all-outlets manager any existing outlet", managerAll, "dev:1", env(func(e *Envelope) { e.OutletID = "Y" }), "", "Y"},
+		{"all-outlets manager unknown outlet", managerAll, "dev:1", env(func(e *Envelope) { e.OutletID = "nope" }), apperr.ActorMismatch, ""},
 		{"other user", cashier(), "dev:1", env(func(e *Envelope) { e.UserID = "u2" }), apperr.ActorMismatch, ""},
 		{"device prefix", cashier(), "other:1", env(nil), apperr.ActorMismatch, ""},
 		{"device prefix needs the colon", cashier(), "devx:1", env(nil), apperr.ActorMismatch, ""},
@@ -256,7 +264,7 @@ func TestAppliedProbesRejectAFingerprintMismatch(t *testing.T) {
 	mism := func(p json.RawMessage) ItemResult {
 		it := BatchItem{Type: "refund", IdempotencyKey: "dev:k", Payload: p,
 			Envelope: env(func(e *Envelope) { e.UserID = "someone-else" })}
-		return e.processOneWithRefund(context.Background(), Caller{OutletID: "X", UserID: "u1", Role: "cashier", HomeOutletID: "X", CanRefund: true}, it, refund)
+		return e.processOneWithRefund(context.Background(), Caller{OutletID: "X", UserID: "u1", Role: "cashier", HomeOutletID: "X", Coverage: coverage.Coverage{OutletIDs: []string{"X"}}, CanRefund: true}, it, refund)
 	}
 	if r := mism(payloadA); r.Status == "error" || r.OrderID != "order-A" || refunds != 0 {
 		t.Fatalf("mismatch + same payload must replay: %+v", r)

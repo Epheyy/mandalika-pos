@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/mandalika/pos-backend/internal/apperr"
+	"github.com/mandalika/pos-backend/internal/coverage"
 )
 
 // Inventory controls S3: approval of manual stock adjustments and stock counts.
@@ -80,16 +81,25 @@ func reasonSentence(code, text string) string {
 
 // ApproverCovers is the scope rule: the user may approve a document of docOutlet ("" = a
 // warehouse document). Admins always; otherwise the role must be an approver role, and an outlet
-// document additionally needs the approver to belong to that outlet. ReceiveScope is not reused:
-// it refuses warehouse destinations.
-func ApproverCovers(role, approverOutlet, docOutlet string, approverRoles []string) bool {
+// document additionally needs the approver's outlet coverage to include that outlet (an admin's
+// coverage is All). ReceiveScope is not reused: it refuses warehouse destinations.
+func ApproverCovers(role string, approver coverage.Coverage, docOutlet string, approverRoles []string) bool {
 	if !ApproverAllowed(role, approverRoles) {
 		return false
 	}
-	if role == "admin" || docOutlet == "" {
+	if docOutlet == "" {
 		return true
 	}
-	return strings.EqualFold(approverOutlet, docOutlet)
+	return approver.Covers(docOutlet)
+}
+
+// approverCoverage is coverage.Of over the columns of a users row read with coverage.SelectCols.
+func approverCoverage(role string, home *string, extras []string, all bool) coverage.Coverage {
+	h := ""
+	if home != nil {
+		h = *home
+	}
+	return coverage.Of(role, h, extras, all)
 }
 
 // approvalRequiredOn reads the setting (no row = off). FOR SHARE: a direct adjust / complete holds the
@@ -244,14 +254,17 @@ func (r *Repo) verifyInventoryApprover(ctx context.Context, ref DocRef, approver
 	}
 
 	var (
-		exists           bool
-		role, apprOutlet string
-		hash             *string
-		setAt            *time.Time
+		exists   bool
+		role     string
+		apprHome *string
+		apprAll  bool
+		apprExtr []string
+		hash     *string
+		setAt    *time.Time
 	)
 	err = tx.QueryRow(ctx,
-		`SELECT role, COALESCE(outlet_id::text,''), receive_pin_hash, receive_pin_set_at FROM users WHERE id=$1`,
-		approverID).Scan(&role, &apprOutlet, &hash, &setAt)
+		`SELECT u.role, u.outlet_id::text, `+coverage.SelectCols+`, u.receive_pin_hash, u.receive_pin_set_at FROM users u WHERE u.id=$1`,
+		approverID).Scan(&role, &apprHome, &apprAll, &apprExtr, &hash, &setAt)
 	switch {
 	case err == nil:
 		exists = true
@@ -262,7 +275,7 @@ func (r *Repo) verifyInventoryApprover(ctx context.Context, ref DocRef, approver
 	if err != nil {
 		return zero, err
 	}
-	authorized := exists && ApproverCovers(role, apprOutlet, loc.outletID, roles)
+	authorized := exists && ApproverCovers(role, approverCoverage(role, apprHome, apprExtr, apprAll), loc.outletID, roles)
 	chk, err := checkApproverPIN(ctx, tx, pinSubject{
 		approverID: approverID, requesterID: approverID,
 		exists: exists, authorized: authorized, hash: hash, setAt: setAt, pin: pin,
@@ -285,11 +298,13 @@ func (r *Repo) verifyInventoryApprover(ctx context.Context, ref DocRef, approver
 // recheckApprover runs inside the keyed effect: the approver must still be allowed to approve
 // this location and must still hold the PIN generation that was verified.
 func recheckApprover(ctx context.Context, t pgx.Tx, p ApprovalProof, docOutlet string) error {
-	var role, outlet string
-	var pinOK bool
+	var role string
+	var home *string
+	var all, pinOK bool
+	var extras []string
 	err := t.QueryRow(ctx,
-		`SELECT role, COALESCE(outlet_id::text,''), COALESCE(receive_pin_hash IS NOT NULL AND receive_pin_set_at = $2, false)
-		   FROM users WHERE id=$1`, p.ApproverID, p.PinSetAt).Scan(&role, &outlet, &pinOK)
+		`SELECT u.role, u.outlet_id::text, `+coverage.SelectCols+`, COALESCE(u.receive_pin_hash IS NOT NULL AND u.receive_pin_set_at = $2, false)
+		   FROM users u WHERE u.id=$1`, p.ApproverID, p.PinSetAt).Scan(&role, &home, &all, &extras, &pinOK)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrApproverRevoked
 	}
@@ -300,7 +315,7 @@ func recheckApprover(ctx context.Context, t pgx.Tx, p ApprovalProof, docOutlet s
 	if err != nil {
 		return err
 	}
-	if !pinOK || !ApproverCovers(role, outlet, docOutlet, roles) {
+	if !pinOK || !ApproverCovers(role, approverCoverage(role, home, extras, all), docOutlet, roles) {
 		return ErrApproverRevoked
 	}
 	return nil
@@ -309,8 +324,7 @@ func recheckApprover(ctx context.Context, t pgx.Tx, p ApprovalProof, docOutlet s
 // requireApprover is the PIN-less eligibility check of a rejection: admin or approver role,
 // within the document's outlet scope.
 func requireApprover(ctx context.Context, t pgx.Tx, userID, docOutlet string) error {
-	var role, outlet string
-	err := t.QueryRow(ctx, `SELECT role, COALESCE(outlet_id::text,'') FROM users WHERE id=$1`, userID).Scan(&role, &outlet)
+	role, _, cov, err := coverage.Load(ctx, t, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperr.New(apperr.Forbidden, "tidak berwenang")
 	}
@@ -321,7 +335,7 @@ func requireApprover(ctx context.Context, t pgx.Tx, userID, docOutlet string) er
 	if err != nil {
 		return err
 	}
-	if !ApproverCovers(role, outlet, docOutlet, roles) {
+	if !ApproverCovers(role, cov, docOutlet, roles) {
 		return apperr.New(apperr.Forbidden, "tidak berwenang")
 	}
 	return nil

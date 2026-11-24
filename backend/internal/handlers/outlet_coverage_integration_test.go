@@ -2,8 +2,11 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
@@ -11,6 +14,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/mandalika/pos-backend/internal/auth"
@@ -410,6 +414,186 @@ func TestOutletCoveragePostgres(t *testing.T) {
 			}
 			if u.AllOutlets != au.AllOutlets || !reflect.DeepEqual(got, au.OutletIDs) {
 				t.Fatalf("%s (%s): users API all=%v ids=%v, auth all=%v ids=%v", au.Email, au.Role, u.AllOutlets, got, au.AllOutlets, au.OutletIDs)
+			}
+		}
+	})
+
+	// ---- sync, approvals and receive follow coverage (Task 5) ---------------------
+	const (
+		outD     = "00000000-0000-4000-8f20-000000000004"
+		outE     = "00000000-0000-4000-8f20-000000000005"
+		prodX    = "00000000-0000-4000-8f20-0000000000b1"
+		homeless = "00000000-0000-4000-8f20-000000000016"
+	)
+	exec(`INSERT INTO outlets(id,name,code) VALUES ($1,'OCV D','OCD'),($2,'OCV E','OCE')`, outD, outE)
+	exec(`INSERT INTO products(id,name) VALUES($1,'OCV approval product')`, prodX)
+	exec(`INSERT INTO product_variants(product_id,size,price,sku) VALUES($1,'M',1000,'OCV-X')`, prodX)
+	exec(`INSERT INTO outlet_variant_stock(outlet_id,product_id,variant_size,stock) VALUES($1,$2,'M',10)`, outE, prodX)
+	exec(`UPDATE app_settings SET receive_approver_roles='{manager}' WHERE id=1`)
+	withCtx := func(r *http.Request, uid, outlet string) *http.Request {
+		c := context.WithValue(r.Context(), auth.CtxUserID, uid)
+		if outlet != "" {
+			c = context.WithValue(c, auth.CtxOutletID, outlet)
+		}
+		return r.WithContext(c)
+	}
+
+	t.Run("coverage.Load reads role, home and coverage", func(t *testing.T) {
+		role, home, cov, err := coverage.Load(ctx, pool, mgr1)
+		if err != nil || role != "manager" || home != outA || cov.All || !reflect.DeepEqual(cov.OutletIDs, []string{outA, outB}) {
+			t.Fatalf("manager [A,B] = %q %q %+v %v", role, home, cov, err)
+		}
+		role, home, cov, err = coverage.Load(ctx, pool, mgr2)
+		if err != nil || role != "manager" || home != "" || !cov.All {
+			t.Fatalf("manager-all = %q %q %+v %v", role, home, cov, err)
+		}
+		if _, _, _, err = coverage.Load(ctx, pool, "00000000-0000-4000-8f20-0000000000ff"); !errors.Is(err, pgx.ErrNoRows) {
+			t.Fatalf("unknown user err = %v, want pgx.ErrNoRows", err)
+		}
+	})
+
+	t.Run("sync attributes and opens shifts at covered outlets only", func(t *testing.T) {
+		m := create("manager", map[string]any{"outletId": outD, "outletIds": []string{outD, outE}})
+		eng := syncpkg.New(pool, rd, svc, wr)
+		batch := func(uid, home string, items ...map[string]any) []map[string]any {
+			t.Helper()
+			raw, _ := json.Marshal(map[string]any{"items": items})
+			r := withCtx(httptest.NewRequest("POST", "/sync", bytes.NewReader(raw)), uid, home)
+			w := httptest.NewRecorder()
+			h.syncBatch(w, r, h.caller, eng.ProcessBatch)
+			if w.Code != 200 {
+				t.Fatalf("sync = %d %s", w.Code, w.Body.String())
+			}
+			var out struct {
+				Data struct {
+					Results []map[string]any `json:"results"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+				t.Fatal(err)
+			}
+			return out.Data.Results
+		}
+		item := func(typ, key, uid, outlet string, payload map[string]any) map[string]any {
+			return map[string]any{
+				"type": typ, "idempotencyKey": "ocvdev:" + key, "payload": payload,
+				"envelope": map[string]any{"v": 1, "outletId": outlet, "userId": uid, "deviceId": "ocvdev", "capturedAt": time.Now().UTC()},
+			}
+		}
+		status := func(res []map[string]any, i int) string { s, _ := res[i]["status"].(string); return s }
+
+		// Covered extra outlet E opens; uncovered outlet C is refused before any write.
+		res := batch(m.ID, outD,
+			item("shift_open", "00000000-0000-4000-8f20-0000000001e1", m.ID, outE, map[string]any{"startingCash": 0}),
+			item("shift_open", "00000000-0000-4000-8f20-0000000001c1", m.ID, outC, map[string]any{"startingCash": 0}))
+		if status(res, 0) != "ok" || status(res, 1) != "error" {
+			t.Fatalf("manager [D,E] open E/C = %v", res)
+		}
+		var shiftE string
+		if err := pool.QueryRow(ctx, `SELECT id::text FROM shifts WHERE outlet_id=$1 AND cashier_id=$2 AND status='open'`, outE, m.ID).Scan(&shiftE); err != nil {
+			t.Fatalf("shift at E not opened: %v", err)
+		}
+		var nC int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM shifts WHERE outlet_id=$1 AND cashier_id=$2`, outC, m.ID).Scan(&nC); err != nil || nC != 0 {
+			t.Fatalf("shift at uncovered C: n=%d err=%v", nC, err)
+		}
+		// The same manager closes it at E.
+		res = batch(m.ID, outD, item("shift_close", "00000000-0000-4000-8f20-0000000001e2", m.ID, outE, map[string]any{"shiftId": shiftE, "closingCash": 0}))
+		if status(res, 0) != "ok" {
+			t.Fatalf("close at E = %v", res)
+		}
+		var st string
+		if err := pool.QueryRow(ctx, `SELECT status FROM shifts WHERE id=$1`, shiftE).Scan(&st); err != nil || st != "closed" {
+			t.Fatalf("shift E status=%q err=%v", st, err)
+		}
+		// A cashier covers only the home outlet; an all-outlets manager reaches any existing outlet.
+		c := create("cashier", map[string]any{"outletId": outD})
+		res = batch(c.ID, outD, item("shift_open", "00000000-0000-4000-8f20-0000000001e3", c.ID, outE, map[string]any{"startingCash": 0}))
+		if status(res, 0) != "error" {
+			t.Fatalf("cashier opening at E = %v", res)
+		}
+		res = batch(mgr2, outC, item("shift_open", "00000000-0000-4000-8f20-0000000001e4", mgr2, outC, map[string]any{"startingCash": 0}))
+		if status(res, 0) != "ok" {
+			t.Fatalf("manager-all opening at C = %v", res)
+		}
+	})
+
+	t.Run("approvals and the receive approver list follow coverage", func(t *testing.T) {
+		inD := create("manager", map[string]any{"outletId": outD})
+		inDE := create("manager", map[string]any{"outletId": outD, "outletIds": []string{outD, outE}})
+		all := create("manager", map[string]any{"allOutlets": true})
+		// Unassigned manager (no home) with a stale extra row: enforced coverage is empty.
+		exec(`INSERT INTO users(id,email,password_hash,display_name,role,outlet_id)
+		      VALUES($1,'ocv-m5@example.invalid','x','M5','manager',NULL)`, homeless)
+		exec(`INSERT INTO user_outlets(user_id,outlet_id) VALUES($1,$2)`, homeless, outE)
+		for _, id := range []string{inD.ID, inDE.ID, all.ID, homeless} {
+			exec(`UPDATE users SET receive_pin_hash='x', receive_pin_set_at=now() WHERE id=$1`, id)
+		}
+		got, err := rd.ReceiveApprovingUsers(ctx, outE)
+		if err != nil {
+			t.Fatal(err)
+		}
+		listed := map[string]bool{}
+		for _, a := range got {
+			listed[a.UserId.String()] = true
+		}
+		if !listed[inDE.ID] || !listed[all.ID] || listed[inD.ID] || listed[homeless] {
+			t.Fatalf("approvers at E = %v", listed)
+		}
+
+		// Inventory approval: a manager covering E may reject an E document, one covering only D may not.
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		docID, err := wr.CreateAdjustmentRequestTx(ctx, tx, csh1, write.AdjustmentRequestInput{
+			LocationType: "outlet", LocationID: outE, ProductID: prodX, VariantSize: "M", NewQty: 5,
+			ReasonCode: "other", ReasonText: "ocv coverage",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		reject := func(uid string) error {
+			tx, err := pool.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tx.Rollback(ctx)
+			if err := wr.RejectAdjustmentRequestTx(ctx, tx, docID, uid, "ocv"); err != nil {
+				return err
+			}
+			return tx.Commit(ctx)
+		}
+		if err := reject(inD.ID); err == nil || err.Error() != "tidak berwenang" {
+			t.Fatalf("manager covering only D rejecting an E document = %v, want tidak berwenang", err)
+		}
+		if err := reject(inDE.ID); err != nil {
+			t.Fatalf("manager covering E rejecting = %v", err)
+		}
+	})
+
+	t.Run("refund and void from the combined view stay admin-only", func(t *testing.T) {
+		router := chi.NewRouter()
+		router.Post("/orders/{id}/refund", h.RefundOrder)
+		router.Post("/orders/{id}/void", h.VoidOrder)
+		const order = "00000000-0000-4000-8f20-0000000000c1"
+		for _, tc := range []struct{ path, body string }{
+			{"/orders/" + order + "/refund", `{"reason":"pengembalian pelanggan"}`},
+			{"/orders/" + order + "/void", `{"reasonCode":"other","note":"x","clientVoidUuid":"00000000-0000-4000-8f20-0000000000c2"}`},
+		} {
+			r := withCtx(httptest.NewRequest("POST", tc.path, bytes.NewReader([]byte(tc.body))), mgr2, "")
+			r.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, r)
+			var out struct {
+				Error string `json:"error"`
+			}
+			_ = json.Unmarshal(w.Body.Bytes(), &out)
+			if w.Code != 403 || out.Error != "Outlet aktif belum dipilih untuk akun ini." {
+				t.Fatalf("%s as manager-all without an active outlet = %d %q", tc.path, w.Code, out.Error)
 			}
 		}
 	})

@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"sort"
 	"strings"
+
+	"github.com/mandalika/pos-backend/internal/coverage"
 )
 
 // A08: pure helpers shared by the mint handler, the in-transaction consume and the
@@ -57,13 +59,13 @@ func ApproverAllowed(role string, approverRoles []string) bool {
 }
 
 // ReceiveScope checks the transfer's destination is the caller's outlet and the
-// approver is an admin or belongs to that outlet. "" = ok. destOutlet "" means the
-// destination is a warehouse.
-func ReceiveScope(callerOutlet, destOutlet, approverRole, approverOutlet string) string {
+// approver's coverage includes that outlet (an admin's coverage is All). "" = ok. destOutlet ""
+// means the destination is a warehouse.
+func ReceiveScope(callerOutlet, destOutlet, approverRole string, approver coverage.Coverage) string {
 	if destOutlet == "" || destOutlet != callerOutlet {
 		return "transfer bukan untuk outlet ini"
 	}
-	if approverRole != "admin" && approverOutlet != destOutlet {
+	if !approver.Covers(destOutlet) {
 		return "tidak berwenang"
 	}
 	return ""

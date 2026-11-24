@@ -45,11 +45,11 @@ var allowed = map[string][]string{
 	"db":              {},
 	"ledger":          {"db"},
 	"read":            {"db", "ledger", "bundles"},
-	"write":           {"db", "ledger"},
+	"write":           {"db", "ledger", "coverage"},
 	"service":         {"db", "ledger", "bundles"},
 	"integration/erp": {"db", "ledger"},
-	"sync":            {"db", "ledger", "read", "write", "service", "integration/erp", "auth", "cache"},
-	"handlers":        {"db", "ledger", "read", "write", "service", "sync", "integration/erp", "auth", "cache", "config", "middleware"},
+	"sync":            {"db", "ledger", "read", "write", "service", "integration/erp", "auth", "cache", "coverage"},
+	"handlers":        {"db", "ledger", "read", "write", "service", "sync", "integration/erp", "auth", "cache", "config", "middleware", "coverage"},
 }
 
 // strict packages may import only leaves plus their allowed list.

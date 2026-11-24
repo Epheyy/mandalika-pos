@@ -8,6 +8,7 @@ import (
 
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/apperr"
+	"github.com/mandalika/pos-backend/internal/coverage"
 )
 
 type BatchItem struct {
@@ -59,10 +60,11 @@ type Caller struct {
 	OutletID    string
 	UserID      string
 	DisplayName string
-	// Role and HomeOutletID come from the users row (not the request): the outlet a
-	// non-admin may be attributed to is only ever their stored outlet (A04).
-	Role         string `json:"-"`
-	HomeOutletID string `json:"-"`
+	// Role, HomeOutletID and Coverage come from the users row (not the request): the outlets a
+	// non-admin may be attributed to are only ever their stored coverage (A04).
+	Role         string            `json:"-"`
+	HomeOutletID string            `json:"-"`
+	Coverage     coverage.Coverage `json:"-"`
 	// Server-derived from authenticated request claims; never from a batch body.
 	CanRefund bool `json:"-"`
 	// CanVoidOwnShift and CanVoidAny are the void permissions of the authenticated request
