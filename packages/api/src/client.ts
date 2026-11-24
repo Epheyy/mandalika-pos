@@ -250,9 +250,54 @@ export class ApiError extends Error {
     public kind: ApiErrorKind = 'http',
     /** Parsed JSON body of an error response (e.g. the import report on a 422), when there was one. */
     public body?: unknown,
+    /** Server-requested pause (Retry-After header or body retryAfterSeconds) on a 429/503; absent otherwise. */
+    public retryAfterMs?: number,
   ) {
     super(message)
     this.name = 'ApiError'
+  }
+}
+
+/** Longest pause a Retry-After may ask for: a broken header must not park a tablet. */
+export const MAX_RETRY_AFTER_MS = 30 * 60_000
+
+/** Parses a Retry-After value (delta-seconds or an HTTP-date) into milliseconds from `nowMs`.
+ *  Garbage and negatives give undefined; a past date gives 0; the result is clamped to MAX_RETRY_AFTER_MS. */
+export function parseRetryAfter(value: string | null | undefined, nowMs: number): number | undefined {
+  const v = value?.trim()
+  if (!v) return undefined
+  if (/^\d+$/.test(v)) return Math.min(Number(v) * 1000, MAX_RETRY_AFTER_MS)
+  if (/^-?\d+(\.\d+)?$/.test(v)) return undefined
+  const at = Date.parse(v)
+  if (Number.isNaN(at)) return undefined
+  return Math.min(Math.max(at - nowMs, 0), MAX_RETRY_AFTER_MS)
+}
+
+/** Retry-After of a 429/503 answer: the header first, then the JSON body's retryAfterSeconds. */
+function retryAfterOf(res: Pick<Response, 'status' | 'headers'>, json: unknown): number | undefined {
+  if (res.status !== 429 && res.status !== 503) return undefined
+  const now = Date.now()
+  const fromHeader = parseRetryAfter(res.headers.get('Retry-After'), now)
+  if (fromHeader !== undefined) return fromHeader
+  const sec = (json as { retryAfterSeconds?: unknown } | null)?.retryAfterSeconds
+  return typeof sec === 'number' && Number.isFinite(sec) && sec >= 0
+    ? Math.min(sec * 1000, MAX_RETRY_AFTER_MS)
+    : undefined
+}
+
+/** True when the host answered over the network at all: any response, even an opaque or 404 one, proves
+ *  reachability and nothing more. no-cors makes a CORS-less 5xx from a front end look like an answer
+ *  instead of the TypeError a lost connection gives. False on rejection or timeout. */
+export async function probeHost(baseUrl: string, timeoutMs = 5000): Promise<boolean> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    await fetch(`${baseUrl}/healthz`, { mode: 'no-cors', cache: 'no-store', signal: controller.signal })
+    return true
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
   }
 }
 
@@ -281,6 +326,31 @@ export const SESSION_RENEWED_MESSAGE = 'sesi diperbarui, coba lagi'
 const MAX_REFRESH_ROUNDS = 2
 /** A hung per-line stock count save would stall that line's queue and Complete. */
 const STOCK_COUNT_SAVE_TIMEOUT_MS = 20_000
+/** Every call without its own budget: the server answers by its 25 s deadline (cut at 30 s), plus 5 s of cold start. */
+export const DEFAULT_TIMEOUT_MS = 35_000
+/** CSV imports are exempt from the server deadline (60 s read + 150 s write), plus a margin. */
+export const IMPORT_TIMEOUT_MS = 240_000
+/** Movement exports are exempt from the server deadline (55 s context, 60 s write), plus streaming time. */
+export const EXPORT_TIMEOUT_MS = 90_000
+
+/** The deadline of one call: a usable explicit budget wins, else the route's default. A missing, zero,
+ *  negative or non-finite value is not an opt-out. */
+export function resolveTimeoutMs(method: string, path: string, requested?: number): number {
+  if (typeof requested === 'number' && Number.isFinite(requested) && requested > 0) return requested
+  const route = path.split('?')[0]
+  if (method === 'POST' && route.endsWith('/import')) return IMPORT_TIMEOUT_MS
+  if (method === 'GET' && (route.endsWith('/inventory/movements/export') || route.endsWith('/inventory/movements/summary/export'))) {
+    return EXPORT_TIMEOUT_MS
+  }
+  return DEFAULT_TIMEOUT_MS
+}
+
+/** A timed-out write may still have landed, so it must not claim failure. */
+function timeoutMessage(method: string): string {
+  return method === 'GET'
+    ? 'Server tidak menjawab tepat waktu, coba lagi'
+    : 'Server tidak menjawab tepat waktu. Cek dulu apakah perubahan sudah tersimpan sebelum mengulang.'
+}
 
 export interface Api {
   request: <T>(method: string, path: string, body?: unknown, opts?: RequestOptions) => Promise<T>
@@ -620,7 +690,8 @@ export function createClient(opts: ClientOptions): Api {
           // (a 400/413/422 would park the whole outbox, a 403/404/407 would flag the account).
           if (res.status === 401) return 'rejected'
           if (res.status >= 500 || res.status === 429) {
-            return new ApiError(res.status, `pembaruan sesi belum tersedia (${res.status})`)
+            const body = await res.json().catch(() => null)
+            return new ApiError(res.status, `pembaruan sesi belum tersedia (${res.status})`, 'http', undefined, retryAfterOf(res, body))
           }
           if (!res.ok) return new ApiError(0, `pembaruan sesi gagal (${res.status})`, 'invalid_response')
           const j = await res.json()
@@ -659,11 +730,9 @@ export function createClient(opts: ClientOptions): Api {
     reqOpts: RequestOptions | undefined,
     csv: boolean,
   ): Promise<T> {
-    const controller = reqOpts?.timeoutMs ? new AbortController() : null
+    const controller = new AbortController()
     let timedOut = false
-    const timer = controller
-      ? setTimeout(() => { timedOut = true; controller.abort() }, reqOpts?.timeoutMs)
-      : null
+    const timer = setTimeout(() => { timedOut = true; controller.abort() }, resolveTimeoutMs(method, path, reqOpts?.timeoutMs))
     const send = async (): Promise<Response> => {
       const headers: Record<string, string> = csv ? { Accept: 'text/csv' } : { 'Content-Type': 'application/json' }
       const token = opts.getToken()
@@ -675,13 +744,13 @@ export function createClient(opts: ClientOptions): Api {
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
-        signal: controller?.signal,
+        signal: controller.signal,
       })
     }
     // fetch rejects with a TypeError when there is no answer, and with an
     // AbortError when we aborted: type both so callers never string-match.
     const transportError = (e: unknown): ApiError => {
-      if (timedOut) return new ApiError(0, 'permintaan melebihi batas waktu', 'timeout')
+      if (timedOut) return new ApiError(0, timeoutMessage(method), 'timeout')
       return new ApiError(0, e instanceof Error ? e.message : 'network error', 'network')
     }
 
@@ -747,16 +816,16 @@ export function createClient(opts: ClientOptions): Api {
         // A proxy error page (HTML 502) or a truncated body. Server-side
         // failures are transient; a non-JSON 4xx is still a deterministic reject.
         if (res.ok || res.status >= 500) {
-          throw new ApiError(res.status, `respons server tidak valid (${res.status})`, 'invalid_response')
+          throw new ApiError(res.status, `respons server tidak valid (${res.status})`, 'invalid_response', undefined, retryAfterOf(res, null))
         }
-        throw new ApiError(res.status, `request failed (${res.status})`)
+        throw new ApiError(res.status, `request failed (${res.status})`, 'http', undefined, retryAfterOf(res, null))
       }
       if (!res.ok) {
-        throw new ApiError(res.status, json?.error ?? `request failed (${res.status})`, 'http', json)
+        throw new ApiError(res.status, json?.error ?? `request failed (${res.status})`, 'http', json, retryAfterOf(res, json))
       }
       return json as T
     } finally {
-      if (timer) clearTimeout(timer)
+      clearTimeout(timer)
     }
   }
 

@@ -52,10 +52,10 @@ describe('api client failures are typed', () => {
     expect(await p).toMatchObject({ kind: 'timeout', status: 0 })
   })
 
-  it('no timer or signal is used when timeoutMs is not given', async () => {
+  it('a deadline signal is always armed, even when timeoutMs is not given', async () => {
     vi.mocked(fetch).mockResolvedValue(json(200, { data: 1 }))
     await client().api.request('GET', '/x')
-    expect(vi.mocked(fetch).mock.calls[0][1]?.signal).toBeUndefined()
+    expect(vi.mocked(fetch).mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal)
   })
 
   it('an HTML 502 page is kind=invalid_response and keeps the status', async () => {
@@ -332,12 +332,12 @@ describe('requisition outlet methods take request options (S6-0)', () => {
     expect(headers['X-Extra']).toBe('1')
   })
 
-  it('list and get honour timeoutMs; without opts no signal is used', async () => {
+  it('list and get honour timeoutMs; without opts the default deadline signal is used', async () => {
     vi.mocked(fetch).mockResolvedValue(json(200, { data: [] }))
     await client().api.listRequisitions({}, { timeoutMs: 5_000 })
     expect(vi.mocked(fetch).mock.calls[0][1]?.signal).toBeDefined()
     vi.mocked(fetch).mockResolvedValue(json(200, { data: { id: 'r1' } }))
     await client().api.getRequisition('r1')
-    expect(vi.mocked(fetch).mock.calls[1][1]?.signal).toBeUndefined()
+    expect(vi.mocked(fetch).mock.calls[1][1]?.signal).toBeInstanceOf(AbortSignal)
   })
 })
