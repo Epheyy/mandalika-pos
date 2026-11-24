@@ -27,7 +27,7 @@
 
 1. **Coverage removed while a session is open:** a token issued before an outlet was removed, sending that outlet in `X-Outlet-Id`, is refused (401 revoked → refresh → 403), never served. Test in Task 4.
 2. **Saved Backoffice switcher choice no longer covered:** the viewer lands on their home outlet, no 403 loop. Test in Task 6.
-3. **Specific manager sends `?outletId=all` or an uncovered `?outletId=`:** 403, never cross-outlet data. Test in Task 2.
+3. **Specific manager sends `?outletId=all` or an uncovered `?outletId=`:** `all` is ignored (never widens; ruling H), an uncovered id is 403; never cross-outlet data. Test in Task 2.
 4. **Tablet bound to outlet B, supervisor no longer covers B:** `mismatch`, never a silent rebind. Test in Task 8.
 5. **Unassigned manager (NULL outlet, flag off) calls a catalogue read (`GET /products`):** no products from any outlet, never all. Test in Task 3.
 
@@ -75,12 +75,12 @@
 - [ ] **Step 1:** Write `outlet_test.go` (httptest through the auth middleware, signing tokens with `IssueAccessCov`), each asserting status and the `auth.CtxOutletID` seen by the next handler:
   - cashier home A: no header → 200, "A"; header A → 200; header B → 403 `outlet not permitted`.
   - manager coverage [A,B]: no header → "A"; header B → "B"; header C → 403.
-  - manager coverage [A,B], `?outletId=all` → 403; `?outletId=C` → 403; `?outletId=B` → 200.
+  - manager coverage [A,B], `?outletId=all` → 200 ignored (active outlet kept; ruling H); `?outletId=C` → 403; `?outletId=B` → 200.
   - manager all: header C → 200 "C"; no header → "".
   - legacy token manager with `outlet_id` "" and no claims: header C → 403.
   - admin: unchanged (header C → 200).
 - [ ] **Step 2:** `go test ./internal/middleware/ -run Outlet` → FAIL.
-- [ ] **Step 3:** Implement: `cov := claims.Coverage()`; header accepted when `role == "admin" || cov.All || cov.Covers(h)`; for a manager that is neither admin nor All, an `outletId` query param that is `all` or not covered → 403 `outlet not permitted` (cashier query handling unchanged); store `cov` in context.
+- [ ] **Step 3:** Implement: `cov := claims.Coverage()`; header accepted when `role == "admin" || cov.All || cov.Covers(h)`; for a manager that is neither admin nor All, an `outletId` query param that is not covered → 403 `outlet not permitted` (`all` is ignored; ruling H) (cashier query handling unchanged); store `cov` in context.
 - [ ] **Step 4:** `go test ./internal/middleware/ ./internal/auth/...` → PASS (existing `jwt_test.go`, `revocation_test.go` unchanged). Commit `feat: coverage claims and middleware outlet check`.
 
 ### Task 3: Read scope and location checks
@@ -128,7 +128,7 @@
 - `sync.Caller` gains `Coverage coverage.Coverage` (filled from the users row via `callerID`, never from the token); non-admin attribution passes when `Coverage.Covers(env.OutletID)`.
 - `func ApproverCovers(role string, approver coverage.Coverage, docOutlet string, approverRoles []string) bool` — role rule unchanged; `docOutlet == ""` → true; else `approver.Covers(docOutlet)` (admin's coverage is All).
 - `func ReceiveScope(callerOutlet, destOutlet, approverRole string, approver coverage.Coverage) string` — dest must equal caller outlet (unchanged text); approver must cover dest else `"tidak berwenang"`.
-- `ReceiveApprovingUsers` WHERE outlet clause becomes `(u.role = 'admin' OR u.outlet_id = $1 OR u.all_outlets OR EXISTS (SELECT 1 FROM user_outlets uo WHERE uo.user_id = u.id AND uo.outlet_id = $1))`.
+- `ReceiveApprovingUsers` WHERE outlet clause becomes `(u.role = 'admin' OR u.outlet_id = $1 OR u.all_outlets OR EXISTS (SELECT 1 FROM user_outlets uo WHERE uo.user_id = u.id AND uo.outlet_id = $1))`, as built with `all_outlets` and `user_outlets` counting only for role manager and extras only with a home (mirrors `coverage.Of`).
 
 - [ ] **Step 1:** Tests: attribution manager [A,B] envelope B → ok, C → `mismatchOutlet`; cashier unchanged. `ApproverCovers`: manager [A,B] doc B → true, doc C → false, manager-all → true, cashier-role in approver list with home A doc B → false. `ReceiveScope`: approver covers dest → ""; not → "tidak berwenang". `ReceiveApprovingUsers(B)` lists a manager [A,B] with a PIN and a manager-all, not a manager [A]. Refund and void as manager-all with no active outlet → 403 "Outlet aktif belum dipilih untuk akun ini." (owner rule).
 - [ ] **Step 2:** Run → FAIL. Implement, loading approver coverage with `coverage.Load` where the single `outlet_id` was selected.
@@ -180,6 +180,13 @@
 - [ ] **Step 1:** Tests for each branch above, including **Review Focus 4** (binding B, coverage [A,C] → mismatch, binding untouched) and the old-session fallback.
 - [ ] **Step 2:** Run `corepack pnpm --filter @mandalika/pos test` → FAIL; implement.
 - [ ] **Step 3:** POS tests + typecheck → PASS. Commit `feat(pos): supervisors bind tablets within their coverage`.
+
+### Build rulings and follow-ups (as built)
+
+- Ruling M: Backoffice active outlet is null (combined view) for admin / all-outlets manager with no switcher choice; a covered manager with no choice gets home.
+- Ruling N: an Admin keeps the single optional outlet select ("Semua Outlet (tanpa pembatasan)" = no home); promoting a user to admin does not carry the old home.
+- Unassigned users (no outlet, not All) are refused (403) on `GET /products` and `/products/{id}`.
+- Follow-ups, not in this PR: shift-open race when coverage is removed while a shift open waits on the user-row lock (pre-existing for home moves); `GET/PUT /products/{id}/outlet-config` gated only by `manage_products` and spans all outlets (pre-existing; product-policy decision).
 
 ### Task 9: Full gates and hand-over
 

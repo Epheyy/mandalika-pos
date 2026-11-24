@@ -106,10 +106,12 @@ outlet), with a single `Covers(outletID) bool` (case-insensitive) used everywher
 
 - admin: unchanged. manager-"all": same as admin (`?outletId=` override, `all` = cross-outlet, no
   header = cross-outlet).
-- manager-specific: `?outletId=` honoured only when covered; `all` or an uncovered id → 403. Otherwise the
-  active outlet (never `""`).
+- manager-specific (ruling H): `?outletId=all` is ignored (it never widens and is not refused); an explicit
+  uncovered `?outletId=<id>` → 403 "outlet not permitted"; a covered id is accepted. Otherwise the active
+  outlet (never `""`). A non-uuid `?outletId` on a list that filters by it is a 400, not a 500.
 - **(Claude's call)** any non-admin with no coverage (unassigned manager, cashier with no outlet): scoped
-  reads answer 403 "no active outlet" instead of today's catalogue-read fall-through to all outlets.
+  reads answer 403 "no active outlet" instead of today's catalogue-read fall-through to all outlets. This
+  includes `GET /products` and `GET /products/{id}`: an unassigned user is refused (403).
 
 ### Places that compare a user's outlet today — all switch to coverage
 
@@ -126,7 +128,8 @@ outlet), with a single `Covers(outletID) bool` (case-insensitive) used everywher
   checked against the active outlet as today.
 - `read/users.go:13-24` `ReceiveApprovingUsers` (the POS receive-approver picker) filters
   `u.outlet_id = $1 OR u.role = 'admin'`: it must list users whose coverage includes the outlet, or Goal 4
-  fails on the tablet even though `ReceiveScope` accepts them. The builder also greps SQL for other
+  fails on the tablet even though `ReceiveScope` accepts them. As built, `all_outlets` and `user_outlets`
+  count only for role manager, and extras only when the manager has a home outlet, mirroring `coverage.Of`. The builder also greps SQL for other
   `outlet_id = ` user filters, not only Go `role == "admin"` branches.
 - `scope()` returns only `read.Scope` and feeds every cache key (`ckey`); refusing from it means a
   `(Scope, ok)` shape or a guard at each caller. Builder's choice; it is a wider change than one function.
@@ -162,12 +165,15 @@ outlet), with a single `Covers(outletID) bool` (case-insensitive) used everywher
     outlets (≥1) and an "Outlet utama" select limited to the ticked ones (defaults to the first ticked).
     Editing an existing Manajer with no outlet and no flag opens with neither chosen and cannot be saved
     until one is picked.
-  - Admin: hidden, as today.
+  - Admin (ruling N): keeps today's single optional outlet select ("Semua Outlet (tanpa pembatasan)" = no
+    home); no coverage list or flag. Promoting a user to admin does not carry their old home outlet.
 - **User list**: Outlet column shows the home outlet plus "+N" (tooltip lists the rest) or "Semua Outlet".
 - **Outlet switcher** (`outlet.tsx`): shown for admin, manager-"all", and a manager with ≥2 covered outlets.
   The list is the outlets the user covers (all outlets for admin/"all"; `GET /outlets` stays open to every
   authenticated user and is filtered client-side; the server is the real guard). Default for a specific
-  manager = home outlet; manager-"all" = combined view (like admin). The per-viewer remembered choice is
+  manager = home outlet; manager-"all" = combined view (like admin). Ruling M: the Backoffice active outlet is null (combined view)
+  for an admin or all-outlets manager with no switcher choice; a covered manager without a choice gets their
+  home outlet. The per-viewer remembered choice is
   dropped if no longer covered.
 - Screens that branch `role === 'admin' ? outletId : user.outletId` (e.g. `RequisitionList.tsx:78`,
   `inventory/useLocations.ts:39`, `stockcount/countScope.ts`) follow the active outlet for covered managers.
@@ -202,6 +208,13 @@ outlet), with a single `Covers(outletID) bool` (case-insensitive) used everywher
 
 Backend first (migration 0097 runs at deploy; additive; old clients keep working: an old POS compares the home outlet and stays
 fail-closed), then Backoffice publish, then POS OTA. Then the owner sets coverage for their supervisors.
+
+## Known follow-ups (not in this PR)
+
+- Shift-open race: a shift open that waits on the user-row lock can still succeed after coverage was removed
+  (pre-existing for home moves; same lock order).
+- `GET/PUT /products/{id}/outlet-config` is gated only by `manage_products` and spans all outlets
+  (pre-existing; a product-policy decision for the owner).
 
 ## Left to the builder
 
