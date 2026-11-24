@@ -46,10 +46,9 @@ export default function SettingsScreen() {
     setLeaveAsk(null)
   }
   const saveAndLeave = async () => answerLeave(await save())
-  const discardAndLeave = () => {
-    discard()
-    answerLeave(true)
-  }
+  // No discard() here: a guard below may still answer "stay", and the draft must survive that. Leaving unmounts
+  // this screen, which drops the in-memory draft anyway.
+  const discardAndLeave = () => answerLeave(true)
 
   const setDoc = (k: string, v: string | undefined) =>
     setS((p) => ({ ...p, documents: { ...p.documents, [k]: v } }))

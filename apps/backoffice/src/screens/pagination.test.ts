@@ -15,6 +15,15 @@ describe('complete pagination', () => {
     expect(await fetchAllPages(fetch)).toEqual(rows)
     expect(fetch.mock.calls).toEqual(Array.from({ length: Math.max(1, Math.ceil(total / 200)) }, (_, i) => [i + 1, 200]))
   })
+  it('exports past the old 10,000-row cap: 10,401 rows over 53 pages of 200', async () => {
+    const rows = Array.from({ length: 10_401 }, (_, i) => ({ id: `id-${i}` }))
+    const fetch = pages(rows)
+    const all = await fetchAllPages(fetch)
+    expect(all).toHaveLength(10_401)
+    expect(all).toEqual(rows)
+    expect(fetch.mock.calls).toHaveLength(53)
+    expect(fetch.mock.calls).toEqual(Array.from({ length: 53 }, (_, i) => [i + 1, 200]))
+  })
   it('rejects a later failure instead of returning the successful prefix', async () => {
     const fetch = pages(Array.from({ length: 401 }, (_, i) => ({ id: `${i}` })))
     fetch.mockImplementationOnce(async (page, limit) => ({ data: Array.from({ length: 200 }, (_, i) => ({ id: `${i}` })), meta: { total: 401, page, limit } }))

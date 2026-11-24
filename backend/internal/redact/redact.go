@@ -84,6 +84,20 @@ var (
 	emailRE = regexp.MustCompile(`[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}`)
 )
 
+// stepHook, when non-nil, is told how much input each scanner examines (bytes or runes
+// walked by a hand-written loop, or the length handed to a regexp call). Tests use it to
+// assert linear work deterministically instead of timing; production leaves it nil, so
+// the cost is one nil check.
+var stepHook func(n int)
+
+func stepTrue() bool { step(1); return true }
+
+func step(n int) {
+	if stepHook != nil {
+		stepHook(n)
+	}
+}
+
 // ci spells each ASCII letter as a [xX] class (ASCII-only case folding; see bearerRE).
 func ci(lit string) string {
 	var b strings.Builder
@@ -154,14 +168,18 @@ func str(s string, t Tier, skipPhone bool, capCP int) string {
 	if t == Logs {
 		s = cutRunes(s, capCP*preCutFactor)
 	}
+	step(len(s))
 	s = bearerRE.ReplaceAllString(s, "Bearer "+Redacted)
+	step(len(s))
 	s = basicRE.ReplaceAllString(s, "${1}Basic "+Redacted)
 	s = redactJWTs(s)
 	s = redactJSONSecrets(s)
+	step(len(s))
 	s = urlSecretRE.ReplaceAllString(s, "${1}"+Redacted)
 	if t != Logs {
 		return s
 	}
+	step(len(s))
 	s = emailRE.ReplaceAllString(s, Redacted)
 	if !skipPhone {
 		s = redactPhones(s)
@@ -206,6 +224,7 @@ func isPhoneSep(r rune) bool {
 // sepLen is the length of the separator unit at j: " - " (space, dash, space) is ONE unit;
 // 0 if there is none.
 func sepLen(s []rune, j int) int {
+	step(1)
 	if j >= len(s) {
 		return 0
 	}
@@ -236,6 +255,7 @@ const (
 // twin implements the same scanner.
 func phoneSpanAt(s []rune, i int) (begin, end int, ok bool) {
 	n := len(s)
+	step(1)
 	at := func(k int) rune {
 		if k < n {
 			return s[k]
@@ -259,6 +279,7 @@ func phoneSpanAt(s []rune, i int) (begin, end int, ok bool) {
 		}
 		skipSeps := func(max int) {
 			for units := 0; units < max; units++ {
+				step(1)
 				l := sepLen(s, q)
 				if l == 0 {
 					return
@@ -288,6 +309,7 @@ func phoneSpanAt(s []rune, i int) (begin, end int, ok bool) {
 		limit = n
 	}
 	for j := q; j < limit; {
+		step(1)
 		c := s[j]
 		if isDigit(c) {
 			nd++
@@ -321,6 +343,7 @@ func phoneSpanAt(s []rune, i int) (begin, end int, ok bool) {
 		chainLimit = n
 	}
 	for k < chainLimit {
+		step(1)
 		if isDigit(s[k]) {
 			digits++
 			k++
@@ -350,9 +373,11 @@ func phoneSpanAt(s []rune, i int) (begin, end int, ok bool) {
 func redactPhones(str string) string {
 	s := []rune(str)
 	n := len(s)
+	step(n)
 	var b strings.Builder
 	last, curB, curE := 0, -1, -1
 	for i := 0; i < n; i++ {
+		step(1)
 		if !isDigit(s[i]) || (i > 0 && isDigit(s[i-1])) {
 			continue
 		}
@@ -393,11 +418,14 @@ func redactJWTs(s string) string {
 	for from < n {
 		rel := strings.Index(s[from:], "eyJ")
 		if rel < 0 {
+			step(n - from)
 			break
 		}
+		step(rel + 3)
 		st := from + rel
 		p := st + 3
 		for p < n && isB64(s[p]) {
+			step(1)
 			p++
 		}
 		if p == st+3 || p >= n || s[p] != '.' {
@@ -410,6 +438,7 @@ func redactJWTs(s string) string {
 		}
 		q := p + 1
 		for q < n && isB64(s[q]) {
+			step(1)
 			q++
 		}
 		if q == p+1 {
@@ -420,6 +449,7 @@ func redactJWTs(s string) string {
 		if q < n && s[q] == '.' {
 			end = q + 1
 			for end < n && isB64(s[end]) {
+				step(1)
 				end++
 			}
 		}
@@ -435,6 +465,7 @@ func redactJWTs(s string) string {
 func backslashesBefore(s string, i, floor int) int {
 	r := 0
 	for i-1-r >= floor && s[i-1-r] == '\\' {
+		step(1)
 		r++
 	}
 	return r
@@ -461,6 +492,7 @@ func jsonValueEnd(s string, pos, keyEscapes int) int {
 	if c := s[pos]; c == '{' || c == '[' {
 		depth, inStr := 0, false
 		for i := pos; i < n; i++ {
+			step(1)
 			d := s[i]
 			switch {
 			case d == '"':
@@ -481,10 +513,12 @@ func jsonValueEnd(s string, pos, keyEscapes int) int {
 	}
 	k := 0
 	for pos+k < n && s[pos+k] == '\\' {
+		step(1)
 		k++
 	}
 	if pos+k < n && s[pos+k] == '"' {
 		for i := pos + k + 1; i < n; i++ {
+			step(1)
 			if s[i] == '"' && isDelimiter(i, pos+k+1, k) {
 				return i + 1
 			}
@@ -492,7 +526,7 @@ func jsonValueEnd(s string, pos, keyEscapes int) int {
 		return n
 	}
 	e := pos
-	for e < n && !strings.ContainsRune(",}] \t\r\n\"\\", rune(s[e])) {
+	for e < n && stepTrue() && !strings.ContainsRune(",}] \t\r\n\"\\", rune(s[e])) {
 		e++
 	}
 	return e
@@ -504,8 +538,10 @@ func redactJSONSecrets(s string) string {
 	for from <= len(s) {
 		loc := jsonKeyRE.FindStringSubmatchIndex(s[from:])
 		if loc == nil {
+			step(len(s) - from)
 			break
 		}
+		step(loc[1]) // leftmost match: the scan ends at the match, not at the end of s
 		mStart, mEnd := from+loc[0], from+loc[1]
 		end := jsonValueEnd(s, mEnd, loc[3]-loc[2])
 		if end <= mEnd {

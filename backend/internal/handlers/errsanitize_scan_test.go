@@ -18,6 +18,7 @@ var (
 		"orders.go|httpx.Err(w, http.StatusConflict, write.ErrBusy.Error()) // nothing applied, safe to retry":                                                              "fixed sentinel text",
 		"orders.go|httpx.Err(w, http.StatusUnprocessableEntity, err.Error())":                                                                                               "service.ErrTenderRejected: cashier's own amounts only",
 		"sync_review.go|httpx.Err(w, http.StatusBadRequest, errReviewBatchSize.Error())":                                                                                    "fixed package-level message",
+		"users.go|httpx.Err(w, http.StatusBadRequest, rules.ErrWeakPassword.Error())":                                                                                       "fixed sentinel text (ValidatePassword only returns ErrWeakPassword)",
 		"receive_approval.go|writeJSON(w, http.StatusTooManyRequests, map[string]any{\"error\": locked.Error(), \"retryAfterSeconds\": secs, \"hardLocked\": locked.Hard})": "write.LockedError: fixed lockout text",
 	}
 )

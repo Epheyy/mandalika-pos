@@ -331,6 +331,24 @@ describe('leave guard edge cases', () => {
 })
 
 describe('browser Back and Forward with a leave guard', () => {
+  it('two stacked guards: Back asks both, top-down, and moves only after both leave', async () => {
+    const { env, router } = await threeEntries()
+    const lower = openQuestion()
+    const upper = openQuestion()
+    offs.push(upper.off, lower.off)
+    env.back()
+    await settle()
+    expect(upper.asked).toHaveBeenCalledTimes(1)
+    expect(lower.asked).not.toHaveBeenCalled()
+    upper.answer(true)
+    await settle()
+    expect(lower.asked).toHaveBeenCalledTimes(1)
+    expect(env.current()).toBe('#/c') // still undone while the second question is open
+    lower.answer(true)
+    await settle()
+    expect(router.getLocation().path).toEqual(['b'])
+  })
+
   it('Back refused: the hash is put back, Forward history survives, the guard is asked once', async () => {
     const { env, router } = await threeEntries()
     const q = openQuestion()

@@ -8,6 +8,8 @@ Last updated: 2026-11-24 by Claude (Opus 5.5) - live checks on the BSD tablet do
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-24: **SMALL FIXES 1124 (PR pending, branch `claude/small-fixes-1124-803527`, gate `gate/small-fixes-1124`; Backoffice + backend, no migration, no OTA).** (1) `navGuard`: a move asks EVERY covering leave guard top-down, first "stay" stops (Settings + Struk drafts both asked; Settings "Buang perubahan" no longer discards before the chain finishes; fresh abandon per question). (2) Customers/Ingredients export 10k cap was already fixed 2026-10-20 (`5cb600fa`, `fetchAllPages`); regression test for 10,401 rows added. (3) Password 8-128 code points enforced server-side on POST /users and /auth/register (400 before any DB work) and in Tambah Pengguna (hint + disabled submit); there is no user CSV import. (4) UTC-before-07:00: the screens named in HANDOFF were fixed by A28 (`adb74c96`); the live ones were the product and ingredient Transfer list date filters (UTC midnight) -> `dayStartIso`/`dayEndIso` (WIB). (5) `TestScannersScaleLinearly` counts scanner work via a nil-checked `stepHook` instead of wall clock; proven to fail on 8 injected rescans. Release when merged: Backoffice publish + backend deploy (owner go-ahead each).
+
 > 2026-11-24: **LIVE CHECKS DONE on the BSD test tablet** (R9RY4009WBJ, APK 2.3 + OTA 2.21.0, printer RPPO2N 58mm, "Cetak logo & QR" ON; Backoffice signed in by the owner; backend `relay1124`, ERP relay ON). Driven over adb taps + screenshots; owner watched the printer.
 > - Backoffice signed-in walkthroughs: Pengaturan > Struk ("Standar" template on all 27 outlets, Logo + QR 31 chars) and Laporan > Bundle load with no console errors.
 > - Tes Cetak: printed (BT connect 3.4 s, job 3.8 s). Backoffice "Cetak tes di tablet" relay: the draft is NOT pushed; the NEXT Tes Cetak on that outlet prints it ("Tes cetak desain dari Backoffice terkirim", 3.8 s).
@@ -701,8 +703,8 @@ secret-scan OK with an allowlist entry for the fake-DSN test fixtures). 25 commi
    - Transfer-receive PIN → one-time server approval. `webContentsDebuggingEnabled: true` still TEMP in `capacitor.config.ts`.
    - Slice 8b discount permission.
    - Receipt with stacked promos names one promo and omits points redemption; points claw-back clamps at 0.
-   - UTC-date-before-07:00-WIB screens (`CustomerDetail.tsx:41`, `OpnameTab.tsx`, `MovementSummary.tsx:25`, csv names).
-   - Operator per shift; password ≥8 on user create/CSV import; slice 10 device registration; engine flush-only N1 LOW.
+   - ~~UTC-date-before-07:00-WIB screens~~ DONE (A28 + small-fixes-1124 transfer filters).
+   - Operator per shift; ~~password ≥8 on user create~~ DONE small-fixes-1124 (no user CSV import exists); slice 10 device registration; engine flush-only N1 LOW.
    - Pre-go-live: audit which real accounts hold `process_refund`.
 
 ## Known gaps (not P0)

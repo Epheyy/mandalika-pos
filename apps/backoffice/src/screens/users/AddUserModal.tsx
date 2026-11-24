@@ -6,6 +6,7 @@ import { PermissionPicker, permissionsForRole } from './PermissionPicker'
 import { RolePicker } from './RolePicker'
 import { OutletCoverageField } from './OutletCoverageField'
 import { coverageError, coverageForRole, type CoverageValue } from './coverage'
+import { passwordLengthError } from './resetPassword'
 import type { Role } from './roles'
 
 type NewUserForm = {
@@ -30,6 +31,7 @@ interface AddUserModalProps {
 }
 
 function AddUserModal({ open, onClose, nf, setNf, busy, outlets, error, onSave }: AddUserModalProps) {
+  const passwordError = passwordLengthError(nf.password)
   return (
     <SlideOver
       open={open}
@@ -38,7 +40,7 @@ function AddUserModal({ open, onClose, nf, setNf, busy, outlets, error, onSave }
       footer={
         <SlideOver.Footer>
           <Button variant="secondary" onClick={onClose}>Batal</Button>
-          <Button loading={busy} disabled={!!coverageError(nf.role, nf.coverage)} onClick={onSave}>{busy ? 'Menambahkan...' : 'Tambah'}</Button>
+          <Button loading={busy} disabled={!!passwordError || !!coverageError(nf.role, nf.coverage)} onClick={onSave}>{busy ? 'Menambahkan...' : 'Tambah'}</Button>
         </SlideOver.Footer>
       }
     >
@@ -49,7 +51,15 @@ function AddUserModal({ open, onClose, nf, setNf, busy, outlets, error, onSave }
           { k: 'email' as const, label: 'Email *', type: 'email', autoComplete: 'off' },
           { k: 'password' as const, label: 'Kata Sandi *', type: 'password', autoComplete: 'new-password' },
         ].map(({ k, label, type, autoComplete }) => (
-          <Input key={k} label={label} type={type} autoComplete={autoComplete} value={nf[k]} onChange={(e) => setNf((f) => ({ ...f, [k]: e.target.value }))} />
+          <Input
+            key={k}
+            label={label}
+            type={type}
+            autoComplete={autoComplete}
+            value={nf[k]}
+            hint={k === 'password' ? 'Minimal 8 karakter' : undefined}
+            error={k === 'password' && nf.password ? passwordError : undefined}
+            onChange={(e) => setNf((f) => ({ ...f, [k]: e.target.value }))} />
         ))}
         <Field label="Role">
           <RolePicker value={nf.role} onChange={(r) => setNf((f) => ({ ...f, role: r, coverage: coverageForRole(f.role, r, f.coverage), permissions: permissionsForRole(r, f.permissions, f.role) }))} />
