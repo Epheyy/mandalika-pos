@@ -15,6 +15,9 @@ import (
 
 const outletsPath = "/outlets"
 
+// maxOutletMessage caps the ERP message copied into a run note.
+const maxOutletMessage = 300
+
 // OutletCreate is one POS outlet to create in the ERP. The wire type is always RETAIL.
 type OutletCreate struct {
 	ExternalID, Code, Name string
@@ -149,8 +152,10 @@ func decodeOutletCreate(status int, body []byte) (OutletCreateResult, OutletCrea
 		if msg == "" {
 			msg = env.Error
 		}
-		d := strings.TrimSpace(fmt.Sprintf("HTTP %d %s %s", status, env.Code, msg))
-		return d
+		if r := []rune(msg); len(r) > maxOutletMessage {
+			msg = string(r[:maxOutletMessage])
+		}
+		return strings.TrimSpace(fmt.Sprintf("HTTP %d %s %s", status, env.Code, msg))
 	}
 
 	switch {

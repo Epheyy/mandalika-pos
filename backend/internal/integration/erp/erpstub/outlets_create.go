@@ -33,7 +33,8 @@ type outletCreateBody struct {
 
 // postOutlet is the stub of the proposed POST /outlets: idempotent create of one RETAIL
 // outlet. Same key and body replays; same key with another body is CONFLICT; a code held
-// by another outlet (case-insensitive) is OUTLET_CODE_TAKEN with details.slug.
+// by another outlet (case-insensitive), or an existing slug equal to the would-be slug,
+// is OUTLET_CODE_TAKEN with details.slug.
 func (s *Server) postOutlet(w http.ResponseWriter, r *http.Request) {
 	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	var in outletCreateBody
@@ -75,7 +76,7 @@ func (s *Server) postOutlet(w http.ResponseWriter, r *http.Request) {
 		s.writeOutletOK(w, http.StatusOK, "replayed", c.Slug, in.Code)
 		return
 	}
-	if o := s.st.findOutlet(func(o *erpapi.IntegrationOutlet) bool { return strings.EqualFold(o.Code, in.Code) }); o != nil {
+	if o := s.st.findOutlet(func(o *erpapi.IntegrationOutlet) bool { return strings.EqualFold(o.Code, in.Code) || o.Slug == slug }); o != nil {
 		writeJSON(w, http.StatusConflict, map[string]any{
 			"success": false, "error": "Conflict", "message": "outlet code already used",
 			"code": "OUTLET_CODE_TAKEN", "requestId": requestID(),

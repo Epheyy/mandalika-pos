@@ -70,6 +70,7 @@ func TestOutletCreateOutcomes(t *testing.T) {
 		{"404", 404, ``, OutletEndpointMissing, "404", false, ""},
 		{"405", 405, ``, OutletEndpointMissing, "405", false, ""},
 		{"503", 503, `{"code":"INTEGRATION_BUSY"}`, OutletUnavailable, "503", false, ""},
+		{"2xx says failure", 200, `{"success":false,"data":{"outlet":{"slug":"x"}}}`, OutletRejected, "unexpected", false, ""},
 		{"2xx garbage", 200, `<html>`, OutletRejected, "unexpected", false, ""},
 	}
 	for _, tc := range cases {
@@ -112,5 +113,16 @@ func TestOutletCreateKeyNeverLeaks(t *testing.T) {
 	_, _, detail, _ := c.CreateOutlet(context.Background(), outletIn)
 	if strings.Contains(detail, outletTestKey) {
 		t.Fatalf("detail leaks key: %q", detail)
+	}
+}
+
+func TestOutletCreateTruncatesLongMessage(t *testing.T) {
+	c, _, _ := outletServer(t, 422, `{"code":"VALIDATION_ERROR","message":"`+strings.Repeat("é", 1000)+`"}`)
+	_, out, detail, err := c.CreateOutlet(context.Background(), outletIn)
+	if err != nil || out != OutletRejected {
+		t.Fatalf("got %v %v", out, err)
+	}
+	if n := len([]rune(detail)); n > 300+len("HTTP 422 VALIDATION_ERROR ") {
+		t.Fatalf("detail has %d runes", n)
 	}
 }

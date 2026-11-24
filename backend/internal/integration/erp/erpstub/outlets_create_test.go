@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/mandalika/pos-backend/internal/integration/erp/erpapi"
 )
 
 const outletsPostPath = "/api/integration/v1/outlets"
@@ -57,6 +59,16 @@ func TestPostOutletCodeTakenCaseInsensitive(t *testing.T) {
 	rec := e.postOutlet("k2", `{"external_id":"k2","code":"gancit","name":"Again"}`)
 	expectStatus(t, rec, http.StatusConflict)
 	if !strings.Contains(rec.Body.String(), `"OUTLET_CODE_TAKEN"`) || !strings.Contains(rec.Body.String(), `"slug":"gancit"`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestPostOutletExistingSlugIsCodeTaken(t *testing.T) {
+	e := newEnv(t, "")
+	e.s.st.Outlets = append(e.s.st.Outlets, erpapi.IntegrationOutlet{Slug: "gancit", Code: "OTHER", Name: "Other"})
+	rec := e.postOutlet("k1", `{"external_id":"k1","code":"GANCIT","name":"Gancit"}`)
+	expectStatus(t, rec, http.StatusConflict)
+	if !strings.Contains(rec.Body.String(), `"slug":"gancit"`) {
 		t.Fatalf("body = %s", rec.Body.String())
 	}
 }
