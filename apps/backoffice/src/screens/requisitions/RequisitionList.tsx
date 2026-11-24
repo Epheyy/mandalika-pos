@@ -3,7 +3,7 @@ import type { StockRequisition } from '@mandalika/api'
 import { ArrowLeft, ClipboardList, Plus } from 'lucide-react'
 import { api } from '../../api'
 import { useAuth } from '../../auth'
-import { useOutlet } from '../../outlet'
+import { useActiveOutletId, useOutlet } from '../../outlet'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { TableSkeleton } from '../../components/Skeleton'
 import { Badge } from '../../ui/Badge'
@@ -71,11 +71,9 @@ interface RequisitionEditProps {
 function RequisitionEdit({ id, onBack, onSaved }: RequisitionEditProps) {
   // Loaded once: the form seeds its fields from the draft, and a poll must not re-seed what the user is typing.
   const q = usePolledQuery<StockRequisition>(() => api.getRequisition(id), [id], 24 * 3600 * 1000)
-  const { user } = useAuth()
-  const { outletId } = useOutlet()
+  const activeOutlet = useActiveOutletId()
   const pb = q.data
   // Only the requesting outlet edits a draft (the Ubah button's own gate). A pasted link to anything else shows the detail.
-  const activeOutlet = user?.role === 'admin' ? outletId : (user?.outletId ?? null)
   const mayEdit = !!pb && pb.status === 'draft' && activeOutlet === pb.outletId
   const bounced = useRef(false)
   useEffect(() => {
@@ -117,11 +115,11 @@ const LIST_COLUMNS: Column<StockRequisition>[] = [
 
 function RequisitionList({ onCreate, onOpen }: RequisitionListProps) {
   const { user } = useAuth()
-  const { outletId } = useOutlet()
+  const { outletId, allowCombined } = useOutlet()
   const isAdmin = user?.role === 'admin'
   const canRequest = isAdmin || (user?.permissions ?? []).includes('request_stock')
-  // An admin raises a PB for one outlet at a time (X-Outlet-Id); without one the server answers 400.
-  const needsOutlet = isAdmin && !outletId
+  // Whoever sees the combined view raises a PB for one outlet at a time (X-Outlet-Id); without one the server answers 400.
+  const needsOutlet = allowCombined && !outletId
   // Status, page and page size are URL state (#/permintaan-barang?status=&hal=&per=).
   const [state, setState] = useListState(REQUISITION_LIST_SCHEMA)
   const status = requisitionStatusOf(state.status)

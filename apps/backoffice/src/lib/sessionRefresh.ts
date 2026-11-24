@@ -1,5 +1,6 @@
 import type { AuthData, User } from '@mandalika/api'
 import type { authStore } from '../api'
+import { outletCoverageOf } from './outletCoverage'
 
 // Backoffice is Admin/Manager only. Cashiers must use the POS app.
 export const ALLOWED_ROLES = new Set(['admin', 'manager'])
@@ -31,8 +32,10 @@ export function applyRefreshedSession(d: AuthData, deps: RefreshDeps): 'kept' | 
   store.userId = d.user.id
   persist(d.refresh)
   setUser(d.user)
-  // Only an admin may override the outlet. Reset it here so the immediate retry carries
-  // no stale admin X-Outlet-Id (OutletProvider resets it too, but only after render).
-  if (d.user.role !== 'admin') store.outletId = null
+  // Only a user who can switch outlets may override it. Reset it here so the immediate retry carries
+  // no stale X-Outlet-Id (OutletProvider resets it too, but only after render). A covered manager also drops
+  // a choice outside the refreshed coverage: the server would answer 403.
+  const cov = outletCoverageOf(d.user)
+  if (!cov.canSwitch || (!cov.allowCombined && store.outletId && !cov.outletIds.includes(store.outletId))) store.outletId = null
   return 'kept'
 }
