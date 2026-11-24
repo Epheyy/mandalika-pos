@@ -43,11 +43,13 @@ type voidApplied struct {
 	Items         []voidItem
 	Clawed        int64
 	Forgiven      int64
-	Restored      int64
-	Spend         int64
-	VisitReversed bool
-	CodesReleased []string
-	CustomerID    string
+	// DebtReinstated: points debt the sale had settled, put back by the void. NOT part of Forgiven.
+	DebtReinstated int64
+	Restored       int64
+	Spend          int64
+	VisitReversed  bool
+	CodesReleased  []string
+	CustomerID     string
 	// ReplDeducted: points the replacement withheld because this void wrote them off.
 	ReplDeducted int
 	// ReplWriteoff: the write-off requested of the replacement (see migration 0093).
@@ -478,9 +480,19 @@ func reverseVoidCustomer(ctx context.Context, tx pgx.Tx, in VoidInput, o voidOrd
 	if err != nil {
 		return fmt.Errorf("load points for void: %w", err)
 	}
+	// The part of the gross earn that paid the customer's points debt was never balance: the void
+	// reinstates it as debt instead of clawing balance for it (A20). Only the rest is clawed, and its
+	// true shortfall is forgiven as before (the replacement's PointsDeduction withholds only that; the
+	// replacement's own earn then settles the reinstated debt through the normal sale path).
+	var settled int64
+	if err := tx.QueryRow(ctx, `SELECT points_debt_settled FROM orders WHERE id=$1`, in.OrderID).Scan(&settled); err != nil {
+		return fmt.Errorf("load settled points debt for void: %w", err)
+	}
+	reinstate := min(settled, o.earned)
+	balancePart := o.earned - reinstate
 	afterRestore := int64(bal) + o.redeemed
-	clawed := int64(write.PointsClawback(int(afterRestore), int(o.earned)))
-	ap.Clawed, ap.Forgiven, ap.Restored = clawed, o.earned-clawed, o.redeemed
+	clawed := int64(write.PointsClawback(int(afterRestore), int(balancePart)))
+	ap.Clawed, ap.Forgiven, ap.Restored, ap.DebtReinstated = clawed, balancePart-clawed, o.redeemed, reinstate
 	newBal := afterRestore - clawed
 	if o.redeemed > 0 {
 		if err := write.InsertPointTx(ctx, tx, write.PointTxRow{
@@ -500,8 +512,17 @@ func reverseVoidCustomer(ctx context.Context, tx pgx.Tx, in VoidInput, o voidOrd
 			return fmt.Errorf("ledger void clawback: %w", err)
 		}
 	}
-	if clawed > 0 || o.redeemed > 0 {
-		if _, err := tx.Exec(ctx, `UPDATE customers SET points=$2 WHERE id=$1`, keeper, int(newBal)); err != nil {
+	if reinstate > 0 {
+		if err := write.InsertPointTx(ctx, tx, write.PointTxRow{
+			CustomerID: keeper, Type: "void", Points: 0, DebtDelta: int(reinstate), BalanceAfter: int(newBal),
+			Reason:  fmt.Sprintf("Utang poin dikembalikan karena transaksi dibatalkan %s (pelunasan dari transaksi itu dibatalkan)", o.orderNumber),
+			OrderID: in.OrderID, ByID: in.UserID, ByName: in.UserName,
+		}); err != nil {
+			return fmt.Errorf("ledger void debt reinstate: %w", err)
+		}
+	}
+	if clawed > 0 || o.redeemed > 0 || reinstate > 0 {
+		if _, err := tx.Exec(ctx, `UPDATE customers SET points=$2, points_debt=points_debt+$3 WHERE id=$1`, keeper, int(newBal), int(reinstate)); err != nil {
 			return fmt.Errorf("update points on void: %w", err)
 		}
 	}
@@ -591,14 +612,14 @@ func insertVoidAudit(ctx context.Context, tx pgx.Tx, in VoidInput, voidID, repla
 		        source, authority, mode, replacement_order_id, reason_code, note, voided_by, voided_by_name,
 		        device_id, client_void_uuid, original_total, original_payment_method, original_tenders,
 		        points_clawed, points_forgiven, points_restored, spend_reversed, visit_reversed, codes_released,
-		        erp_document_key, replacement_points_deducted, replacement_points_writeoff)
+		        erp_document_key, replacement_points_deducted, replacement_points_writeoff, points_debt_reinstated)
 		 VALUES ($1,$2,$3,$4::date,NULLIF($5,'')::uuid,$6,$7,$8,$9,$10,NULLIF($11,'')::uuid,$12,NULLIF($13,''),
 		        NULLIF($14,'')::uuid,NULLIF($15,''),NULLIF($16,''),NULLIF($17,'')::uuid,$18,$19,$20::jsonb,
-		        $21,$22,$23,$24,$25,$26::jsonb,$27,$28,$29)`,
+		        $21,$22,$23,$24,$25,$26::jsonb,$27,$28,$29,$30)`,
 		voidID, in.OrderID, in.OutletID, ap.Facts.BusinessDate, ap.Facts.ShiftID, ap.Facts.ShiftStatus == "closed",
 		voidCountedInClose(ap.Facts), string(in.Source), string(ap.Authority), string(in.Mode), replacementID,
 		string(in.Reason), in.Note, in.UserID, in.UserName, in.DeviceID, in.ClientVoidUUID, ap.Total, ap.PaymentMethod,
-		string(tenders), ap.Clawed, ap.Forgiven, ap.Restored, ap.Spend, ap.VisitReversed, string(codes), "void:"+voidID, ap.ReplDeducted, ap.ReplWriteoff); err != nil {
+		string(tenders), ap.Clawed, ap.Forgiven, ap.Restored, ap.Spend, ap.VisitReversed, string(codes), "void:"+voidID, ap.ReplDeducted, ap.ReplWriteoff, ap.DebtReinstated); err != nil {
 		return fmt.Errorf("insert order_voids: %w", err)
 	}
 	for _, it := range ap.Items {

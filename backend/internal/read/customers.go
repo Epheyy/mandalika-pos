@@ -177,7 +177,7 @@ func (r *Repo) Interactions(ctx context.Context, customerID string, page, limit 
 // PointTransactions returns a customer's points ledger, newest-first, paginated.
 func (r *Repo) PointTransactions(ctx context.Context, customerID string, page, limit int) ([]api.PointTransaction, int, error) {
 	const sql = `SELECT json_build_object(
-		  'id', pt.id, 'type', pt.type, 'points', pt.points, 'balanceAfter', pt.balance_after,
+		  'id', pt.id, 'type', pt.type, 'points', pt.points, 'debtDelta', pt.debt_delta, 'balanceAfter', pt.balance_after,
 		  'reason', pt.reason, 'orderId', pt.order_id, 'orderNumber', o.order_number,
 		  'createdByName', pt.created_by_name, 'createdAt', pt.created_at), count(*) OVER() AS total
 		FROM point_transactions pt

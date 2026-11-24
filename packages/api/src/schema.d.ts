@@ -4078,6 +4078,8 @@ export interface components {
             /** @enum {string} */
             type: "earn" | "redeem" | "adjust" | "refund" | "void";
             points: number;
+            /** @description Signed change of the points debt in this entry (0 when none). points may be 0 when only the debt moved. */
+            debtDelta?: number;
             balanceAfter: number;
             reason?: string | null;
             /** Format: uuid */

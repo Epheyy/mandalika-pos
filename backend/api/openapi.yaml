@@ -1107,6 +1107,7 @@ components:
         id: { type: string, format: uuid }
         type: { type: string, enum: [earn, redeem, adjust, refund, void] }
         points: { type: integer }
+        debtDelta: { type: integer, description: Signed change of the points debt in this entry (0 when none). points may be 0 when only the debt moved. }
         balanceAfter: { type: integer }
         reason: { type: string, nullable: true }
         orderId: { type: string, format: uuid, nullable: true }

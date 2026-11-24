@@ -231,7 +231,7 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 	// Points (D-37), computed now (the customer row is locked) and applied after the order
 	// writes: the cumulative proportional share of the computed value refunded so far (the
 	// completing refund settles exactly), minus what earlier refunds actually took. The floor
-	// at 0 applies per refund; a shortfall is not lost: the next refund's target minus what was actually taken re-claws it.
+	// at 0 applies per refund; a shortfall is not lost: it is recorded as points debt (points_debt_added), counted as taken by the next refund's cumulative claw, and recovered from future earn.
 	var clawed, restored, afterRestore, newBal int64
 	var debtAdded int64
 	if o.custID != nil && *o.custID != "" {
@@ -370,13 +370,13 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 				return RefundResult{}, fmt.Errorf("ledger refund restore: %w", e)
 			}
 		}
-		if clawed > 0 {
+		if clawed > 0 || debtAdded > 0 {
 			clawReason := fmt.Sprintf("Pembatalan poin dari refund %s", o.orderNumber)
 			if debtAdded > 0 {
 				clawReason += fmt.Sprintf(" (%d poin tidak cukup saldo, menjadi utang poin dan dipotong dari poin berikutnya)", debtAdded)
 			}
 			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
-				CustomerID: *o.custID, Type: "refund", Points: -int(clawed),
+				CustomerID: *o.custID, Type: "refund", Points: -int(clawed), DebtDelta: int(debtAdded),
 				BalanceAfter: int(newBal), Reason: clawReason, OrderID: orderID,
 			}); e != nil {
 				return RefundResult{}, fmt.Errorf("ledger refund clawback: %w", e)

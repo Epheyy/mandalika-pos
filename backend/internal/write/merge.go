@@ -235,13 +235,15 @@ func (r *Repo) MergeCustomers(ctx context.Context, candidateID, keeperID string,
 		return fmt.Errorf("repoint loyalty applications: %w", err)
 	}
 
-	// 8. Points reconciliation (skip if dup has 0 points — ledger CHECK forbids 0-point entries).
+	// 8. Points reconciliation (skip if dup has no points and no debt; a debt-only move is a 0-point row
+	// with a debt_delta, which the ledger CHECK allows).
 	pointsMoved := dup.points
-	if dup.points != 0 {
+	if dup.points != 0 || dup.pointsDebt != 0 {
 		if err := InsertPointTx(ctx, t, PointTxRow{
 			CustomerID:   keeperID,
 			Type:         "adjust",
 			Points:       dup.points,
+			DebtDelta:    dup.pointsDebt,
 			BalanceAfter: keeper.points + dup.points,
 			Reason:       fmt.Sprintf("Gabung dari %s (%s)", dup.phone, dup.name),
 			ByID:         byID,
@@ -253,6 +255,7 @@ func (r *Repo) MergeCustomers(ctx context.Context, candidateID, keeperID string,
 			CustomerID:   dupID,
 			Type:         "adjust",
 			Points:       -dup.points,
+			DebtDelta:    -dup.pointsDebt,
 			BalanceAfter: 0,
 			Reason:       fmt.Sprintf("Dipindah ke %s (%s)", keeper.phone, keeper.name),
 			ByID:         byID,

@@ -242,6 +242,14 @@ func TestLockOrderPostgres(t *testing.T) {
 		if keeperDebt != 35 || dupDebt != 0 {
 			t.Fatalf("merged points debt: keeper=%d dup=%d, want 35 / 0", keeperDebt, dupDebt)
 		}
+		// the debt move is auditable: +30 on the survivor, -30 on the duplicate (net zero)
+		var kd, dd int
+		if err := pool.QueryRow(ctx, `SELECT COALESCE(sum(debt_delta) FILTER (WHERE customer_id=$1),0), COALESCE(sum(debt_delta) FILTER (WHERE customer_id=$2),0) FROM point_transactions WHERE customer_id IN ($1,$2)`, keeper, dup).Scan(&kd, &dd); err != nil {
+			t.Fatal(err)
+		}
+		if kd != 30 || dd != -30 {
+			t.Fatalf("merge ledger debt_delta: keeper=%d dup=%d, want +30 / -30", kd, dd)
+		}
 	})
 
 	t.Run("refund_retries_after_merge_moves_customer", func(t *testing.T) {

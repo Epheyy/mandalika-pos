@@ -327,6 +327,7 @@ export default function CustomerDetail({
                     <div className="text-right flex-shrink-0">
                       <p className={`text-sm font-black ${t.points >= 0 ? 'text-ok' : 'text-danger'}`}>{t.points >= 0 ? '+' : ''}{t.points.toLocaleString('id-ID')}</p>
                       <p className="text-xs text-ink-500">{t.balanceAfter.toLocaleString('id-ID')}</p>
+                      {!!t.debtDelta && <p className="text-xs text-ink-500">Utang {t.debtDelta > 0 ? '+' : ''}{t.debtDelta.toLocaleString('id-ID')}</p>}
                     </div>
                   </div>
                 ))}

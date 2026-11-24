@@ -12,6 +12,7 @@ type PointTxRow struct {
 	CustomerID   string
 	Type         string // earn | redeem | adjust | refund
 	Points       int    // signed
+	DebtDelta    int    // signed change of customers.points_debt (0 = none); Points may be 0 when only the debt moved
 	BalanceAfter int
 	Reason       string
 	OrderID      string
@@ -30,10 +31,10 @@ func InsertPointTx(ctx context.Context, tx pgx.Tx, e PointTxRow) error {
 	}
 	_, err := tx.Exec(ctx,
 		`INSERT INTO point_transactions
-		   (customer_id, type, points, balance_after, reason, order_id, created_by, created_by_name)
-		 VALUES ($1,$2,$3,$4,NULLIF($5,''),NULLIF($6,'')::uuid,NULLIF($7,'')::uuid,NULLIF($8,''))`,
+		   (customer_id, type, points, balance_after, reason, order_id, created_by, created_by_name, debt_delta)
+		 VALUES ($1,$2,$3,$4,NULLIF($5,''),NULLIF($6,'')::uuid,NULLIF($7,'')::uuid,NULLIF($8,''),$9)`,
 		e.CustomerID, e.Type, e.Points, e.BalanceAfter,
-		e.Reason, e.OrderID, e.ByID, e.ByName)
+		e.Reason, e.OrderID, e.ByID, e.ByName, e.DebtDelta)
 	if err != nil {
 		return fmt.Errorf("insert point tx: %w", err)
 	}

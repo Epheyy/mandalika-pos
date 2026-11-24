@@ -741,10 +741,10 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 		  change, status, notes, shift_id, client_created_at, quoted_total,
 		  stock_warning, points_redeemed, points_redemption_amount, discount_label, discount_breakdown, points_earned, discount_warning, discount_warning_reason, applied_discount_codes, tender_warning, tender_warning_reason,
 		  receipt_snapshot, quote_warning, quote_warning_reason,
-		  replaces_order_id, business_date, correction_amount)
+		  replaces_order_id, business_date, correction_amount, points_debt_settled)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
 		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31,$32,$33::jsonb,$34,$35,$36,$37::jsonb,$38,$39,$40::jsonb,$41,$42,
-		        $43,$44::date,$45)
+		        $43,$44::date,$45,$46)
 		RETURNING id`,
 		orderNumber, in.OrderUUID, in.IdempotencyKey, nullUUID(in.DeviceID), in.OutletID,
 		in.CashierID, in.CashierName, nullUUID(in.SalesmanID), nullStr(in.SalesmanName),
@@ -758,7 +758,7 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 		finalEarned, discountWarning, nullStr(discountWarnReason), nullCodes(appliedCodes),
 		tenderWarning, nullStr(tenderReason),
 		nullBytes(snapStored), quoteReason != "", nullStr(quoteReason),
-		nullUUID(in.ReplacesOrderID), nullStr(in.BusinessDate), correction,
+		nullUUID(in.ReplacesOrderID), nullStr(in.BusinessDate), correction, debtSettled,
 	).Scan(&orderID)
 	if err != nil {
 		if isIdempotencyConflict(err) {
@@ -871,7 +871,7 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 			}
 			if debtSettled > 0 {
 				if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
-					CustomerID: in.CustomerID, Type: "refund", Points: -debtSettled,
+					CustomerID: in.CustomerID, Type: "refund", Points: -debtSettled, DebtDelta: -debtSettled,
 					BalanceAfter: balanceBefore + earned - debtSettled,
 					Reason:       fmt.Sprintf("Pelunasan utang poin refund dari transaksi %s (sisa utang %d)", orderNumber, pointsDebt-debtSettled),
 					OrderID:      orderID, ByID: in.CashierID, ByName: in.CashierName,
