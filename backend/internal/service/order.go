@@ -527,13 +527,13 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 	}
 
 	hasLoyaltyCustomer := in.CustomerID != "" && loyEnabled
-	balanceBefore := 0
+	balanceBefore, pointsDebt := 0, 0
 	var evalCust EvalCustomer
 	if hasLoyaltyCustomer {
 		if e := tx.QueryRow(ctx,
-			`SELECT points, birthday, anniversary, visit_count
+			`SELECT points, points_debt, birthday, anniversary, visit_count
 			   FROM customers WHERE id=$1 FOR UPDATE`,
-			in.CustomerID).Scan(&balanceBefore, &evalCust.Birthday, &evalCust.Anniversary, &evalCust.VisitCount); e != nil {
+			in.CustomerID).Scan(&balanceBefore, &pointsDebt, &evalCust.Birthday, &evalCust.Anniversary, &evalCust.VisitCount); e != nil {
 			// A missing customer is NOT a refusal: the POS creates customers on-device
 			// and syncs customer_create first, so a failed/late create makes this
 			// transient. Leave it unclassified (retryable internal).
@@ -568,6 +568,12 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 	if in.deductionOut != nil {
 		*in.deductionOut = deducted
 	}
+	// A20: this sale's earn first pays down the customer's refund points debt (no expiry). The balance
+	// grows by earned - settle, so it never goes negative; the debt row sits between earn and redeem.
+	debtSettled := 0
+	if hasLoyaltyCustomer {
+		debtSettled = min(pointsDebt, finalEarned)
+	}
 	pointsRedeemed := 0
 	redeemAmount := 0.0
 	if in.PointsRedeemed > 0 && hasLoyaltyCustomer && redemptionRate > 0 {
@@ -578,7 +584,7 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 		// ledger): the cap is max(balance, min(reuse, balance + earn)). It never drops below the live
 		// balance, never exceeds the reusable points unless the balance itself is higher, and the
 		// balance never goes below 0 (cap <= balance + earn). A normal sale (reuse 0) is unchanged.
-		available := max(balanceBefore, min(in.pointsReuse, balanceBefore+finalEarned))
+		available := max(balanceBefore, min(in.pointsReuse, balanceBefore+finalEarned-debtSettled))
 		if pointsRedeemed > available {
 			// Use what is there: the replacement redeems the available points, never refuses (a paid
 			// replacement must not park over points). In a locked replacement the shortfall lands in
@@ -649,7 +655,7 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 		if err := salePoints("balanceAfterEarn", float64(balanceBefore)+float64(finalEarned)); err != nil {
 			return "", false, false, err
 		}
-		if err := salePoints("balanceAfterRedemption", float64(balanceBefore)+float64(finalEarned)-float64(pointsRedeemed)); err != nil {
+		if err := salePoints("balanceAfterRedemption", float64(balanceBefore)+float64(finalEarned)-float64(debtSettled)-float64(pointsRedeemed)); err != nil {
 			return "", false, false, err
 		}
 	}
@@ -842,8 +848,8 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 	if in.CustomerID != "" {
 		if _, e := tx.Exec(ctx, `
 			UPDATE customers SET total_spent=total_spent+$1, visit_count=visit_count+1,
-			  last_visit=now(), points=points+$2-$4 WHERE id=$3`,
-			finalTotal, finalEarned, in.CustomerID, pointsRedeemed); e != nil {
+			  last_visit=now(), points=points+$2-$4-$5, points_debt=points_debt-$5 WHERE id=$3`,
+			finalTotal, finalEarned, in.CustomerID, pointsRedeemed, debtSettled); e != nil {
 			return "", false, false, fmt.Errorf("update customer: %w", e)
 		}
 
@@ -863,10 +869,20 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 					return "", false, false, fmt.Errorf("ledger earn: %w", e)
 				}
 			}
+			if debtSettled > 0 {
+				if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
+					CustomerID: in.CustomerID, Type: "refund", Points: -debtSettled,
+					BalanceAfter: balanceBefore + earned - debtSettled,
+					Reason:       fmt.Sprintf("Pelunasan utang poin refund dari transaksi %s (sisa utang %d)", orderNumber, pointsDebt-debtSettled),
+					OrderID:      orderID, ByID: in.CashierID, ByName: in.CashierName,
+				}); e != nil {
+					return "", false, false, fmt.Errorf("ledger points debt: %w", e)
+				}
+			}
 			if pointsRedeemed > 0 {
 				if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
 					CustomerID: in.CustomerID, Type: "redeem", Points: -pointsRedeemed,
-					BalanceAfter: balanceBefore + earned - pointsRedeemed,
+					BalanceAfter: balanceBefore + earned - debtSettled - pointsRedeemed,
 					Reason:       fmt.Sprintf("Penukaran poin di transaksi %s%s", orderNumber, redeemNote),
 					OrderID:      orderID, ByID: in.CashierID, ByName: in.CashierName,
 				}); e != nil {

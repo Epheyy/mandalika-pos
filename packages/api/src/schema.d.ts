@@ -3999,6 +3999,8 @@ export interface components {
             phone: string;
             email?: string | null;
             points: number;
+            /** @description Refund points the balance could not cover; recovered from future sale earnings. */
+            pointsDebt?: number;
             /** Format: double */
             totalSpent: number;
             visitCount: number;

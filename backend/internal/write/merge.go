@@ -27,6 +27,7 @@ type dupRow struct {
 	birthday    string
 	anniversary string
 	points      int
+	pointsDebt  int
 	totalSpent  float64
 	visitCount  int
 	lastVisit   string
@@ -124,12 +125,12 @@ func (r *Repo) MergeCustomers(ctx context.Context, candidateID, keeperID string,
 	err = t.QueryRow(ctx,
 		`SELECT name, phone, COALESCE(email,''), COALESCE(notes,''),
 		        COALESCE(birthday::text,''), COALESCE(anniversary::text,''),
-		        points, total_spent, visit_count,
+		        points, points_debt, total_spent, visit_count,
 		        COALESCE(last_visit::text,''), COALESCE(merged_into::text,'')
 		   FROM customers WHERE id=$1`,
 		dupID).Scan(&dup.name, &dup.phone, &dup.email, &dup.notes,
 		&dup.birthday, &dup.anniversary,
-		&dup.points, &dup.totalSpent, &dup.visitCount,
+		&dup.points, &dup.pointsDebt, &dup.totalSpent, &dup.visitCount,
 		&dup.lastVisit, &dup.mergedInto)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
@@ -268,13 +269,14 @@ func (r *Repo) MergeCustomers(ctx context.Context, candidateID, keeperID string,
 		    SET total_spent  = total_spent  + $2,
 		        visit_count  = visit_count  + $3,
 		        last_visit   = GREATEST(last_visit, $4::timestamptz),
-		        points       = points       + $5
+		        points       = points       + $5,
+		        points_debt  = points_debt  + $6
 		  WHERE id = $1`,
-		keeperID, dup.totalSpent, dup.visitCount, lastVisitArg, pointsMoved); err != nil {
+		keeperID, dup.totalSpent, dup.visitCount, lastVisitArg, pointsMoved, dup.pointsDebt); err != nil {
 		return fmt.Errorf("update keeper aggregates: %w", err)
 	}
 	if _, err := t.Exec(ctx,
-		`UPDATE customers SET points=0 WHERE id=$1`, dupID); err != nil {
+		`UPDATE customers SET points=0, points_debt=0 WHERE id=$1`, dupID); err != nil {
 		return fmt.Errorf("zero dup points: %w", err)
 	}
 
@@ -313,6 +315,7 @@ func (r *Repo) MergeCustomers(ctx context.Context, candidateID, keeperID string,
 		"birthday":    dup.birthday,
 		"anniversary": dup.anniversary,
 		"points":      dup.points,
+		"pointsDebt":  dup.pointsDebt,
 		"totalSpent":  dup.totalSpent,
 		"visitCount":  dup.visitCount,
 		"lastVisit":   dup.lastVisit,

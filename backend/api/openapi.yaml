@@ -1025,6 +1025,7 @@ components:
         phone: { type: string }
         email: { type: string, nullable: true }
         points: { type: integer }
+        pointsDebt: { type: integer, description: 'Refund points the balance could not cover; recovered from future sale earnings.' }
         totalSpent: { type: number, format: double }
         visitCount: { type: integer }
         lastVisit: { type: string, format: date-time, nullable: true }

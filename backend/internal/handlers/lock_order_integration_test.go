@@ -227,6 +227,23 @@ func TestLockOrderPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("merge_carries_points_debt", func(t *testing.T) {
+		wr := write.New(pool)
+		cand, dup, keeper := mergePair(true)
+		exec(`UPDATE customers SET points_debt=30 WHERE id=$1`, dup)
+		exec(`UPDATE customers SET points_debt=5 WHERE id=$1`, keeper)
+		if err := wr.MergeCustomers(ctx, cand, keeper, nil, user, "c"); err != nil {
+			t.Fatal(err)
+		}
+		var keeperDebt, dupDebt int
+		if err := pool.QueryRow(ctx, `SELECT (SELECT points_debt FROM customers WHERE id=$1), (SELECT points_debt FROM customers WHERE id=$2)`, keeper, dup).Scan(&keeperDebt, &dupDebt); err != nil {
+			t.Fatal(err)
+		}
+		if keeperDebt != 35 || dupDebt != 0 {
+			t.Fatalf("merged points debt: keeper=%d dup=%d, want 35 / 0", keeperDebt, dupDebt)
+		}
+	})
+
 	t.Run("refund_retries_after_merge_moves_customer", func(t *testing.T) {
 		exec(`UPDATE loyalty_settings SET enabled=true`)
 		a := newProduct(true)
