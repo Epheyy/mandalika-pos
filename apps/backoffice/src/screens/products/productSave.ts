@@ -28,10 +28,14 @@ interface PersistArgs {
   hasOutlets: boolean
 }
 
-/** The writes one Simpan makes. Locked: outlet config only (skipped when there are no outlets). Otherwise as before. */
+/** Shown when a locked editor has no outlet of the user's to save (new product, or the outlet list failed to load). */
+export const NOTHING_TO_SAVE = 'Tidak ada outlet Anda yang bisa disimpan untuk produk ini.'
+
+/** The writes one Simpan makes. Locked: outlet config only (an error when there is none, so the editor stays open). Otherwise as before. */
 export async function persistProduct(client: SaveApi, { productId, catalogueLocked, body, items, hasOutlets }: PersistArgs): Promise<void> {
   if (catalogueLocked) {
-    if (productId && hasOutlets) await client.updateProductOutletConfig(productId, items)
+    if (!productId || !hasOutlets) throw new Error(NOTHING_TO_SAVE)
+    await client.updateProductOutletConfig(productId, items)
     return
   }
   if (!productId) {

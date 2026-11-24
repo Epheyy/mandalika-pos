@@ -32,7 +32,10 @@ Why: since coverage landed, a covered Manajer is meant to act only on their outl
 - New middleware `RequireCatalogueWide`: passes for role `admin` or `auth.CoverageFrom(ctx).All`; otherwise 403
   "Hanya admin atau Manajer Semua Outlet yang dapat mengubah katalog." Applied (after `RequirePermission("manage_products")`)
   to: `POST /products/import`, `POST /products`, `PUT /products/{id}`, `DELETE /products/{id}`, `POST /categories`,
-  `PUT /categories/{id}`, `DELETE /categories/{id}`, `POST /uploads/sign`, `PUT /settings/bundles`.
+  `PUT /categories/{id}`, `DELETE /categories/{id}`, `PUT /settings/bundles`.
+- `POST /uploads/sign` stays behind `manage_products` only (review finding, 2026-11-24): signing writes nothing (the image
+  URL is saved only through the gated product routes), and outlet, warehouse and settings photo uploads use it too,
+  so gating it would have blocked a covered Manajer's own outlet photo.
 - `GET /products/{id}/outlet-config` (`manage_products` only): a covered-only caller gets only rows for outlets
   they cover; catalogue-wide callers get every active outlet (unchanged).
 - `PUT /products/{id}/outlet-config` (`manage_products` only), covered-only caller:
@@ -53,7 +56,8 @@ Why: since coverage landed, a covered Manajer is meant to act only on their outl
 
 ## Not changed
 
-Recipes, promotions, inventory and catalogue reads (POS sync, product lists) keep their own permissions and scope.
+A cashier on a custom role with `manage_products` is never catalogue-wide (keeps per-outlet config for their own
+outlet only). Recipes, promotions, inventory and catalogue reads (POS sync, product lists) keep their own permissions and scope.
 
 ## Tests
 

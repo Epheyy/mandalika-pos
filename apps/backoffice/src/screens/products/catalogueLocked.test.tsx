@@ -5,7 +5,7 @@ import { ProductFormSlideOver } from './ProductFormSlideOver'
 import { ProductsTable } from './ProductsTable'
 import { CategoriesTable } from './CategoriesTable'
 import { CATALOGUE_LOCKED_NOTE } from './CatalogueLockedNote'
-import { outletConfigItems, persistProduct } from './productSave'
+import { NOTHING_TO_SAVE, outletConfigItems, persistProduct } from './productSave'
 import { EMPTY } from './types'
 import type { Form } from './types'
 
@@ -126,11 +126,15 @@ describe('saving a product from the editor', () => {
     expect(c.createProduct).not.toHaveBeenCalled()
   })
 
-  it('locked with no outlets: writes nothing', async () => {
+  it('locked with no outlets: writes nothing and says so instead of closing as saved', async () => {
     const c = client()
-    await persistProduct(c, { productId: 'p1', catalogueLocked: true, body, items: [], hasOutlets: false })
+    await expect(persistProduct(c, { productId: 'p1', catalogueLocked: true, body, items: [], hasOutlets: false }))
+      .rejects.toThrow(NOTHING_TO_SAVE)
+    await expect(persistProduct(c, { productId: null, catalogueLocked: true, body, items, hasOutlets: true }))
+      .rejects.toThrow(NOTHING_TO_SAVE)
     expect(c.updateProductOutletConfig).not.toHaveBeenCalled()
     expect(c.updateProduct).not.toHaveBeenCalled()
+    expect(c.createProduct).not.toHaveBeenCalled()
   })
 
   it('unlocked: updates the product, then the outlet config', async () => {
