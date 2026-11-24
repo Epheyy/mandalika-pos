@@ -1,6 +1,10 @@
 package write
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/mandalika/pos-backend/internal/coverage"
+)
 
 func TestReceiveFingerprint(t *testing.T) {
 	a := []TransferReceiveItem{{ProductID: "p2", VariantSize: "50", ReceivedQty: 3}, {ProductID: "p1", VariantSize: "30", ReceivedQty: 5}}
@@ -39,13 +43,17 @@ func TestApproverAllowedAndScope(t *testing.T) {
 	if !ApproverAllowed("admin", nil) || ApproverAllowed("cashier", nil) || !ApproverAllowed("manager", []string{"manager"}) {
 		t.Fatal("approver role rule")
 	}
-	if ReceiveScope("o1", "", "admin", "") == "" || ReceiveScope("o1", "o2", "admin", "") == "" {
+	all := coverage.Coverage{All: true}
+	if ReceiveScope("o1", "", "admin", all) == "" || ReceiveScope("o1", "o2", "admin", all) == "" {
 		t.Fatal("dest must be the caller's outlet")
 	}
-	if ReceiveScope("o1", "o1", "admin", "") != "" || ReceiveScope("o1", "o1", "manager", "o1") != "" {
+	if ReceiveScope("o1", "o1", "admin", all) != "" || ReceiveScope("o1", "o1", "manager", coverage.Coverage{OutletIDs: []string{"o1"}}) != "" {
 		t.Fatal("ok cases")
 	}
-	if ReceiveScope("o1", "o1", "manager", "o2") == "" {
-		t.Fatal("non-admin approver must belong to the outlet")
+	if ReceiveScope("o1", "o1", "manager", coverage.Coverage{OutletIDs: []string{"o2"}}) != "tidak berwenang" {
+		t.Fatal("an approver that does not cover the outlet is refused")
+	}
+	if ReceiveScope("o1", "o1", "manager", coverage.Coverage{OutletIDs: []string{"o2", "o1"}}) != "" {
+		t.Fatal("an approver covering the outlet as an extra is accepted")
 	}
 }

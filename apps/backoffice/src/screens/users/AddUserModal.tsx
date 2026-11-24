@@ -1,9 +1,11 @@
 import type { Outlet } from '@mandalika/api'
 import { Button } from '../../ui/Button'
-import { Input, Select, Field } from '../../ui/Field'
+import { Input, Field } from '../../ui/Field'
 import { SlideOver } from '../../ui/SlideOver'
 import { PermissionPicker, permissionsForRole } from './PermissionPicker'
 import { RolePicker } from './RolePicker'
+import { OutletCoverageField } from './OutletCoverageField'
+import { coverageError, coverageForRole, type CoverageValue } from './coverage'
 import type { Role } from './roles'
 
 type NewUserForm = {
@@ -11,7 +13,7 @@ type NewUserForm = {
   email: string
   password: string
   role: Role
-  outletId: string
+  coverage: CoverageValue
   permissions: string[]
 }
 
@@ -36,7 +38,7 @@ function AddUserModal({ open, onClose, nf, setNf, busy, outlets, error, onSave }
       footer={
         <SlideOver.Footer>
           <Button variant="secondary" onClick={onClose}>Batal</Button>
-          <Button loading={busy} onClick={onSave}>{busy ? 'Menambahkan...' : 'Tambah'}</Button>
+          <Button loading={busy} disabled={!!coverageError(nf.role, nf.coverage)} onClick={onSave}>{busy ? 'Menambahkan...' : 'Tambah'}</Button>
         </SlideOver.Footer>
       }
     >
@@ -50,21 +52,9 @@ function AddUserModal({ open, onClose, nf, setNf, busy, outlets, error, onSave }
           <Input key={k} label={label} type={type} autoComplete={autoComplete} value={nf[k]} onChange={(e) => setNf((f) => ({ ...f, [k]: e.target.value }))} />
         ))}
         <Field label="Role">
-          <RolePicker value={nf.role} onChange={(r) => setNf((f) => ({ ...f, role: r, permissions: permissionsForRole(r, f.permissions, f.role) }))} />
+          <RolePicker value={nf.role} onChange={(r) => setNf((f) => ({ ...f, role: r, coverage: coverageForRole(f.role, r, f.coverage), permissions: permissionsForRole(r, f.permissions, f.role) }))} />
         </Field>
-        <Select
-          label="Outlet"
-          value={nf.outletId}
-          onChange={(e) => setNf((f) => ({ ...f, outletId: e.target.value }))}
-        >
-          <option value="">Semua Outlet (tanpa pembatasan)</option>
-          {outlets.map((o) => (
-            <option key={o.id} value={o.id}>{o.name}</option>
-          ))}
-        </Select>
-        {nf.role === 'cashier' && !nf.outletId && (
-          <p className="text-[11px] text-warn-strong -mt-3">Kasir sebaiknya ditempatkan di satu outlet.</p>
-        )}
+        <OutletCoverageField role={nf.role} value={nf.coverage} onChange={(coverage) => setNf((f) => ({ ...f, coverage }))} outlets={outlets} />
         {nf.role !== 'admin' && (
           <Field label="Izin akses">
             <PermissionPicker

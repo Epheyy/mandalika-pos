@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -25,13 +24,12 @@ func (h *Handlers) CreateOutlet(w http.ResponseWriter, r *http.Request) {
 
 // canEditOutletID: admin always (role read straight from the token, not scope(), which
 // narrows an outlet-assigned admin or an X-Outlet-Id header to one outlet); anyone else
-// only their own token outlet.
+// only an outlet their coverage includes.
 func canEditOutletID(r *http.Request, id string) bool {
 	if role, _ := r.Context().Value(auth.CtxRole).(string); role == "admin" {
 		return true
 	}
-	own, _ := r.Context().Value(auth.CtxOutletID).(string)
-	return own != "" && strings.EqualFold(own, id)
+	return auth.CoverageFrom(r.Context()).Covers(id)
 }
 
 func (h *Handlers) UpdateOutlet(w http.ResponseWriter, r *http.Request) {

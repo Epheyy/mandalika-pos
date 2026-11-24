@@ -6,7 +6,7 @@ import { api } from '../../api'
 import { useAuth } from '../../auth'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { navigate } from '../../lib/router/navigate'
-import { useOutlet } from '../../outlet'
+import { useActiveOutletId } from '../../outlet'
 import { TableSkeleton } from '../../components/Skeleton'
 import { Badge } from '../../ui/Badge'
 import { Button } from '../../ui/Button'
@@ -58,7 +58,7 @@ function StatusChain({ status }: { status: StockRequisition['status'] }) {
 /** Detail of one Permintaan Barang: status chain, lines, linked transfer, history and the actions the caller may take. */
 export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps) {
   const { user } = useAuth()
-  const { outletId } = useOutlet()
+  const activeOutlet = useActiveOutletId()
   const perms = user?.permissions ?? []
   const isAdmin = user?.role === 'admin'
   const canWarehouse = isAdmin || perms.includes('manage_inventory')
@@ -88,8 +88,6 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
 
   const items = pb.items ?? []
   const linkedTransferId = pb.transfer?.id
-  // A non-admin's active outlet is their own (the context outletId stays null for them).
-  const activeOutlet = isAdmin ? outletId : (user?.outletId ?? null)
   const ownOutlet = canRequest && activeOutlet === pb.outletId
   const approvedFor = (itemId: string, requested: number) => approved[itemId] ?? String(requested)
 

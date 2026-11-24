@@ -27,7 +27,7 @@ import { useConfirm } from '../ui/ConfirmDialog'
 import { SubmitCountModal } from './approvals/SubmitCountModal'
 import { notifyApprovalsChanged } from './approvals/useApprovalCount'
 import { CountCsvPanel } from './stockcount/CountCsvPanel'
-import { countErrorMessage, freezeSummary, newestFirst, withCountScope } from './stockcount/countScope'
+import { countCreateTarget, countErrorMessage, freezeSummary, newestFirst, withCountScope } from './stockcount/countScope'
 import { cancelCountConfirm, completeCountConfirm, lineDifference, startCountConfirm, summarizeCount } from './stockcount/countConfirm'
 
 
@@ -40,7 +40,7 @@ const isWholeCount = (text: string) => /^\d+$/.test(text)
 const lineKey = (it: StockCountItem) => `${it.productId}|${it.variantSize}`
 
 export default function StockCount() {
-  const { outletId, outlets: ctxOutlets, isAdmin } = useOutlet()
+  const { outletId, outlets: ctxOutlets, allowCombined } = useOutlet()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const scq = usePolledQuery<ListResult<StockCount>>(() => api.listStockCounts(page, pageSize), [outletId, page, pageSize])
@@ -129,8 +129,9 @@ export default function StockCount() {
 
   const createSC = async () => {
     if (!form.name.trim()) return setErr('Nama wajib diisi')
-    if (isAdmin && !form.locationKey) return setErr('Pilih lokasi')
-    const [kind, locId] = isAdmin ? form.locationKey.split(':') : ['o', null]
+    const target = countCreateTarget(allowCombined, form.locationKey)
+    if (!target) return setErr('Pilih lokasi')
+    const { kind, locId } = target
     setBusy(true)
     setErr(null)
     const prev = authStore.outletId
@@ -153,9 +154,9 @@ export default function StockCount() {
           items,
         })
       } else {
-        // Outlet count: snapshot from products, switch authStore for admins. The product list is keyed by the
+        // Outlet count: snapshot from products, switch authStore for the combined-view roles. The product list is keyed by the
         // header outlet and carries that outlet's stock, so switch first, then read it fresh (not from the shared cache).
-        if (isAdmin && locId) authStore.outletId = locId
+        if (allowCombined && locId) authStore.outletId = locId
         const frozen = activeProducts(await productCatalogue.get({ force: true })) ?? []
         const items: StockCountItem[] = frozen.flatMap((p) =>
           p.variants.map((v) => ({
@@ -168,7 +169,7 @@ export default function StockCount() {
         )
         await api.createStockCount({
           name: form.name.trim(),
-          outletId: isAdmin ? locId ?? '' : '',
+          outletId: allowCombined ? locId ?? '' : '',
           plannedDate: form.plannedDate,
           notes: form.notes.trim(),
           items,
@@ -321,7 +322,7 @@ export default function StockCount() {
     else exportToXLSX(exportRows, name)
   }
 
-  const createLocName = isAdmin
+  const createLocName = allowCombined
     ? [...outlets.map((o) => ({ key: `o:${o.id}`, name: o.name })), ...warehouses.map((w) => ({ key: `w:${w.id}`, name: w.name }))].find((l) => l.key === form.locationKey)?.name
     : undefined
   const createTitle = createLocName ? `Buat Opname Baru · ${createLocName}` : 'Buat Opname Baru'
@@ -524,7 +525,7 @@ export default function StockCount() {
       >
         <div className="space-y-4">
           <Input label="Nama *" type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-          {isAdmin && (
+          {allowCombined && (
             <Select label="Lokasi *" value={form.locationKey} onChange={(e) => setForm((f) => ({ ...f, locationKey: e.target.value }))}>
               <option value="">Pilih lokasi...</option>
               <optgroup label="Outlet">

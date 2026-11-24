@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/mandalika/pos-backend/internal/api"
@@ -76,8 +77,19 @@ func (h *Handlers) Requisitions(w http.ResponseWriter, r *http.Request) {
 		httpx.Err(w, http.StatusBadRequest, "status tidak valid")
 		return
 	}
+	// "all" (and empty) is no filter; anything else must be a uuid, or Postgres answers 22P02 -> 500.
+	outletID := q.Get("outletId")
+	if outletID == "all" {
+		outletID = ""
+	}
+	if outletID != "" {
+		if _, err := uuid.Parse(outletID); err != nil {
+			httpx.Err(w, http.StatusBadRequest, "outletId tidak valid")
+			return
+		}
+	}
 	p, l := pageLimit(r)
-	rows, total, err := h.Repo.Requisitions(r.Context(), acc, status, q.Get("outletId"), p, l)
+	rows, total, err := h.Repo.Requisitions(r.Context(), acc, status, outletID, p, l)
 	if err != nil {
 		writeErr(w, r, http.StatusInternalServerError, err)
 		return

@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
@@ -14,7 +15,11 @@ func (h *Handlers) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	id, err := h.Write.CreateProduct(r.Context(), scope(r).OutletID, p)
+	seed := scope(r).OutletID
+	if seed == read.NoOutlet {
+		seed = "" // no active outlet: seed the primary outlet, as before
+	}
+	id, err := h.Write.CreateProduct(r.Context(), seed, p)
 	h.created(w, r, id, err)
 }
 

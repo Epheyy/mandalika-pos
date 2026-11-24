@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countErrorMessage, freezeSummary, newestFirst, withCountScope } from './countScope'
+import { countCreateTarget, countErrorMessage, freezeSummary, newestFirst, withCountScope } from './countScope'
 
 describe('withCountScope', () => {
   it('runs an outlet count under its own outlet and restores the previous scope', async () => {
@@ -74,5 +74,17 @@ describe('newestFirst', () => {
 describe('freezeSummary', () => {
   it('counts products and their variants', () => {
     expect(freezeSummary([{ variants: [{}, {}] }, { variants: [{}] }] as never)).toBe('2 produk aktif (3 baris varian ukuran)')
+  })
+})
+
+describe('countCreateTarget', () => {
+  it('a combined-view user (admin / All manager) must pick a location, outlet or warehouse', () => {
+    expect(countCreateTarget(true, '')).toBeNull()
+    expect(countCreateTarget(true, 'o:o1')).toEqual({ kind: 'o', locId: 'o1' })
+    expect(countCreateTarget(true, 'w:w1')).toEqual({ kind: 'w', locId: 'w1' })
+  })
+  it('a covered manager counts the active outlet: no picker, no header swap, no body outlet', () => {
+    expect(countCreateTarget(false, '')).toEqual({ kind: 'o', locId: null })
+    expect(countCreateTarget(false, 'o:ignored')).toEqual({ kind: 'o', locId: null })
   })
 })

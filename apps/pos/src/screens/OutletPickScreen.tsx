@@ -9,16 +9,19 @@ import { useEffect, useState } from 'react'
 import type { components } from '@mandalika/api'
 import { api } from '../api'
 import { useAuth } from '../auth'
+import { OUTLET_PICK_REFUSED, pickableOutlets } from '../terminalBinding'
 
 type Outlet = components['schemas']['Outlet']
 
 export default function OutletPickScreen() {
   const { user, pickOutlet, logout } = useAuth()
-  const [outlets, setOutlets] = useState<Outlet[] | null>(null)
+  const [allOutlets, setOutlets] = useState<Outlet[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
+  // Only the outlets this account covers: an admin / all-outlets manager sees every one.
+  const outlets = allOutlets === null ? null : user ? pickableOutlets(user, allOutlets) : []
 
   useEffect(() => {
     let live = true
@@ -36,8 +39,8 @@ export default function OutletPickScreen() {
     setSaveError(null)
     try {
       await pickOutlet({ id: o.id, name: o.name })
-    } catch {
-      setSaveError('Pilihan outlet BELUM tersimpan di perangkat. Coba lagi.')
+    } catch (err) {
+      setSaveError(err instanceof Error && err.message === OUTLET_PICK_REFUSED ? err.message : 'Pilihan outlet BELUM tersimpan di perangkat. Coba lagi.')
       setBusyId(null)
     }
   }

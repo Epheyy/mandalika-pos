@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/mandalika/pos-backend/internal/auth"
+	"github.com/mandalika/pos-backend/internal/coverage"
 )
 
 func updateOutletReq(role, ownOutlet, targetID string) *http.Request {
@@ -19,6 +20,8 @@ func updateOutletReq(role, ownOutlet, targetID string) *http.Request {
 	ctx := context.WithValue(r.Context(), chi.RouteCtxKey, rc)
 	ctx = context.WithValue(ctx, auth.CtxRole, role)
 	ctx = context.WithValue(ctx, auth.CtxOutletID, ownOutlet)
+	// The middleware always sets coverage; a non-admin covers their own token outlet.
+	ctx = context.WithValue(ctx, auth.CtxCoverage, coverage.Of(role, ownOutlet, nil, false))
 	return r.WithContext(ctx)
 }
 

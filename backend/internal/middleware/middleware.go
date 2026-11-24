@@ -6,8 +6,11 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/config"
+	"github.com/mandalika/pos-backend/internal/coverage"
 	"github.com/mandalika/pos-backend/internal/httpx"
 )
 
@@ -70,20 +73,48 @@ func RequireAuth(cfg *config.Config, opts ...AuthOption) func(http.Handler) http
 			ctx := context.WithValue(r.Context(), auth.CtxUserID, claims.UserID)
 			ctx = context.WithValue(ctx, auth.CtxRole, claims.Role)
 			// Active outlet: X-Outlet-Id header validated against token, else token outlet.
+			cov := claims.Coverage()
 			outlet := claims.OutletID
 			if h := r.Header.Get("X-Outlet-Id"); h != "" {
-				if claims.Role == "admin" || h == claims.OutletID {
+				if claims.Role == "admin" || cov.All {
+					// Canonical lower-case when it is a uuid, so case-sensitive comparisons and cache keys agree.
 					outlet = h
+					if _, err := uuid.Parse(h); err == nil {
+						outlet = strings.ToLower(h)
+					}
+				} else if canon, ok := canonicalCovered(cov, h); ok {
+					outlet = canon // the stored coverage entry, not the header's spelling
 				} else {
 					httpx.Err(w, http.StatusForbidden, "outlet not permitted")
 					return
 				}
 			}
+			// A restricted manager may only name a covered outlet. "all" is ignored (scope keeps
+			// using the active outlet for non-admins, so nothing widens); an uncovered valid id is
+			// refused. A malformed id is not an outlet at all: it passes so the handler's own
+			// validation answers 400 (scope() honours only a covered id, so it cannot widen).
+			if claims.Role == "manager" && !cov.All {
+				if q := r.URL.Query().Get("outletId"); q != "" && q != "all" && isUUID(q) && !cov.Covers(q) {
+					httpx.Err(w, http.StatusForbidden, "outlet not permitted")
+					return
+				}
+			}
+			ctx = context.WithValue(ctx, auth.CtxCoverage, cov)
 			ctx = context.WithValue(ctx, auth.CtxOutletID, outlet)
 			ctx = context.WithValue(ctx, auth.CtxPerms, claims.Permissions)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// canonicalCovered returns the coverage entry matching id (case-insensitive).
+func canonicalCovered(cov coverage.Coverage, id string) (string, bool) {
+	for _, have := range cov.OutletIDs {
+		if strings.EqualFold(have, id) {
+			return have, true
+		}
+	}
+	return "", false
 }
 
 func RequireRole(roles ...string) func(http.Handler) http.Handler {
@@ -135,4 +166,9 @@ func RequireRecipesEnabled(rd interface {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func isUUID(s string) bool {
+	_, err := uuid.Parse(s)
+	return err == nil
 }

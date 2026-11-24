@@ -54,3 +54,15 @@ export function freezeSummary(products: readonly Pick<Product, 'variants'>[]): s
   const variants = products.reduce((sum, p) => sum + p.variants.length, 0)
   return `${products.length} produk aktif (${variants} baris varian ukuran)`
 }
+
+/**
+ * Where a new opname is created. Whoever sees the combined view (admin, an All manager) has no home outlet to
+ * default to, so they pick a location (outlet `o:<id>` or warehouse `w:<id>`); everyone else counts the active
+ * outlet (home or the switcher header). Returns null when a location is still required.
+ */
+export function countCreateTarget(allowCombined: boolean, locationKey: string): { kind: string; locId: string | null } | null {
+  if (!allowCombined) return { kind: 'o', locId: null }
+  if (!locationKey) return null
+  const [kind, locId] = locationKey.split(':')
+  return { kind, locId: locId ?? null }
+}

@@ -5,6 +5,7 @@ import { IconButton } from '../../ui/IconButton'
 import { Badge } from '../../ui/Badge'
 import { ROLE } from '../../lib/labels/role'
 import { labelOf } from '../../lib/labels/types'
+import { outletLabel } from './coverage'
 
 interface UserColumnOptions {
   me: User | null | undefined
@@ -15,7 +16,7 @@ interface UserColumnOptions {
 
 /** Columns of the Pengguna list. Row actions show only to an admin, never on the admin's own row. */
 export function userColumns({ me, outlets, onResetPassword, onEdit }: UserColumnOptions): Column<User>[] {
-  const outletNameOf = (id?: string | null) => outlets.find((o) => o.id === id)?.name
+  const outletNameOf = (id: string) => outlets.find((o) => o.id === id)?.name ?? '—'
   const canAct = (u: User) => me?.role === 'admin' && u.id !== me?.id
   return [
     {
@@ -46,7 +47,7 @@ export function userColumns({ me, outlets, onResetPassword, onEdit }: UserColumn
       cell: (u) => (
         <span className="inline-flex items-center gap-1 text-xs text-ink-700">
           <Store className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
-          {outletNameOf(u.outletId) || (u.role === 'admin' ? 'Semua Outlet' : 'Belum diatur')}
+          {outletLabel(u, outletNameOf)}
         </span>
       ),
     },

@@ -6,7 +6,7 @@ import { useAuth } from '../auth'
 import { usePolledQuery } from '../hooks/usePolledQuery'
 import { exportToCSV } from '../lib/csvUtils'
 import { Button } from '../ui/Button'
-import { Select, Field } from '../ui/Field'
+import { Field } from '../ui/Field'
 import { DataTable } from '../ui/DataTable'
 import { ExportButton } from '../ui/ExportButton'
 import { SlideOver } from '../ui/SlideOver'
@@ -27,12 +27,14 @@ import { RolePicker } from './users/RolePicker'
 import { ROLE_LABEL, roleFormProblem, type Role } from './users/roles'
 import { userColumns } from './users/userColumns'
 import { errorText } from './users/formError'
+import { OutletCoverageField } from './users/OutletCoverageField'
+import { EMPTY_COVERAGE, coverageError, coverageForRole, coverageFromUser, coveragePayload, outletLabel, type CoverageValue } from './users/coverage'
 
 type EditUserState = {
   editingUser: User | null
   editRole: Role
   editPerms: string[]
-  editOutletId: string
+  editCoverage: CoverageValue
   pin: string
   clearPin: boolean
 }
@@ -42,16 +44,19 @@ type EditUserAction =
   | { type: 'SET_ROLE'; value: Role }
   | { type: 'SET_PERMS'; value: string[] }
   | { type: 'TOGGLE_PERM'; perm: string }
-  | { type: 'SET_OUTLET'; value: string }
+  | { type: 'SET_COVERAGE'; value: CoverageValue }
   | { type: 'SET_PIN'; value: string }
   | { type: 'SET_CLEAR_PIN'; value: boolean }
   | { type: 'CLOSE' }
+
+/** The home outlet an admin being edited already had, restored if the role is toggled away and back. */
+const originalAdminHome = (u: User | null): string => (u?.role === 'admin' ? (u.outletId ?? '') : '')
 
 const initialEditUser: EditUserState = {
   editingUser: null,
   editRole: 'cashier',
   editPerms: [],
-  editOutletId: '',
+  editCoverage: EMPTY_COVERAGE,
   pin: '',
   clearPin: false,
 }
@@ -63,12 +68,12 @@ const editUserReducer = (state: EditUserState, action: EditUserAction): EditUser
         editingUser: action.user,
         editRole: action.user.role as Role,
         editPerms: action.user.permissions || [],
-        editOutletId: action.user.outletId || '',
+        editCoverage: coverageFromUser(action.user),
         pin: '',
         clearPin: false,
       }
     case 'SET_ROLE':
-      return { ...state, editRole: action.value }
+      return { ...state, editRole: action.value, editCoverage: coverageForRole(state.editRole, action.value, state.editCoverage, originalAdminHome(state.editingUser)) }
     case 'SET_PERMS':
       return { ...state, editPerms: action.value }
     case 'TOGGLE_PERM':
@@ -78,8 +83,8 @@ const editUserReducer = (state: EditUserState, action: EditUserAction): EditUser
           ? state.editPerms.filter((x) => x !== action.perm)
           : [...state.editPerms, action.perm],
       }
-    case 'SET_OUTLET':
-      return { ...state, editOutletId: action.value }
+    case 'SET_COVERAGE':
+      return { ...state, editCoverage: action.value }
     case 'SET_PIN':
       return { ...state, pin: action.value, clearPin: false }
     case 'SET_CLEAR_PIN':
@@ -100,12 +105,12 @@ export default function Users() {
   const users = uq.data ?? []
   const roles = rq.data ?? []
   const outlets = oq.data ?? []
-  const outletNameOf = (id?: string | null) => outlets.find((o) => o.id === id)?.name
+  const outletNameOf = (id: string) => outlets.find((o) => o.id === id)?.name ?? '—'
   const { strip: tabStrip, tab: routedTab, setTab } = useScreenTabs<'users' | 'roles'>('users', me)
   const tab = routedTab ?? 'users'
 
   const [editUser, dispatch] = useReducer(editUserReducer, initialEditUser)
-  const { editingUser, editRole, editPerms, editOutletId, pin, clearPin } = editUser
+  const { editingUser, editRole, editPerms, editCoverage, pin, clearPin } = editUser
   const [busy, setBusy] = useState(false)
   const [resetTarget, setResetTarget] = useState<User | null>(null)
   const [resetNotice, setResetNotice] = useState<string | null>(null)
@@ -113,7 +118,7 @@ export default function Users() {
   const [unlocking, setUnlocking] = useState(false)
 
   const [addOpen, setAddOpen] = useState(false)
-  const [nf, setNf] = useState({ displayName: '', email: '', password: '', role: 'cashier' as Role, outletId: '', permissions: ['void_own_shift'] as string[] })
+  const [nf, setNf] = useState({ displayName: '', email: '', password: '', role: 'cashier' as Role, coverage: EMPTY_COVERAGE, permissions: ['void_own_shift'] as string[] })
 
   const [roleOpen, setRoleOpen] = useState(false)
   const [editingRole, setEditingRole] = useState<CustomRole | null>(null)
@@ -130,7 +135,7 @@ export default function Users() {
     setBusy(true)
     setSaveError(null)
     try {
-      await api.updateUser(editingUser.id, { role: editRole, permissions: editPerms, outletId: editOutletId || null })
+      await api.updateUser(editingUser.id, { role: editRole, permissions: editPerms, ...coveragePayload(editRole, editCoverage) })
       if (clearPin) {
         await api.setUserReceivePin(editingUser.id, { clear: true })
       } else if (pin) {
@@ -158,7 +163,7 @@ export default function Users() {
   }
 
   const addUser = async () => {
-    if (!nf.displayName.trim() || !nf.email.trim() || !nf.password) return
+    if (!nf.displayName.trim() || !nf.email.trim() || !nf.password || coverageError(nf.role, nf.coverage)) return
     setBusy(true)
     setAddError(null)
     try {
@@ -167,12 +172,12 @@ export default function Users() {
         password: nf.password,
         displayName: nf.displayName.trim(),
         role: nf.role,
-        outletId: nf.outletId || null,
+        ...coveragePayload(nf.role, nf.coverage),
         permissions: nf.permissions,
       })
       setAddOpen(false)
       toast({ message: `Pengguna ${nf.displayName.trim()} ditambahkan`, tone: 'ok' })
-      setNf({ displayName: '', email: '', password: '', role: 'cashier', outletId: '', permissions: ['void_own_shift'] })
+      setNf({ displayName: '', email: '', password: '', role: 'cashier', coverage: EMPTY_COVERAGE, permissions: ['void_own_shift'] })
       await uq.refetch()
     } catch (e: unknown) {
       setAddError(errorText(e, 'Gagal menambah pengguna. Coba lagi.'))
@@ -234,7 +239,7 @@ export default function Users() {
   })
   const exportUsers = () =>
     exportToCSV(
-      users.map((u) => ({ Nama: u.displayName, Email: u.email, Role: ROLE_LABEL[u.role as Role] ?? u.role, Outlet: outletNameOf(u.outletId) || '', Permissions: (u.permissions || []).join(';'), Terdaftar: u.createdAt?.slice(0, 10) || '' })),
+      users.map((u) => ({ Nama: u.displayName, Email: u.email, Role: ROLE_LABEL[u.role as Role] ?? u.role, Outlet: outletLabel(u, outletNameOf), Permissions: (u.permissions || []).join(';'), Terdaftar: u.createdAt?.slice(0, 10) || '' })),
       'pengguna_mandalika',
     )
 
@@ -327,7 +332,7 @@ export default function Users() {
         footer={
           <SlideOver.Footer>
             <Button variant="secondary" onClick={() => dispatch({ type: 'CLOSE' })}>Batal</Button>
-            <Button loading={busy} onClick={saveUser}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
+            <Button loading={busy} disabled={!!coverageError(editRole, editCoverage)} onClick={saveUser}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
           </SlideOver.Footer>
         }
       >
@@ -336,19 +341,7 @@ export default function Users() {
           <Field label="Role">
             <RolePicker value={editRole} onChange={(r) => dispatch({ type: 'SET_ROLE', value: r })} />
           </Field>
-          <Select
-            label="Outlet"
-            value={editOutletId}
-            onChange={(e) => dispatch({ type: 'SET_OUTLET', value: e.target.value })}
-          >
-            <option value="">Semua Outlet (tanpa pembatasan)</option>
-            {outlets.map((o) => (
-              <option key={o.id} value={o.id}>{o.name}</option>
-            ))}
-          </Select>
-          {editRole === 'cashier' && !editOutletId && (
-            <p className="text-[11px] text-warn-strong -mt-3">Kasir sebaiknya ditempatkan di satu outlet agar POS dibatasi pada outlet tersebut.</p>
-          )}
+          <OutletCoverageField role={editRole} value={editCoverage} onChange={(value) => dispatch({ type: 'SET_COVERAGE', value })} outlets={outlets} />
           <Field label="PIN penerimaan transfer (opsional)">
             <input
               inputMode="numeric"

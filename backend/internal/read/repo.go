@@ -16,6 +16,11 @@ type Repo struct{ Pool *pgxpool.Pool }
 
 func New(p *pgxpool.Pool) *Repo { return &Repo{Pool: p} }
 
+// NoOutlet is the all-zero UUID a handler puts in Scope.OutletID for a caller with no
+// active outlet. It matches no real outlet, so scoped reads return nothing instead of
+// treating an empty OutletID as every outlet.
+const NoOutlet = "00000000-0000-0000-0000-000000000000"
+
 // Scope is the resolved outlet boundary for outlet-scoped tables.
 // CrossAll = admin requested every outlet; OutletID = the single active outlet.
 type Scope struct {

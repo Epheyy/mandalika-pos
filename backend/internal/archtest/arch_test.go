@@ -31,7 +31,7 @@ var tiers = map[string]tier{
 	"api": leaf, "apperr": leaf, "bizday": leaf, "phone": leaf, "custrules": leaf, "promotionkeys": leaf,
 	"redact": leaf, "ota": leaf, "csvimport": leaf, "uploads": leaf, "httpx": leaf,
 	"clientip": leaf, "rules": leaf, "tenderlines": leaf, "receipttpl": leaf,
-	"db": infra, "ledger": infra, "cache": infra, "config": infra, "observability": infra,
+	"db": infra, "coverage": infra, "ledger": infra, "cache": infra, "config": infra, "observability": infra,
 	"auth": platform, "middleware": platform,
 	"read": domain, "write": domain, "service": domain, "bundles": domain,
 	"integration/erp": adapter, "integration/erp/erpapi": leaf, "integration/erp/erpstub": leaf, "integration/erp/erpmap": leaf,
@@ -45,11 +45,11 @@ var allowed = map[string][]string{
 	"db":              {},
 	"ledger":          {"db"},
 	"read":            {"db", "ledger", "bundles"},
-	"write":           {"db", "ledger"},
+	"write":           {"db", "ledger", "coverage"},
 	"service":         {"db", "ledger", "bundles"},
 	"integration/erp": {"db", "ledger"},
-	"sync":            {"db", "ledger", "read", "write", "service", "integration/erp", "auth", "cache"},
-	"handlers":        {"db", "ledger", "read", "write", "service", "sync", "integration/erp", "auth", "cache", "config", "middleware"},
+	"sync":            {"db", "ledger", "read", "write", "service", "integration/erp", "auth", "cache", "coverage"},
+	"handlers":        {"db", "ledger", "read", "write", "service", "sync", "integration/erp", "auth", "cache", "config", "middleware", "coverage"},
 }
 
 // strict packages may import only leaves plus their allowed list.

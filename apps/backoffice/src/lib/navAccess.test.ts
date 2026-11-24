@@ -38,6 +38,17 @@ describe('canSeeNav', () => {
     expect(canEditOutlet({ role: 'manager', outletId: 'o-a' }, 'o-b')).toBe(false)
     expect(canEditOutlet({ role: 'manager', outletId: null }, 'o-a')).toBe(false)
     expect(canEditOutlet(null, 'o-a')).toBe(false)
+    expect(canEditOutlet({ role: 'cashier', outletId: 'o-a' }, 'o-a')).toBe(true)
+    expect(canEditOutlet({ role: 'cashier', outletId: 'o-a' }, 'o-b')).toBe(false)
+  })
+
+  it('lets a covered manager edit any covered outlet and an All manager any outlet', () => {
+    const covered = { role: 'manager', outletId: 'o-a', outletIds: ['o-a', 'o-b'], allOutlets: false }
+    expect(canEditOutlet(covered, 'o-b')).toBe(true)
+    expect(canEditOutlet(covered, 'O-B')).toBe(true)
+    expect(canEditOutlet(covered, 'o-c')).toBe(false)
+    const all = { role: 'manager', outletId: null, outletIds: [], allOutlets: true }
+    expect(canEditOutlet(all, 'o-c')).toBe(true)
   })
 
   it('keeps the existing alternate permissions for Inventori and Laporan', () => {

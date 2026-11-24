@@ -196,8 +196,8 @@ func (e *Engine) now() time.Time {
 //     LegacyEnvelopeUntil; after that actor_mismatch. Unset cutoff = accept.
 //   - v must be 1, userId the authenticated user, deviceId the idempotency-key
 //     prefix ("<deviceId>:<uuid>").
-//   - outlet: an admin may be attributed to any existing outlet; everyone else
-//     only to their stored users.outlet_id (never a header, never the token).
+//   - outlet: an admin or all-outlets manager may be attributed to any existing outlet; everyone else
+//     only to their stored outlet coverage (never a header, never the token).
 //   - shift: one that belongs to another outlet is refused; a closed one is
 //     accepted (the late sale keeps it); an unknown one is accepted with a warning.
 //
@@ -223,7 +223,7 @@ func (e *Engine) attribute(ctx context.Context, c Caller, it BatchItem) (Caller,
 		return c, apperr.New(apperr.Internal, "identitas pengguna belum dapat diverifikasi")
 	}
 	lk := e.lookup()
-	if c.Role == "admin" {
+	if c.Role == "admin" || c.Coverage.All {
 		ok, err := lk.OutletExists(ctx, env.OutletID)
 		if err != nil {
 			return c, err
@@ -231,7 +231,7 @@ func (e *Engine) attribute(ctx context.Context, c Caller, it BatchItem) (Caller,
 		if !ok {
 			return c, mismatch(mismatchOutlet)
 		}
-	} else if c.HomeOutletID == "" || !strings.EqualFold(env.OutletID, c.HomeOutletID) {
+	} else if !c.Coverage.Covers(env.OutletID) {
 		return c, mismatch(mismatchOutlet)
 	}
 	envelopeShift := ""

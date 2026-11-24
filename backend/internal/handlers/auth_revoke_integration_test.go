@@ -175,7 +175,7 @@ func (g *auGate) revokePerms(t *testing.T) {
 	st.Versions = rec
 	name, role := "Renamed", "cashier"
 	before := g.permVersion(userID)
-	if err := st.UpdateUser(g.ctx, userID, &name, &role, nil, nil, nil); err != nil {
+	if err := st.UpdateUser(g.ctx, userID, &name, &role, nil, nil, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if g.permVersion(userID) != before {
@@ -185,7 +185,7 @@ func (g *auGate) revokePerms(t *testing.T) {
 		t.Fatalf("no publish expected, got %v", p)
 	}
 	perms := []string{"view_reports"}
-	if err := st.UpdateUser(g.ctx, userID, nil, nil, nil, nil, &perms); err != nil {
+	if err := st.UpdateUser(g.ctx, userID, nil, nil, nil, nil, &perms, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if got := g.permVersion(userID); got != before+1 {
@@ -195,7 +195,7 @@ func (g *auGate) revokePerms(t *testing.T) {
 		t.Fatalf("publishes = %v, want exactly [%d]", p, before+1)
 	}
 	same := []string{"view_reports"}
-	if err := st.UpdateUser(g.ctx, userID, nil, nil, nil, nil, &same); err != nil {
+	if err := st.UpdateUser(g.ctx, userID, nil, nil, nil, nil, &same, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if g.permVersion(userID) != before+1 {
@@ -304,7 +304,7 @@ func (g *auGate) revokeRedisDown(t *testing.T) {
 		// Revoke through the store only: this router's memo is not told, as if another instance wrote.
 		st := auth.NewStore(g.pool)
 		perms := []string{"view_reports"}
-		if err := st.UpdateUser(g.ctx, userID, nil, nil, nil, nil, &perms); err != nil {
+		if err := st.UpdateUser(g.ctx, userID, nil, nil, nil, nil, &perms, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 		g.wantRevoked(t, mode+": old token", g.call(srv, "GET", "/api/v1/products", "", a1.Access, g.nextIP()))
@@ -505,7 +505,7 @@ func (g *auGate) shiftOpenVsAdminWrite(t *testing.T) {
 		{"delete", func(uid string) error { return st.DeleteUser(g.ctx, uid) }, auth.ErrOpenShiftDelete},
 		{"outlet move", func(uid string) error {
 			o := auOutletB
-			return st.UpdateUser(g.ctx, uid, nil, nil, &o, nil, nil)
+			return st.UpdateUser(g.ctx, uid, nil, nil, &o, nil, nil, nil, nil)
 		}, auth.ErrOpenShiftMove},
 	} {
 		outlet := fmt.Sprintf("00000000-0000-4000-8f00-0000000000a%d", i+1)

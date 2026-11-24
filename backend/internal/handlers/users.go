@@ -6,8 +6,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/nullable"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/httpx"
 )
@@ -55,8 +57,13 @@ func (h *Handlers) CreateUser(w http.ResponseWriter, r *http.Request) {
 	if req.Permissions != nil {
 		perms = *req.Permissions
 	}
+	var outletIDs []string
+	if req.OutletIds != nil {
+		outletIDs = uuidStrings(*req.OutletIds)
+	}
+	allOutlets := req.AllOutlets != nil && *req.AllOutlets
 	id, err := h.Store.CreateUser(r.Context(), string(req.Email), req.Password,
-		req.DisplayName, string(req.Role), outlet, perms)
+		req.DisplayName, string(req.Role), outlet, perms, outletIDs, allOutlets)
 	if err != nil {
 		writeUserErr(w, r, "create failed: ", err)
 		return
@@ -97,8 +104,13 @@ func (h *Handlers) UpdateUser(w http.ResponseWriter, r *http.Request) {
 			photo = &v
 		}
 	}
+	var outletIDs *[]string
+	if req.OutletIds != nil {
+		ids := uuidStrings(*req.OutletIds)
+		outletIDs = &ids
+	}
 	if err := h.Store.UpdateUser(r.Context(), id, req.DisplayName, role, outlet,
-		photo, req.Permissions); err != nil {
+		photo, req.Permissions, outletIDs, req.AllOutlets); err != nil {
 		if errors.Is(err, auth.ErrNotFound) {
 			httpx.Err(w, http.StatusNotFound, "not found")
 			return
@@ -176,9 +188,23 @@ func validReceivePin(pin string) bool {
 // writeUserErr answers a user create/update failure: a domain refusal keeps its
 // prefixed text, a database error (e.g. a duplicate email) is sanitised.
 func writeUserErr(w http.ResponseWriter, r *http.Request, prefix string, err error) {
+	// A coverage refusal (apperr.Rejected) is answered 400 with its Indonesian text verbatim.
+	var coded apperr.Coded
+	if errors.As(err, &coded) && coded.ErrorCode() == apperr.Rejected {
+		httpx.Err(w, http.StatusBadRequest, safeDomainText(r, http.StatusBadRequest, err))
+		return
+	}
 	status, msg := classifyErr(r, http.StatusBadRequest, err)
 	if status == http.StatusBadRequest && msg == err.Error() {
 		msg = prefix + msg
 	}
 	httpx.Err(w, status, msg)
+}
+
+func uuidStrings(ids []openapi_types.UUID) []string {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = id.String()
+	}
+	return out
 }

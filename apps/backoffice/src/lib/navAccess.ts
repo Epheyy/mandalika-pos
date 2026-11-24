@@ -1,15 +1,22 @@
+import type { User } from '@mandalika/api'
+import { outletCoverageOf } from './outletCoverage'
 /** Whether a signed-in user sees a backoffice nav tab. Pure so it can be tested (A37: Log Error is admin-only). */
 export interface NavUser {
   role: string
   outletId?: string | null
+  outletIds?: string[]
+  allOutlets?: boolean
   permissions?: string[]
 }
 
-/** The server lets only the admin edit any outlet; anyone else may edit their own outlet only (PUT /outlets/{id}). */
+/** The server lets the admin and an All manager edit any outlet; anyone else only the outlets they cover (PUT /outlets/{id}). */
 export function canEditOutlet(user: NavUser | null, outletId: string): boolean {
   if (!user) return false
   if (user.role === 'admin') return true
-  return !!user.outletId && user.outletId.toLowerCase() === outletId.toLowerCase()
+  const cov = outletCoverageOf({ ...user, role: user.role as User['role'], outletId: user.outletId ?? null })
+  if (cov.allOutlets) return true
+  const id = outletId.toLowerCase()
+  return cov.outletIds.some((o) => o.toLowerCase() === id)
 }
 
 export function canSeeNav(id: string, perm: string, user: NavUser | null): boolean {

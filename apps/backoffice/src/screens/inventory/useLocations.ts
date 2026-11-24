@@ -3,6 +3,7 @@ import type { Outlet, Warehouse } from '@mandalika/api'
 import { api } from '../../api'
 import { useAuth } from '../../auth'
 import { DEFAULT_TIMEZONE } from '../../lib/businessDay'
+import { outletCoverageOf } from '../../lib/outletCoverage'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 
 export type LocationType = 'outlet' | 'warehouse'
@@ -33,12 +34,12 @@ export interface LocationsState {
 export function useLocations(initialKey = ''): LocationsState {
   const ouq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
   const wq = usePolledQuery<Warehouse[]>(() => api.listWarehouses(), [])
-  // A non-admin sees only their own outlet (the server refuses the others); warehouses are
-  // permission-gated, not outlet-bound, so they stay.
+  // Admin and an All manager see every outlet; anyone else only the outlets they cover (the server refuses
+  // the others, and an unassigned manager covers none); warehouses are permission-gated, not outlet-bound, so they stay.
   const { user } = useAuth()
-  const ownOutlet = user && user.role !== 'admin' ? (user.outletId ?? null) : null
+  const { allowCombined, outletIds } = outletCoverageOf(user)
   const allOutlets = ouq.data ?? []
-  const outlets = ownOutlet ? allOutlets.filter((o) => o.id === ownOutlet) : allOutlets
+  const outlets = allowCombined ? allOutlets : allOutlets.filter((o) => outletIds.includes(o.id))
   const warehouses = wq.data ?? []
   const [locationKey, setLocationKey] = useState(initialKey)
 

@@ -96,8 +96,8 @@ func locationInScope(r *http.Request, locationType, locationID string) bool {
 	if locationType == "warehouse" {
 		return true
 	}
-	own := scope(r).OutletID
-	return own != "" && strings.EqualFold(own, locationID)
+	sc := scope(r)
+	return sc.CrossAll || (!noActiveOutlet(sc) && strings.EqualFold(sc.OutletID, locationID))
 }
 
 // adjustmentOutcome builds the {"data": request} body of an adjustment request write.

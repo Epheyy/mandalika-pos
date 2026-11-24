@@ -14,6 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/mandalika/pos-backend/internal/apperr"
+	"github.com/mandalika/pos-backend/internal/coverage"
 	"github.com/mandalika/pos-backend/internal/rules"
 )
 
@@ -313,16 +314,19 @@ func (r *Repo) mintReceiveApproval(ctx context.Context, in MintInput) (MintResul
 	}
 
 	var (
-		exists           bool
-		role, apprOutlet string
-		hash             *string
-		setAt            *time.Time
-		apprName         string
+		exists   bool
+		role     string
+		apprHome *string
+		apprAll  bool
+		apprExtr []string
+		hash     *string
+		setAt    *time.Time
+		apprName string
 	)
 	if isUUID(in.ApproverID) {
 		err := tx.QueryRow(ctx,
-			`SELECT role, COALESCE(outlet_id::text,''), receive_pin_hash, receive_pin_set_at, display_name FROM users WHERE id=$1`,
-			in.ApproverID).Scan(&role, &apprOutlet, &hash, &setAt, &apprName)
+			`SELECT u.role, u.outlet_id::text, `+coverage.SelectCols+`, u.receive_pin_hash, u.receive_pin_set_at, u.display_name FROM users u WHERE u.id=$1`,
+			in.ApproverID).Scan(&role, &apprHome, &apprAll, &apprExtr, &hash, &setAt, &apprName)
 		switch {
 		case err == nil:
 			exists = true
@@ -339,7 +343,7 @@ func (r *Repo) mintReceiveApproval(ctx context.Context, in MintInput) (MintResul
 	// at THIS outlet. An unknown or ineligible approver counts against the requester alone,
 	// so a cashier elsewhere cannot lock another outlet's approver, and an approver's lock
 	// state never shows to someone who could not use that approver anyway.
-	authorized := exists && ApproverAllowed(role, roles) && ReceiveScope(in.OutletID, dest, role, apprOutlet) == ""
+	authorized := exists && ApproverAllowed(role, roles) && ReceiveScope(in.OutletID, dest, role, approverCoverage(role, apprHome, apprExtr, apprAll)) == ""
 	chk, err := checkApproverPIN(ctx, tx, pinSubject{
 		approverID: in.ApproverID, requesterID: in.RequesterID,
 		exists: exists, authorized: authorized, hash: hash, setAt: setAt, pin: in.PIN,
@@ -406,11 +410,13 @@ func consumeApproval(ctx context.Context, tx pgx.Tx, transferID string, t transf
 		slog.Warn("receive approval redeemed from another device", "grantId", a.GrantID, "mintDevice", deviceID, "redeemDevice", a.DeviceID)
 	}
 
-	var role, outlet string
-	var pinOK bool
+	var role string
+	var home *string
+	var all, pinOK bool
+	var extras []string
 	err = tx.QueryRow(ctx,
-		`SELECT role, COALESCE(outlet_id::text,''), COALESCE(receive_pin_hash IS NOT NULL AND receive_pin_set_at = $2, false)
-		   FROM users WHERE id=$1`, approver, pinSetAt).Scan(&role, &outlet, &pinOK)
+		`SELECT u.role, u.outlet_id::text, `+coverage.SelectCols+`, COALESCE(u.receive_pin_hash IS NOT NULL AND u.receive_pin_set_at = $2, false)
+		   FROM users u WHERE u.id=$1`, approver, pinSetAt).Scan(&role, &home, &all, &extras, &pinOK)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return forbid("Persetujuan dicabut")
 	}
@@ -425,7 +431,7 @@ func consumeApproval(ctx context.Context, tx pgx.Tx, transferID string, t transf
 	if t.dstOutlet != nil {
 		dest = *t.dstOutlet
 	}
-	if !pinOK || !ApproverAllowed(role, roles) || ReceiveScope(a.OutletID, dest, role, outlet) != "" {
+	if !pinOK || !ApproverAllowed(role, roles) || ReceiveScope(a.OutletID, dest, role, approverCoverage(role, home, extras, all)) != "" {
 		return forbid("Persetujuan dicabut")
 	}
 	return approver, nil

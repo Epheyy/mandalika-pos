@@ -52,6 +52,27 @@ describe('applyRefreshedSession', () => {
     expect(store.outletId).toBeNull()
   })
 
+  it('a manager who can switch keeps the chosen covered outlet', () => {
+    const { store, deps } = setup({ outletId: 'B' })
+    const u = { ...user('manager'), outletId: 'A', outletIds: ['A', 'B'], allOutlets: false } as unknown as User
+    expect(applyRefreshedSession(data(u), deps)).toBe('kept')
+    expect(store.outletId).toBe('B')
+  })
+
+  it('a manager whose coverage no longer includes the choice drops it', () => {
+    const { store, deps } = setup({ outletId: 'C' })
+    const u = { ...user('manager'), outletId: 'A', outletIds: ['A', 'B'], allOutlets: false } as unknown as User
+    expect(applyRefreshedSession(data(u), deps)).toBe('kept')
+    expect(store.outletId).toBeNull()
+  })
+
+  it('an All manager keeps the chosen outlet', () => {
+    const { store, deps } = setup({ outletId: 'C' })
+    const u = { ...user('manager'), outletId: null, outletIds: [], allOutlets: true } as unknown as User
+    expect(applyRefreshedSession(data(u), deps)).toBe('kept')
+    expect(store.outletId).toBe('C')
+  })
+
   it('an admin who stays admin keeps the outlet override', () => {
     const { store, deps } = setup()
     expect(applyRefreshedSession(data(user('admin')), deps)).toBe('kept')

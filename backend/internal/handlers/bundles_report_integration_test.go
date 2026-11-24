@@ -190,9 +190,10 @@ func bundleReportSubtests(
 			t.Fatalf("own outlet %d %+v", code, mine.Totals)
 		}
 		// A manager of another outlet never sees this outlet, even when asking for it by id.
+		// Coverage rule: a restricted manager naming an uncovered outlet is refused (403), not silently clamped.
 		code, other := report("manager", outlet2, []string{"view_reports"}, "?outletId="+outlet)
-		if code != 200 || other.Totals.Bundles != 0 || len(other.Data) != 0 {
-			t.Errorf("outlet2 manager saw %d %+v", code, other.Totals)
+		if code != 403 || other.Totals.Bundles != 0 || len(other.Data) != 0 {
+			t.Errorf("outlet2 manager asking for outlet1 got %d %+v, want 403 and no data", code, other.Totals)
 		}
 		// Admin picking outlet2 sees nothing; picking the sale outlet sees it.
 		if a2 := admin("?outletId=" + outlet2); a2.Totals.Bundles != 0 {
