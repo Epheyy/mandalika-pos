@@ -8,8 +8,12 @@ const render = (role: 'admin' | 'manager' | 'cashier', value: Parameters<typeof 
   renderToStaticMarkup(<OutletCoverageField role={role} value={value} onChange={() => {}} outlets={outlets} />)
 
 describe('OutletCoverageField', () => {
-  it('is hidden for an admin', () => {
-    expect(render('admin', { mode: 'all', homeId: '', outletIds: [] })).toBe('')
+  it('admin gets one optional outlet select, no radio or checklist', () => {
+    const html = render('admin', { mode: 'all', homeId: '', outletIds: [] })
+    expect(html).toContain('Semua Outlet (tanpa pembatasan)')
+    expect(html.match(/<option/g)).toHaveLength(3)
+    expect(html).not.toContain('type="radio"')
+    expect(html).not.toContain('type="checkbox"')
   })
   it('cashier gets one required select without Semua Outlet', () => {
     const html = render('cashier', { mode: 'specific', homeId: '', outletIds: [] })

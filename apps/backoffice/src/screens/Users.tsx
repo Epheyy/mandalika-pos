@@ -49,6 +49,9 @@ type EditUserAction =
   | { type: 'SET_CLEAR_PIN'; value: boolean }
   | { type: 'CLOSE' }
 
+/** The home outlet an admin being edited already had, restored if the role is toggled away and back. */
+const originalAdminHome = (u: User | null): string => (u?.role === 'admin' ? (u.outletId ?? '') : '')
+
 const initialEditUser: EditUserState = {
   editingUser: null,
   editRole: 'cashier',
@@ -70,7 +73,7 @@ const editUserReducer = (state: EditUserState, action: EditUserAction): EditUser
         clearPin: false,
       }
     case 'SET_ROLE':
-      return { ...state, editRole: action.value, editCoverage: coverageForRole(state.editRole, action.value, state.editCoverage) }
+      return { ...state, editRole: action.value, editCoverage: coverageForRole(state.editRole, action.value, state.editCoverage, originalAdminHome(state.editingUser)) }
     case 'SET_PERMS':
       return { ...state, editPerms: action.value }
     case 'TOGGLE_PERM':

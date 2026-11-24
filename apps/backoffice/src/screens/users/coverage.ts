@@ -42,11 +42,14 @@ export function coveragePayload(role: Role, v: CoverageValue): { outletId: strin
   return { outletId: v.homeId || null, outletIds: [v.homeId, ...v.outletIds.filter((id) => id !== v.homeId)].filter(Boolean), allOutlets: false }
 }
 
-/** The value after the role changes: a cashier keeps only the home outlet; a manager starts from the home outlet. */
-export function coverageForRole(prev: Role, next: Role, v: CoverageValue): CoverageValue {
+/**
+ * The value after the role changes: a cashier keeps only the home outlet; a manager starts from the home outlet.
+ * A new admin starts with no home outlet, unless `adminHome` restores the original admin's own (edit form).
+ */
+export function coverageForRole(prev: Role, next: Role, v: CoverageValue, adminHome = ''): CoverageValue {
   if (prev === next) return v
   const homeId = v.mode === 'specific' ? v.homeId || v.outletIds[0] || '' : v.homeId
-  if (next === 'admin') return { mode: 'all', homeId, outletIds: [] }
+  if (next === 'admin') return { mode: 'all', homeId: adminHome, outletIds: [] }
   if (next === 'cashier') return { mode: 'specific', homeId, outletIds: homeId ? [homeId] : [] }
   return homeId ? { mode: 'specific', homeId, outletIds: [homeId] } : { mode: 'none', homeId: '', outletIds: [] }
 }

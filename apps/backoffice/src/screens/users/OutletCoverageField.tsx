@@ -10,9 +10,18 @@ interface OutletCoverageFieldProps {
   outlets: readonly Outlet[]
 }
 
-/** Outlet coverage of a user: one home outlet for a cashier, All or a ticked list (with a home) for a manager. Hidden for an admin. */
+/** Outlet coverage of a user: one home outlet for a cashier, All or a ticked list (with a home) for a manager. An admin gets one optional outlet select (empty = every outlet). */
 export function OutletCoverageField({ role, value, onChange, outlets }: OutletCoverageFieldProps) {
-  if (role === 'admin') return null
+  if (role === 'admin') {
+    return (
+      <Select label="Outlet" value={value.homeId} onChange={(e) => onChange({ ...value, homeId: e.target.value })}>
+        <option value="">Semua Outlet (tanpa pembatasan)</option>
+        {outlets.map((o) => (
+          <option key={o.id} value={o.id}>{o.name}</option>
+        ))}
+      </Select>
+    )
+  }
   const error = coverageError(role, value)
   if (role === 'cashier') {
     return (

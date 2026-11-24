@@ -47,6 +47,7 @@ describe('coveragePayload', () => {
   it('admin keeps its current home outlet, else null', () => {
     expect(coveragePayload('admin', { mode: 'all', homeId: 'a', outletIds: [] })).toEqual({ outletId: 'a', outletIds: [], allOutlets: false })
     expect(coveragePayload('admin', { mode: 'all', homeId: '', outletIds: [] })).toEqual({ outletId: null, outletIds: [], allOutlets: false })
+    expect(coveragePayload('admin', coverageForRole('cashier', 'admin', { mode: 'specific', homeId: 'a', outletIds: ['a'] })).outletId).toBeNull()
   })
 })
 
@@ -58,6 +59,11 @@ describe('role change and ticking', () => {
   it('Kasir to Manajer starts from the home outlet; an All or empty source needs a choice', () => {
     expect(coverageForRole('cashier', 'manager', { mode: 'specific', homeId: 'a', outletIds: ['a'] })).toEqual({ mode: 'specific', homeId: 'a', outletIds: ['a'] })
     expect(coverageForRole('admin', 'manager', { mode: 'all', homeId: '', outletIds: [] })).toEqual({ mode: 'none', homeId: '', outletIds: [] })
+  })
+  it('promoting to admin drops the home outlet unless the original admin home is given', () => {
+    const cashier: CoverageValue = { mode: 'specific', homeId: 'a', outletIds: ['a'] }
+    expect(coverageForRole('cashier', 'admin', cashier).homeId).toBe('')
+    expect(coverageForRole('cashier', 'admin', cashier, 'b')).toEqual({ mode: 'all', homeId: 'b', outletIds: [] })
   })
   it('unticking the home outlet moves utama to the first remaining tick', () => {
     const v: CoverageValue = { mode: 'specific', homeId: 'b', outletIds: ['a', 'b', 'c'] }
