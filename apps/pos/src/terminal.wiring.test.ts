@@ -69,7 +69,7 @@ describe('fixed terminal wiring (A04)', () => {
   })
 
   it('the sync engine is built with the capture-time actor provider', () => {
-    expect(read('cashier/SyncProvider.tsx')).toMatch(/\{\s*actor:\s*currentActor,\s*outboxStore:\s*getOutboxStore\(\)\s*\}/)
+    expect(read('cashier/SyncProvider.tsx')).toMatch(/\{\s*actor:\s*currentActor,\s*outboxStore:\s*getOutboxStore\(\),\s*probeHost:\s*probeApiHost\s*\}/)
   })
 
   it('logout is not reachable from the cashier UI; the terminal entry opens Pengaturan', () => {

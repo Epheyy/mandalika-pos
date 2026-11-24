@@ -215,7 +215,7 @@ describe('Koneksi queued sales (W5-03)', () => {
     paymentMethod: 'cash', quotedTotal: 1_251_000, receiptSnapshot: null, state: 'queued', refundQueued: false, refunded: false, ...over,
   })
   const withEngine = (receipts: object[]) => {
-    const engine = { localReceipts: () => receipts, lastPulledAt: () => Date.parse('2026-11-07T06:58:00Z') }
+    const engine = { localReceipts: () => receipts, heldItems: () => [], lastPulledAt: () => Date.parse('2026-11-07T06:58:00Z') }
     return renderToStaticMarkup(createElement(SyncContext.Provider, { value: engine as never }, createElement(SyncStatus, {
       isOnline: false, pendingCount: 2, review: [], stuck: [], open: true,
       wall: { raised: false, localVersion: 1, serverVersion: 1 }, isResyncing: false,
@@ -241,6 +241,19 @@ describe('Koneksi queued sales (W5-03)', () => {
     const html = withEngine([receipt('L-1', '2026-11-07T07:05:00Z')])
     expect(html).toContain('Dan 1 transaksi lain')
     expect(html).toContain('Data produk, stok &amp; promo: diperbarui')
+  })
+
+  it('shows why a held shift is waiting (A29)', () => {
+    const held = [{ idempotencyKey: 'k9', type: 'shift_close', heldReason: 'Ditunda: menunggu transaksi sebelumnya terkirim' }]
+    const engine = { localReceipts: () => [], heldItems: () => held, lastPulledAt: () => null }
+    const html = renderToStaticMarkup(createElement(SyncContext.Provider, { value: engine as never }, createElement(SyncStatus, {
+      isOnline: true, pendingCount: 2, review: [], stuck: [], open: true,
+      wall: { raised: false, localVersion: 1, serverVersion: 1 }, isResyncing: false,
+      onResync: vi.fn(), onFlush: vi.fn(), onRetryFailed: vi.fn(), onExportLog: vi.fn(),
+    })))
+    expect(html).toContain('data-testid="held-item"')
+    expect(html).toContain('Tutup shift')
+    expect(html).toContain('Ditunda: menunggu transaksi sebelumnya terkirim')
   })
 
   it('puts Kirim sekarang and Perbarui data side by side in the footer row', () => {
@@ -282,5 +295,41 @@ describe('Koneksi stock pending (F19)', () => {
     expect(wall).toContain('Data baru siap')
     expect(wall).toContain('>Perbarui data<')
     expect(wall).not.toContain('Perbarui stok')
+  })
+})
+
+describe('SyncStatus connection cause (A29)', () => {
+  const offline = { isOnline: false, offlineCap: { level: 'ok' as const, offlineMs: 3_600_000 } }
+
+  it('names a server problem on the chip and says it is not the tablet internet', () => {
+    const html = render({ ...offline, connection: 'server_problem', open: true })
+    expect(html).toContain('Server bermasalah · aman')
+    expect(html).toContain('Server sedang bermasalah, bukan internet tablet ini. Penjualan tetap bisa; transaksi disimpan di tablet dan terkirim otomatis saat server pulih.')
+  })
+
+  it('no internet keeps the offline wording and never blames the server', () => {
+    const html = render({ ...offline, connection: 'no_internet', open: true })
+    expect(html).toContain('Tidak ada internet · aman')
+    expect(html).toContain('terkirim otomatis saat online')
+    expect(html).not.toContain('Server')
+  })
+
+  it('the 12 h cap chips keep their wording for either cause', () => {
+    const cap = { isOnline: false, offlineCap: { level: 'locked' as const, offlineMs: 12.2 * 3_600_000 } }
+    expect(render({ ...cap, connection: 'server_problem' })).toContain('Offline terkunci · hubungi admin')
+  })
+
+  it('shows when the server asked for a pause, even while reachable', () => {
+    const html = render({ open: true, serverHoldUntil: Date.now() + 3_600_000 })
+    expect(html).toContain('Server meminta jeda · kirim ulang otomatis ')
+    expect(render({ open: true })).not.toContain('Server meminta jeda')
+    expect(render({ open: true, serverHoldUntil: Date.now() - 1000 })).not.toContain('Server meminta jeda')
+  })
+
+  it('the sheet title for a server problem reads "Server bermasalah sejak HH:MM" (source pin: the start time is client-side state)', async () => {
+    const { readFileSync } = await import('node:fs')
+    const src = readFileSync(new URL('./SyncStatus.tsx', import.meta.url), 'utf8')
+    expect(src).toContain("connection === 'server_problem' ? 'Server bermasalah' : 'Offline'")
+    expect(src).toContain('${sinceLabel} sejak ${offlineSince} · penjualan tetap bisa')
   })
 })

@@ -1,7 +1,10 @@
+import type { ConnectionState } from '@mandalika/sync'
 import type { Tone } from '../components/ui/tone'
 
 export type ChipInput = {
   reachable: boolean
+  /** Why the server is unreachable (display only; `reachable` still decides the chip). Absent = unknown: plain "Offline". */
+  connection?: ConnectionState
   offlineLevel: 'unknown' | 'ok' | 'warn' | 'locked'
   offlineHours?: number
   /** Items waiting in the outbox (sending or queued). */
@@ -42,10 +45,17 @@ function onlineChip(i: ChipInput): ChipModel {
   return { text: 'Online · Tersinkron', tone: 'ok' }
 }
 
+/** The cap prefixes above count both causes, so only the plain prefix names one. */
+function causePrefix(connection: ConnectionState | undefined): string {
+  if (connection === 'no_internet') return 'Tidak ada internet'
+  if (connection === 'server_problem') return 'Server bermasalah'
+  return 'Offline'
+}
+
 function offlineChip(i: ChipInput): ChipModel {
   if (i.accountIssue) return ACCOUNT_CHIP
   const locked = i.offlineLevel === 'locked'
-  const prefix = locked ? 'Offline terkunci' : i.offlineLevel === 'warn' ? `Offline ${i.offlineHours ?? 10} jam` : 'Offline'
+  const prefix = locked ? 'Offline terkunci' : i.offlineLevel === 'warn' ? `Offline ${i.offlineHours ?? 10} jam` : causePrefix(i.connection)
   if (i.parked > 0) return { text: `${prefix} · ${i.parked} perlu ditinjau`, tone: 'danger' }
   const tone: Tone = locked ? 'danger' : 'warn'
   if (i.pending > 0) {

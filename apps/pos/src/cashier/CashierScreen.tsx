@@ -1406,7 +1406,7 @@ export default function CashierScreen() {
               version: ota.state.pending.version, blockedBy: otaRenderBlock, applying: ota.state.applying, error: ota.state.error,
               onRestart: handleOtaRestart,
             }}
-            isOnline={offlineData.isOnline} pendingCount={offlineData.pendingCount}
+            isOnline={offlineData.isOnline} connection={offlineData.connection} serverHoldUntil={offlineData.serverHoldUntil} pendingCount={offlineData.pendingCount}
             review={offlineData.review} stuck={offlineData.stuck} accountProblem={offlineData.accountProblem} wall={offlineData.wall}
             offlineCap={offlineCap} isResyncing={offlineData.isResyncing} autoUpdate={offlineData.autoPullAvailable}
             onResync={() => void offlineData.resync()} onFlush={offlineData.flush}

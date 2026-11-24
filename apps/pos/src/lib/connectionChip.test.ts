@@ -102,3 +102,37 @@ describe('chipModel while locked or warning (review follow-ups)', () => {
     expect(chip({ reachable: false, offlineLevel: 'warn' }).text).toBe('Offline 10 jam · aman')
   })
 })
+
+describe('chipModel by connection cause (A29)', () => {
+  const off = { reachable: false } as const
+  const causes = [
+    ['no_internet', 'Tidak ada internet'],
+    ['server_problem', 'Server bermasalah'],
+  ] as const
+
+  it.each(causes)('%s names its cause on an empty queue', (connection, prefix) => {
+    expect(chip({ ...off, connection })).toEqual({ text: `${prefix} · aman`, tone: 'warn' })
+  })
+  it.each(causes)('%s with queued items', (connection, prefix) => {
+    expect(chip({ ...off, connection, pending: 3 })).toEqual({ text: `${prefix} · 3 tersimpan`, tone: 'warn' })
+    expect(chip({ ...off, connection, pending: 2, stuck: 2 }).text).toBe(`${prefix} · 2 tersimpan`)
+  })
+  it.each(causes)('%s with parked items stays danger', (connection, prefix) => {
+    expect(chip({ ...off, connection, parked: 2, pending: 5 })).toEqual({ text: `${prefix} · 2 perlu ditinjau`, tone: 'danger' })
+  })
+  it.each(causes)('%s: the cap levels keep their own wording (they count both causes)', (connection) => {
+    expect(chip({ ...off, connection, offlineLevel: 'warn', offlineHours: 10 }).text).toBe('Offline 10 jam · aman')
+    expect(chip({ ...off, connection, offlineLevel: 'locked', pending: 2 })).toEqual({ text: 'Offline terkunci · 2 tersimpan', tone: 'danger' })
+    expect(chip({ ...off, connection, offlineLevel: 'locked' }).text).toBe('Offline terkunci · hubungi admin')
+  })
+  it.each(causes)('%s: an account issue still wins', (connection) => {
+    expect(chip({ ...off, connection, accountIssue: true }).text).toBe('Masalah akun')
+  })
+  it('an unknown or online cause while unreachable stays the plain Offline wording', () => {
+    expect(chip({ ...off }).text).toBe('Offline · aman')
+    expect(chip({ ...off, connection: 'online' }).text).toBe('Offline · aman')
+  })
+  it('the cause never changes an online chip', () => {
+    expect(chip({ connection: 'server_problem' }).text).toBe('Online · Tersinkron')
+  })
+})
