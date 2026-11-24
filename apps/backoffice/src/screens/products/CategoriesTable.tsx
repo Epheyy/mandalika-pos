@@ -13,24 +13,26 @@ interface CategoriesTableProps {
   onRetry?: () => void
   onEdit: (c: Category) => void
   onDelete: (c: Category) => void
+  /** View-only catalogue: no edit or delete buttons. */
+  catalogueLocked?: boolean
 }
 
-export function CategoriesTable({ categories, counts, loading, error, onRetry, onEdit, onDelete }: CategoriesTableProps) {
+export function CategoriesTable({ categories, counts, loading, error, onRetry, onEdit, onDelete, catalogueLocked = false }: CategoriesTableProps) {
   const columns: Column<Category>[] = [
     { id: 'name', header: 'Nama', cell: (c) => <span className="font-bold text-ink-900">{c.name}</span> },
     { id: 'description', header: 'Deskripsi', cell: (c) => <span className="text-sm text-ink-700">{c.description || '—'}</span> },
     { id: 'count', header: 'Jumlah Produk', align: 'right', cell: (c) => <span className="text-sm font-bold text-brand-strong">{counts[c.id] ?? '—'}</span> },
-    {
+    ...(catalogueLocked ? [] : [{
       id: 'actions',
       header: 'Aksi',
-      align: 'right',
-      cell: (c) => (
+      align: 'right' as const,
+      cell: (c: Category) => (
         <div className="flex items-center justify-end gap-1">
           <IconButton label={`Ubah ${c.name}`} onClick={() => onEdit(c)}><Edit2 className="w-4 h-4" /></IconButton>
           <IconButton tone="danger" label={`Hapus ${c.name}`} onClick={() => onDelete(c)}><Trash2 className="w-4 h-4" /></IconButton>
         </div>
       ),
-    },
+    }]),
   ]
   return (
     <DataTable

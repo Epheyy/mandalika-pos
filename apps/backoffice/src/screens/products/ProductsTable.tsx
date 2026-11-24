@@ -19,6 +19,8 @@ interface ProductsTableProps {
   selectedId?: string | null
   onEdit: (p: Product) => void
   onDelete: (p: Product) => void
+  /** View-only catalogue: no delete button (rows still open the editor). */
+  catalogueLocked?: boolean
   /** True when filters narrow the list: the empty state then says so. */
   filtered?: boolean
   footer?: ReactNode
@@ -73,7 +75,7 @@ function StockChips({ variants }: { variants: readonly ProductVariant[] }) {
   )
 }
 
-export function ProductsTable({ rows, catName, loading, error, onRetry, selectedId, onEdit, onDelete, filtered, footer }: ProductsTableProps) {
+export function ProductsTable({ rows, catName, loading, error, onRetry, selectedId, onEdit, onDelete, catalogueLocked = false, filtered, footer }: ProductsTableProps) {
   const columns: Column<Product>[] = [
     {
       id: 'product',
@@ -122,7 +124,7 @@ export function ProductsTable({ rows, catName, loading, error, onRetry, selected
       cell: (p) => (
         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           <IconButton label={`Ubah ${p.name}`} onClick={() => onEdit(p)}><Edit2 className="w-4 h-4" /></IconButton>
-          <IconButton
+          {!catalogueLocked && <IconButton
             tone="danger"
             disabled={p.erpLinked === true}
             label={`Hapus ${p.name}`}
@@ -132,7 +134,7 @@ export function ProductsTable({ rows, catName, loading, error, onRetry, selected
             onClick={() => onDelete(p)}
           >
             <Trash2 className="w-4 h-4" />
-          </IconButton>
+          </IconButton>}
         </div>
       ),
     },

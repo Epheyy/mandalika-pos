@@ -234,17 +234,26 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			// content_version → POS sync wall) ──
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("manage_products"))
+				// The shared catalogue changes for every outlet: admin or a "Semua Outlet" manager only.
+				r.Use(mw.RequireCatalogueWide())
 				r.Post("/products/import", h.ImportProducts) // static path before /products/{id}
 				r.Post("/products", h.CreateProduct)
 				r.Put("/products/{id}", h.UpdateProduct)
 				r.Delete("/products/{id}", h.DeleteProduct)
-				r.Get("/products/{id}/outlet-config", h.GetProductOutletConfig)
-				r.Put("/products/{id}/outlet-config", h.PutProductOutletConfig)
 				r.Post("/categories", h.CreateCategory)
 				r.Put("/categories/{id}", h.UpdateCategory)
 				r.Delete("/categories/{id}", h.DeleteCategory)
-				r.Post("/uploads/sign", h.SignUpload)
 				r.Put("/settings/bundles", h.UpdateBundleSettings)
+			})
+			r.Group(func(r chi.Router) {
+				// Per-outlet price/availability: a covered-only manager works within their own outlets
+				// (the handlers filter and refuse by coverage).
+				r.Use(mw.RequirePermission("manage_products"))
+				// Signing an upload writes nothing (the image URL is saved through a gated route); outlet,
+				// warehouse and settings photos use it too, so it is not limited to catalogue-wide callers.
+				r.Post("/uploads/sign", h.SignUpload)
+				r.Get("/products/{id}/outlet-config", h.GetProductOutletConfig)
+				r.Put("/products/{id}/outlet-config", h.PutProductOutletConfig)
 			})
 			r.Group(func(r chi.Router) {
 				// A30: customer data beyond an exact phone lookup. Admin, or manage_customers for a

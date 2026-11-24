@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { BundleCatalog, BundleSettings } from '@mandalika/api'
 import { api } from '../../api'
+import { useAuth } from '../../auth'
+import { canEditCatalogue } from '../../lib/navAccess'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { Badge } from '../../ui/Badge'
 import { Card } from '../../ui/Card'
 import { SaveBar, type SaveBarStatus } from '../../ui/SaveBar'
 import { useToast } from '../../ui/Toast'
+import { CatalogueLockedNote } from './CatalogueLockedNote'
 import { MoneyField } from './MoneyField'
 import {
   aromaRows,
@@ -21,9 +24,10 @@ const sizeOf = (f: BundleSettingsForm): string[] => Object.keys(f.standard)
 interface StandardPricesCardProps {
   form: BundleSettingsForm
   onChange: (size: string, raw: string) => void
+  disabled?: boolean
 }
 
-function StandardPricesCard({ form, onChange }: StandardPricesCardProps) {
+function StandardPricesCard({ form, onChange, disabled }: StandardPricesCardProps) {
   return (
     <Card className="p-4">
       <h3 className="text-sm font-bold text-ink-900">Harga bundle standar</h3>
@@ -34,7 +38,7 @@ function StandardPricesCard({ form, onChange }: StandardPricesCardProps) {
         {sizeOf(form).map((size) => (
           <div key={size} className="flex items-center gap-3">
             <span className="w-16 text-sm text-ink-700">{size}</span>
-            <MoneyField className="max-w-48" raw={form.standard[size]} onRawChange={(raw) => onChange(size, raw)} label={`Harga bundle standar ${size}`} placeholder="Rp 0" />
+            <MoneyField className="max-w-48" raw={form.standard[size]} onRawChange={(raw) => onChange(size, raw)} label={`Harga bundle standar ${size}`} placeholder="Rp 0" disabled={disabled} />
           </div>
         ))}
       </div>
@@ -46,9 +50,10 @@ interface LinePricesCardProps {
   form: BundleSettingsForm
   lines: BundleSettings['lines']
   onChange: (line: string, size: string, raw: string) => void
+  disabled?: boolean
 }
 
-function LinePricesCard({ form, lines, onChange }: LinePricesCardProps) {
+function LinePricesCard({ form, lines, onChange, disabled }: LinePricesCardProps) {
   const sizes = sizeOf(form)
   return (
     <Card className="p-4">
@@ -76,6 +81,7 @@ function LinePricesCard({ form, lines, onChange }: LinePricesCardProps) {
                         onRawChange={(raw) => onChange(l.line, s, raw)}
                         label={`Harga ${l.label} ${s}`}
                         placeholder="standar"
+                        disabled={disabled}
                       />
                     </td>
                   ))}
@@ -155,6 +161,8 @@ function BundleAromaList({ catalog }: { catalog: BundleCatalog }) {
 /** Produk › Bundle: standard and per-line bundle prices, plus the automatic list of bundles. */
 export function BundleSettingsPanel() {
   const toast = useToast()
+  const { user } = useAuth()
+  const catalogueLocked = !canEditCatalogue(user)
   const sq = usePolledQuery(() => api.getBundleSettings(), [])
   const cq = usePolledQuery(() => api.getBundleCatalog(), [])
   const loaded = sq.data?.data
@@ -202,11 +210,12 @@ export function BundleSettingsPanel() {
   const problems = formProblems(form)
   return (
     <div className="space-y-3">
-      <StandardPricesCard form={form} onChange={onStandard} />
-      <LinePricesCard form={form} lines={loaded.lines} onChange={onLine} />
+      {catalogueLocked && <CatalogueLockedNote />}
+      <StandardPricesCard form={form} onChange={onStandard} disabled={catalogueLocked} />
+      <LinePricesCard form={form} lines={loaded.lines} onChange={onLine} disabled={catalogueLocked} />
       {problems.length > 0 && <p role="alert" className="text-xs font-bold text-danger">{problems[0]}</p>}
       {cq.data ? <BundleAromaList catalog={cq.data.data} /> : <p className="text-sm text-ink-500">{cq.error ? 'Daftar bundle gagal dimuat.' : 'Memuat daftar bundle…'}</p>}
-      <SaveBar
+      {!catalogueLocked && <SaveBar
         count={dirty ? 1 : 0}
         items={['Harga bundle']}
         status={status}
@@ -216,7 +225,7 @@ export function BundleSettingsPanel() {
           setForm(saved)
           setStatus('idle')
         }}
-      />
+      />}
     </div>
   )
 }

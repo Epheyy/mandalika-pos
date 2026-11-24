@@ -213,8 +213,8 @@ fail-closed), then Backoffice publish, then POS OTA. Then the owner sets coverag
 
 - Shift-open race: a shift open that waits on the user-row lock can still succeed after coverage was removed
   (pre-existing for home moves; same lock order).
-- `GET/PUT /products/{id}/outlet-config` is gated only by `manage_products` and spans all outlets
-  (pre-existing; a product-policy decision for the owner).
+- `GET/PUT /products/{id}/outlet-config` spanning all outlets: decided 2026-11-24 (owner: limit both),
+  see `2026-11-24-catalogue-coverage-design.md` (stacked PR on this branch).
 
 ## Left to the builder
 

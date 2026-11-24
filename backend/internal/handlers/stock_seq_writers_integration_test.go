@@ -432,7 +432,7 @@ func (f *stFixture) runWriterCases(t *testing.T) {
 		f.wantDelta(t, "variant rename", 0, 0, func() { f.must(t, f.repo.UpdateProduct(f.ctx, pid, renamed)) })
 		f.wantDelta(t, "availability and price config", 0, 0, func() {
 			f.must(t, f.repo.SetProductOutletConfig(f.ctx, pid, []api.OutletConfigItemInput{
-				{OutletId: uuid.MustParse(stOutletA), VariantSize: "220ml", Available: false}}))
+				{OutletId: uuid.MustParse(stOutletA), VariantSize: "220ml", Available: false}}, false))
 		})
 		f.wantDelta(t, "product delete", 0, 0, func() { f.must(t, f.repo.DeleteProduct(f.ctx, pid)) })
 	})

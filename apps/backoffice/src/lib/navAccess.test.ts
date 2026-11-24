@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canEditOutlet, canSeeNav, canVoidAny } from './navAccess'
+import { canEditCatalogue, canEditOutlet, canSeeNav, canVoidAny } from './navAccess'
 
 describe('canVoidAny', () => {
   it('lets the admin and a user holding void_any void; nobody else', () => {
@@ -65,5 +65,16 @@ describe('canSeeNav', () => {
     expect(canSeeNav('requisitions', 'request_stock', { role: 'manager', permissions: ['manage_stock_count'] })).toBe(false)
     expect(canSeeNav('requisitions', 'request_stock', { role: 'admin', permissions: [] })).toBe(true)
     expect(canSeeNav('requisitions', 'request_stock', null)).toBe(false)
+  })
+})
+
+describe('canEditCatalogue', () => {
+  it('lets the admin and an all-outlets manager edit the catalogue; nobody else', () => {
+    expect(canEditCatalogue({ role: 'admin' })).toBe(true)
+    expect(canEditCatalogue({ role: 'manager', allOutlets: true })).toBe(true)
+    expect(canEditCatalogue({ role: 'manager', outletIds: ['o1', 'o2'] })).toBe(false)
+    expect(canEditCatalogue({ role: 'manager' })).toBe(false)
+    expect(canEditCatalogue({ role: 'cashier', allOutlets: true })).toBe(false)
+    expect(canEditCatalogue(null)).toBe(false)
   })
 })

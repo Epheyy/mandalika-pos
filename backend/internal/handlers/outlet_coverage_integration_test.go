@@ -784,4 +784,130 @@ func TestOutletCoveragePostgres(t *testing.T) {
 			t.Fatalf("sync open at covered extra G = %+v", got)
 		}
 	})
+
+	t.Run("catalogue edits follow coverage", func(t *testing.T) {
+		const (
+			mgr5 = "00000000-0000-4000-8f20-000000000017" // covers outA only
+			prod = "00000000-0000-4000-8f20-0000000000d1"
+		)
+		exec(`INSERT INTO products(id,name) VALUES($1,'OCV catalogue product')`, prod)
+		exec(`INSERT INTO product_variants(product_id,size,price,sku) VALUES($1,'50ml',100000,'OCV-CAT1'),($1,'100ml',180000,'OCV-CAT2')`, prod)
+		for _, o := range []string{outA, outB, outC} {
+			exec(`INSERT INTO outlet_variant_price(outlet_id,product_id,variant_size,price) VALUES($1,$2,'50ml',110000),($1,$2,'100ml',190000)`, o, prod)
+		}
+		priceRows := func(outlet string) map[string]bool {
+			t.Helper()
+			rs, err := pool.Query(ctx, `SELECT variant_size FROM outlet_variant_price WHERE product_id=$1 AND outlet_id=$2`, prod, outlet)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer rs.Close()
+			got := map[string]bool{}
+			for rs.Next() {
+				var sz string
+				if err := rs.Scan(&sz); err != nil {
+					t.Fatal(err)
+				}
+				got[sz] = true
+			}
+			return got
+		}
+		wantSizes := func(label, outlet string, want ...string) {
+			t.Helper()
+			got := priceRows(outlet)
+			if len(got) != len(want) {
+				t.Fatalf("%s: sizes %v, want %v", label, got, want)
+			}
+			for _, sz := range want {
+				if !got[sz] {
+					t.Fatalf("%s: sizes %v, want %v", label, got, want)
+				}
+			}
+		}
+
+		router := chi.NewRouter()
+		router.With(mw.RequireCatalogueWide()).Put("/products/{id}", h.UpdateProduct)
+		router.Get("/products/{id}/outlet-config", h.GetProductOutletConfig)
+		router.Put("/products/{id}/outlet-config", h.PutProductOutletConfig)
+		call := func(method, path, uid, role string, cov coverage.Coverage, body string) (int, string, []byte) {
+			t.Helper()
+			r := httptest.NewRequest(method, path, strings.NewReader(body))
+			r.Header.Set("Content-Type", "application/json")
+			c := context.WithValue(r.Context(), auth.CtxUserID, uid)
+			c = context.WithValue(c, auth.CtxRole, role)
+			c = context.WithValue(c, auth.CtxCoverage, cov)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, r.WithContext(c))
+			var out struct {
+				Error string `json:"error"`
+			}
+			_ = json.Unmarshal(w.Body.Bytes(), &out)
+			return w.Code, out.Error, w.Body.Bytes()
+		}
+		outletsOf := func(raw []byte) map[string]bool {
+			t.Helper()
+			var out struct {
+				Data []struct {
+					OutletID string `json:"outletId"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal(raw, &out); err != nil {
+				t.Fatal(err)
+			}
+			got := map[string]bool{}
+			for _, row := range out.Data {
+				got[row.OutletID] = true
+			}
+			return got
+		}
+		cfgPath := "/products/" + prod + "/outlet-config"
+		item := func(outlet, size string, price int) string {
+			return fmt.Sprintf(`{"outletId":%q,"variantSize":%q,"available":true,"price":%d}`, outlet, size, price)
+		}
+		put := func(items ...string) string { return `{"items":[` + strings.Join(items, ",") + `]}` }
+		covA := coverage.Coverage{OutletIDs: []string{outA}}
+		covAB := coverage.Coverage{OutletIDs: []string{outA, outB}}
+
+		// mgr5 (covers A only) reads only outlet A.
+		code, _, raw := call("GET", cfgPath, mgr5, "manager", covA, "")
+		if got := outletsOf(raw); code != 200 || len(got) != 1 || !got[outA] {
+			t.Fatalf("covered-only GET = %d outlets %v, want only A", code, got)
+		}
+		// Naming an uncovered outlet: 403, nothing written.
+		code, msg, _ := call("PUT", cfgPath, mgr5, "manager", covA, put(item(outA, "50ml", 111000), item(outC, "50ml", 1)))
+		wantErr("covered-only PUT naming C", code, msg, 403, "outlet not permitted")
+		wantSizes("A after refused PUT", outA, "50ml", "100ml")
+		wantSizes("C after refused PUT", outC, "50ml", "100ml")
+		// Empty payload: 400.
+		code, msg, _ = call("PUT", cfgPath, mgr5, "manager", covA, put())
+		wantErr("covered-only empty PUT", code, msg, 400, "Pilih minimal satu outlet.")
+		// Partial payload (A, 50ml only): A's own 100ml override goes, C's stays.
+		if code, msg, _ = call("PUT", cfgPath, mgr5, "manager", covA, put(item(outA, "50ml", 111000))); code != 200 {
+			t.Fatalf("covered-only PUT A/50ml = %d %q", code, msg)
+		}
+		wantSizes("A after partial PUT", outA, "50ml")
+		wantSizes("C after partial PUT", outC, "50ml", "100ml")
+		wantSizes("B after partial PUT", outB, "50ml", "100ml")
+		// mgr1 (covers A and B) PUTs only A lines: B's override for a size outside the payload stays.
+		if code, msg, _ = call("PUT", cfgPath, mgr1, "manager", covAB, put(item(outA, "100ml", 191000))); code != 200 {
+			t.Fatalf("mgr1 PUT A/100ml = %d %q", code, msg)
+		}
+		wantSizes("B after mgr1 A-only PUT", outB, "50ml", "100ml")
+		wantSizes("C after mgr1 A-only PUT", outC, "50ml", "100ml")
+		// The shared product record is refused for a covered-only manager.
+		code, msg, _ = call("PUT", "/products/"+prod, mgr5, "manager", covA, `{}`)
+		wantErr("covered-only PUT product", code, msg, 403, "Hanya admin atau Manajer Semua Outlet yang dapat mengubah katalog.")
+		// mgr2 (All): sees every outlet, passes the middleware, and cleanup still spans all outlets.
+		code, _, raw = call("GET", cfgPath, mgr2, "manager", coverage.Coverage{All: true}, "")
+		if got := outletsOf(raw); code != 200 || !got[outA] || !got[outB] || !got[outC] {
+			t.Fatalf("manager-all GET = %d outlets %v, want A, B and C", code, got)
+		}
+		if code, msg, _ = call("PUT", "/products/"+prod, mgr2, "manager", coverage.Coverage{All: true}, `not json`); code == 403 {
+			t.Fatalf("manager-all PUT product refused by the middleware: %q", msg)
+		}
+		if code, msg, _ = call("PUT", cfgPath, mgr2, "manager", coverage.Coverage{All: true}, put(item(outA, "50ml", 111000))); code != 200 {
+			t.Fatalf("manager-all PUT = %d %q", code, msg)
+		}
+		wantSizes("C after manager-all PUT", outC, "50ml")
+	})
 }

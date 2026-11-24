@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Category } from '@mandalika/api'
 import { api } from '../../api'
+import { useAuth } from '../../auth'
+import { canEditCatalogue } from '../../lib/navAccess'
 import { useUnsavedChanges } from '../../lib/useUnsavedChanges'
 import { useConfirm } from '../../ui/ConfirmDialog'
 import { useToast } from '../../ui/Toast'
@@ -25,6 +27,8 @@ interface ProductEditorHostProps {
 export function ProductEditorHost({ productId, categories, closeEditor, refetchList }: ProductEditorHostProps) {
   const confirm = useConfirm()
   const toast = useToast()
+  const { user } = useAuth()
+  const catalogueLocked = !canEditCatalogue(user)
   const answered = useRef(false)
   const [recipesEnabled, setRecipesEnabled] = useState(false)
   const [recipeFor, setRecipeFor] = useState<{ variantId: string; label: string } | null>(null)
@@ -46,6 +50,7 @@ export function ProductEditorHost({ productId, categories, closeEditor, refetchL
   const editor = useProductEditor({
     productId,
     recipesEnabled,
+    catalogueLocked,
     onSaved: async () => {
       await refetchList()
       leave()
@@ -81,6 +86,7 @@ export function ProductEditorHost({ productId, categories, closeEditor, refetchL
   return (
     <>
       <ProductFormSlideOver
+        catalogueLocked={catalogueLocked}
         onClose={() => void requestClose()}
         editing={productId !== null}
         load={editor.load}
