@@ -11,10 +11,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/mandalika/pos-backend/internal/coverage"
 	"github.com/mandalika/pos-backend/internal/httpx"
 	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/service"
 )
+
+// errShiftOutletNotCovered refuses a direct shift open at an outlet the caller no longer covers.
+var errShiftOutletNotCovered = errors.New("outlet not permitted")
 
 func (h *Handlers) OpenShift(w http.ResponseWriter, r *http.Request) {
 	h.openShift(w, r, h.caller, h.OrderSvc.OpenShift)
@@ -33,7 +37,14 @@ func (h *Handlers) openShift(w http.ResponseWriter, r *http.Request,
 	id, err := open(r.Context(), service.OpenShiftInput{
 		OutletID: c.outletID, OutletName: body.OutletName,
 		CashierID: c.userID, CashierName: c.name, StartingCash: body.StartingCash,
+		// The middleware checked coverage at request start; this re-checks it under the
+		// user-row lock so a coverage change committed since then cannot be raced past.
+		Authorize: coverage.Guard(c.userID, c.outletID, errShiftOutletNotCovered),
 	})
+	if errors.Is(err, errShiftOutletNotCovered) {
+		httpx.Err(w, http.StatusForbidden, "outlet not permitted") // the middleware's answer
+		return
+	}
 	if err != nil {
 		writeErr(w, r, http.StatusBadRequest, err)
 		return

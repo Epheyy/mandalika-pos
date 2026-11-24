@@ -618,4 +618,170 @@ func TestOutletCoveragePostgres(t *testing.T) {
 			}
 		}
 	})
+
+	// ---- a shift open re-reads coverage after locking the user row ----------------
+	t.Run("shift open re-checks coverage after the user-row lock", func(t *testing.T) {
+		// Fresh outlets per case: one open shift per outlet, so cases must not share one.
+		outletSeq := 0
+		newOutlet := func() string {
+			t.Helper()
+			outletSeq++
+			id := fmt.Sprintf("00000000-0000-4000-8f20-%012x", 0x400+outletSeq)
+			exec(`INSERT INTO outlets(id,name,code) VALUES ($1,$2,$3)`, id, fmt.Sprintf("OCV race %d", outletSeq), fmt.Sprintf("OCR%02d", outletSeq))
+			return id
+		}
+		eng := syncpkg.New(pool, rd, svc, wr)
+		type outcome struct {
+			ok      bool
+			refusal string // direct: "<status> <error>"; sync: the item code
+		}
+		// Each route's refusal for an outlet the caller no longer covers.
+		wantRefusal := map[string]string{"direct": "403 outlet not permitted", "sync": "actor_mismatch"}
+		keySeq := 0
+		open := func(route, uid, outlet string, resolve func(*http.Request) (callerID, error)) outcome {
+			if route == "direct" {
+				r := withCtx(httptest.NewRequest("POST", "/shifts", strings.NewReader(`{"startingCash":0}`)), uid, outlet)
+				w := httptest.NewRecorder()
+				h.openShift(w, r, resolve, h.OrderSvc.OpenShift)
+				var out struct {
+					Error string `json:"error"`
+				}
+				_ = json.Unmarshal(w.Body.Bytes(), &out)
+				return outcome{w.Code == http.StatusCreated, fmt.Sprintf("%d %s", w.Code, out.Error)}
+			}
+			keySeq++
+			raw, _ := json.Marshal(map[string]any{"items": []map[string]any{{
+				"type": "shift_open", "idempotencyKey": fmt.Sprintf("ocvrace:00000000-0000-4000-8f20-%012x", 0x300+keySeq),
+				"payload":  map[string]any{"startingCash": 0},
+				"envelope": map[string]any{"v": 1, "outletId": outlet, "userId": uid, "deviceId": "ocvrace", "capturedAt": time.Now().UTC()},
+			}}})
+			r := withCtx(httptest.NewRequest("POST", "/sync", bytes.NewReader(raw)), uid, outlet)
+			w := httptest.NewRecorder()
+			h.syncBatch(w, r, resolve, eng.ProcessBatch)
+			var out struct {
+				Data struct {
+					Results []struct {
+						Status string `json:"status"`
+						Code   string `json:"code"`
+					} `json:"results"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || w.Code != 200 || len(out.Data.Results) != 1 {
+				return outcome{false, fmt.Sprintf("batch %d %s", w.Code, w.Body.String())}
+			}
+			res := out.Data.Results[0]
+			return outcome{res.Status == "ok", res.Code}
+		}
+		// stale is the caller as resolved at request start, before an admin change commits.
+		stale := func(uid, outlet string) func(*http.Request) (callerID, error) {
+			c, _ := h.caller(withCtx(httptest.NewRequest("GET", "/", nil), uid, outlet))
+			return func(*http.Request) (callerID, error) { return c, nil }
+		}
+		shiftsAt := func(uid, outlet string) int {
+			t.Helper()
+			var n int
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM shifts WHERE cashier_id=$1 AND outlet_id=$2`, uid, outlet).Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			return n
+		}
+		wantRefused := func(t *testing.T, route, label string, got outcome, uid, outlet string) {
+			t.Helper()
+			if got.ok || got.refusal != wantRefusal[route] {
+				t.Fatalf("%s %s = %+v, want refusal %q", route, label, got, wantRefusal[route])
+			}
+			if n := shiftsAt(uid, outlet); n != 0 {
+				t.Fatalf("%s %s left %d shift(s) at the outlet", route, label, n)
+			}
+		}
+		// waitForUserLock returns once some session waits on the user-row share lock.
+		waitForUserLock := func(t *testing.T) {
+			t.Helper()
+			for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+				var n int
+				if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity
+				  WHERE datname = current_database() AND wait_event_type = 'Lock'
+				    AND query LIKE '%FROM users WHERE id=%FOR SHARE%'`).Scan(&n); err != nil {
+					t.Fatal(err)
+				}
+				if n > 0 {
+					return
+				}
+			}
+			t.Fatal("the shift open never waited on the user-row lock")
+		}
+
+		for _, route := range []string{"direct", "sync"} {
+			t.Run(route+": coverage drop committed while the open waits on the user lock", func(t *testing.T) {
+				outF, outG := newOutlet(), newOutlet()
+				m := create("manager", map[string]any{"outletId": outF, "outletIds": []string{outF, outG}})
+				// The admin side of auth.Store.UpdateUser, paused before commit: user row locked,
+				// G removed, rights version bumped.
+				adminTx, err := pool.Begin(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer adminTx.Rollback(ctx)
+				for _, q := range []string{
+					`SELECT 1 FROM users WHERE id=$1 FOR NO KEY UPDATE`,
+					`DELETE FROM user_outlets WHERE user_id=$1 AND outlet_id='` + outG + `'`,
+					`UPDATE users SET perm_version = perm_version + 1 WHERE id=$1`,
+				} {
+					if _, err := adminTx.Exec(ctx, q, m.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				done := make(chan outcome, 1)
+				// The live caller still sees G (the admin change is uncommitted), so request-start
+				// checks pass and the open reaches the user-row lock.
+				go func() { done <- open(route, m.ID, outG, h.caller) }()
+				waitForUserLock(t)
+				if err := adminTx.Commit(ctx); err != nil {
+					t.Fatal(err)
+				}
+				select {
+				case got := <-done:
+					wantRefused(t, route, "open at a just-dropped outlet", got, m.ID, outG)
+				case <-time.After(10 * time.Second):
+					t.Fatal("the shift open never finished")
+				}
+			})
+			t.Run(route+": coverage drop committed before the open, after the caller was read", func(t *testing.T) {
+				outF, outG := newOutlet(), newOutlet()
+				m := create("manager", map[string]any{"outletId": outF, "outletIds": []string{outF, outG}})
+				resolve := stale(m.ID, outG)
+				if code, e, _ := send("PUT", "/users/"+m.ID, map[string]any{"outletIds": []string{outF}}); code != 200 {
+					t.Fatalf("drop G = %d %q", code, e)
+				}
+				wantRefused(t, route, "open at a dropped outlet", open(route, m.ID, outG, resolve), m.ID, outG)
+			})
+			t.Run(route+": home move committed after the caller was read", func(t *testing.T) {
+				outF, outG := newOutlet(), newOutlet()
+				c := create("cashier", map[string]any{"outletId": outF})
+				resolve := stale(c.ID, outF)
+				if code, e, _ := send("PUT", "/users/"+c.ID, map[string]any{"outletId": outG}); code != 200 {
+					t.Fatalf("move home to G = %d %q", code, e)
+				}
+				wantRefused(t, route, "open at the old home", open(route, c.ID, outF, resolve), c.ID, outF)
+			})
+			t.Run(route+": user deleted after the caller was read", func(t *testing.T) {
+				outF := newOutlet()
+				c := create("cashier", map[string]any{"outletId": outF})
+				resolve := stale(c.ID, outF)
+				if err := store.DeleteUser(ctx, c.ID); err != nil {
+					t.Fatal(err)
+				}
+				wantRefused(t, route, "open by a deleted user", open(route, c.ID, outF, resolve), c.ID, outF)
+			})
+		}
+		// Control: a covered open still succeeds on both routes with the re-check in place.
+		outF, outG := newOutlet(), newOutlet()
+		m := create("manager", map[string]any{"outletId": outF, "outletIds": []string{outF, outG}})
+		if got := open("direct", m.ID, outF, h.caller); !got.ok {
+			t.Fatalf("direct open at covered F = %+v", got)
+		}
+		if got := open("sync", m.ID, outG, h.caller); !got.ok {
+			t.Fatalf("sync open at covered extra G = %+v", got)
+		}
+	})
 }

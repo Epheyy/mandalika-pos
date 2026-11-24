@@ -430,6 +430,10 @@ func (e *Engine) processOneWithSeq(ctx context.Context, c Caller, it BatchItem,
 				StartingCash: p.StartingCash,
 				// Never dropped, stored as sent, flagged for head-office review.
 				StartingCashWarning: p.StartingCash < 0,
+				// attribute() checked c.Coverage as loaded at request start; this re-reads it
+				// under the user-row lock so a coverage change committed since is not raced past.
+				// A refusal rolls back the receipt, so the item can succeed once coverage returns.
+				Authorize: coverage.Guard(c.UserID, c.OutletID, mismatch(mismatchOutlet)),
 			})
 		})
 		if err != nil {
