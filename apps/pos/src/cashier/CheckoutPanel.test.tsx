@@ -127,3 +127,21 @@ describe('CheckoutPanel (F2: Bayar in the Kaca layout)', () => {
     expect(multi).toContain('Hadiah tas')
   })
 })
+
+describe('A21: points redemption needs the server', () => {
+  const entered = { selectedCustomer: CUSTOMER, customerPoints: 120, pointsToRedeem: 50 }
+
+  it('offline: the points input and "Semua" are disabled and the hint says it needs internet', () => {
+    const out = html({ ...entered, isOnline: false })
+    expect(out).toMatch(/<input[^>]*disabled=""[^>]*aria-label="Jumlah poin yang ditukar"/)
+    expect(out).toMatch(/<button[^>]*disabled=""[^>]*>Semua</)
+    expect(out).toContain('Tukar poin butuh internet')
+  })
+
+  it('online: the points input is enabled and there is no hint', () => {
+    const out = html({ ...entered, isOnline: true })
+    expect(out).not.toMatch(/<input[^>]*disabled=""[^>]*aria-label="Jumlah poin yang ditukar"/)
+    expect(out).not.toMatch(/<button[^>]*disabled=""[^>]*>Semua</)
+    expect(out).not.toContain('Tukar poin butuh internet')
+  })
+})

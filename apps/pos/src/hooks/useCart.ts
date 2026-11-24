@@ -18,6 +18,8 @@ interface UseCartOptions {
   dispatch: React.Dispatch<CashierAction>
   settings: AppSettings
   loyalty: LoyaltySettings
+  /** A21: points can only be spent online (the server checks the balance); offline prices the sale without them. Defaults to online. */
+  isOnline?: boolean
 }
 
 export interface CartActions {
@@ -60,7 +62,7 @@ export function useCart(opts: UseCartOptions): {
   actions: CartActions
   derived: CartDerived
 } {
-  const { state, dispatch, settings, loyalty } = opts
+  const { state, dispatch, settings, loyalty, isOnline = true } = opts
 
   const pricing = computePricing({
     cart: state.cart,
@@ -73,7 +75,7 @@ export function useCart(opts: UseCartOptions): {
     settings,
     loyalty,
     hasCustomer: state.selectedCustomer !== null,
-    pointsRedeemed: state.pointsToRedeem,
+    pointsRedeemed: isOnline ? state.pointsToRedeem : 0,
     customerPoints: state.selectedCustomer?.points ?? 0,
   })
 

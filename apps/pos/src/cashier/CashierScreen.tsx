@@ -359,7 +359,11 @@ export default function CashierScreen() {
   }, [templateRefused, snapshot.receiptTemplate, snapshot.outletName])
   const loyalty = snapshot.loyaltySettings ?? DEFAULT_LOYALTY
 
-  const { actions: cartActions, derived } = useCart({ state, dispatch, settings, loyalty })
+  const { actions: cartActions, derived } = useCart({ state, dispatch, settings, loyalty, isOnline: offlineData.isOnline })
+  // A21: points are spent online only. Going offline with points entered clears them, so the sale is never queued with a redemption.
+  useEffect(() => {
+    if (!offlineData.isOnline && state.pointsToRedeem > 0) dispatch({ type: 'SET_POINTS_REDEEMED', points: 0 })
+  }, [offlineData.isOnline, state.pointsToRedeem, dispatch])
   const cartShown = derived.totalCartItems > 0
   // Void replacement: when the gap is booked as Penyesuaian koreksi the cart is due the ORIGINAL total. One due amount
   // (`payDerived.total`) feeds the sheet, the tender lines and the confirm; `derived` stays the cart's own pricing.
