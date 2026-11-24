@@ -108,7 +108,8 @@ func erV3Subtests(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	})
 
 	// Report §5: PMS, LWB, MKS lost name, address and phone; 25 outlets were created,
-	// 4 of them ONLINE MP-* channels. Outlets are link-only and POS-owned.
+	// 4 of them ONLINE MP-* channels. Existing POS outlets are link-only and POS-owned; an
+	// unknown RETAIL outlet is created switched off, an ONLINE channel never is.
 	t.Run("v3-outlets-link-only", func(t *testing.T) {
 		e := newErEnv(t, ctx, pool, 0)
 		pms := erPosOutlet(t, ctx, pool, "Mandalika PMS", "PMS", "SURABAYA", "0811-1", "")
@@ -127,13 +128,14 @@ func erV3Subtests(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		e.outlet("mp-kemang", "MP-KMG", "MARKETPLACE KEMANG", `,"type":"ONLINE"`)
 		rep := e.mustComplete(erp.ModeFull)
 
-		erWantInt(t, "no outlet created", erCount(t, ctx, pool, `SELECT count(*) FROM outlets`), 4)
+		erWantInt(t, "only ALSUT created (no ONLINE channel)", erCount(t, ctx, pool, `SELECT count(*) FROM outlets`), 5)
+		erWant(t, "ALSUT created switched off", row(erStr(t, ctx, pool, `SELECT id::text FROM outlets WHERE erp_slug='alsut'`)), "MANDALIKA ALAM SUTERA|-|-|ALSUT|false|alsut|ALSUT")
 		erWant(t, "PMS linked by code, POS fields kept", row(pms), "Mandalika PMS|SURABAYA|0811-1|PMS|true|pms|PMS")
 		erWant(t, "BSD (already linked) keeps its POS fields", row(bsd), "Mandalika BSD|Jakarta|021-2|BSD|true|bsd|BSD")
 		erWant(t, "an ONLINE channel never links by code", row(mpd), "Online Depok|Depok|-|MP-DPK|true|-|-")
 		erWant(t, "an old ONLINE link keeps its POS fields", row(mpk), "Old online link|-|-|MPK|true|mp-kemang|MP-KMG")
 		note := e.resource(rep, erp.ResourceOutlets).Error
-		for _, s := range []string{"ALSUT", "MANDALIKA ALAM SUTERA", "RETAIL", "MP-DPK", "MP-SBY", "ONLINE"} {
+		for _, s := range []string{"MP-DPK", "MP-SBY", "ONLINE"} {
 			if !strings.Contains(note, s) {
 				t.Fatalf("outlet run note lacks %q: %s", s, note)
 			}
@@ -146,7 +148,7 @@ func erV3Subtests(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		e.outlet("pms", "PMS2", "MANDALIKA PMS RENAMED", `,"address":"JL. X","phone":"999"`)
 		e.mustComplete(erp.ModeFull)
 		erWant(t, "PMS after an ERP edit: only erp_code follows", row(pms), "Mandalika PMS|SURABAYA|0811-1|PMS|true|pms|PMS2")
-		erWantInt(t, "still no outlet created", erCount(t, ctx, pool, `SELECT count(*) FROM outlets`), 4)
+		erWantInt(t, "still only ALSUT created", erCount(t, ctx, pool, `SELECT count(*) FROM outlets`), 5)
 	})
 
 	// Owner decision (b): ERP others are their own not-for-sale products, never variants

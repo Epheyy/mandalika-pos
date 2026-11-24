@@ -24,6 +24,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/integration/erp/erpstub"
 	mw "github.com/mandalika/pos-backend/internal/middleware"
 	"github.com/mandalika/pos-backend/internal/read"
+	"github.com/mandalika/pos-backend/internal/write"
 )
 
 // Step 4 ERP catalog pull (plan §4.6, gate ER): the real erp.Client and erp.Syncer run
@@ -232,11 +233,13 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		e.fg("x50", "X50", "Santal Noir 50ml", "Eau de Parfum", 50, "ACTIVE", "")
 		rep := e.mustComplete(erp.ModeFull)
 
-		// Mapping v3: outlets are link-only; an ERP outlet without a POS outlet is a run note.
+		// An ERP outlet without a POS outlet is created, switched off and pending setup.
 		erWantInt(t, "linked outlets", erCount(t, ctx, pool, `SELECT count(*) FROM outlets WHERE is_active AND code='KMG' AND erp_slug='kemang' AND erp_code='KMG'`), 1)
-		erWantInt(t, "outlet total", erCount(t, ctx, pool, `SELECT count(*) FROM outlets`), 1)
-		erWantInt(t, "content_versions rows", erCount(t, ctx, pool, `SELECT count(*) FROM content_versions`), 1)
-		if note := e.resource(rep, erp.ResourceOutlets).Error; !strings.Contains(note, `outlet BSD "Mandalika BSD" (RETAIL) unlinked: no POS outlet code`) {
+		erWantInt(t, "outlet total", erCount(t, ctx, pool, `SELECT count(*) FROM outlets`), 2)
+		erWantInt(t, "created outlet", erCount(t, ctx, pool, `SELECT count(*) FROM outlets WHERE NOT is_active AND setup_pending
+			AND code='BSD' AND erp_slug='bsd' AND erp_code='BSD' AND name='Mandalika BSD'`), 1)
+		erWantInt(t, "content_versions rows", erCount(t, ctx, pool, `SELECT count(*) FROM content_versions`), 2)
+		if note := e.resource(rep, erp.ResourceOutlets).Error; strings.Contains(note, "unlinked: no POS outlet code") {
 			t.Fatalf("outlet note = %q", note)
 		}
 		erWantInt(t, "products", erCount(t, ctx, pool, `SELECT count(*) FROM products`), 1)
@@ -246,7 +249,7 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		erWant(t, "sizes (an unknown ERP category passes through as the line)", erStr(t, ctx, pool, `SELECT string_agg(size, ',' ORDER BY size) FROM product_variants`), "30ml EAU DE PARFUM,50ml EAU DE PARFUM")
 		erWantInt(t, "variant shape", erCount(t, ctx, pool,
 			`SELECT count(*) FROM product_variants WHERE sku=barcode AND sku IN ('X30','X50') AND price=0 AND erp_slug IS NOT NULL AND is_active`), 2)
-		erWantInt(t, "products content-version bump", erCount(t, ctx, pool, `SELECT count(*) FROM content_versions WHERE data_manifest ? 'products' AND data_manifest ? 'outlets'`), 1)
+		erWantInt(t, "products content-version bump", erCount(t, ctx, pool, `SELECT count(*) FROM content_versions WHERE data_manifest ? 'products' AND data_manifest ? 'outlets'`), 2)
 
 		wm := erStr(t, ctx, pool, `SELECT to_char(watermark AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') FROM integration_watermarks WHERE resource='finished_goods'`)
 		erWant(t, "fg watermark = first-page server_time", wm, e.clock.Now().Format(time.RFC3339))
@@ -959,6 +962,51 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		erWantInt(t, "run rows after the concurrent pair (only the winner wrote)", erCount(t, ctx, pool, `SELECT count(*) FROM erp_sync_runs`), 6)
 	})
 
+	// outlets.setup_pending marks an ERP-created outlet nobody has set up yet: only the
+	// first activation clears it, and nothing ever sets it again.
+	t.Run("setup-pending-cleared-only-on-activation", func(t *testing.T) {
+		_ = newErEnv(t, ctx, pool, 0) // resets ERP state for the subtest
+		var id string
+		if err := pool.QueryRow(ctx, `INSERT INTO outlets (name, code, is_active, setup_pending)
+			VALUES ('Setup Pending POS','SPD',false,true) RETURNING id::text`).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		wr := write.New(pool)
+		upd := func(active bool) {
+			t.Helper()
+			if err := wr.UpdateOutlet(ctx, id, write.Outlet{Name: "Setup Pending POS", Code: "SPD", IsActive: active}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		pending := func() string {
+			return erStr(t, ctx, pool, `SELECT setup_pending::text FROM outlets WHERE id=$1`, id)
+		}
+		upd(false)
+		erWant(t, "inactive update keeps the marker", pending(), "true")
+		upd(true)
+		erWant(t, "activation clears the marker", pending(), "false")
+		upd(false)
+		erWant(t, "deactivation never re-sets it", pending(), "false")
+
+		normal := erPosOutlet(t, ctx, pool, "Normal POS", "NRM", "", "", "")
+		outlets, _, err := read.New(pool).Outlets(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, o := range outlets {
+			if o.Id.String() == normal {
+				found = true
+				if o.SetupPending == nil || *o.SetupPending {
+					t.Fatalf("normal outlet setupPending = %v, want false", o.SetupPending)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("normal outlet missing from the outlets read")
+		}
+	})
+
 	// A pull writes the catalog behind the Redis read cache (15 s TTL); both trigger
 	// routes must drop it, so a product list read right after a pull shows the pulled rows.
 	t.Run("pull-drops-read-cache", func(t *testing.T) {
@@ -1022,4 +1070,87 @@ func TestErpIntegrationPostgres(t *testing.T) {
 	})
 
 	erV3Subtests(t, ctx, pool)
+	erPushSubtests(t, ctx, pool)
+
+	t.Run("pull-creates-retail-and-popup-off", func(t *testing.T) {
+		e := newErEnv(t, ctx, pool, 0)
+		e.outlet("pop-1", "POP-1", "  Pop  Up   Plaza ", `,"type":"POPUP","address":" Jl. Mawar 1 ","phone":"0812"`)
+		e.outlet("mp-1", "MP-1", "Marketplace", `,"type":"ONLINE"`)
+		rep := e.mustComplete(erp.ModeFull)
+		erWantInt(t, "only the POPUP created", erCount(t, ctx, pool, `SELECT count(*) FROM outlets`), 1)
+		erWant(t, "created row", erStr(t, ctx, pool, `SELECT name||'|'||code||'|'||COALESCE(address,'-')||'|'||COALESCE(phone,'-')||'|'||is_active||'|'||setup_pending
+			FROM outlets WHERE erp_slug='pop-1'`), "Pop Up Plaza|POP-1|Jl. Mawar 1|0812|false|true")
+		erWantInt(t, "content_versions row", erCount(t, ctx, pool, `SELECT count(*) FROM content_versions cv JOIN outlets o ON o.id=cv.outlet_id WHERE o.erp_slug='pop-1'`), 1)
+		r := e.resource(rep, erp.ResourceOutlets)
+		if r.Upserted != 1 || !strings.Contains(r.Error, "online channel") {
+			t.Fatalf("outlet result = %+v, want 1 upserted and an online channel note", r)
+		}
+	})
+
+	t.Run("pull-create-invalid-code-is-note", func(t *testing.T) {
+		e := newErEnv(t, ctx, pool, 0)
+		e.outlet("short", "A", "Too Short", "")
+		rep := e.mustComplete(erp.ModeFull)
+		erWantInt(t, "no outlet created", erCount(t, ctx, pool, `SELECT count(*) FROM outlets`), 0)
+		if note := e.resource(rep, erp.ResourceOutlets).Error; !strings.Contains(note, "not created") || !strings.Contains(note, `outlet A "Too Short"`) {
+			t.Fatalf("outlet note = %q", note)
+		}
+	})
+
+	t.Run("code-clash-is-note", func(t *testing.T) {
+		e := newErEnv(t, ctx, pool, 0)
+		erPosOutlet(t, ctx, pool, "Kemang POS", "KMG", "", "", "old")
+		e.outlet("new", "kmg", "Another Kemang", "")
+		rep := e.mustComplete(erp.ModeFull)
+		erWantInt(t, "no new row", erCount(t, ctx, pool, `SELECT count(*) FROM outlets`), 1)
+		if note := e.resource(rep, erp.ResourceOutlets).Error; !strings.Contains(note, "not created") || !strings.Contains(note, "already used") || !strings.Contains(note, "kmg") {
+			t.Fatalf("outlet note = %q", note)
+		}
+	})
+
+	t.Run("pull-create-leaves-linked-and-pos-only-alone", func(t *testing.T) {
+		e := newErEnv(t, ctx, pool, 0)
+		kmg := erPosOutlet(t, ctx, pool, "Kemang POS", "KMG", "", "", "kemang")
+		gancit := erPosOutlet(t, ctx, pool, "Gancit POS", "GANCIT", "", "", "")
+		e.outlet("kemang", "KMG", "Mandalika Kemang", "")
+		e.mustComplete(erp.ModeFull)
+		erWant(t, "linked name kept", erStr(t, ctx, pool, `SELECT name FROM outlets WHERE id=$1`, kmg), "Kemang POS")
+		erWant(t, "POS-only outlet untouched", erStr(t, ctx, pool,
+			`SELECT (erp_slug IS NULL)||'|'||is_active||'|'||setup_pending FROM outlets WHERE id=$1`, gancit), "true|true|false")
+		erWantInt(t, "no outlet created", erCount(t, ctx, pool, `SELECT count(*) FROM outlets`), 2)
+		before := erVersion(t, ctx, pool)
+		e.clock.Advance(time.Hour)
+		e.mustComplete(erp.ModeFull)
+		erWant(t, "rerun is a no-op", erVersion(t, ctx, pool), before)
+	})
+
+	t.Run("created-outlet-never-reactivated", func(t *testing.T) {
+		e := newErEnv(t, ctx, pool, 0)
+		e.outlet("nw", "NEW-1", "New One", "")
+		e.mustComplete(erp.ModeFull)
+		if _, err := pool.Exec(ctx, `UPDATE outlets SET is_active=true WHERE erp_slug='nw'`); err != nil {
+			t.Fatal(err)
+		}
+		e.clock.Advance(time.Hour)
+		e.outlet("nw", "NEW-1", "New One", `,"deleted_at":"2026-06-01T00:30:00Z"`)
+		e.mustComplete(erp.ModeIncremental) // a full pull never lists tombstones
+		erWantInt(t, "tombstone switched it off", erCount(t, ctx, pool, `SELECT count(*) FROM outlets WHERE erp_slug='nw' AND NOT is_active`), 1)
+		e.clock.Advance(time.Hour)
+		e.outlet("nw", "NEW-1", "New One", "")
+		e.mustComplete(erp.ModeFull)
+		erWantInt(t, "stays off, no second row", erCount(t, ctx, pool, `SELECT count(*) FROM outlets WHERE erp_slug='nw' AND NOT is_active`), 1)
+		erWantInt(t, "one outlet", erCount(t, ctx, pool, `SELECT count(*) FROM outlets`), 1)
+	})
+
+	t.Run("padded-code-links", func(t *testing.T) {
+		e := newErEnv(t, ctx, pool, 0)
+		erPosOutlet(t, ctx, pool, "Kemang POS", "KMG", "", "", "")
+		e.outlet("kemang", " KMG ", "Mandalika Kemang", "")
+		rep := e.mustComplete(erp.ModeFull)
+		erWantInt(t, "padded code linked, no new row", erCount(t, ctx, pool, `SELECT count(*) FROM outlets WHERE code='KMG' AND erp_slug='kemang' AND erp_code='KMG'`), 1)
+		erWantInt(t, "no outlet created", erCount(t, ctx, pool, `SELECT count(*) FROM outlets`), 1)
+		if note := e.resource(rep, erp.ResourceOutlets).Error; strings.Contains(note, "already used") {
+			t.Fatalf("outlet note = %q", note)
+		}
+	})
 }

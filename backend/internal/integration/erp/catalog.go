@@ -91,6 +91,9 @@ type ResourceResult struct {
 type CatalogReport struct {
 	Status    string
 	Resources []ResourceResult
+	// OutletPush is the POS-to-ERP outlet create step; nil when no Pusher is set or the
+	// outlets resource did not complete. It never affects Status.
+	OutletPush *PushResult
 }
 
 // Syncer pulls the ERP catalog into the POS tables.
@@ -106,9 +109,14 @@ type Syncer struct {
 	// brand, upper-cased); empty keeps the empty brand. Existing products keep theirs.
 	ProductBrand string
 
+	// Pusher, when set, creates unlinked active POS outlets in the ERP after the outlets
+	// resource completes (before finished goods). nil keeps the pull read-only.
+	Pusher OutletCreator
+
 	// test seams; nil means the pgx implementations over Pool
-	store  runStore
-	locker locker
+	store     runStore
+	locker    locker
+	pushStore outletPushStore
 }
 
 type watermarkState struct {
@@ -271,8 +279,26 @@ func (s *Syncer) Run(ctx context.Context, mode Mode) (CatalogReport, error) {
 			report.Status = r.Status
 			break
 		}
+		if x.resource == ResourceOutlets && s.Pusher != nil {
+			report.OutletPush = s.runPush(ctx, st, deadline, budget)
+		}
 	}
 	return report, nil
+}
+
+// runPush runs the outlet push and logs it like a resource.
+func (s *Syncer) runPush(ctx context.Context, st runStore, deadline time.Time, budget time.Duration) *PushResult {
+	ps := s.pushStoreFor(st)
+	if ps == nil {
+		return &PushResult{Status: PushStopped, Notes: []string{"outlet push stopped: no store"}}
+	}
+	p := s.pushOutlets(ctx, ps, deadline.Add(-budget/pushReserveShare))
+	s.log().Info("erp outlet push", "resource", ResourceOutletPush, "status", p.Status,
+		"attempted", p.Attempted, "linked", p.Linked, "notes", len(p.Notes))
+	for _, n := range p.Notes {
+		s.log().Info("erp outlet push note", "resource", ResourceOutletPush, "note", n)
+	}
+	return p
 }
 
 // resolveMode turns the requested mode into full or incremental. Incremental

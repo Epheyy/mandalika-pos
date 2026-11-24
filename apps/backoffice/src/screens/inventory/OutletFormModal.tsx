@@ -114,6 +114,11 @@ export function OutletFormModal({ editing, onClose, onDone }: Props) {
             Dari ERP · Kode ERP: <span className="font-mono">{editing?.erpCode || '—'}</span>
           </p>
         )}
+        {editing?.setupPending && (
+          <p className="text-xs font-bold text-gold-700">
+            Outlet ini dibuat dari ERP. Periksa zona waktu, staf dan struk sebelum mengaktifkan.
+          </p>
+        )}
         <Input
           label="Nama Outlet *"
           type="text"

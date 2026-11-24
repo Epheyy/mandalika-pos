@@ -75,6 +75,12 @@ type Config struct {
 	// erpEnabledBad is set when ERP_INTEGRATION_ENABLED was a non-empty value that is
 	// not a boolean; Validate fails fast so a typo never silently means "off".
 	erpEnabledBad bool
+	// ERPOutletPushEnabled is the ERP_OUTLET_PUSH_ENABLED switch (true only for "true"/"1"):
+	// the pull then also creates unlinked active POS outlets in the ERP. It has an effect
+	// only together with ERPIntegrationEnabled. Default false.
+	ERPOutletPushEnabled bool
+	// erpOutletPushBad is set when ERP_OUTLET_PUSH_ENABLED was a non-empty non-boolean.
+	erpOutletPushBad bool
 	// ERPBaseURL is ERP_BASE_URL: the ERP Integration API base INCLUDING the version
 	// prefix, e.g. https://erp.example.com/api/integration/v1.
 	ERPBaseURL string
@@ -187,6 +193,7 @@ func Load() *Config {
 	legacyUntil, legacyOK := parseLegacyUntil(os.Getenv("SYNC_LEGACY_ENVELOPE_UNTIL"))
 	dbMaxConns, dbMaxConnsOK := parseDBMaxConns(os.Getenv("DB_MAX_CONNS"))
 	erpEnabled, erpEnabledOK := parseERPEnabled(os.Getenv("ERP_INTEGRATION_ENABLED"))
+	erpPush, erpPushOK := parseERPEnabled(os.Getenv("ERP_OUTLET_PUSH_ENABLED"))
 	return &Config{
 		DBMaxConns:       dbMaxConns,
 		dbMaxConnsBad:    !dbMaxConnsOK,
@@ -219,13 +226,15 @@ func Load() *Config {
 
 		ERPIntegrationEnabled: erpEnabled,
 		erpEnabledBad:         !erpEnabledOK,
+		ERPOutletPushEnabled:  erpPush,
+		erpOutletPushBad:      !erpPushOK,
 		ERPBaseURL:            strings.TrimSpace(os.Getenv("ERP_BASE_URL")),
 		ERPAPIKey:             strings.TrimSpace(os.Getenv("ERP_API_KEY")),
 		ERPSchedulerToken:     strings.TrimSpace(os.Getenv("ERP_SCHEDULER_TOKEN")),
 	}
 }
 
-// parseERPEnabled reads ERP_INTEGRATION_ENABLED: "true"/"1" (any case, trimmed) is
+// parseERPEnabled reads ERP_INTEGRATION_ENABLED (and ERP_OUTLET_PUSH_ENABLED): "true"/"1" (any case, trimmed) is
 // on, empty/"false"/"0" is off; anything else is off with ok=false so Validate fails.
 func parseERPEnabled(v string) (enabled, ok bool) {
 	switch strings.ToLower(strings.TrimSpace(v)) {
@@ -343,6 +352,9 @@ func (c *Config) Validate() error {
 func (c *Config) validateERP() error {
 	if c.erpEnabledBad {
 		return errors.New("invalid config: ERP_INTEGRATION_ENABLED must be true, false, 1 or 0")
+	}
+	if c.erpOutletPushBad {
+		return errors.New("invalid config: ERP_OUTLET_PUSH_ENABLED must be true, false, 1 or 0")
 	}
 	if !c.ERPIntegrationEnabled {
 		return nil

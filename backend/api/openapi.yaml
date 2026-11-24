@@ -335,7 +335,7 @@ components:
         permissions: { type: array, items: { type: string } }
     Outlet:
       type: object
-      required: [id, name, isActive, timezone, createdAt]
+      required: [id, name, isActive, timezone, createdAt, setupPending]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -344,6 +344,7 @@ components:
         phone: { type: string, nullable: true }
         logoUrl: { type: string, nullable: true }
         isActive: { type: boolean }
+        setupPending: { type: boolean, readOnly: true }  # ERP-created outlet not set up yet; cleared on first activation
         timezone:
           type: string
           enum: [Asia/Jakarta, Asia/Makassar, Asia/Jayapura]

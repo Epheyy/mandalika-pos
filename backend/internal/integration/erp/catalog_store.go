@@ -753,12 +753,12 @@ func hasSize(ctx context.Context, q pgx.Tx, productID, label string) (bool, erro
 	return clash, err
 }
 
-// applyOutletItem links one ERP outlet to a POS outlet (mapping v3 §6.5). Outlets are
-// POS-owned: the pull never creates one, never writes name, address, phone or code, and
-// never re-activates one. A linked outlet (by erp_slug) follows erp_code and an ERP
+// applyOutletItem links one ERP outlet to a POS outlet (mapping v3 §6.5), or creates it
+// switched off when the POS has none (createOutlet). Outlets are POS-owned: the pull never
+// writes name, address, phone or code of an existing one and never re-activates one. A linked outlet (by erp_slug) follows erp_code and an ERP
 // tombstone. An unlinked ERP outlet links to the single unlinked POS outlet whose code
-// equals the ERP code or slug (case-insensitive); an ONLINE channel never links. The
-// rest is reported as a run note.
+// equals the ERP code or slug (case-insensitive); an ONLINE channel neither links nor is
+// created. Anything else is reported as a run note.
 func applyOutletItem(ctx context.Context, q pgx.Tx, o erpapi.IntegrationOutlet) (itemOutcome, error) {
 	if strings.TrimSpace(o.Slug) == "" || strings.TrimSpace(o.Code) == "" || strings.TrimSpace(o.Name) == "" {
 		return itemOutcome{}, itemError("missing slug, code or name")
@@ -792,7 +792,8 @@ func applyOutletItem(ctx context.Context, q pgx.Tx, o erpapi.IntegrationOutlet) 
 	}
 
 	rows, err := q.Query(ctx, `SELECT id::text FROM outlets
-		 WHERE erp_slug IS NULL AND (lower(code)=lower($1) OR lower(code)=lower($2)) LIMIT 2`, o.Code, o.Slug)
+		 WHERE erp_slug IS NULL AND (lower(code)=lower($1) OR lower(code)=lower($2)) LIMIT 2`,
+		strings.TrimSpace(o.Code), strings.TrimSpace(o.Slug))
 	if err != nil {
 		return out, err
 	}
@@ -810,13 +811,68 @@ func applyOutletItem(ctx context.Context, q pgx.Tx, o erpapi.IntegrationOutlet) 
 	}
 	switch len(matches) {
 	case 1:
-		_, err := q.Exec(ctx, `UPDATE outlets SET erp_slug=$2, erp_code=$3 WHERE id=$1`, matches[0], o.Slug, o.Code)
+		_, err := q.Exec(ctx, `UPDATE outlets SET erp_slug=$2, erp_code=$3 WHERE id=$1`, matches[0], o.Slug, strings.TrimSpace(o.Code))
 		out.bump = []string{"outlets"}
 		return out, err
 	case 0:
-		return itemOutcome{skipped: true, note: unlinkedOutletNote(o, "no POS outlet code")}, nil
+		return createOutlet(ctx, q, o)
 	}
 	return out, itemError(fmt.Sprintf("more than one unlinked outlet has code %q", o.Code))
+}
+
+// createOutlet adds an ERP outlet the POS does not have: switched off and flagged
+// setup_pending, so an admin finishes it (timezone, tablets) before it goes live. A code
+// the POS cannot use, or one another outlet already holds, is a run note, not an error.
+func createOutlet(ctx context.Context, q pgx.Tx, o erpapi.IntegrationOutlet) (itemOutcome, error) {
+	notCreated := func(why string) itemOutcome {
+		return itemOutcome{skipped: true, note: fmt.Sprintf("outlet %s %q (%s) not created: %s", o.Code, collapseSpaces(o.Name), o.Type, why)}
+	}
+	if o.Type != erpapi.IntegrationOutletTypeRETAIL && o.Type != erpapi.IntegrationOutletTypePOPUP {
+		return notCreated("type not supported"), nil
+	}
+	code := strings.ToUpper(strings.TrimSpace(o.Code))
+	if !ValidPOSOutletCode(code) {
+		return notCreated("code not valid for POS"), nil
+	}
+	clashNote := notCreated("POS code already used by another outlet")
+	var clash bool
+	if err := q.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM outlets WHERE upper(code)=$1)`, code).Scan(&clash); err != nil {
+		return itemOutcome{}, err
+	}
+	if clash {
+		return clashNote, nil
+	}
+	// A nested savepoint keeps the item's transaction usable when the insert loses a race.
+	sp, err := q.Begin(ctx)
+	if err != nil {
+		return itemOutcome{}, err
+	}
+	var id string
+	err = sp.QueryRow(ctx, `INSERT INTO outlets (name, code, address, phone, is_active, setup_pending, erp_slug, erp_code)
+		VALUES ($1,$2,NULLIF($3,''),NULLIF($4,''),false,true,$5,$6) RETURNING id::text`,
+		collapseSpaces(o.Name), code, trimmed(o.Address), trimmed(o.Phone), o.Slug, strings.TrimSpace(o.Code)).Scan(&id)
+	if err != nil {
+		_ = sp.Rollback(ctx)
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "outlets_code_unique" {
+			return clashNote, nil // a concurrent create took the code
+		}
+		return itemOutcome{}, err
+	}
+	if err := sp.Commit(ctx); err != nil {
+		return itemOutcome{}, err
+	}
+	if _, err := q.Exec(ctx, `INSERT INTO content_versions (outlet_id) VALUES ($1) ON CONFLICT DO NOTHING`, id); err != nil {
+		return itemOutcome{}, err
+	}
+	return itemOutcome{bump: []string{"outlets"}}, nil
+}
+
+func trimmed(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return strings.TrimSpace(*s)
 }
 
 func unlinkedOutletNote(o erpapi.IntegrationOutlet, why string) string {

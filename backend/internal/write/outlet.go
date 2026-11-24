@@ -41,7 +41,8 @@ func (r *Repo) UpdateOutlet(ctx context.Context, id string, o Outlet) error {
 	return r.tx(ctx, "outlets", func(t pgx.Tx) error {
 		ct, e := t.Exec(ctx,
 			`UPDATE outlets SET name=$1, code=$2, address=$3, phone=$4, logo_url=$5, is_active=$6,
-			   timezone=COALESCE(NULLIF($7,''),timezone) WHERE id=$8`,
+			   timezone=COALESCE(NULLIF($7,''),timezone),
+			   setup_pending = setup_pending AND NOT $6 WHERE id=$8`,
 			o.Name, nullStr(o.Code), nullStr(o.Address), nullStr(o.Phone), nullStr(o.LogoURL), o.IsActive, o.Timezone, id)
 		if e == nil && ct.RowsAffected() == 0 {
 			return ErrNotFound

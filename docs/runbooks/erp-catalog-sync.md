@@ -21,12 +21,12 @@ Rules from the sandbox pull against the production ERP: `docs/integration/2026-1
 | FG `gender` | category of a NEW fragrance product only: majority gender of the page's group → MAN / WOMAN / UNISEX, matched to an existing POS category (never created; none → no category) |
 | FG `size` + `unit` | size part of the label, set ONCE at creation. `unit` is the ERP stock unit (Pcs): 110 + Pcs = `110ml` |
 | FG `status` DISCONTINUE, or `deleted_at` | variant `is_active = false` (never deleted) |
-| outlet `slug` / `code` | link only: `outlets.erp_slug` / `erp_code` of the one unlinked POS outlet whose code equals the ERP code or slug. Never creates an outlet; never links `type = ONLINE`; unlinked ERP outlets are a run note |
-| outlet name / address / phone | **never written** (POS-owned) |
+| outlet `slug` / `code` | links `outlets.erp_slug` / `erp_code` of the one unlinked POS outlet whose code equals the ERP code or slug. With no such outlet, a RETAIL or POPUP ERP outlet is CREATED: `is_active = false`, `setup_pending = true`, code = upper-cased ERP code (rule `^[A-Z0-9][A-Z0-9-]{0,18}[A-Z0-9]$`), default timezone, plus a `content_versions` row. An invalid code, or a code another outlet already holds, is a run note (not created). `type = ONLINE` is never linked or created (run note). The pull never switches an outlet on; an admin finishes the setup and activates it |
+| outlet name / address / phone | copied ONCE when the pull creates the outlet; **never written** on an existing outlet (POS-owned) |
 | outlet `deleted_at` | outlet `is_active = false` |
 
 Never touched by the pull on an existing row: product name, category, brand, sellable, images; variant
-size, price, barcode, images; outlet name, address, phone, code; bundles, recipes, loyalty, stock. The POS
+size, price, barcode, images; outlet name, address, phone, code (set only when the pull creates the outlet); bundles, recipes, loyalty, stock. The POS
 owns these and they are editable in the backoffice even on linked rows (only a linked variant's size and SKU,
 removing a linked variant and deleting a linked product stay locked). What the ERP says about each size is
 kept on the variant (`erp_name`, `erp_category`) as the drift record.
@@ -100,6 +100,40 @@ gcloud run services update mandalika-pos --region asia-southeast2 --project mand
   --update-secrets ERP_API_KEY=ERP_API_KEY:latest,ERP_SCHEDULER_TOKEN=ERP_SCHEDULER_TOKEN:latest \
   --update-env-vars ERP_INTEGRATION_ENABLED=true,ERP_BASE_URL=https://<erp-host>/api/integration/v1
 ```
+
+### Outlet push (POS to ERP), off by default
+
+With `ERP_OUTLET_PUSH_ENABLED=true` (and `ERP_INTEGRATION_ENABLED=true`) every pull, after the outlets
+resource completes and before finished goods, creates the POS outlets that are active, unlinked and have a
+valid code in the ERP: `POST {ERP_BASE_URL}/outlets`, type `RETAIL`, `Idempotency-Key` = external_id = the
+outlet UUID, at most 10 per run, oldest first. The created ERP outlet is linked (`erp_slug`, `erp_code`) and
+the `outlets` content version is bumped. The pull runs first, so an ERP outlet with the same code is linked,
+not created again. A 401/403 (key without the scope), a 404/405 (endpoint not there yet), a 5xx or a timeout stops the step for this run; a
+rejected or code-taken outlet is noted and skipped. Results appear in the run log (`erp outlet push`) and as
+`OutletPush` in the pull report (CLI JSON output, Go field names; the HTTP trigger body is unchanged); there is no run row or watermark. Active unlinked
+outlets with a NULL or invalid code are never sent; the run notes how many. An invalid non-empty value of the variable
+fails config validation when the server boots (like `ERP_INTEGRATION_ENABLED`); `cmd/erp-catalog-pull` never calls
+Validate, so there a bad value simply means off (fail-safe).
+
+Before turning it on: the ERP key needs the scope `integration:outlet:write`, the ERP must serve the outlet
+create endpoint, and the owner must approve (it writes to the ERP). Never test it against the production
+ERP by hand; use the stub or staging. Turn it off again with `ERP_OUTLET_PUSH_ENABLED=false` (new revision).
+
+Pre-enable check (read-only): run this on the target database to see which outlets the push would create in the
+ERP (the oldest 10 are sent per run; today expected: GANCIT only). Outlets it does not list are skipped or already
+linked; the second query counts the ones with no valid code.
+```sql
+SELECT id, upper(code) AS code, name, created_at FROM outlets
+ WHERE is_active AND erp_slug IS NULL
+   AND upper(code) ~ '^[A-Z0-9][A-Z0-9-]{0,18}[A-Z0-9]$'
+ ORDER BY created_at, id LIMIT 10;
+
+SELECT count(*) FROM outlets
+ WHERE is_active AND erp_slug IS NULL AND (code IS NULL OR upper(code) !~ '^[A-Z0-9][A-Z0-9-]{0,18}[A-Z0-9]$');
+```
+
+Rare edge: if a push succeeds but its reply is lost, and the ERP then changes that outlet's code before the next
+pull, the pull can create a duplicate POS outlet (switched off, setup pending). An admin resolves it by hand.
 
 First full run: use the CLI from a trusted machine, from `backend/`, with a long budget (an HTTP-triggered
 run is capped at 20 s). The CLI never runs migrations. Inject the Neon DSN from Secret Manager explicitly:

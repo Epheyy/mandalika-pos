@@ -128,7 +128,7 @@ describe('ProductFormSlideOver for an ERP-linked product', () => {
 
 const outlet = (over: Partial<Outlet>): Outlet => ({
   id: 'o', name: 'Outlet ERP', code: 'ZE1', address: 'Jl. ERP 1', phone: '0812', isActive: true,
-  timezone: 'Asia/Jakarta', createdAt: '2026-10-22T00:00:00Z', ...over,
+  timezone: 'Asia/Jakarta', createdAt: '2026-10-22T00:00:00Z', setupPending: false, ...over,
 })
 
 describe('OutletFormModal for an ERP-linked outlet', () => {
@@ -149,6 +149,18 @@ describe('OutletFormModal for an ERP-linked outlet', () => {
     expect(html).not.toContain('Kode ERP')
     expect(html).not.toContain('Dikelola ERP')
     expect(isDisabled((html.match(/<textarea[^>]*>/) ?? [''])[0])).toBe(false)
+  })
+})
+
+describe('OutletFormModal for an outlet pending setup', () => {
+  const hint = 'Outlet ini dibuat dari ERP. Periksa zona waktu, staf dan struk sebelum mengaktifkan.'
+  it('shows the setup hint only while setupPending is true', () => {
+    const pending = renderToStaticMarkup(<OutletFormModal editing={outlet({ setupPending: true })} onClose={noop} onDone={noop} />)
+    expect(pending).toContain(hint)
+    const done = renderToStaticMarkup(<OutletFormModal editing={outlet({ setupPending: false })} onClose={noop} onDone={noop} />)
+    expect(done).not.toContain(hint)
+    const adding = renderToStaticMarkup(<OutletFormModal editing={null} onClose={noop} onDone={noop} />)
+    expect(adding).not.toContain(hint)
   })
 })
 

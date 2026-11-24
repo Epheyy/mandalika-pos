@@ -97,6 +97,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET "+v1+"/catalog/finished-goods", s.api(s.catalogHandler(fgRecs)))
 	s.mux.HandleFunc("GET "+v1+"/catalog/outlets", s.api(s.catalogHandler(outletRecs)))
 	s.mux.HandleFunc("GET "+v1+"/outlets/{code}/stock", s.api(s.outletStock))
+	s.mux.HandleFunc("POST "+v1+"/outlets", s.api(s.postOutlet))
 	s.mux.HandleFunc("POST "+v1+"/stock-documents", s.api(s.postStockDocument))
 	s.mux.HandleFunc("GET /_stub/documents", s.hook(s.hookDocuments))
 	s.mux.HandleFunc("GET /_stub/balances", s.hook(s.hookBalances))
