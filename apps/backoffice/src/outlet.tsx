@@ -11,8 +11,8 @@ import { ChevronDown } from 'lucide-react'
 import type { Outlet } from '@mandalika/api'
 import { api, authStore } from './api'
 import { useAuth } from './auth'
-import { activeOutletOf, coveredOutlets, outletCoverageOf } from './lib/outletCoverage'
-import { readOutletPref, resolveOutletPref, writeOutletPref } from './lib/outletPref'
+import { activeOutletOf, outletCoverageOf, restoreChoice } from './lib/outletCoverage'
+import { readOutletPref, writeOutletPref } from './lib/outletPref'
 
 interface OutletState {
   /** Chosen outlet id, or null = no override: the combined view for admin / All manager, else the home outlet. */
@@ -59,19 +59,21 @@ export function OutletProvider({ children }: { children: ReactNode }) {
     [userId],
   )
 
-  const visibleOutlets = useCallback(
-    (list: Outlet[]) =>
-      coveredOutlets(list, { outletIds: coverageKey.split(',').filter(Boolean), allOutlets, canSwitch, allowCombined }, isAdmin),
-    [isAdmin, allOutlets, canSwitch, allowCombined, coverageKey],
+  // The coverage slice of the user, stable across silent refreshes that change nothing about it.
+  const role = user?.role
+  const homeOutletId = user?.outletId ?? null
+  const coverageUser = useMemo(
+    () => (role ? { role, outletId: homeOutletId, outletIds: coverageKey.split(',').filter(Boolean), allOutlets } : null),
+    [role, homeOutletId, coverageKey, allOutlets],
   )
 
   const refreshOutlets = useCallback(() => {
     if (!canSwitch) return
     api
       .listOutlets()
-      .then((list) => setOutlets(visibleOutlets(list)))
+      .then((list) => setOutlets(restoreChoice(coverageUser, list, null).outlets))
       .catch(() => {})
-  }, [canSwitch, visibleOutlets])
+  }, [canSwitch, coverageUser])
 
   useEffect(() => {
     // Admin / All manager: cross-outlet by default (no X-Outlet-Id), or the outlet this viewer last chose.
@@ -93,10 +95,9 @@ export function OutletProvider({ children }: { children: ReactNode }) {
       .listOutlets()
       .then((list) => {
         if (cancelled) return
-        const covered = visibleOutlets(list)
-        setOutlets(covered)
         // Resolved against the covered list only: a remembered outlet outside coverage is dropped, never sent.
-        const { outletId: saved, stale } = resolveOutletPref(userId ? readOutletPref(userId) : null, covered)
+        const { outlets: covered, outletId: saved, stale } = restoreChoice(coverageUser, list, userId ? readOutletPref(userId) : null)
+        setOutlets(covered)
         if (stale && userId) writeOutletPref(userId, null)
         if (saved) {
           authStore.outletId = saved
@@ -121,7 +122,7 @@ export function OutletProvider({ children }: { children: ReactNode }) {
       clearInterval(id)
       window.removeEventListener('focus', onFocus)
     }
-  }, [canSwitch, userId, refreshOutlets, visibleOutlets])
+  }, [canSwitch, userId, refreshOutlets, coverageUser])
 
   const value = useMemo<OutletState>(
     () => ({ outletId, setOutletId, outlets, isAdmin, canSwitch, allowCombined, outletsReady, refreshOutlets }),

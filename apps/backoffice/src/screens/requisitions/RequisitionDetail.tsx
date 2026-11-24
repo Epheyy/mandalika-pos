@@ -58,6 +58,7 @@ function StatusChain({ status }: { status: StockRequisition['status'] }) {
 /** Detail of one Permintaan Barang: status chain, lines, linked transfer, history and the actions the caller may take. */
 export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps) {
   const { user } = useAuth()
+  const activeOutlet = useActiveOutletId()
   const perms = user?.permissions ?? []
   const isAdmin = user?.role === 'admin'
   const canWarehouse = isAdmin || perms.includes('manage_inventory')
@@ -87,7 +88,6 @@ export function RequisitionDetail({ id, onBack, onEdit }: RequisitionDetailProps
 
   const items = pb.items ?? []
   const linkedTransferId = pb.transfer?.id
-  const activeOutlet = useActiveOutletId()
   const ownOutlet = canRequest && activeOutlet === pb.outletId
   const approvedFor = (itemId: string, requested: number) => approved[itemId] ?? String(requested)
 

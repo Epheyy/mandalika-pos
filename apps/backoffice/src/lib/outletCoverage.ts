@@ -1,4 +1,5 @@
 import type { User } from '@mandalika/api'
+import { resolveOutletPref } from './outletPref'
 
 export interface OutletCoverage {
   /** Outlets the user may act in (home first). Empty for admin, an All manager and an unassigned manager. */
@@ -34,6 +35,19 @@ export function outletCoverageOf(user: CoverageUser | null | undefined): OutletC
 export function coveredOutlets<T extends { id: string }>(list: readonly T[], cov: OutletCoverage, isAdmin: boolean): T[] {
   if (isAdmin || cov.allOutlets) return [...list]
   return list.filter((o) => cov.outletIds.includes(o.id))
+}
+
+/**
+ * What the provider does when the outlet list arrives: keep only the covered outlets and resolve the remembered
+ * choice against them, so a remembered outlet outside coverage is dropped (stale) and never sent as a header.
+ */
+export function restoreChoice<T extends { id: string }>(
+  user: CoverageUser | null | undefined,
+  list: readonly T[],
+  savedPref: string | null,
+): { outlets: T[]; outletId: string | null; stale: boolean } {
+  const outlets = coveredOutlets(list, outletCoverageOf(user), user?.role === 'admin')
+  return { outlets, ...resolveOutletPref(savedPref, outlets) }
 }
 
 /**

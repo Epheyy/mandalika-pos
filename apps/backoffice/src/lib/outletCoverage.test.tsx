@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { Outlet } from '@mandalika/api'
-import { activeOutletOf, coveredOutlets, outletCoverageOf } from './outletCoverage'
+import { activeOutletOf, coveredOutlets, outletCoverageOf, restoreChoice } from './outletCoverage'
 import { resolveOutletPref } from './outletPref'
 import { OutletSwitcherView } from '../outlet'
 
@@ -88,5 +88,31 @@ describe('activeOutletOf', () => {
   it('stays combined (null) for admin and an All manager with no choice', () => {
     expect(activeOutletOf(null, { role: 'admin', outletId: null })).toBeNull()
     expect(activeOutletOf(null, mgr([], true, null))).toBeNull()
+  })
+})
+
+describe('restoreChoice (provider path when the outlet list arrives)', () => {
+  it('manager [A,B] with saved C: outlets A,B, no choice, stale', () => {
+    const r = restoreChoice(mgr(['A', 'B']), all, 'C')
+    expect(r.outlets.map((o) => o.id)).toEqual(['A', 'B'])
+    expect(r.outletId).toBeNull()
+    expect(r.stale).toBe(true)
+  })
+  it('manager [A,B] with saved B keeps B', () => {
+    expect(restoreChoice(mgr(['A', 'B']), all, 'B')).toMatchObject({ outletId: 'B', stale: false })
+  })
+  it('admin with saved C (exists) keeps C and sees every outlet', () => {
+    const r = restoreChoice({ role: 'admin' as const, outletId: null }, all, 'C')
+    expect(r.outletId).toBe('C')
+    expect(r.outlets).toHaveLength(3)
+  })
+})
+
+describe('activeOutletOf with no choice', () => {
+  it('admin with a home outlet stays combined (null)', () => {
+    expect(activeOutletOf(null, { role: 'admin', outletId: 'A' })).toBeNull()
+  })
+  it('covered manager falls back to home', () => {
+    expect(activeOutletOf(null, mgr(['B', 'A'], false, 'B'))).toBe('B')
   })
 })
