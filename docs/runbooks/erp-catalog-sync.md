@@ -108,14 +108,32 @@ resource completes and before finished goods, creates the POS outlets that are a
 valid code in the ERP: `POST {ERP_BASE_URL}/outlets`, type `RETAIL`, `Idempotency-Key` = external_id = the
 outlet UUID, at most 10 per run, oldest first. The created ERP outlet is linked (`erp_slug`, `erp_code`) and
 the `outlets` content version is bumped. The pull runs first, so an ERP outlet with the same code is linked,
-not created again. A 404/405 (endpoint not there yet), a 5xx or a timeout stops the step for this run; a
+not created again. A 401/403 (key without the scope), a 404/405 (endpoint not there yet), a 5xx or a timeout stops the step for this run; a
 rejected or code-taken outlet is noted and skipped. Results appear in the run log (`erp outlet push`) and as
-`OutletPush` in the pull report (CLI JSON output, Go field names; the HTTP trigger body is unchanged); there is no run row or watermark. An invalid
-non-empty value of the variable fails config validation at boot, like `ERP_INTEGRATION_ENABLED`.
+`OutletPush` in the pull report (CLI JSON output, Go field names; the HTTP trigger body is unchanged); there is no run row or watermark. Active unlinked
+outlets with a NULL or invalid code are never sent; the run notes how many. An invalid non-empty value of the variable
+fails config validation when the server boots (like `ERP_INTEGRATION_ENABLED`); `cmd/erp-catalog-pull` never calls
+Validate, so there a bad value simply means off (fail-safe).
 
 Before turning it on: the ERP key needs the scope `integration:outlet:write`, the ERP must serve the outlet
 create endpoint, and the owner must approve (it writes to the ERP). Never test it against the production
 ERP by hand; use the stub or staging. Turn it off again with `ERP_OUTLET_PUSH_ENABLED=false` (new revision).
+
+Pre-enable check (read-only): run this on the target database to see which outlets the push would create in the
+ERP (the oldest 10 are sent per run; today expected: GANCIT only). Outlets it does not list are skipped or already
+linked; the second query counts the ones with no valid code.
+```sql
+SELECT id, upper(code) AS code, name, created_at FROM outlets
+ WHERE is_active AND erp_slug IS NULL
+   AND upper(code) ~ '^[A-Z0-9][A-Z0-9-]{0,18}[A-Z0-9]$'
+ ORDER BY created_at, id LIMIT 10;
+
+SELECT count(*) FROM outlets
+ WHERE is_active AND erp_slug IS NULL AND (code IS NULL OR upper(code) !~ '^[A-Z0-9][A-Z0-9-]{0,18}[A-Z0-9]$');
+```
+
+Rare edge: if a push succeeds but its reply is lost, and the ERP then changes that outlet's code before the next
+pull, the pull can create a duplicate POS outlet (switched off, setup pending). An admin resolves it by hand.
 
 First full run: use the CLI from a trusted machine, from `backend/`, with a long budget (an HTTP-triggered
 run is capped at 20 s). The CLI never runs migrations. Inject the Neon DSN from Secret Manager explicitly:

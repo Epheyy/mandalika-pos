@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,6 +52,9 @@ func erPushSubtests(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		erWant(t, "GANCIT link", erStr(t, ctx, pool, `SELECT erp_slug||'|'||erp_code FROM outlets WHERE id=$1`, gancit), "gancit|GANCIT")
 		erWant(t, "KMG linked by the pull", erStr(t, ctx, pool, `SELECT erp_slug FROM outlets WHERE id=$1`, kmg), "kmg")
 		erWant(t, "TEST1 untouched", erStr(t, ctx, pool, `SELECT erp_slug FROM outlets WHERE id=$1`, test1), "<NULL>")
+		if n := rep.OutletPush.Notes; len(n) != 1 || !strings.Contains(n[0], "1 active outlets have no valid POS code") {
+			t.Fatalf("push notes = %q, want one invalid-code summary (outlet X; TEST1 is inactive)", n)
+		}
 		erWant(t, "X untouched", erStr(t, ctx, pool, `SELECT erp_slug FROM outlets WHERE id=$1`, bad), "<NULL>")
 		// The pull bumps `outlets` once (KMG link); the push bumps it again.
 		erWant(t, "outlets content version bumped by pull and push", erStr(t, ctx, pool,

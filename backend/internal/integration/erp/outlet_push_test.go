@@ -22,7 +22,10 @@ type fakePushStore struct {
 	taken    map[string]bool
 
 	linkErrFor map[string]error // by outlet id
+	invalid    int
 }
+
+func (f *fakePushStore) countInvalidCode(context.Context) (int, error) { return f.invalid, nil }
 
 func (f *fakePushStore) pushCandidates(context.Context) ([]pushCandidate, error) {
 	return f.cands, f.candsErr
@@ -270,5 +273,15 @@ func TestPushParentCancellationIsNotABudgetStop(t *testing.T) {
 	p := s.pushOutlets(ctx, &fakePushStore{cands: []pushCandidate{cand("AAA")}}, time.Now().Add(time.Minute))
 	if p.Status != PushStopped || len(p.Notes) != 1 || strings.Contains(p.Notes[0], "run budget") {
 		t.Fatalf("push %+v", p)
+	}
+}
+
+func TestPushReportsOutletsWithoutAValidCodeOnce(t *testing.T) {
+	h, ps, cr := pushHarness(cand("AAA"))
+	ps.invalid = 3
+	p := mustRun(t, h, ModeFull).OutletPush
+	want := []string{"outlet push: 3 active outlets have no valid POS code and were not sent"}
+	if !reflect.DeepEqual(p.Notes, want) || len(cr.calls) != 1 {
+		t.Fatalf("push %+v calls %d", p, len(cr.calls))
 	}
 }

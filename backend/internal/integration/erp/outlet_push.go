@@ -25,15 +25,14 @@ const (
 	// is left, so finished goods always get time (budget/2 with the value 2).
 	pushReserveShare = 2
 
-	PushCompleted       = "completed"
-	PushStopped         = "stopped" // the ERP is down or has no endpoint; the rest waits
-	PushSkippedDisabled = "skipped_disabled"
+	PushCompleted = "completed"
+	PushStopped   = "stopped" // the ERP is down or has no endpoint; the rest waits
 )
 
 // PushResult is what the push step did in one run.
 type PushResult struct {
 	Attempted, Linked int
-	Status            string // completed | stopped | skipped_disabled
+	Status            string // completed | stopped
 	Notes             []string
 }
 
@@ -47,6 +46,9 @@ type outletPushStore interface {
 	// pushCandidates returns active, unlinked outlets with a valid code (the POS code rule, also
 	// checked in Go), oldest first, at most maxOutletPushPerRun.
 	pushCandidates(ctx context.Context) ([]pushCandidate, error)
+	// countInvalidCode counts active, unlinked outlets the push can never send (NULL or
+	// invalid code), so the run can say so once.
+	countInvalidCode(ctx context.Context) (int, error)
 	// linkPushed links one outlet to its new ERP outlet and bumps the outlets version in one
 	// transaction. linked is false when another run linked the outlet first.
 	linkPushed(ctx context.Context, id, slug, code string) (linked bool, err error)
@@ -75,6 +77,15 @@ func (p *pgStore) pushCandidates(ctx context.Context) ([]pushCandidate, error) {
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+func (p *pgStore) countInvalidCode(ctx context.Context) (int, error) {
+	var n int
+	err := p.Pool.QueryRow(ctx, `
+		SELECT count(*) FROM outlets
+		 WHERE is_active AND erp_slug IS NULL
+		   AND (code IS NULL OR upper(code) !~ '^[A-Z0-9][A-Z0-9-]{0,18}[A-Z0-9]$')`).Scan(&n)
+	return n, err
 }
 
 func (p *pgStore) linkPushed(ctx context.Context, id, slug, code string) (bool, error) {
@@ -131,6 +142,12 @@ func (s *Syncer) pushOutlets(ctx context.Context, ps outletPushStore, stopAt tim
 	cands, err := ps.pushCandidates(ctx)
 	if err != nil {
 		return stop("outlet push stopped: read candidates: %v", err)
+	}
+	switch n, cerr := ps.countInvalidCode(ctx); {
+	case cerr != nil:
+		note("outlet push: could not count outlets with an invalid code: %v", cerr)
+	case n > 0:
+		note("outlet push: %d active outlets have no valid POS code and were not sent", n)
 	}
 	for _, c := range cands {
 		if res.Attempted >= maxOutletPushPerRun {

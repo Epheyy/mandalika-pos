@@ -41,7 +41,7 @@ Arah sebaliknya (outlet baru di ERP muncul di POS) dikerjakan di sisi POS lewat 
 | HTTP | `code` | Kapan | Yang dilakukan POS |
 |---|---|---|---|
 | 409 | `OUTLET_CODE_TAKEN` | `code` sudah dipakai outlet lain di ERP (dengan `external_id` berbeda atau tanpa `external_id`). `details.slug` = slug outlet yang memakai kode itu. | Tidak menautkan otomatis. Dicatat untuk admin. |
-| 409 | `CONFLICT` | `Idempotency-Key` sudah dipakai untuk body lain. | Dicatat, tidak dikirim ulang dengan body berbeda. |
+| 409 | `CONFLICT` | `Idempotency-Key` sudah dipakai untuk body lain. | Dicatat untuk admin. Pada tarikan berikutnya POS menyusun body dari data outlet POS saat itu dengan kunci (UUID) yang sama, jadi body bisa berbeda dari kiriman sebelumnya. |
 | 422 | `VALIDATION_ERROR` | Field tidak valid, atau `Idempotency-Key` ≠ `external_id`. `details` menyebut field-nya. | Dicatat untuk admin. |
 | 401/403 | | Key salah atau scope belum ada. | Dicatat, dicoba lagi pada tarikan berikutnya. |
 
@@ -59,6 +59,7 @@ POS mengirim paling banyak 10 outlet per tarikan (tiap 15 menit), hanya outlet a
 1. Apakah outlet baru dari API perlu field lain agar bisa dipakai di ERP (gudang default, supplier, koordinat)? Bila ya, apa default-nya?
 2. Bolehkah `201` untuk buat baru, atau API selalu `200`?
 3. Kapan kira-kira tersedia di staging?
+4. Mohon `Idempotency-Key` hanya diikat ke body bila kiriman BERHASIL. Bila kiriman ditolak dengan 422 lalu admin memperbaiki data outlet di POS, kiriman berikutnya (kunci sama, body baru) tidak boleh terkunci selamanya di `CONFLICT`.
 
 ---
 
@@ -99,7 +100,7 @@ The other direction (a new ERP outlet appears in the POS) is handled on the POS 
 | HTTP | `code` | When | What the POS does |
 |---|---|---|---|
 | 409 | `OUTLET_CODE_TAKEN` | `code` is already used by another ERP outlet (with a different or no `external_id`). `details.slug` = the slug of the outlet holding the code. | Does not link automatically. Notes it for an admin. |
-| 409 | `CONFLICT` | `Idempotency-Key` already used for a different body. | Notes it, never re-sends with a different body. |
+| 409 | `CONFLICT` | `Idempotency-Key` already used for a different body. | Notes it for an admin. On the next pull the POS rebuilds the body from the current POS outlet with the same key (UUID), so the body can differ from the earlier send. |
 | 422 | `VALIDATION_ERROR` | A field is invalid, or `Idempotency-Key` ≠ `external_id`. `details` names the field. | Notes it for an admin. |
 | 401/403 | | Wrong key or missing scope. | Notes it, retries on the next pull. |
 
@@ -117,3 +118,4 @@ The POS sends at most 10 outlets per pull (every 15 minutes), only active outlet
 1. Does an outlet created through the API need other fields to be usable in the ERP (default warehouse, suppliers, coordinates)? If so, what defaults?
 2. Is `201` fine for a new outlet, or does the API always answer `200`?
 3. Roughly when could it be on staging?
+4. Please bind the `Idempotency-Key` to the body only when the request SUCCEEDS. If a request is rejected with 422 and an admin then corrects the outlet in the POS, the next send (same key, new body) must not be stuck in a permanent `CONFLICT`.
