@@ -585,15 +585,12 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 			// the correction below, so the sale still ends at the original total.
 			pointsRedeemed = available
 		}
-		redeemAmount = float64(pointsRedeemed) * redemptionRate
-		// This intermediate is capped to total below; preserve the existing cap.
-		if math.IsNaN(redeemAmount) || math.IsInf(redeemAmount, 0) || redeemAmount < 0 {
+		// The points-consumed rule is RedeemPoints (shared vectors with the POS); the guard on the
+		// uncapped value stays: a NaN/Inf/negative intermediate is refused, never capped.
+		if raw := float64(pointsRedeemed) * redemptionRate; math.IsNaN(raw) || math.IsInf(raw, 0) || raw < 0 {
 			return "", false, false, saleInputError("redemptionAmount", "tidak valid")
 		}
-		if redeemAmount > res.Total {
-			redeemAmount = res.Total
-			pointsRedeemed = int(res.Total / redemptionRate)
-		}
+		pointsRedeemed, redeemAmount = RedeemPoints(pointsRedeemed, pointsRedeemed, redemptionRate, res.Total)
 	}
 	// Audit of a clamped void replacement: the requested and used points go on the order's warning
 	// (its reason shows as the Orders tooltip) and on the redeem ledger row's reason, so it survives
