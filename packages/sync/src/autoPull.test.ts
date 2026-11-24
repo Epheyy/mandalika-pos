@@ -340,3 +340,30 @@ describe('AutoPullScheduler', () => {
     })
   })
 })
+
+describe('AutoPullScheduler server pause (failed(minDelayMs))', () => {
+  it('waits at least the requested pause, past the normal 15 s backoff', () => {
+    rnd = 0
+    s.failed(120_000)
+    s.wantPull()
+    vi.advanceTimersByTime(119_999)
+    expect(fired).toEqual([])
+    vi.advanceTimersByTime(1)
+    expect(fired).toHaveLength(1)
+  })
+
+  it('the normal backoff still applies when it is longer', () => {
+    rnd = 1
+    s.failed(1_000)
+    expect(s.backoffUntil()).toBe(T0 + AUTO_PULL.BACKOFF_BASE_MS)
+  })
+
+  it('survives resetBackoff (a manual action or the online event) but not a success', () => {
+    rnd = 0
+    s.failed(120_000)
+    s.resetBackoff()
+    expect(s.backoffUntil()).toBe(T0 + 120_000)
+    s.succeeded()
+    expect(s.backoffUntil()).toBe(0)
+  })
+})
