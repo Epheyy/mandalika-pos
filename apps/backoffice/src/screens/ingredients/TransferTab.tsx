@@ -11,6 +11,7 @@ import { Select, fieldClass } from '../../ui/Field'
 import { Card } from '../../ui/Card'
 import { StatusBadge } from '../../ui/StatusBadge'
 import { useConfirm } from '../../ui/ConfirmDialog'
+import { dayEndIso, dayStartIso } from '../../lib/businessDay'
 import { labelOf } from '../../lib/labels/types'
 import { TRANSFER_STATUS } from '../../lib/labels/transfer'
 import { EmptyState } from '../../ui/EmptyState'
@@ -29,18 +30,6 @@ import {
   bahanSizeOf,
   transferStatusOf,
 } from './bahanRoute'
-
-// ISO date string "YYYY-MM-DD" → "YYYY-MM-DDT00:00:00Z"
-function toFromIso(date: string): string {
-  return `${date}T00:00:00Z`
-}
-
-// ISO date string "YYYY-MM-DD" → next day at midnight UTC (exclusive end)
-function toToIso(date: string): string {
-  const d = new Date(`${date}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + 1)
-  return d.toISOString().replace(/\.\d{3}Z$/, 'Z')
-}
 
 const fmtDate = (s?: string | null) =>
   s
@@ -73,8 +62,8 @@ export default function TransferTab() {
     () =>
       api.listIngredientTransfers({
         ...(filterStatus ? { status: filterStatus } : {}),
-        ...(fromDate ? { from: toFromIso(fromDate) } : {}),
-        ...(toDate ? { to: toToIso(toDate) } : {}),
+        ...(fromDate ? { from: dayStartIso(fromDate) } : {}),
+        ...(toDate ? { to: dayEndIso(toDate) } : {}),
         ...(locKind && locId ? { locKind, locId } : {}),
         page,
         limit: pageSize,
@@ -97,8 +86,8 @@ export default function TransferTab() {
   const exportIngredientTransfers = async (fmt: 'csv' | 'xlsx') => {
     const all = await fetchAllPages((page, limit) => api.listIngredientTransfers({
       ...(filterStatus ? { status: filterStatus } : {}),
-      ...(fromDate ? { from: toFromIso(fromDate) } : {}),
-      ...(toDate ? { to: toToIso(toDate) } : {}),
+      ...(fromDate ? { from: dayStartIso(fromDate) } : {}),
+      ...(toDate ? { to: dayEndIso(toDate) } : {}),
       ...(locKind && locId ? { locKind, locId } : {}),
       page,
       limit,

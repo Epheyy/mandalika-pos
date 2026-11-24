@@ -3,6 +3,7 @@ import { PackageCheck, Plus } from 'lucide-react'
 import { api } from '../../api'
 import { usePolledQuery } from '../../hooks/usePolledQuery'
 import { exportToCSV, exportToXLSX, buildExportName } from '../../lib/csvUtils'
+import { dayEndIso, dayStartIso } from '../../lib/businessDay'
 import { labelOf } from '../../lib/labels/types'
 import { TRANSFER_STATUS } from '../../lib/labels/transfer'
 import { useListState, type ListSchema } from '../../lib/router/useListState'
@@ -39,16 +40,6 @@ const LIST_SCHEMA: ListSchema<TransferListState> = {
 
 const PAGE_SIZES = [25, 50, 100]
 
-// ISO date string "YYYY-MM-DD" → "YYYY-MM-DDT00:00:00Z"
-const toFromIso = (date: string): string => `${date}T00:00:00Z`
-
-// ISO date string "YYYY-MM-DD" → next day at midnight UTC (exclusive end)
-function toToIso(date: string): string {
-  const d = new Date(`${date}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + 1)
-  return d.toISOString().replace(/\.\d{3}Z$/, 'Z')
-}
-
 const fmtDate = (s?: string | null) =>
   s ? new Date(s).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
@@ -73,8 +64,8 @@ export function TransferList({ outlets, warehouses, onCreate, onOpen }: Transfer
 
   const filters = {
     ...(state.status ? { status: state.status } : {}),
-    ...(state.dari ? { from: toFromIso(state.dari) } : {}),
-    ...(state.sampai ? { to: toToIso(state.sampai) } : {}),
+    ...(state.dari ? { from: dayStartIso(state.dari) } : {}),
+    ...(state.sampai ? { to: dayEndIso(state.sampai) } : {}),
     ...(loc ? { locKind: loc.kind, locId: loc.id } : {}),
   }
 
