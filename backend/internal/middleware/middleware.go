@@ -90,9 +90,11 @@ func RequireAuth(cfg *config.Config, opts ...AuthOption) func(http.Handler) http
 				}
 			}
 			// A restricted manager may only name a covered outlet. "all" is ignored (scope keeps
-			// using the active outlet for non-admins, so nothing widens); an uncovered id is refused.
+			// using the active outlet for non-admins, so nothing widens); an uncovered valid id is
+			// refused. A malformed id is not an outlet at all: it passes so the handler's own
+			// validation answers 400 (scope() honours only a covered id, so it cannot widen).
 			if claims.Role == "manager" && !cov.All {
-				if q := r.URL.Query().Get("outletId"); q != "" && q != "all" && !cov.Covers(q) {
+				if q := r.URL.Query().Get("outletId"); q != "" && q != "all" && isUUID(q) && !cov.Covers(q) {
 					httpx.Err(w, http.StatusForbidden, "outlet not permitted")
 					return
 				}
@@ -164,4 +166,9 @@ func RequireRecipesEnabled(rd interface {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func isUUID(s string) bool {
+	_, err := uuid.Parse(s)
+	return err == nil
 }

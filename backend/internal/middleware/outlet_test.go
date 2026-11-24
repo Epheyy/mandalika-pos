@@ -41,6 +41,7 @@ func outletCall(t *testing.T, role, home string, cov coverage.Coverage, hdr, que
 }
 
 func TestOutletActiveOutlet(t *testing.T) {
+	const uncovered = "c3333333-3333-3333-3333-333333333333"
 	ab := coverage.Coverage{OutletIDs: []string{"A", "B"}}
 	onlyA := coverage.Coverage{OutletIDs: []string{"A"}}
 	all := coverage.Coverage{All: true}
@@ -61,10 +62,13 @@ func TestOutletActiveOutlet(t *testing.T) {
 		{"manager query all ignored", "manager", "A", ab, "", "outletId=all", 200, "A"},
 		{"single manager header other", "manager", "A", onlyA, "B", "", 403, ""},
 		{"single manager query all ignored", "manager", "A", onlyA, "", "outletId=all", 200, "A"},
-		{"single manager query other", "manager", "A", onlyA, "", "outletId=B", 403, ""},
+		{"single manager query other", "manager", "A", onlyA, "", "outletId=B", 200, "A"},
+		{"single manager query uncovered uuid", "manager", "A", onlyA, "", "outletId=" + uncovered, 403, ""},
+		{"single manager query malformed passes", "manager", "A", onlyA, "", "outletId=zzz", 200, "A"},
 		{"cashier query ignored", "cashier", "A", onlyA, "", "outletId=B", 200, "A"},
 		{"admin query all", "admin", "", coverage.Coverage{}, "", "outletId=all", 200, ""},
-		{"manager query uncovered", "manager", "A", ab, "", "outletId=C", 403, ""},
+		{"manager query uncovered", "manager", "A", ab, "", "outletId=" + uncovered, 403, ""},
+		{"manager query malformed passes", "manager", "A", ab, "", "outletId=zzz", 200, "A"},
 		{"manager query covered", "manager", "A", ab, "", "outletId=B", 200, "A"},
 		{"manager all header", "manager", "", all, "C", "", 200, "C"},
 		{"manager all no header", "manager", "", all, "", "", 200, ""},
