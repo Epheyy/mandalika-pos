@@ -108,9 +108,9 @@ outlet), with a single `Covers(outletID) bool` (case-insensitive) used everywher
   header = cross-outlet).
 - manager-specific (ruling H): `?outletId=all` is ignored (it never widens and is not refused); an explicit
   uncovered `?outletId=<id>` → 403 "outlet not permitted"; a covered id is accepted. Otherwise the active
-  outlet (never `""`). A non-uuid `?outletId` on a list that filters by it is a 400, not a 500.
+  outlet (never `""`). An uncovered or non-uuid `?outletId` from such a manager is refused by the middleware (403 "outlet not permitted"); for admin, All-manager or warehouse callers a non-uuid `?outletId` on a list that filters by it is a 400, not a 500.
 - **(Claude's call)** any non-admin with no coverage (unassigned manager, cashier with no outlet): scoped
-  reads answer 403 "no active outlet" instead of today's catalogue-read fall-through to all outlets. This
+  reads answer 403 "Outlet aktif belum dipilih untuk akun ini." instead of today's catalogue-read fall-through to all outlets. This
   includes `GET /products` and `GET /products/{id}`: an unassigned user is refused (403).
 
 ### Places that compare a user's outlet today — all switch to coverage
