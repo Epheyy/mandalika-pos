@@ -7,6 +7,9 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/mandalika/pos-backend/internal/integration/erp/erpapi"
 )
@@ -17,6 +20,8 @@ type fakePushStore struct {
 	linkErr  error
 	linked   []string // "id/slug/code"
 	taken    map[string]bool
+
+	linkErrFor map[string]error // by outlet id
 }
 
 func (f *fakePushStore) pushCandidates(context.Context) ([]pushCandidate, error) {
@@ -26,6 +31,9 @@ func (f *fakePushStore) pushCandidates(context.Context) ([]pushCandidate, error)
 func (f *fakePushStore) linkPushed(_ context.Context, id, slug, code string) (bool, error) {
 	if f.linkErr != nil {
 		return false, f.linkErr
+	}
+	if err := f.linkErrFor[id]; err != nil {
+		return false, err
 	}
 	if f.taken[id] {
 		return false, nil
@@ -43,11 +51,15 @@ type pushAnswer struct {
 
 type fakeCreator struct {
 	calls   []OutletCreate
+	onCall  func()
 	answers map[string]pushAnswer // by code; missing = created with slug = lower(code)
 }
 
 func (f *fakeCreator) CreateOutlet(_ context.Context, in OutletCreate) (OutletCreateResult, OutletCreateOutcome, string, error) {
 	f.calls = append(f.calls, in)
+	if f.onCall != nil {
+		f.onCall()
+	}
 	if a, ok := f.answers[in.Code]; ok {
 		return a.res, a.outcome, a.detail, a.err
 	}
@@ -125,7 +137,7 @@ func TestPushLinkedElsewhereIsNotCounted(t *testing.T) {
 	h, ps, _ := pushHarness(cand("GANCIT"))
 	ps.taken = map[string]bool{"id-GANCIT": true}
 	p := mustRun(t, h, ModeFull).OutletPush
-	if p.Attempted != 1 || p.Linked != 0 || p.Status != PushCompleted {
+	if p.Attempted != 1 || p.Linked != 0 || p.Status != PushCompleted || len(p.Notes) != 1 || !strings.Contains(p.Notes[0], "gancit") {
 		t.Fatalf("push %+v", p)
 	}
 }
@@ -197,5 +209,36 @@ func TestPushDoesNotRunWhenOutletsDidNotComplete(t *testing.T) {
 	r := mustRun(t, h, ModeFull)
 	if r.Status != StatusFailed || r.OutletPush != nil || len(cr.calls) != 0 {
 		t.Fatalf("report %+v calls %d", r, len(cr.calls))
+	}
+}
+
+func TestPushStopsWhenTheBudgetReserveIsReachedAndFinishedGoodsStillRun(t *testing.T) {
+	h, ps, cr := pushHarness(cand("AAA"), cand("BBB"), cand("CCC"))
+	cr.onCall = func() { *h.clock = h.clock.Add(31 * time.Second) } // budget is 1 min, reserve 30 s
+	r := mustRun(t, h, ModeFull)
+	p := r.OutletPush
+	if p.Status != PushStopped || len(cr.calls) != 1 || len(ps.linked) != 1 || len(p.Notes) != 1 || p.Notes[0] != "push stopped: run budget" {
+		t.Fatalf("push %+v calls %d", p, len(cr.calls))
+	}
+	if r.Status != StatusCompleted || len(r.Resources) != 2 || r.Resources[1].Status != StatusCompleted {
+		t.Fatalf("finished goods did not complete: %+v", r)
+	}
+}
+
+func TestPushUnauthorizedStopsAfterTheFirstCall(t *testing.T) {
+	h, _, cr := pushHarness(cand("AAA"), cand("BBB"))
+	cr.answers = map[string]pushAnswer{"AAA": {outcome: OutletUnauthorized, detail: "HTTP 403"}}
+	p := mustRun(t, h, ModeFull).OutletPush
+	if p.Status != PushStopped || len(cr.calls) != 1 || len(p.Notes) != 1 || !strings.Contains(p.Notes[0], "integration:outlet:write") {
+		t.Fatalf("push %+v calls %d", p, len(cr.calls))
+	}
+}
+
+func TestPushSlugUniqueViolationIsNotedAndContinues(t *testing.T) {
+	h, ps, cr := pushHarness(cand("AAA"), cand("BBB"))
+	ps.linkErrFor = map[string]error{"id-AAA": &pgconn.PgError{Code: "23505"}}
+	p := mustRun(t, h, ModeFull).OutletPush
+	if p.Status != PushCompleted || len(cr.calls) != 2 || p.Linked != 1 || len(p.Notes) != 1 || !strings.Contains(p.Notes[0], "aaa") {
+		t.Fatalf("push %+v calls %d", p, len(cr.calls))
 	}
 }

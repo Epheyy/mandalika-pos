@@ -39,6 +39,7 @@ const (
 	OutletRejected                                   // any other 4xx, or an unusable 2xx
 	OutletEndpointMissing                            // 404 / 405: the ERP has no such endpoint yet
 	OutletUnavailable                                // 5xx, timeout, network error
+	OutletUnauthorized                               // 401 / 403: the key may not create outlets
 )
 
 // OutletCreator pushes one outlet. The error is non-nil only when ctx was cancelled;
@@ -182,6 +183,8 @@ func decodeOutletCreate(status int, body []byte) (OutletCreateResult, OutletCrea
 			det.Slug = "unknown"
 		}
 		return OutletCreateResult{}, OutletCodeTaken, "code taken by " + det.Slug
+	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+		return OutletCreateResult{}, OutletUnauthorized, errDetail()
 	case status >= 400 && status < 500:
 		return OutletCreateResult{}, OutletRejected, errDetail()
 	default:

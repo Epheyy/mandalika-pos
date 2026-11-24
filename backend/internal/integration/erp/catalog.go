@@ -280,19 +280,19 @@ func (s *Syncer) Run(ctx context.Context, mode Mode) (CatalogReport, error) {
 			break
 		}
 		if x.resource == ResourceOutlets && s.Pusher != nil {
-			report.OutletPush = s.runPush(ctx, st)
+			report.OutletPush = s.runPush(ctx, st, deadline, budget)
 		}
 	}
 	return report, nil
 }
 
 // runPush runs the outlet push and logs it like a resource.
-func (s *Syncer) runPush(ctx context.Context, st runStore) *PushResult {
+func (s *Syncer) runPush(ctx context.Context, st runStore, deadline time.Time, budget time.Duration) *PushResult {
 	ps := s.pushStoreFor(st)
 	if ps == nil {
 		return &PushResult{Status: PushStopped, Notes: []string{"outlet push stopped: no store"}}
 	}
-	p := s.pushOutlets(ctx, ps)
+	p := s.pushOutlets(ctx, ps, deadline.Add(-budget/pushReserveShare))
 	s.log().Info("erp outlet push", "resource", ResourceOutletPush, "status", p.Status,
 		"attempted", p.Attempted, "linked", p.Linked, "notes", len(p.Notes))
 	for _, n := range p.Notes {

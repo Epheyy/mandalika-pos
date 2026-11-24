@@ -2,8 +2,12 @@ package erp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Outlet push (POS to ERP): after the outlets pull has linked every POS outlet it can by
@@ -16,8 +20,10 @@ import (
 const ResourceOutletPush = "outlet_push"
 
 const (
-	maxOutletPushPerRun = 10  // ERP creates per run; the rest wait for the next run
-	maxPushCandidates   = 200 // rows read; invalid codes are skipped in Go, so read past them
+	maxOutletPushPerRun = 10 // ERP creates per run; the rest wait for the next run
+	// pushReserveShare: the push stops once less than 1/pushReserveShare of the run budget
+	// is left, so finished goods always get time (budget/2 with the value 2).
+	pushReserveShare = 2
 
 	PushCompleted       = "completed"
 	PushStopped         = "stopped" // the ERP is down or has no endpoint; the rest waits
@@ -38,7 +44,8 @@ type pushCandidate struct {
 
 // outletPushStore is the persistence side of the push. *pgStore implements it.
 type outletPushStore interface {
-	// pushCandidates returns active, unlinked outlets with a code, oldest first.
+	// pushCandidates returns active, unlinked outlets with a valid code (the POS code rule, also
+	// checked in Go), oldest first, at most maxOutletPushPerRun.
 	pushCandidates(ctx context.Context) ([]pushCandidate, error)
 	// linkPushed links one outlet to its new ERP outlet and bumps the outlets version in one
 	// transaction. linked is false when another run linked the outlet first.
@@ -51,9 +58,10 @@ func (p *pgStore) pushCandidates(ctx context.Context) ([]pushCandidate, error) {
 	rows, err := p.Pool.Query(ctx, `
 		SELECT id::text, upper(code), name, address, phone
 		  FROM outlets
-		 WHERE is_active AND erp_slug IS NULL AND code IS NOT NULL
+		 WHERE is_active AND erp_slug IS NULL
+		   AND upper(code) ~ '^[A-Z0-9][A-Z0-9-]{0,18}[A-Z0-9]$'
 		 ORDER BY created_at, id
-		 LIMIT $1`, maxPushCandidates)
+		 LIMIT $1`, maxOutletPushPerRun)
 	if err != nil {
 		return nil, err
 	}
@@ -104,10 +112,11 @@ func (s *Syncer) pushStoreFor(run runStore) outletPushStore {
 }
 
 // pushOutlets creates the unlinked active outlets in the ERP, at most maxOutletPushPerRun.
+// stopAt is when the budget reserved for finished goods begins: no call starts after it.
 // It never returns an error: every problem is a note, and an ERP that cannot take the
 // call (no endpoint, 5xx, timeout) stops the step. A rejected or code-taken outlet is
 // noted and the step moves on to the next one.
-func (s *Syncer) pushOutlets(ctx context.Context, ps outletPushStore) *PushResult {
+func (s *Syncer) pushOutlets(ctx context.Context, ps outletPushStore, stopAt time.Time) *PushResult {
 	res := &PushResult{Status: PushCompleted}
 	note := func(format string, a ...any) {
 		if len(res.Notes) < maxNoteMessages {
@@ -126,6 +135,9 @@ func (s *Syncer) pushOutlets(ctx context.Context, ps outletPushStore) *PushResul
 	for _, c := range cands {
 		if res.Attempted >= maxOutletPushPerRun {
 			break
+		}
+		if !s.now().Before(stopAt) {
+			return stop("push stopped: run budget")
 		}
 		code := strings.ToUpper(c.Code)
 		if !ValidPOSOutletCode(code) {
@@ -146,14 +158,21 @@ func (s *Syncer) pushOutlets(ctx context.Context, ps outletPushStore) *PushResul
 				linkCode = code
 			}
 			linked, lerr := ps.linkPushed(ctx, c.ID, r.Slug, linkCode)
-			if lerr != nil {
+			var pgErr *pgconn.PgError
+			switch {
+			case errors.As(lerr, &pgErr) && pgErr.Code == "23505":
+				note("outlet %s created in ERP as %s but not linked: slug already linked to another outlet", code, r.Slug)
+			case lerr != nil:
 				return stop("outlet %s created in ERP as %s but not linked: %v", code, r.Slug, lerr)
-			}
-			if linked {
+			case linked:
 				res.Linked++
+			default:
+				note("outlet %s created in ERP as %s but was linked by another run first", code, r.Slug)
 			}
 		case OutletCodeTaken, OutletRejected:
 			note("outlet %s not created in ERP: %s", code, detail)
+		case OutletUnauthorized:
+			return stop("outlet push stopped: the ERP key may not create outlets (%s); needs scope integration:outlet:write", detail)
 		case OutletEndpointMissing:
 			return stop("outlet push stopped: the ERP has no outlet-create endpoint (%s)", detail)
 		default: // OutletUnavailable

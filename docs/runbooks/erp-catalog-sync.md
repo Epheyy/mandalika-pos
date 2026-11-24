@@ -110,7 +110,7 @@ outlet UUID, at most 10 per run, oldest first. The created ERP outlet is linked 
 the `outlets` content version is bumped. The pull runs first, so an ERP outlet with the same code is linked,
 not created again. A 404/405 (endpoint not there yet), a 5xx or a timeout stops the step for this run; a
 rejected or code-taken outlet is noted and skipped. Results appear in the run log (`erp outlet push`) and as
-`outletPush` in the pull report (CLI JSON output only; the HTTP trigger body is unchanged); there is no run row or watermark. An invalid
+`OutletPush` in the pull report (CLI JSON output, Go field names; the HTTP trigger body is unchanged); there is no run row or watermark. An invalid
 non-empty value of the variable fails config validation at boot, like `ERP_INTEGRATION_ENABLED`.
 
 Before turning it on: the ERP key needs the scope `integration:outlet:write`, the ERP must serve the outlet
