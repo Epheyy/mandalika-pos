@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -299,13 +300,17 @@ func TestOutletCoveragePostgres(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		get := func(tok string) int {
+		getOutlet := func(tok, outlet string) (int, string) {
 			r := httptest.NewRequest("GET", "/products", nil)
 			r.Header.Set("Authorization", "Bearer "+tok)
-			r.Header.Set("X-Outlet-Id", outB)
+			r.Header.Set("X-Outlet-Id", outlet)
 			w := httptest.NewRecorder()
 			guarded.ServeHTTP(w, r)
-			return w.Code
+			return w.Code, w.Body.String()
+		}
+		get := func(tok string) int {
+			code, _ := getOutlet(tok, outB)
+			return code
 		}
 		if got := get(oldTok); got != 200 {
 			t.Fatalf("before the change: %d", got)
@@ -320,6 +325,22 @@ func TestOutletCoveragePostgres(t *testing.T) {
 		// The 401 is the refreshable one; a 403 would never make the client refresh.
 		if got := get(oldTok); got != 401 {
 			t.Fatalf("old token with X-Outlet-Id B = %d, want 401 (revoked)", got)
+		}
+		// The client refreshes and retries: the new token carries the new coverage, so B is
+		// now a 403 and the home outlet still works.
+		au, err := store.ByID(ctx, m.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		newTok, err := auth.IssueAccessCov(secret, time.Hour, m.ID, "manager", au.OutletID, nil, au.PermVersion, au.Coverage())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if code, body := getOutlet(newTok, outB); code != 403 || !strings.Contains(body, "outlet not permitted") {
+			t.Fatalf("refreshed token with X-Outlet-Id B = %d %q, want 403 outlet not permitted", code, body)
+		}
+		if code, body := getOutlet(newTok, outA); code != 200 {
+			t.Fatalf("refreshed token with home outlet = %d %q, want 200", code, body)
 		}
 		// An unchanged list does not bump.
 		if code, e, _ := send("PUT", "/users/"+m.ID, map[string]any{"outletIds": []string{outA}}); code != 200 {

@@ -12,6 +12,7 @@ import { defaultKV, getKV, getOutboxStore } from '@mandalika/sync'
 import { openCartKey } from './cashier/openCartDraft'
 import { api, authStore } from './api'
 import {
+  assertPickSettled,
   checkLoginAllowed,
   clearBinding,
   clearOutletCaches,
@@ -170,6 +171,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (outlet: { id: string; name: string }) => {
       if (!user) throw new Error('Belum masuk')
       await settleTerminal(user, { picked: outlet, fresh: true }) // durable first
+      // A refused pick (resolveTerminal kept the terminal unbound) must not look like success.
+      assertPickSettled(resolveTerminal(user, readBinding(getKV()), outlet))
     },
     [user, settleTerminal],
   )

@@ -22,7 +22,8 @@ type User struct {
 	OutletID    string   `json:"outletId,omitempty"`
 	PhotoURL    string   `json:"photoURL,omitempty"`
 	Permissions []string `json:"permissions"`
-	// OutletIDs is the home outlet first, then any extra outlets; [] when none.
+	// OutletIDs is the enforced coverage list: cashier [home]; manager home first then extras;
+	// admin, all-outlets manager and unassigned user [].
 	OutletIDs []string `json:"outletIds"`
 	// AllOutlets marks a manager who covers every outlet (then OutletIDs is empty).
 	AllOutlets bool `json:"allOutlets"`

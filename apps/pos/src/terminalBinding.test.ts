@@ -3,10 +3,13 @@ import type { KV } from '@mandalika/sync'
 import { OUTBOX_KEY } from '@mandalika/sync'
 import { USER_KEY } from './authBoot'
 import {
+  OUTLET_PICK_REFUSED,
   TERMINAL_KEY,
+  assertPickSettled,
   checkLoginAllowed,
   clearBinding,
   clearOutletCaches,
+  coverageOf,
   isQueueReleasable,
   ownerLabel,
   pickableOutlets,
@@ -174,6 +177,22 @@ describe('resolveTerminal: a bound terminal is never rebound', () => {
     it('a cashier ignores extra coverage fields', () => {
       const c = { ...cashier, outletIds: ['out-9', 'out-1'] }
       expect(resolveTerminal(c, binding({ outletId: 'out-1' })).state).toBe('mismatch')
+    })
+
+    it('allOutlets is honoured only for a manager', () => {
+      const c = { ...cashier, allOutlets: true }
+      expect(coverageOf(c)).toEqual({ all: false, outletIds: ['out-9'] })
+      expect(resolveTerminal(c, binding({ outletId: 'out-1' })).state).toBe('mismatch')
+      expect(pickableOutlets(c, [{ id: 'out-1' }, { id: 'out-9' }])).toEqual([{ id: 'out-9' }])
+      expect(coverageOf(allMgr).all).toBe(true)
+    })
+
+    it('a refused pick is not a settled pick', () => {
+      // multi covers out-1 and out-3: out-2 is refused and the terminal stays unbound.
+      const refused = resolveTerminal(multi, null, { id: 'out-2', name: 'Dua' })
+      expect(refused.state).toBe('pick')
+      expect(() => assertPickSettled(refused)).toThrow(OUTLET_PICK_REFUSED)
+      expect(() => assertPickSettled(resolveTerminal(multi, null, { id: 'out-3', name: 'Tiga' }))).not.toThrow()
     })
 
     it('pickableOutlets: admin / all-outlets manager see every outlet, others only the covered ones', () => {

@@ -1,5 +1,6 @@
-// Package coverage answers "which outlets may this user act on?". It is a leaf package
-// (imports no internal package) so auth, middleware, scope and sync can all share one rule.
+// Package coverage answers "which outlets may this user act on?". It is an infra-tier
+// package (it only imports pgx, no other internal package) so auth, middleware, scope and sync
+// can all share one rule.
 package coverage
 
 import (

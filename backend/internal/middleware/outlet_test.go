@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -79,6 +80,32 @@ func TestOutletActiveOutlet(t *testing.T) {
 			}
 			if code == 200 && outlet != c.wantOutlet {
 				t.Fatalf("outlet = %q, want %q", outlet, c.wantOutlet)
+			}
+		})
+	}
+}
+
+func TestOutletHeaderIsCanonicalised(t *testing.T) {
+	const a = "a1111111-1111-1111-1111-111111111111"
+	const b = "b2222222-2222-2222-2222-222222222222"
+	up := func(s string) string { return strings.ToUpper(s) }
+	cases := []struct {
+		name       string
+		role, home string
+		cov        coverage.Coverage
+		hdr, want  string
+	}{
+		{"cashier upper-case home", "cashier", a, coverage.Coverage{OutletIDs: []string{a}}, up(a), a},
+		{"manager upper-case covered", "manager", a, coverage.Coverage{OutletIDs: []string{a, b}}, up(b), b},
+		{"admin upper-case uuid lowered", "admin", "", coverage.Coverage{}, up(b), b},
+		{"all manager upper-case uuid lowered", "manager", "", coverage.Coverage{All: true}, up(b), b},
+		{"admin non-uuid unchanged", "admin", "", coverage.Coverage{}, "Garbage", "Garbage"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			code, outlet := outletCall(t, c.role, c.home, c.cov, c.hdr, "")
+			if code != 200 || outlet != c.want {
+				t.Fatalf("got %d %q, want 200 %q", code, outlet, c.want)
 			}
 		})
 	}

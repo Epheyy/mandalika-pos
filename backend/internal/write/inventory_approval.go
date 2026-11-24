@@ -20,8 +20,9 @@ import (
 // Policy (owner answers 2 and 3, 2026-10-25): when app_settings.inventory_approval_required is
 // on, every manual adjustment and every count with a difference waits for an approver. The
 // approver is never the requester (admin included), is an admin or a receive_approver_roles
-// user, re-enters their own receive PIN every time, and (for an outlet document) belongs to that
-// outlet. A warehouse document accepts an admin or any approver-role user. An approved
+// user, re-enters their own receive PIN every time, and (for an outlet document) covers that
+// outlet (home or an extra outlet; an all-outlets manager covers every one). A warehouse document
+// accepts an admin or any approver-role user. An approved
 // adjustment applies the requested DELTA, not the absolute quantity.
 //
 // This file owns no stock SQL: the stock writes stay in warehouse.go (ApplyAdjustmentDeltaTx)

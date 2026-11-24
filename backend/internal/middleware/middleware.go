@@ -6,8 +6,11 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/config"
+	"github.com/mandalika/pos-backend/internal/coverage"
 	"github.com/mandalika/pos-backend/internal/httpx"
 )
 
@@ -73,8 +76,14 @@ func RequireAuth(cfg *config.Config, opts ...AuthOption) func(http.Handler) http
 			cov := claims.Coverage()
 			outlet := claims.OutletID
 			if h := r.Header.Get("X-Outlet-Id"); h != "" {
-				if claims.Role == "admin" || cov.All || cov.Covers(h) {
+				if claims.Role == "admin" || cov.All {
+					// Canonical lower-case when it is a uuid, so case-sensitive comparisons and cache keys agree.
 					outlet = h
+					if _, err := uuid.Parse(h); err == nil {
+						outlet = strings.ToLower(h)
+					}
+				} else if canon, ok := canonicalCovered(cov, h); ok {
+					outlet = canon // the stored coverage entry, not the header's spelling
 				} else {
 					httpx.Err(w, http.StatusForbidden, "outlet not permitted")
 					return
@@ -94,6 +103,16 @@ func RequireAuth(cfg *config.Config, opts ...AuthOption) func(http.Handler) http
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// canonicalCovered returns the coverage entry matching id (case-insensitive).
+func canonicalCovered(cov coverage.Coverage, id string) (string, bool) {
+	for _, have := range cov.OutletIDs {
+		if strings.EqualFold(have, id) {
+			return have, true
+		}
+	}
+	return "", false
 }
 
 func RequireRole(roles ...string) func(http.Handler) http.Handler {

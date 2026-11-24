@@ -364,6 +364,11 @@ func (f *rqFixture) createAndVisibility(t *testing.T) {
 	}
 	code, body = f.call("staffA", "GET", "/requisitions?status=bogus", nil, "")
 	f.want(t, code, body, 400, "bad status filter")
+	// ?outletId=all is no filter (a restricted manager may send it); a non-uuid is a 400, not a 22P02 500.
+	code, body = f.call("wh", "GET", "/requisitions?outletId=all", nil, "")
+	f.want(t, code, body, 200, "outletId=all is no filter")
+	code, body = f.call("wh", "GET", "/requisitions?outletId=not-a-uuid", nil, "")
+	f.want(t, code, body, 400, "garbage outletId")
 	// A caller holding neither permission gets 403 on reads.
 	f.tokens["none"], _ = auth.IssueAccess([]byte("RQ-INTEGRATION-SYNTHETIC-KEY"), time.Hour, rqStaffA, "cashier", rqOutletA, []string{"create_order"})
 	code, body = f.call("none", "GET", "/requisitions", nil, "")

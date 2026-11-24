@@ -108,7 +108,16 @@ export type CoverageUser = Pick<User, 'outletId' | 'role'> & Partial<Pick<User, 
  *  missing `allOutlets` = false. `all` (admin, or a manager over every outlet) means any outlet. */
 export function coverageOf(user: CoverageUser): { all: boolean; outletIds: readonly string[] } {
   const outletIds = user.outletIds ?? (user.outletId ? [user.outletId] : [])
-  return { all: user.role === 'admin' || user.allOutlets === true, outletIds }
+  // `allOutlets` only means something for a manager (the server derives coverage by role too).
+  return { all: user.role === 'admin' || (user.role === 'manager' && user.allOutlets === true), outletIds }
+}
+
+/** Thrown by `pickOutlet` when the pick did not leave the terminal bound (e.g. an uncovered outlet). */
+export const OUTLET_PICK_REFUSED = 'Outlet ini tidak bisa dipilih untuk akun Anda. Pilih outlet lain.'
+
+/** Throws when a pick resolved to anything but a bound terminal, so the pick screen stops waiting. */
+export function assertPickSettled(res: TerminalResolution): void {
+  if (res.state !== 'ok') throw new Error(OUTLET_PICK_REFUSED)
 }
 
 /** The outlets `user` may pick for a tablet from `outlets` (admin / all-outlets manager: every
