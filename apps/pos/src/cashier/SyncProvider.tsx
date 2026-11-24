@@ -15,7 +15,7 @@ import {
 import { SyncEngine, RECEIVE_CONFLICT_CODES, getKV, getOutboxStore, getJournalBootNotice } from '@mandalika/sync'
 import type { WallState } from '@mandalika/sync'
 import type { components } from '@mandalika/api'
-import { api, authStore } from '../api'
+import { api, authStore, probeApiHost } from '../api'
 import { ensureDeviceCode, resetRegistrationBackoff } from './deviceCode'
 import { currentActor } from '../actor'
 import { hideSplash } from '../native'
@@ -122,7 +122,7 @@ export function SyncProvider({
         },
         getKV(),
         // Every queued item is stamped with who/where it was captured (A04).
-        { actor: currentActor, outboxStore: getOutboxStore() },
+        { actor: currentActor, outboxStore: getOutboxStore(), probeHost: probeApiHost },
       )
       engineRef.current = e
       return e

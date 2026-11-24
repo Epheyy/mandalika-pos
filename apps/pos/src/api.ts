@@ -1,4 +1,4 @@
-import { createClient, type AuthData } from '@mandalika/api'
+import { createClient, probeHost, type AuthData } from '@mandalika/api'
 
 // Mutable auth holder shared between the API client and the AuthProvider.
 // Token storage is Capacitor secure storage (refresh) + memory (access).
@@ -25,6 +25,9 @@ export const authStore: {
 }
 
 const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
+
+/** Does the API host answer over the network at all? Lets the sync engine tell "server problem" from "no internet". */
+export const probeApiHost = (): Promise<boolean> => probeHost(baseUrl)
 
 export const api = createClient({
   baseUrl,

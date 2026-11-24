@@ -33,6 +33,12 @@ export const test = base.extend<{ isolatedNetwork: void }>({
     })
     await context.route('**/*', async route => {
       const raw = route.request().url(), origin = new URL(raw).origin
+      // The POS reachability probe (A29, `probeHost`) is an expected request: answer it the way Cloud Run does.
+      // A scenario that simulates a dead network overrides this with its own page route.
+      if (origin === API && new URL(raw).pathname === '/healthz' && route.request().method() === 'GET') {
+        await route.fulfill({ status: 200, contentType: 'text/plain', body: 'ok' })
+        return
+      }
       if (!origins.has(origin) || origin === API) {
         blocked.push(label(raw)) // Unhandled synthetic API calls also fail closed.
         await route.abort('blockedbyclient')

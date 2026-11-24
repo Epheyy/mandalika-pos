@@ -1,11 +1,21 @@
 import { use, useEffect, useMemo, useState } from 'react'
+import type { OutboxType } from '@mandalika/sync'
 import { SyncContext } from '../cashier/SyncProvider'
 import { queuedSalesFrom, type QueuedSale } from '../lib/queuedSales'
 
 const REFRESH_MS = 2000
 const LAST_SYNCED_KEY = 'mandalika.pos.lastSyncedAt'
 
+/** A queued item that is waiting behind an earlier one, with the reason to show. */
+export interface HeldItem {
+  key: string
+  type: OutboxType
+  reason: string
+}
+
 export interface KoneksiData {
+  /** Shift open/close items held behind a retryable sale (in memory only; empty when none). */
+  held: HeldItem[]
   /** Sales still waiting in the outbox, oldest first. */
   queued: QueuedSale[]
   /** When reference data (products, promos) was last pulled, epoch ms; null when unknown. */
@@ -39,6 +49,7 @@ export function useKoneksiData(open: boolean, pendingCount: number): KoneksiData
   return useMemo(() => {
     const live = open && engine
     return {
+      held: live ? engine.heldItems().map((h) => ({ key: h.idempotencyKey, type: h.type, reason: h.heldReason })) : [],
       queued: live ? queuedSalesFrom(engine.localReceipts()) : [],
       dataUpdatedAt: live ? (engine.lastPulledAt() ?? storedPullTime()) : null,
       now,

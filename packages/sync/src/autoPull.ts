@@ -14,6 +14,8 @@ export const AUTO_PULL = {
   FLOOR_MS: 60_000,
   BACKOFF_BASE_MS: 30_000,
   BACKOFF_CAP_MS: 600_000,
+  /** Longest server-requested pause kept (Retry-After is clamped to 30 min plus jitter); a clock-jump clamp never keeps more. */
+  MAX_PAUSE_MS: 31 * 60_000,
   /** Rolling-hour ceiling on auto pulls (manual pulls are never limited). */
   HOURLY_CAP: 20,
   HOUR_MS: 3_600_000,
@@ -50,6 +52,8 @@ export class AutoPullScheduler {
   private attempts: Record<PullKind, number[]> = { data: [], stock: [] }
   private failures = 0
   private backoffAt = 0
+  /** The server's Retry-After: unlike the failure backoff it survives resetBackoff() (a manual action or `online` never overrides it). */
+  private pausedUntil = 0
   private suspended = false
   private waiting = false
   private capLogged: Record<PullKind, boolean> = { data: false, stock: false }
@@ -67,7 +71,7 @@ export class AutoPullScheduler {
     return this.attempts[kind].length >= this.capOf(kind)
   }
   /** Epoch ms before which no auto pull may start because of failures (0 = none). */
-  backoffUntil(): number { return this.backoffAt }
+  backoffUntil(): number { return Math.max(this.backoffAt, this.pausedUntil) }
 
   /** A pull is wanted. `restart`: the server version rose again, so redo the jitter (bounded by MAX_WAIT_MS
    *  from first detection). Without it a pending timer is left alone. A 'data' want replaces a pending
@@ -114,14 +118,18 @@ export class AutoPullScheduler {
   succeeded(): void {
     this.failures = 0
     this.backoffAt = 0
+    this.pausedUntil = 0
     this.suspended = false
   }
 
-  /** A transient failure: back off 30 s x 2^n, jittered to 50-100%, capped. */
-  failed(): void {
+  /** A transient failure: back off 30 s x 2^n, jittered to 50-100%, capped; never less than `minDelayMs`
+   *  (the server's Retry-After, which the jitter and the cap must not shorten). */
+  failed(minDelayMs = 0): void {
     this.failures += 1
     const step = Math.min(AUTO_PULL.BACKOFF_CAP_MS, AUTO_PULL.BACKOFF_BASE_MS * 2 ** (this.failures - 1))
-    this.backoffAt = this.deps.now() + step * (0.5 + 0.5 * this.deps.random())
+    const now = this.deps.now()
+    this.backoffAt = now + step * (0.5 + 0.5 * this.deps.random())
+    if (minDelayMs > 0) this.pausedUntil = Math.max(this.pausedUntil, now + Math.min(minDelayMs, AUTO_PULL.MAX_PAUSE_MS))
   }
 
   resetBackoff(): void {
@@ -176,7 +184,7 @@ export class AutoPullScheduler {
       return
     }
     this.capLogged[kind] = false
-    const at = Math.max(target, this.floorFor(kind), this.backoffAt)
+    const at = Math.max(target, this.floorFor(kind), this.backoffAt, this.pausedUntil)
     this.timerKind = kind
     this.timer = this.deps.setTimeout(() => {
       this.timer = null
@@ -192,6 +200,7 @@ export class AutoPullScheduler {
       this.attempts[k] = this.attempts[k].map((t) => Math.min(t, now))
     }
     this.backoffAt = Math.min(this.backoffAt, now + AUTO_PULL.BACKOFF_CAP_MS)
+    this.pausedUntil = Math.min(this.pausedUntil, now + AUTO_PULL.MAX_PAUSE_MS)
     this.firstDetectAt = Math.min(this.firstDetectAt, now)
   }
 

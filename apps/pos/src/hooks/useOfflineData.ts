@@ -5,7 +5,7 @@
 
 import { isResyncingNow, nextLastSyncedAt } from './autoPullStatus'
 import { useCallback, use, useEffect, useState } from 'react'
-import type { SyncEngine, WallState } from '@mandalika/sync'
+import type { ConnectionState, SyncEngine, WallState } from '@mandalika/sync'
 import { SyncContext } from '../cashier/SyncProvider'
 import { authStore } from '../api'
 import { ownerLabel } from '../terminalBinding'
@@ -30,6 +30,10 @@ export interface FailedItem {
 
 export interface OfflineDataState {
   isOnline: boolean
+  /** Why the server is unreachable (no internet vs a server problem). Display only: gating reads `isOnline`. */
+  connection: ConnectionState
+  /** Epoch ms until which the server asked the tablet to pause (Retry-After); 0 = none. */
+  serverHoldUntil: number
   wall: WallState
   pendingCount: number
   /** Parked items needing a person's review (never auto-retried, never deleted). */
@@ -89,6 +93,8 @@ export function useOfflineData(): OfflineDataState {
   // NOT navigator.onLine — which falsely reports online on some Android
   // WebViews even with no connection.
   const [isOnline, setIsOnline] = useState(() => engine.isReachable())
+  const [connection, setConnection] = useState<ConnectionState>(() => engine.connectionState())
+  const [serverHoldUntil, setServerHoldUntil] = useState(() => engine.serverHoldUntil())
   const [wall, setWall] = useState<WallState>(() => engine.getWall())
   const [pendingCount, setPendingCount] = useState(() => engine.pendingCount())
   const [attn, setAttn] = useState(() => attention(engine))
@@ -103,7 +109,7 @@ export function useOfflineData(): OfflineDataState {
   useEffect(() => {
     // Browser online/offline events are only hints here — on a connectivity
     // change, force an immediate reachability probe instead of trusting them.
-    const probe = () => { void engine.checkVersion().then(() => setIsOnline(engine.isReachable())) }
+    const probe = () => { void engine.checkVersion().then(() => { setIsOnline(engine.isReachable()); setConnection(engine.connectionState()); setServerHoldUntil(engine.serverHoldUntil()) }) }
     window.addEventListener('online', probe)
     window.addEventListener('offline', probe)
     // Probe once on mount so the dot is correct even if boot resync failed.
@@ -154,6 +160,8 @@ export function useOfflineData(): OfflineDataState {
       })
       setAccountProblem(engine.accountProblem())
       setIsOnline(engine.isReachable())
+      setConnection(engine.connectionState())
+      setServerHoldUntil(engine.serverHoldUntil())
       // Background pulls: show them as syncing and keep "last synced" honest.
       setEnginePulling(engine.isPulling())
       setAutoPullAvailable(engine.autoPullAvailable())
@@ -186,6 +194,8 @@ export function useOfflineData(): OfflineDataState {
 
   return {
     isOnline,
+    connection,
+    serverHoldUntil,
     wall,
     pendingCount,
     review: attn.review,

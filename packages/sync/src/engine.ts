@@ -11,6 +11,7 @@ import { ReceiptArchive, receiptEntryFromItem, salePayloadOf, tendersFromPayload
 import { PendingCredits, applyCredits, type CreditLine } from './pendingCredits'
 import { SettlingDebits, type DebitLine, type PulledSeq } from './settlingDebits'
 import { AutoPullScheduler, AUTO_PULL, type PullKind } from './autoPull'
+import { ServerHold, HELD_SHIFT_REASON, answeredByServer, type ConnectionState } from './serverHold'
 import { redactForLogs, redactSecrets, redactString } from './redact'
 import { OfflineContact, type OfflineCapState } from './offlineContact'
 
@@ -52,6 +53,8 @@ export interface SyncEvents {
   /** Real server reachability (a GET to the server actually succeeded/failed),
    *  not navigator.onLine — which lies on some Android WebViews. */
   onReachable?: (online: boolean) => void
+  /** Why the server is unreachable (or that it is reachable). Additive and display-only: `onReachable` keeps its meaning. */
+  onConnection?: (state: ConnectionState) => void
   /** Dev-only: emit `[sync]` console diagnostics for rejected items and batch
    *  failures. Defaults off so release builds stay silent on devices; the app
    *  wires this to `import.meta.env.DEV`. */
@@ -105,6 +108,10 @@ const KNOWN_ERROR_CODES = new Set([
 /** The whole /sync/batch request is aborted after this long so a hung connection
  *  cannot leave `flushing` stuck. */
 export const BATCH_TIMEOUT_MS = 30_000
+/** The version poll runs every 12 s and is tiny: a hung one must flip the indicator within about one poll. */
+export const VERSION_TIMEOUT_MS = 15_000
+/** The reference pull is not interactive; the hazard is "forever", not "slow" (the bundle body is read on a possibly slow link). */
+export const PULL_TIMEOUT_MS = 60_000
 
 /** A flush posts the outbox in slices of this size, so one request always fits well inside
  *  BATCH_TIMEOUT_MS and the server's batch caps (A29). */
@@ -233,6 +240,9 @@ export interface SyncEngineOptions {
   /** Where the outbox persists (the SQLite journal once adopted). Default: the whole-array KV store
    *  over the engine's `kv`. Synced-refund memory follows the store (`store.kv`). */
   outboxStore?: OutboxStore
+  /** Resolves true when the server host answers over the network at all (see `probeHost` in @mandalika/api). Asked at most
+   *  once per version poll and only after a network/timeout failure, to tell "server problem" from "no internet". */
+  probeHost?: () => Promise<boolean>
 }
 
 /** A refund not yet acknowledged by the server, as the POS gate and shift recap see it. */
@@ -449,6 +459,16 @@ export class SyncEngine {
   private stopTimers: (() => void) | null = null
   private wall: WallState
   private reachable: boolean = ONLINE()
+  private connection: ConnectionState = ONLINE() ? 'online' : 'no_internet'
+  /** Numbers each version poll; `versionSettled` is the newest one that has answered. An older poll's cause is dropped only
+   *  once a newer poll has settled (a poll still in flight must not discard it: the 15 s timeout outlives the 12 s cadence). */
+  private versionTicket = 0
+  private versionSettled = 0
+  private readonly probe: (() => Promise<boolean>) | undefined
+  /** The server's Retry-After pause (A29). Deliberately NOT cleared by resetBackoff, flushNow, retry or `online`. */
+  private readonly hold = new ServerHold()
+  /** Shift open/close items waiting behind an earlier retryable item: key -> reason. In memory only, never persisted. */
+  private heldReasons = new Map<string, string>()
 
   private readonly kv: KV
   /** Last successful online contact (A05): drives the 12 h soft block and the item evidence. */
@@ -465,6 +485,7 @@ export class SyncEngine {
   ) {
     this.kv = kv
     this.actorProvider = options.actor
+    this.probe = options.probeHost
     this.deviceId = getDeviceId(kv)
     this.contacts = new OfflineContact(kv)
     const store = options.outboxStore ?? new KVOutboxStore(kv)
@@ -653,7 +674,31 @@ export class SyncEngine {
     return this.reachable
   }
 
-  private setReachable(online: boolean): void {
+  /** Why the server is unreachable: display only. Gating (ShiftBar, auto-pull, the offline cap) reads isReachable(). */
+  connectionState(): ConnectionState {
+    return this.connection
+  }
+
+  /** Epoch ms until which the server asked the tablet to pause (Retry-After on a 429/503); 0 = no hold. */
+  serverHoldUntil(): number {
+    return this.hold.untilMs(Date.now())
+  }
+
+  private setConnection(state: ConnectionState): void {
+    if (state === this.connection) return
+    this.connection = state
+    this.events.onConnection?.(state)
+  }
+
+  private noteServerHold(err: unknown): void {
+    this.hold.note((err as { retryAfterMs?: unknown } | null)?.retryAfterMs, Date.now(), Math.random)
+  }
+
+  /** `guessCause` (default): an unreachable signal that does not know why reads as no_internet until the next version poll
+   *  refines it; a known cause is kept. The poll itself passes false and sets the cause once it has it. */
+  private setReachable(online: boolean, guessCause = true): void {
+    if (online) this.setConnection('online')
+    else if (guessCause && this.connection === 'online') this.setConnection('no_internet')
     if (online === this.reachable) return
     this.reachable = online
     this.events.onReachable?.(online)
@@ -694,7 +739,13 @@ export class SyncEngine {
     const epoch = this.disposeEpoch
     const pullNo = await this.settling.beginPull()
     const outletAtSend = this.actorOutlet()
-    const r = await this.api.request<{ data: Bundle }>('GET', '/api/v1/sync/pull')
+    let r: { data: Bundle }
+    try {
+      r = await this.api.request<{ data: Bundle }>('GET', '/api/v1/sync/pull', undefined, { timeoutMs: PULL_TIMEOUT_MS })
+    } catch (err) {
+      this.noteServerHold(err)
+      throw err
+    }
     if (this.disposeEpoch !== epoch) return 'stale' // disposed mid-flight: the live engine owns the snapshot and the settling state
     this.setReachable(true)
     this.noteContact() // a 2xx pull is a contact (unsigned: the pull carries no token)
@@ -861,6 +912,8 @@ export class SyncEngine {
     const kind = this.pullWanted()
     if (this.disposed || !this.autoPullActive || kind === null) return
     if (!ONLINE() || !this.reachable) return // offline is always a no-op; the next poll / online event re-arms
+    const heldFor = this.serverHoldUntil() - Date.now()
+    if (heldFor > 0) { this.autoPull.retryIn(heldFor + 1, kind); return } // the server asked for a pause: re-arm for after it
     if (kind !== armed) { this.afterWallUpdate(); return } // the want changed kind: re-arm under that kind's floor and cap
     if (!this.gateAllows()) { this.autoPull.markWaiting(kind); return }
     // A sale flush is running: a pull in flight across its ack would leave stock LOW until the next
@@ -877,7 +930,7 @@ export class SyncEngine {
       if (failure.kind === 'account' || failure.kind === 'rejected' || failure.kind === 'unauthorized') {
         this.autoPull.suspend() // refused: stay quiet until a later version poll succeeds
       } else {
-        this.autoPull.failed()
+        this.autoPull.failed(Math.max(0, this.serverHoldUntil() - Date.now()))
       }
     }
     this.afterWallUpdate()
@@ -898,15 +951,24 @@ export class SyncEngine {
 
   /** Poll the lightweight version endpoint; raise the wall on a server bump. */
   async checkVersion(): Promise<WallState> {
+    // A real offline always shows, even inside a server hold (no request is made either way).
     if (!ONLINE()) {
+      this.versionSettled = ++this.versionTicket
       this.setReachable(false)
+      this.setConnection('no_internet')
       return this.wall
     }
+    // The server asked for a pause: no request, and reachability, contact and the offline cap stay as they were.
+    if (this.hold.active(Date.now())) return this.wall
+    const ticket = ++this.versionTicket
     try {
       const r = await this.api.request<{ data: VersionInfo }>(
         'GET',
         `/api/v1/sync/version?deviceId=${encodeURIComponent(this.deviceId)}`,
+        undefined,
+        { timeoutMs: VERSION_TIMEOUT_MS },
       )
+      this.versionSettled = Math.max(this.versionSettled, ticket)
       this.setReachable(true)
       // A05: only a 2xx counts as contact (the 4xx branch below never does).
       this.noteContact(r.data.contact)
@@ -924,19 +986,41 @@ export class SyncEngine {
       this.afterWallUpdate()
     } catch (err) {
       this.contacts.state(this.newestCaptureMs()) // time passes offline: advance the high-water mark
+      this.noteServerHold(err) // a Retry-After is evidence whatever the age of the poll
+      if (ticket < this.versionSettled) return this.wall // a newer poll already answered; this stale failure must not undo it
       const failure = classifyFailure(err, true)
       if (failure.kind === 'account' || failure.kind === 'rejected' || failure.kind === 'unauthorized') {
         // A 4xx means the server ANSWERED: reachable, but this account/outlet is refused
         // (e.g. 403 no active outlet). Not "offline" and not a reason to block selling.
+        this.versionSettled = Math.max(this.versionSettled, ticket)
         this.setReachable(true)
         if (failure.kind !== 'unauthorized') this.accountProblemMsg = ACCOUNT_PROBLEM_MESSAGE
       } else {
         // The GET failed → the server is unreachable (navigator.onLine can falsely
         // report online on Android WebViews). Keep selling on last snapshot.
-        this.setReachable(false)
+        this.setReachable(false, false)
+        await this.refineConnection(err, ticket)
       }
     }
     return this.wall
+  }
+
+  /** The boolean is already false. Say why: an answer from the server or a proxy is a server problem; no answer is
+   *  probed once (the host answering means the tablet's internet works). A newer poll's result is never overwritten. */
+  private async refineConnection(err: unknown, ticket: number): Promise<void> {
+    const cause = answeredByServer(err) || (await this.hostAnswers()) ? 'server_problem' : 'no_internet'
+    if (ticket <= this.versionSettled || this.reachable) return
+    this.versionSettled = ticket
+    this.setConnection(cause)
+  }
+
+  private async hostAnswers(): Promise<boolean> {
+    if (!this.probe) return false
+    try {
+      return await this.probe()
+    } catch {
+      return false
+    }
   }
 
   // ── Outbox ──────────────────────────────────────────────
@@ -1503,6 +1587,15 @@ export class SyncEngine {
     this.backoffStep = 0
   }
 
+  /** Shift open/close items still queued behind an earlier retryable item, with the reason to show. In memory only:
+   *  filled by a flush that skipped them, cleared when the next flush starts. */
+  heldItems(): { idempotencyKey: string; type: OutboxType; heldReason: string }[] {
+    if (this.heldReasons.size === 0) return []
+    return this.outbox.pending()
+      .filter((i) => this.heldReasons.has(i.idempotencyKey))
+      .map((i) => ({ idempotencyKey: i.idempotencyKey, type: i.type, heldReason: this.heldReasons.get(i.idempotencyKey) ?? HELD_SHIFT_REASON }))
+  }
+
   /** Non-null while /sync/batch is refused for an account/session reason (e.g. 403
    *  outlet not permitted). Nothing is held against the items; cleared on a good batch. */
   accountProblem(): string | null {
@@ -1517,7 +1610,8 @@ export class SyncEngine {
   private scheduleBackoff(): void {
     const delay = Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** this.backoffStep)
     this.backoffStep += 1
-    this.nextFlushAt = Date.now() + Math.round(delay * (0.5 + Math.random() * 0.5))
+    const normal = Date.now() + Math.round(delay * (0.5 + Math.random() * 0.5))
+    this.nextFlushAt = Math.max(normal, this.serverHoldUntil())
   }
 
   /** User-initiated flush ("Kirim sekarang"): ignores any backoff. */
@@ -1600,7 +1694,7 @@ export class SyncEngine {
   /** Report parked review items to head office and remove the ones it resolved.
    *  Throttled; any failure leaves the queue untouched and is retried next cycle. */
   async checkInReviews(): Promise<void> {
-    if (this.disposed || this.checkingIn || !ONLINE()) return
+    if (this.disposed || this.checkingIn || !ONLINE() || this.hold.active(Date.now())) return
     const all = this.outbox.reviewItems()
     if (all.length === 0) return
     const unreported = all.filter((i) => !this.reviewSentAt.has(i.idempotencyKey))
@@ -1614,9 +1708,15 @@ export class SyncEngine {
         .sort((a, b) => (this.reviewSentAt.get(a.idempotencyKey) ?? 0) - (this.reviewSentAt.get(b.idempotencyKey) ?? 0))
       const batch = [...unreported, ...reported].slice(0, REVIEW_CHECKIN_MAX_ITEMS)
       const body: ReviewReportRequest = { items: batch.map(toReviewReport) }
-      const r = await this.api.request<{ data?: ReviewReportResult }>(
-        'POST', '/api/v1/sync/review-items', body, { timeoutMs: REVIEW_CHECKIN_TIMEOUT_MS },
-      )
+      let r: { data?: ReviewReportResult }
+      try {
+        r = await this.api.request<{ data?: ReviewReportResult }>(
+          'POST', '/api/v1/sync/review-items', body, { timeoutMs: REVIEW_CHECKIN_TIMEOUT_MS },
+        )
+      } catch (err) {
+        this.noteServerHold(err)
+        throw err // the outer catch leaves the queue untouched; the throttle spaces out the retry
+      }
       const resolved = r?.data?.resolved
       if (!isValidResolvedReply(resolved) || this.disposed) return
       const sentAt = Date.now()
@@ -1697,6 +1797,8 @@ export class SyncEngine {
   async flush(): Promise<BatchResult | null> {
     if (this.disposed || this.flushing || !ONLINE()) return null
     if (Date.now() < this.nextFlushAt) return null
+    if (this.hold.active(Date.now())) return null // the server's pause outlives flushNow()'s backoff reset
+    this.heldReasons.clear()
     // One snapshot per flush, never re-read between chunks: settling-held orders (A15) stay pending
     // and would be resent in the same flush. Items enqueued meanwhile go out on the next tick.
     const pending = this.outbox.pending()
@@ -1725,7 +1827,10 @@ export class SyncEngine {
         for (let at = 0; at < work.length; at += BATCH_MAX_ITEMS) {
           if (at > 0 && (this.disposed || !ONLINE())) break
           let chunk = work.slice(at, at + BATCH_MAX_ITEMS)
-          if (earlierRetryable) chunk = chunk.filter((i) => i.type !== 'shift_close' && i.type !== 'shift_open')
+          if (earlierRetryable) {
+            for (const i of chunk) if (i.type === 'shift_close' || i.type === 'shift_open') this.heldReasons.set(i.idempotencyKey, HELD_SHIFT_REASON)
+            chunk = chunk.filter((i) => i.type !== 'shift_close' && i.type !== 'shift_open')
+          }
           if (linkedHold) {
             for (const i of chunk) if (i.type === 'shift_close' || i.type === 'shift_open') held.add(i.idempotencyKey)
             chunk = chunk.filter((i) => i.type !== 'shift_close' && i.type !== 'shift_open')
@@ -1828,6 +1933,7 @@ export class SyncEngine {
     typeByKey: Map<string, OutboxType>,
   ): Promise<BatchResult | null> {
     const failure = classifyFailure(err, ONLINE())
+    this.noteServerHold(err)
     if (this.events.debug) {
       // eslint-disable-next-line no-console
       console.error('[sync] batch failed', failure.kind, failure.message, err)
@@ -1851,6 +1957,7 @@ export class SyncEngine {
     while (rest.length) {
       const [it, ...tail] = rest
       if (earlierRetryable && (it.type === 'shift_close' || it.type === 'shift_open')) {
+        this.heldReasons.set(it.idempotencyKey, HELD_SHIFT_REASON)
         rest = tail
         continue
       }
@@ -1859,10 +1966,11 @@ export class SyncEngine {
         if (this.disposed) return null
         await this.applyBatch(data, typeByKey)
         last = data
-        if (data.results.some((r) => r.idempotencyKey === it.idempotencyKey && r.status === 'error' && r.retryable === true)) earlierRetryable = true
+        if (data.results.some((r) => r.idempotencyKey === it.idempotencyKey && r.status === 'error' && r.retryable !== false)) earlierRetryable = true
       } catch (e) {
         if (this.disposed) return null
         const f = classifyFailure(e, ONLINE())
+        this.noteServerHold(e)
         if (f.kind !== 'rejected') {
           await this.settleNonRejected(f, rest) // offline / 401 / transient: stop, hold nothing against them
           return last
@@ -2123,13 +2231,19 @@ export class SyncEngine {
    *  caller's outlet). Caches the list locally; on failure keeps the last cache
    *  (offline-tolerant). Does NOT raise the wall or block sales. */
   async pollInbound(): Promise<void> {
-    if (!ONLINE()) return
+    if (!ONLINE() || this.hold.active(Date.now())) return
     try {
       const r = await this.api.request<{ data: Transfer[] }>('GET', '/api/v1/sync/inbound-transfers')
       this.setReachable(true)
       writeJSON(this.kv, INBOUND_KEY, r.data ?? [])
-    } catch {
-      this.setReachable(false) // keep the cached list
+    } catch (err) {
+      this.noteServerHold(err)
+      if (answeredByServer(err)) {
+        this.setReachable(false, false)
+        this.setConnection('server_problem')
+      } else {
+        this.setReachable(false) // keep the cached list
+      }
     }
   }
 

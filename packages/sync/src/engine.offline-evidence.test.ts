@@ -41,7 +41,7 @@ describe('offline-cap evidence (A05)', () => {
     const request = vi.fn().mockResolvedValue(versionOk())
     const { engine } = make(request)
     await engine.checkVersion()
-    expect(request).toHaveBeenCalledWith('GET', `/api/v1/sync/version?deviceId=${encodeURIComponent(engine.deviceId)}`)
+    expect(request).toHaveBeenCalledWith('GET', `/api/v1/sync/version?deviceId=${encodeURIComponent(engine.deviceId)}`, undefined, { timeoutMs: 15_000 })
   })
 
   it('a 2xx version check with a signed contact stamps it on later items, with the offline time', async () => {

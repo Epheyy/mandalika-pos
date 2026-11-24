@@ -10,7 +10,7 @@
  * open (see the engine's auto-pull); "Perbarui data" stays as a fallback.
  */
 import { memo, useState, type ReactNode } from 'react'
-import type { OfflineCapState, WallState } from '@mandalika/sync'
+import type { ConnectionState, OfflineCapState, WallState } from '@mandalika/sync'
 import type { FailedItem } from '../hooks/useOfflineData'
 import { chipModel } from '../lib/connectionChip'
 import { queueCountsLine } from '../lib/queueGuard'
@@ -37,6 +37,9 @@ const PARKED_SENTENCE = 'Tidak bisa terkirim setelah beberapa kali coba. Hubungi
 const OFFLINE_BASE =
   'Transaksi disimpan di tablet dan terkirim otomatis saat online. Terkunci otomatis jika offline lebih dari 12 jam'
 const OFFLINE_SENTENCE = `${OFFLINE_BASE}.`
+/** The tablet's internet works; the server (or a proxy in front of it) does not. Selling continues. */
+export const SERVER_PROBLEM_SENTENCE =
+  'Server sedang bermasalah, bukan internet tablet ini. Penjualan tetap bisa; transaksi disimpan di tablet dan terkirim otomatis saat server pulih.'
 const CAP_HOURS = 12
 const HOUR_MS = 3_600_000
 
@@ -118,6 +121,7 @@ export function ReviewRow({ f, onRetry, onAcknowledge }: { f: FailedItem; onRetr
 /** One explanatory sentence under the status text (section 3.5/3.6 copy). */
 function explanation(o: {
   isOnline: boolean
+  connection?: ConnectionState
   cap?: OfflineCapState
   accountProblem: string | null
   wallRaised: boolean
@@ -129,6 +133,7 @@ function explanation(o: {
   if (!o.isOnline) {
     if (o.cap?.level === 'locked') return OFFLINE_LOCKED_MESSAGE
     const nudge = o.cap ? offlineWarnMessage(o.cap) : null
+    if (o.connection === 'server_problem') return nudge ? `${nudge} ${SERVER_PROBLEM_SENTENCE}` : SERVER_PROBLEM_SENTENCE
     if (nudge) return `${nudge} ${OFFLINE_SENTENCE}`
     if (o.cap?.offlineMs == null) return OFFLINE_SENTENCE
     const left = Math.max(0, Math.ceil(CAP_HOURS - o.cap.offlineMs / HOUR_MS))
@@ -153,6 +158,10 @@ export interface OtaUpdateView {
 
 interface SyncStatusProps {
   isOnline: boolean
+  /** Why the server is unreachable. Absent = unknown (plain offline wording). Never changes what is blocked. */
+  connection?: ConnectionState
+  /** Epoch ms until which the server asked the tablet to pause (Retry-After); 0 or absent = none. */
+  serverHoldUntil?: number
   pendingCount: number
   /** Parked items needing review. */
   review: FailedItem[]
@@ -187,6 +196,8 @@ interface SyncStatusProps {
 
 export const SyncStatus = memo(function SyncStatus({
   isOnline,
+  connection,
+  serverHoldUntil = 0,
   pendingCount,
   review,
   stuck,
@@ -213,8 +224,9 @@ export const SyncStatus = memo(function SyncStatus({
   const hasFailed = review.length > 0
   const rows = acknowledged ? review.filter((f) => !acknowledged.has(f.idempotencyKey)) : review
   const hiddenCount = review.length - rows.length
-  // Offline is its own, normal state: never describe it as a server problem.
-  const showStuck = isOnline && stuck.length > 0
+  // No internet is its own, normal state: never describe it as a server problem. A server problem may list the
+  // items that keep failing (the server is what fails them).
+  const showStuck = (isOnline || connection === 'server_problem') && stuck.length > 0
   const showAccount = isOnline && accountProblem !== null
   const updateAvailable = wall.raised
   const enginePending = useStockPending()
@@ -223,6 +235,7 @@ export const SyncStatus = memo(function SyncStatus({
 
   const chip = chipModel({
     reachable: isOnline,
+    connection,
     offlineLevel: offlineCap?.level ?? 'unknown',
     offlineHours: offlineCap ? offlineHours(offlineCap) : undefined,
     pending: pendingCount,
@@ -233,13 +246,15 @@ export const SyncStatus = memo(function SyncStatus({
     wallRaised: updateAvailable,
     stockPending,
   })
-  const { queued, dataUpdatedAt, now } = useKoneksiData(open, pendingCount)
+  const { queued, held, dataUpdatedAt, now } = useKoneksiData(open, pendingCount)
   const offlineStart = useOfflineStart(isOnline || offlineCap?.level === 'locked' ? null : (offlineCap?.offlineMs ?? null))
   const offlineSince = offlineStart === null ? '' : queuedTimeText(new Date(offlineStart).toISOString(), now)
-  const otherQueued = Math.max(0, pendingCount - queued.length)
+  const otherQueued = Math.max(0, pendingCount - queued.length - held.length)
   // A parked item outranks the offline note: its count stays the title.
-  const statusTitle = offlineSince && review.length === 0 ? `Offline sejak ${offlineSince} · penjualan tetap bisa` : chip.text
-  const note = explanation({ isOnline, cap: offlineCap, accountProblem, wallRaised: updateAvailable, stockPending, autoUpdate, pendingCount })
+  const sinceLabel = connection === 'server_problem' ? 'Server bermasalah' : 'Offline'
+  const statusTitle = offlineSince && review.length === 0 ? `${sinceLabel} sejak ${offlineSince} · penjualan tetap bisa` : chip.text
+  const holdNote = serverHoldUntil > now ? `Server meminta jeda · kirim ulang otomatis ${queuedTimeText(new Date(serverHoldUntil).toISOString(), now)}` : null
+  const note = explanation({ isOnline, connection, cap: offlineCap, accountProblem, wallRaised: updateAvailable, stockPending, autoUpdate, pendingCount })
   const canFlush = pendingCount > 0 && !hasFailed
 
   return (
@@ -265,6 +280,7 @@ export const SyncStatus = memo(function SyncStatus({
               {statusTitle}
             </p>
             {note && <p className="text-xs">{note}</p>}
+            {holdNote && <p className="text-xs font-semibold" data-testid="server-hold">{holdNote}</p>}
             {/* The title or the section headings show the counts; this line stays for screen readers and the tests that read it. */}
             {(pendingCount > 0 || review.length > 0) && <p className="sr-only" data-testid="queue-counts">{queueCountsLine({ pending: pendingCount, parked: review.length }).text}</p>}
           </div>
@@ -295,6 +311,12 @@ export const SyncStatus = memo(function SyncStatus({
                     {q.total !== null && <span className="font-bold text-ink-900 tnum">{formatRupiah(q.total)}</span>}
                     <span className="rounded-chip bg-warn-bg px-2.5 py-1 text-xs font-bold text-warn-strong">Menunggu</span>
                   </div>
+                </div>
+              ))}
+              {held.map((h) => (
+                <div key={h.key} className="surface-card rounded-control px-3 py-2" data-testid="held-item">
+                  <p className="font-bold text-ink-900">{typeLabel(h.type)}</p>
+                  <p className="text-xs text-ink-500">{h.reason}</p>
                 </div>
               ))}
               {queued.length > 0 && otherQueued > 0 && (
