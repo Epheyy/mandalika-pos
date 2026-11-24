@@ -146,6 +146,20 @@ func RequirePermission(perm string) func(http.Handler) http.Handler {
 	}
 }
 
+// RequireCatalogueWide limits a route to callers who may change the shared catalogue: admin, or a
+// manager set to "Semua Outlet". A manager covering only some outlets is refused (auth.CatalogueWide).
+func RequireCatalogueWide() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if auth.CatalogueWide(r.Context()) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			httpx.Err(w, http.StatusForbidden, "Hanya admin atau Manajer Semua Outlet yang dapat mengubah katalog.")
+		})
+	}
+}
+
 // RequireRecipesEnabled returns 404 when the Recipe/Formula module is
 // turned off in app_settings. We return 404 (not 403) so deployments
 // without the module look like the routes don't exist.

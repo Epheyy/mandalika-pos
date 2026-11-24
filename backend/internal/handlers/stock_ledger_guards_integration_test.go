@@ -46,7 +46,7 @@ func newSLGuardFx(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *slGuar
 	r := chi.NewRouter()
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			next.ServeHTTP(w, req.WithContext(context.WithValue(req.Context(), auth.CtxUserID, slInvUser)))
+			next.ServeHTTP(w, req.WithContext(context.WithValue(context.WithValue(req.Context(), auth.CtxUserID, slInvUser), auth.CtxRole, "admin")))
 		})
 	})
 	r.Post("/products", f.h.CreateProduct)

@@ -504,11 +504,14 @@ func (r *Repo) deleteProduct(ctx context.Context, id string) error {
 // product in a single tx, then bumps only the affected outlets' content version.
 // A null price clears the override (falls back to base). Stock + par_level are
 // owned by the Inventori module and are never touched here.
-func (r *Repo) SetProductOutletConfig(ctx context.Context, productID string, items []api.OutletConfigItemInput) error {
-	return retryBusy(ctx, func() error { return r.setProductOutletConfig(ctx, productID, items) })
+// scopeCleanupToPayload=false (admin / "Semua Outlet" manager) cleans up stale sizes across every
+// outlet; true (covered-only manager) limits both cleanup DELETEs to the outlets in the payload, so
+// a partial payload can never wipe another outlet's overrides.
+func (r *Repo) SetProductOutletConfig(ctx context.Context, productID string, items []api.OutletConfigItemInput, scopeCleanupToPayload bool) error {
+	return retryBusy(ctx, func() error { return r.setProductOutletConfig(ctx, productID, items, scopeCleanupToPayload) })
 }
 
-func (r *Repo) setProductOutletConfig(ctx context.Context, productID string, items []api.OutletConfigItemInput) error {
+func (r *Repo) setProductOutletConfig(ctx context.Context, productID string, items []api.OutletConfigItemInput, scopeCleanupToPayload bool) error {
 	t, err := r.Pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -568,16 +571,20 @@ func (r *Repo) setProductOutletConfig(ctx context.Context, productID string, ite
 			sizes = append(sizes, it.VariantSize)
 		}
 	}
+	stockScope, priceScope, scopeArgs := "", "", []any{}
+	if scopeCleanupToPayload {
+		stockScope, priceScope, scopeArgs = " AND s.outlet_id = ANY($3::uuid[])", " AND outlet_id = ANY($3::uuid[])", []any{outletIDs}
+	}
 	if _, e := t.Exec(ctx,
 		`DELETE FROM outlet_variant_stock s WHERE s.product_id=$1 AND s.variant_size <> ALL($2::text[])
 		   AND s.stock = 0
-		   AND NOT EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = s.product_id AND v.size = s.variant_size)`,
-		productID, sizes); e != nil {
+		   AND NOT EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = s.product_id AND v.size = s.variant_size)`+stockScope,
+		append([]any{productID, sizes}, scopeArgs...)...); e != nil {
 		return e
 	}
 	if _, e := t.Exec(ctx,
-		`DELETE FROM outlet_variant_price WHERE product_id=$1 AND variant_size <> ALL($2::text[])`,
-		productID, sizes); e != nil {
+		`DELETE FROM outlet_variant_price WHERE product_id=$1 AND variant_size <> ALL($2::text[])`+priceScope,
+		append([]any{productID, sizes}, scopeArgs...)...); e != nil {
 		return e
 	}
 	if e := bumpVersionOutlets(ctx, t, "products", outletIDs); e != nil {
