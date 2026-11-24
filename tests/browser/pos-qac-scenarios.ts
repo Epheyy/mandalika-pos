@@ -75,7 +75,7 @@ export const posQaCHeaderTabs = async (page: ScenarioPage) => {
       const controls = {
         search: box(header.querySelector('input')?.closest('div')),
         shift: box(shiftBtn),
-        online: box([...header.querySelectorAll('button')].find((b) => /Online|Offline|Tersinkron|Menunggu/.test(b.textContent ?? ''))),
+        online: box([...header.querySelectorAll('button')].find((b) => /Online|Offline|Tidak ada internet|Server bermasalah|Tersinkron|Menunggu/.test(b.textContent ?? ''))),
         menu: box(header.querySelector('button[aria-label=Menu]')),
       }
       const heading = [...document.querySelectorAll('h2')].find((h) => h.textContent?.trim() === 'Pesanan')

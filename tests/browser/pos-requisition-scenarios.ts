@@ -227,7 +227,7 @@ export const posRequisition = async (page: ScenarioPage) => {
   const postsBefore = rawCreates();
   page.__a24.netDown = true;
   await page.evaluate(() => { window.dispatchEvent(new Event('offline')); });
-  await page.getByRole('button', { name: /^Offline/ }).waitFor();
+  await page.getByRole('button', { name: /^(Offline|Tidak ada internet|Server bermasalah)/ }).waitFor();
   await page.getByRole('button', { name: 'Simpan Draf', exact: true }).click();
   await page.getByText('Permintaan Barang butuh internet.').waitFor();
   assert(rawCreates() === postsBefore, '(f) no create request left the tablet while offline');
