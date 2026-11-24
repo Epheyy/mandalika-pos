@@ -12,6 +12,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/auth"
 	"github.com/mandalika/pos-backend/internal/httpx"
+	"github.com/mandalika/pos-backend/internal/rules"
 )
 
 func nullableShift(s api.Shift) nullable.Nullable[api.Shift] {
@@ -47,6 +48,10 @@ func (h *Handlers) CreateUser(w http.ResponseWriter, r *http.Request) {
 	var req api.CreateUserRequest
 	if err := httpx.Decode(r, &req); err != nil {
 		writeDecodeErr(w, err)
+		return
+	}
+	if err := rules.ValidatePassword(req.Password); err != nil {
+		httpx.Err(w, http.StatusBadRequest, rules.ErrWeakPassword.Error())
 		return
 	}
 	outlet := ""

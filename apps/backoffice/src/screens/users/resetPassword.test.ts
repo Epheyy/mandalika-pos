@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resetPasswordErrorMessage, validateResetPassword } from './resetPassword'
+import { passwordLengthError, resetPasswordErrorMessage, validateResetPassword } from './resetPassword'
 
 describe('validateResetPassword', () => {
   it('rejects fewer than 8 characters', () => {
@@ -23,6 +23,22 @@ describe('validateResetPassword', () => {
   })
   it('rejects a mismatched confirmation', () => {
     expect(validateResetPassword('abcdefgh', 'abcdefgx')).toMatch(/tidak sama/)
+  })
+})
+
+describe('passwordLengthError', () => {
+  it('rejects 7 code points and accepts 8', () => {
+    expect(passwordLengthError('abcdefg')).toBe('Kata sandi minimal 8 karakter.')
+    expect(passwordLengthError('')).toBe('Kata sandi minimal 8 karakter.')
+    expect(passwordLengthError('abcdefgh')).toBeNull()
+  })
+  it('counts an emoji as one character', () => {
+    expect(passwordLengthError('😀'.repeat(7))).toBe('Kata sandi minimal 8 karakter.')
+    expect(passwordLengthError('😀'.repeat(8))).toBeNull()
+  })
+  it('accepts 128 and rejects 129', () => {
+    expect(passwordLengthError('a'.repeat(128))).toBeNull()
+    expect(passwordLengthError('a'.repeat(129))).toBe('Kata sandi maksimal 128 karakter.')
   })
 })
 

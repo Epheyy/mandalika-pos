@@ -6,11 +6,18 @@ export const MAX_PASSWORD_LENGTH = 128
 /** Counts characters like the backend (runes), not UTF-16 units. */
 const length = (s: string) => Array.from(s).length
 
-/** Returns an Indonesian error message, or null when the input is acceptable. */
-export function validateResetPassword(password: string, confirm: string): string | null {
+/** Length rule shared by "Tambah Pengguna" and the reset dialog: an Indonesian message, or null when it fits. */
+export function passwordLengthError(password: string): string | null {
   const n = length(password)
   if (n < MIN_PASSWORD_LENGTH) return `Kata sandi minimal ${MIN_PASSWORD_LENGTH} karakter.`
   if (n > MAX_PASSWORD_LENGTH) return `Kata sandi maksimal ${MAX_PASSWORD_LENGTH} karakter.`
+  return null
+}
+
+/** Returns an Indonesian error message, or null when the input is acceptable. */
+export function validateResetPassword(password: string, confirm: string): string | null {
+  const lengthError = passwordLengthError(password)
+  if (lengthError) return lengthError
   if (password !== confirm) return 'Konfirmasi kata sandi tidak sama.'
   return null
 }
