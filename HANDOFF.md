@@ -8,6 +8,13 @@ Last updated: 2026-11-24 by Claude (Opus 5.5) - live checks on the BSD tablet do
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-24: **A29 CLIENT HALF BUILT, PR into `prod-hardening` (branch `a29-tablet-half`, gate `gate/a29-tablet-half`); NOT merged, NOT released.** Plan `docs/plans/2026-11-24-a29-client-half.md` (Opus), Sonnet implementer, Opus review (approve with fixes; 3 MEDIUM fixed: pollInbound honours the hold, a stale version poll can't overwrite a newer success, navigator offline beats the hold).
+> - **Deadlines:** every API call has one (default 35 s; imports 240 s; movement exports 90 s; `/sync/version` 15 s; `/sync/pull` 60 s; batch/review/refresh unchanged). A timed-out write says "cek dulu apakah perubahan sudah tersimpan".
+> - **Retry-After:** read from the header (or body `retryAfterSeconds`) on 429/503; the engine keeps a server hold (≤ 30 min, jitter adds only) that "Kirim sekarang", reset and the online event cannot clear. **Backend one-liner:** CORS now exposes `Retry-After`; before it, no browser/WebView client could read it (server half was curl-tested).
+> - **Offline vs server problem:** `ConnectionState` online / no_internet / server_problem beside the unchanged `reachable` boolean; a no-answer failure is probed once with a no-cors GET `/healthz`. POS chip "Tidak ada internet" / "Server bermasalah", sheet sentence, "Server meminta jeda · kirim ulang otomatis HH:MM", held shifts listed "Ditunda: menunggu transaksi sebelumnya terkirim". Outbox/storage/journal untouched (no OTA journal ACK needed).
+> - **Release (each step needs owner go-ahead):** backend deploy (CORS line, no migration) → POS OTA (no APK) → Backoffice on the first non-skip push. Client works before the backend deploy; it just can't see Retry-After yet.
+> - **Follow-ups:** Backoffice `usePolledQuery` does not slow down on 429; add `retryAfterSeconds` to the generic 429 body; user-triggered calls (manual resync, approvers, test print) ignore the hold by design.
+
 > 2026-11-24: **LIVE CHECKS DONE on the BSD test tablet** (R9RY4009WBJ, APK 2.3 + OTA 2.21.0, printer RPPO2N 58mm, "Cetak logo & QR" ON; Backoffice signed in by the owner; backend `relay1124`, ERP relay ON). Driven over adb taps + screenshots; owner watched the printer.
 > - Backoffice signed-in walkthroughs: Pengaturan > Struk ("Standar" template on all 27 outlets, Logo + QR 31 chars) and Laporan > Bundle load with no console errors.
 > - Tes Cetak: printed (BT connect 3.4 s, job 3.8 s). Backoffice "Cetak tes di tablet" relay: the draft is NOT pushed; the NEXT Tes Cetak on that outlet prints it ("Tes cetak desain dari Backoffice terkirim", 3.8 s).
