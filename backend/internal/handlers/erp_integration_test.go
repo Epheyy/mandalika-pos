@@ -1140,4 +1140,16 @@ func TestErpIntegrationPostgres(t *testing.T) {
 		erWantInt(t, "stays off, no second row", erCount(t, ctx, pool, `SELECT count(*) FROM outlets WHERE erp_slug='nw' AND NOT is_active`), 1)
 		erWantInt(t, "one outlet", erCount(t, ctx, pool, `SELECT count(*) FROM outlets`), 1)
 	})
+
+	t.Run("padded-code-links", func(t *testing.T) {
+		e := newErEnv(t, ctx, pool, 0)
+		erPosOutlet(t, ctx, pool, "Kemang POS", "KMG", "", "", "")
+		e.outlet("kemang", " KMG ", "Mandalika Kemang", "")
+		rep := e.mustComplete(erp.ModeFull)
+		erWantInt(t, "padded code linked, no new row", erCount(t, ctx, pool, `SELECT count(*) FROM outlets WHERE code='KMG' AND erp_slug='kemang' AND erp_code='KMG'`), 1)
+		erWantInt(t, "no outlet created", erCount(t, ctx, pool, `SELECT count(*) FROM outlets`), 1)
+		if note := e.resource(rep, erp.ResourceOutlets).Error; strings.Contains(note, "already used") {
+			t.Fatalf("outlet note = %q", note)
+		}
+	})
 }

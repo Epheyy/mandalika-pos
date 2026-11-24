@@ -792,7 +792,8 @@ func applyOutletItem(ctx context.Context, q pgx.Tx, o erpapi.IntegrationOutlet) 
 	}
 
 	rows, err := q.Query(ctx, `SELECT id::text FROM outlets
-		 WHERE erp_slug IS NULL AND (lower(code)=lower($1) OR lower(code)=lower($2)) LIMIT 2`, o.Code, o.Slug)
+		 WHERE erp_slug IS NULL AND (lower(code)=lower($1) OR lower(code)=lower($2)) LIMIT 2`,
+		strings.TrimSpace(o.Code), strings.TrimSpace(o.Slug))
 	if err != nil {
 		return out, err
 	}
@@ -810,7 +811,7 @@ func applyOutletItem(ctx context.Context, q pgx.Tx, o erpapi.IntegrationOutlet) 
 	}
 	switch len(matches) {
 	case 1:
-		_, err := q.Exec(ctx, `UPDATE outlets SET erp_slug=$2, erp_code=$3 WHERE id=$1`, matches[0], o.Slug, o.Code)
+		_, err := q.Exec(ctx, `UPDATE outlets SET erp_slug=$2, erp_code=$3 WHERE id=$1`, matches[0], o.Slug, strings.TrimSpace(o.Code))
 		out.bump = []string{"outlets"}
 		return out, err
 	case 0:
@@ -825,6 +826,9 @@ func applyOutletItem(ctx context.Context, q pgx.Tx, o erpapi.IntegrationOutlet) 
 func createOutlet(ctx context.Context, q pgx.Tx, o erpapi.IntegrationOutlet) (itemOutcome, error) {
 	notCreated := func(why string) itemOutcome {
 		return itemOutcome{skipped: true, note: fmt.Sprintf("outlet %s %q (%s) not created: %s", o.Code, collapseSpaces(o.Name), o.Type, why)}
+	}
+	if o.Type != erpapi.IntegrationOutletTypeRETAIL && o.Type != erpapi.IntegrationOutletTypePOPUP {
+		return notCreated("type not supported"), nil
 	}
 	code := strings.ToUpper(strings.TrimSpace(o.Code))
 	if !ValidPOSOutletCode(code) {
@@ -846,7 +850,7 @@ func createOutlet(ctx context.Context, q pgx.Tx, o erpapi.IntegrationOutlet) (it
 	var id string
 	err = sp.QueryRow(ctx, `INSERT INTO outlets (name, code, address, phone, is_active, setup_pending, erp_slug, erp_code)
 		VALUES ($1,$2,NULLIF($3,''),NULLIF($4,''),false,true,$5,$6) RETURNING id::text`,
-		collapseSpaces(o.Name), code, trimmed(o.Address), trimmed(o.Phone), o.Slug, o.Code).Scan(&id)
+		collapseSpaces(o.Name), code, trimmed(o.Address), trimmed(o.Phone), o.Slug, strings.TrimSpace(o.Code)).Scan(&id)
 	if err != nil {
 		_ = sp.Rollback(ctx)
 		var pgErr *pgconn.PgError
