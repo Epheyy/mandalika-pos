@@ -125,7 +125,10 @@ type CreateOrderInput struct {
 	PointsRedeemed    int             // loyalty points the customer spends on this order
 	Notes             string
 	ShiftID           string
-	ClientCreated     *time.Time
+	// PendingShiftOpenKey (sync only, never from the caller) names the tablet's shift_open that had
+	// not landed when this sale was captured; used only when ShiftID is empty (migration 0098).
+	PendingShiftOpenKey string
+	ClientCreated       *time.Time
 	// Void replacement (migration 0093). ReplacesOrderID links the new sale to the one it replaces.
 	// BusinessDate ("YYYY-MM-DD", empty = the 0059 trigger decides) pins the replacement to the voided
 	// sale's day. CorrectionTarget (nil = none) is the total the sale must end at: the gap to what the
@@ -339,6 +342,17 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 	}
 	if in.OutletID == "" {
 		return "", false, false, ErrNoOutlet
+	}
+
+	// Shift-less attribution: the advisory lock is this transaction's first statement.
+	if in.ShiftID == "" && in.PendingShiftOpenKey != "" {
+		opened, e := ResolvePendingShiftOpen(ctx, tx, in.OutletID, in.PendingShiftOpenKey)
+		if e != nil {
+			return "", false, false, e
+		}
+		if opened != "" {
+			in.ShiftID, in.PendingShiftOpenKey = opened, ""
+		}
 	}
 
 	// Durable idempotency guard (Redis is the fast path in the handler).
@@ -738,10 +752,10 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 		  change, status, notes, shift_id, client_created_at, quoted_total,
 		  stock_warning, points_redeemed, points_redemption_amount, discount_label, discount_breakdown, points_earned, discount_warning, discount_warning_reason, applied_discount_codes, tender_warning, tender_warning_reason,
 		  receipt_snapshot, quote_warning, quote_warning_reason,
-		  replaces_order_id, business_date, correction_amount)
+		  replaces_order_id, business_date, correction_amount, pending_shift_open_key)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
 		        $19,$20,$21,$22,$23,$24,'completed',$25,$26,$27,$28,$29,$30,$31,$32,$33::jsonb,$34,$35,$36,$37::jsonb,$38,$39,$40::jsonb,$41,$42,
-		        $43,$44::date,$45)
+		        $43,$44::date,$45,$46)
 		RETURNING id`,
 		orderNumber, in.OrderUUID, in.IdempotencyKey, nullUUID(in.DeviceID), in.OutletID,
 		in.CashierID, in.CashierName, nullUUID(in.SalesmanID), nullStr(in.SalesmanName),
@@ -755,7 +769,7 @@ func (s *OrderService) createOrderBody(ctx context.Context, tx pgx.Tx, in Create
 		finalEarned, discountWarning, nullStr(discountWarnReason), nullCodes(appliedCodes),
 		tenderWarning, nullStr(tenderReason),
 		nullBytes(snapStored), quoteReason != "", nullStr(quoteReason),
-		nullUUID(in.ReplacesOrderID), nullStr(in.BusinessDate), correction,
+		nullUUID(in.ReplacesOrderID), nullStr(in.BusinessDate), correction, nullStr(in.PendingShiftOpenKey),
 	).Scan(&orderID)
 	if err != nil {
 		if isIdempotencyConflict(err) {

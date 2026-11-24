@@ -23,8 +23,10 @@ type fakeLookup struct {
 	// appliedFP is the fingerprint stored with an applied key (receipt-backed types);
 	// a key absent here carries no fingerprint check (orders).
 	appliedFP map[string]string
-	outletQs  int
-	shiftQs   int
+	// opened maps a shift_open key to the shift its receipt created.
+	opened   map[string]string
+	outletQs int
+	shiftQs  int
 }
 
 func (f *fakeLookup) OutletExists(_ context.Context, id string) (bool, error) {
@@ -38,6 +40,10 @@ func (f *fakeLookup) Applied(_ context.Context, _, key, _, fp string) (appliedOu
 		return appliedOutcome{}, false, service.ErrReceiptKeyConflict
 	}
 	return appliedOutcome{ID: id, Status: "duplicate", RefundState: f.refundState[key], ReplacementOrderID: f.replacement[key]}, ok, f.err
+}
+
+func (f *fakeLookup) OpenedShift(_ context.Context, _, key string) (string, error) {
+	return f.opened[key], f.err
 }
 
 func (f *fakeLookup) Shift(_ context.Context, _, id string) (shiftState, error) {
@@ -324,4 +330,53 @@ func TestAttributeAcceptsOfflineEvidenceAndUnknownKeys(t *testing.T) {
 	if _, err := e.attribute(context.Background(), cashier(), BatchItem{IdempotencyKey: "dev:1", Envelope: raw}); err != nil {
 		t.Fatalf("new and unknown envelope keys must attribute: %v", err)
 	}
+}
+
+func TestAttributeShiftOpenKey(t *testing.T) {
+	const key = "dev:open-1"
+	item := BatchItem{Type: "order", IdempotencyKey: "dev:1"}
+	run := func(lk *fakeLookup, mut func(*Envelope)) Caller {
+		t.Helper()
+		it := item
+		it.Envelope = env(mut)
+		got, err := (&Engine{Lookup: lk}).attribute(context.Background(), cashier(), it)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	withKey := func(k string) func(*Envelope) { return func(e *Envelope) { e.ShiftOpenKey = k } }
+
+	t.Run("a key of another device prefix is ignored", func(t *testing.T) {
+		got := run(&fakeLookup{opened: map[string]string{"other:open-1": "s1"}}, withKey("other:open-1"))
+		if got.EnvelopeShiftID != "" || got.PendingShiftOpenKey != "" {
+			t.Fatalf("got %+v", got)
+		}
+	})
+	t.Run("a landed open resolves to its shift", func(t *testing.T) {
+		got := run(&fakeLookup{opened: map[string]string{key: "s1"}}, withKey(key))
+		if got.EnvelopeShiftID != "s1" || got.PendingShiftOpenKey != "" {
+			t.Fatalf("got %+v", got)
+		}
+	})
+	t.Run("an open that has not landed is carried as pending", func(t *testing.T) {
+		got := run(&fakeLookup{}, withKey(key))
+		if got.EnvelopeShiftID != "" || got.PendingShiftOpenKey != key {
+			t.Fatalf("got %+v", got)
+		}
+	})
+	t.Run("a shiftId makes the key irrelevant", func(t *testing.T) {
+		lk := &fakeLookup{shifts: map[string]shiftState{"s2": shiftOpen}, opened: map[string]string{key: "s1"}}
+		got := run(lk, func(e *Envelope) { e.ShiftID, e.ShiftOpenKey = "s2", key })
+		if got.EnvelopeShiftID != "s2" || got.PendingShiftOpenKey != "" {
+			t.Fatalf("got %+v", got)
+		}
+	})
+	t.Run("a lookup failure is returned, not swallowed", func(t *testing.T) {
+		it := item
+		it.Envelope = env(withKey(key))
+		if _, err := (&Engine{Lookup: &fakeLookup{err: errors.New("db down")}}).attribute(context.Background(), cashier(), it); err == nil {
+			t.Fatal("want the lookup error")
+		}
+	})
 }

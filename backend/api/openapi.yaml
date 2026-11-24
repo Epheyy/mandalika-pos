@@ -2970,6 +2970,7 @@ components:
         contact: { $ref: '#/components/schemas/OfflineContact' }
         contactDeviceAt: { type: integer, format: int64, description: Device clock (ms) at the last online contact. }
         offlineMs: { type: integer, format: int64, minimum: 0, description: Device-measured time offline (ms) at capture. }
+        shiftOpenKey: { type: string, description: "Idempotency key of the tablet's still-queued shift_open, stamped only when shiftId is absent, so the server can attach the item to that shift once it opens." }
     SyncReviewReport:
       type: object
       required: [idempotencyKey, type, clientCreatedAt, payload]

@@ -366,6 +366,9 @@ func (e *Engine) processOneWithSeq(ctx context.Context, c Caller, it BatchItem,
 				"idempotencyKey", it.IdempotencyKey, "deviceId", env.DeviceID)
 		}
 		in := p.createInput(c, it.IdempotencyKey, shiftID, evalTime, skew)
+		if shiftID == "" {
+			in.ShiftID, in.PendingShiftOpenKey = c.EnvelopeShiftID, c.PendingShiftOpenKey
+		}
 		res, err := createOrder(ctx, in)
 		if err != nil {
 			return fail(err)
@@ -424,7 +427,7 @@ func (e *Engine) processOneWithSeq(ctx context.Context, c Caller, it BatchItem,
 			return fail(err)
 		}
 		id, err := e.keyed(ctx, c, it, func(tx pgx.Tx) (string, error) {
-			return e.Orders.OpenShiftTx(ctx, tx, service.OpenShiftInput{
+			return e.openShiftBackfilling(ctx, tx, c, it.IdempotencyKey, service.OpenShiftInput{
 				OutletID: c.OutletID, OutletName: p.OutletName,
 				CashierID: c.UserID, CashierName: c.DisplayName,
 				StartingCash: p.StartingCash,
@@ -468,12 +471,16 @@ func (e *Engine) processOneWithSeq(ctx context.Context, c Caller, it BatchItem,
 		if err != nil {
 			return fail(err)
 		}
+		in := service.CashFlowInput{
+			OutletID: c.OutletID, ShiftID: flowShift, Type: p.Type,
+			Amount: p.Amount, Description: p.Description,
+			CashierID: c.UserID, CashierName: c.DisplayName,
+		}
+		if flowShift == "" {
+			in.ShiftID, in.PendingShiftOpenKey = c.EnvelopeShiftID, c.PendingShiftOpenKey
+		}
 		id, err := e.keyed(ctx, c, it, func(tx pgx.Tx) (string, error) {
-			return e.Orders.AddCashFlowTx(ctx, tx, service.CashFlowInput{
-				OutletID: c.OutletID, ShiftID: flowShift, Type: p.Type,
-				Amount: p.Amount, Description: p.Description,
-				CashierID: c.UserID, CashierName: c.DisplayName,
-			})
+			return e.Orders.AddCashFlowTx(ctx, tx, in)
 		})
 		if err != nil {
 			return fail(err)
@@ -657,4 +664,22 @@ func (p orderPayload) createInput(c Caller, idempotencyKey, shiftID string, eval
 		ClockSkew:         skew,
 		Offline:           true,
 	}
+}
+
+// openShiftBackfilling opens the shift inside the keyed receipt transaction and attaches the
+// sales and cash movements that were stored with this open's key while it was still queued
+// (shift-less attribution, migration 0098). The advisory lock comes first, so a writer that is
+// mid-transaction on the same key either commits before the backfill runs or sees the receipt.
+func (e *Engine) openShiftBackfilling(ctx context.Context, tx pgx.Tx, c Caller, key string, in service.OpenShiftInput) (string, error) {
+	if tx == nil {
+		return e.Orders.OpenShiftTx(ctx, tx, in)
+	}
+	if err := service.LockPendingShiftOpen(ctx, tx, c.OutletID, key); err != nil {
+		return "", err
+	}
+	id, err := e.Orders.OpenShiftTx(ctx, tx, in)
+	if err != nil {
+		return "", err
+	}
+	return id, service.BackfillPendingShift(ctx, tx, c.OutletID, key, id)
 }

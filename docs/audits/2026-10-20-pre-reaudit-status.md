@@ -18,7 +18,7 @@ Release state: release 8 (backend `00118-gup`, migrations through 0063, OTA 2.1.
 | A09 | Sale/tender invariants | Done-live | slice 8b (discount permission) needs owner policy; its A08-PIN override premise is gone |
 | A10 | Quoted receipt total | Parent-open | promotion version stamp + per-promo id/version in discountBreakdown; points-cover-whole-bill rounding mismatch (`pricing.ts:401-404` vs `order.go:343-358`, tied to A22) |
 | A11 | Exactly-once writes | Done-live for /sync/batch | direct `POST /cash-flows` (`writes.go:~1342`) has no idempotency key and no client calls it: retire or key it |
-| A12 | Shift ownership / late events | Partial | shift-less attribution still present (`attribute.go:283-285`); operator-per-shift is the owner's call |
+| A12 | Shift ownership / late events | Partial | shift-less attribution (sales captured during a pending shift_open) fixed 2026-11-24 on `claude/shift-attribution-95cbed` (mig 0098, not yet released); operator-per-shift is the owner's call |
 | A13 | Concurrent transfers | Done-live | – |
 | A14 | Stock-count overwrite | Done-live (rel1) | built (guard + difference apply); never checked in a browser |
 | A15 | Sold stock reappears | Partial (Phase B built locally, unreleased) | Phase A live; Phase B rebuilt as per-outlet `outlet_stock_seq` (migration 0057, merge `0c47870`, gate ST 56458) not released: needs backend 0057 deploy, OTA 2.1.5, emulator checks; auto-pull heals version-bump cases |
