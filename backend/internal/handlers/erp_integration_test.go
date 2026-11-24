@@ -963,8 +963,7 @@ func TestErpIntegrationPostgres(t *testing.T) {
 	// outlets.setup_pending marks an ERP-created outlet nobody has set up yet: only the
 	// first activation clears it, and nothing ever sets it again.
 	t.Run("setup-pending-cleared-only-on-activation", func(t *testing.T) {
-		e := newErEnv(t, ctx, pool, 0)
-		_ = e
+		_ = newErEnv(t, ctx, pool, 0) // resets ERP state for the subtest
 		var id string
 		if err := pool.QueryRow(ctx, `INSERT INTO outlets (name, code, is_active, setup_pending)
 			VALUES ('Setup Pending POS','SPD',false,true) RETURNING id::text`).Scan(&id); err != nil {

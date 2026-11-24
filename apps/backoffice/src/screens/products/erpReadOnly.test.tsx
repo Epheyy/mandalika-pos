@@ -128,7 +128,7 @@ describe('ProductFormSlideOver for an ERP-linked product', () => {
 
 const outlet = (over: Partial<Outlet>): Outlet => ({
   id: 'o', name: 'Outlet ERP', code: 'ZE1', address: 'Jl. ERP 1', phone: '0812', isActive: true,
-  timezone: 'Asia/Jakarta', createdAt: '2026-10-22T00:00:00Z', ...over,
+  timezone: 'Asia/Jakarta', createdAt: '2026-10-22T00:00:00Z', setupPending: false, ...over,
 })
 
 describe('OutletFormModal for an ERP-linked outlet', () => {
