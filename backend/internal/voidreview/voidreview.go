@@ -12,7 +12,8 @@ package voidreview
 // item (the number is empty when the tablet's payload carries none). Membership mirrors the tablet's voidInShift:
 //   - the void names its shift (payload originalShiftId): it belongs to that shift;
 //   - an unattributed void (no originalShiftId) belongs to the shift its sale is in, found through payload orderId
-//     or saleOrderUuid, unless that sale is already cancelled (voided by another path: the money is out already).
+//     or saleOrderUuid, whatever that sale's status (a void parked as "already voided elsewhere" may mean the cash
+//     was handed back twice, so a cancelled sale still blocks until head office resolves it).
 //
 // An item whose key is in operation_receipts was acked later by a retry and no longer blocks. The payload is
 // tablet-written, but it only ever blocks the close of the reporting tablet's own outlet (r.outlet_id = the shift's).
@@ -26,7 +27,7 @@ SELECT COALESCE(r.payload->>'orderNumber', '')
    AND CASE
          WHEN COALESCE(r.payload->>'originalShiftId', '') <> '' THEN r.payload->>'originalShiftId' = sh.id::text
          ELSE EXISTS (SELECT 1 FROM orders o
-                       WHERE o.shift_id = sh.id AND o.status <> 'cancelled'
+                       WHERE o.shift_id = sh.id
                          AND (o.id::text = r.payload->>'orderId' OR o.order_uuid::text = r.payload->>'saleOrderUuid'))
        END
  ORDER BY r.client_created_at, r.idempotency_key`

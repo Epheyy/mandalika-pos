@@ -3275,14 +3275,32 @@ func TestVoidPostgres(t *testing.T) {
 				wantBlocked(t, sendItem(cashierTok, closeItem(shift)), shift)
 			}
 		})
-		t.Run("sale_of_another_shift_or_already_cancelled_does_not_block", func(t *testing.T) {
+		t.Run("sale_of_another_shift_does_not_block", func(t *testing.T) {
 			old := openShift()
 			oldID, _, oldNumber := saleIn(old)
 			shift := openShift() // closes the older shift
 			parked(t, cashierTok, keyOf(), map[string]any{"orderId": oldID, "orderNumber": oldNumber})
-			cancelledID, _, cancelledNumber := saleIn(shift)
-			exec(`UPDATE orders SET status='cancelled' WHERE id=$1`, cancelledID)
-			parked(t, cashierTok, keyOf(), map[string]any{"orderId": cancelledID, "orderNumber": cancelledNumber})
+			wantClosed(t, sendItem(cashierTok, closeItem(shift)), shift)
+		})
+		t.Run("cancelled_sale_still_blocks", func(t *testing.T) {
+			// A void parked as "already voided elsewhere" may mean the cash went back twice: attributed or not, it blocks.
+			for _, attributed := range []bool{true, false} {
+				shift := openShift()
+				id, _, number := saleIn(shift)
+				exec(`UPDATE orders SET status='cancelled' WHERE id=$1`, id)
+				payload := map[string]any{"orderId": id, "orderNumber": number}
+				if attributed {
+					payload["originalShiftId"] = shift
+				}
+				parked(t, cashierTok, keyOf(), payload)
+				wantBlocked(t, sendItem(cashierTok, closeItem(shift)), shift)
+			}
+		})
+		t.Run("void_attributed_to_another_shift_does_not_block", func(t *testing.T) {
+			other := openShift()
+			otherID, _, otherNumber := saleIn(other)
+			shift := openShift() // closes the older shift
+			parked(t, cashierTok, keyOf(), map[string]any{"orderId": otherID, "orderNumber": otherNumber, "originalShiftId": other})
 			wantClosed(t, sendItem(cashierTok, closeItem(shift)), shift)
 		})
 		t.Run("another_outlets_report_does_not_block", func(t *testing.T) {

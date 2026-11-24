@@ -3,6 +3,7 @@ package read
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/oapi-codegen/nullable"
 
@@ -129,7 +130,12 @@ func (r *Repo) CurrentShift(ctx context.Context, sc Scope) (api.Shift, error) {
 	if err != nil {
 		return v, err
 	}
-	return v, r.fillPendingVoidReviews(ctx, &v)
+	// The pending list is advisory for the POS (the close itself stays strict in CloseShiftTx), so a failing query
+	// must not take the whole current-shift read down.
+	if err := r.fillPendingVoidReviews(ctx, &v); err != nil {
+		slog.Error("current shift: pending void reviews unavailable", "outlet_id", v.OutletId.String(), "shift_id", v.Id.String(), "err", err)
+	}
+	return v, nil
 }
 
 // fillPendingVoidReviews lists the parked voids other tablets reported for this open shift that head office has not

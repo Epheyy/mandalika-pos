@@ -27,8 +27,9 @@ A shift is blocked when there is a row with: `op_type = 'void'`, `outlet_id = sh
 `resolved_at IS NULL`, the key NOT in `operation_receipts` (a parked void retried later and acked leaves its
 review row open; it must not block forever), and the void belongs to the shift:
 `payload->>'originalShiftId' = shift id`, OR its sale (`payload->>'orderId'` = `orders.id::text`, or
-`payload->>'saleOrderUuid'` = `orders.order_uuid::text`) has `orders.shift_id = shift id` AND the sale is not
-already `cancelled` (voided by another path: the money is already out of the shift). Same membership as the
+`payload->>'saleOrderUuid'` = `orders.order_uuid::text`) has `orders.shift_id = shift id`, whatever the sale's
+status (a void parked as "already voided elsewhere" may mean the cash was handed back twice, so a cancelled sale
+still blocks). Same membership as the
 tablet's `voidInShift`. Payload values are tablet-written; they can only block a close of their own outlet.
 
 Server (backstop, both sync and HTTP paths): in `service.CloseShiftTx`, after the `FOR UPDATE` and the
