@@ -80,3 +80,13 @@ func TestBreakdownLabels(t *testing.T) {
 		}
 	}
 }
+
+// A10: new optional stamps on breakdown rows must not disturb label recovery.
+func TestBreakdownLabelsIgnoreVersionStamps(t *testing.T) {
+	raw := []byte(`[{"label":"Sale 10","kind":"percentage","value":10,"amount":10000,"promotionId":"p1","promotionVersion":3},
+		{"label":"HEMAT","kind":"fixed","value":5000,"amount":5000,"codeVersion":2}]`)
+	got := breakdownLabels(raw, []string{"HEMAT"})
+	if len(got) != 1 || got[0] != "Sale 10" {
+		t.Fatalf("breakdownLabels = %v, want [Sale 10]", got)
+	}
+}

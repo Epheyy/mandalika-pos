@@ -336,6 +336,7 @@ export function linkedPromoShape(c: AppliedPromoCode): Promotion {
     combinable: c.combinable,
     isActive: true,
     createdAt: '',
+    ...(c.promotion.version === undefined ? {} : { version: c.promotion.version }),
   }
 }
 

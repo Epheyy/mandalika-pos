@@ -179,4 +179,56 @@ func TestPromoAutoApplyPostgres(t *testing.T) {
 	}
 	want("list after codeOnly on clears auto", listed(idBoth), false)
 	want("pull after codeOnly on clears auto", pulled(idBoth), false)
+	// A10: promotions and codes carry a version that starts at 1, moves on every edit and never on usage.
+	version := func(table, id string) int {
+		t.Helper()
+		var v int
+		if err := pool.QueryRow(ctx, `SELECT version FROM `+table+` WHERE id=$1`, id).Scan(&v); err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	pv := create(nil)
+	if v := version("promotions", pv); v != 1 {
+		t.Fatalf("new promotion version = %d, want 1", v)
+	}
+	if code, body := do(http.MethodPut, "/promotions/"+pv, base()); code != http.StatusOK && code != http.StatusNoContent {
+		t.Fatalf("put = %d %v", code, body)
+	}
+	if v := version("promotions", pv); v != 2 {
+		t.Fatalf("promotion version after an edit = %d, want 2", v)
+	}
+	var listedVersion float64
+	_, body := do(http.MethodGet, "/promotions", nil)
+	for _, d := range body["data"].([]any) {
+		if row := d.(map[string]any); row["id"] == pv {
+			listedVersion, _ = row["version"].(float64)
+		}
+	}
+	if listedVersion != 2 {
+		t.Fatalf("the promotion list must return version 2, got %v", listedVersion)
+	}
+	dcode := write.DiscountCode{Code: "AAVER1", Type: "fixed", Value: 1000, IsActive: true}
+	cid, err := wr.CreateDiscountCode(ctx, dcode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := version("discount_codes", cid); v != 1 {
+		t.Fatalf("new code version = %d, want 1", v)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE discount_codes SET usage_count=usage_count+1 WHERE id=$1`, cid); err != nil {
+		t.Fatal(err)
+	}
+	if v := version("discount_codes", cid); v != 1 {
+		t.Fatalf("a usage increment must not move the code version, got %d", v)
+	}
+	if err := wr.UpdateDiscountCode(ctx, cid, dcode); err != nil {
+		t.Fatal(err)
+	}
+	if v := version("discount_codes", cid); v != 2 {
+		t.Fatalf("code version after an edit = %d, want 2", v)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE promotions SET name=name WHERE id=$1`, pv); err != nil || version("promotions", pv) != 2 {
+		t.Fatal("only the write path bumps the version")
+	}
 }

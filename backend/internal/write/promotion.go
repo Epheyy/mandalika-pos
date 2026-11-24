@@ -351,7 +351,7 @@ func (r *Repo) UpdatePromotion(ctx context.Context, id string, p Promotion) erro
 			  active_days=$14, is_active=$15, start_date=$16, end_date=$17, code_only=$18,
 			  bxgy_config=$19, tiered_config=$20, bundle_config=$21,
 			  auto_apply=CASE WHEN $18 THEN false ELSE COALESCE($22::boolean, auto_apply) END,
-			  bundle_discount_config=$24
+			  bundle_discount_config=$24, version=version+1
 			WHERE id=$23`,
 			p.Name, nullStr(p.Description), p.Type, p.Value, p.MinPurchase,
 			apid, avk, avs, oid, p.Combinable, cw,

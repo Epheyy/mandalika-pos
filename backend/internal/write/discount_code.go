@@ -206,7 +206,7 @@ func (r *Repo) UpdateDiscountCode(ctx context.Context, id string, d DiscountCode
 		ct, e := t.Exec(ctx, `
 			UPDATE discount_codes SET code=$1, promotion_id=$2, type=$3, value=$4,
 			  min_purchase=$5, usage_limit=$6, is_active=$7, start_date=$8,
-			  end_date=$9, combinable=$10, per_customer_limit=$11, customer_id=$12 WHERE id=$13`,
+			  end_date=$9, combinable=$10, per_customer_limit=$11, customer_id=$12, version=version+1 WHERE id=$13`,
 			d.Code, nullUUID(d.PromotionID), d.Type, d.Value, d.MinPurchase,
 			d.UsageLimit, d.IsActive, nullDate(d.StartDate), nullDate(d.EndDate), d.Combinable,
 			d.PerCustomerLimit, nullUUID(d.CustomerID), id)
