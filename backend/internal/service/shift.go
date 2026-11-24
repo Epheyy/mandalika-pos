@@ -6,6 +6,8 @@ import (
 	"errors"
 	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/tenderlines"
+	"github.com/mandalika/pos-backend/internal/voidreview"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -59,6 +61,56 @@ func validateShiftOutlet(ctx context.Context, q rowQueryRower, outletID, shiftID
 }
 
 var ErrShiftOpen = apperr.New(apperr.Conflict, "a shift is already open for this outlet")
+
+// ErrShiftCloseVoidPending refuses a shift close while another tablet holds a parked void of this shift that head
+// office has not resolved (void policy 2026-11-24). Busy: nothing was applied, so a queued close stays RETRYABLE on
+// the tablet and lands by itself once Tinjauan Sinkron resolves the item; a permanent code would park the close as a
+// second review item. The returned error carries the order numbers and matches this sentinel with errors.Is.
+var ErrShiftCloseVoidPending = apperr.New(apperr.Busy, shiftCloseVoidPendingMsg)
+
+const shiftCloseVoidPendingMsg = "Tutup shift ditunda: ada pembatalan di perangkat lain yang menunggu Tinjauan Sinkron kantor pusat."
+
+type shiftCloseVoidPendingErr struct{ msg string }
+
+func (e shiftCloseVoidPendingErr) Error() string          { return e.msg }
+func (e shiftCloseVoidPendingErr) ErrorCode() apperr.Code { return apperr.Busy }
+func (e shiftCloseVoidPendingErr) Is(target error) bool   { return target == ErrShiftCloseVoidPending }
+
+// maxPendingVoidNames bounds how many transaction numbers the refusal text lists.
+const maxPendingVoidNames = 5
+
+// checkNoPendingVoidReviews refuses the close when an open review item of another tablet's parked void belongs to
+// the shift (truth: sync_review_items, see package voidreview). Runs under the shift's row lock.
+func checkNoPendingVoidReviews(ctx context.Context, tx pgx.Tx, shiftID string) error {
+	rows, err := tx.Query(ctx, voidreview.PendingSQL, shiftID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	var numbers []string
+	pending := 0
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			return err
+		}
+		pending++
+		if n != "" && len(numbers) < maxPendingVoidNames {
+			numbers = append(numbers, "#"+n)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if pending == 0 {
+		return nil
+	}
+	msg := shiftCloseVoidPendingMsg
+	if len(numbers) > 0 {
+		msg = strings.TrimSuffix(msg, ".") + " (" + strings.Join(numbers, ", ") + ")."
+	}
+	return shiftCloseVoidPendingErr{msg: msg}
+}
 
 type OpenShiftInput struct {
 	OutletID     string
@@ -184,6 +236,9 @@ func (s *OrderService) CloseShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 	}
 	if status == "closed" {
 		return nil
+	}
+	if err := checkNoPendingVoidReviews(ctx, tx, shiftID); err != nil {
+		return err
 	}
 	cashIDs, err := shiftCashMethodIDs(ctx, tx, shiftID)
 	if err != nil {

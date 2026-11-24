@@ -14,7 +14,7 @@ import { getKV } from '@mandalika/sync'
 import { api, authStore } from '../api'
 import { useAuth } from '../auth'
 import { SyncContext } from '../cashier/SyncProvider'
-import { shiftCloseVoidBlock } from '../cashier/void/voidRecap'
+import { pendingVoidReviewBlock, shiftCloseVoidBlock } from '../cashier/void/voidRecap'
 import { createSubmitGate, notSavedMessage } from '../lib/durableSubmit'
 import {
   OFFLINE_OPEN_MESSAGE,
@@ -193,8 +193,23 @@ export function useShift(): ShiftState {
         setShiftError(voidBlock)
         return false
       }
-      setIsClosingShift(true)
+      // One shift serves the whole outlet: another tablet's parked void (waiting for head office) holds this close too.
+      // Online, ask the server first; offline the queued close waits at the server instead (retryable).
+      setIsClosingShift(true) // before the await: a second tap must not start another close
       setShiftError(null)
+      if (engine.isReachable()) {
+        try {
+          const r = await api.request<{ data: Shift | null }>('GET', '/api/v1/shifts/current')
+          const otherTabletBlock = r.data?.id === currentShift.id ? pendingVoidReviewBlock(r.data.pendingVoidReviews) : null
+          if (otherTabletBlock) {
+            setShiftError(otherTabletBlock)
+            setIsClosingShift(false)
+            return false
+          }
+        } catch {
+          // unreachable after all: queue the close, the server backstop holds it
+        }
+      }
       const outcome = await gate.current.run(() => engine.enqueue('shift_close', {
         shiftId: currentShift.id,
         closingCash,

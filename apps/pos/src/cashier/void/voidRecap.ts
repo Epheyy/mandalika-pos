@@ -124,6 +124,15 @@ export function shiftCloseVoidBlock(queued: readonly QueuedVoid[], shiftId: stri
   return `Selesaikan pembatalan yang tertunda dulu: ${[...new Set(names)].join(', ')}`
 }
 
+/** Tutup Shift refusal when ANOTHER tablet holds a parked void of this outlet's one shared shift (void policy 2026-11-24).
+ *  `reviews` is the current-shift read's pendingVoidReviews: voids head office has not resolved in Tinjauan Sinkron.
+ *  Null when nothing waits. The server refuses the close too (retryable busy); this says so up front. */
+export function pendingVoidReviewBlock(reviews: readonly { orderNumber: string }[] | null | undefined): string | null {
+  if (!reviews || reviews.length === 0) return null
+  const names = [...new Set(reviews.map((r) => (r.orderNumber ? `#${r.orderNumber}` : '(tanpa nomor)')))]
+  return `Selesaikan pembatalan yang tertunda di tablet lain dulu (menunggu Tinjauan Sinkron kantor pusat): ${names.join(', ')}`
+}
+
 export function applyVoidRecap(byMethod: Record<string, number>, totalSales: number, ov: VoidRecapOverlay) {
   const out: Record<string, number> = { ...byMethod }
   for (const [k, v] of Object.entries(ov.byMethod)) out[k] = (out[k] ?? 0) + v

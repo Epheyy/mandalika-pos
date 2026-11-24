@@ -2208,6 +2208,16 @@ components:
         correctedCardSales: { type: number, format: double }
         correctedTransferSales: { type: number, format: double }
         correctedQrisSales: { type: number, format: double }
+        # Void policy 2026-11-24: filled ONLY by the current-shift read. Parked voids other tablets reported for this shift
+        # that head office has not resolved yet (Tinjauan Sinkron); while any exist the shift cannot be closed (the server
+        # refuses the close as a retryable busy). Absent or empty when nothing waits.
+        pendingVoidReviews:
+          type: array
+          items:
+            type: object
+            required: [orderNumber]
+            properties:
+              orderNumber: { type: string, description: "The sale's transaction number as the tablet reported it; empty when the report carries none." }
     ShiftCorrectionItem:
       type: object
       required: [voidId, orderId, orderNumber, kind, method, amount, createdAt]

@@ -5220,6 +5220,10 @@ export interface components {
             correctedTransferSales?: number;
             /** Format: double */
             correctedQrisSales?: number;
+            pendingVoidReviews?: {
+                /** @description The sale's transaction number as the tablet reported it; empty when the report carries none. */
+                orderNumber: string;
+            }[];
         };
         ShiftCorrectionItem: {
             /** Format: uuid */

@@ -3,7 +3,7 @@ import type { components } from '@mandalika/api'
 import type { QueuedVoid } from '@mandalika/sync'
 import { aggregate } from '../recapAggregate'
 import { applyRefundRecap, recapFigures, refundRecap } from '../refundRecap'
-import { applyVoidRecap, inRecapShift, shiftCloseVoidBlock, shiftCorrectionNote, voidRecapOverlay, voidRecapRows } from './voidRecap'
+import { applyVoidRecap, inRecapShift, pendingVoidReviewBlock, shiftCloseVoidBlock, shiftCorrectionNote, voidRecapOverlay, voidRecapRows } from './voidRecap'
 
 type Order = components['schemas']['Order']
 type Shift = components['schemas']['Shift']
@@ -157,5 +157,17 @@ describe('shiftCorrectionNote', () => {
   it('reports the snapshot, the corrected total and the non-zero per-method net', () => {
     const n = shiftCorrectionNote(closed({ correctedTotalSales: 900000, corrections: { count: 2, byMethod: { cash: -100000, qris: 0 }, items: [] } }))
     expect(n).toEqual({ count: 2, snapshotTotal: 1000000, correctedTotal: 900000, byMethod: { cash: -100000 } })
+  })
+})
+
+describe('pendingVoidReviewBlock', () => {
+  it('is null when no other tablet holds a parked void', () => {
+    expect(pendingVoidReviewBlock(undefined)).toBeNull()
+    expect(pendingVoidReviewBlock(null)).toBeNull()
+    expect(pendingVoidReviewBlock([])).toBeNull()
+  })
+  it('names the stuck transactions once each and says head office has to resolve them', () => {
+    const msg = pendingVoidReviewBlock([{ orderNumber: 'BSD-0001' }, { orderNumber: 'BSD-0001' }, { orderNumber: '' }])
+    expect(msg).toBe('Selesaikan pembatalan yang tertunda di tablet lain dulu (menunggu Tinjauan Sinkron kantor pusat): #BSD-0001, (tanpa nomor)')
   })
 })

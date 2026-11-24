@@ -3069,4 +3069,132 @@ func TestVoidPostgres(t *testing.T) {
 			}
 		}
 	})
+
+	// ── Void policy 2026-11-24, item 1: the shared outlet shift cannot close while another tablet holds a parked void ──
+	router.Post("/sync/review-items", h.ReportSyncReviewItems)
+	router.Get("/shifts/current", h.CurrentShift)
+	router.Post("/shifts/{id}/close", h.CloseShift)
+	t.Run("shift_close_blocked_by_parked_void", func(t *testing.T) {
+		const outletZ = "00000000-0000-4000-9100-0000000000f1"
+		exec(`INSERT INTO outlets(id,name) VALUES($1,'VD Outlet Z')`, outletZ)
+		parked := func(t *testing.T, tokn, reviewKey string, payload map[string]any) {
+			t.Helper()
+			code, body := do(tokn, http.MethodPost, "/sync/review-items", map[string]any{"items": []any{map[string]any{
+				"idempotencyKey": reviewKey, "type": "void", "reviewCode": "forbidden", "reviewReason": "ditolak",
+				"clientCreatedAt": time.Now().UTC().Format(time.RFC3339Nano), "payload": payload,
+			}}})
+			if code != http.StatusOK {
+				t.Fatalf("review report = %d %v", code, body)
+			}
+		}
+		closeItem := func(shift string) map[string]any {
+			uid := newID("4")
+			return map[string]any{
+				"type": "shift_close", "idempotencyKey": "vd-devB:" + uid, "payload": map[string]any{"shiftId": shift, "closingCash": 0},
+				"envelope": map[string]any{"v": 1, "outletId": outlet, "userId": cashier, "deviceId": "vd-devB", "capturedAt": time.Now().UTC().Format(time.RFC3339), "shiftId": shift},
+			}
+		}
+		wantBlocked := func(t *testing.T, res map[string]any, shift string) {
+			t.Helper()
+			if res["status"] != "error" || res["code"] != "busy" || res["retryable"] != true {
+				t.Fatalf("close result = %v, want a retryable busy refusal", res)
+			}
+			if str(`SELECT status FROM shifts WHERE id=$1`, shift) != "open" {
+				t.Fatal("a refused close changed the shift")
+			}
+		}
+		wantClosed := func(t *testing.T, res map[string]any, shift string) {
+			t.Helper()
+			if res["status"] != "ok" || str(`SELECT status FROM shifts WHERE id=$1`, shift) != "closed" {
+				t.Fatalf("close result = %v, shift %s, want closed", res, str(`SELECT status FROM shifts WHERE id=$1`, shift))
+			}
+		}
+		keyOf := func() string { return "vd-devA:" + newID("4") }
+		saleIn := func(shift string) (id, uuid, number string) {
+			id = sale(saleOpts{shift: shift}, product(5))
+			return id, str(`SELECT order_uuid::text FROM orders WHERE id=$1`, id), str(`SELECT order_number FROM orders WHERE id=$1`, id)
+		}
+
+		t.Run("blocked_then_resolved", func(t *testing.T) {
+			shift := openShift()
+			id, _, number := saleIn(shift)
+			reviewKey := keyOf()
+			parked(t, cashierTok, reviewKey, map[string]any{"orderId": id, "orderNumber": number, "originalShiftId": shift})
+			item := closeItem(shift)
+			wantBlocked(t, sendItem(cashierTok, item), shift)
+			// The same queued close (same key) lands by itself once head office resolves the item.
+			exec(`UPDATE sync_review_items SET resolved_at=now(), resolved_by=$2, resolution_note='ok' WHERE idempotency_key=$1`, reviewKey, adminU)
+			wantClosed(t, sendItem(cashierTok, item), shift)
+		})
+		t.Run("acked_later_does_not_block", func(t *testing.T) {
+			shift := openShift()
+			id, _, number := saleIn(shift)
+			reviewKey := keyOf()
+			parked(t, cashierTok, reviewKey, map[string]any{"orderId": id, "orderNumber": number, "originalShiftId": shift})
+			exec(`INSERT INTO operation_receipts(idempotency_key,op_type,scope,fingerprint,outcome) VALUES($1,'void','x','f','{}'::jsonb)`, reviewKey)
+			wantClosed(t, sendItem(cashierTok, closeItem(shift)), shift)
+		})
+		t.Run("unattributed_matched_through_the_sale", func(t *testing.T) {
+			for _, byUUID := range []bool{false, true} {
+				shift := openShift()
+				id, uuid, number := saleIn(shift)
+				payload := map[string]any{"orderNumber": number, "originalShiftId": nil}
+				if byUUID {
+					payload["saleOrderUuid"] = uuid
+				} else {
+					payload["orderId"] = id
+				}
+				parked(t, cashierTok, keyOf(), payload)
+				wantBlocked(t, sendItem(cashierTok, closeItem(shift)), shift)
+			}
+		})
+		t.Run("sale_of_another_shift_or_already_cancelled_does_not_block", func(t *testing.T) {
+			old := openShift()
+			oldID, _, oldNumber := saleIn(old)
+			shift := openShift() // closes the older shift
+			parked(t, cashierTok, keyOf(), map[string]any{"orderId": oldID, "orderNumber": oldNumber})
+			cancelledID, _, cancelledNumber := saleIn(shift)
+			exec(`UPDATE orders SET status='cancelled' WHERE id=$1`, cancelledID)
+			parked(t, cashierTok, keyOf(), map[string]any{"orderId": cancelledID, "orderNumber": cancelledNumber})
+			wantClosed(t, sendItem(cashierTok, closeItem(shift)), shift)
+		})
+		t.Run("another_outlets_report_does_not_block", func(t *testing.T) {
+			shift := openShift()
+			id, _, number := saleIn(shift)
+			zTok, err := auth.IssueAccess(key, time.Hour, cashier, "cashier", outletZ, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			parked(t, zTok, keyOf(), map[string]any{"orderId": id, "orderNumber": number, "originalShiftId": shift})
+			wantClosed(t, sendItem(cashierTok, closeItem(shift)), shift)
+		})
+		t.Run("direct_close_and_current_shift_read", func(t *testing.T) {
+			shift := openShift()
+			id, _, number := saleIn(shift)
+			reviewKey := keyOf()
+			parked(t, cashierTok, reviewKey, map[string]any{"orderId": id, "orderNumber": number, "originalShiftId": shift})
+			code, body := do(cashierTok, http.MethodGet, "/shifts/current", nil)
+			data, _ := body["data"].(map[string]any)
+			pending, _ := data["pendingVoidReviews"].([]any)
+			if code != http.StatusOK || len(pending) != 1 || pending[0].(map[string]any)["orderNumber"] != number {
+				t.Fatalf("current shift = %d %v, want pendingVoidReviews [%s]", code, body, number)
+			}
+			code, body = do(cashierTok, http.MethodPost, "/shifts/"+shift+"/close", map[string]any{"closingCash": 0})
+			if code != http.StatusConflict || !strings.Contains(fmt.Sprint(body["error"]), "Tinjauan Sinkron") {
+				t.Fatalf("direct close = %d %v, want the 409 refusal naming Tinjauan Sinkron", code, body)
+			}
+			if str(`SELECT status FROM shifts WHERE id=$1`, shift) != "open" {
+				t.Fatal("a refused direct close changed the shift")
+			}
+			exec(`UPDATE sync_review_items SET resolved_at=now(), resolved_by=$2, resolution_note='ok' WHERE idempotency_key=$1`, reviewKey, adminU)
+			code, body = do(cashierTok, http.MethodGet, "/shifts/current", nil)
+			data, _ = body["data"].(map[string]any)
+			if _, has := data["pendingVoidReviews"]; code != http.StatusOK || (has && len(data["pendingVoidReviews"].([]any)) != 0) {
+				t.Fatalf("resolved: current shift = %d %v, want no pending list", code, body)
+			}
+			if code, body = do(cashierTok, http.MethodPost, "/shifts/"+shift+"/close", map[string]any{"closingCash": 0}); code != http.StatusOK {
+				t.Fatalf("direct close after resolve = %d %v", code, body)
+			}
+		})
+	})
 }
