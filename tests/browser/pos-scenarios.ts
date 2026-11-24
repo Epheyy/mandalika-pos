@@ -54,6 +54,8 @@ export const setupPos = async (page: ScenarioPage, opts: PosSetupOpts = {}) => {
   }
   page.__a24={products,promotions,codes,customer,snapshot,version:1,calls:[],writes:[],unexpected:[]};
   await page.unrouteAll({behavior:'wait'});
+  // The reachability probe fails too while the synthetic network is down, so the tablet reads "no internet".
+  await page.route('http://127.0.0.1:59999/healthz',route=>page.__a24.netDown?route.abort('failed'):route.fallback());
   await page.route('http://127.0.0.1:59999/api/v1/**',async route=>{
     const req=route.request(), path=req.url().replace(/^https?:\/\/[^/]+/, '').split('?')[0], method=req.method();
     page.__a24.calls.push({path,method});
