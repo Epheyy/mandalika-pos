@@ -237,30 +237,29 @@ func TestScannersStayLinearInBothTiers(t *testing.T) {
 	}
 }
 
-// Wall-clock caps are noisy on shared CI hardware, so linearity is checked as a ratio:
-// 8x the input must cost less than 16x the time (quadratic behaviour would cost ~64x).
+// Linearity is asserted on work done, not wall-clock time (timing flaked under full-suite
+// load): stepHook counts bytes/runes every scanner examines plus the length handed to each
+// regexp call, so a rescan from the start (quadratic) blows the count up deterministically.
+// 8x the input may cost at most 8x the work (+25% and a small constant of slack); quadratic
+// behaviour would cost ~64x.
 func TestScannersScaleLinearly(t *testing.T) {
-	best := func(in string, tier Tier) time.Duration {
-		min := time.Hour
-		for i := 0; i < 3; i++ {
-			start := time.Now()
-			String(in, tier)
-			if d := time.Since(start); d < min {
-				min = d
-			}
-		}
-		return min
+	steps := func(in string, tier Tier) int {
+		total := 0
+		stepHook = func(n int) { total += n }
+		defer func() { stepHook = nil }()
+		String(in, tier)
+		return total
 	}
-	for _, unit := range []string{"eyJ", "eyJa.", "0812 ", `"token":{`, "62 8"} {
+	// The Logs tier pre-cuts input at 8192 code points, so its sizes stay below that cut;
+	// the Secrets tier has no cut and takes the larger pair.
+	sizes := map[Tier][2]int{Logs: {1024, 8192}, Secrets: {16 * 1024, 128 * 1024}}
+	for _, unit := range []string{"eyJ", "eyJa.", "0812 ", `"token":{`, "62 8", `"token":"x",`, "Bearer abc ", "a@b.co ", "?key=1&", "Authorization: Basic QUJD "} {
 		for _, tier := range []Tier{Logs, Secrets} {
-			small := best(strings.Repeat(unit, 16*1024/len(unit)), tier)
-			big := best(strings.Repeat(unit, 128*1024/len(unit)), tier)
-			base := small
-			if base < 2*time.Millisecond {
-				base = 2 * time.Millisecond
-			}
-			if big > 16*base {
-				t.Errorf("unit %q tier %d: 16 KB took %v but 128 KB took %v", unit, tier, small, big)
+			sz := sizes[tier]
+			small := steps(strings.Repeat(unit, sz[0]/len(unit)), tier)
+			big := steps(strings.Repeat(unit, sz[1]/len(unit)), tier)
+			if limit := 8*small*5/4 + 1024; big > limit {
+				t.Errorf("unit %q tier %d: %d B did %d steps but %d B did %d (limit %d)", unit, tier, sz[0], small, sz[1], big, limit)
 			}
 		}
 	}
