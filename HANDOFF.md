@@ -8,6 +8,12 @@ Last updated: 2026-11-24 by Claude (Opus 5.5) - live checks on the BSD tablet do
 
 ## Progress board (update when a slice moves; show it at the end of every reply)
 
+> 2026-11-24: **SHIFT-LESS SALE ATTRIBUTION (A12 leftover) BUILT, PR into prod-hardening, NOT merged/released** (branch `claude/shift-attribution-95cbed`, plan `docs/plans/2026-11-24-shift-attribution-plan.md`; Opus plan + review, Sonnet implementer).
+> - **Bug:** shift ids are server-minted, so sales and cash in/out captured while the tablet's `shift_open` was still in the outbox went up with no shift and stayed `shift_id NULL` forever (missing from close snapshot, shift reports, POS recap).
+> - **Fix:** the tablet stamps the pending open's idempotency key in the capture envelope (`shiftOpenKey`, payload/fingerprint untouched). Server: open already landed → attach at once; not yet → store with `pending_shift_open_key` (mig 0098, additive) and the `shift_open` backfills orders, cash_flows and sale_stock_exceptions in its own transaction. Both sides serialize on an advisory lock taken first. Old bundles (no key) behave as before. Operator-per-shift policy untouched.
+> - **Gates:** new PG gate `SA` `TestShiftlessAttributionPostgres` (port 26485). Results: see the PR.
+> - **Release (each needs owner go-ahead):** backend deploy (runs mig 0098; check no other open PR also claims 0098) → POS OTA (client half; no APK). Follow-ups: voids/replacement orders captured during a pending open are not backfilled; unknown-shift-id → NULL branch (`attribute.go` payloadShift) unchanged.
+
 > 2026-11-24: **LIVE CHECKS DONE on the BSD test tablet** (R9RY4009WBJ, APK 2.3 + OTA 2.21.0, printer RPPO2N 58mm, "Cetak logo & QR" ON; Backoffice signed in by the owner; backend `relay1124`, ERP relay ON). Driven over adb taps + screenshots; owner watched the printer.
 > - Backoffice signed-in walkthroughs: Pengaturan > Struk ("Standar" template on all 27 outlets, Logo + QR 31 chars) and Laporan > Bundle load with no console errors.
 > - Tes Cetak: printed (BT connect 3.4 s, job 3.8 s). Backoffice "Cetak tes di tablet" relay: the draft is NOT pushed; the NEXT Tes Cetak on that outlet prints it ("Tes cetak desain dari Backoffice terkirim", 3.8 s).
