@@ -321,6 +321,9 @@ type CashFlowInput struct {
 	Description string
 	CashierID   string
 	CashierName string
+	// PendingShiftOpenKey (sync only) names the shift_open that had not landed at capture; used
+	// only when ShiftID is empty (migration 0098).
+	PendingShiftOpenKey string
 }
 
 func (s *OrderService) AddCashFlow(ctx context.Context, in CashFlowInput) (string, error) {
@@ -329,6 +332,16 @@ func (s *OrderService) AddCashFlow(ctx context.Context, in CashFlowInput) (strin
 
 // AddCashFlowTx is AddCashFlow inside a caller-owned transaction.
 func (s *OrderService) AddCashFlowTx(ctx context.Context, tx pgx.Tx, in CashFlowInput) (string, error) {
+	if in.ShiftID == "" && in.PendingShiftOpenKey != "" {
+		// Shift-less attribution: the advisory lock is the first statement of the transaction.
+		opened, err := ResolvePendingShiftOpen(ctx, tx, in.OutletID, in.PendingShiftOpenKey)
+		if err != nil {
+			return "", err
+		}
+		if opened != "" {
+			in.ShiftID, in.PendingShiftOpenKey = opened, ""
+		}
+	}
 	return addCashFlow(ctx, tx, in)
 }
 
@@ -336,9 +349,9 @@ func addCashFlow(ctx context.Context, q rowQueryRower, in CashFlowInput) (string
 	var id string
 	err := q.QueryRow(ctx, `
 		INSERT INTO cash_flows (outlet_id, shift_id, type, amount, description,
-		  cashier_id, cashier_name, created_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+		  cashier_id, cashier_name, created_at, pending_shift_open_key)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
 		in.OutletID, nullUUID(in.ShiftID), in.Type, in.Amount, in.Description,
-		nullUUID(in.CashierID), nullStr(in.CashierName), time.Now()).Scan(&id)
+		nullUUID(in.CashierID), nullStr(in.CashierName), time.Now(), nullStr(in.PendingShiftOpenKey)).Scan(&id)
 	return id, err
 }

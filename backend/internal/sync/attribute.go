@@ -33,6 +33,9 @@ type Envelope struct {
 	Contact         *ContactToken `json:"contact,omitempty"`
 	ContactDeviceAt *int64        `json:"contactDeviceAt,omitempty"`
 	OfflineMs       *int64        `json:"offlineMs,omitempty"`
+	// ShiftOpenKey is the idempotency key of the tablet's still-pending shift_open, stamped
+	// only when ShiftID is empty (shift-less attribution). Read only without a ShiftID.
+	ShiftOpenKey string `json:"shiftOpenKey,omitempty"`
 }
 
 const envelopeVersion = 1
@@ -67,6 +70,9 @@ type attributionLookup interface {
 	// fingerprint of the item being probed; a receipt stored under the same key for a
 	// different payload is service.ErrReceiptKeyConflict, never a replay.
 	Applied(ctx context.Context, typ, key, scope, fp string) (out appliedOutcome, ok bool, err error)
+	// OpenedShift returns the shift a completed shift_open receipt (key, outlet) created, or ""
+	// when that open has not landed.
+	OpenedShift(ctx context.Context, outletID, key string) (string, error)
 }
 
 // appliedOutcome is what a replay of an already-applied item acks.
@@ -113,6 +119,19 @@ func (p poolLookup) Shift(ctx context.Context, outletID, shiftID string) (shiftS
 		return shiftClosed, nil
 	}
 	return shiftOpen, nil
+}
+
+func (p poolLookup) OpenedShift(ctx context.Context, outletID, key string) (string, error) {
+	var shiftID *string
+	err := p.q.QueryRow(ctx, `SELECT outcome->>'orderId' FROM operation_receipts
+		WHERE idempotency_key=$1 AND op_type='shift_open' AND scope=$2`, key, outletID).Scan(&shiftID)
+	if errors.Is(err, pgx.ErrNoRows) || err == nil && shiftID == nil {
+		return "", nil
+	}
+	if err != nil || !service.IsCanonicalUUID(*shiftID) {
+		return "", err
+	}
+	return *shiftID, nil
 }
 
 // Applied implements the already-applied probe: orders via processed_keys, transfer
@@ -254,11 +273,39 @@ func (e *Engine) attribute(ctx context.Context, c Caller, it BatchItem) (Caller,
 				"idempotencyKey", it.IdempotencyKey, "shiftId", env.ShiftID, "outletId", env.OutletID)
 		}
 	}
+	pendingOpen := ""
+	if env.ShiftID == "" && env.ShiftOpenKey != "" {
+		opened, pending, err := e.resolveShiftOpenKey(ctx, env, it)
+		if err != nil {
+			return c, err
+		}
+		envelopeShift, pendingOpen = opened, pending
+	}
 	out := c
 	out.OutletID = env.OutletID
 	out.EnvelopeShiftID = envelopeShift
+	out.PendingShiftOpenKey = pendingOpen
 	out.EnvelopeDeviceID = env.DeviceID
 	return out, nil
+}
+
+// resolveShiftOpenKey reads the envelope's shiftOpenKey (shift-less attribution). A key without the
+// envelope's device prefix is ignored with a warning, never a refusal. A completed open at the
+// attributed outlet gives its shift; otherwise the key is carried for the write to resolve.
+func (e *Engine) resolveShiftOpenKey(ctx context.Context, env Envelope, it BatchItem) (shiftID, pendingKey string, err error) {
+	if !strings.HasPrefix(env.ShiftOpenKey, env.DeviceID+":") {
+		slog.Warn("sync item carries a shiftOpenKey of another device; ignored", "type", it.Type,
+			"idempotencyKey", it.IdempotencyKey, "outletId", env.OutletID)
+		return "", "", nil
+	}
+	opened, err := e.lookup().OpenedShift(ctx, env.OutletID, env.ShiftOpenKey)
+	if err != nil {
+		return "", "", err
+	}
+	if opened != "" {
+		return opened, "", nil
+	}
+	return "", env.ShiftOpenKey, nil
 }
 
 // legacyItem applies the no-envelope policy. It never touches the database.

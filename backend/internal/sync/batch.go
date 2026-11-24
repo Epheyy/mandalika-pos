@@ -79,6 +79,10 @@ type Caller struct {
 	// at the attributed outlet (open or closed); unknown, non-uuid or absent -> "".
 	// Never taken from the request: a dangling id would hit the orders FK (23503).
 	EnvelopeShiftID string `json:"-"`
+	// PendingShiftOpenKey is the idempotency key of the sender's shift_open when the envelope
+	// named one that had not landed yet (shift-less attribution, migration 0098). Set only
+	// without a shift id and only for a key carrying the envelope's device prefix.
+	PendingShiftOpenKey string `json:"-"`
 }
 
 // ProcessBatch flushes outbox items in order, one at a time, each idempotent.
