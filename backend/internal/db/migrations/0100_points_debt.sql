@@ -1,4 +1,4 @@
--- 0099_points_debt.sql
+-- 0100_points_debt.sql
 -- A20: a refund claw that the balance cannot cover is no longer forgiven. The shortfall becomes a debt on
 -- the customer (points_debt), recovered from FUTURE sale earnings with no expiry, and is recorded on the
 -- refund (points_debt_added) so the cumulative claw of a later refund of the same order treats it as
