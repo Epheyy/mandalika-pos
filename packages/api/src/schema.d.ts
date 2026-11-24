@@ -3380,6 +3380,7 @@ export interface components {
             phone?: string | null;
             logoUrl?: string | null;
             isActive: boolean;
+            readonly setupPending: boolean;
             /**
              * @description Outlet timezone (WIB, WITA, WIT). Decides the business day of its sales.
              * @enum {string}

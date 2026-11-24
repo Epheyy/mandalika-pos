@@ -10,6 +10,6 @@ func (r *Repo) Outlets(ctx context.Context) ([]api.Outlet, int, error) {
 	return listJSON[api.Outlet](ctx, r.Pool,
 		`SELECT json_build_object('id',id,'name',name,'code',code,'address',address,
 		   'phone',phone,'logoUrl',logo_url,'isActive',is_active,'timezone',timezone,'createdAt',created_at,
-		   'erpSlug',erp_slug,'erpCode',erp_code)
+		   'erpSlug',erp_slug,'erpCode',erp_code,'setupPending',setup_pending)
 		   FROM outlets ORDER BY name`)
 }

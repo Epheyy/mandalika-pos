@@ -24,6 +24,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/integration/erp/erpstub"
 	mw "github.com/mandalika/pos-backend/internal/middleware"
 	"github.com/mandalika/pos-backend/internal/read"
+	"github.com/mandalika/pos-backend/internal/write"
 )
 
 // Step 4 ERP catalog pull (plan §4.6, gate ER): the real erp.Client and erp.Syncer run
@@ -957,6 +958,52 @@ func TestErpIntegrationPostgres(t *testing.T) {
 			t.Fatalf("concurrent first call = %d %s (%v)", res.code, res.body, err)
 		}
 		erWantInt(t, "run rows after the concurrent pair (only the winner wrote)", erCount(t, ctx, pool, `SELECT count(*) FROM erp_sync_runs`), 6)
+	})
+
+	// outlets.setup_pending marks an ERP-created outlet nobody has set up yet: only the
+	// first activation clears it, and nothing ever sets it again.
+	t.Run("setup-pending-cleared-only-on-activation", func(t *testing.T) {
+		e := newErEnv(t, ctx, pool, 0)
+		_ = e
+		var id string
+		if err := pool.QueryRow(ctx, `INSERT INTO outlets (name, code, is_active, setup_pending)
+			VALUES ('Setup Pending POS','SPD',false,true) RETURNING id::text`).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		wr := write.New(pool)
+		upd := func(active bool) {
+			t.Helper()
+			if err := wr.UpdateOutlet(ctx, id, write.Outlet{Name: "Setup Pending POS", Code: "SPD", IsActive: active}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		pending := func() string {
+			return erStr(t, ctx, pool, `SELECT setup_pending::text FROM outlets WHERE id=$1`, id)
+		}
+		upd(false)
+		erWant(t, "inactive update keeps the marker", pending(), "true")
+		upd(true)
+		erWant(t, "activation clears the marker", pending(), "false")
+		upd(false)
+		erWant(t, "deactivation never re-sets it", pending(), "false")
+
+		normal := erPosOutlet(t, ctx, pool, "Normal POS", "NRM", "", "", "")
+		outlets, _, err := read.New(pool).Outlets(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, o := range outlets {
+			if o.Id.String() == normal {
+				found = true
+				if o.SetupPending == nil || *o.SetupPending {
+					t.Fatalf("normal outlet setupPending = %v, want false", o.SetupPending)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("normal outlet missing from the outlets read")
+		}
 	})
 
 	// A pull writes the catalog behind the Redis read cache (15 s TTL); both trigger
