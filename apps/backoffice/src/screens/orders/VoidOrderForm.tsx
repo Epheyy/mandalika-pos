@@ -128,6 +128,7 @@ export function VoidOrderForm({ order, methods, onDone }: Props) {
   const counted = lines.filter((l) => l.countedAfter)
   const values: VoidFormValues = {
     reason, note, choice, tenders, originalTotal: order.total,
+    // customer.id '' = "Tanpa pelanggan" (sent as an empty customerId, which the server reads as no customer)
     ...(choice === 'perbaiki' && customer ? { customerId: customer.id } : {}),
     stockChoices: countedChoices(lines, picks),
   }
@@ -223,13 +224,16 @@ export function VoidOrderForm({ order, methods, onDone }: Props) {
             <p className="text-xs font-black text-ink-500 uppercase tracking-widest">Pelanggan pengganti</p>
             {customer ? (
               <div className="flex items-center justify-between rounded-xl border border-paper-2 bg-white px-3 py-2">
-                <span className="truncate text-sm font-bold text-ink-900">{customer.name}</span>
+                <span className="truncate text-sm font-bold text-ink-900">{customer.id === '' ? 'Tanpa pelanggan' : customer.name}</span>
                 <Button variant="ghost" size="sm" aria-label="Kembali ke pelanggan asli" onClick={() => setCustomer(null)}>Pakai pelanggan asli</Button>
               </div>
             ) : (
               <>
                 <p className="text-xs text-ink-700">{order.customerName ? `Pelanggan asli: ${order.customerName}. ` : 'Tanpa pelanggan. '}Cari untuk menggantinya.</p>
                 <CustomerSearch onPick={(c) => setCustomer({ id: c.id, name: c.name })} />
+                {order.customerId && (
+                  <Button variant="secondary" size="sm" onClick={() => setCustomer({ id: '', name: '' })}>Tanpa pelanggan</Button>
+                )}
               </>
             )}
           </div>

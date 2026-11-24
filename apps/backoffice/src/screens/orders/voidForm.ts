@@ -26,7 +26,8 @@ export interface VoidFormValues {
   /** Payment lines of the replacement; only read for `perbaiki`. */
   tenders: TenderInput[]
   originalTotal: number
-  /** A customer other than the original's; only for `perbaiki`. */
+  /** Replacement customer, only for `perbaiki`. Absent = keep the original's; an id = that customer; "" = no customer
+   *  ("Tanpa pelanggan"; the server clears it). */
   customerId?: string
   stockChoices?: Record<string, StockChoice>
 }
@@ -62,7 +63,7 @@ export function voidRequestBody(f: VoidFormValues, clientVoidUuid: string): Void
   if (note) body.note = note
   if (f.stockChoices && Object.keys(f.stockChoices).length > 0) body.stockChoices = f.stockChoices
   if (f.choice === 'perbaiki') {
-    body.replacement = { tenders: f.tenders, ...(f.customerId ? { customerId: f.customerId } : {}) }
+    body.replacement = { tenders: f.tenders, ...(f.customerId !== undefined ? { customerId: f.customerId } : {}) }
   }
   return body
 }
