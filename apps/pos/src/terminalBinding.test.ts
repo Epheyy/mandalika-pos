@@ -9,6 +9,7 @@ import {
   clearOutletCaches,
   isQueueReleasable,
   ownerLabel,
+  pickableOutlets,
   queueCount,
   readBinding,
   readQueueState,
@@ -123,6 +124,64 @@ describe('resolveTerminal: a bound terminal is never rebound', () => {
       expect(resolveTerminal(unassigned, current).state).toBe('unassigned')
       expect(resolveTerminal(unassigned, current, { id: 'out-2', name: 'PMS' }).state).toBe('unassigned')
     }
+  })
+
+  describe('manager coverage', () => {
+    const multi = { id: 'u-m', displayName: 'Manajer', outletId: 'out-1', role: 'manager' as const, outletIds: ['out-1', 'out-3'], allOutlets: false }
+    const allMgr = { id: 'u-m', displayName: 'Manajer', outletId: null, role: 'manager' as const, outletIds: [] as string[], allOutlets: true }
+    const single = { id: 'u-m', displayName: 'Manajer', outletId: 'out-1', role: 'manager' as const, outletIds: ['out-1'], allOutlets: false }
+
+    it('an all-outlets manager behaves exactly like an admin', () => {
+      expect(resolveTerminal(allMgr, null)).toEqual({ state: 'pick', binding: null, created: false })
+      expect(resolveTerminal(allMgr, null, { id: 'out-2', name: 'PMS' }, () => 'NOW')).toEqual({
+        state: 'ok', created: true, binding: { outletId: 'out-2', outletName: 'PMS', ownerUserId: 'u-m', ownerName: 'Manajer', boundAt: 'NOW' },
+      })
+      expect(resolveTerminal(allMgr, binding({ outletId: 'out-7' }))).toMatchObject({ state: 'ok', created: false, binding: { outletId: 'out-7', ownerUserId: 'u-m' } })
+    })
+
+    it('multi-outlet manager: a covered binding is ok and keeps its outlet', () => {
+      expect(resolveTerminal(multi, binding({ outletId: 'out-3' }))).toMatchObject({ state: 'ok', created: false, binding: { outletId: 'out-3', ownerUserId: 'u-m' } })
+    })
+
+    it('multi-outlet manager: an uncovered binding is a mismatch and the binding is untouched (Review Focus 4)', () => {
+      const b = binding({ outletId: 'out-2' })
+      const r = resolveTerminal(multi, b, { id: 'out-1', name: 'BSD' })
+      expect(r).toEqual({ state: 'mismatch', binding: b, created: false })
+    })
+
+    it('multi-outlet manager on an unbound terminal picks; a covered pick binds, an uncovered pick asks again', () => {
+      expect(resolveTerminal(multi, null)).toEqual({ state: 'pick', binding: null, created: false })
+      expect(resolveTerminal(multi, null, { id: 'out-3', name: 'LWB' }, () => 'NOW')).toEqual({
+        state: 'ok', created: true, binding: { outletId: 'out-3', outletName: 'LWB', ownerUserId: 'u-m', ownerName: 'Manajer', boundAt: 'NOW' },
+      })
+      expect(resolveTerminal(multi, null, { id: 'out-2', name: 'PMS' })).toEqual({ state: 'pick', binding: null, created: false })
+    })
+
+    it('a single-outlet manager keeps today behaviour: auto-binds home, mismatch elsewhere', () => {
+      expect(resolveTerminal(single, null, undefined, () => 'NOW')).toMatchObject({ state: 'ok', created: true, binding: { outletId: 'out-1', outletName: null } })
+      expect(resolveTerminal(single, binding({ outletId: 'out-3' })).state).toBe('mismatch')
+    })
+
+    it('a session stored before the upgrade (no outletIds/allOutlets) falls back to the home outlet', () => {
+      const old = { id: 'u-m', displayName: 'Manajer', outletId: 'out-1', role: 'manager' as const }
+      expect(resolveTerminal(old, null, undefined, () => 'NOW')).toMatchObject({ state: 'ok', created: true, binding: { outletId: 'out-1' } })
+      expect(resolveTerminal(old, binding({ outletId: 'out-3' })).state).toBe('mismatch')
+      expect(resolveTerminal({ ...old, outletId: null }, null).state).toBe('unassigned')
+      expect(pickableOutlets(old, [{ id: 'out-1' }, { id: 'out-3' }])).toEqual([{ id: 'out-1' }])
+      expect(pickableOutlets({ ...old, outletId: null }, [{ id: 'out-1' }])).toEqual([])
+    })
+
+    it('a cashier ignores extra coverage fields', () => {
+      const c = { ...cashier, outletIds: ['out-9', 'out-1'] }
+      expect(resolveTerminal(c, binding({ outletId: 'out-1' })).state).toBe('mismatch')
+    })
+
+    it('pickableOutlets: admin / all-outlets manager see every outlet, others only the covered ones', () => {
+      const all = [{ id: 'out-1' }, { id: 'out-2' }, { id: 'out-3' }]
+      expect(pickableOutlets(adminUser, all)).toEqual(all)
+      expect(pickableOutlets(allMgr, all)).toEqual(all)
+      expect(pickableOutlets(multi, all)).toEqual([{ id: 'out-1' }, { id: 'out-3' }])
+    })
   })
 
   it('sameBinding and withOutletName', () => {

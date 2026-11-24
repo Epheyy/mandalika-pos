@@ -84,7 +84,7 @@ export function sameBinding(a: TerminalBinding | null, b: TerminalBinding | null
 export type TerminalState =
   /** The terminal acts as `binding.outletId`. */
   | 'ok'
-  /** An outlet-less ADMIN on an unbound terminal: must pick once. */
+  /** An outlet-less ADMIN, all-outlets or multi-outlet manager on an unbound terminal: must pick once. */
   | 'pick'
   /** A non-admin account with no stored outlet: cannot operate a terminal. */
   | 'unassigned'
@@ -100,12 +100,32 @@ export interface TerminalResolution {
   created: boolean
 }
 
+/** The coverage fields of a session user. A session stored before the multi-outlet upgrade may
+ *  lack them, so they are optional here; `coverageOf` is the one place that fills the gap. */
+export type CoverageUser = Pick<User, 'outletId' | 'role'> & Partial<Pick<User, 'outletIds' | 'allOutlets'>>
+
+/** The outlets `user` may act for. Missing `outletIds` (old session) = their home outlet only;
+ *  missing `allOutlets` = false. `all` (admin, or a manager over every outlet) means any outlet. */
+export function coverageOf(user: CoverageUser): { all: boolean; outletIds: readonly string[] } {
+  const outletIds = user.outletIds ?? (user.outletId ? [user.outletId] : [])
+  return { all: user.role === 'admin' || user.allOutlets === true, outletIds }
+}
+
+/** The outlets `user` may pick for a tablet from `outlets` (admin / all-outlets manager: every
+ *  one; everyone else: only those they cover). */
+export function pickableOutlets<T extends { id: string }>(user: CoverageUser, outlets: T[]): T[] {
+  const cov = coverageOf(user)
+  return cov.all ? outlets : outlets.filter((o) => cov.outletIds.includes(o.id))
+}
+
 /** Decide how `user` relates to this terminal (pure). Never changes an existing binding's
- *  outlet: an admin always uses the binding (it wins over their home outlet); a non-admin
- *  whose stored outlet differs from it is a mismatch. A new binding is only ever created on
- *  an unbound terminal (first sign-in, a pick, or an upgraded tablet), never over a bound one. */
+ *  outlet: an admin (or all-outlets manager) always uses the binding (it wins over their home
+ *  outlet); a non-admin whose coverage excludes it is a mismatch. A manager covering several
+ *  outlets may bind any covered one on an unbound terminal (a pick); one covering a single
+ *  outlet binds that outlet. A new binding is only ever created on an unbound terminal (first
+ *  sign-in, a pick, or an upgraded tablet), never over a bound one. */
 export function resolveTerminal(
-  user: Pick<User, 'id' | 'displayName' | 'outletId' | 'role'>,
+  user: Pick<User, 'id' | 'displayName' | 'outletId' | 'role'> & Partial<Pick<User, 'outletIds' | 'allOutlets'>>,
   current: TerminalBinding | null,
   picked?: { id: string; name: string },
   now: () => string = () => new Date().toISOString(),
@@ -113,9 +133,19 @@ export function resolveTerminal(
   const owned = (b: TerminalBinding): TerminalBinding => ({ ...b, ownerUserId: user.id, ownerName: user.displayName })
   const fresh = (outletId: string, outletName: string | null): TerminalBinding =>
     owned({ outletId, outletName, ownerUserId: '', ownerName: '', boundAt: now() })
-  if (user.role === 'admin') {
+  const cov = coverageOf(user)
+  if (cov.all) {
     if (current) return { state: 'ok', binding: owned(current), created: false }
     if (!picked) return { state: 'pick', binding: null, created: false }
+    return { state: 'ok', binding: fresh(picked.id, picked.name), created: true }
+  }
+  if (user.role === 'manager' && cov.outletIds.length >= 2) {
+    if (current) {
+      return cov.outletIds.includes(current.outletId)
+        ? { state: 'ok', binding: owned(current), created: false }
+        : { state: 'mismatch', binding: current, created: false }
+    }
+    if (!picked || !cov.outletIds.includes(picked.id)) return { state: 'pick', binding: null, created: false }
     return { state: 'ok', binding: fresh(picked.id, picked.name), created: true }
   }
   if (!user.outletId) return { state: 'unassigned', binding: null, created: false }
