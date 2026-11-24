@@ -70,6 +70,7 @@ type state struct {
 	Documents     []docRecord                `json:"documents"`
 	Movements     map[string]string          `json:"movements"`
 	Balances      map[string]*balance        `json:"balances"`
+	OutletCreates []outletCreateRec          `json:"outlet_creates,omitempty"`
 }
 
 func (st *state) ensureMaps() {
