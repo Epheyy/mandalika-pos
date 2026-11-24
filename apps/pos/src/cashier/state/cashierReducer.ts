@@ -15,7 +15,7 @@ import { planPromotionFulfillment, type PromotionOwner, type FulfillmentChoice }
 import { effectivePromotionSelection, isRedundantPromoCode } from '../promotionSelection'
 import { reconcileAutoPromos, type AutoPrompt, type AutoPromoContext } from '../autoPromos'
 import { repriceBundles } from '../setBundles'
-import { initialReplacementTenders, type VoidDraft } from '../void/voidReplacement'
+import { initialReplacementTenders, startsInSingleMethod, type VoidDraft } from '../void/voidReplacement'
 
 type CartItem = components['schemas']['CartItem']
 type Customer = components['schemas']['Customer']
@@ -708,7 +708,8 @@ function baseReducer(
         amountPaid: '',
         ...NO_SPLIT,
         // A replacement opens with what the store already received (the sheet closing wipes the lines).
-        ...(state.voidDraft
+        // Wrong payment method: single-method mode, nothing pre-filled (the cashier picks the method).
+        ...(state.voidDraft && !startsInSingleMethod(state.voidDraft)
           ? { splitMode: true, tenders: initialReplacementTenders(state.voidDraft), splitOrderUuid: state.voidDraft.replacementUuid ?? null }
           : {}),
       }
