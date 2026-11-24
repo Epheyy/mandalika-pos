@@ -70,7 +70,7 @@ Missing from a full run: still report-only (unchanged).
 
 ### "Not set up yet" marker
 
-- Migration `0098_outlets_setup_pending.sql`, additive: `ALTER TABLE outlets ADD COLUMN setup_pending boolean NOT NULL DEFAULT false`. Existing rows are false. Renumber at merge if another branch takes 0098.
+- Migration `0101_outlets_setup_pending.sql`, additive: `ALTER TABLE outlets ADD COLUMN setup_pending boolean NOT NULL DEFAULT false`. Existing rows are false. Renumbered from 0098 (taken by PR #166; 0099-0100 reserved by the promo and void-policy sessions).
 - Only the pull sets it to true, on create. `write.UpdateOutlet` clears it when the saved `is_active` is true. Admin switching the outlet on is the "set up" signal.
 - The outlet read (`read/outlets.go`, OpenAPI `Outlet` schema) returns `setupPending`. The Backoffice outlet list shows a badge "Dari ERP · belum diatur". The outlet form shows a one-line hint: check the time zone, staff and receipt before switching it on.
 - The POS app ignores the new field. Inactive outlets are already not usable on tablets (builder: confirm the tablet outlet picker and login filter `is_active`).
@@ -141,7 +141,7 @@ That is a separate slice with its own owner check, because linking by name is we
 
 ## Release notes
 
-- Backend (mig 0098) + Backoffice. No POS change, no OTA.
+- Backend (mig 0101) + Backoffice. No POS change, no OTA.
 - At the first pull after deploy, any RETAIL/POPUP staging ERP outlet not yet in the POS is created switched off. Today that is every non-ONLINE ERP outlet without a POS twin: 32 ERP outlets minus 6 ONLINE minus 26 linked = 0 expected. Check the run notes.
 - Push stays off until the ERP endpoint exists and the owner approves turning it on.
 

@@ -18,7 +18,7 @@
 - ONLINE never created. Tombstones never create.
 - Push: off unless `ERP_OUTLET_PUSH_ENABLED` is `true`/`1` AND the ERP integration is enabled. `maxOutletPushPerRun = 10`. Only `is_active AND erp_slug IS NULL` with a valid code, oldest `created_at` first. Body type always `RETAIL`. `Idempotency-Key` = `external_id` = outlet UUID.
 - Never call a real ERP write endpoint from tests or by hand. Tests use `erpstub` or `httptest`.
-- Migration `0098_outlets_setup_pending.sql` (renumber at merge if 0098 is taken).
+- Migration `0101_outlets_setup_pending.sql` (renumbered from 0098: #166 takes 0098, 0099-0100 reserved).
 - Commits: conventional (`feat:`/`test:`/`docs:`), ending `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` (implementer: use your own model name).
 
 ## Review Focus
@@ -34,7 +34,7 @@
 ### Task 1: `setup_pending` column, read, activation clears it
 
 **Files:**
-- Create: `backend/internal/db/migrations/0098_outlets_setup_pending.sql`
+- Create: `backend/internal/db/migrations/0101_outlets_setup_pending.sql`
 - Modify: `backend/internal/write/outlet.go` (`UpdateOutlet`), `backend/internal/read/outlets.go` (json adds `'setupPending',setup_pending`), `backend/api/openapi.yaml` (Outlet schema: `setupPending: { type: boolean }`, required, read-only, not in the write schema), regenerated `backend/internal/api/api.gen.go` and the Backoffice/POS TS types via the repo's codegen command (see `scripts/ci/codegen_gate.py` / Makefile `codegen`).
 - Test: `backend/internal/handlers/erp_integration_test.go` (new subtest in `TestErpIntegrationPostgres`)
 
