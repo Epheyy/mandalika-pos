@@ -28,7 +28,7 @@ export function MoneyField({ id, raw, onRawChange, label, placeholder, disabled,
       disabled={disabled}
       aria-label={label}
       aria-invalid={invalid ? true : undefined}
-      className={cn(fieldClass, className)}
+      className={cn(fieldClass, 'disabled:cursor-not-allowed', className)}
     />
   )
 }

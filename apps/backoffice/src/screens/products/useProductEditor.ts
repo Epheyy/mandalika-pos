@@ -6,6 +6,7 @@ import { uploadImage } from '../../lib/uploadImage'
 import { EMPTY, EMPTY_OC, EMPTY_VARIANT, MAX_IMAGES, ocKey } from './types'
 import type { Form, OcRow, OcfgOutlet } from './types'
 import { productFormErrors } from './validateForm'
+import { outletConfigItems, persistProduct } from './productSave'
 
 export type EditorLoad = 'loading' | 'ready' | 'missing' | 'failed'
 
@@ -13,6 +14,8 @@ interface EditorArgs {
   /** The product to edit (a validated id), or null to create a new one. */
   productId: string | null
   recipesEnabled: boolean
+  /** View-only catalogue: Simpan writes only the per-outlet price/availability (no shared-field validation, no updateProduct). */
+  catalogueLocked?: boolean
   /** Called after a successful save (refetch the list, close the editor). */
   onSaved: () => void | Promise<void>
 }
@@ -36,7 +39,7 @@ function formFromProduct(p: Product): Form {
  * nothing needs resetting. An edit loads the BASE product by id (the list row may be on another page, and carries
  * outlet-scoped values) plus the per-outlet price/availability matrix, then takes its unsaved-changes baseline.
  */
-export function useProductEditor({ productId, recipesEnabled, onSaved }: EditorArgs) {
+export function useProductEditor({ productId, recipesEnabled, catalogueLocked = false, onSaved }: EditorArgs) {
   const [form, setForm] = useState<Form>(newForm)
   const [load, setLoad] = useState<EditorLoad>(productId ? 'loading' : 'ready')
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -177,7 +180,7 @@ export function useProductEditor({ productId, recipesEnabled, onSaved }: EditorA
   const save = async () => {
     setSubmitted(true)
     setErr(null)
-    if (errors.length > 0) {
+    if (!catalogueLocked && errors.length > 0) {
       document.getElementById(errors[0].fieldId)?.focus()
       return
     }
@@ -202,21 +205,11 @@ export function useProductEditor({ productId, recipesEnabled, onSaved }: EditorA
           barcode: (v.barcode ?? '').trim() || v.sku.trim(),
         })),
       }
-      if (productId) {
-        await api.updateProduct(productId, body)
-        if (ocfgOutlets.length > 0) {
-          // price + available only; stock/PAR are owned by Inventori.
-          const items = ocfgOutlets.flatMap((o) =>
-            variants.filter((v) => v.size).map((v) => {
-              const c = ocfgMap[ocKey(o.id, v.size)] ?? EMPTY_OC
-              return { outletId: o.id, variantSize: v.size, price: c.price, available: c.available }
-            }),
-          )
-          await api.updateProductOutletConfig(productId, items)
-        }
-      } else {
-        await api.createProduct(body)
-      }
+      await persistProduct(api, {
+        productId, catalogueLocked, body,
+        items: outletConfigItems(ocfgOutlets, variants, ocfgMap),
+        hasOutlets: ocfgOutlets.length > 0,
+      })
       await onSaved()
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'Gagal menyimpan.')

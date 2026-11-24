@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import type { Category, Product } from '@mandalika/api'
 import { Plus } from 'lucide-react'
 import { api } from '../../api'
+import { useAuth } from '../../auth'
+import { canEditCatalogue } from '../../lib/navAccess'
 import { exportToCSV } from '../../lib/csvUtils'
 import { PRODUCT_TEMPLATE_ROWS } from '../../lib/importTemplates'
 import { isUuidSegment } from '../../lib/router/tabs'
@@ -10,6 +12,7 @@ import { PageHeader } from '../../ui/PageHeader'
 import { ImportExportMenu } from '../../ui/ImportExportMenu'
 import { Pagination } from '../../ui/Pagination'
 import { useToast } from '../../ui/Toast'
+import { CatalogueLockedNote } from './CatalogueLockedNote'
 import { DeleteConfirmDialog } from './DeleteConfirmDialog'
 import { ProductEditorHost } from './ProductEditorHost'
 import { ProductsFilters } from './ProductsFilters'
@@ -59,6 +62,8 @@ function useProductDelete(refetch: () => Promise<unknown>) {
 }
 
 export function ProductsListView({ categories, refetchCategories, tabs }: ProductsListViewProps) {
+  const { user } = useAuth()
+  const catalogueLocked = !canEditCatalogue(user)
   const list = useProductsList(categories)
   const toast = useToast()
   const del = useProductDelete(list.refetch)
@@ -97,21 +102,25 @@ export function ProductsListView({ categories, refetchCategories, tabs }: Produc
         actions={
           <>
             {tabs}
+            {/* View-only: an export-only menu (no import kind, so no Impor / Unduh templat). */}
             <ImportExportMenu
               onExport={list.exportAll}
               exportDisabled={list.loaded && list.total === 0}
               filterSummary={list.filterSummary}
-              importKind="products"
-              onImported={importDone}
-              onTemplate={downloadProductTemplate}
+              importKind={catalogueLocked ? undefined : 'products'}
+              onImported={catalogueLocked ? undefined : importDone}
+              onTemplate={catalogueLocked ? undefined : downloadProductTemplate}
             />
-            <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => openEditor({ baru: true, ubah: '' })}>
-              Tambah produk
-            </Button>
+            {!catalogueLocked && (
+              <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => openEditor({ baru: true, ubah: '' })}>
+                Tambah produk
+              </Button>
+            )}
           </>
         }
       />
 
+      {catalogueLocked && <CatalogueLockedNote className="mb-3" />}
       <ProductsFilters state={state} categories={categories} activeCount={list.activeCount} onChange={list.setFilter} onReset={list.reset} />
 
       <ProductsTable
@@ -124,6 +133,7 @@ export function ProductsListView({ categories, refetchCategories, tabs }: Produc
         filtered={list.activeCount > 0}
         onEdit={(p) => openEditor({ ubah: p.id, baru: false })}
         onDelete={del.ask}
+        catalogueLocked={catalogueLocked}
         footer={
           <Pagination
             page={state.hal}

@@ -36,3 +36,10 @@ export function canVoidAny(user: NavUser | null): boolean {
   if (!user) return false
   return user.role === 'admin' || (user.permissions ?? []).includes('void_any')
 }
+
+/** Mirrors the server's catalogue-write rule (auth.CatalogueWide): the admin, or a manager covering all outlets. Everyone else sees the catalogue view-only. */
+export function canEditCatalogue(user: NavUser | null): boolean {
+  if (!user) return false
+  if (user.role === 'admin') return true
+  return user.role === 'manager' && user.allOutlets === true
+}

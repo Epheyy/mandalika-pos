@@ -1,10 +1,13 @@
 import type { ReactNode } from 'react'
 import type { Category } from '@mandalika/api'
 import { Plus } from 'lucide-react'
+import { useAuth } from '../../auth'
+import { canEditCatalogue } from '../../lib/navAccess'
 import { buildExportName, exportToCSV } from '../../lib/csvUtils'
 import { Button } from '../../ui/Button'
 import { ExportButton } from '../../ui/ExportButton'
 import { PageHeader } from '../../ui/PageHeader'
+import { CatalogueLockedNote } from './CatalogueLockedNote'
 import { CategoriesTable } from './CategoriesTable'
 import { CategoryFormModal } from './CategoryFormModal'
 import { DeleteConfirmDialog } from './DeleteConfirmDialog'
@@ -19,6 +22,8 @@ interface CategoriesViewProps {
 }
 
 export function CategoriesView({ categories, loading, error, refetch, tabs }: CategoriesViewProps) {
+  const { user } = useAuth()
+  const catalogueLocked = !canEditCatalogue(user)
   const manager = useCategoryManager(refetch)
   const counts = useCategoryCounts(categories)
 
@@ -41,12 +46,15 @@ export function CategoriesView({ categories, loading, error, refetch, tabs }: Ca
           <>
             {tabs}
             <ExportButton rowCount={categories.length} filterSummary={[]} onExport={exportCategories} disabled={categories.length === 0} />
-            <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={manager.openNew}>
-              Tambah
-            </Button>
+            {!catalogueLocked && (
+              <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={manager.openNew}>
+                Tambah
+              </Button>
+            )}
           </>
         }
       />
+      {catalogueLocked && <CatalogueLockedNote className="mb-3" />}
       <CategoriesTable
         categories={categories}
         counts={counts}
@@ -55,6 +63,7 @@ export function CategoriesView({ categories, loading, error, refetch, tabs }: Ca
         onRetry={() => void refetch()}
         onEdit={manager.openEdit}
         onDelete={manager.askDelete}
+        catalogueLocked={catalogueLocked}
       />
       <CategoryFormModal
         open={manager.open}
