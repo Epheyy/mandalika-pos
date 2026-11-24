@@ -951,15 +951,16 @@ export class SyncEngine {
 
   /** Poll the lightweight version endpoint; raise the wall on a server bump. */
   async checkVersion(): Promise<WallState> {
-    // The server asked for a pause: no request, and reachability, contact and the offline cap stay as they were.
-    if (this.hold.active(Date.now())) return this.wall
-    const ticket = ++this.versionTicket
+    // A real offline always shows, even inside a server hold (no request is made either way).
     if (!ONLINE()) {
-      this.versionSettled = ticket
+      this.versionSettled = ++this.versionTicket
       this.setReachable(false)
       this.setConnection('no_internet')
       return this.wall
     }
+    // The server asked for a pause: no request, and reachability, contact and the offline cap stay as they were.
+    if (this.hold.active(Date.now())) return this.wall
+    const ticket = ++this.versionTicket
     try {
       const r = await this.api.request<{ data: VersionInfo }>(
         'GET',
@@ -985,7 +986,8 @@ export class SyncEngine {
       this.afterWallUpdate()
     } catch (err) {
       this.contacts.state(this.newestCaptureMs()) // time passes offline: advance the high-water mark
-      this.noteServerHold(err)
+      this.noteServerHold(err) // a Retry-After is evidence whatever the age of the poll
+      if (ticket < this.versionSettled) return this.wall // a newer poll already answered; this stale failure must not undo it
       const failure = classifyFailure(err, true)
       if (failure.kind === 'account' || failure.kind === 'rejected' || failure.kind === 'unauthorized') {
         // A 4xx means the server ANSWERED: reachable, but this account/outlet is refused
@@ -2213,13 +2215,19 @@ export class SyncEngine {
    *  caller's outlet). Caches the list locally; on failure keeps the last cache
    *  (offline-tolerant). Does NOT raise the wall or block sales. */
   async pollInbound(): Promise<void> {
-    if (!ONLINE()) return
+    if (!ONLINE() || this.hold.active(Date.now())) return
     try {
       const r = await this.api.request<{ data: Transfer[] }>('GET', '/api/v1/sync/inbound-transfers')
       this.setReachable(true)
       writeJSON(this.kv, INBOUND_KEY, r.data ?? [])
-    } catch {
-      this.setReachable(false) // keep the cached list
+    } catch (err) {
+      this.noteServerHold(err)
+      if (answeredByServer(err)) {
+        this.setReachable(false, false)
+        this.setConnection('server_problem')
+      } else {
+        this.setReachable(false) // keep the cached list
+      }
     }
   }
 

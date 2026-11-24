@@ -74,13 +74,19 @@ describe('default deadline', () => {
 
   it('import routes get 240 s and movement export routes 90 s', () => {
     for (const path of ['/api/v1/products/import', '/api/v1/customers/import', '/api/v1/ingredients/import',
-      '/api/v1/sku-mapping/import', '/api/v1/stock-counts/abc/import']) {
+      '/api/v1/admin/erp/sku-mapping/import', '/api/v1/stock-counts/abc/import']) {
       expect(resolveTimeoutMs('POST', path)).toBe(IMPORT_TIMEOUT_MS)
     }
     expect(IMPORT_TIMEOUT_MS).toBe(240_000)
     expect(resolveTimeoutMs('GET', '/api/v1/inventory/movements/export?x=1')).toBe(EXPORT_TIMEOUT_MS)
     expect(resolveTimeoutMs('GET', '/api/v1/inventory/movements/summary/export')).toBe(EXPORT_TIMEOUT_MS)
     expect(EXPORT_TIMEOUT_MS).toBe(90_000)
+  })
+
+  it('only POST imports and the two movement exports get a longer budget', () => {
+    expect(resolveTimeoutMs('PUT', '/api/v1/products/import')).toBe(DEFAULT_TIMEOUT_MS)
+    expect(resolveTimeoutMs('GET', '/api/v1/stock-counts/abc/export')).toBe(DEFAULT_TIMEOUT_MS)
+    expect(resolveTimeoutMs('POST', '/api/v1/inventory/movements/export')).toBe(DEFAULT_TIMEOUT_MS)
   })
 
   it('an import call is still alive at 200 s', async () => {

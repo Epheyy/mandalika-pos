@@ -243,6 +243,17 @@ describe('Koneksi queued sales (W5-03)', () => {
     expect(html).toContain('Data produk, stok &amp; promo: diperbarui')
   })
 
+  it('does not count a held shift twice in other waiting items', () => {
+    const held = [{ idempotencyKey: 'k9', type: 'shift_close', heldReason: 'Ditunda: menunggu transaksi sebelumnya terkirim' }]
+    const engine = { localReceipts: () => [receipt('L-1', '2026-11-07T07:05:00Z')], heldItems: () => held, lastPulledAt: () => null }
+    const html = renderToStaticMarkup(createElement(SyncContext.Provider, { value: engine as never }, createElement(SyncStatus, {
+      isOnline: true, pendingCount: 2, review: [], stuck: [], open: true,
+      wall: { raised: false, localVersion: 1, serverVersion: 1 }, isResyncing: false,
+      onResync: vi.fn(), onFlush: vi.fn(), onRetryFailed: vi.fn(), onExportLog: vi.fn(),
+    })))
+    expect(html).not.toContain('transaksi lain')
+  })
+
   it('shows why a held shift is waiting (A29)', () => {
     const held = [{ idempotencyKey: 'k9', type: 'shift_close', heldReason: 'Ditunda: menunggu transaksi sebelumnya terkirim' }]
     const engine = { localReceipts: () => [], heldItems: () => held, lastPulledAt: () => null }

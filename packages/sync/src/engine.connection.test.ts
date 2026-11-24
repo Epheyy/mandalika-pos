@@ -174,12 +174,37 @@ describe('connection state beyond the poll', () => {
     expect(engine.connectionState()).toBe('server_problem')
   })
 
-  it('a failure while reachable that is not yet classified reads as no_internet until the poll refines it', async () => {
-    const { engine } = make([http(503)])
+  it('a network failure on the inbound poll reads as no_internet until the version poll refines it', async () => {
+    const { engine } = make([new TypeError('Failed to fetch'), http(503)])
     await engine.pollInbound()
     expect(engine.isReachable()).toBe(false)
     expect(engine.connectionState()).toBe('no_internet')
     await engine.checkVersion()
     expect(engine.connectionState()).toBe('server_problem')
+  })
+
+  it('a 503 with Retry-After on the inbound poll is a server problem and sets the hold', async () => {
+    const { engine } = make([Object.assign(http(503), { retryAfterMs: 60_000 })])
+    await engine.pollInbound()
+    expect(engine.isReachable()).toBe(false)
+    expect(engine.connectionState()).toBe('server_problem')
+    expect(engine.serverHoldUntil()).toBeGreaterThan(Date.now())
+  })
+
+  it('a stale version failure cannot undo a newer success', async () => {
+    let rejectA!: (e: Error) => void
+    const request = vi.fn()
+    request.mockImplementationOnce(() => new Promise((_r, rej) => { rejectA = rej }))
+    request.mockImplementationOnce(async () => versionOk)
+    const reach: boolean[] = []
+    const engine = new SyncEngine({ request } as unknown as ApiLike, { onReachable: (o) => reach.push(o) }, controllableKV().kv, { actor: null })
+    const a = engine.checkVersion() // hangs
+    await Promise.resolve()
+    await engine.checkVersion() // newer poll succeeds
+    rejectA(Object.assign(new Error('Server tidak menjawab tepat waktu, coba lagi'), { status: 0, kind: 'timeout' }))
+    await a
+    expect(engine.isReachable()).toBe(true)
+    expect(engine.connectionState()).toBe('online')
+    expect(reach).not.toContain(false)
   })
 })

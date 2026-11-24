@@ -182,6 +182,38 @@ describe('a Retry-After hold on the version poll', () => {
   })
 })
 
+describe('a Retry-After hold and the other polls', () => {
+  const holdOnBatch = (extra?: (path: string) => unknown) => (_m: string, path: string) => {
+    if (path.includes('/sync/batch')) throw BUSY(60_000)
+    return extra?.(path) ?? { data: { version: 0 } }
+  }
+
+  it('pollInbound sends nothing during a hold', async () => {
+    const { engine, calls } = make(holdOnBatch(() => ({ data: [] })))
+    await queueOrder(engine)
+    await engine.flush()
+    await engine.pollInbound()
+    expect(calls('/sync/inbound')).toBe(0)
+    await advance(61_000)
+    await engine.pollInbound()
+    expect(calls('/sync/inbound')).toBe(1)
+  })
+
+  it('a real offline still shows during a hold, with no request', async () => {
+    const { engine, calls } = make(holdOnBatch())
+    await engine.checkVersion()
+    await queueOrder(engine)
+    await engine.flush()
+    expect(engine.isReachable()).toBe(true)
+    const versions = calls('/sync/version')
+    online(false)
+    await engine.checkVersion()
+    expect(engine.isReachable()).toBe(false)
+    expect(engine.connectionState()).toBe('no_internet')
+    expect(calls('/sync/version')).toBe(versions)
+  })
+})
+
 describe('a Retry-After hold on the background pull', () => {
   it('waits at least the requested pause before pulling again', async () => {
     let version = 1
@@ -245,6 +277,31 @@ describe('shift items held behind a retryable item', () => {
     await engine.flushNow()
     expect(engine.heldItems()).toEqual([])
     expect(sent.at(-1)).toContain('shift_close')
+  })
+
+  it('a flush that returns early during a hold keeps the held reasons', async () => {
+    const { engine } = make((_m, path, body) => {
+      if (path.includes('/sync/version')) throw BUSY(60_000)
+      if (!path.includes('/sync/batch') || !body) return { data: { version: 0 } }
+      return {
+        data: {
+          processed: 0, version: 0,
+          results: body.items.map((i, n) => (n === 0 && i.type === 'order'
+            ? { idempotencyKey: i.idempotencyKey, status: 'error', error: 'sibuk', code: 'busy', retryable: true }
+            : { idempotencyKey: i.idempotencyKey, status: 'ok' })),
+        },
+      }
+    })
+    online(false)
+    for (let n = 0; n < 25; n++) await engine.enqueue('order', { total: n })
+    await engine.enqueue('shift_close', { closingCash: 0 })
+    online(true)
+    await engine.flushNow()
+    expect(engine.heldItems()).toHaveLength(1)
+    await engine.checkVersion() // a 503 + Retry-After starts the hold
+    expect(engine.serverHoldUntil()).toBeGreaterThan(Date.now())
+    expect(await engine.flushNow()).toBeNull() // returns early inside the hold
+    expect(engine.heldItems()).toHaveLength(1)
   })
 
   it('the isolation path holds a shift behind an item whose retryable flag is missing', async () => {

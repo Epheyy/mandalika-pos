@@ -249,7 +249,7 @@ export const SyncStatus = memo(function SyncStatus({
   const { queued, held, dataUpdatedAt, now } = useKoneksiData(open, pendingCount)
   const offlineStart = useOfflineStart(isOnline || offlineCap?.level === 'locked' ? null : (offlineCap?.offlineMs ?? null))
   const offlineSince = offlineStart === null ? '' : queuedTimeText(new Date(offlineStart).toISOString(), now)
-  const otherQueued = Math.max(0, pendingCount - queued.length)
+  const otherQueued = Math.max(0, pendingCount - queued.length - held.length)
   // A parked item outranks the offline note: its count stays the title.
   const sinceLabel = connection === 'server_problem' ? 'Server bermasalah' : 'Offline'
   const statusTitle = offlineSince && review.length === 0 ? `${sinceLabel} sejak ${offlineSince} · penjualan tetap bisa` : chip.text
