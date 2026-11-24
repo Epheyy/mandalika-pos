@@ -232,7 +232,7 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 	// writes: the cumulative proportional share of the computed value refunded so far (the
 	// completing refund settles exactly), minus what earlier refunds actually took. The floor
 	// at 0 applies per refund; a shortfall is not lost: the next refund's target minus what was actually taken re-claws it.
-	var clawed, restored, afterClaw, newBal int64
+	var clawed, restored, afterRestore, newBal int64
 	var forgiven int64
 	if o.custID != nil && *o.custID != "" {
 		var bal int
@@ -241,11 +241,13 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 		}
 		cum := priorComputed + computed
 		clawWant := max(ClawTarget(o.earned, cum, o.total, completes)-prevClawed, 0)
-		clawed = int64(write.PointsClawback(bal, int(clawWant)))
-		forgiven = clawWant - clawed
+		// Restore first: the redeemed points go back before the earn is clawed, so a customer at 0 who
+		// earned 10 and redeemed 50 ends a full refund at 40, not 50. The floor applies to bal+restored.
 		restored = max(ClawTarget(o.redeemed, cum, o.total, completes)-prevRestored, 0)
-		afterClaw = int64(bal) - clawed
-		newBal = afterClaw + restored
+		afterRestore = int64(bal) + restored
+		clawed = int64(write.PointsClawback(int(afterRestore), int(clawWant)))
+		forgiven = clawWant - clawed
+		newBal = afterRestore - clawed
 	}
 
 	payoutMethod, payoutSource, err := resolveRefundPayout(ctx, tx, orderID, o.paymentMethod, in.PayoutMethod, in.PayoutPicked)
@@ -358,6 +360,16 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 	// included), so the proportional claw covers them. Condition application rows are
 	// immutable order-time facts and are intentionally not reversed.
 	if o.custID != nil && *o.custID != "" {
+		if restored > 0 {
+			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
+				CustomerID: *o.custID, Type: "refund", Points: int(restored),
+				BalanceAfter: int(afterRestore),
+				Reason:       fmt.Sprintf("Pengembalian poin tukar dari refund %s", o.orderNumber),
+				OrderID:      orderID,
+			}); e != nil {
+				return RefundResult{}, fmt.Errorf("ledger refund restore: %w", e)
+			}
+		}
 		if clawed > 0 {
 			clawReason := fmt.Sprintf("Pembatalan poin dari refund %s", o.orderNumber)
 			if forgiven > 0 {
@@ -365,19 +377,9 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 			}
 			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
 				CustomerID: *o.custID, Type: "refund", Points: -int(clawed),
-				BalanceAfter: int(afterClaw), Reason: clawReason, OrderID: orderID,
+				BalanceAfter: int(newBal), Reason: clawReason, OrderID: orderID,
 			}); e != nil {
 				return RefundResult{}, fmt.Errorf("ledger refund clawback: %w", e)
-			}
-		}
-		if restored > 0 {
-			if e := write.InsertPointTx(ctx, tx, write.PointTxRow{
-				CustomerID: *o.custID, Type: "refund", Points: int(restored),
-				BalanceAfter: int(newBal),
-				Reason:       fmt.Sprintf("Pengembalian poin tukar dari refund %s", o.orderNumber),
-				OrderID:      orderID,
-			}); e != nil {
-				return RefundResult{}, fmt.Errorf("ledger refund restore: %w", e)
 			}
 		}
 		if clawed > 0 || restored > 0 {
