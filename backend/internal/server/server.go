@@ -67,18 +67,25 @@ func useRequestObservers(r chi.Router, cfg *config.Config, sentry *observability
 	r.Use(sentryRecoverer(sentry, sink))
 }
 
+// corsOptions is the cross-origin policy. Retry-After is exposed so the POS WebView and the
+// Backoffice (both cross-origin) can read it on a 429/503; without it the browser hides the header.
+func corsOptions(origins []string) cors.Options {
+	return cors.Options{
+		AllowedOrigins:   origins,
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "X-Outlet-Id", "Idempotency-Key"},
+		ExposedHeaders:   []string{"Retry-After"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	}
+}
+
 func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observability.Sentry) http.Handler {
 	r := chi.NewRouter()
 	// Built early: the panic recoverer persists backend errors to error_logs.
 	wr := write.New(database.Pool)
 	useRequestObservers(r, cfg, sentry, wr)
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   cfg.CORSOrigins,
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Authorization", "Content-Type", "X-Outlet-Id", "Idempotency-Key"},
-		AllowCredentials: true,
-		MaxAge:           300,
-	}))
+	r.Use(cors.Handler(corsOptions(cfg.CORSOrigins)))
 	// Global per-IP rate limit; a POS device bursts on sync but stays modest.
 	r.Use(mw.RateLimit(c, "api", cfg.RateLimitRPS*60, time.Minute))
 	// Global request-body cap (1 MiB) with a documented exception table.
