@@ -2186,6 +2186,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orders/{id}/cross-outlet-refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Online-only refund of a sale made at another outlet (A18), paid out of the active outlet open shift
+         * @description The returned units go back into the ACTIVE outlet stock and its open shift pays the money. Idempotent on (deviceId, clientRefundUuid); a replay answers 200 with the original refund. Needs process_refund and an explicit active outlet.
+         */
+        post: operations["refundCrossOutlet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cross-outlet-returns/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find another outlet sale by exact order number or exact customer phone (A18)
+         * @description Exactly one of orderNumber or phone. Completed and refunded sales of OTHER outlets, newest first, at most 20. Customer name and device id are stripped.
+         */
+        get: operations["crossOutletLookup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orders/{id}/void": {
         parameters: {
             query?: never;
@@ -4763,6 +4805,11 @@ export interface components {
             reasonCode?: string | null;
             /** Format: uuid */
             shiftId?: string | null;
+            /**
+             * Format: uuid
+             * @description The outlet that paid the refund out (A18: differs from the order outlet on a cross-outlet return). Absent on responses from an older server.
+             */
+            outletId?: string;
             refundedByName?: string | null;
             /** Format: date-time */
             refundedAt: string;
@@ -4788,7 +4835,14 @@ export interface components {
             orderNumber: string;
             /** Format: uuid */
             outletId: string;
+            /** @description The outlet that paid the refund out. */
             outletName: string;
+            /**
+             * Format: uuid
+             * @description Where the sale was made (A18); equals outletId unless the refund was a cross-outlet return.
+             */
+            saleOutletId?: string;
+            saleOutletName?: string;
             /** @description Cashier of the sale. */
             cashierName: string;
             /** @description Refund ke-N of the order. */
@@ -5798,6 +5852,57 @@ export interface components {
                 lineNo: number;
                 quantity: number;
             }[];
+        };
+        CrossOutletRefundRequest: {
+            /**
+             * Format: uuid
+             * @description Idempotency key generated and stored by the tablet before the first send.
+             */
+            clientRefundUuid: string;
+            deviceId: string;
+            /**
+             * Format: uuid
+             * @description The open shift of the active outlet that pays the refund out.
+             */
+            shiftId: string;
+            reason: string;
+            reasonCode?: string;
+            /** @description Per-line refund. Absent = the whole order (legacy order without line numbers). */
+            items?: {
+                lineNo: number;
+                quantity: number;
+            }[];
+            /**
+             * Format: double
+             * @description What the tablet showed (captured fact, flagged when it differs).
+             */
+            refundAmount?: number;
+            payoutMethod?: string;
+            payoutPicked?: boolean;
+        };
+        CrossOutletRefundResult: {
+            /** Format: uuid */
+            refundId: string;
+            /** @enum {string} */
+            refundState: "full" | "partial";
+            /** Format: double */
+            amount: number;
+            replayed: boolean;
+            /** Format: uuid */
+            saleOutletId: string;
+            refund: components["schemas"]["OrderRefund"];
+            order: components["schemas"]["CrossOutletOrder"];
+        };
+        CrossOutletRefundResponse: {
+            data: components["schemas"]["CrossOutletRefundResult"];
+        };
+        CrossOutletOrder: {
+            /** @description The outlet the sale was made at. */
+            outletName: string;
+            order: components["schemas"]["Order"];
+        };
+        CrossOutletLookupResponse: {
+            data: components["schemas"]["CrossOutletOrder"][];
         };
         /** @description One of orderId or saleOrderUuid is required (the server resolves the sale by saleOrderUuid alone when orderId is empty). Legacy shape = {orderId, reason, deviceId, ...}: refunds the whole order and is refused (conflict) on a partially_refunded order. Per-line shape adds items (required, non-empty) and optionally refundAmount and reasonCode. Unknown keys (the tablet's display snapshot) are ignored. */
         SyncRefundPayload: {
@@ -11814,6 +11919,100 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    refundCrossOutlet: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CrossOutletRefundRequest"];
+            };
+        };
+        responses: {
+            /** @description replay of an earlier identical refund (nothing written) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrossOutletRefundResponse"];
+                };
+            };
+            /** @description refund applied */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrossOutletRefundResponse"];
+                };
+            };
+            /** @description malformed body, ids, deviceId, clientRefundUuid or reason; line errors */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description order not found, same outlet, no open shift at this outlet, already refunded, not refundable or quantity exceeded */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description busy (lock conflict), nothing applied; retry with the same clientRefundUuid */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    crossOutletLookup: {
+        parameters: {
+            query?: {
+                orderNumber?: string;
+                phone?: string;
+            };
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description matching sales of other outlets */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrossOutletLookupResponse"];
+                };
+            };
+            /** @description neither or both of orderNumber and phone, or an invalid phone */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
         };
     };
     voidOrder: {

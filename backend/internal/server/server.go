@@ -203,6 +203,11 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 			r.Post("/orders", h.CreateOrder)
 			r.With(mw.RequirePermission("process_refund")).
 				Post("/orders/{id}/refund", h.RefundOrder)
+			// A18: online-only return of another outlet's sale, paid from this outlet's open shift.
+			r.With(mw.RequirePermission("process_refund")).
+				Post("/orders/{id}/cross-outlet-refund", h.RefundCrossOutlet)
+			r.With(mw.RequirePermission("process_refund")).
+				Get("/cross-outlet-returns/lookup", h.CrossOutletLookup)
 			// Void (migration 0092): the Backoffice path needs void_any; the preview also serves a
 			// cashier holding void_own_shift (checked in the handler).
 			r.With(mw.RequirePermission("void_any")).

@@ -1808,6 +1808,7 @@ components:
         reason: { type: string }
         reasonCode: { type: string, nullable: true }
         shiftId: { type: string, format: uuid, nullable: true }
+        outletId: { type: string, format: uuid, description: 'The outlet that paid the refund out (A18: differs from the order outlet on a cross-outlet return). Absent on responses from an older server.' }
         refundedByName: { type: string, nullable: true }
         refundedAt: { type: string, format: date-time }
         refundBusinessDate: { type: string, format: date, nullable: true }
@@ -1830,7 +1831,9 @@ components:
         orderId: { type: string, format: uuid }
         orderNumber: { type: string }
         outletId: { type: string, format: uuid }
-        outletName: { type: string }
+        outletName: { type: string, description: 'The outlet that paid the refund out.' }
+        saleOutletId: { type: string, format: uuid, description: 'Where the sale was made (A18); equals outletId unless the refund was a cross-outlet return.' }
+        saleOutletName: { type: string }
         cashierName: { type: string, description: 'Cashier of the sale.' }
         seq: { type: integer, description: 'Refund ke-N of the order.' }
         scope: { type: string, enum: [full, partial, legacy_full] }
@@ -2800,6 +2803,55 @@ components:
             properties:
               lineNo: { type: integer, minimum: 0, maximum: 32767 }
               quantity: { type: integer, minimum: 1 }
+    CrossOutletRefundRequest:
+      type: object
+      required: [clientRefundUuid, deviceId, shiftId, reason]
+      properties:
+        clientRefundUuid: { type: string, format: uuid, description: 'Idempotency key generated and stored by the tablet before the first send.' }
+        deviceId: { type: string, minLength: 1, maxLength: 128 }
+        shiftId: { type: string, format: uuid, description: 'The open shift of the active outlet that pays the refund out.' }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        reasonCode: { type: string, maxLength: 40, pattern: '^[a-z0-9_-]+$' }
+        items:
+          type: array
+          minItems: 1
+          description: Per-line refund. Absent = the whole order (legacy order without line numbers).
+          items:
+            type: object
+            required: [lineNo, quantity]
+            properties:
+              lineNo: { type: integer, minimum: 0, maximum: 32767 }
+              quantity: { type: integer, minimum: 1 }
+        refundAmount: { type: number, format: double, minimum: 0, description: 'What the tablet showed (captured fact, flagged when it differs).' }
+        payoutMethod: { type: string, maxLength: 64 }
+        payoutPicked: { type: boolean }
+    CrossOutletRefundResult:
+      type: object
+      required: [refundId, refundState, amount, replayed, saleOutletId, refund, order]
+      properties:
+        refundId: { type: string, format: uuid }
+        refundState: { type: string, enum: [full, partial] }
+        amount: { type: number, format: double }
+        replayed: { type: boolean }
+        saleOutletId: { type: string, format: uuid }
+        refund: { $ref: '#/components/schemas/OrderRefund' }
+        order: { $ref: '#/components/schemas/CrossOutletOrder' }
+    CrossOutletRefundResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/CrossOutletRefundResult' }
+    CrossOutletOrder:
+      type: object
+      required: [outletName, order]
+      properties:
+        outletName: { type: string, description: 'The outlet the sale was made at.' }
+        order: { $ref: '#/components/schemas/Order' }
+    CrossOutletLookupResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/CrossOutletOrder' } }
     # C4a: documented shape of SyncBatchItem.payload for type "refund" (the payload itself stays
     # free-form, so this schema is reference-only and not wired into any operation).
     SyncRefundPayload:
@@ -6733,6 +6785,57 @@ paths:
         '400': { description: "invalid order id or reason (trimmed, 1-500 characters)" }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { description: "already refunded; partially refunded; not completed; or not found at this outlet" }
+  /api/v1/orders/{id}/cross-outlet-refund:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: refundCrossOutlet
+      tags: [sales]
+      summary: Online-only refund of a sale made at another outlet (A18), paid out of the active outlet open shift
+      description: The returned units go back into the ACTIVE outlet stock and its open shift pays the money. Idempotent on (deviceId, clientRefundUuid); a replay answers 200 with the original refund. Needs process_refund and an explicit active outlet.
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CrossOutletRefundRequest' }
+      responses:
+        '200':
+          description: replay of an earlier identical refund (nothing written)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrossOutletRefundResponse' }
+        '201':
+          description: refund applied
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrossOutletRefundResponse' }
+        '400': { description: "malformed body, ids, deviceId, clientRefundUuid or reason; line errors" }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: "order not found, same outlet, no open shift at this outlet, already refunded, not refundable or quantity exceeded" }
+        '503': { description: "busy (lock conflict), nothing applied; retry with the same clientRefundUuid" }
+  /api/v1/cross-outlet-returns/lookup:
+    get:
+      operationId: crossOutletLookup
+      tags: [sales]
+      summary: Find another outlet sale by exact order number or exact customer phone (A18)
+      description: Exactly one of orderNumber or phone. Completed and refunded sales of OTHER outlets, newest first, at most 20. Customer name and device id are stripped.
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+        - { name: orderNumber, in: query, required: false, schema: { type: string, maxLength: 64 } }
+        - { name: phone, in: query, required: false, schema: { type: string, maxLength: 32 } }
+      responses:
+        '200':
+          description: matching sales of other outlets
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrossOutletLookupResponse' }
+        '400': { description: "neither or both of orderNumber and phone, or an invalid phone" }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/v1/orders/{id}/void:
     parameters:
       - name: id
