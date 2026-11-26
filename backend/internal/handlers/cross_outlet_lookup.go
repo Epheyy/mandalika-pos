@@ -114,6 +114,18 @@ func (h *Handlers) logXOLookup(ctx context.Context, row xoLookupRow) error {
 	return err
 }
 
+// xoMaskIfPhoneLike hides a phone number that reached the server as an order number (typed with odd
+// punctuation). Used only when no sale matched or nothing was looked up, so a purely numeric but real
+// order number (numeric outlet code) keeps its full value in the log.
+func xoMaskIfPhoneLike(row *xoLookupRow) {
+	if row.Kind != xoKindOrderNumber {
+		return
+	}
+	if norm := phone.Normalize(row.Value); norm != "" {
+		row.Value = xoMaskPhone(norm)
+	}
+}
+
 // xoLogOrFail writes the log row; on a failed write it answers 503 + Retry-After (fail closed: no
 // result leaves without its row) and reports false.
 func (h *Handlers) xoLogOrFail(w http.ResponseWriter, r *http.Request, row xoLookupRow) bool {
@@ -150,10 +162,6 @@ func (h *Handlers) CrossOutletLookup(w http.ResponseWriter, r *http.Request) {
 	norm := ""
 	if number != "" {
 		row.Kind, row.Value = xoKindOrderNumber, xoTruncateRunes(number, xoMaxQueryRunes)
-		if phone.Normalize(number) != "" {
-			// A phone typed with unusual punctuation reaches us as an order number: never store it in full.
-			row.Value = xoMaskPhone(phone.Normalize(number))
-		}
 	} else {
 		if norm = phone.Normalize(rawPhone); norm == "" {
 			httpx.Err(w, http.StatusBadRequest, "Nomor HP tidak valid")
@@ -163,6 +171,7 @@ func (h *Handlers) CrossOutletLookup(w http.ResponseWriter, r *http.Request) {
 	}
 	if retryAfter, over, ok := h.xoWindowAllowed(r.Context(), c.userID, time.Now()); !ok {
 		row.RateLimited = true
+		xoMaskIfPhoneLike(&row)
 		if over <= xoLimitedLogCap && !h.xoLogOrFail(w, r, row) {
 			return
 		}
@@ -182,6 +191,7 @@ func (h *Handlers) CrossOutletLookup(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		// The attempt used budget and is still on record, even though nothing was returned.
+		xoMaskIfPhoneLike(&row)
 		_ = h.logXOLookup(r.Context(), row)
 		writeErr(w, r, http.StatusInternalServerError, err)
 		return
@@ -190,6 +200,9 @@ func (h *Handlers) CrossOutletLookup(w http.ResponseWriter, r *http.Request) {
 		rows = []api.CrossOutletOrder{}
 	}
 	row.ResultCount = len(rows)
+	if len(rows) == 0 {
+		xoMaskIfPhoneLike(&row)
+	}
 	if !h.xoLogOrFail(w, r, row) {
 		return
 	}
