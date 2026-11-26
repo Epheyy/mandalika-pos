@@ -40,6 +40,16 @@ interface RefundDialogProps {
   error?: string | null
   onConfirm: (orderId: string, input: RefundConfirmInput) => void
   onClose: () => void
+  /** A18: the sale was made at another outlet; the refund is sent online and paid from this outlet's shift. */
+  crossOutlet?: CrossOutletDialogInfo
+}
+
+export interface CrossOutletDialogInfo {
+  originName: string
+  /** An earlier attempt is still unanswered: offer to resend it or to check the sale. */
+  pending: boolean
+  onResend: () => void
+  onCheck: () => void
 }
 
 function LineRow({ line, lines, sel, onChange, onToggle }: {
@@ -124,7 +134,7 @@ export const RefundDialog = memo(function RefundDialog(props: RefundDialogProps)
   return props.order ? <RefundDialogBody key={props.order.id} {...props} order={props.order} /> : null
 })
 
-function RefundDialogBody({ order, cache, methods, isProcessing, error, onConfirm, onClose }: RefundDialogProps & { order: Order }) {
+function RefundDialogBody({ order, cache, methods, isProcessing, error, onConfirm, onClose, crossOutlet }: RefundDialogProps & { order: Order }) {
   const [sel, setSel] = useState<Selection>(EMPTY_SELECTION)
   const [code, setCode] = useState<string | null>(null)
   const [text, setText] = useState('')
@@ -157,6 +167,11 @@ function RefundDialogBody({ order, cache, methods, isProcessing, error, onConfir
       <p className="text-xs text-ink-500 mb-1">
         {[formatHistoryStamp(order.clientCreatedAt ?? order.createdAt), `Dibayar ${paidBy}`, order.cashierName ? `Kasir ${order.cashierName}` : null, order.customerName].filter(Boolean).join(' · ')}
       </p>
+      {crossOutlet && (
+        <p className="text-xs font-semibold text-ink-900 bg-paper-1 rounded-control px-3 py-2 mb-2" data-testid="refund-cross-note">
+          Penjualan di outlet {crossOutlet.originName}. Refund dibayar dari shift outlet ini.
+        </p>
+      )}
       {perLine && basis.priorAmount > 0 && (
         <StatusBadge tone="warn" label={refundPartialNote(remainingAmount(basis))} className="mb-3" />
       )}
@@ -212,10 +227,16 @@ function RefundDialogBody({ order, cache, methods, isProcessing, error, onConfir
       </div>
       <p className="text-xs text-ink-500 mb-4">
         {result?.settlesRemainder ? 'Refund terakhir: jumlah sisa transaksi. ' : ''}
-        {split ? `Dikembalikan lewat ${payout ? tenderName(payout, methods) : 'metode pembayaran'}.` : `Dibayar lewat ${method}.`} Stok akan dipulihkan oleh kantor pusat saat terkirim.
+        {split ? `Dikembalikan lewat ${payout ? tenderName(payout, methods) : 'metode pembayaran'}.` : `Dibayar lewat ${method}.`} {crossOutlet ? 'Stok kembali ke outlet ini setelah server menerima refund.' : 'Stok akan dipulihkan oleh kantor pusat saat terkirim.'}
       </p>
 
       {error && <Banner tone="danger" message={error} className="rounded-control mb-4" />}
+      {crossOutlet?.pending && (
+        <div className="flex gap-2 mb-4" data-testid="refund-cross-pending">
+          <Button variant="secondary" onClick={crossOutlet.onResend} disabled={isProcessing} className="flex-1">Kirim ulang refund sebelumnya</Button>
+          <Button variant="secondary" onClick={crossOutlet.onCheck} disabled={isProcessing} className="flex-1">Cek transaksi</Button>
+        </div>
+      )}
 
       <div className="flex items-stretch gap-2">
         <Button variant="secondary" size="lg" onClick={onClose} disabled={isProcessing} className="shrink-0">
@@ -224,9 +245,9 @@ function RefundDialogBody({ order, cache, methods, isProcessing, error, onConfir
         <button type="button" onClick={confirm} disabled={!ready}
           aria-label={isProcessing ? undefined : `Konfirmasi Refund ${formatRupiah(amount)}`}
           className="bar-danger press-bar flex-1 min-h-16 rounded-control px-5 flex items-center justify-between gap-3 font-bold tnum disabled:opacity-40 disabled:pointer-events-none">
-          {isProcessing ? <span className="text-base">Memproses…</span> : (
+          {isProcessing ? <span className="text-base">{crossOutlet ? 'Mengirim ke server, jangan bayar dulu' : 'Memproses…'}</span> : (
             <>
-              <span className="text-lg">Refund</span>
+              <span className="text-lg">{crossOutlet ? 'Kirim refund (butuh internet)' : 'Refund'}</span>
               <span className="text-xl">{formatRupiah(amount)}</span>
             </>
           )}

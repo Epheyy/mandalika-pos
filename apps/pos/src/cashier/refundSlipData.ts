@@ -25,6 +25,8 @@ export function buildRefundSlipData(i: {
   cashierName: string
   at: Date
   outlet?: RefundSlipData['outlet']
+  /** A18: the sale outlet's name when the sale was made at another outlet (prints "Transaksi asal"). */
+  originOutlet?: string
 }): RefundSlipData {
   const { order, payload } = i
   const basis = buildRefundBasis(order, i.cache)
@@ -52,6 +54,7 @@ export function buildRefundSlipData(i: {
     reasonLabel: payload.reason,
     cashierName: i.cashierName,
     ...(i.outlet ? { outlet: i.outlet } : {}),
+    ...(i.originOutlet ? { originOutlet: i.originOutlet } : {}),
   }
 }
 

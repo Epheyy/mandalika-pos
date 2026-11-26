@@ -135,6 +135,12 @@ describe('refundSlipBytes', () => {
     })
   }
 
+  it('prints "Transaksi asal" only when the sale was made at another outlet (A18)', () => {
+    const cross = text(refundSlipBytes(standarLayout(settings), refund({ originOutlet: 'Lewiliang' })))
+    expect(cross).toContain('Transaksi asal: Lewiliang')
+    expect(text(refundSlipBytes(standarLayout(settings), refund()))).not.toContain('Transaksi asal')
+  })
+
   it('omits the Alasan row without a reason and wraps a long payout label', () => {
     const out = text(refundSlipBytes(standarLayout(settings), refund({ reasonLabel: undefined, payoutLabel: 'Kartu Debit BCA Sangat Panjang Sekali Namanya Lho' })))
     expect(out).not.toContain('Alasan:')

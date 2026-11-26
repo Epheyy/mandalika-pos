@@ -30,6 +30,13 @@ describe('buildRefundSlipData', () => {
     expect(d.payoutLabel).toBe('Tunai')
   })
 
+  it('carries the sale outlet as originOutlet only when given (A18)', () => {
+    const o = order([line(0, 'A', 1, 100000)])
+    const payload = plan(o, { 0: 1 })
+    expect(buildRefundSlipData({ order: o, payload, cashierName: 'K', at: AT, originOutlet: 'Lewiliang' }).originOutlet).toBe('Lewiliang')
+    expect('originOutlet' in buildRefundSlipData({ order: o, payload, cashierName: 'K', at: AT })).toBe(false)
+  })
+
   it('lines + adjustment always add up to the payout, and no line is bent to make it so', () => {
     const o = order([line(0, 'A', 3, 100000), line(1, 'B', 1, 50)])
     const d = buildRefundSlipData({ order: o, payload: plan(o, { 0: 3, 1: 1 }), cashierName: 'K', at: AT })

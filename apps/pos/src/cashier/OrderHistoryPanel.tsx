@@ -21,9 +21,11 @@ import type { Tone } from '../components/ui/tone'
 import { IconPrinter } from '../components/ui/icons'
 import { orderAdjustmentRows } from './receiptRows'
 import { VoidAction } from './void/VoidAction'
+import { CrossOutletSearch } from './crossOutlet/CrossOutletSearch'
 import { VOID_REASONS, parkedVoidNote, voidAvailability, type VoidAvailabilityInput } from './void/voidRules'
 
 type Order = components['schemas']['Order']
+type CrossOutletOrder = components['schemas']['CrossOutletOrder']
 type OrderListResponse = components['schemas']['OrderListResponse']
 
 /** Open on one sale: its day window, its number in the search box, its row expanded. The parent keys the panel by it. */
@@ -75,6 +77,10 @@ interface OrderHistoryPanelProps {
   parkedVoids?: Parameters<typeof parkedVoidNote>[0]
   onVoid?: (order: Order) => void
   onCreateReplacement?: (order: Order) => void
+  /** A18: this tablet is online. Absent with onRefundCrossOutlet = the "Outlet lain" tab is not offered. */
+  isOnline?: boolean
+  /** A18: refund a sale made at another outlet, from the "Outlet lain" tab (online only). */
+  onRefundCrossOutlet?: (row: CrossOutletOrder) => void
 }
 const ONE_DAY_MS = 86_400_000
 
@@ -124,7 +130,8 @@ function VoidDetails({ order, onOpenOrder }: { order: Order; onOpenOrder: (order
   )
 }
 
-export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, voidedOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, paymentMethods, timezone, shiftOpenedAt, voidGate, parkedVoids, onVoid, onCreateReplacement }: OrderHistoryPanelProps) {
+export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, voidedOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, paymentMethods, timezone, shiftOpenedAt, voidGate, parkedVoids, onVoid, onCreateReplacement, isOnline, onRefundCrossOutlet }: OrderHistoryPanelProps) {
+  const [scope, setScope] = useState<'here' | 'other'>('here')
   const [from, setFrom] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).from : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
   const [to, setTo] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).to : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
   // Once the cashier picks a day (or the panel opened on a given sale), a late-arriving timezone/shift no longer moves it.
@@ -223,7 +230,20 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
 
   return (
     <Sheet open variant="center" maxWidth="max-w-2xl" panelClassName="max-h-[90vh] flex flex-col" title="Riwayat Transaksi" header onClose={onClose}>
-
+        {onRefundCrossOutlet && (
+          <div role="group" aria-label="Asal transaksi" className="mx-5 mt-3 grid grid-cols-2 gap-1 p-1 rounded-control bg-paper-1 flex-shrink-0">
+            {([['here', 'Outlet ini'], ['other', 'Outlet lain']] as const).map(([key, label]) => (
+              <button key={key} type="button" aria-pressed={scope === key} onClick={() => setScope(key)}
+                className={`min-h-11 rounded-control text-sm font-semibold press ${scope === key ? 'bg-white text-brand-strong shadow-sm' : 'text-ink-700'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        {onRefundCrossOutlet && scope === 'other' ? (
+          <CrossOutletSearch isOnline={isOnline ?? false} canRefund={canRefund && hasOpenShift && !shiftUnsynced} onRefund={onRefundCrossOutlet} />
+        ) : (
+        <>
         {/* Filters: quick day segments like the mock; "Pilih tanggal" reveals the range boxes. */}
         <div className="px-5 py-3 border-b border-paper-2 space-y-2 flex-shrink-0">
           <p id="history-shift-day-label" className="text-xs text-ink-700 font-semibold">Hari shift</p>
@@ -458,6 +478,8 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
             </Button>
           </div>
         </div>
+        </>
+        )}
     </Sheet>
   )
 }

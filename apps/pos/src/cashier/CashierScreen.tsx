@@ -50,6 +50,8 @@ import { ShiftBar } from './ShiftBar'
 import { ReceiptPreview } from './ReceiptPreview'
 import { orderStateFor } from './orderState'
 import { RefundDialog, type RefundConfirmInput } from './RefundDialog'
+import { isCrossOutletOrder, useCrossOutletRefund } from './crossOutlet/useCrossOutletRefund'
+import { buildCrossOutletSlipData } from './crossOutlet/crossOutletSlip'
 import { buildRefundSlipData, printRefundSlipSafely } from './refundSlipData'
 import type { RefundCache } from './refundSelection'
 import type { HistoryFocus } from './OrderHistoryPanel'
@@ -1191,9 +1193,34 @@ export default function CashierScreen() {
   const refundIdsFor = (orderId: string): string[] =>
     [orderId, refundSale?.orderUuid, refundSale?.serverOrderId, saleUuidByServerId.get(orderId)].filter((k): k is string => !!k)
 
+  // A18: refunds of a sale made at another outlet go straight to the server (online only), never to the outbox.
+  const crossRefund = useCrossOutletRefund({
+    api, isOnline: offlineData.isOnline, deviceId: engine.deviceId, gate: refundGate.current,
+    onApplied: (result, message, replayed) => {
+      setRefundOrder((cur) => (cur?.id === result.order.order.id ? null : cur))
+      setRefundSale(null)
+      crossRefund.reset()
+      kitToast.showToast(message, { tone: replayed ? 'warn' : 'ok' })
+      void shift.refreshShift()
+      void printRefundSlipSafely({
+        isPaired: printer.isPaired,
+        build: () => buildCrossOutletSlipData({
+          result, methods: settings.paymentMethods, cashierName: user?.displayName ?? 'Kasir', at: new Date(), outlet: receiptOutlet(snapshot),
+        }),
+        print: (data) => printer.printRefundSlip(data, settings.receipt, receiptLayout),
+        orderRef: result.order.order.orderNumber,
+        outletName: snapshot.outletName,
+        onFailure: (msg) => showToast(msg),
+        report: (r) => { void reportErrors([r]) },
+      })
+    },
+    onOrderRefreshed: (o) => setRefundOrder(o),
+  })
+
   const handleRefundConfirm = async (orderId: string, input: RefundConfirmInput) => {
     if (refundGate.current.isBusy()) return
-    const lockedMsg = offlineLock()
+    const isCross = isCrossOutletOrder(refundOrder, authStore.outletId)
+    const lockedMsg = isCross ? null : offlineLock()
     if (lockedMsg) {
       setRefundError(lockedMsg)
       return
@@ -1224,6 +1251,11 @@ export default function CashierScreen() {
     // The slip is built after the refund is saved, but from the queued payload and `slipCache` (the refund memory read
     // before queuing, which queuing changes), so it shows what was saved. A failure only costs the slip (it is built
     // inside the guard below), never the refund.
+    if (isCross && refundOrder) {
+      if (plan.kind !== 'enqueue' || !shift.currentShift?.id) return
+      await crossRefund.submit({ order: refundOrder, payload: plan.payload, shiftId: shift.currentShift.id })
+      return
+    }
     const slipOrder = refundOrder
     setIsRefunding(true)
     const outcome = await refundGate.current.run(() => engine.enqueue('refund', { ...plan.payload }))
@@ -1733,6 +1765,8 @@ export default function CashierScreen() {
         isOpen={showHistory}
         onClose={() => setShowHistory(false)}
         onRefund={(o) => { if (voidDraftNames(state.voidDraft, [o.id])) { showToast(VOID_BLOCKED_DRAFT); return }; setShowHistory(false); setRefundSale(null); setRefundOrder(o) }}
+        isOnline={offlineData.isOnline}
+        onRefundCrossOutlet={(row) => { setShowHistory(false); setRefundSale(null); setRefundError(null); setRefundOrder(crossRefund.begin(row)) }}
         onReprint={reprintOrder}
         canReprint={printer.isPaired}
         timezone={outletTimezone}
@@ -1770,9 +1804,10 @@ export default function CashierScreen() {
         previewFailed={voidFlow.previewFailed} onRetryPreview={voidFlow.retryPreview}
         isProcessing={voidFlow.isProcessing} error={voidFlow.error} onConfirm={(i) => { void voidFlow.confirm(i) }} onClose={voidFlow.close} />
 
-      <RefundDialog order={refundOrder} methods={settings.paymentMethods} cache={refundOrder ? refundCacheFor(refundIdsFor(refundOrder.id)) : undefined} isProcessing={isRefunding} error={refundError}
+      <RefundDialog order={refundOrder} methods={settings.paymentMethods} cache={refundOrder ? refundCacheFor(refundIdsFor(refundOrder.id)) : undefined} isProcessing={isRefunding || crossRefund.busy} error={crossRefund.error ?? refundError}
+        crossOutlet={isCrossOutletOrder(refundOrder, authStore.outletId) && refundOrder ? { originName: crossRefund.originName ?? 'lain', pending: crossRefund.pending, onResend: () => { void crossRefund.resend() }, onCheck: () => { void crossRefund.check(refundOrder) } } : undefined}
         onConfirm={(id, input) => { void handleRefundConfirm(id, input) }}
-        onClose={() => { setRefundError(null); setRefundOrder(null); setRefundSale(null) }} />
+        onClose={() => { setRefundError(null); setRefundOrder(null); setRefundSale(null); crossRefund.reset() }} />
 
       {showReceive && (
         <ReceiveTransferPanel

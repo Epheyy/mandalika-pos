@@ -81,6 +81,8 @@ export interface RefundSlipData {
   reasonLabel?: string
   cashierName: string
   outlet?: ReceiptData['outlet']
+  /** A18: the outlet the sale was made at, printed as "Transaksi asal" when a return is made at another outlet. */
+  originOutlet?: string
 }
 
 export type SlipStamp = 'REFUND' | 'DIBATALKAN'
@@ -135,6 +137,7 @@ function refundBody(data: RefundSlipData, cols: number): { text: string; bold?: 
   for (const l of wrapAt(`No: #${clean(data.orderRef)}`, cols)) emit(l)
   const when = data.dateTime.toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
   for (const l of wrapAt(`Tgl: ${clean(when)}`, cols)) emit(l)
+  if (data.originOutlet) for (const l of wrapAt(`Transaksi asal: ${clean(data.originOutlet)}`, cols)) emit(l)
   for (const ln of data.lines) {
     const name = clean([ln.name, ln.variant].filter(Boolean).join(' '))
     labelRow((t) => emit(t), `${ln.qty} x ${name}`, money(ln.amount), cols)
