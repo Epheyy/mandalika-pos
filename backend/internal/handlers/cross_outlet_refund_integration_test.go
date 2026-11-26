@@ -299,10 +299,13 @@ func TestCrossOutletRefundPostgres(t *testing.T) {
 		if code != 200 || len(rows) != 1 || rows[0].OutletName != "XO outlet 1" || rows[0].Order["id"] != cashSale {
 			t.Fatalf("by number: %d %+v", code, rows)
 		}
-		for _, k := range []string{"customerName", "customerId", "deviceId"} {
+		for _, k := range []string{"customerName", "customerId", "deviceId", "notes", "salesmanId", "salesmanName", "refundedBy"} {
 			if _, ok := rows[0].Order[k]; ok {
 				t.Fatalf("lookup leaked %s", k)
 			}
+		}
+		if _, ok := rows[0].Order["cashierName"]; !ok {
+			t.Fatal("lookup must keep cashierName for the refund dialog")
 		}
 		code, rows = look(yTok, "phone=0812-3456-7890", nil)
 		if code != 200 || len(rows) != 1 || rows[0].Order["id"] != cashSale {
@@ -323,6 +326,9 @@ func TestCrossOutletRefundPostgres(t *testing.T) {
 		}
 		if code, _ = look(adminAll, "orderNumber="+num0, nil); code != 403 {
 			t.Fatalf("admin without an active outlet: %d", code)
+		}
+		if code, _ = look(adminAll, "orderNumber="+num0, map[string]string{"X-Outlet-Id": "not-a-uuid"}); code != 400 {
+			t.Fatalf("non-uuid active outlet must be a 400, not a 500: %d", code)
 		}
 	})
 
@@ -400,6 +406,29 @@ func TestCrossOutletRefundPostgres(t *testing.T) {
 		}
 		other := cross(yTok, nil, splitSale, xoBody(w.shiftY, firstUUID, item(0, 1)))
 		wantCode("same uuid on another order", other, 400)
+		// A Manajer covering X and Y resends the committed Y payout with X active (and an upper-cased id).
+		mgr2 := nextID("0b00")
+		exec(`INSERT INTO users(id,email,password_hash,display_name,role,outlet_id) VALUES($1,'xo-mgr2@example.invalid','x','XO mgr2','manager',$2)`, mgr2, w.x.id)
+		exec(`INSERT INTO user_outlets(user_id,outlet_id) VALUES($1,$2)`, mgr2, w.y.id)
+		mgr2Tok, err := auth.IssueAccessCov(secret, time.Hour, mgr2, "manager", w.x.id, []string{"process_refund"}, 0,
+			coverage.Coverage{OutletIDs: []string{w.x.id, w.y.id}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		mUUID := nextID("1300")
+		wantCode("manager refund at Y", cross(mgr2Tok, map[string]string{"X-Outlet-Id": w.y.id}, splitSale, xoBody(w.shiftY, mUUID, item(0, 1))), 201)
+		before = totals()
+		rows0, yStock0, xStock0 := refundRows(splitSale), stock(w.y, w.pA), stock(w.x, w.pA)
+		r = cross(mgr2Tok, map[string]string{"X-Outlet-Id": w.x.id}, splitSale, xoBody(w.shiftY, mUUID, item(0, 1)))
+		wantCode("replay with the sale outlet active", r, 200)
+		if !r.data.Replayed || refundRows(splitSale) != rows0 || totals() != before || stock(w.y, w.pA) != yStock0 || stock(w.x, w.pA) != xStock0 {
+			t.Fatalf("replay with X active must write nothing: %+v", r.data)
+		}
+		r = cross(mgr2Tok, map[string]string{"X-Outlet-Id": w.y.id}, strings.ToUpper(splitSale), xoBody(w.shiftY, mUUID, item(0, 1)))
+		wantCode("replay with an upper-cased order id", r, 200)
+		if !r.data.Replayed || refundRows(splitSale) != rows0 || totals() != before {
+			t.Fatalf("upper-cased replay must write nothing: %+v", r.data)
+		}
 		// a second world so closing Y's shift does not disturb the later subtests
 		w2 := newWorld()
 		sale := sell(w2.x, w2.shiftX, "", "cash", nil, line(w2.pA, 2, 10000))
@@ -440,6 +469,7 @@ func TestCrossOutletRefundPostgres(t *testing.T) {
 
 	t.Run("7 coverage and validation", func(t *testing.T) {
 		wantCode("kasir sending X-Outlet-Id of X", cross(yTok, map[string]string{"X-Outlet-Id": w.x.id}, splitSale, xoBody(w.shiftY, nextID("1300"), item(0, 1))), 403)
+		wantCode("non-uuid active outlet", cross(adminAll, map[string]string{"X-Outlet-Id": "not-a-uuid"}, splitSale, xoBody(w.shiftY, nextID("1300"), item(0, 1))), 400)
 		mgrID := nextID("0b00")
 		exec(`INSERT INTO users(id,email,password_hash,display_name,role,outlet_id) VALUES($1,'xo-mgr@example.invalid','x','XO mgr','manager',$2)`, mgrID, w.x.id)
 		exec(`INSERT INTO user_outlets(user_id,outlet_id) VALUES($1,$2)`, mgrID, w.y.id)
@@ -613,6 +643,7 @@ func TestCrossOutletRefundPostgres(t *testing.T) {
 	t.Run("12 concurrency: Y's cross refund and X's batch refund of the last unit", func(t *testing.T) {
 		w := newWorld()
 		sale := sell(w.x, w.shiftX, "", "cash", nil, line(w.pA, 1, 10000))
+		xS0, yS0 := stock(w.x, w.pA), stock(w.y, w.pA)
 		var wg sync.WaitGroup
 		var crossCode int
 		var batchRes map[string]any
@@ -647,6 +678,16 @@ func TestCrossOutletRefundPostgres(t *testing.T) {
 		}
 		if !crossOK && crossCode != 409 {
 			t.Fatalf("the losing cross refund must be a 409, got %d", crossCode)
+		}
+		// exactly one restock, at the outlet that won the refund
+		wantX, wantY := xS0, yS0
+		if crossOK {
+			wantY++
+		} else {
+			wantX++
+		}
+		if stock(w.x, w.pA) != wantX || stock(w.y, w.pA) != wantY {
+			t.Fatalf("stock after the race: X %d (want %d) Y %d (want %d)", stock(w.x, w.pA), wantX, stock(w.y, w.pA), wantY)
 		}
 	})
 }

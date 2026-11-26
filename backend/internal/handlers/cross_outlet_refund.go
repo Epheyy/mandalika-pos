@@ -28,6 +28,7 @@ const (
 	maxCrossRefundAmountRp = 1e12
 	crossRefundRetryAfter  = "2"
 	msgNoActiveOutlet      = "Outlet aktif belum dipilih untuk akun ini."
+	msgBadActiveOutlet     = "Outlet aktif tidak valid. Pilih outlet dari daftar outlet."
 )
 
 type crossOutletRefundBody struct {
@@ -60,7 +61,7 @@ func crossRefundInput(orderID string, b crossOutletRefundBody, outletID, userID,
 		return service.RefundInput{}, err
 	}
 	in := service.RefundInput{
-		OutletID: outletID, OrderID: orderID, Reason: b.Reason,
+		OutletID: outletID, OrderID: strings.ToLower(orderID), Reason: b.Reason,
 		ShiftID: strings.ToLower(b.ShiftID), UserID: userID, UserName: userName,
 		ReasonCode: b.ReasonCode, PayoutMethod: b.PayoutMethod, PayoutPicked: b.PayoutPicked,
 		DeviceID: b.DeviceID, ClientRefundUUID: strings.ToLower(b.ClientRefundUUID),
@@ -144,8 +145,14 @@ func (h *Handlers) RefundCrossOutlet(w http.ResponseWriter, r *http.Request) {
 	}
 	c, _ := h.caller(r)
 	if c.outletID == "" {
-		// No admin fallback (unlike RefundOrder): the returning outlet must be explicit.
+		// No admin fallback (unlike RefundOrder): the returning outlet must be explicit. The middleware
+		// already put the token's outlet in context when no X-Outlet-Id was sent, so this only fires for
+		// a token with no outlet at all.
 		httpx.Err(w, http.StatusForbidden, msgNoActiveOutlet)
+		return
+	}
+	if !service.IsCanonicalUUID(c.outletID) {
+		httpx.Err(w, http.StatusBadRequest, msgBadActiveOutlet)
 		return
 	}
 	in, err := crossRefundInput(id, body, c.outletID, c.userID, c.name)
@@ -205,6 +212,10 @@ func (h *Handlers) CrossOutletLookup(w http.ResponseWriter, r *http.Request) {
 	c, _ := h.caller(r)
 	if c.outletID == "" {
 		httpx.Err(w, http.StatusForbidden, msgNoActiveOutlet)
+		return
+	}
+	if !service.IsCanonicalUUID(c.outletID) {
+		httpx.Err(w, http.StatusBadRequest, msgBadActiveOutlet)
 		return
 	}
 	q := r.URL.Query()

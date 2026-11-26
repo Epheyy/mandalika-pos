@@ -12,10 +12,12 @@ import (
 const crossOutletMaxRows = 20
 
 // crossOutletObj is one lookup row: the order as every order read returns it, minus the fields a
-// stranger at another outlet must not read (A30): the customer id and name and the device id. The
-// phone is never part of orderObj.
+// stranger at another outlet must not read (A30): the customer id and name, the device id, the free-text
+// notes, the salesman id and name and the refunder's user id. cashierName stays (the
+// refund dialog shows it). The phone is never part of orderObj.
 const crossOutletObj = `jsonb_build_object('outletName',ou.name,
-  'order',(` + orderObj + `)::jsonb - 'customerId' - 'customerName' - 'deviceId')`
+  'order',(` + orderObj + `)::jsonb - 'customerId' - 'customerName' - 'deviceId'
+    - 'notes' - 'salesmanId' - 'salesmanName' - 'refundedBy')`
 
 const crossOutletFrom = ` FROM orders o JOIN outlets ou ON ou.id = o.outlet_id
  WHERE o.outlet_id <> $1::uuid AND o.status IN ('completed','partially_refunded','refunded')`

@@ -65,7 +65,10 @@ func (s *OrderService) RefundCrossOutlet(ctx context.Context, in RefundInput) (C
 	if err != nil {
 		return CrossOutletOutcome{}, err
 	}
-	if saleOutlet == in.OutletID {
+	// A replay is never refused for outlet reasons: a Manajer covering X and Y can resend a committed Y
+	// payout with X active, and the tablet must get the original outcome (RefundLinesTx's replay
+	// returns before writing anything, and resolves the order at its sale outlet).
+	if !replay && saleOutlet == in.OutletID {
 		return CrossOutletOutcome{}, ErrCrossRefundSameOutlet
 	}
 

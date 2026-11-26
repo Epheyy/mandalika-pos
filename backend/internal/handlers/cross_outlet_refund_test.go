@@ -51,6 +51,10 @@ func TestCrossRefundInputValidation(t *testing.T) {
 	if err != nil || in.OutletID != "outlet-y" || in.SaleOutletID != "" || in.ShiftID != xoTestShift || in.DeviceID != "tablet-1" {
 		t.Fatalf("valid input: %+v %v", in, err)
 	}
+	up, err := crossRefundInput(strings.ToUpper(xoTestOrder), xoValidBody(), "outlet-y", "u1", "Kasir")
+	if err != nil || up.OrderID != strings.ToLower(xoTestOrder) {
+		t.Fatalf("order id must be lower-cased: %+v %v", up, err)
+	}
 	if _, err := crossRefundInput("nope", xoValidBody(), "o", "u", "n"); !errors.Is(err, service.ErrRefundOrderInvalid) {
 		t.Fatalf("bad order id: %v", err)
 	}
