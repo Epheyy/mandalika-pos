@@ -15,7 +15,7 @@ type CrossOutletLookupFilter struct {
 }
 
 const crossOutletLookupObj = `json_build_object('id',l.id,'createdAt',l.created_at,'userId',l.user_id,
-  'userName',COALESCE(NULLIF(u.display_name,''),NULLIF(l.user_name,''),''),'outletId',l.outlet_id,
+  'userName',COALESCE(NULLIF(l.user_name,''),NULLIF(u.display_name,''),''),'outletId',l.outlet_id,
   'outletName',COALESCE(ou.name,''),'deviceId',l.device_id,'queryKind',l.query_kind,
   'queryValue',l.query_value,'resultCount',l.result_count,'rateLimited',l.rate_limited)`
 

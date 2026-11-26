@@ -137,6 +137,15 @@ func TestCrossOutletLookupGuardPostgres(t *testing.T) {
 	if got := count(`SELECT count(*) FROM cross_outlet_lookups WHERE user_id=$1 AND rate_limited AND result_count=0`, userY); got != 1 {
 		t.Fatalf("rate-limited rows = %d, want 1", got)
 	}
+	// Rate-limited rows are capped per window: 9 more refused attempts add 4 rows (5 in all), still 429.
+	for i := 0; i < 9; i++ {
+		if code, _, _ := get("/cross-outlet-returns/lookup?orderNumber=XL-ORD-0001", kasirY); code != http.StatusTooManyRequests {
+			t.Fatalf("refused attempt %d = %d", i, code)
+		}
+	}
+	if got := count(`SELECT count(*) FROM cross_outlet_lookups WHERE user_id=$1 AND rate_limited`, userY); got != 5 {
+		t.Fatalf("rate-limited rows = %d, want the cap of 5", got)
+	}
 	// The limited answer carries no sale data.
 	if json.Valid(raw) && len(raw) > 400 {
 		t.Fatalf("429 body looks like data: %s", raw)
@@ -145,6 +154,14 @@ func TestCrossOutletLookupGuardPostgres(t *testing.T) {
 	// 4. The limit is per user: a colleague at the same outlet still searches.
 	if code, raw, _ := get("/cross-outlet-returns/lookup?orderNumber=XL-ORD-0001", kasirZ); code != 200 {
 		t.Fatalf("other user = %d %s", code, raw)
+	}
+
+	// 4b. A phone typed with odd punctuation reaches the server as an order number: still masked in the log.
+	if code, raw, _ := get("/cross-outlet-returns/lookup?orderNumber=0812.3456.9999", kasirZ); code != 200 {
+		t.Fatalf("dotted phone = %d %s", code, raw)
+	}
+	if got := count(`SELECT count(*) FROM cross_outlet_lookups WHERE query_value='****9999'`); got != 1 {
+		t.Fatalf("masked dotted phone rows = %d", got)
 	}
 
 	// 5. A bad request (both/neither param) is not counted or logged.
@@ -209,8 +226,8 @@ func TestCrossOutletLookupGuardPostgres(t *testing.T) {
 	if code != 200 || json.Unmarshal(raw, &list) != nil {
 		t.Fatalf("admin list %d %s", code, raw)
 	}
-	if list.Meta.Total != 21 || len(list.Data) != 5 {
-		t.Fatalf("total %d rows %d, want 21/5", list.Meta.Total, len(list.Data))
+	if list.Meta.Total != 25 || len(list.Data) != 5 {
+		t.Fatalf("total %d rows %d, want 25/5", list.Meta.Total, len(list.Data))
 	}
 	if !list.Data[0].RateLimited || list.Data[0].OutletName != "XL outlet Y" || list.Data[0].UserName != "XL cashier" {
 		t.Fatalf("newest row = %+v", list.Data[0])

@@ -26,18 +26,18 @@ func TestXoWindowAllowedLimitsPerUserAndResets(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 11, 26, 10, 0, 30, 0, time.UTC) // 30 s into a 10-minute bucket
 	for i := 1; i <= config.DefaultXOLookupLimit; i++ {
-		if _, ok := h.xoWindowAllowed(ctx, "user-a", now); !ok {
+		if _, _, ok := h.xoWindowAllowed(ctx, "user-a", now); !ok {
 			t.Fatalf("lookup %d refused, the default is %d", i, config.DefaultXOLookupLimit)
 		}
 	}
-	retry, ok := h.xoWindowAllowed(ctx, "user-a", now)
-	if ok || retry != 570 {
+	retry, over, ok := h.xoWindowAllowed(ctx, "user-a", now)
+	if ok || retry != 570 || over != 1 {
 		t.Fatalf("21st lookup: ok=%v retry=%d, want refused with 570 s left", ok, retry)
 	}
-	if _, ok := h.xoWindowAllowed(ctx, "user-b", now); !ok {
+	if _, _, ok := h.xoWindowAllowed(ctx, "user-b", now); !ok {
 		t.Fatal("another user must have their own budget")
 	}
-	if _, ok := h.xoWindowAllowed(ctx, "user-a", now.Add(10*time.Minute)); !ok {
+	if _, _, ok := h.xoWindowAllowed(ctx, "user-a", now.Add(10*time.Minute)); !ok {
 		t.Fatal("the next window must start fresh")
 	}
 }

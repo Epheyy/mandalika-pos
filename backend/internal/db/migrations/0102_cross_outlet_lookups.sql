@@ -1,7 +1,7 @@
 -- 0102: A18 cross-outlet lookup log. One row per lookup attempt (rate-limited ones too), so stepping
 -- (no foreign keys: the log must outlive a deleted user or outlet; user_name is a snapshot)
 -- through other outlets' sequential order numbers shows up. query_value is the order number as typed
--- or the phone masked to its last 4 digits. No retention job (volume is tiny). Additive.
+-- or the phone masked to its last 4 digits. Rate-limited attempts are capped at 5 rows per user and window by the handler; no retention job. Additive.
 SET LOCAL lock_timeout = '5s';
 
 CREATE TABLE cross_outlet_lookups (

@@ -27,7 +27,10 @@ const (
 	xoKindPhone       = "phone"
 	xoMaxQueryRunes   = 64
 	xoMaxDeviceRunes  = 128
-	msgXOLogFailed    = "Pencarian belum dapat dicatat. Coba lagi sebentar lagi."
+	// xoLimitedLogCap bounds the rows written for rate-limited attempts per user and window: stepping
+	// through shows up in the first few, and a looping client must not grow the table without limit.
+	xoLimitedLogCap = 5
+	msgXOLogFailed  = "Pencarian belum dapat dicatat. Coba lagi sebentar lagi."
 )
 
 // xoLookupRow is one cross_outlet_lookups row.
@@ -78,22 +81,22 @@ func xoTruncateRunes(s string, n int) string {
 	return string([]rune(s)[:n])
 }
 
-// xoWindowAllowed counts this attempt in the caller's window. retryAfter is the time left in the
-// window (>= 1 s) and is only meaningful when ok is false.
-func (h *Handlers) xoWindowAllowed(ctx context.Context, userID string, now time.Time) (retryAfter int, ok bool) {
+// xoWindowAllowed counts this attempt in the caller's window. over is how many attempts beyond the
+// limit this window has seen (0 = allowed); retryAfter is the time left in the window (>= 1 s).
+func (h *Handlers) xoWindowAllowed(ctx context.Context, userID string, now time.Time) (retryAfter, over int, ok bool) {
 	limit, window := h.xoBudget()
 	secs := int64(window.Seconds())
 	bucket := now.Unix() / secs
 	key := "rl:xolookup:" + userID + ":" + strconv.FormatInt(bucket, 10)
 	n := h.Cache.IncrWindow(ctx, key, window)
 	if n <= int64(limit) {
-		return 0, true
+		return 0, 0, true
 	}
 	left := secs - now.Unix()%secs
 	if left < 1 {
 		left = 1
 	}
-	return int(left), false
+	return int(left), int(n) - limit, false
 }
 
 func (h *Handlers) logXOLookup(ctx context.Context, row xoLookupRow) error {
@@ -147,6 +150,10 @@ func (h *Handlers) CrossOutletLookup(w http.ResponseWriter, r *http.Request) {
 	norm := ""
 	if number != "" {
 		row.Kind, row.Value = xoKindOrderNumber, xoTruncateRunes(number, xoMaxQueryRunes)
+		if phone.Normalize(number) != "" {
+			// A phone typed with unusual punctuation reaches us as an order number: never store it in full.
+			row.Value = xoMaskPhone(phone.Normalize(number))
+		}
 	} else {
 		if norm = phone.Normalize(rawPhone); norm == "" {
 			httpx.Err(w, http.StatusBadRequest, "Nomor HP tidak valid")
@@ -154,9 +161,9 @@ func (h *Handlers) CrossOutletLookup(w http.ResponseWriter, r *http.Request) {
 		}
 		row.Kind, row.Value = xoKindPhone, xoMaskPhone(norm)
 	}
-	if retryAfter, ok := h.xoWindowAllowed(r.Context(), c.userID, time.Now()); !ok {
+	if retryAfter, over, ok := h.xoWindowAllowed(r.Context(), c.userID, time.Now()); !ok {
 		row.RateLimited = true
-		if !h.xoLogOrFail(w, r, row) {
+		if over <= xoLimitedLogCap && !h.xoLogOrFail(w, r, row) {
 			return
 		}
 		slog.Warn("cross-outlet lookup rate limited", "userId", c.userID, "outletId", c.outletID, "ip", clientip.ClientIPBucket(r))
@@ -174,6 +181,8 @@ func (h *Handlers) CrossOutletLookup(w http.ResponseWriter, r *http.Request) {
 		rows, err = h.Repo.CrossOutletByPhone(r.Context(), c.outletID, norm)
 	}
 	if err != nil {
+		// The attempt used budget and is still on record, even though nothing was returned.
+		_ = h.logXOLookup(r.Context(), row)
 		writeErr(w, r, http.StatusInternalServerError, err)
 		return
 	}
