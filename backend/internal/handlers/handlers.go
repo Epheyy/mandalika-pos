@@ -49,6 +49,11 @@ type Handlers struct {
 	erpEnabled bool
 	// lastErrorLogSweep (unix nanos) throttles the error_logs retention sweep triggered by POST /error-logs.
 	lastErrorLogSweep atomic.Int64
+	// xoLimit / xoWindow: per-user budget of the A18 cross-outlet lookup (zero = defaults).
+	xoLimit  int
+	xoWindow time.Duration
+	// xoLog replaces the PostgreSQL lookup-log insert (tests only).
+	xoLog xoLogFunc
 }
 
 func New(repo *read.Repo, c *cache.Cache, store *auth.Store, wr *write.Repo,

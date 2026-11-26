@@ -7,7 +7,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge'
 import type { Tone } from '../../components/ui/tone'
 import { formatHistoryStamp } from '../historyStamp'
 import { formatRupiah } from '../pricing'
-import { CROSS_OFFLINE_SEARCH, lookupCrossOutlet, lookupQuery } from './crossOutletLookup'
+import { CROSS_OFFLINE_SEARCH, lookupCrossOutlet, lookupErrorMessage, lookupQuery } from './crossOutletLookup'
 
 const STATUS: Record<string, { label: string; tone: Tone }> = {
   completed: { label: 'Selesai', tone: 'ok' },
@@ -20,6 +20,8 @@ interface Props {
   /** The user may refund AND a synced open shift exists at this outlet (the server decides again). */
   canRefund: boolean
   onRefund: (row: CrossOutletOrder) => void
+  /** This tablet's id, sent with the lookup for the head-office log. */
+  deviceId?: string
 }
 
 function ResultCard({ row, canRefund, onRefund }: { row: CrossOutletOrder; canRefund: boolean; onRefund: (r: CrossOutletOrder) => void }) {
@@ -56,7 +58,7 @@ function ResultCard({ row, canRefund, onRefund }: { row: CrossOutletOrder; canRe
 }
 
 /** "Outlet lain" tab of Riwayat (A18): exact order number or phone, online only. Results live in memory only (A30). */
-export function CrossOutletSearch({ isOnline, canRefund, onRefund }: Props) {
+export function CrossOutletSearch({ isOnline, canRefund, onRefund, deviceId }: Props) {
   const [text, setText] = useState('')
   const [rows, setRows] = useState<CrossOutletOrder[] | null>(null)
   const [loading, setLoading] = useState(false)
@@ -67,10 +69,10 @@ export function CrossOutletSearch({ isOnline, canRefund, onRefund }: Props) {
     setLoading(true)
     setError(null)
     try {
-      setRows(await lookupCrossOutlet(api, text))
+      setRows(await lookupCrossOutlet(api, text, deviceId))
     } catch (e) {
       setRows(null)
-      setError(e instanceof Error ? e.message : 'Gagal mencari transaksi')
+      setError(lookupErrorMessage(e))
     } finally {
       setLoading(false)
     }

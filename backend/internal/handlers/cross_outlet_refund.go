@@ -14,7 +14,6 @@ import (
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/httpx"
-	"github.com/mandalika/pos-backend/internal/phone"
 	"github.com/mandalika/pos-backend/internal/service"
 	"github.com/mandalika/pos-backend/internal/write"
 )
@@ -205,45 +204,4 @@ func findRefund(o api.Order, refundID string) (api.OrderRefund, bool) {
 		}
 	}
 	return api.OrderRefund{}, false
-}
-
-// CrossOutletLookup is GET /cross-outlet-returns/lookup?orderNumber=... | ?phone=...
-func (h *Handlers) CrossOutletLookup(w http.ResponseWriter, r *http.Request) {
-	c, _ := h.caller(r)
-	if c.outletID == "" {
-		httpx.Err(w, http.StatusForbidden, msgNoActiveOutlet)
-		return
-	}
-	if !service.IsCanonicalUUID(c.outletID) {
-		httpx.Err(w, http.StatusBadRequest, msgBadActiveOutlet)
-		return
-	}
-	q := r.URL.Query()
-	number, rawPhone := strings.TrimSpace(q.Get("orderNumber")), strings.TrimSpace(q.Get("phone"))
-	if (number == "") == (rawPhone == "") {
-		httpx.Err(w, http.StatusBadRequest, "Isi tepat satu: nomor order atau nomor HP.")
-		return
-	}
-	var (
-		rows []api.CrossOutletOrder
-		err  error
-	)
-	if number != "" {
-		rows, err = h.Repo.CrossOutletByNumber(r.Context(), c.outletID, number)
-	} else {
-		norm := phone.Normalize(rawPhone)
-		if norm == "" {
-			httpx.Err(w, http.StatusBadRequest, "Nomor HP tidak valid")
-			return
-		}
-		rows, err = h.Repo.CrossOutletByPhone(r.Context(), c.outletID, norm)
-	}
-	if err != nil {
-		writeErr(w, r, http.StatusInternalServerError, err)
-		return
-	}
-	if rows == nil {
-		rows = []api.CrossOutletOrder{}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": rows})
 }

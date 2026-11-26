@@ -17,6 +17,8 @@ describe('canSeeNav', () => {
     expect(canSeeNav('errors', 'view_error_logs', { role: 'manager', permissions: ['view_reports', 'manage_users', 'view_error_logs'] })).toBe(false)
     expect(canSeeNav('errors', 'view_error_logs', { role: 'cashier', permissions: [] })).toBe(false)
     expect(canSeeNav('errors', 'view_error_logs', null)).toBe(false)
+    expect(canSeeNav('crossLookups', 'view_error_logs', { role: 'admin', permissions: [] })).toBe(true)
+    expect(canSeeNav('crossLookups', 'view_error_logs', { role: 'manager', permissions: ['view_error_logs'] })).toBe(false)
   })
 
   it('shows Integrasi ERP only for the admin role', () => {

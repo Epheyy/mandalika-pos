@@ -68,6 +68,11 @@ type Config struct {
 	// dbMaxConnsBad is set when DB_MAX_CONNS is not an integer >= 1; Validate fails
 	// fast so a typo never silently means "pgx default".
 	dbMaxConnsBad bool
+	// XOLookupLimit / XOLookupWindow: per-user budget of the A18 cross-outlet lookup (env
+	// XO_LOOKUP_LIMIT default 20, XO_LOOKUP_WINDOW_SECONDS default 600). A bad value fails Validate.
+	XOLookupLimit  int
+	XOLookupWindow time.Duration
+	xoLookupBad    string
 	// ERPIntegrationEnabled is the ERP_INTEGRATION_ENABLED kill switch (true only for
 	// "true"/"1", any case): the catalog pull, stock reads and outbox relay stay off
 	// unless it is set. Default false.
@@ -170,6 +175,35 @@ func parseDBMaxConns(v string) (n int, ok bool) {
 	return n, true
 }
 
+// Defaults and bounds of the A18 cross-outlet lookup limit.
+const (
+	DefaultXOLookupLimit         = 20
+	DefaultXOLookupWindowSeconds = 600
+	maxXOLookupLimit             = 10000
+	maxXOLookupWindowSeconds     = 86400
+)
+
+// parseXOLookup reads XO_LOOKUP_LIMIT (1..10000) and XO_LOOKUP_WINDOW_SECONDS (1..86400); blank uses
+// the default. bad names the first invalid variable ("" when both are fine).
+func parseXOLookup(limitV, windowV string) (limit int, window time.Duration, bad string) {
+	limit, window = DefaultXOLookupLimit, DefaultXOLookupWindowSeconds*time.Second
+	if v := strings.TrimSpace(limitV); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > maxXOLookupLimit {
+			return limit, window, "XO_LOOKUP_LIMIT must be an integer between 1 and 10000"
+		}
+		limit = n
+	}
+	if v := strings.TrimSpace(windowV); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > maxXOLookupWindowSeconds {
+			return limit, window, "XO_LOOKUP_WINDOW_SECONDS must be an integer between 1 and 86400"
+		}
+		window = time.Duration(n) * time.Second
+	}
+	return limit, window, ""
+}
+
 // parseLegacyUntil parses SYNC_LEGACY_ENVELOPE_UNTIL: blank = unset (zero time),
 // otherwise RFC 3339 or a bare YYYY-MM-DD, which means 00:00 UTC of that day, i.e.
 // 07:00 WIB: write an explicit offset (e.g. 2026-11-01T00:00:00+07:00) for a WIB midnight.
@@ -192,11 +226,15 @@ func Load() *Config {
 	_ = godotenv.Load()
 	legacyUntil, legacyOK := parseLegacyUntil(os.Getenv("SYNC_LEGACY_ENVELOPE_UNTIL"))
 	dbMaxConns, dbMaxConnsOK := parseDBMaxConns(os.Getenv("DB_MAX_CONNS"))
+	xoLimit, xoWindow, xoBad := parseXOLookup(os.Getenv("XO_LOOKUP_LIMIT"), os.Getenv("XO_LOOKUP_WINDOW_SECONDS"))
 	erpEnabled, erpEnabledOK := parseERPEnabled(os.Getenv("ERP_INTEGRATION_ENABLED"))
 	erpPush, erpPushOK := parseERPEnabled(os.Getenv("ERP_OUTLET_PUSH_ENABLED"))
 	return &Config{
 		DBMaxConns:       dbMaxConns,
 		dbMaxConnsBad:    !dbMaxConnsOK,
+		XOLookupLimit:    xoLimit,
+		XOLookupWindow:   xoWindow,
+		xoLookupBad:      xoBad,
 		Port:             getenv("PORT", "8080"),
 		Env:              getenv("ENV", "development"),
 		CORSOrigins:      splitTrim(getenv("CORS_ORIGINS", "http://localhost:5173")),
@@ -282,6 +320,9 @@ func (c *Config) Validate() error {
 	}
 	if c.dbMaxConnsBad {
 		return errors.New("invalid config: DB_MAX_CONNS must be an integer between 1 and 100")
+	}
+	if c.xoLookupBad != "" {
+		return errors.New("invalid config: " + c.xoLookupBad)
 	}
 	if err := c.validateERP(); err != nil {
 		return err

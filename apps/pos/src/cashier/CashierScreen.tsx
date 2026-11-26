@@ -1772,6 +1772,7 @@ export default function CashierScreen() {
       <OrderHistoryPanel
         key={historyFocus ? `focus:${historyFocus.orderId}:${historyFocus.nonce}` : 'plain'}
         focus={historyFocus}
+        deviceId={engine.deviceId}
         isOpen={showHistory}
         onClose={() => setShowHistory(false)}
         onRefund={(o) => { if (voidDraftNames(state.voidDraft, [o.id])) { showToast(VOID_BLOCKED_DRAFT); return }; setShowHistory(false); setRefundSale(null); setRefundOrder(o) }}

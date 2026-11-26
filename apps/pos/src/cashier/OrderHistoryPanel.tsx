@@ -53,6 +53,8 @@ interface OrderHistoryPanelProps {
   hasOpenShift: boolean
   /** The shift shown has no server id yet. */
   shiftUnsynced?: boolean
+  /** This tablet's id; the Outlet lain search sends it for the lookup log. */
+  deviceId?: string
   /** Orders with a refund already queued or parked on this device. */
   queuedRefundOrderIds: ReadonlySet<string>
   /** Orders whose refund already synced from this tablet (stale cached rows may still say completed). */
@@ -130,7 +132,7 @@ function VoidDetails({ order, onOpenOrder }: { order: Order; onOpenOrder: (order
   )
 }
 
-export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, voidedOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, paymentMethods, timezone, shiftOpenedAt, voidGate, parkedVoids, onVoid, onCreateReplacement, isOnline, onRefundCrossOutlet }: OrderHistoryPanelProps) {
+export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, voidedOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, paymentMethods, timezone, shiftOpenedAt, voidGate, parkedVoids, onVoid, onCreateReplacement, isOnline, onRefundCrossOutlet, deviceId }: OrderHistoryPanelProps) {
   const [scope, setScope] = useState<'here' | 'other'>('here')
   const [from, setFrom] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).from : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
   const [to, setTo] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).to : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
@@ -241,7 +243,7 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
           </div>
         )}
         {onRefundCrossOutlet && scope === 'other' ? (
-          <CrossOutletSearch isOnline={isOnline ?? false} canRefund={canRefund && hasOpenShift && !shiftUnsynced} onRefund={onRefundCrossOutlet} />
+          <CrossOutletSearch isOnline={isOnline ?? false} canRefund={canRefund && hasOpenShift && !shiftUnsynced} onRefund={onRefundCrossOutlet} deviceId={deviceId} />
         ) : (
         <>
         {/* Filters: quick day segments like the mock; "Pilih tanggal" reveals the range boxes. */}

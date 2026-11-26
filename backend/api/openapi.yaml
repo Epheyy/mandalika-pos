@@ -2852,6 +2852,27 @@ components:
       required: [data]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/CrossOutletOrder' } }
+    CrossOutletLookupLog:
+      type: object
+      required: [id, createdAt, userId, userName, outletId, outletName, queryKind, queryValue, resultCount, rateLimited]
+      properties:
+        id: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+        userId: { type: string }
+        userName: { type: string }
+        outletId: { type: string }
+        outletName: { type: string }
+        deviceId: { type: string, nullable: true }
+        queryKind: { type: string, enum: [order_number, phone] }
+        queryValue: { type: string, description: "order number as typed, or the phone masked to its last 4 digits" }
+        resultCount: { type: integer }
+        rateLimited: { type: boolean }
+    CrossOutletLookupLogListResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/CrossOutletLookupLog' } }
+        meta: { $ref: '#/components/schemas/Meta' }
     # C4a: documented shape of SyncBatchItem.payload for type "refund" (the payload itself stays
     # free-form, so this schema is reference-only and not wired into any operation).
     SyncRefundPayload:
@@ -6828,6 +6849,7 @@ paths:
         - $ref: '#/components/parameters/OutletHeader'
         - { name: orderNumber, in: query, required: false, schema: { type: string, maxLength: 64 } }
         - { name: phone, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: deviceId, in: query, required: false, schema: { type: string, maxLength: 128 }, description: "Optional tablet id, kept in the lookup log." }
       responses:
         '200':
           description: matching sales of other outlets
@@ -6835,6 +6857,34 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CrossOutletLookupResponse' }
         '400': { description: "neither or both of orderNumber and phone, or an invalid phone" }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429':
+          description: per-user lookup budget spent (default 20 per 10 minutes); every attempt, this one included, is logged
+          headers:
+            Retry-After: { schema: { type: integer }, description: seconds until the window resets }
+        '503':
+          description: the lookup could not be logged, so nothing is returned; retry after Retry-After
+          headers:
+            Retry-After: { schema: { type: integer } }
+  /api/v1/cross-outlet-returns/lookups:
+    get:
+      operationId: listCrossOutletLookups
+      tags: [admin]
+      summary: Log of cross-outlet lookups (admin; paginated, newest first)
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - { name: userId, in: query, schema: { type: string, format: uuid } }
+        - { name: outletId, in: query, schema: { type: string, format: uuid } }
+        - { name: from, in: query, schema: { type: string }, description: "RFC 3339 or YYYY-MM-DD (WIB day start)" }
+        - { name: to, in: query, schema: { type: string }, description: "RFC 3339 (exclusive) or YYYY-MM-DD (that WIB day included)" }
+      responses:
+        '200':
+          description: lookup log rows
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrossOutletLookupLogListResponse' }
+        '400': { description: "invalid filter" }
         '403': { $ref: '#/components/responses/Forbidden' }
   /api/v1/orders/{id}/void:
     parameters:

@@ -12,7 +12,7 @@ describe('route table', () => {
   })
 
   it('keeps the existing nav ids that navAccess keys on', () => {
-    for (const id of ['dashboard', 'products', 'customers', 'promotions', 'reports', 'warehouses', 'approvals', 'requisitions', 'users', 'syncReview', 'settings', 'erpOutbox', 'errors']) {
+    for (const id of ['dashboard', 'products', 'customers', 'promotions', 'reports', 'warehouses', 'approvals', 'requisitions', 'users', 'syncReview', 'settings', 'erpOutbox', 'errors', 'crossLookups']) {
       expect(routeById(id)).toBeDefined()
     }
   })
@@ -42,7 +42,7 @@ describe('sections', () => {
       ['Pelanggan', ['customers', 'promotions']],
       ['Produk & Stok', ['products', 'warehouses', 'approvals', 'requisitions']],
       ['Operasional', ['users', 'syncReview', 'settings']],
-      ['Sistem', ['erpOutbox', 'errors']],
+      ['Sistem', ['erpOutbox', 'errors', 'crossLookups']],
     ])
   })
 

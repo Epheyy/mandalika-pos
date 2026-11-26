@@ -43,6 +43,7 @@ export type StockCount = S['StockCount']
 export type StockCountItem = S['StockCountItem']
 export type CashFlow = S['CashFlow']
 export type ErrorLog = S['ErrorLog']
+export type CrossOutletLookupLog = S['CrossOutletLookupLog']
 export type ErpOutboxItem = S['ErpOutboxItem']
 export type ErpOutboxDetail = S['ErpOutboxDetail']
 export type ErpOutboxCounts = S['ErpOutboxCounts']
@@ -476,7 +477,9 @@ export interface Api {
    *  `clientRefundUuid` is the replay key: the same uuid returns the earlier refund instead of paying out twice. */
   refundOrder: (id: string, reason: string, opts?: { reasonCode?: string; items?: { lineNo: number; quantity: number }[]; clientRefundUuid?: string; payoutMethod?: string }) => Promise<Order>
   /** A18: find another outlet's sale by EXACT order number or exact customer phone (online only, never cache). */
-  crossOutletLookup: (q: { orderNumber: string } | { phone: string }) => Promise<CrossOutletOrder[]>
+  crossOutletLookup: (q: ({ orderNumber: string } | { phone: string }) & { deviceId?: string }) => Promise<CrossOutletOrder[]>
+  /** A18: head-office log of every cross-outlet lookup, rate-limited ones included (admin). `from`/`to` are YYYY-MM-DD (WIB) or RFC 3339. */
+  listCrossOutletLookups: (params?: Record<string, string | number>) => Promise<ListResult<CrossOutletLookupLog>>
   /** A18: online-only refund of another outlet's sale, paid from the ACTIVE outlet's open shift. Idempotent on
    *  (deviceId, clientRefundUuid): resend the SAME body after a timeout; `replayed` is true when it was already applied. */
   refundCrossOutlet: (orderId: string, body: CrossOutletRefundRequest) => Promise<CrossOutletRefundResult>
@@ -1052,6 +1055,7 @@ export function createClient(opts: ClientOptions): Api {
     refundOrder: (id, reason, opts) =>
       data<Order>('POST', `${API}/orders/${id}/refund`, { reason, ...(opts?.reasonCode ? { reasonCode: opts.reasonCode } : {}), ...(opts?.items ? { items: opts.items } : {}), ...(opts?.clientRefundUuid ? { clientRefundUuid: opts.clientRefundUuid } : {}), ...(opts?.payoutMethod ? { payoutMethod: opts.payoutMethod } : {}) }),
     crossOutletLookup: (q) => data<CrossOutletOrder[]>('GET', `${API}/cross-outlet-returns/lookup` + qs(q)),
+    listCrossOutletLookups: (params) => list<CrossOutletLookupLog>(`${API}/cross-outlet-returns/lookups`, params),
     refundCrossOutlet: (orderId, body) =>
       data<CrossOutletRefundResult>('POST', `${API}/orders/${orderId}/cross-outlet-refund`, body),
     getVoidPreview: (id) => data<S['VoidPreview']>('GET', `${API}/orders/${id}/void-preview`),

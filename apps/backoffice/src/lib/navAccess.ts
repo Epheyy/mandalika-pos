@@ -23,7 +23,7 @@ export function canSeeNav(id: string, perm: string, user: NavUser | null): boole
   if (!user) return false
   if (user.role === 'admin') return true
   // Admin-only: no permission grants these (the server enforces admin-only anyway; /users and /custom-roles are admin-only).
-  if (id === 'errors' || id === 'erpOutbox' || id === 'users') return false
+  if (id === 'errors' || id === 'crossLookups' || id === 'erpOutbox' || id === 'users') return false
   const perms = user.permissions || []
   if (id === 'warehouses' || id === 'approvals') return perms.includes('manage_inventory') || perms.includes('manage_stock_count')
   if (id === 'requisitions') return perms.includes('request_stock') || perms.includes('manage_inventory')

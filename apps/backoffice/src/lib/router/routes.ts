@@ -5,6 +5,7 @@
 import type { ComponentType } from 'react'
 import {
   AlertTriangle,
+  SearchCheck,
   BarChart3,
   Cable,
   ClipboardCheck,
@@ -36,6 +37,7 @@ export type NavId =
   | 'settings'
   | 'erpOutbox'
   | 'errors'
+  | 'crossLookups'
 
 export type SectionId = 'penjualan' | 'pelanggan' | 'produk-stok' | 'operasional' | 'sistem'
 
@@ -138,6 +140,8 @@ export const ROUTES: readonly RouteDef[] = [
   { id: 'erpOutbox', path: 'integrasi-erp', label: 'Integrasi ERP', section: 'sistem', icon: Cable, perm: 'manage_erp_integration', load: () => import('../../screens/integration/ErpOutboxScreen') },
   // Admin-only: 'view_error_logs' isn't granted to any role, so it shows only via the isAdmin bypass.
   { id: 'errors', path: 'log-kesalahan', label: 'Log Kesalahan', section: 'sistem', icon: AlertTriangle, perm: 'view_error_logs', load: () => import('../../screens/ErrorLogs') },
+  // Admin-only like the error logs: the endpoint is admin-gated server-side (A18 lookup log).
+  { id: 'crossLookups', path: 'log-pencarian-outlet-lain', label: 'Log Pencarian Outlet Lain', section: 'sistem', icon: SearchCheck, perm: 'view_error_logs', load: () => import('../../screens/CrossOutletLookups') },
 ]
 
 /** The top-level tabs of a screen, typed with the screen's own tab ids. */

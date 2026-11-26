@@ -118,6 +118,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	eo := handlers.NewErpOutbox(database.Pool, config.LoadERPRelay(cfg), cfg.IsProd())
 	h.SetErpCatalogRunner(handlers.NewErpCatalogRunner(cfg, database.Pool, slog.Default()))
 	h.SetErpIntegrationEnabled(cfg.ERPIntegrationEnabled)
+	h.SetCrossOutletLookupLimit(cfg.XOLookupLimit, cfg.XOLookupWindow)
 
 	// Cloud Run reserves /healthz (Google answers 404 before the app sees it), so
 	// the same deep check is also served at /livez. No auth, no secrets, no PII.
@@ -208,6 +209,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				Post("/orders/{id}/cross-outlet-refund", h.RefundCrossOutlet)
 			r.With(mw.RequirePermission("process_refund")).
 				Get("/cross-outlet-returns/lookup", h.CrossOutletLookup)
+			r.With(mw.RequireRole("admin")).
+				Get("/cross-outlet-returns/lookups", h.CrossOutletLookups)
 			// Void (migration 0092): the Backoffice path needs void_any; the preview also serves a
 			// cashier holding void_own_shift (checked in the handler).
 			r.With(mw.RequirePermission("void_any")).

@@ -2228,6 +2228,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cross-outlet-returns/lookups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Log of cross-outlet lookups (admin; paginated, newest first) */
+        get: operations["listCrossOutletLookups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orders/{id}/void": {
         parameters: {
             query?: never;
@@ -5903,6 +5920,27 @@ export interface components {
         };
         CrossOutletLookupResponse: {
             data: components["schemas"]["CrossOutletOrder"][];
+        };
+        CrossOutletLookupLog: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            createdAt: string;
+            userId: string;
+            userName: string;
+            outletId: string;
+            outletName: string;
+            deviceId?: string | null;
+            /** @enum {string} */
+            queryKind: "order_number" | "phone";
+            /** @description order number as typed, or the phone masked to its last 4 digits */
+            queryValue: string;
+            resultCount: number;
+            rateLimited: boolean;
+        };
+        CrossOutletLookupLogListResponse: {
+            data: components["schemas"]["CrossOutletLookupLog"][];
+            meta?: components["schemas"]["Meta"];
         };
         /** @description One of orderId or saleOrderUuid is required (the server resolves the sale by saleOrderUuid alone when orderId is empty). Legacy shape = {orderId, reason, deviceId, ...}: refunds the whole order and is refused (conflict) on a partially_refunded order. Per-line shape adds items (required, non-empty) and optionally refundAmount and reasonCode. Unknown keys (the tablet's display snapshot) are ignored. */
         SyncRefundPayload: {
@@ -11986,6 +12024,8 @@ export interface operations {
             query?: {
                 orderNumber?: string;
                 phone?: string;
+                /** @description Optional tablet id, kept in the lookup log. */
+                deviceId?: string;
             };
             header?: {
                 /** @description Active outlet override (admin only, or must match token outlet). */
@@ -12006,6 +12046,60 @@ export interface operations {
                 };
             };
             /** @description neither or both of orderNumber and phone, or an invalid phone */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description per-user lookup budget spent (default 20 per 10 minutes); every attempt, this one included, is logged */
+            429: {
+                headers: {
+                    /** @description seconds until the window resets */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the lookup could not be logged, so nothing is returned; retry after Retry-After */
+            503: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listCrossOutletLookups: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+                userId?: string;
+                outletId?: string;
+                /** @description RFC 3339 or YYYY-MM-DD (WIB day start) */
+                from?: string;
+                /** @description RFC 3339 (exclusive) or YYYY-MM-DD (that WIB day included) */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description lookup log rows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrossOutletLookupLogListResponse"];
+                };
+            };
+            /** @description invalid filter */
             400: {
                 headers: {
                     [name: string]: unknown;
