@@ -53,11 +53,8 @@ func (r *Repo) DashboardAggregate(ctx context.Context, f DashboardFilter) (api.D
 	saleWhere += " AND o.status IN ('completed','partially_refunded','refunded')"
 	refundWhere, args := appendOrderWhere(rf, args, true)
 	refundWhere += " AND o.status IN ('refunded','partially_refunded')"
-	if !f.Scope.CrossAll {
-		// order_refunds carries the outlet too: lets idx_order_refunds_outlet_day serve the window.
-		args = append(args, f.Scope.OutletID)
-		refundWhere += fmt.Sprintf(" AND r.outlet_id=$%d", len(args))
-	}
+	// A18: no r.outlet_id clause. A refund nets at the SALE outlet (o.outlet_id, added by
+	// appendOrderWhere above); one paid out at another outlet must still drop this outlet's net.
 	arg := func(v any) int {
 		args = append(args, v)
 		return len(args)

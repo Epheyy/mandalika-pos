@@ -360,8 +360,11 @@ func (s *OrderService) closeShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 		           CASE WHEN o.status IN ('completed','partially_refunded','refunded')
 		                THEN o.total - x.refunded END AS net_sale
 		      FROM orders o
+		      -- A18: a refund paid at ANOTHER outlet left this drawer untouched, so it is not
+		      -- subtracted from this shift's sales (the paying outlet's shift counts it in block r).
 		      CROSS JOIN LATERAL (SELECT COALESCE(sum(r.amount),0) AS refunded
-		                            FROM order_refunds r WHERE r.order_id = o.id) x
+		                            FROM order_refunds r WHERE r.order_id = o.id
+		                             AND r.outlet_id = o.outlet_id) x
 		     WHERE o.shift_id=$1
 		  ) ord
 		) a,
@@ -384,7 +387,7 @@ func (s *OrderService) closeShiftTx(ctx context.Context, tx pgx.Tx, outletID, sh
 		         WHERE o.shift_id=$1 AND o.status IN ('completed','partially_refunded','refunded')
 		        UNION ALL
 		        SELECT r.payment_method, 0, r.amount
-		          FROM orders o JOIN order_refunds r ON r.order_id = o.id
+		          FROM orders o JOIN order_refunds r ON r.order_id = o.id AND r.outlet_id = o.outlet_id
 		         WHERE o.shift_id=$1 AND o.status IN ('completed','partially_refunded','refunded')
 		      ) m GROUP BY m.method
 		  ) pm
@@ -431,7 +434,7 @@ func shiftCashMethodIDs(ctx context.Context, tx pgx.Tx, shiftID string) ([]strin
 		 UNION
 		 -- block (b) subtracts the refunds of this shift's own orders whichever shift paid them, so
 		 -- their payout methods must be classified too (shift B refunds shift A's split sale in cash)
-		 SELECT r.payment_method FROM orders o JOIN order_refunds r ON r.order_id = o.id
+		 SELECT r.payment_method FROM orders o JOIN order_refunds r ON r.order_id = o.id AND r.outlet_id = o.outlet_id
 		  WHERE o.shift_id=$1 AND o.status IN ('completed','partially_refunded','refunded')`, shiftID)
 	if err != nil {
 		return nil, err

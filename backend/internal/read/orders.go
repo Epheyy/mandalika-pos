@@ -38,7 +38,7 @@ const orderObjBase = `json_build_object('id',o.id,'orderNumber',o.order_number,
   'refunds',(SELECT json_agg(json_build_object(
      'id',r.id,'seq',r.seq,'scope',r.scope,'amount',r.amount,'computedAmount',r.computed_amount,'claimedAmount',r.claimed_amount,
      'amountWarning',r.amount_warning,'paymentMethod',r.payment_method,'payoutSource',r.payout_source,
-     'reason',r.reason,'reasonCode',r.reason_code,'shiftId',r.shift_id,
+     'reason',r.reason,'reasonCode',r.reason_code,'shiftId',r.shift_id,'outletId',r.outlet_id,
      'refundedByName',r.refunded_by_name,'refundedAt',r.refunded_at,
      'refundBusinessDate',r.refund_business_date,
      'items',COALESCE((SELECT json_agg(json_build_object(

@@ -27,6 +27,7 @@ type RefundReportFilters struct {
 // lines with their names. cashierName is the sale's cashier, refundedByName who paid it out.
 const refundReportObj = `json_build_object(
   'id',r.id,'orderId',r.order_id,'orderNumber',o.order_number,'outletId',r.outlet_id,'outletName',ou.name,
+  'saleOutletId',o.outlet_id,'saleOutletName',so.name,
   'cashierName',o.cashier_name,'seq',r.seq,'scope',r.scope,'amount',r.amount,'computedAmount',r.computed_amount,
   'claimedAmount',r.claimed_amount,'amountWarning',r.amount_warning,'paymentMethod',r.payment_method,
   'reason',r.reason,'reasonCode',r.reason_code,'refundedByName',r.refunded_by_name,
@@ -39,7 +40,7 @@ const refundReportObj = `json_build_object(
      WHERE ri.refund_id=r.id),'[]'::json))`
 
 func refundReportWhere(f RefundReportFilters) (string, []any) {
-	where := `FROM order_refunds r JOIN orders o ON o.id=r.order_id JOIN outlets ou ON ou.id=r.outlet_id
+	where := `FROM order_refunds r JOIN orders o ON o.id=r.order_id JOIN outlets ou ON ou.id=r.outlet_id JOIN outlets so ON so.id=o.outlet_id
 	  WHERE ($1 = '' OR r.refund_business_date >= $1::text::date)
 	    AND ($2 = '' OR r.refund_business_date <= $2::text::date)
 	    AND ($3 = '' OR r.outlet_id::text = $3)
