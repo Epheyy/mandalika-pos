@@ -80,3 +80,12 @@ func TestReplayCarriesRefundState(t *testing.T) {
 		t.Fatalf("%+v replayed=%v", r, replayed)
 	}
 }
+
+// A18: a queued refund can never aim at another outlet's order, whatever keys the payload carries.
+func TestRefundPayloadIgnoresSaleOutletKeys(t *testing.T) {
+	in := decodeRefundPayload(t, `{"orderId":"o","reason":"x","deviceId":"d","saleOutletId":"other","SaleOutletID":"other","outletId":"other"}`).
+		input(Caller{OutletID: "out"}, "o")
+	if in.SaleOutletID != "" || in.OutletID != "out" {
+		t.Fatalf("batch input must stay pinned to the envelope outlet: %+v", in)
+	}
+}

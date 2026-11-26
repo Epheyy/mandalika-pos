@@ -48,6 +48,12 @@ var (
 	ErrRefundReasonCodeInvalid  = apperr.New(apperr.Rejected, "Kode alasan refund tidak valid."+refundWarning)
 	// C6a: payoutMethod present but blank, over 64 runes, or the reserved id split.
 	ErrRefundPayoutInvalid = apperr.New(apperr.Rejected, "Metode pengembalian dana refund tidak valid."+refundWarning)
+
+	// A18 cross-outlet return (online only): the idempotency key is mandatory, the order must be
+	// at ANOTHER outlet, and the paying outlet needs its own open shift.
+	ErrCrossRefundKeyRequired = apperr.New(apperr.Rejected, "ID perangkat dan UUID refund wajib diisi untuk refund outlet lain."+refundWarning)
+	ErrCrossRefundSameOutlet  = apperr.New(apperr.Conflict, "Transaksi ini dari outlet ini. Refund lewat Riwayat biasa."+refundWarning)
+	ErrCrossRefundShift       = apperr.New(apperr.Conflict, "Shift di outlet ini belum dibuka atau sudah berganti. Buka/segarkan shift lalu coba lagi."+refundWarning)
 )
 
 // Refund amount warnings stored on order_refunds.amount_warning (D-39: the amount is a
@@ -85,7 +91,11 @@ func IsCanonicalUUID(s string) bool {
 // column is a foreign key. UserID/UserName record who refunded (A06 audit trail).
 type RefundInput struct {
 	OutletID, OrderID, Reason string
-	ShiftID                   string
+	// SaleOutletID is where the order lives; empty = OutletID. Only RefundCrossOutlet sets it.
+	// OutletID is the RETURNING outlet: stock, ledger, ERP location, order_refunds.outlet_id,
+	// stock seq, shift.
+	SaleOutletID string
+	ShiftID      string
 	UserID, UserName          string
 	// Channel is the transport the refund arrived on: "sync" (tablet batch) or
 	// "direct" (empty = direct). Only recorded on refund_unresolved_variant rows (A44).
@@ -110,6 +120,14 @@ type RefundInput struct {
 	// recorded as payout_source 'default' while PayoutMethod is still honoured as sent. NIL (old
 	// bundles, queued payloads) or true = 'chosen'. Never changes the method or any amount.
 	PayoutPicked *bool
+}
+
+// saleOutlet is the outlet the order row is looked up (and locked) at.
+func (in RefundInput) saleOutlet() string {
+	if in.SaleOutletID != "" {
+		return in.SaleOutletID
+	}
+	return in.OutletID
 }
 
 // NormalizeRefund validates the refund input shared by the direct route and the

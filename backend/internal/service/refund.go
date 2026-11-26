@@ -79,8 +79,14 @@ type restockLine struct {
 // UPDATEd. Migration 0077's trigger orders_refunded_legacy_row inserts a 'legacy_full'
 // seq=1 refund row when an order becomes 'refunded' with no refund row; inserting ours first
 // makes the trigger a no-op, inserting it after would collide on UNIQUE(order_id, seq).
+//
+// Two outlets (A18): in.OutletID is the RETURNING outlet Y (stock restock, ledger, ERP location,
+// order_refunds.outlet_id, stock seq, shift). The order is looked up and locked at
+// in.saleOutlet() = X, which differs from Y only on the online cross-outlet route; the batch and
+// direct paths never set SaleOutletID, so they stay pinned to their own outlet.
 func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundInput) (RefundResult, error) {
 	outletID, orderID := in.OutletID, in.OrderID
+	saleOutletID := in.saleOutlet()
 	reason, err := NormalizeRefund(orderID, in.Reason)
 	if err != nil {
 		return RefundResult{}, err
@@ -100,7 +106,7 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 	err = tx.QueryRow(ctx,
 		`SELECT customer_id, discount_code, COALESCE(applied_discount_codes,'[]'::jsonb)
 		   FROM orders WHERE id=$1 AND outlet_id=$2`,
-		orderID, outletID).Scan(&preCust, &preDiscountCode, &preCodes)
+		orderID, saleOutletID).Scan(&preCust, &preDiscountCode, &preCodes)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return RefundResult{}, ErrRefundOrderNotFound
 	}
@@ -125,7 +131,7 @@ func (s *OrderService) RefundLinesTx(ctx context.Context, tx pgx.Tx, in RefundIn
 		`SELECT status, order_number, customer_id, points_earned, points_redeemed, discount_code,
 		        COALESCE(applied_discount_codes,'[]'::jsonb), round(total)::bigint, payment_method
 		   FROM orders WHERE id=$1 AND outlet_id=$2 FOR UPDATE`,
-		orderID, outletID).Scan(&o.status, &o.orderNumber, &o.custID, &o.earned, &o.redeemed,
+		orderID, saleOutletID).Scan(&o.status, &o.orderNumber, &o.custID, &o.earned, &o.redeemed,
 		&o.discountCode, &o.appliedCodes, &o.total, &o.paymentMethod)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return RefundResult{}, ErrRefundOrderNotFound
