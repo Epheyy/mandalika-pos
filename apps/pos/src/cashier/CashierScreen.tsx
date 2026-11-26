@@ -50,7 +50,7 @@ import { ShiftBar } from './ShiftBar'
 import { ReceiptPreview } from './ReceiptPreview'
 import { orderStateFor } from './orderState'
 import { RefundDialog, type RefundConfirmInput } from './RefundDialog'
-import { isCrossOutletOrder, useCrossOutletRefund } from './crossOutlet/useCrossOutletRefund'
+import { routeRefund, useCrossOutletRefund } from './crossOutlet/useCrossOutletRefund'
 import { buildCrossOutletSlipData } from './crossOutlet/crossOutletSlip'
 import { buildRefundSlipData, printRefundSlipSafely } from './refundSlipData'
 import type { RefundCache } from './refundSelection'
@@ -1196,19 +1196,22 @@ export default function CashierScreen() {
   // A18: refunds of a sale made at another outlet go straight to the server (online only), never to the outbox.
   const crossRefund = useCrossOutletRefund({
     api, isOnline: offlineData.isOnline, deviceId: engine.deviceId, gate: refundGate.current,
-    onApplied: (result, message, replayed) => {
-      setRefundOrder((cur) => (cur?.id === result.order.order.id ? null : cur))
+    onApplied: (result, message, replayed, sent) => {
+      // `sent` is the sale the server actually stored (the stored attempt), which may not be the one open now.
+      setRefundOrder((cur) => (cur?.id === sent.orderId ? null : cur))
       setRefundSale(null)
       crossRefund.reset()
-      kitToast.showToast(message, { tone: replayed ? 'warn' : 'ok' })
+      // A replay must be read, not glanced at: a blocking acknowledgement instead of a toast.
+      if (replayed) setConfirm({ message, confirmLabel: 'Mengerti', tone: 'primary', run: () => {} })
+      else kitToast.showToast(message, { tone: 'ok' })
       void shift.refreshShift()
       void printRefundSlipSafely({
         isPaired: printer.isPaired,
         build: () => buildCrossOutletSlipData({
-          result, methods: settings.paymentMethods, cashierName: user?.displayName ?? 'Kasir', at: new Date(), outlet: receiptOutlet(snapshot),
+          result, methods: settings.paymentMethods, cashierName: user?.displayName ?? 'Kasir', sentReason: sent.reason, at: new Date(), outlet: receiptOutlet(snapshot),
         }),
         print: (data) => printer.printRefundSlip(data, settings.receipt, receiptLayout),
-        orderRef: result.order.order.orderNumber,
+        orderRef: sent.orderNumber || result.order.order.orderNumber,
         outletName: snapshot.outletName,
         onFailure: (msg) => showToast(msg),
         report: (r) => { void reportErrors([r]) },
@@ -1219,7 +1222,7 @@ export default function CashierScreen() {
 
   const handleRefundConfirm = async (orderId: string, input: RefundConfirmInput) => {
     if (refundGate.current.isBusy()) return
-    const isCross = isCrossOutletOrder(refundOrder, authStore.outletId)
+    const isCross = routeRefund(refundOrder, authStore.outletId) === 'cross'
     const lockedMsg = isCross ? null : offlineLock()
     if (lockedMsg) {
       setRefundError(lockedMsg)
@@ -1363,7 +1366,11 @@ export default function CashierScreen() {
       if (showTransferHistory) { setShowTransferHistory(false); return true }
       if (showRequisitions) { if (!requisitionBackRef.current?.()) setShowRequisitions(false); return true }
       if (showRecap) { if (!recapBackRef.current?.()) closeRecap(); return true }
-      if (refundOrder) { setRefundOrder(null); setRefundSale(null); return true }
+      if (refundOrder) {
+        // Mid-send the dialog must stay: closing it would hide an answer the cashier has to read before paying.
+        if (!(crossRefund.busy || isRefunding)) { setRefundOrder(null); setRefundSale(null); crossRefund.reset() }
+        return true
+      }
       if (voidFlow.target) { if (!voidFlow.isProcessing) voidFlow.close(); return true }
       if (layer === 'close-picker') { setPendingFulfillment(null); return true }
       if (layer === 'close-success') { dispatch({ type: 'CLOSE_SUCCESS' }); return true }
@@ -1386,7 +1393,7 @@ export default function CashierScreen() {
     return () => setBackHandler(null)
   }, [
     showConnection, showMenu, showSettings, showHistory, showLocalReceipts, showTransferHistory, showRequisitions, showRecap, refundOrder, voidFlow.target, voidFlow.isProcessing,
-    state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment, state.isProcessing, pendingFulfillment, confirm,
+    state.isSuccessOpen, state.isCheckoutOpen, state.activeAdjustment, state.isProcessing, pendingFulfillment, confirm, crossRefund.busy, isRefunding,
     state.activeTab, profileCustomer, showCustomerSheet, heldOpen,
     // D-63: the Back handler asks before dropping entered payment lines, so it must see them.
     state.splitMode, state.tenders,
@@ -1804,10 +1811,10 @@ export default function CashierScreen() {
         previewFailed={voidFlow.previewFailed} onRetryPreview={voidFlow.retryPreview}
         isProcessing={voidFlow.isProcessing} error={voidFlow.error} onConfirm={(i) => { void voidFlow.confirm(i) }} onClose={voidFlow.close} />
 
-      <RefundDialog order={refundOrder} methods={settings.paymentMethods} cache={refundOrder ? refundCacheFor(refundIdsFor(refundOrder.id)) : undefined} isProcessing={isRefunding || crossRefund.busy} error={crossRefund.error ?? refundError}
-        crossOutlet={isCrossOutletOrder(refundOrder, authStore.outletId) && refundOrder ? { originName: crossRefund.originName ?? 'lain', pending: crossRefund.pending, onResend: () => { void crossRefund.resend() }, onCheck: () => { void crossRefund.check(refundOrder) } } : undefined}
+      <RefundDialog order={refundOrder} methods={settings.paymentMethods} cache={refundOrder ? refundCacheFor(refundIdsFor(refundOrder.id)) : undefined} isProcessing={isRefunding || crossRefund.busy} error={(routeRefund(refundOrder, authStore.outletId) === 'cross' ? crossRefund.error : null) ?? refundError}
+        crossOutlet={routeRefund(refundOrder, authStore.outletId) === 'cross' && refundOrder ? { originName: crossRefund.originName ?? 'lain', pending: crossRefund.pending?.orderId === refundOrder.id, otherPending: crossRefund.pending && crossRefund.pending.orderId !== refundOrder.id ? crossRefund.pending.orderNumber : null, onResend: () => { void crossRefund.resend() }, onCheck: () => { void crossRefund.check(refundOrder) } } : undefined}
         onConfirm={(id, input) => { void handleRefundConfirm(id, input) }}
-        onClose={() => { setRefundError(null); setRefundOrder(null); setRefundSale(null); crossRefund.reset() }} />
+        onClose={() => { if (crossRefund.busy || isRefunding) return; setRefundError(null); setRefundOrder(null); setRefundSale(null); crossRefund.reset() }} />
 
       {showReceive && (
         <ReceiveTransferPanel

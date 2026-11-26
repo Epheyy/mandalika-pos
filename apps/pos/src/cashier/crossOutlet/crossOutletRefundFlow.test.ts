@@ -1,18 +1,22 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError, type CrossOutletRefundResult } from '@mandalika/api'
-import { createAttemptStore, type AttemptStorage } from './crossOutletAttempt'
+import type { KV } from '@mandalika/sync'
+import { createAttemptStore } from './crossOutletAttempt'
 import {
-  CROSS_CHECK_FIRST, CROSS_OFFLINE_REFUND, CROSS_PENDING_OTHER, CROSS_STORE_FAILED,
+  CROSS_CHECK_FIRST, CROSS_OFFLINE_REFUND, CROSS_STORE_FAILED, crossPendingOther,
   resendPendingCrossOutletRefund, submitCrossOutletRefund, type CrossOutletSubmit,
 } from './crossOutletRefundFlow'
 
-const memory = (failWrites = false): AttemptStorage & { map: Map<string, string>; sets: number } => {
+const KEY = 'mandalika.pos.crossOutletAttempt'
+const memory = (failWrites = false): KV & { map: Map<string, string>; sets: number } => {
   const map = new Map<string, string>()
   const st = {
     map, sets: 0,
-    getItem: (k: string) => map.get(k) ?? null,
-    setItem: (k: string, v: string) => { st.sets += 1; if (failWrites) throw new Error('quota'); map.set(k, v) },
-    removeItem: (k: string) => { map.delete(k) },
+    get: (k: string) => map.get(k) ?? null,
+    set: (k: string, v: string) => { map.set(k, v) },
+    remove: (k: string) => { map.delete(k) },
+    setDurable: async (k: string, v: string) => { st.sets += 1; if (failWrites) throw new Error('quota'); map.set(k, v) },
+    removeDurable: async (k: string) => { map.delete(k) },
   }
   return st
 }
@@ -21,7 +25,7 @@ const sub = (over: Partial<CrossOutletSubmit> = {}, items = [{ lineNo: 0, quanti
   orderId: 'o1', orderNumber: 'LWB-9', shiftId: 'sh1', deviceId: 'dev1',
   payload: { items, refundAmount: 50000, reason: 'Rusak/cacat', reasonCode: 'rusak_cacat' }, ...over,
 })
-const RESULT = { refundId: 'r1', refundState: 'partial', amount: 50000, replayed: false, saleOutletId: 'x', refund: {}, order: {} } as unknown as CrossOutletRefundResult
+const RESULT = { refundId: 'r1', refundState: 'partial', amount: 50000, replayed: false, saleOutletId: 'x', refund: {}, order: { order: {} } } as unknown as CrossOutletRefundResult
 
 function setup(opts: { online?: boolean; api?: (id: string, body: unknown) => Promise<CrossOutletRefundResult>; failWrites?: boolean } = {}) {
   const storage = memory(opts.failWrites)
@@ -126,8 +130,64 @@ describe('submitCrossOutletRefund', () => {
     await submitCrossOutletRefund(deps, sub())
     refundCrossOutlet.mockClear()
     const out = await submitCrossOutletRefund(deps, sub({ orderId: 'o2' }))
-    expect(out).toEqual({ kind: 'blocked', message: CROSS_PENDING_OTHER })
+    expect(out).toEqual({ kind: 'blocked', message: crossPendingOther('LWB-9') })
+    expect(out.kind === 'blocked' && out.message).toBe('Refund #LWB-9 belum terjawab. Buka transaksi itu dulu (Cek transaksi).')
     expect(refundCrossOutlet).not.toHaveBeenCalled()
+  })
+})
+
+describe('what the server answers after an unsure send (M3, L1)', () => {
+  const lost = () => { throw new ApiError(0, 'timeout', 'timeout') }
+
+  it.each([403, 404, 405])('HTTP %i on the FIRST send clears the attempt (nothing was applied)', async (status) => {
+    const { storage, deps } = setup({ api: async () => { throw new ApiError(status, 'Tidak diizinkan', 'http') } })
+    expect(await submitCrossOutletRefund(deps, sub())).toEqual({ kind: 'refused', message: 'Tidak diizinkan' })
+    expect(storage.map.size).toBe(0)
+  })
+
+  it.each([403, 404, 405])('HTTP %i AFTER an unanswered send keeps the attempt and says check first', async (status) => {
+    let calls = 0
+    const { storage, deps } = setup({ api: async () => { calls += 1; if (calls === 1) return lost(); throw new ApiError(status, 'Tidak diizinkan', 'http') } })
+    await submitCrossOutletRefund(deps, sub())
+    expect(JSON.parse(storage.map.get(KEY) ?? '{}').sends).toBe(1)
+    const out = await resendPendingCrossOutletRefund(deps)
+    expect(out).toEqual({ kind: 'unsure', message: CROSS_CHECK_FIRST })
+    expect(storage.map.size).toBe(1)
+    expect(JSON.parse(storage.map.get(KEY) ?? '{}').sends).toBe(2) // counted before the send left
+  })
+
+  it.each([400, 409, 413, 422])('HTTP %i clears the attempt even after an unanswered send (body-dependent)', async (status) => {
+    let calls = 0
+    const { storage, deps } = setup({ api: async () => { calls += 1; if (calls === 1) return lost(); throw new ApiError(status, 'Ditolak', 'http') } })
+    await submitCrossOutletRefund(deps, sub())
+    expect(await resendPendingCrossOutletRefund(deps)).toEqual({ kind: 'refused', message: 'Ditolak' })
+    expect(storage.map.size).toBe(0)
+  })
+
+  it('a stored record from before sends were counted is treated as already sent', async () => {
+    const { storage, deps } = setup({ api: async () => { throw new ApiError(403, 'x', 'http') } })
+    storage.map.set(KEY, JSON.stringify({ uuid: 'u', orderId: 'o1', orderNumber: 'LWB-9', bodyJson: '{}', createdAt: 't' }))
+    expect((await resendPendingCrossOutletRefund(deps))?.kind).toBe('unsure')
+    expect(storage.map.size).toBe(1)
+  })
+
+  it.each([
+    ['no body', undefined],
+    ['no replayed flag', { ...RESULT, replayed: undefined }],
+    ['no refund row', { ...RESULT, refund: undefined }],
+    ['no order read-back', { ...RESULT, order: undefined }],
+    ['no amount', { ...RESULT, amount: undefined }],
+  ])('an invalid 2xx (%s) is unsure and keeps the attempt', async (_n, body) => {
+    const { storage, deps } = setup({ api: async () => body as unknown as CrossOutletRefundResult })
+    const out = await submitCrossOutletRefund(deps, sub())
+    expect(out).toEqual({ kind: 'unsure', message: CROSS_CHECK_FIRST })
+    expect(storage.map.size).toBe(1)
+  })
+
+  it('an applied outcome names the sale and reason that were actually sent', async () => {
+    const { deps } = setup()
+    const out = await submitCrossOutletRefund(deps, sub())
+    expect(out.kind === 'applied' && out.sent).toEqual({ orderId: 'o1', orderNumber: 'LWB-9', reason: 'Rusak/cacat' })
   })
 })
 

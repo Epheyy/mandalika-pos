@@ -37,4 +37,10 @@ describe('buildCrossOutletSlipData', () => {
     const d = buildCrossOutletSlipData({ result: r, cashierName: 'K', at: new Date() })
     expect(d.adjustment).toEqual({ label: 'Penyesuaian', amount: -1000 })
   })
+
+  it('falls back to the reason the cashier submitted when the server hides it', () => {
+    const r = { ...result, refund: { ...result.refund, reason: '' } } as CrossOutletRefundResult
+    expect(buildCrossOutletSlipData({ result: r, cashierName: 'K', sentReason: 'Salah ukuran', at: new Date() }).reasonLabel).toBe('Salah ukuran')
+    expect(buildCrossOutletSlipData({ result, cashierName: 'K', sentReason: 'Salah ukuran', at: new Date() }).reasonLabel).toBe('Rusak/cacat')
+  })
 })

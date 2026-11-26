@@ -96,7 +96,9 @@ export function aggregate(orders: Order[], methods: PaymentMethodCfg[]): Breakdo
     const kept = o.total - refunded
     partRefunds += refunded
     b.totalSales += kept
-    b.totalOrders += 1
+    // The server counts orders by status (completed, partially_refunded): a sale fully refunded at another outlet
+    // is status 'refunded' there, so its money stays in this drawer but it is not counted as an order (shift close block a).
+    if (o.status !== 'refunded') b.totalOrders += 1
     for (const [m, v] of Object.entries(keptByMethod(o, kept, refunded, methods))) {
       b.byMethod[m] = (b.byMethod[m] ?? 0) + v
       if (isCashMethod(methods, m)) b.cashSales += v

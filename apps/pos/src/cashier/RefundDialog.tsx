@@ -14,6 +14,7 @@ import { Banner } from '../components/ui/Banner'
 import { Button } from '../components/ui/Button'
 import { Chip } from '../components/ui/Chip'
 import { StatusBadge } from '../components/ui/StatusBadge'
+import { crossPendingOther } from './crossOutlet/crossOutletRefundFlow'
 import { IconCheck } from '../components/ui/icons'
 
 type Order = components['schemas']['Order']
@@ -48,6 +49,8 @@ export interface CrossOutletDialogInfo {
   originName: string
   /** An earlier attempt is still unanswered: offer to resend it or to check the sale. */
   pending: boolean
+  /** An unanswered refund of ANOTHER sale is on this tablet (its order number): a new refund is blocked until that sale is opened. */
+  otherPending?: string | null
   onResend: () => void
   onCheck: () => void
 }
@@ -147,7 +150,7 @@ function RefundDialogBody({ order, cache, methods, isProcessing, error, onConfir
   const result = perLine ? refundAmountFor(basis, sel) : null
   const amount = result ? result.amount : basis.total
   const hasPick = perLine ? pickedUnits(sel) > 0 : true
-  const ready = hasPick && reason.ok && !isProcessing
+  const ready = hasPick && reason.ok && !isProcessing && !crossOutlet?.otherPending
   const split = isSplitOrder(order)
   const choices = useMemo(() => payoutChoices(order, methods), [order, methods])
   const payout = split ? (payoutPick ?? defaultPayoutMethod(order, methods) ?? undefined) : undefined
@@ -231,6 +234,12 @@ function RefundDialogBody({ order, cache, methods, isProcessing, error, onConfir
       </p>
 
       {error && <Banner tone="danger" message={error} className="rounded-control mb-4" />}
+      {crossOutlet?.otherPending && (
+        <div className="mb-4" data-testid="refund-cross-other-pending">
+          <Banner tone="danger" message={crossPendingOther(crossOutlet.otherPending)} className="rounded-control mb-2" />
+          <Button variant="secondary" onClick={crossOutlet.onCheck} disabled={isProcessing} className="w-full">Cek transaksi</Button>
+        </div>
+      )}
       {crossOutlet?.pending && (
         <div className="flex gap-2 mb-4" data-testid="refund-cross-pending">
           <Button variant="secondary" onClick={crossOutlet.onResend} disabled={isProcessing} className="flex-1">Kirim ulang refund sebelumnya</Button>

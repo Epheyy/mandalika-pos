@@ -8,6 +8,8 @@ export function buildCrossOutletSlipData(i: {
   result: CrossOutletRefundResult
   methods?: readonly PayoutMethodCfg[]
   cashierName: string
+  /** The reason the cashier submitted: the server hides other outlets' refund reasons (""), so it is the fallback. */
+  sentReason?: string
   at: Date
   outlet?: RefundSlipData['outlet']
 }): RefundSlipData {
@@ -22,7 +24,7 @@ export function buildCrossOutletSlipData(i: {
     ...(lines.length > 0 && gap !== 0 ? { adjustment: { label: 'Penyesuaian', amount: gap } } : {}),
     total: refund.amount,
     payoutLabel: tenderName(refund.paymentMethod, i.methods),
-    reasonLabel: refund.reason,
+    reasonLabel: refund.reason || i.sentReason || '',
     cashierName: i.cashierName,
     ...(i.outlet ? { outlet: i.outlet } : {}),
     originOutlet: co.outletName,

@@ -31,11 +31,11 @@ describe('aggregate with refunds paid at another outlet (A18)', () => {
     expect(b.refundCount).toBe(0)
   })
 
-  it('a FULL refund at another outlet keeps the whole sale in this drawer and counts it as a sale', () => {
+  it('a FULL refund at another outlet keeps the whole sale in this drawer but, like the server (status refunded), not in the order count', () => {
     const o = order({ status: 'refunded', refundedAmount: 100000, refunds: [refund(Y, 100000, 'cash', 2)] })
     const b = aggregate([o], METHODS)
     expect(b.totalSales).toBe(100000)
-    expect(b.totalOrders).toBe(1)
+    expect(b.totalOrders).toBe(0)
     expect(b.byMethod).toEqual({ cash: 100000 })
     expect(b.refundTotal).toBe(0)
     expect(b.net).toBe(plain.net)

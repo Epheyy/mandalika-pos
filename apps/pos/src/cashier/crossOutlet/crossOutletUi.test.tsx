@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import type { components } from '@mandalika/api'
 import { CrossOutletSearch } from './CrossOutletSearch'
-import { isCrossOutletOrder } from './useCrossOutletRefund'
+import { isCrossOutletOrder, routeRefund } from './useCrossOutletRefund'
 import { OrderHistoryPanel } from '../OrderHistoryPanel'
 import { RefundDialog } from '../RefundDialog'
 
@@ -75,14 +75,35 @@ describe('isCrossOutletOrder', () => {
   })
 })
 
+describe('RefundDialog while another sale has an unanswered refund (H1)', () => {
+  const info = { originName: 'Lewiliang', pending: false, otherPending: 'LWB-1', onResend: vi.fn(), onCheck: vi.fn() }
+  it('blocks the new refund, names the pending sale and does not offer to resend it here', () => {
+    const html = renderToStaticMarkup(createElement(RefundDialog, { order, isProcessing: false, onConfirm: vi.fn(), onClose: vi.fn(), crossOutlet: info }))
+    expect(html).toContain('Refund #LWB-1 belum terjawab. Buka transaksi itu dulu (Cek transaksi).')
+    expect(html).not.toContain('Kirim ulang refund sebelumnya')
+    expect(html).toContain('Cek transaksi')
+  })
+})
+
 describe('CashierScreen wiring', () => {
   const src = readFileSync(new URL('../CashierScreen.tsx', import.meta.url), 'utf8')
-  it('keeps the same-outlet refund on the outbox and sends only cross-outlet orders to the server', () => {
+  it('the routing decision sends only another outlet sale to the server', () => {
+    expect(routeRefund({ outletId: 'x' }, 'y')).toBe('cross')
+    expect(routeRefund({ outletId: 'y' }, 'y')).toBe('outbox')
+    expect(routeRefund({ outletId: '' }, 'y')).toBe('outbox')
+  })
+  it('keeps the same-outlet refund on the outbox, behind routeRefund', () => {
     expect(src).toContain("engine.enqueue('refund', { ...plan.payload })")
+    expect(src).not.toContain('isCrossOutletOrder(refundOrder')
     const cross = src.indexOf('await crossRefund.submit(')
     const enqueue = src.indexOf("engine.enqueue('refund'")
     expect(cross).toBeGreaterThan(0)
-    expect(cross).toBeLessThan(enqueue) // the cross branch returns before the outbox call
-    expect(src).toContain('isCrossOutletOrder(refundOrder, authStore.outletId)')
+    expect(cross).toBeLessThan(enqueue)
+    expect(src.slice(cross, enqueue)).toMatch(/await crossRefund\.submit\([^)]*\)\s*return/)
+  })
+  it('hides a cross error from other dialogs, ignores Back mid-send and acknowledges a replay', () => {
+    expect(src).toContain("(routeRefund(refundOrder, authStore.outletId) === 'cross' ? crossRefund.error : null) ?? refundError")
+    expect(src).toContain('if (!(crossRefund.busy || isRefunding)) { setRefundOrder(null); setRefundSale(null); crossRefund.reset() }')
+    expect(src).toContain("if (replayed) setConfirm({ message, confirmLabel: 'Mengerti'")
   })
 })
