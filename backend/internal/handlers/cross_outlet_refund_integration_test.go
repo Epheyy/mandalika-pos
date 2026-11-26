@@ -282,6 +282,8 @@ func TestCrossOutletRefundPostgres(t *testing.T) {
 		}
 	})
 
+	anySlice := func(v any) []any { a, _ := v.([]any); return a }
+	var xoAssertStripped func(map[string]any)
 	t.Run("2 lookup by order number and exact phone", func(t *testing.T) {
 		type row struct {
 			OutletName string         `json:"outletName"`
@@ -299,14 +301,55 @@ func TestCrossOutletRefundPostgres(t *testing.T) {
 		if code != 200 || len(rows) != 1 || rows[0].OutletName != "XO outlet 1" || rows[0].Order["id"] != cashSale {
 			t.Fatalf("by number: %d %+v", code, rows)
 		}
-		for _, k := range []string{"customerName", "customerId", "deviceId", "notes", "salesmanId", "salesmanName", "refundedBy"} {
-			if _, ok := rows[0].Order[k]; ok {
-				t.Fatalf("lookup leaked %s", k)
+		// allowlist projection (A30): seed the sensitive fields so the absence assertions bite
+		exec(`UPDATE orders SET refund_reason='SECRET-ORDER-REASON', notes='SECRET-NOTE' WHERE id=$1`, splitSale)
+		assertStripped := func(o map[string]any) {
+			t.Helper()
+			for _, k := range []string{"customerName", "customerId", "deviceId", "notes", "salesmanId", "salesmanName",
+				"refundedBy", "refundedByName", "refundReason", "shiftId", "refundShiftId", "void", "discountCode"} {
+				if _, ok := o[k]; ok {
+					t.Fatalf("lookup leaked %s", k)
+				}
+			}
+			if o["cashierId"] != "" || o["cashierName"] != "" {
+				t.Fatalf("cashier must be blanked: %v %v", o["cashierId"], o["cashierName"])
+			}
+			for _, r := range anySlice(o["refunds"]) {
+				rm := r.(map[string]any)
+				if rm["reason"] != "" {
+					t.Fatalf("refund reason leaked: %v", rm["reason"])
+				}
+				for _, k := range []string{"refundedByName", "reasonCode", "shiftId", "payoutSource"} {
+					if _, ok := rm[k]; ok {
+						t.Fatalf("refunds[] leaked %s", k)
+					}
+				}
+			}
+			for _, tn := range anySlice(o["tenders"]) {
+				if _, ok := tn.(map[string]any)["reference"]; ok {
+					t.Fatal("tenders[] leaked reference")
+				}
+			}
+			if b, _ := json.Marshal(o); strings.Contains(string(b), "SECRET-") || strings.Contains(string(b), "\"R1\"") {
+				t.Fatalf("seeded secret in lookup: %s", b)
 			}
 		}
-		if _, ok := rows[0].Order["cashierName"]; !ok {
-			t.Fatal("lookup must keep cashierName for the refund dialog")
+		assertStripped(rows[0].Order)
+		for _, k := range []string{"id", "orderNumber", "outletId", "createdAt", "items", "tenders", "total", "paymentMethod", "status", "subtotal", "amountPaid"} {
+			if _, ok := rows[0].Order[k]; !ok {
+				t.Fatalf("lookup lost %s the POS needs", k)
+			}
 		}
+		_, splitRows := look(yTok, "orderNumber="+str(`SELECT order_number FROM orders WHERE id=$1`, splitSale), nil)
+		if len(splitRows) != 1 {
+			t.Fatalf("split rows %d", len(splitRows))
+		}
+		assertStripped(splitRows[0].Order)
+		tn := anySlice(splitRows[0].Order["tenders"])
+		if len(tn) != 2 || tn[0].(map[string]any)["method"] != "qris" || tn[0].(map[string]any)["amount"] == nil {
+			t.Fatalf("split tenders: %v", tn)
+		}
+		xoAssertStripped = assertStripped
 		code, rows = look(yTok, "phone=0812-3456-7890", nil)
 		if code != 200 || len(rows) != 1 || rows[0].Order["id"] != cashSale {
 			t.Fatalf("by phone: %d %+v", code, rows)
@@ -366,6 +409,18 @@ func TestCrossOutletRefundPostgres(t *testing.T) {
 		if st := str(`SELECT status FROM orders WHERE id=$1`, cashSale); st != "partially_refunded" {
 			t.Fatalf("order status %s", st)
 		}
+		// the lookup after the refund: refunds[] is present (what was already refunded) but stripped
+		code, raw, _ := call("GET", "/cross-outlet-returns/lookup?orderNumber="+str(`SELECT order_number FROM orders WHERE id=$1`, cashSale), yTok, nil, nil)
+		var lk struct {
+			Data []struct{ Order map[string]any }
+		}
+		if code != 200 || json.Unmarshal(raw, &lk) != nil || len(lk.Data) != 1 {
+			t.Fatalf("post-refund lookup %d %s", code, raw)
+		}
+		if len(anySlice(lk.Data[0].Order["refunds"])) != 1 {
+			t.Fatalf("post-refund lookup must list the refund: %s", raw)
+		}
+		xoAssertStripped(lk.Data[0].Order)
 		// X reads its own order: the refund carries outletId = Y
 		o := getOrder(w.x.tok, cashSale)
 		rs, _ := o["refunds"].([]any)
