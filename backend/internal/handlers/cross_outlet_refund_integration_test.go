@@ -702,10 +702,11 @@ func TestCrossOutletRefundPostgres(t *testing.T) {
 		var wg sync.WaitGroup
 		var crossCode int
 		var batchRes map[string]any
+		crossUUID := nextID("1300") // nextID is not goroutine-safe: mint every id before the goroutines start
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			c, _, _ := call("POST", "/orders/"+sale+"/cross-outlet-refund", w.y.tok, nil, xoBody(w.shiftY, nextID("1300"), item(0, 1)))
+			c, _, _ := call("POST", "/orders/"+sale+"/cross-outlet-refund", w.y.tok, nil, xoBody(w.shiftY, crossUUID, item(0, 1)))
 			crossCode = c
 		}()
 		bp := map[string]any{"orderId": sale, "reason": "rusak", "deviceId": device, "orderUuid": nextID("1400"), "items": []any{item(0, 1)}}
