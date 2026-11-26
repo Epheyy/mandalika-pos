@@ -17,7 +17,7 @@ import { useListState, type ListSchema } from '../../lib/router/useListState'
 import { PAGING_SCHEMA, enumOf, isAnswerFor, pageOf, pageSizeOf, pageToClamp, totalPagesOf } from './reportFilters'
 import {
   REFUND_FLAG_OPTIONS, claimedIfDifferent, flagLabel, flagTone, formatRefundTime, itemSummary,
-  refundCsvRows, scopeLabel, type RefundFlagFilter,
+  refundCsvRows, saleOutletLabel, scopeLabel, type RefundFlagFilter,
 } from './refundReport'
 
 type RefundRow = RefundReport['data'][number]
@@ -50,6 +50,7 @@ const REFUND_COLUMNS: Column<RefundRow>[] = [
     ),
   },
   { id: 'outlet', header: 'Outlet', cell: (r) => r.outletName },
+  { id: 'penjualan', header: 'Penjualan di', cell: (r) => saleOutletLabel(r) || '—' },
   {
     id: 'kasir',
     header: 'Kasir / Oleh',

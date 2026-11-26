@@ -58,6 +58,11 @@ export function claimedIfDifferent(r: Pick<RefundReportRow, 'amount' | 'claimedA
   return r.claimedAmount != null && r.claimedAmount !== r.amount ? r.claimedAmount : null
 }
 
+/** "Penjualan di": the outlet the sale was made at (A18). Empty when it is the paying outlet (a same-outlet refund). */
+export function saleOutletLabel(r: Pick<RefundReportRow, 'outletId' | 'saleOutletId' | 'saleOutletName'>): string {
+  return r.saleOutletName && r.saleOutletId && r.saleOutletId !== r.outletId ? r.saleOutletName : ''
+}
+
 export function formatRefundTime(iso: string): string {
   return format(parseISO(iso), 'dd/MM/yyyy HH:mm', { locale: idLocale })
 }
@@ -77,6 +82,7 @@ export function refundCsvRows(rows: RefundReportRow[]): Record<string, unknown>[
     Oleh: r.refundedByName ?? '',
     Kasir: r.cashierName,
     Outlet: r.outletName,
+    'Penjualan di': saleOutletLabel(r),
     Alasan: r.reason,
     'Kode alasan': r.reasonCode ?? '',
     'Peringatan jumlah': flagLabel(r.amountWarning),

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { RefundReportRow } from '@mandalika/api'
 import { buildCSV } from '../../lib/csvUtils'
 import {
-  claimedIfDifferent, flagLabel, flagTone, itemSummary, refundCsvRows, scopeLabel, totalQuantity,
+  claimedIfDifferent, flagLabel, flagTone, itemSummary, refundCsvRows, saleOutletLabel, scopeLabel, totalQuantity,
 } from './refundReport'
 
 const row = (over: Partial<RefundReportRow> = {}): RefundReportRow => ({
@@ -54,6 +54,17 @@ describe('refundCsvRows time', () => {
   it('writes Waktu as yyyy-MM-dd HH:mm', () => {
     const local = new Date(2026, 10, 9, 21, 41).toISOString()
     expect(refundCsvRows([row({ refundedAt: local })])[0].Waktu).toBe('2026-11-09 21:41')
+  })
+})
+
+describe('saleOutletLabel', () => {
+  it('names the sale outlet only for a cross-outlet refund', () => {
+    expect(saleOutletLabel(row({ saleOutletId: 'ou2', saleOutletName: 'LWB' }))).toBe('LWB')
+    expect(saleOutletLabel(row({ saleOutletId: 'ou1', saleOutletName: 'BSD' }))).toBe('')
+    expect(saleOutletLabel(row())).toBe('')
+  })
+  it('puts it in the CSV', () => {
+    expect(refundCsvRows([row({ saleOutletId: 'ou2', saleOutletName: 'LWB' })])[0]['Penjualan di']).toBe('LWB')
   })
 })
 
