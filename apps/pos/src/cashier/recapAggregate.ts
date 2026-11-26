@@ -27,6 +27,12 @@ export interface Breakdown {
  *  (old, local, or only the server's synthetic line) keeps its whole amount under the payment method, as before. */
 const hasRealTenders = (o: Order): boolean => (o.tenders ?? []).some((t) => !t.synthetic)
 
+/** A18: a refund paid at another outlet (its outletId differs from the sale's) never left THIS drawer. A refund without
+ *  an outletId (older server) or an order without the refunds array counts as paid here, as before. */
+const isCrossRefund = (o: Order, r: NonNullable<Order['refunds']>[number]): boolean => !!r.outletId && !!o.outletId && r.outletId !== o.outletId
+const crossRefunds = (o: Order) => (o.refunds ?? []).filter((r) => isCrossRefund(o, r))
+const crossRefundAmount = (o: Order): number => crossRefunds(o).reduce((n, r) => n + r.amount, 0)
+
 export function keptByMethod(o: Order, kept: number, refunded: number, methods: PaymentMethodCfg[]): Record<string, number> {
   const lines = o.tenders ?? []
   if (!hasRealTenders(o)) return { [o.paymentMethod]: kept }
@@ -34,6 +40,7 @@ export function keptByMethod(o: Order, kept: number, refunded: number, methods: 
   for (const t of lines) out[t.method] = (out[t.method] ?? 0) + t.amount
   let unassigned = refunded
   for (const r of o.refunds ?? []) {
+    if (isCrossRefund(o, r)) continue
     const m = r.paymentMethod || o.paymentMethod
     out[m] = (out[m] ?? 0) - r.amount
     unassigned -= r.amount
@@ -57,14 +64,21 @@ export function aggregate(orders: Order[], methods: PaymentMethodCfg[]): Breakdo
     if (o.status === 'cancelled') continue
     // C4b: money back to customers, from the server's refund rows. A fully refunded order without the field is
     // a whole refund (older server); a part-refunded one without it is unknown, so it is not guessed.
-    const refunded = o.refundedAmount ?? (o.status === 'refunded' ? o.total : 0)
+    // A18: only what this drawer paid. A sale refunded (even fully) at another outlet is still a sale here.
+    const cross = crossRefundAmount(o)
+    const refunded = (o.refundedAmount ?? (o.status === 'refunded' ? o.total : 0)) - cross
+    const fullHere = o.status === 'refunded' && cross === 0
     if (refunded > 0) {
       b.refundCount += 1
       b.refundTotal += refunded
-      if (o.status === 'refunded') b.refundFullTotal += refunded
-      b.refundItems += o.status === 'refunded' ? o.items.reduce((s, i) => s + i.quantity, 0) : o.items.reduce((s, i) => s + (i.refundedQty ?? 0), 0)
+      if (fullHere) b.refundFullTotal += refunded
+      b.refundItems += fullHere
+        ? o.items.reduce((s, i) => s + i.quantity, 0)
+        : cross > 0
+          ? (o.refunds ?? []).filter((r) => !isCrossRefund(o, r)).reduce((n, r) => n + (r.items ?? []).reduce((q, i) => q + i.quantity, 0), 0)
+          : o.items.reduce((s, i) => s + (i.refundedQty ?? 0), 0)
     }
-    if (o.status === 'refunded') {
+    if (fullHere) {
       // A fully refunded order with real tender lines still moves money between methods (the server's shift
       // buckets keep it: lines less refunds by payout method), so a cash payout of a QRIS line shows in the
       // drawer. It is not a sale: totals, count and the gross/discount rows skip it, as before. Orders without
@@ -116,7 +130,7 @@ export interface SplitMove {
 export function splitRefundMoves(orders: Order[], methods: PaymentMethodCfg[]): Record<string, SplitMove> {
   const out: Record<string, SplitMove> = {}
   for (const o of orders) {
-    if (o.status !== 'refunded' || !hasRealTenders(o)) continue
+    if (o.status !== 'refunded' || !hasRealTenders(o) || crossRefundAmount(o) > 0) continue
     const refunded = o.refundedAmount ?? o.total
     for (const [m, v] of Object.entries(keptByMethod(o, 0, refunded, methods))) {
       if (v === 0) continue
