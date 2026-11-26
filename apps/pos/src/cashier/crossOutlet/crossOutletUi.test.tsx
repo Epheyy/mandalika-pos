@@ -77,9 +77,10 @@ describe('isCrossOutletOrder', () => {
 
 describe('RefundDialog while another sale has an unanswered refund (H1)', () => {
   const info = { originName: 'Lewiliang', pending: false, otherPending: 'LWB-1', onResend: vi.fn(), onCheck: vi.fn() }
-  it('blocks the new refund, names the pending sale and does not offer to resend it here', () => {
+  it('blocks the new refund, names the pending sale and offers to resend or check it', () => {
     const html = renderToStaticMarkup(createElement(RefundDialog, { order, isProcessing: false, onConfirm: vi.fn(), onClose: vi.fn(), crossOutlet: info }))
     expect(html).toContain('Refund #LWB-1 belum terjawab. Buka transaksi itu dulu (Cek transaksi).')
+    expect(html).toContain('Kirim ulang refund #LWB-1')
     expect(html).not.toContain('Kirim ulang refund sebelumnya')
     expect(html).toContain('Cek transaksi')
   })
@@ -87,6 +88,9 @@ describe('RefundDialog while another sale has an unanswered refund (H1)', () => 
 
 describe('CashierScreen wiring', () => {
   const src = readFileSync(new URL('../CashierScreen.tsx', import.meta.url), 'utf8')
+  it('refuses an outbox refund while a cross attempt is pending for the same sale', () => {
+    expect(src).toContain('!isCross && isCrossAttemptPendingFor(crossRefund.pending, ids)')
+  })
   it('the routing decision sends only another outlet sale to the server', () => {
     expect(routeRefund({ outletId: 'x' }, 'y')).toBe('cross')
     expect(routeRefund({ outletId: 'y' }, 'y')).toBe('outbox')

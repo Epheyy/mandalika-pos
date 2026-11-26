@@ -21,6 +21,12 @@ export function routeRefund(order: Pick<Order, 'outletId'> | null | undefined, a
   return isCrossOutletOrder(order, activeOutletId) ? 'cross' : 'outbox'
 }
 
+/** True when a stored cross-outlet attempt exists for one of these order ids: a same-outlet (outbox) refund of that sale
+ *  must wait, or it could pay out twice (e.g. after the tablet was re-bound to the sale's outlet). */
+export function isCrossAttemptPendingFor(pending: Pick<PendingRef, 'orderId'> | null | undefined, orderIds: readonly string[]): boolean {
+  return !!pending && orderIds.includes(pending.orderId)
+}
+
 /** The unanswered attempt, as the dialog needs it. */
 export interface PendingRef { orderId: string; orderNumber: string }
 

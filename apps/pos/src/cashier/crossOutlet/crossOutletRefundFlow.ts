@@ -11,6 +11,10 @@ export const CROSS_CHECK_FIRST = 'Server tidak menjawab tepat waktu. Cek dulu ap
 export const crossPendingOther = (orderNumber: string): string =>
   `Refund ${orderNumber ? `#${orderNumber} ` : ''}belum terjawab. Buka transaksi itu dulu (Cek transaksi).`
 
+/** A same-outlet refund of a sale whose refund via another outlet is still unanswered. */
+export const crossPendingSameSale = (orderNumber: string): string =>
+  `Refund ${orderNumber ? `#${orderNumber} ` : ''}lewat outlet lain belum terjawab. Selesaikan dulu (Cek transaksi / Kirim ulang).`
+
 export type CrossOutletOutcome =
   | { kind: 'offline'; message: string }
   | { kind: 'storeFailed'; message: string }

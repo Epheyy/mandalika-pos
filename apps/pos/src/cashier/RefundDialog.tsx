@@ -49,7 +49,7 @@ export interface CrossOutletDialogInfo {
   originName: string
   /** An earlier attempt is still unanswered: offer to resend it or to check the sale. */
   pending: boolean
-  /** An unanswered refund of ANOTHER sale is on this tablet (its order number): a new refund is blocked until that sale is opened. */
+  /** An unanswered refund of ANOTHER sale is on this tablet (its order number): a new refund is blocked until that one is resent or its sale is checked. */
   otherPending?: string | null
   onResend: () => void
   onCheck: () => void
@@ -237,7 +237,10 @@ function RefundDialogBody({ order, cache, methods, isProcessing, error, onConfir
       {crossOutlet?.otherPending && (
         <div className="mb-4" data-testid="refund-cross-other-pending">
           <Banner tone="danger" message={crossPendingOther(crossOutlet.otherPending)} className="rounded-control mb-2" />
-          <Button variant="secondary" onClick={crossOutlet.onCheck} disabled={isProcessing} className="w-full">Cek transaksi</Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={crossOutlet.onResend} disabled={isProcessing} className="flex-1">{`Kirim ulang refund #${crossOutlet.otherPending}`}</Button>
+            <Button variant="secondary" onClick={crossOutlet.onCheck} disabled={isProcessing} className="flex-1">Cek transaksi</Button>
+          </div>
         </div>
       )}
       {crossOutlet?.pending && (

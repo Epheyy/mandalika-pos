@@ -50,8 +50,9 @@ import { ShiftBar } from './ShiftBar'
 import { ReceiptPreview } from './ReceiptPreview'
 import { orderStateFor } from './orderState'
 import { RefundDialog, type RefundConfirmInput } from './RefundDialog'
-import { routeRefund, useCrossOutletRefund } from './crossOutlet/useCrossOutletRefund'
+import { isCrossAttemptPendingFor, routeRefund, useCrossOutletRefund } from './crossOutlet/useCrossOutletRefund'
 import { buildCrossOutletSlipData } from './crossOutlet/crossOutletSlip'
+import { crossPendingSameSale } from './crossOutlet/crossOutletRefundFlow'
 import { buildRefundSlipData, printRefundSlipSafely } from './refundSlipData'
 import type { RefundCache } from './refundSelection'
 import type { HistoryFocus } from './OrderHistoryPanel'
@@ -1200,7 +1201,8 @@ export default function CashierScreen() {
       // `sent` is the sale the server actually stored (the stored attempt), which may not be the one open now.
       setRefundOrder((cur) => (cur?.id === sent.orderId ? null : cur))
       setRefundSale(null)
-      crossRefund.reset()
+      // Only the dialog of the sent sale is reset; another sale open in the dialog keeps its state.
+      if (refundOrder?.id === sent.orderId) crossRefund.reset()
       // A replay must be read, not glanced at: a blocking acknowledgement instead of a toast.
       if (replayed) setConfirm({ message, confirmLabel: 'Mengerti', tone: 'primary', run: () => {} })
       else kitToast.showToast(message, { tone: 'ok' })
@@ -1241,6 +1243,7 @@ export default function CashierScreen() {
     if (ids.some((k) => voided.has(k))) { setRefundError(REFUND_VOIDED); return }
     if (ids.some((k) => synced.has(k))) { setRefundError(REFUND_DONE); return }
     if (ids.some((k) => queuedIds.has(k) || queuedUuids.has(k))) { setRefundError(REFUND_QUEUED); return }
+    if (!isCross && isCrossAttemptPendingFor(crossRefund.pending, ids)) { setRefundError(crossPendingSameSale(crossRefund.pending?.orderNumber ?? '')); return }
     // One read of the refund memory feeds both the plan and the slip, so they cannot disagree.
     const slipCache = refundCacheFor(ids)
     const plan = planRefundSubmit({
