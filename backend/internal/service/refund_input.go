@@ -94,9 +94,9 @@ type RefundInput struct {
 	// SaleOutletID is where the order lives; empty = OutletID. Only RefundCrossOutlet sets it.
 	// OutletID is the RETURNING outlet: stock, ledger, ERP location, order_refunds.outlet_id,
 	// stock seq, shift.
-	SaleOutletID string
-	ShiftID      string
-	UserID, UserName          string
+	SaleOutletID     string
+	ShiftID          string
+	UserID, UserName string
 	// Channel is the transport the refund arrived on: "sync" (tablet batch) or
 	// "direct" (empty = direct). Only recorded on refund_unresolved_variant rows (A44).
 	Channel string
