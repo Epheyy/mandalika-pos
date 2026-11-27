@@ -4,6 +4,7 @@ import {
   hasSalesStaffErrors,
   initialSalesStaffForm,
   linkOptions,
+  nextSaveAttempt,
   releaseSalesStaffInput,
   salesStaffFormErrors,
   salesStaffFormReducer,
@@ -57,9 +58,10 @@ describe('salesStaffForm', () => {
     expect(on.outletIds).toEqual(['o2'])
     expect(salesStaffFormReducer(on, { type: 'TOGGLE_OUTLET', id: 'o2' }).outletIds).toEqual([])
   })
-  it('release sends the entry values with active false', () => {
+  it('release sends the entry values with active false and no outlets, also for an inactive entry', () => {
     const e = entry({ user: { id: 'u1', displayName: 'Rina U' }, canEditDetails: false })
-    expect(releaseSalesStaffInput(e)).toEqual({ name: 'Rina', active: false, outletIds: ['o1'], userId: 'u1' })
+    expect(releaseSalesStaffInput(e)).toEqual({ name: 'Rina', active: false, outletIds: [], userId: 'u1' })
+    expect(releaseSalesStaffInput(entry({ active: false })).outletIds).toEqual([])
     expect(releaseSalesStaffInput(entry()).userId).toBeNull()
   })
   it('link options always include the current account once', () => {
@@ -68,5 +70,13 @@ describe('salesStaffForm', () => {
     expect(linkOptions([other], cur).map((u) => u.id)).toEqual(['u1', 'u2'])
     expect(linkOptions([cur, other], cur).map((u) => u.id)).toEqual(['u1', 'u2'])
     expect(linkOptions([other], undefined).map((u) => u.id)).toEqual(['u2'])
+  })
+  it('reuses the idempotency key while the payload is unchanged and mints a new one when it changes', () => {
+    const input = { name: 'Rina', active: true, outletIds: ['o1'], userId: null }
+    const first = nextSaveAttempt(null, null, input)
+    expect(nextSaveAttempt(first, null, { ...input })).toBe(first)
+    const edited = nextSaveAttempt(first, null, { ...input, name: 'Rini' })
+    expect(edited.key).not.toBe(first.key)
+    expect(nextSaveAttempt(first, 's1', input).key).not.toBe(first.key)
   })
 })

@@ -64,7 +64,7 @@ export function SalesStaffDialog({ entry, outlets, linkable, busy, error, onSave
           {readOnly && entry && (
             <Button variant="ghost" disabled={busy} onClick={() => onRelease(releaseSalesStaffInput(entry))}>Lepas dari outlet saya</Button>
           )}
-          <Button variant="secondary" onClick={onClose}>Batal</Button>
+          <Button variant="secondary" disabled={busy} onClick={onClose}>Batal</Button>
           <Button loading={busy} onClick={save}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
         </SlideOver.Footer>
       }

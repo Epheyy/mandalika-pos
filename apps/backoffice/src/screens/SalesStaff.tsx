@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Outlet, PullUser, SalesStaff as SalesStaffRow, SalesStaffInput } from '@mandalika/api'
+import type { Outlet, SalesStaff as SalesStaffRow } from '@mandalika/api'
 import { Plus, UserRoundCheck, X } from 'lucide-react'
 import { api } from '../api'
 import { useAuth } from '../auth'
@@ -13,7 +13,7 @@ import { IconButton } from '../ui/IconButton'
 import { PageHeader } from '../ui/PageHeader'
 import { SalesStaffDialog } from './salesStaff/SalesStaffDialog'
 import { salesStaffColumns } from './salesStaff/salesStaffColumns'
-import { errorText } from './users/formError'
+import { useSalesStaffEditor } from './salesStaff/useSalesStaffEditor'
 
 type StatusFilter = 'active' | 'inactive' | 'all'
 
@@ -23,22 +23,12 @@ const STATUS_OPTIONS = [
   { value: 'inactive', label: 'Nonaktif' },
 ] as const
 
-const RELEASED_NOTE = 'Sales dilepas dari outlet Anda.'
-
-interface Editor {
-  entry: SalesStaffRow | null
-  linkable: PullUser[]
-}
-
 /** "Tim Sales": the per-outlet list of people the cashier can pick as Sales. The server enforces every rule. */
 export default function SalesStaff() {
   const { user: me } = useAuth()
   const [outletId, setOutletId] = useState('')
   const [status, setStatus] = useState<StatusFilter>('active')
   const [search, setSearch] = useState('')
-  const [editor, setEditor] = useState<Editor | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
 
   const oq = usePolledQuery<Outlet[]>(() => api.listOutlets(), [])
@@ -48,36 +38,10 @@ export default function SalesStaff() {
     [outletId, status, search],
   )
   const rows = q.data ?? []
-
-  const openEditor = async (entry: SalesStaffRow | null) => {
-    setNote(null)
-    setSaveError(null)
-    try {
-      setEditor({ entry, linkable: await api.listSalesStaffLinkableUsers() })
-    } catch (e: unknown) {
-      setSaveError(errorText(e, 'Gagal memuat akun yang bisa ditautkan.'))
-      setEditor({ entry, linkable: [] })
-    }
-  }
-
-  const save = async (input: SalesStaffInput, successNote: string | null) => {
-    if (!editor || busy) return
-    setBusy(true)
-    setSaveError(null)
-    // One key per submit: a retry of this same click can never create a second person.
-    const key = crypto.randomUUID()
-    try {
-      const saved = editor.entry ? await api.updateSalesStaff(editor.entry.id, input, key) : await api.createSalesStaff(input, key)
-      setEditor(null)
-      // A manager who removed their own outlets from a shared person no longer sees the row: say so instead of failing.
-      setNote(saved.outletIds.length === 0 ? RELEASED_NOTE : successNote)
-      await q.refetch()
-    } catch (e: unknown) {
-      setSaveError(errorText(e, 'Gagal menyimpan. Coba lagi.'))
-    } finally {
-      setBusy(false)
-    }
-  }
+  const { editor, busy, error: saveError, open: openEditor, close: closeEditor, save } = useSalesStaffEditor(async (n) => {
+    setNote(n)
+    await q.refetch()
+  })
 
   const resetFilters = () => {
     setOutletId('')
@@ -85,7 +49,7 @@ export default function SalesStaff() {
     setSearch('')
   }
   const activeFilters = (outletId ? 1 : 0) + (status !== 'active' ? 1 : 0) + (search ? 1 : 0)
-  const columns = salesStaffColumns({ outlets, onEdit: (s) => void openEditor(s) })
+  const columns = salesStaffColumns({ outlets, onEdit: (s) => { setNote(null); void openEditor(s) } })
 
   return (
     <div className="space-y-5 p-6">
@@ -93,7 +57,7 @@ export default function SalesStaff() {
         title="Tim Sales"
         subtitle="Orang yang bisa dipilih sebagai Sales di kasir, per outlet."
         actions={
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => void openEditor(null)}>Tambah sales</Button>
+          <Button icon={<Plus className="h-4 w-4" />} onClick={() => { setNote(null); void openEditor(null) }}>Tambah sales</Button>
         }
       />
 
@@ -123,7 +87,12 @@ export default function SalesStaff() {
         loading={q.loading && !q.data}
         error={q.error ? `Gagal memuat tim sales. ${q.error}` : null}
         onRetry={() => void q.refetch()}
-        empty={<EmptyState icon={<UserRoundCheck />} title="Belum ada tim sales. Tambahkan sales agar muncul di pilihan Sales di kasir." />}
+        empty={
+          <EmptyState
+            icon={<UserRoundCheck />}
+            title={activeFilters > 0 ? 'Tidak ada sales yang cocok dengan filter.' : 'Belum ada tim sales. Tambahkan sales agar muncul di pilihan Sales di kasir.'}
+          />
+        }
       />
 
       {editor && (
@@ -135,8 +104,8 @@ export default function SalesStaff() {
           busy={busy}
           error={saveError}
           onSave={(input) => void save(input, editor.entry ? `${input.name} disimpan` : `${input.name} ditambahkan`)}
-          onRelease={(input) => void save(input, RELEASED_NOTE)}
-          onClose={() => setEditor(null)}
+          onRelease={(input) => void save(input, null)}
+          onClose={closeEditor}
         />
       )}
     </div>

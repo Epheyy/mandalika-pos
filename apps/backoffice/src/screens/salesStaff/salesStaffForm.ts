@@ -64,13 +64,24 @@ export function toSalesStaffInput(state: SalesStaffFormState): SalesStaffInput {
   return { name: state.name.trim(), active: state.active, outletIds: state.outletIds, userId: state.userId === NO_LINK ? null : state.userId }
 }
 
-/** "Lepas dari outlet saya": the entry's own values with Aktif off; the server drops the caller's outlets. */
+/** "Lepas dari outlet saya": the entry's own values with Aktif off and no outlets; the server keeps only the outlets the caller does not cover, active or not. */
 export function releaseSalesStaffInput(entry: SalesStaff): SalesStaffInput {
-  return { name: entry.name, active: false, outletIds: [...entry.outletIds], userId: entry.user?.id ?? null }
+  return { name: entry.name, active: false, outletIds: [], userId: entry.user?.id ?? null }
 }
 
 /** Linkable users plus the entry's current account (the server's list leaves linked users out, so an edit would otherwise unlink). */
 export function linkOptions(linkable: readonly PullUser[], current: PullUser | undefined): PullUser[] {
   if (!current || linkable.some((u) => u.id === current.id)) return [...linkable]
   return [current, ...linkable]
+}
+
+export interface SaveAttempt {
+  sig: string
+  key: string
+}
+
+/** The Idempotency-Key for a save: the previous attempt's key while the payload is unchanged (a retry replays the write), a fresh one once it changes. */
+export function nextSaveAttempt(prev: SaveAttempt | null, entryId: string | null, input: SalesStaffInput): SaveAttempt {
+  const sig = JSON.stringify([entryId, input])
+  return prev?.sig === sig ? prev : { sig, key: crypto.randomUUID() }
 }
