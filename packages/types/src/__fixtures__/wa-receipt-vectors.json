@@ -1,0 +1,308 @@
+{
+  "_note": "Shared by packages/types/src/waReceipt.test.ts and backend/internal/receiptlink tests. waDigits: normalizePhone then leading 0 -> 62, 10-15 digits else ''; a bare 8... mobile gains 62 (normalizePhone adds the missing 0). validate lengths count code points.",
+  "render": [
+    {
+      "name": "default template",
+      "template": "Halo {pelanggan}, terima kasih sudah berbelanja di {outlet}.\n\nStruk digital pesanan {no_order} (total {total}):\n{tautan}\n\nBagaimana pelayanan {sales} hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari.",
+      "values": {
+        "customerName": "Budi Santoso",
+        "salesmanName": "Rina",
+        "outletName": "Mandalika BSD",
+        "orderNumber": "ORD-0001",
+        "total": 150000,
+        "link": "https://x.id/r/abc"
+      },
+      "expected": "Halo Budi, terima kasih sudah berbelanja di Mandalika BSD.\n\nStruk digital pesanan ORD-0001 (total Rp 150.000):\nhttps://x.id/r/abc\n\nBagaimana pelayanan Rina hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari."
+    },
+    {
+      "name": "missing customer falls back to Kak",
+      "template": "Halo {pelanggan}, terima kasih sudah berbelanja di {outlet}.\n\nStruk digital pesanan {no_order} (total {total}):\n{tautan}\n\nBagaimana pelayanan {sales} hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari.",
+      "values": {
+        "customerName": "",
+        "salesmanName": "Rina",
+        "outletName": "Mandalika BSD",
+        "orderNumber": "ORD-0001",
+        "total": 150000,
+        "link": "https://x.id/r/abc"
+      },
+      "expected": "Halo Kak, terima kasih sudah berbelanja di Mandalika BSD.\n\nStruk digital pesanan ORD-0001 (total Rp 150.000):\nhttps://x.id/r/abc\n\nBagaimana pelayanan Rina hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari."
+    },
+    {
+      "name": "blank customer falls back to Kak",
+      "template": "Halo {pelanggan}, terima kasih sudah berbelanja di {outlet}.\n\nStruk digital pesanan {no_order} (total {total}):\n{tautan}\n\nBagaimana pelayanan {sales} hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari.",
+      "values": {
+        "customerName": "  \n ",
+        "salesmanName": "Rina",
+        "outletName": "Mandalika BSD",
+        "orderNumber": "ORD-0001",
+        "total": 150000,
+        "link": "https://x.id/r/abc"
+      },
+      "expected": "Halo Kak, terima kasih sudah berbelanja di Mandalika BSD.\n\nStruk digital pesanan ORD-0001 (total Rp 150.000):\nhttps://x.id/r/abc\n\nBagaimana pelayanan Rina hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari."
+    },
+    {
+      "name": "missing salesman falls back to tim kami",
+      "template": "Halo {pelanggan}, terima kasih sudah berbelanja di {outlet}.\n\nStruk digital pesanan {no_order} (total {total}):\n{tautan}\n\nBagaimana pelayanan {sales} hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari.",
+      "values": {
+        "customerName": "Budi Santoso",
+        "salesmanName": "",
+        "outletName": "Mandalika BSD",
+        "orderNumber": "ORD-0001",
+        "total": 150000,
+        "link": "https://x.id/r/abc"
+      },
+      "expected": "Halo Budi, terima kasih sudah berbelanja di Mandalika BSD.\n\nStruk digital pesanan ORD-0001 (total Rp 150.000):\nhttps://x.id/r/abc\n\nBagaimana pelayanan tim kami hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari."
+    },
+    {
+      "name": "salesman name containing {sales} is not re-expanded",
+      "template": "Halo {pelanggan}, terima kasih sudah berbelanja di {outlet}.\n\nStruk digital pesanan {no_order} (total {total}):\n{tautan}\n\nBagaimana pelayanan {sales} hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari.",
+      "values": {
+        "customerName": "Budi Santoso",
+        "salesmanName": "{sales}",
+        "outletName": "Mandalika BSD",
+        "orderNumber": "ORD-0001",
+        "total": 150000,
+        "link": "https://x.id/r/abc"
+      },
+      "expected": "Halo Budi, terima kasih sudah berbelanja di Mandalika BSD.\n\nStruk digital pesanan ORD-0001 (total Rp 150.000):\nhttps://x.id/r/abc\n\nBagaimana pelayanan {sales} hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari."
+    },
+    {
+      "name": "customer name with newlines collapsed to first word",
+      "template": "Halo {pelanggan}, terima kasih sudah berbelanja di {outlet}.\n\nStruk digital pesanan {no_order} (total {total}):\n{tautan}\n\nBagaimana pelayanan {sales} hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari.",
+      "values": {
+        "customerName": "  Siti\n\nAisyah  ",
+        "salesmanName": "Rina",
+        "outletName": "Mandalika BSD",
+        "orderNumber": "ORD-0001",
+        "total": 150000,
+        "link": "https://x.id/r/abc"
+      },
+      "expected": "Halo Siti, terima kasih sudah berbelanja di Mandalika BSD.\n\nStruk digital pesanan ORD-0001 (total Rp 150.000):\nhttps://x.id/r/abc\n\nBagaimana pelayanan Rina hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari."
+    },
+    {
+      "name": "salesman with newline and spaces collapsed",
+      "template": "Halo {pelanggan}, terima kasih sudah berbelanja di {outlet}.\n\nStruk digital pesanan {no_order} (total {total}):\n{tautan}\n\nBagaimana pelayanan {sales} hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari.",
+      "values": {
+        "customerName": "Budi Santoso",
+        "salesmanName": "Rina \n  Putri",
+        "outletName": "Mandalika BSD",
+        "orderNumber": "ORD-0001",
+        "total": 150000,
+        "link": "https://x.id/r/abc"
+      },
+      "expected": "Halo Budi, terima kasih sudah berbelanja di Mandalika BSD.\n\nStruk digital pesanan ORD-0001 (total Rp 150.000):\nhttps://x.id/r/abc\n\nBagaimana pelayanan Rina Putri hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari."
+    },
+    {
+      "name": "empty outlet and order become dash",
+      "template": "Halo {pelanggan}, terima kasih sudah berbelanja di {outlet}.\n\nStruk digital pesanan {no_order} (total {total}):\n{tautan}\n\nBagaimana pelayanan {sales} hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari.",
+      "values": {
+        "customerName": "Budi Santoso",
+        "salesmanName": "Rina",
+        "outletName": "",
+        "orderNumber": " ",
+        "total": 150000,
+        "link": "https://x.id/r/abc"
+      },
+      "expected": "Halo Budi, terima kasih sudah berbelanja di -.\n\nStruk digital pesanan - (total Rp 150.000):\nhttps://x.id/r/abc\n\nBagaimana pelayanan Rina hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari."
+    },
+    {
+      "name": "unknown placeholder kept literally",
+      "template": "{x} {pelanggan} {tautan} {Sales} {}",
+      "values": {
+        "customerName": "Budi Santoso",
+        "salesmanName": "Rina",
+        "outletName": "Mandalika BSD",
+        "orderNumber": "ORD-0001",
+        "total": 150000,
+        "link": "https://x.id/r/abc"
+      },
+      "expected": "{x} Budi https://x.id/r/abc {Sales} {}"
+    },
+    {
+      "name": "placeholder repeated and total rounded",
+      "template": "{total}/{total} {tautan}",
+      "values": {
+        "customerName": "Budi Santoso",
+        "salesmanName": "Rina",
+        "outletName": "Mandalika BSD",
+        "orderNumber": "ORD-0001",
+        "total": 1234567.5,
+        "link": "https://x.id/r/abc"
+      },
+      "expected": "Rp 1.234.568/Rp 1.234.568 https://x.id/r/abc"
+    }
+  ],
+  "validate": [
+    {
+      "template": "Halo {pelanggan}, terima kasih sudah berbelanja di {outlet}.\n\nStruk digital pesanan {no_order} (total {total}):\n{tautan}\n\nBagaimana pelayanan {sales} hari ini? Mohon beri penilaian lewat tautan di atas, cukup 10 detik. Tautan berlaku 7 hari.",
+      "ok": true
+    },
+    {
+      "template": "{tautan}",
+      "ok": true
+    },
+    {
+      "template": "Lihat {tautan}",
+      "ok": true
+    },
+    {
+      "template": "",
+      "ok": false
+    },
+    {
+      "template": "Tanpa tautan",
+      "ok": false
+    },
+    {
+      "template": "{tautan} {foo}",
+      "ok": false
+    },
+    {
+      "template": "{tautan} {Pelanggan}",
+      "ok": true
+    },
+    {
+      "template": "{tautan} {}",
+      "ok": true
+    },
+    {
+      "template": "{tautan}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ok": true
+    },
+    {
+      "template": "{tautan}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ok": false
+    },
+    {
+      "template": "{tautan}😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+      "ok": true
+    },
+    {
+      "template": "{tautan}😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+      "ok": false
+    }
+  ],
+  "rupiah": [
+    {
+      "n": 0,
+      "expected": "Rp 0"
+    },
+    {
+      "n": 999,
+      "expected": "Rp 999"
+    },
+    {
+      "n": 1000,
+      "expected": "Rp 1.000"
+    },
+    {
+      "n": 150000,
+      "expected": "Rp 150.000"
+    },
+    {
+      "n": 1234567,
+      "expected": "Rp 1.234.567"
+    },
+    {
+      "n": 1234567.5,
+      "expected": "Rp 1.234.568"
+    },
+    {
+      "n": 0.4,
+      "expected": "Rp 0"
+    },
+    {
+      "n": 0.5,
+      "expected": "Rp 1"
+    },
+    {
+      "n": -1500,
+      "expected": "-Rp 1.500"
+    },
+    {
+      "n": -0.4,
+      "expected": "Rp 0"
+    },
+    {
+      "n": -2.5,
+      "expected": "-Rp 3"
+    }
+  ],
+  "waDigits": [
+    {
+      "raw": "0812-3456-7890",
+      "expected": "6281234567890"
+    },
+    {
+      "raw": "+62 812 3456 7890",
+      "expected": "6281234567890"
+    },
+    {
+      "raw": "6281234567890",
+      "expected": "6281234567890"
+    },
+    {
+      "raw": "81234567890",
+      "expected": "6281234567890"
+    },
+    {
+      "raw": "0812 3456 789",
+      "expected": "628123456789"
+    },
+    {
+      "raw": "+62 (0)812 3456 7890",
+      "expected": "6281234567890"
+    },
+    {
+      "raw": "+1 415 555 0100",
+      "expected": "14155550100"
+    },
+    {
+      "raw": "123",
+      "expected": ""
+    },
+    {
+      "raw": "",
+      "expected": ""
+    },
+    {
+      "raw": "abc",
+      "expected": ""
+    },
+    {
+      "raw": "0812345",
+      "expected": ""
+    }
+  ],
+  "mask": [
+    {
+      "digits": "6281234567890",
+      "expected": "****7890"
+    },
+    {
+      "digits": "14155550100",
+      "expected": "****0100"
+    },
+    {
+      "digits": "1234",
+      "expected": "****1234"
+    }
+  ],
+  "waUrl": [
+    {
+      "digits": "6281234567890",
+      "text": "Halo Budi, terima kasih!\n\nTotal Rp 150.000 & ongkir? #1 😀",
+      "expected": "https://wa.me/6281234567890?text=Halo%20Budi%2C%20terima%20kasih!%0A%0ATotal%20Rp%20150.000%20%26%20ongkir%3F%20%231%20%F0%9F%98%80"
+    },
+    {
+      "digits": "14155550100",
+      "text": "a b",
+      "expected": "https://wa.me/14155550100?text=a%20b"
+    },
+    {
+      "digits": "6281234567890",
+      "text": "",
+      "expected": "https://wa.me/6281234567890?text="
+    }
+  ]
+}

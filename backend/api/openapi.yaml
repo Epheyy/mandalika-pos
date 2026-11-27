@@ -2873,6 +2873,110 @@ components:
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/CrossOutletLookupLog' } }
         meta: { $ref: '#/components/schemas/Meta' }
+    ReceiptLinkRequest:
+      type: object
+      description: Exactly one of orderUuid (client order uuid) or orderId (server id).
+      properties:
+        orderUuid: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        phone: { type: string, maxLength: 32, description: "Optional; empty uses the order customer phone." }
+        deviceId: { type: string, maxLength: 128 }
+    ReceiptLink:
+      type: object
+      required: [url, message, waUrl, expiresAt, phoneMasked]
+      properties:
+        url: { type: string }
+        message: { type: string }
+        waUrl: { type: string }
+        expiresAt: { type: string, format: date-time }
+        phoneMasked: { type: string }
+    ReceiptLinkResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ReceiptLink' }
+    WaReceiptTemplate:
+      type: object
+      required: [template, isDefault, defaultTemplate, placeholders]
+      properties:
+        template: { type: string }
+        isDefault: { type: boolean }
+        defaultTemplate: { type: string }
+        placeholders: { type: array, items: { type: string } }
+    WaReceiptTemplateRequest:
+      type: object
+      required: [template]
+      properties:
+        template: { type: string, description: "Empty string resets to the default." }
+    WaReceiptTemplateResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/WaReceiptTemplate' }
+    SalesPerformanceComment:
+      type: object
+      required: [stars, comment, createdAt]
+      properties:
+        stars: { type: integer }
+        comment: { type: string }
+        createdAt: { type: string, format: date-time }
+    SalesPerformanceRow:
+      type: object
+      required: [salesmanName, transactions, revenue, receiptsSent, ratingsReceived, responseRate, starCounts, flaggedCount, latestComments]
+      properties:
+        salesmanId: { type: string, format: uuid, description: "Absent = Tanpa sales." }
+        salesmanName: { type: string }
+        transactions: { type: integer }
+        revenue: { type: number, format: double }
+        receiptsSent: { type: integer }
+        ratingsReceived: { type: integer }
+        responseRate: { type: number, format: double, minimum: 0, maximum: 1 }
+        avgStars: { type: number, format: double, description: "Absent when there are no ratings." }
+        starCounts: { type: array, minItems: 5, maxItems: 5, items: { type: integer }, description: "Index 0 = 1 star." }
+        flaggedCount: { type: integer }
+        latestComments: { type: array, maxItems: 3, items: { $ref: '#/components/schemas/SalesPerformanceComment' } }
+    SalesPerformanceTotals:
+      type: object
+      required: [transactions, revenue, receiptsSent, ratingsReceived, responseRate, starCounts, flaggedCount]
+      properties:
+        transactions: { type: integer }
+        revenue: { type: number, format: double }
+        receiptsSent: { type: integer }
+        ratingsReceived: { type: integer }
+        responseRate: { type: number, format: double, minimum: 0, maximum: 1 }
+        avgStars: { type: number, format: double, description: "Absent when there are no ratings." }
+        starCounts: { type: array, minItems: 5, maxItems: 5, items: { type: integer }, description: "Index 0 = 1 star." }
+        flaggedCount: { type: integer }
+    SalesPerformanceReport:
+      type: object
+      required: [data, totals]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/SalesPerformanceRow' } }
+        totals: { $ref: '#/components/schemas/SalesPerformanceTotals' }
+    SalesRating:
+      type: object
+      required: [id, orderId, orderNumber, outletId, salesmanName, stars, tags, flagFast, flagSameNetwork, businessDate, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        orderNumber: { type: string }
+        outletId: { type: string, format: uuid }
+        outletName: { type: string }
+        salesmanId: { type: string, format: uuid }
+        salesmanName: { type: string }
+        stars: { type: integer }
+        tags: { type: array, items: { type: string } }
+        comment: { type: string }
+        flagFast: { type: boolean }
+        flagSameNetwork: { type: boolean }
+        businessDate: { type: string, format: date }
+        createdAt: { type: string, format: date-time }
+    SalesRatingList:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/SalesRating' } }
+        meta: { $ref: '#/components/schemas/Meta' }
     # C4a: documented shape of SyncBatchItem.payload for type "refund" (the payload itself stays
     # free-form, so this schema is reference-only and not wired into any operation).
     SyncRefundPayload:
@@ -6886,6 +6990,105 @@ paths:
               schema: { $ref: '#/components/schemas/CrossOutletLookupLogListResponse' }
         '400': { description: "invalid filter" }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/receipt-links:
+    post:
+      operationId: createReceiptLink
+      tags: [sales]
+      summary: Create a WhatsApp receipt link for a completed sale (one link per send)
+      description: Exactly one of orderUuid or orderId. Without phone the order customer phone is used.
+      parameters:
+        - $ref: '#/components/parameters/OutletHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReceiptLinkRequest' }
+      responses:
+        '201':
+          description: link, rendered message and wa.me URL
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptLinkResponse' }
+        '400': { description: "both or neither order id, invalid phone, or no phone available" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: "orderId not found in the caller scope" }
+        '409': { description: "orderUuid not on the server yet (Order belum tersinkron), or the order is not completed or partially refunded" }
+        '429':
+          description: link budget spent
+          headers:
+            Retry-After: { schema: { type: integer } }
+  /api/v1/settings/wa-receipt-template:
+    get:
+      operationId: getWaReceiptTemplate
+      tags: [settings]
+      summary: WhatsApp receipt message template (manage_settings)
+      responses:
+        '200':
+          description: the stored template, or the built-in default
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WaReceiptTemplateResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    put:
+      operationId: updateWaReceiptTemplate
+      tags: [settings]
+      summary: Replace the WhatsApp receipt message template; an empty string resets to the default
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WaReceiptTemplateRequest' }
+      responses:
+        '200':
+          description: the template now in effect
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WaReceiptTemplateResponse' }
+        '400': { description: "missing the link placeholder, unknown placeholder, or longer than 1000 characters" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/reports/sales-performance:
+    get:
+      operationId: getSalesPerformance
+      tags: [reports]
+      summary: Performa Sales report, one row per salesperson (view_reports; outlet-scoped like the other reports)
+      parameters:
+        - { name: dateFrom, in: query, required: true, description: "Inclusive business day (YYYY-MM-DD, outlet zone).", schema: { type: string } }
+        - { name: dateTo, in: query, required: true, description: "Inclusive business day (YYYY-MM-DD, outlet zone).", schema: { type: string } }
+        - { name: outletId, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SalesPerformanceReport' }
+        '400': { description: "missing or unparseable date range" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: "no view_reports, or a non-admin with no active outlet" }
+  /api/v1/reports/sales-ratings:
+    get:
+      operationId: listSalesRatings
+      tags: [reports]
+      summary: Customer ratings of salespeople, newest first (view_reports)
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - { name: dateFrom, in: query, required: true, description: "Inclusive business day of the sale (YYYY-MM-DD).", schema: { type: string } }
+        - { name: dateTo, in: query, required: true, description: "Inclusive business day of the sale (YYYY-MM-DD).", schema: { type: string } }
+        - { name: outletId, in: query, schema: { type: string } }
+        - { name: salesmanId, in: query, description: "A user uuid, or none for ratings of orders without a salesperson.", schema: { type: string } }
+        - { name: flaggedOnly, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SalesRatingList' }
+        '400': { description: "bad date range, salesmanId or flaggedOnly" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: "no view_reports, or a non-admin with no active outlet" }
   /api/v1/orders/{id}/void:
     parameters:
       - name: id

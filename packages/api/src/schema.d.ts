@@ -2245,6 +2245,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/receipt-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a WhatsApp receipt link for a completed sale (one link per send)
+         * @description Exactly one of orderUuid or orderId. Without phone the order customer phone is used.
+         */
+        post: operations["createReceiptLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/wa-receipt-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** WhatsApp receipt message template (manage_settings) */
+        get: operations["getWaReceiptTemplate"];
+        /** Replace the WhatsApp receipt message template; an empty string resets to the default */
+        put: operations["updateWaReceiptTemplate"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/sales-performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Performa Sales report, one row per salesperson (view_reports; outlet-scoped like the other reports) */
+        get: operations["getSalesPerformance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/sales-ratings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Customer ratings of salespeople, newest first (view_reports) */
+        get: operations["listSalesRatings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orders/{id}/void": {
         parameters: {
             query?: never;
@@ -5941,6 +6013,117 @@ export interface components {
         CrossOutletLookupLogListResponse: {
             data: components["schemas"]["CrossOutletLookupLog"][];
             meta?: components["schemas"]["Meta"];
+        };
+        /** @description Exactly one of orderUuid (client order uuid) or orderId (server id). */
+        ReceiptLinkRequest: {
+            /** Format: uuid */
+            orderUuid?: string;
+            /** Format: uuid */
+            orderId?: string;
+            /** @description Optional; empty uses the order customer phone. */
+            phone?: string;
+            deviceId?: string;
+        };
+        ReceiptLink: {
+            url: string;
+            message: string;
+            waUrl: string;
+            /** Format: date-time */
+            expiresAt: string;
+            phoneMasked: string;
+        };
+        ReceiptLinkResponse: {
+            data: components["schemas"]["ReceiptLink"];
+        };
+        WaReceiptTemplate: {
+            template: string;
+            isDefault: boolean;
+            defaultTemplate: string;
+            placeholders: string[];
+        };
+        WaReceiptTemplateRequest: {
+            /** @description Empty string resets to the default. */
+            template: string;
+        };
+        WaReceiptTemplateResponse: {
+            data: components["schemas"]["WaReceiptTemplate"];
+        };
+        SalesPerformanceComment: {
+            stars: number;
+            comment: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        SalesPerformanceRow: {
+            /**
+             * Format: uuid
+             * @description Absent = Tanpa sales.
+             */
+            salesmanId?: string;
+            salesmanName: string;
+            transactions: number;
+            /** Format: double */
+            revenue: number;
+            receiptsSent: number;
+            ratingsReceived: number;
+            /** Format: double */
+            responseRate: number;
+            /**
+             * Format: double
+             * @description Absent when there are no ratings.
+             */
+            avgStars?: number;
+            /** @description Index 0 = 1 star. */
+            starCounts: number[];
+            flaggedCount: number;
+            latestComments: components["schemas"]["SalesPerformanceComment"][];
+        };
+        SalesPerformanceTotals: {
+            transactions: number;
+            /** Format: double */
+            revenue: number;
+            receiptsSent: number;
+            ratingsReceived: number;
+            /** Format: double */
+            responseRate: number;
+            /**
+             * Format: double
+             * @description Absent when there are no ratings.
+             */
+            avgStars?: number;
+            /** @description Index 0 = 1 star. */
+            starCounts: number[];
+            flaggedCount: number;
+        };
+        SalesPerformanceReport: {
+            data: components["schemas"]["SalesPerformanceRow"][];
+            totals: components["schemas"]["SalesPerformanceTotals"];
+        };
+        SalesRating: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            orderId: string;
+            orderNumber: string;
+            /** Format: uuid */
+            outletId: string;
+            outletName?: string;
+            /** Format: uuid */
+            salesmanId?: string;
+            salesmanName: string;
+            stars: number;
+            tags: string[];
+            comment?: string;
+            flagFast: boolean;
+            flagSameNetwork: boolean;
+            /** Format: date */
+            businessDate: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        SalesRatingList: {
+            data: components["schemas"]["SalesRating"][];
+            meta: components["schemas"]["Meta"];
         };
         /** @description One of orderId or saleOrderUuid is required (the server resolves the sale by saleOrderUuid alone when orderId is empty). Legacy shape = {orderId, reason, deviceId, ...}: refunds the whole order and is refused (conflict) on a partially_refunded order. Per-line shape adds items (required, non-empty) and optionally refundAmount and reasonCode. Unknown keys (the tablet's display snapshot) are ignored. */
         SyncRefundPayload: {
@@ -12107,6 +12290,206 @@ export interface operations {
                 content?: never;
             };
             403: components["responses"]["Forbidden"];
+        };
+    };
+    createReceiptLink: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Active outlet override (admin only, or must match token outlet). */
+                "X-Outlet-Id"?: components["parameters"]["OutletHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptLinkRequest"];
+            };
+        };
+        responses: {
+            /** @description link, rendered message and wa.me URL */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptLinkResponse"];
+                };
+            };
+            /** @description both or neither order id, invalid phone, or no phone available */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description orderId not found in the caller scope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description orderUuid not on the server yet (Order belum tersinkron), or the order is not completed or partially refunded */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description link budget spent */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWaReceiptTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description the stored template, or the built-in default */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaReceiptTemplateResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    updateWaReceiptTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaReceiptTemplateRequest"];
+            };
+        };
+        responses: {
+            /** @description the template now in effect */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaReceiptTemplateResponse"];
+                };
+            };
+            /** @description missing the link placeholder, unknown placeholder, or longer than 1000 characters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getSalesPerformance: {
+        parameters: {
+            query: {
+                /** @description Inclusive business day (YYYY-MM-DD, outlet zone). */
+                dateFrom: string;
+                /** @description Inclusive business day (YYYY-MM-DD, outlet zone). */
+                dateTo: string;
+                outletId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SalesPerformanceReport"];
+                };
+            };
+            /** @description missing or unparseable date range */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description no view_reports, or a non-admin with no active outlet */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listSalesRatings: {
+        parameters: {
+            query: {
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+                /** @description Inclusive business day of the sale (YYYY-MM-DD). */
+                dateFrom: string;
+                /** @description Inclusive business day of the sale (YYYY-MM-DD). */
+                dateTo: string;
+                outletId?: string;
+                /** @description A user uuid, or none for ratings of orders without a salesperson. */
+                salesmanId?: string;
+                flaggedOnly?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SalesRatingList"];
+                };
+            };
+            /** @description bad date range, salesmanId or flaggedOnly */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description no view_reports, or a non-admin with no active outlet */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     voidOrder: {

@@ -157,6 +157,11 @@ export type RefundReportRow = S['RefundReportRow']
 export type OrderRefund = S['OrderRefund']
 export type VoidReport = S['VoidReport']
 export type VoidReportRow = S['VoidReportRow']
+export type ReceiptLink = S['ReceiptLink']
+export type WaReceiptTemplate = S['WaReceiptTemplate']
+export type SalesPerformanceReport = S['SalesPerformanceReport']
+export type SalesPerformanceRow = S['SalesPerformanceRow']
+export type SalesRating = S['SalesRating']
 export type VoidOrderRequest = S['VoidOrderRequest']
 export type CrossOutletOrder = S['CrossOutletOrder']
 export type CrossOutletRefundRequest = S['CrossOutletRefundRequest']
@@ -480,6 +485,16 @@ export interface Api {
   crossOutletLookup: (q: ({ orderNumber: string } | { phone: string }) & { deviceId?: string }) => Promise<CrossOutletOrder[]>
   /** A18: head-office log of every cross-outlet lookup, rate-limited ones included (admin). `from`/`to` are YYYY-MM-DD (WIB) or RFC 3339. */
   listCrossOutletLookups: (params?: Record<string, string | number>) => Promise<ListResult<CrossOutletLookupLog>>
+  /** Customer rating: WhatsApp receipt link for a completed sale (online only). Exactly one of orderUuid / orderId. */
+  createReceiptLink: (b: { orderUuid?: string; orderId?: string; phone?: string; deviceId?: string }) => Promise<ReceiptLink>
+  /** WhatsApp receipt message template (manage_settings). */
+  getWaReceiptTemplate: () => Promise<WaReceiptTemplate>
+  /** Empty string resets to the default template. */
+  updateWaReceiptTemplate: (template: string) => Promise<WaReceiptTemplate>
+  /** Performa Sales report (view_reports). */
+  getSalesPerformance: (o: { dateFrom: string; dateTo: string; outletId?: string }) => Promise<SalesPerformanceReport>
+  /** Ratings behind Performa Sales (view_reports); `salesmanId` is a user uuid or `none`. */
+  listSalesRatings: (p?: Record<string, string | number | boolean>) => Promise<ListResult<SalesRating>>
   /** A18: online-only refund of another outlet's sale, paid from the ACTIVE outlet's open shift. Idempotent on
    *  (deviceId, clientRefundUuid): resend the SAME body after a timeout; `replayed` is true when it was already applied. */
   refundCrossOutlet: (orderId: string, body: CrossOutletRefundRequest) => Promise<CrossOutletRefundResult>
@@ -1056,6 +1071,15 @@ export function createClient(opts: ClientOptions): Api {
       data<Order>('POST', `${API}/orders/${id}/refund`, { reason, ...(opts?.reasonCode ? { reasonCode: opts.reasonCode } : {}), ...(opts?.items ? { items: opts.items } : {}), ...(opts?.clientRefundUuid ? { clientRefundUuid: opts.clientRefundUuid } : {}), ...(opts?.payoutMethod ? { payoutMethod: opts.payoutMethod } : {}) }),
     crossOutletLookup: (q) => data<CrossOutletOrder[]>('GET', `${API}/cross-outlet-returns/lookup` + qs(q)),
     listCrossOutletLookups: (params) => list<CrossOutletLookupLog>(`${API}/cross-outlet-returns/lookups`, params),
+    createReceiptLink: (b) => data<ReceiptLink>('POST', `${API}/receipt-links`, b),
+    getWaReceiptTemplate: () => data<WaReceiptTemplate>('GET', `${API}/settings/wa-receipt-template`),
+    updateWaReceiptTemplate: (template) => data<WaReceiptTemplate>('PUT', `${API}/settings/wa-receipt-template`, { template }),
+    getSalesPerformance: (o) => request<SalesPerformanceReport>('GET', `${API}/reports/sales-performance` + qs(o)),
+    listSalesRatings: (p) =>
+      list<SalesRating>(
+        `${API}/reports/sales-ratings`,
+        p && Object.fromEntries(Object.entries(p).map(([k, v]) => [k, typeof v === 'boolean' ? String(v) : v])),
+      ),
     refundCrossOutlet: (orderId, body) =>
       data<CrossOutletRefundResult>('POST', `${API}/orders/${orderId}/cross-outlet-refund`, body),
     getVoidPreview: (id) => data<S['VoidPreview']>('GET', `${API}/orders/${id}/void-preview`),
