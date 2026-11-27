@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/coverage"
 	mw "github.com/mandalika/pos-backend/internal/middleware"
 	"github.com/mandalika/pos-backend/internal/read"
+	syncpkg "github.com/mandalika/pos-backend/internal/sync"
 	"github.com/mandalika/pos-backend/internal/write"
 )
 
@@ -626,6 +628,95 @@ func TestSalesStaffPostgres(t *testing.T) {
 			if got[no] {
 				t.Fatalf("UsersForOutlet(BSD) must exclude %s", no)
 			}
+		}
+	})
+
+	t.Run("pull_bundle", func(t *testing.T) {
+		const (
+			pbA  = "00000000-0000-4000-8f89-000000000221"
+			pbB  = "00000000-0000-4000-8f89-000000000222"
+			pbEm = "00000000-0000-4000-8f89-000000000223"
+			ubA  = "00000000-0000-4000-8f89-0000000000c1"
+		)
+		exec(`INSERT INTO outlets(id,name,erp_slug,erp_code) VALUES($1,'PB A','pb-a','PBA'),($2,'PB B','pb-b','PBB'),($3,'PB Empty','pb-e','PBE')`, pbA, pbB, pbEm)
+		exec(`INSERT INTO users(id,email,password_hash,display_name,role,outlet_id) VALUES($1,'pb-a@example.test','x','PB A cashier','cashier',$2)`, ubA, pbA)
+		must(create(admin, write.SalesStaffInput{Name: "Pull B Active", Active: true, OutletIDs: []string{pbA}}))
+		must(create(admin, write.SalesStaffInput{Name: "Pull B Off", Active: false, OutletIDs: []string{pbA}}))
+		must(create(admin, write.SalesStaffInput{Name: "Pull B Other", Active: true, OutletIDs: []string{pbB}}))
+		eng := syncpkg.New(pool, rd, nil, repo)
+		pull := func(outlet string) map[string]json.RawMessage {
+			t.Helper()
+			b, err := eng.Pull(ctx, read.Scope{OutletID: outlet}, outlet)
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, _ := json.Marshal(b)
+			var m map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &m); err != nil {
+				t.Fatal(err)
+			}
+			return m
+		}
+		keysOf := func(raw json.RawMessage) (rows []map[string]json.RawMessage) {
+			t.Helper()
+			if err := json.Unmarshal(raw, &rows); err != nil {
+				t.Fatalf("%v: %s", err, raw)
+			}
+			return rows
+		}
+		sortedKeys := func(m map[string]json.RawMessage) (k []string) {
+			for key := range m {
+				k = append(k, key)
+			}
+			sort.Strings(k)
+			return
+		}
+
+		a := pull(pbA)
+		staff := keysOf(a["salesStaff"])
+		if len(staff) != 1 {
+			t.Fatalf("salesStaff = %s, want only the active entry linked to the outlet", a["salesStaff"])
+		}
+		if k := sortedKeys(staff[0]); !reflect.DeepEqual(k, []string{"id", "name"}) {
+			t.Fatalf("salesStaff keys = %v", k)
+		}
+		if string(staff[0]["name"]) != `"Pull B Active"` {
+			t.Fatalf("salesStaff name = %s", staff[0]["name"])
+		}
+		users := keysOf(a["users"])
+		if len(users) == 0 {
+			t.Fatal("users empty for the outlet")
+		}
+		sawCashier := false
+		for _, u := range users {
+			if k := sortedKeys(u); !reflect.DeepEqual(k, []string{"displayName", "id"}) {
+				t.Fatalf("users keys = %v", k)
+			}
+			if string(u["id"]) == `"`+ubA+`"` {
+				sawCashier = true
+			}
+		}
+		if !sawCashier {
+			t.Fatalf("users misses the outlet's cashier: %s", a["users"])
+		}
+		for _, banned := range []string{"email", "role", "permissions", "outletIds"} {
+			if strings.Contains(string(a["users"]), `"`+banned+`"`) {
+				t.Fatalf("users carries %q: %s", banned, a["users"])
+			}
+		}
+
+		// An outlet with no sales staff and no covering cashier still ships arrays, not null.
+		e := pull(pbEm)
+		if string(e["salesStaff"]) != "[]" {
+			t.Fatalf("empty outlet salesStaff = %s, want []", e["salesStaff"])
+		}
+		if string(e["users"]) == "null" {
+			t.Fatalf("users must be an array, got null")
+		}
+		// Admin/all-scope users cover every outlet, so users is not empty here; force the
+		// empty-array case through the repo as well.
+		if got, err := rd.UsersForOutlet(ctx, "00000000-0000-4000-8f89-0000000000ff"); err != nil || got == nil {
+			t.Fatalf("UsersForOutlet(unknown) = %v, %v; want non-nil", got, err)
 		}
 	})
 }

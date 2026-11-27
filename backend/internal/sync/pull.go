@@ -85,9 +85,12 @@ type PullBundle struct {
 	AppSettings       any                `json:"appSettings"`
 	// BundleCatalog is the derived bundle catalog (large + atomizer + vial offers and each piece's
 	// role and line). Go derives it; the POS never does. Omitted by older servers.
-	BundleCatalog    *api.BundleCatalog `json:"bundleCatalog,omitempty"`
-	Users            any                `json:"users"`
-	ReceiveApprovers any                `json:"receiveApprovers"`
+	BundleCatalog *api.BundleCatalog `json:"bundleCatalog,omitempty"`
+	// Users is the slim {id, displayName} list of people whose coverage includes this outlet;
+	// SalesStaff is the outlet's active Tim Sales list. Both are always arrays, never null.
+	Users            []api.PullUser       `json:"users"`
+	SalesStaff       []api.SalesStaffPick `json:"salesStaff"`
+	ReceiveApprovers any                  `json:"receiveApprovers"`
 }
 
 func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (PullBundle, error) {
@@ -179,8 +182,13 @@ func (e *Engine) Pull(ctx context.Context, sc read.Scope, outletID string) (Pull
 		return b, err
 	}
 	b.BundleCatalog = &cat
-	// Staff list for the salesman picker (offline-capable; small table).
-	if b.Users, _, err = e.Read.Users(ctx, 1, 100000); err != nil {
+	// The salesman picker reads this outlet's Tim Sales list, not user accounts. Users keeps
+	// only id and display name (no email, role or permissions) and only people covering this
+	// outlet, so a tablet never carries the full staff directory.
+	if b.SalesStaff, err = e.Read.SalesStaffForOutlet(ctx, outletID); err != nil {
+		return b, err
+	}
+	if b.Users, err = e.Read.UsersForOutlet(ctx, outletID); err != nil {
 		return b, err
 	}
 	// A08: no PIN hash (and no approver list) is shipped to tablets any more. The field
