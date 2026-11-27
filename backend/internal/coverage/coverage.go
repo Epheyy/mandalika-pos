@@ -120,3 +120,34 @@ func Guard(userID, outletID string, refusal error) func(context.Context, pgx.Tx)
 		return nil
 	}
 }
+
+// Caller is who reads or edits an outlet-scoped list on behalf of a user: Admin is role
+// admin, Cov is the user's coverage (Cov.All for "Semua Outlet" managers).
+type Caller struct {
+	UserID string
+	Admin  bool
+	Cov    Coverage
+}
+
+// Sees reports whether the caller may act on the outlet.
+func (c Caller) Sees(outletID string) bool { return c.Admin || c.Cov.Covers(outletID) }
+
+// AllScope is true when the caller is not limited to a list of outlets.
+func (c Caller) AllScope() bool { return c.Admin || c.Cov.All }
+
+// Meets reports whether a user's coverage shares an outlet with the caller's; admin and
+// Semua Outlet callers meet everyone.
+func (c Caller) Meets(user Coverage) bool {
+	if c.AllScope() {
+		return true
+	}
+	if user.All {
+		return len(c.Cov.OutletIDs) > 0
+	}
+	for _, o := range user.OutletIDs {
+		if c.Cov.Covers(o) {
+			return true
+		}
+	}
+	return false
+}

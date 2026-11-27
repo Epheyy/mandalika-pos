@@ -14,22 +14,6 @@ import (
 	"github.com/mandalika/pos-backend/internal/coverage"
 )
 
-// SalesStaffCaller is who is reading or editing the Tim Sales list. Admin is role admin;
-// Cov.All covers "Semua Outlet" managers. write aliases this type so both sides share it.
-type SalesStaffCaller struct {
-	UserID string
-	Admin  bool
-	Cov    coverage.Coverage
-}
-
-// Sees reports whether the caller may act on the outlet.
-func (c SalesStaffCaller) Sees(outletID string) bool {
-	return c.Admin || c.Cov.Covers(outletID)
-}
-
-// AllScope is true when the caller is not limited to a list of outlets.
-func (c SalesStaffCaller) AllScope() bool { return c.Admin || c.Cov.All }
-
 // SalesStaffFilter narrows the admin list. Active nil means both.
 type SalesStaffFilter struct {
 	OutletID string
@@ -46,7 +30,7 @@ type rowScanner interface{ Scan(dest ...any) error }
 
 // scanSalesStaff maps one salesStaffSelect row to the caller's view. ok is false when the
 // caller covers none of the person's outlets (the row is invisible to them).
-func scanSalesStaff(row rowScanner, c SalesStaffCaller) (s api.SalesStaff, ok bool, err error) {
+func scanSalesStaff(row rowScanner, c coverage.Caller) (s api.SalesStaff, ok bool, err error) {
 	var id, name string
 	var active bool
 	var updated time.Time
@@ -93,7 +77,7 @@ func scanSalesStaff(row rowScanner, c SalesStaffCaller) (s api.SalesStaff, ok bo
 // SalesStaffList is the Tim Sales list as the caller may see it: admin and Semua Outlet
 // managers see everyone, other callers see people with at least one outlet they cover,
 // with only those outlets named. Ordered by lower(name).
-func (r *Repo) SalesStaffList(ctx context.Context, c SalesStaffCaller, f SalesStaffFilter) ([]api.SalesStaff, error) {
+func (r *Repo) SalesStaffList(ctx context.Context, c coverage.Caller, f SalesStaffFilter) ([]api.SalesStaff, error) {
 	out := []api.SalesStaff{}
 	if f.OutletID != "" && !c.Sees(f.OutletID) {
 		return out, nil
@@ -131,7 +115,7 @@ func (r *Repo) SalesStaffList(ctx context.Context, c SalesStaffCaller, f SalesSt
 
 // SalesStaffByID is one person as the caller may see them; ErrNotFound when missing or
 // when the caller covers none of their outlets.
-func (r *Repo) SalesStaffByID(ctx context.Context, q RowQuerier, c SalesStaffCaller, id string) (api.SalesStaff, error) {
+func (r *Repo) SalesStaffByID(ctx context.Context, q RowQuerier, c coverage.Caller, id string) (api.SalesStaff, error) {
 	if _, err := uuid.Parse(id); err != nil {
 		return api.SalesStaff{}, ErrNotFound
 	}
@@ -143,6 +127,38 @@ func (r *Repo) SalesStaffByID(ctx context.Context, q RowQuerier, c SalesStaffCal
 		return api.SalesStaff{}, fmt.Errorf("sales staff by id: %w", err)
 	}
 	return s, nil
+}
+
+// SalesStaffAfterWrite is the Outcome of a write: like SalesStaffByID, but an entry that
+// exists and is no longer visible to the caller (a partial Manajer's Nonaktif or unticking
+// every outlet they cover) comes back with no visible outlets, all its outlets counted as
+// hidden and canEditDetails false. Only a missing id is ErrNotFound.
+func (r *Repo) SalesStaffAfterWrite(ctx context.Context, q RowQuerier, c coverage.Caller, id string) (api.SalesStaff, error) {
+	if _, err := uuid.Parse(id); err != nil {
+		return api.SalesStaff{}, ErrNotFound
+	}
+	s, ok, err := scanSalesStaff(q.QueryRow(ctx, salesStaffSelect+" WHERE s.id = $1::uuid", id), c)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return api.SalesStaff{}, ErrNotFound
+	}
+	if err != nil {
+		return api.SalesStaff{}, fmt.Errorf("sales staff after write: %w", err)
+	}
+	if ok {
+		return s, nil
+	}
+	var name string
+	var active bool
+	var updated time.Time
+	var total int
+	if err := q.QueryRow(ctx,
+		`SELECT s.name, s.active, s.updated_at, (SELECT count(*) FROM sales_staff_outlets WHERE staff_id = s.id)
+		   FROM sales_staff s WHERE s.id = $1::uuid`, id).Scan(&name, &active, &updated, &total); err != nil {
+		return api.SalesStaff{}, fmt.Errorf("sales staff after write: %w", err)
+	}
+	sid, _ := uuid.Parse(id)
+	return api.SalesStaff{Id: sid, Name: name, Active: active, UpdatedAt: updated,
+		OutletIds: []uuid.UUID{}, HiddenOutletCount: total}, nil
 }
 
 // SalesStaffForOutlet is the POS pull list: active people linked to the outlet.
@@ -212,24 +228,7 @@ func (r *Repo) UsersForOutlet(ctx context.Context, outletID string) ([]api.PullU
 
 // LinkableUsers are the unlinked users the caller may attach to a sales person: everyone
 // for admin and Semua Outlet managers, otherwise users whose coverage meets the caller's.
-func (r *Repo) LinkableUsers(ctx context.Context, c SalesStaffCaller) ([]api.PullUser, error) {
+func (r *Repo) LinkableUsers(ctx context.Context, c coverage.Caller) ([]api.PullUser, error) {
 	return r.pullUsers(ctx, "NOT EXISTS (SELECT 1 FROM sales_staff s WHERE s.user_id = u.id)",
-		func(cov coverage.Coverage) bool { return CoverageMeets(c, cov) })
-}
-
-// CoverageMeets reports whether a user's coverage shares an outlet with the caller's;
-// admin and Semua Outlet callers meet everyone.
-func CoverageMeets(c SalesStaffCaller, user coverage.Coverage) bool {
-	if c.AllScope() {
-		return true
-	}
-	if user.All {
-		return len(c.Cov.OutletIDs) > 0
-	}
-	for _, o := range user.OutletIDs {
-		if c.Cov.Covers(o) {
-			return true
-		}
-	}
-	return false
+		func(cov coverage.Coverage) bool { return c.Meets(cov) })
 }

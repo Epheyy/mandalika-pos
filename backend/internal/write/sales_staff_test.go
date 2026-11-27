@@ -11,15 +11,15 @@ import (
 func TestPlanSalesStaffUpdate(t *testing.T) {
 	const bsd, lwb, mks = "bsd", "lwb", "mks"
 	str := func(s string) *string { return &s }
-	partial := SalesStaffCaller{UserID: "m", Cov: coverage.Coverage{OutletIDs: []string{bsd}}}
-	fullMgr := SalesStaffCaller{UserID: "m", Cov: coverage.Coverage{OutletIDs: []string{bsd, lwb}}}
-	allMgr := SalesStaffCaller{UserID: "m", Cov: coverage.Coverage{All: true}}
-	admin := SalesStaffCaller{UserID: "a", Admin: true}
+	partial := coverage.Caller{UserID: "m", Cov: coverage.Coverage{OutletIDs: []string{bsd}}}
+	fullMgr := coverage.Caller{UserID: "m", Cov: coverage.Coverage{OutletIDs: []string{bsd, lwb}}}
+	allMgr := coverage.Caller{UserID: "m", Cov: coverage.Coverage{All: true}}
+	admin := coverage.Caller{UserID: "a", Admin: true}
 	both := SalesStaffInput{Name: "Rina", Active: true, OutletIDs: []string{bsd, lwb}}
 
 	cases := []struct {
 		name    string
-		c       SalesStaffCaller
+		c       coverage.Caller
 		cur, in SalesStaffInput
 		want    SalesStaffInput
 		wantErr error

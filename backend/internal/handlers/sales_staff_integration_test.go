@@ -154,11 +154,11 @@ func TestSalesStaffPostgres(t *testing.T) {
 		exec(`INSERT INTO users(id,email,password_hash,display_name,role,outlet_id,all_outlets)
 		      VALUES($1,$2,'x',$3,$4,NULLIF($5,'')::uuid,$6)`, u.id, u.id+"@example.invalid", u.name, u.role, u.home, u.id == rAll)
 	}
-	exec(`INSERT INTO user_outlets(user_id,outlet_id) VALUES($1,$2),($3,$2)`, rExtra, pBSD, rNoHome)
+	exec(`INSERT INTO user_outlets(user_id,outlet_id) VALUES($1,$2),($3,$2),($4,$2)`, rExtra, pBSD, rNoHome, rLWBCash)
 	repo := write.New(pool)
 	rd := read.New(pool)
-	admin := write.SalesStaffCaller{UserID: rAdmin, Admin: true}
-	bsdMgr := write.SalesStaffCaller{UserID: rBSDMgr, Cov: coverage.Coverage{OutletIDs: []string{pBSD}}}
+	admin := coverage.Caller{UserID: rAdmin, Admin: true}
+	bsdMgr := coverage.Caller{UserID: rBSDMgr, Cov: coverage.Coverage{OutletIDs: []string{pBSD}}}
 	inTx := func(fn func(tx pgx.Tx) error) error {
 		tx, err := pool.Begin(ctx)
 		if err != nil {
@@ -170,11 +170,11 @@ func TestSalesStaffPostgres(t *testing.T) {
 		}
 		return tx.Commit(ctx)
 	}
-	create := func(c write.SalesStaffCaller, in write.SalesStaffInput) (id string, err error) {
+	create := func(c coverage.Caller, in write.SalesStaffInput) (id string, err error) {
 		err = inTx(func(tx pgx.Tx) (e error) { id, e = repo.CreateSalesStaffTx(ctx, tx, c, in); return })
 		return
 	}
-	update := func(c write.SalesStaffCaller, id string, in write.SalesStaffInput) error {
+	update := func(c coverage.Caller, id string, in write.SalesStaffInput) error {
 		return inTx(func(tx pgx.Tx) error { return repo.UpdateSalesStaffTx(ctx, tx, c, id, in) })
 	}
 	must := func(id string, err error) string {
@@ -218,7 +218,10 @@ func TestSalesStaffPostgres(t *testing.T) {
 			len(s.OutletIds) != 1 || s.OutletIds[0].String() != pBSD {
 			t.Fatalf("BSD manager view = %+v", s)
 		}
-		all, _ := rd.SalesStaffList(ctx, admin, read.SalesStaffFilter{})
+		all, err := rd.SalesStaffList(ctx, admin, read.SalesStaffFilter{})
+		if err != nil {
+			t.Fatal(err)
+		}
 		if a := find(all, id); a == nil || len(a.OutletIds) != 2 || a.HiddenOutletCount != 0 || !a.CanEditDetails {
 			t.Fatalf("admin view = %+v", a)
 		}
@@ -257,6 +260,20 @@ func TestSalesStaffPostgres(t *testing.T) {
 		if n := count(`SELECT count(*) FROM sales_staff WHERE id=$1 AND active`, id); n != 1 {
 			t.Fatal("active must stay true for the LWB side")
 		}
+		if _, err := rd.SalesStaffByID(ctx, pool, bsdMgr, id); !errors.Is(err, read.ErrNotFound) {
+			t.Fatalf("ByID after losing every covered outlet: %v", err)
+		}
+		after, err := rd.SalesStaffAfterWrite(ctx, pool, bsdMgr, id)
+		if err != nil {
+			t.Fatalf("AfterWrite must not fail for an entry the caller just edited: %v", err)
+		}
+		if after.Id.String() != id || after.Name != "Rina Partial" || !after.Active || len(after.OutletIds) != 0 ||
+			after.HiddenOutletCount != 1 || after.CanEditDetails || after.User != nil {
+			t.Fatalf("AfterWrite shape = %+v", after)
+		}
+		if _, err := rd.SalesStaffAfterWrite(ctx, pool, bsdMgr, ghost); !errors.Is(err, read.ErrNotFound) {
+			t.Fatalf("AfterWrite of a missing id: %v", err)
+		}
 		if err := update(bsdMgr, id, write.SalesStaffInput{Name: "Rina Partial", Active: true, OutletIDs: []string{pBSD}}); !errors.Is(err, write.ErrSalesStaffNotFound) {
 			t.Fatalf("manager without coverage: %v", err)
 		}
@@ -283,8 +300,8 @@ func TestSalesStaffPostgres(t *testing.T) {
 		if _, err := create(admin, write.SalesStaffInput{Name: "Link Two", Active: true, OutletIDs: []string{pBSD}, UserID: ptr(rBSDCash)}); !errors.Is(err, write.ErrSalesStaffUserTaken) {
 			t.Fatalf("second link: %v", err)
 		}
-		if s, _ := rd.SalesStaffByID(ctx, pool, admin, id); s.User == nil || s.User.Id.String() != rBSDCash {
-			t.Fatalf("linked user not shown: %+v", s.User)
+		if s, err := rd.SalesStaffByID(ctx, pool, admin, id); err != nil || s.User == nil || s.User.Id.String() != rBSDCash {
+			t.Fatalf("linked user not shown: %v %+v", err, s.User)
 		}
 		if _, err := create(bsdMgr, write.SalesStaffInput{Name: "Link Out", Active: true, OutletIDs: []string{pBSD}, UserID: ptr(rLWBLink)}); !errors.Is(err, write.ErrSalesStaffForbidden) {
 			t.Fatalf("manager linking outside coverage: %v", err)
@@ -292,14 +309,37 @@ func TestSalesStaffPostgres(t *testing.T) {
 		if _, err := create(admin, write.SalesStaffInput{Name: "Link Ghost", Active: true, OutletIDs: []string{pBSD}, UserID: ptr(ghost)}); !errors.Is(err, write.ErrSalesStaffInvalid) {
 			t.Fatalf("unknown user: %v", err)
 		}
-		lk, err := rd.LinkableUsers(ctx, bsdMgr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, u := range lk {
-			if u.Id.String() == rBSDCash || u.Id.String() == rLWBLink {
-				t.Fatalf("linkable list must hide linked and out-of-coverage users: %v", u)
+		for _, bad := range []string{rLWBCash, ghost} {
+			if _, err := create(bsdMgr, write.SalesStaffInput{Name: "Link Probe", Active: true, OutletIDs: []string{pBSD}, UserID: ptr(bad)}); !errors.Is(err, write.ErrSalesStaffForbidden) {
+				t.Fatalf("manager linking %s must be Forbidden (same answer for unknown and out-of-coverage): %v", bad, err)
 			}
+		}
+		if _, err := create(bsdMgr, write.SalesStaffInput{Name: "Link Taken", Active: true, OutletIDs: []string{pBSD}, UserID: ptr(rBSDCash)}); !errors.Is(err, write.ErrSalesStaffUserTaken) {
+			t.Fatalf("manager linking a linked in-coverage user: %v", err)
+		}
+		linkable := func(c coverage.Caller) map[string]bool {
+			t.Helper()
+			lk, err := rd.LinkableUsers(ctx, c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m := map[string]bool{}
+			for _, u := range lk {
+				m[u.Id.String()] = true
+			}
+			return m
+		}
+		mgr := linkable(bsdMgr)
+		if !mgr[rBSDMgr] || !mgr[rExtra] {
+			t.Fatalf("LinkableUsers(bsdMgr) must contain the unlinked BSD users, got %v", mgr)
+		}
+		for _, no := range []string{rBSDCash, rLWBLink, rLWBCash} {
+			if mgr[no] {
+				t.Fatalf("LinkableUsers(bsdMgr) must hide linked and out-of-coverage user %s", no)
+			}
+		}
+		if !linkable(admin)[rLWBLink] {
+			t.Fatal("LinkableUsers(admin) must contain the unlinked LWB cashier")
 		}
 	})
 

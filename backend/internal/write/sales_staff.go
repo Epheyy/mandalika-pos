@@ -13,14 +13,10 @@ import (
 
 	"github.com/mandalika/pos-backend/internal/apperr"
 	"github.com/mandalika/pos-backend/internal/coverage"
-	"github.com/mandalika/pos-backend/internal/read"
 )
 
 // Tim Sales: the per-outlet list of sales staff. Coverage rules for managers who cover only
 // some of a person's outlets live in planSalesStaffUpdate (pure, unit tested).
-
-// SalesStaffCaller is owned by package read (read must not import write).
-type SalesStaffCaller = read.SalesStaffCaller
 
 // Domain errors; the text is Indonesian and safe to show (handlers answer it verbatim).
 var (
@@ -89,7 +85,7 @@ func cleanSalesStaffName(name string) (string, error) {
 
 // planSalesStaffUpdate applies the coverage rules: the editor changes only what they cover
 // unless they cover every outlet of the person (or are admin / Semua Outlet).
-func planSalesStaffUpdate(c SalesStaffCaller, cur SalesStaffInput, in SalesStaffInput) (SalesStaffInput, error) {
+func planSalesStaffUpdate(c coverage.Caller, cur SalesStaffInput, in SalesStaffInput) (SalesStaffInput, error) {
 	covers := c.Sees
 	covered := make([]string, 0, len(cur.OutletIDs))
 	uncovered := make([]string, 0, len(cur.OutletIDs))
@@ -138,7 +134,7 @@ func planSalesStaffUpdate(c SalesStaffCaller, cur SalesStaffInput, in SalesStaff
 }
 
 // CreateSalesStaffTx adds a person; the caller must cover every requested outlet.
-func (r *Repo) CreateSalesStaffTx(ctx context.Context, tx pgx.Tx, c SalesStaffCaller, in SalesStaffInput) (string, error) {
+func (r *Repo) CreateSalesStaffTx(ctx context.Context, tx pgx.Tx, c coverage.Caller, in SalesStaffInput) (string, error) {
 	name, err := cleanSalesStaffName(in.Name)
 	if err != nil {
 		return "", err
@@ -184,7 +180,7 @@ func (r *Repo) CreateSalesStaffTx(ctx context.Context, tx pgx.Tx, c SalesStaffCa
 }
 
 // UpdateSalesStaffTx edits a person under the coverage rules (see planSalesStaffUpdate).
-func (r *Repo) UpdateSalesStaffTx(ctx context.Context, tx pgx.Tx, c SalesStaffCaller, id string, in SalesStaffInput) error {
+func (r *Repo) UpdateSalesStaffTx(ctx context.Context, tx pgx.Tx, c coverage.Caller, id string, in SalesStaffInput) error {
 	if _, err := uuid.Parse(id); err != nil {
 		return ErrSalesStaffNotFound
 	}
@@ -241,6 +237,7 @@ func (r *Repo) UpdateSalesStaffTx(ctx context.Context, tx pgx.Tx, c SalesStaffCa
 }
 
 // lockSalesStaffNames serialises sales-staff writes so the duplicate-name check cannot race.
+// Check-after-lock relies on READ COMMITTED (a fresh snapshot per statement).
 func lockSalesStaffNames(ctx context.Context, tx pgx.Tx) error {
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('sales_staff_write'))`); err != nil {
 		return fmt.Errorf("lock sales staff: %w", err)
@@ -266,19 +263,29 @@ func checkOutletsExist(ctx context.Context, tx pgx.Tx, outlets []string) error {
 
 // checkSalesStaffUser validates a link: the user exists, is not linked to another person,
 // and (for callers limited to some outlets) shares coverage with the caller.
-func checkSalesStaffUser(ctx context.Context, tx pgx.Tx, c SalesStaffCaller, userID *string, selfID string) error {
+func checkSalesStaffUser(ctx context.Context, tx pgx.Tx, c coverage.Caller, userID *string, selfID string) error {
 	if userID == nil {
 		return nil
 	}
+	// Callers limited to some outlets get one answer (Forbidden) for an unknown and an
+	// out-of-coverage user, and it comes before the linked check, so they cannot probe
+	// which accounts exist or are linked.
+	var unknown error = ErrSalesStaffForbidden
+	if c.AllScope() {
+		unknown = invalidSalesStaff("Akun tidak ditemukan.")
+	}
 	if _, err := uuid.Parse(*userID); err != nil {
-		return invalidSalesStaff("Akun tidak ditemukan.")
+		return unknown
 	}
 	_, _, cov, err := coverage.Load(ctx, tx, *userID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return invalidSalesStaff("Akun tidak ditemukan.")
+		return unknown
 	}
 	if err != nil {
 		return err
+	}
+	if !c.Meets(cov) {
+		return ErrSalesStaffForbidden
 	}
 	var taken bool
 	if err := tx.QueryRow(ctx,
@@ -288,9 +295,6 @@ func checkSalesStaffUser(ctx context.Context, tx pgx.Tx, c SalesStaffCaller, use
 	}
 	if taken {
 		return ErrSalesStaffUserTaken
-	}
-	if !read.CoverageMeets(c, cov) {
-		return ErrSalesStaffForbidden
 	}
 	return nil
 }

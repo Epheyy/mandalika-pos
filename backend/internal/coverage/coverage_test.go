@@ -48,3 +48,29 @@ func TestCovers(t *testing.T) {
 		t.Error("nothing covers the empty id")
 	}
 }
+
+func TestCallerMeets(t *testing.T) {
+	bsd := Caller{Cov: Coverage{OutletIDs: []string{"bsd"}}}
+	cases := []struct {
+		name   string
+		caller Caller
+		user   Coverage
+		want   bool
+	}{
+		{"admin meets anyone", Caller{Admin: true}, Coverage{OutletIDs: []string{"x"}}, true},
+		{"all-outlets manager meets anyone", Caller{Cov: Coverage{All: true}}, Coverage{}, true},
+		{"shared outlet", bsd, Coverage{OutletIDs: []string{"lwb", "BSD"}}, true},
+		{"disjoint outlets", bsd, Coverage{OutletIDs: []string{"lwb"}}, false},
+		{"all-outlets user meets a caller with an outlet", bsd, Coverage{All: true}, true},
+		{"all-outlets user does not meet an unassigned caller", Caller{Cov: Coverage{OutletIDs: []string{}}}, Coverage{All: true}, false},
+		{"user with no outlets", bsd, Coverage{OutletIDs: []string{}}, false},
+	}
+	for _, tc := range cases {
+		if got := tc.caller.Meets(tc.user); got != tc.want {
+			t.Errorf("%s: Meets = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+	if !(Caller{Admin: true}).Sees("x") || bsd.Sees("lwb") || !bsd.Sees("bsd") {
+		t.Error("Sees")
+	}
+}
