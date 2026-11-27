@@ -171,7 +171,7 @@ func buildReceiptPage(d read.ReceiptPageData, link read.ReceiptLinkInfo, form ra
 	p := receiptlink.PageData{
 		Brand: d.Brand, Outlet: d.OutletName, FirstName: d.CustomerFirstName, OrderNumber: d.OrderNumber,
 		Salesman: strings.TrimSpace(d.SalesmanName),
-		When: receiptlink.FormatWhen(d.CreatedAt, loc), Subtotal: receiptlink.FormatRupiah(d.Subtotal),
+		When:     receiptlink.FormatWhen(d.CreatedAt, loc), Subtotal: receiptlink.FormatRupiah(d.Subtotal),
 		Total: receiptlink.FormatRupiah(d.Total), Payment: d.Payment, PromptTitle: receiptlink.PromptTitle(link.SalesmanName),
 		Error: form.err, Comment: form.comment,
 	}
