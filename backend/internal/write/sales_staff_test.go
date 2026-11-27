@@ -9,9 +9,11 @@ import (
 )
 
 func TestPlanSalesStaffUpdate(t *testing.T) {
-	const bsd, lwb, mks = "bsd", "lwb", "mks"
+	const bsd, bsd2, lwb, mks = "bsd", "bsd2", "lwb", "mks"
 	str := func(s string) *string { return &s }
 	partial := coverage.Caller{UserID: "m", Cov: coverage.Coverage{OutletIDs: []string{bsd}}}
+	partial2 := coverage.Caller{UserID: "m", Cov: coverage.Coverage{OutletIDs: []string{bsd, bsd2}}}
+	inactive3 := SalesStaffInput{Name: "Rina", Active: false, OutletIDs: []string{bsd, bsd2, lwb}}
 	fullMgr := coverage.Caller{UserID: "m", Cov: coverage.Coverage{OutletIDs: []string{bsd, lwb}}}
 	allMgr := coverage.Caller{UserID: "m", Cov: coverage.Coverage{All: true}}
 	admin := coverage.Caller{UserID: "a", Admin: true}
@@ -47,6 +49,16 @@ func TestPlanSalesStaffUpdate(t *testing.T) {
 			SalesStaffInput{Name: "Rina", Active: true, OutletIDs: []string{lwb}, UserID: str("u1")}, nil},
 		{"no covered outlet is not found", partial, SalesStaffInput{Name: "Rina", Active: true, OutletIDs: []string{lwb}},
 			SalesStaffInput{Name: "Rina", Active: true, OutletIDs: []string{lwb}}, SalesStaffInput{}, ErrSalesStaffNotFound},
+		{"partial manager edits outlets of an inactive person", partial2, inactive3, SalesStaffInput{Name: "Rina", Active: false, OutletIDs: []string{bsd}},
+			SalesStaffInput{Name: "Rina", Active: false, OutletIDs: []string{lwb, bsd}}, nil},
+		{"partial manager cannot add an unrelated outlet to an inactive person", partial2, inactive3, SalesStaffInput{Name: "Rina", Active: false, OutletIDs: []string{bsd, mks}},
+			SalesStaffInput{}, ErrSalesStaffForbidden},
+		{"partial manager ticks a covered outlet on an inactive person", partial2, SalesStaffInput{Name: "Rina", Active: false, OutletIDs: []string{lwb, bsd}},
+			SalesStaffInput{Name: "Rina", Active: false, OutletIDs: []string{bsd, bsd2}},
+			SalesStaffInput{Name: "Rina", Active: false, OutletIDs: []string{lwb, bsd, bsd2}}, nil},
+		{"partial manager nonaktif with a trailing-space stored name", partial, SalesStaffInput{Name: "Rina ", Active: true, OutletIDs: []string{bsd, lwb}},
+			SalesStaffInput{Name: "Rina", Active: false, OutletIDs: []string{bsd, lwb}},
+			SalesStaffInput{Name: "Rina ", Active: true, OutletIDs: []string{lwb}}, nil},
 		{"full editor cannot empty the outlets", fullMgr, both, SalesStaffInput{Name: "Rina", Active: true, OutletIDs: []string{}},
 			SalesStaffInput{}, ErrSalesStaffInvalid},
 		{"full editor cannot blank the name", admin, both, SalesStaffInput{Name: "  ", Active: true, OutletIDs: []string{bsd}},

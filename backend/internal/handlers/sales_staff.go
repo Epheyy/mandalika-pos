@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -18,6 +19,9 @@ import (
 	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/write"
 )
+
+// salesStaffSearchMax caps the list search term (matches the OpenAPI maxLength).
+const salesStaffSearchMax = 100
 
 // salesStaffCaller is the authenticated caller as the Tim Sales rules see it.
 func salesStaffCaller(r *http.Request) coverage.Caller {
@@ -77,6 +81,10 @@ func salesStaffInput(body api.SalesStaffInput) (write.SalesStaffInput, error) {
 func (h *Handlers) ListSalesStaff(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	f := read.SalesStaffFilter{Q: strings.TrimSpace(q.Get("q"))}
+	if utf8.RuneCountInString(f.Q) > salesStaffSearchMax {
+		httpx.Err(w, http.StatusBadRequest, "Pencarian maksimal 100 karakter.")
+		return
+	}
 	if o := q.Get("outletId"); o != "" {
 		if _, err := uuid.Parse(o); err != nil {
 			httpx.Err(w, http.StatusBadRequest, "outletId tidak valid")

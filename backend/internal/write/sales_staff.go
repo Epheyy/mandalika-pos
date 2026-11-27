@@ -116,11 +116,13 @@ func planSalesStaffUpdate(c coverage.Caller, cur SalesStaffInput, in SalesStaffI
 		}
 		return SalesStaffInput{Name: name, Active: in.Active, OutletIDs: want, UserID: in.UserID}, nil
 	}
-	if strings.TrimSpace(in.Name) != cur.Name || !sameUser(in.UserID, cur.UserID) || (in.Active && !cur.Active) {
+	if strings.TrimSpace(in.Name) != strings.TrimSpace(cur.Name) || !sameUser(in.UserID, cur.UserID) || (in.Active && !cur.Active) {
 		return SalesStaffInput{}, ErrSalesStaffForbidden
 	}
 	res := SalesStaffInput{Name: cur.Name, Active: cur.Active, UserID: cur.UserID, OutletIDs: append([]string{}, uncovered...)}
-	if in.Active {
+	// Only the Aktif -> Nonaktif transition removes the editor's own outlets; any other edit
+	// (including on an already inactive person) just ticks or unticks the covered ones.
+	if !(cur.Active && !in.Active) {
 		for _, o := range want {
 			if covers(o) && !containsID(res.OutletIDs, o) {
 				res.OutletIDs = append(res.OutletIDs, o)

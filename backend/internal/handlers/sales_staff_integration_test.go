@@ -67,6 +67,7 @@ func TestSalesStaffPostgres(t *testing.T) {
 		uB    = "00000000-0000-4000-8f89-0000000000b2"
 		uC    = "00000000-0000-4000-8f89-0000000000b3"
 		uCash = "00000000-0000-4000-8f89-0000000000b4"
+		uD    = "00000000-0000-4000-8f89-0000000000b5"
 		ghost = "00000000-0000-4000-8f89-0000000000b9"
 	)
 
@@ -75,29 +76,39 @@ func TestSalesStaffPostgres(t *testing.T) {
 		for _, u := range []struct{ id, role, name, email string }{
 			{uA, "cashier", "", "ssa"}, {uB, "cashier", strings.Repeat("x", 80), "ssb"},
 			{uC, "manager", "SS manager", "ssc"}, {uCash, "cashier", "SS cashier", "ssd"},
+			{uD, "cashier", "", "sse"},
 		} {
 			exec(`INSERT INTO users(id,email,password_hash,display_name,role,outlet_id) VALUES($1,$2,'x',$3,$4,$5)`,
 				u.id, u.email+"@example.invalid", u.name, u.role, o1)
 		}
 		exec(`INSERT INTO custom_roles(id,name) VALUES('00000000-0000-4000-8f89-0000000000e1','Manajer Area'),('00000000-0000-4000-8f89-0000000000e2','Kasir X')`)
-		for i, o := range []struct{ outlet, salesman string }{{o1, uA}, {o2, uA}, {o1, uB}, {o1, ghost}} {
+		// A's newest non-blank salesman_name wins; D has only blank names; ghost has no user row.
+		for i, o := range []struct{ outlet, salesman, name, at string }{
+			{o1, uA, "Old", "2026-11-01T03:00:00Z"}, {o2, uA, "Ani", "2026-11-02T03:00:00Z"},
+			{o1, uA, "  ", "2026-11-03T03:00:00Z"}, {o1, uB, "", "2026-11-01T03:00:00Z"},
+			{o1, ghost, "", "2026-11-01T03:00:00Z"}, {o1, uD, "   ", "2026-11-01T03:00:00Z"},
+		} {
 			id := "00000000-0000-4000-8f89-00000000010" + string(rune('1'+i))
-			exec(`INSERT INTO orders(id,order_uuid,order_number,idempotency_key,outlet_id,cashier_id,cashier_name,salesman_id,
-			        subtotal,discount_amount,total,payment_method,status)
-			      VALUES($1::uuid,$1::uuid,$1::text,$1::text,$2,$3,'SS cashier',$4,1000,0,1000,'cash','completed')`, id, o.outlet, uCash, o.salesman)
+			exec(`INSERT INTO orders(id,order_uuid,order_number,idempotency_key,outlet_id,cashier_id,cashier_name,salesman_id,salesman_name,
+			        subtotal,discount_amount,total,payment_method,status,created_at)
+			      VALUES($1::uuid,$1::uuid,$1::text,$1::text,$2,$3,'SS cashier',$4,NULLIF($5,''),1000,0,1000,'cash','completed',$6::timestamptz)`,
+				id, o.outlet, uCash, o.salesman, o.name, o.at)
 		}
 
 		block := migrationDataBlock(t, "../db/migrations/0104_sales_staff.sql")
 		exec(block)
 
-		if n := count(`SELECT count(*) FROM sales_staff`); n != 2 {
-			t.Fatalf("sales_staff rows = %d, want 2", n)
+		if n := count(`SELECT count(*) FROM sales_staff`); n != 3 {
+			t.Fatalf("sales_staff rows = %d, want 3", n)
 		}
 		if n := count(`SELECT count(*) FROM sales_staff WHERE active`); n != 0 {
 			t.Fatalf("active rows = %d, want 0", n)
 		}
-		if n := count(`SELECT count(*) FROM sales_staff WHERE user_id=$1 AND name='Sales'`, uA); n != 1 {
-			t.Fatal("A's empty display_name must become 'Sales'")
+		if n := count(`SELECT count(*) FROM sales_staff WHERE user_id=$1 AND name='Ani'`, uA); n != 1 {
+			t.Fatal("A's empty display_name must fall back to the newest non-blank order salesman_name 'Ani'")
+		}
+		if n := count(`SELECT count(*) FROM sales_staff WHERE user_id=$1 AND name='Sales'`, uD); n != 1 {
+			t.Fatal("D's empty display_name and blank order names must become 'Sales'")
 		}
 		if n := count(`SELECT count(*) FROM sales_staff WHERE user_id=$1 AND name=$2`, uB, strings.Repeat("x", 60)); n != 1 {
 			t.Fatal("B's name must be cut to 60 chars")
@@ -109,17 +120,17 @@ func TestSalesStaffPostgres(t *testing.T) {
 		if n := count(`SELECT count(*) FROM sales_staff_outlets so JOIN sales_staff s ON s.id=so.staff_id WHERE s.user_id=$1`, uB); n != 1 {
 			t.Fatalf("B outlets = %d, want 1", n)
 		}
-		if n := count(`SELECT count(*) FROM sales_staff_outlets`); n != 3 {
-			t.Fatalf("total outlet links = %d, want 3", n)
+		if n := count(`SELECT count(*) FROM sales_staff_outlets`); n != 4 {
+			t.Fatalf("total outlet links = %d, want 4", n)
 		}
 
 		// Idempotent insert statements: a second run adds no staff or links.
 		exec(block)
-		if n := count(`SELECT count(*) FROM sales_staff`); n != 2 {
-			t.Fatalf("sales_staff after re-run = %d, want 2", n)
+		if n := count(`SELECT count(*) FROM sales_staff`); n != 3 {
+			t.Fatalf("sales_staff after re-run = %d, want 3", n)
 		}
-		if n := count(`SELECT count(*) FROM sales_staff_outlets`); n != 3 {
-			t.Fatalf("links after re-run = %d, want 3", n)
+		if n := count(`SELECT count(*) FROM sales_staff_outlets`); n != 4 {
+			t.Fatalf("links after re-run = %d, want 4", n)
 		}
 
 		// Grants: manager yes, cashier no; custom role by name.
@@ -455,6 +466,12 @@ func TestSalesStaffPostgres(t *testing.T) {
 		}
 		if code, _ := do(adminTok, "GET", "/sales-staff?active=maybe", "", nil); code != http.StatusBadRequest {
 			t.Fatalf("bad active = %d, want 400", code)
+		}
+		if code, body := do(adminTok, "GET", "/sales-staff?q="+strings.Repeat("x", 101), "", nil); code != http.StatusBadRequest || !strings.Contains(string(body), "Pencarian maksimal 100 karakter.") {
+			t.Fatalf("overlong q = %d %s, want 400", code, body)
+		}
+		if code, body := do(adminTok, "GET", "/sales-staff?q="+strings.Repeat("x", 100), "", nil); code != http.StatusOK {
+			t.Fatalf("100-char q = %d %s, want 200", code, body)
 		}
 		if code, body := do(adminTok, "GET", "/sales-staff?active=true&q=zzz-no-such-person", "", nil); code != http.StatusOK || !strings.Contains(string(body), `"data":[]`) {
 			t.Fatalf("empty filtered list = %d %s", code, body)

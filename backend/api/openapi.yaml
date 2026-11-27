@@ -3086,7 +3086,7 @@ components:
         hiddenOutletCount: { type: integer, description: 'Outlets of this person outside the caller scope (counted, never named).' }
         # Omitted (not null) when the person is not linked to a user; openapi-typescript drops nullable on a $ref.
         user: { $ref: '#/components/schemas/PullUser' }
-        canEditDetails: { type: boolean, description: 'False when the person also works at an outlet outside the caller scope; name, outlets and link are then read-only for the caller.' }
+        canEditDetails: { type: boolean, description: 'false when the caller does not cover every outlet of this person: name, linked account and Aktif are read-only; the caller can still tick or untick their own outlets.' }
         updatedAt: { type: string, format: date-time }
     SalesStaffInput:
       type: object
@@ -7054,7 +7054,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SalesStaffListResponse' }
-        '400': { description: "invalid outletId or active", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '400': { description: "invalid outletId, active or q (over 100 characters)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { $ref: '#/components/responses/Forbidden' }
     post:
       operationId: createSalesStaff
@@ -7099,6 +7099,8 @@ paths:
       operationId: updateSalesStaff
       tags: [sales-staff]
       summary: Replace a sales person (name, active, outlets, user link)
+      parameters:
+        - $ref: '#/components/parameters/WriteIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -7113,7 +7115,7 @@ paths:
         '400': { description: "invalid id, name, outlets or user", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: "duplicate name at an outlet, user already linked, or details read-only for this caller", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: "duplicate name at an outlet, user already linked", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/receipt-links:
     post:
       operationId: createReceiptLink
@@ -7202,7 +7204,7 @@ paths:
         - { name: dateFrom, in: query, required: true, description: "Inclusive business day of the sale (YYYY-MM-DD).", schema: { type: string } }
         - { name: dateTo, in: query, required: true, description: "Inclusive business day of the sale (YYYY-MM-DD).", schema: { type: string } }
         - { name: outletId, in: query, schema: { type: string } }
-        - { name: salesmanId, in: query, description: "A user uuid, or none for ratings of orders without a salesperson.", schema: { type: string } }
+        - { name: salesmanId, in: query, description: "A sales staff uuid (also matches the orders of the user linked to it), a user uuid, or none for orders without a salesperson.", schema: { type: string } }
         - { name: flaggedOnly, in: query, schema: { type: boolean } }
       responses:
         '200':

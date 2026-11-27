@@ -6266,7 +6266,7 @@ export interface components {
             /** @description Outlets of this person outside the caller scope (counted, never named). */
             hiddenOutletCount: number;
             user?: components["schemas"]["PullUser"];
-            /** @description False when the person also works at an outlet outside the caller scope; name, outlets and link are then read-only for the caller. */
+            /** @description false when the caller does not cover every outlet of this person: name, linked account and Aktif are read-only; the caller can still tick or untick their own outlets. */
             canEditDetails: boolean;
             /** Format: date-time */
             updatedAt: string;
@@ -12415,7 +12415,7 @@ export interface operations {
                     "application/json": components["schemas"]["SalesStaffListResponse"];
                 };
             };
-            /** @description invalid outletId or active */
+            /** @description invalid outletId, active or q (over 100 characters) */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12498,7 +12498,10 @@ export interface operations {
     updateSalesStaff: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional. One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. */
+                "Idempotency-Key"?: components["parameters"]["WriteIdempotencyKey"];
+            };
             path: {
                 id: string;
             };
@@ -12530,7 +12533,7 @@ export interface operations {
             };
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            /** @description duplicate name at an outlet, user already linked, or details read-only for this caller */
+            /** @description duplicate name at an outlet, user already linked */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12705,7 +12708,7 @@ export interface operations {
                 /** @description Inclusive business day of the sale (YYYY-MM-DD). */
                 dateTo: string;
                 outletId?: string;
-                /** @description A user uuid, or none for ratings of orders without a salesperson. */
+                /** @description A sales staff uuid (also matches the orders of the user linked to it), a user uuid, or none for orders without a salesperson. */
                 salesmanId?: string;
                 flaggedOnly?: boolean;
             };

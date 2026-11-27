@@ -23,7 +23,13 @@ CREATE INDEX idx_sales_staff_outlets_outlet ON sales_staff_outlets (outlet_id);
 -- migrate:data-begin
 -- Past salespeople come in INACTIVE so owners opt each one in.
 INSERT INTO sales_staff (name, active, user_id)
-SELECT COALESCE(NULLIF(left(btrim(u.display_name), 60), ''), 'Sales'), false, u.id
+SELECT COALESCE(
+         NULLIF(btrim(left(btrim(u.display_name), 60)), ''),
+         (SELECT NULLIF(btrim(left(btrim(o.salesman_name), 60)), '')
+            FROM orders o
+           WHERE o.salesman_id = u.id AND NULLIF(btrim(o.salesman_name), '') IS NOT NULL
+           ORDER BY o.created_at DESC LIMIT 1),
+         'Sales'), false, u.id
   FROM users u
  WHERE EXISTS (SELECT 1 FROM orders o WHERE o.salesman_id = u.id)
    AND NOT EXISTS (SELECT 1 FROM sales_staff s WHERE s.user_id = u.id);
