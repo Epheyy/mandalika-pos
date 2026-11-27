@@ -631,6 +631,132 @@ func TestSalesStaffPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("sales_performance_link", func(t *testing.T) {
+		const (
+			plOut  = "00000000-0000-4000-8f89-000000000301"
+			plUser = "00000000-0000-4000-8f89-000000000302"
+			plCash = "00000000-0000-4000-8f89-000000000303"
+		)
+		exec(`INSERT INTO outlets(id,name,erp_slug,erp_code) VALUES($1,'PL outlet','pl-out','PLO')`, plOut)
+		for _, u := range []struct{ id, role, name string }{{plUser, "cashier", "PL linked user"}, {plCash, "cashier", "PL cashier"}} {
+			exec(`INSERT INTO users(id,email,password_hash,display_name,role,outlet_id) VALUES($1,$2,'x',$3,$4,$5)`,
+				u.id, u.id+"@example.invalid", u.name, u.role, plOut)
+		}
+		staff := must(create(admin, write.SalesStaffInput{Name: "Rina Link", Active: true, OutletIDs: []string{plOut}, UserID: ptr(plUser)}))
+		orders := []struct {
+			id, num, salesman, name string
+			total                   int
+		}{
+			{"00000000-0000-4000-8f89-000000000311", "PL-1", plUser, "Old", 100000},
+			{"00000000-0000-4000-8f89-000000000312", "PL-2", plUser, "Old", 200000},
+			{"00000000-0000-4000-8f89-000000000313", "PL-3", staff, "Rina Link", 150000},
+			{"00000000-0000-4000-8f89-000000000314", "PL-4", "", "", 80000},
+		}
+		for _, o := range orders {
+			exec(`INSERT INTO orders(id,order_uuid,order_number,idempotency_key,outlet_id,cashier_id,cashier_name,salesman_id,salesman_name,
+			        subtotal,discount_amount,total,payment_method,status,created_at)
+			      VALUES($1,$1,$2,$2,$3,$4,'PL cashier',NULLIF($5,'')::uuid,NULLIF($6,''),$7::numeric,0,$7::numeric,'cash','completed','2026-11-10T03:00:00Z')`,
+				o.id, o.num, plOut, plCash, o.salesman, o.name, o.total)
+		}
+		// A partial refund of an OLD user-id order, on another business day: it must reduce the grouped row.
+		exec(`INSERT INTO order_refunds(order_id,outlet_id,seq,scope,amount,computed_amount,payment_method,reason,ledger_document_key,refunded_at,refund_business_date)
+		      VALUES($1,$2,1,'partial',40000,40000,'cash','PL','pl-rf-1','2026-11-11T03:00:00Z','2026-11-11')`, orders[0].id, plOut)
+		for i, o := range orders[:3] {
+			if i == 1 {
+				continue // order 2 stays unrated
+			}
+			exec(`INSERT INTO order_ratings(order_id,outlet_id,salesman_id,salesman_name,business_date,stars,comment)
+			      VALUES($1,$2,NULLIF($3,'')::uuid,$4,'2026-11-10',$5,$6)`, o.id, plOut, o.salesman, o.name, 5-i, "komentar "+o.num)
+		}
+
+		f := read.OrderFilter{Scope: read.Scope{OutletID: plOut}, DateFrom: "2026-11-10", DateTo: "2026-11-11"}
+		report := func() map[string]api.SalesPerformanceRow {
+			t.Helper()
+			rep, err := rd.SalesPerformance(ctx, f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m := map[string]api.SalesPerformanceRow{}
+			for _, r := range rep.Data {
+				k := "none"
+				if r.SalesmanId != nil {
+					k = r.SalesmanId.String()
+				}
+				m[k] = r
+			}
+			if len(m) != len(rep.Data) {
+				t.Fatalf("duplicate keys in %+v", rep.Data)
+			}
+			return m
+		}
+		ratingOrders := func(salesman string) []string {
+			t.Helper()
+			rs, total, err := rd.SalesRatings(ctx, f, salesman, false, 1, 50)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if total != len(rs) {
+				t.Fatalf("SalesRatings(%s) total %d vs %d rows", salesman, total, len(rs))
+			}
+			var nums []string
+			for _, r := range rs {
+				nums = append(nums, r.OrderNumber)
+			}
+			sort.Strings(nums)
+			return nums
+		}
+
+		// Linked: old user-id picks and the staff entry's picks are one row under the staff id and name.
+		m := report()
+		if len(m) != 2 {
+			t.Fatalf("linked rows = %+v", m)
+		}
+		row, ok := m[staff]
+		if !ok || row.SalesmanName != "Rina Link" || row.Transactions != 3 || row.Revenue != 410000 || row.RatingsReceived != 2 {
+			t.Fatalf("grouped row = %+v (ok=%v), want key staff, Rina Link, 3 txns, revenue 410000 (refund joined), 2 ratings", row, ok)
+		}
+		if _, leaked := m[plUser]; leaked {
+			t.Fatal("the linked user id must not be a separate row")
+		}
+		if none := m["none"]; none.SalesmanName != "Tanpa sales" || none.Transactions != 1 || none.Revenue != 80000 {
+			t.Fatalf("none row = %+v", none)
+		}
+		if got := ratingOrders(staff); !reflect.DeepEqual(got, []string{"PL-1", "PL-3"}) {
+			t.Fatalf("SalesRatings(staff) = %v", got)
+		}
+		if got := ratingOrders(plUser); len(got) != 0 {
+			t.Fatalf("SalesRatings(user id) after linking = %v, want none (grouped under the staff id)", got)
+		}
+		if got := ratingOrders("none"); len(got) != 0 {
+			t.Fatalf("SalesRatings(none) = %v", got)
+		}
+		if rs, _, err := rd.SalesRatings(ctx, f, staff, false, 1, 50); err != nil || len(rs) == 0 || rs[0].SalesmanId == nil || rs[0].SalesmanId.String() != staff || rs[0].SalesmanName != "Rina Link" {
+			t.Fatalf("rating row key/name = %+v %v", rs, err)
+		}
+		if rs, _, err := rd.SalesRatings(ctx, f, staff, false, 2, 50); err != nil || len(rs) != 0 {
+			t.Fatalf("past-the-end page = %+v %v", rs, err)
+		}
+
+		// Unlinked: two rows again, the user id with its old name and the staff entry with its own picks.
+		exec(`UPDATE sales_staff SET user_id = NULL WHERE id = $1`, staff)
+		m = report()
+		if len(m) != 3 {
+			t.Fatalf("unlinked rows = %+v", m)
+		}
+		if r := m[plUser]; r.SalesmanName != "Old" || r.Transactions != 2 || r.Revenue != 260000 {
+			t.Fatalf("user row = %+v", r)
+		}
+		if r := m[staff]; r.SalesmanName != "Rina Link" || r.Transactions != 1 || r.Revenue != 150000 {
+			t.Fatalf("staff row = %+v", r)
+		}
+		if got := ratingOrders(plUser); !reflect.DeepEqual(got, []string{"PL-1"}) {
+			t.Fatalf("SalesRatings(user) after unlink = %v", got)
+		}
+		if got := ratingOrders(staff); !reflect.DeepEqual(got, []string{"PL-3"}) {
+			t.Fatalf("SalesRatings(staff) after unlink = %v", got)
+		}
+	})
+
 	t.Run("pull_bundle", func(t *testing.T) {
 		const (
 			pbA  = "00000000-0000-4000-8f89-000000000221"

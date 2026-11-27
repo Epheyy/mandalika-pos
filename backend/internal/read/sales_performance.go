@@ -24,6 +24,9 @@ const (
 // minus the refund rows bound on the REFUND day, so the rows add up to the dashboard's netSales.
 // Transactions count completed and partially refunded sales (ReportSummary totalOrders). Ratings
 // count by the sale's business day; receiptsSent counts sale-set orders with at least one link.
+// The salesman key is a sales staff id, a user id, or "none" (Tanpa sales): orders saved with the
+// user id of a user linked to a sales staff entry (sales_staff.user_id) are grouped under that
+// entry's id and current name, together with the entry's own orders (sale and refund sides alike).
 func (r *Repo) SalesPerformance(ctx context.Context, f OrderFilter) (api.SalesPerformanceReport, error) {
 	sf, rf := f, f
 	sf.DateBasis, rf.DateBasis = "sale", "refund"
@@ -33,8 +36,8 @@ func (r *Repo) SalesPerformance(ctx context.Context, f OrderFilter) (api.SalesPe
 	sql := fmt.Sprintf(`
 WITH sb AS (
   SELECT o.id, o.total, o.status, o.salesman_id, o.salesman_name,
-         COALESCE(o.salesman_id, '%[3]s'::uuid) AS skey
-  FROM orders o %[1]s
+         COALESCE(lk.id, o.salesman_id, '%[3]s'::uuid) AS skey
+  FROM orders o LEFT JOIN sales_staff lk ON lk.user_id = o.salesman_id %[1]s
 ),
 sa AS (
   SELECT sb.skey,
@@ -54,13 +57,14 @@ sa AS (
   GROUP BY sb.skey
 ),
 ra AS (
-  SELECT COALESCE(o.salesman_id, '%[3]s'::uuid) AS skey, MAX(o.salesman_name) AS sname,
+  SELECT COALESCE(lk.id, o.salesman_id, '%[3]s'::uuid) AS skey, MAX(o.salesman_name) AS sname,
          COALESCE(SUM(r.amount), 0)::float8 AS refunds
-  FROM orders o JOIN order_refunds r ON r.order_id = o.id %[2]s
+  FROM orders o JOIN order_refunds r ON r.order_id = o.id
+  LEFT JOIN sales_staff lk ON lk.user_id = o.salesman_id %[2]s
   GROUP BY 1
 )
 SELECT COALESCE(sa.skey, ra.skey)::text,
-       COALESCE(NULLIF(btrim(COALESCE(sa.sname, ra.sname, '')), ''), u.display_name, ''),
+       COALESCE(st.name, NULLIF(btrim(COALESCE(sa.sname, ra.sname, '')), ''), u.display_name, ''),
        COALESCE(sa.gross, 0) - COALESCE(ra.refunds, 0),
        COALESCE(sa.txns, 0), COALESCE(sa.sent, 0), COALESCE(sa.rated, 0), COALESCE(sa.star_sum, 0),
        COALESCE(sa.s1, 0), COALESCE(sa.s2, 0), COALESCE(sa.s3, 0), COALESCE(sa.s4, 0), COALESCE(sa.s5, 0),
@@ -72,6 +76,7 @@ SELECT COALESCE(sa.skey, ra.skey)::text,
                           WHERE sb.skey = COALESCE(sa.skey, ra.skey) AND btrim(COALESCE(rt.comment, '')) <> ''
                           ORDER BY rt.created_at DESC LIMIT 3) c), '[]'::json)
 FROM sa FULL JOIN ra ON sa.skey = ra.skey
+LEFT JOIN sales_staff st ON st.id = COALESCE(sa.skey, ra.skey)
 LEFT JOIN users u ON u.id = COALESCE(sa.skey, ra.skey) AND COALESCE(sa.skey, ra.skey) <> '%[3]s'::uuid
 ORDER BY 3 DESC, 2, 1`, saleWhere, refundWhere, salesNoneKey)
 
@@ -157,7 +162,9 @@ func avgStars(sum, n int) *float64 {
 }
 
 // SalesRatings pages the individual ratings of the sale set (same filter and outlet scope as
-// SalesPerformance). salesman is a user uuid, "none" for orders without a salesperson, or "" for all.
+// SalesPerformance). salesman is a sales staff uuid (which also matches the orders of the user linked
+// to that entry), a user uuid, "none" for orders without a salesperson, or "" for all. The returned
+// salesman id/name follow the same grouping: the staff entry's id and current name for linked orders.
 func (r *Repo) SalesRatings(ctx context.Context, f OrderFilter, salesman string, flaggedOnly bool, page, limit int) ([]api.SalesRating, int, error) {
 	sf := f
 	sf.DateBasis = "sale"
@@ -169,7 +176,7 @@ func (r *Repo) SalesRatings(ctx context.Context, f OrderFilter, salesman string,
 		where += " AND o.salesman_id IS NULL"
 	default:
 		args = append(args, salesman)
-		where += fmt.Sprintf(" AND o.salesman_id = $%d::uuid", len(args))
+		where += fmt.Sprintf(" AND COALESCE(lk.id, o.salesman_id) = $%d::uuid", len(args))
 	}
 	if flaggedOnly {
 		where += " AND (rt.flag_fast OR rt.flag_same_network)"
@@ -178,12 +185,14 @@ func (r *Repo) SalesRatings(ctx context.Context, f OrderFilter, salesman string,
 	n := len(args)
 	rows, err := r.Pool.Query(ctx, fmt.Sprintf(`
 SELECT rt.id::text, o.id::text, o.order_number, o.outlet_id::text, ou.name,
-       COALESCE(o.salesman_id::text, ''), COALESCE(NULLIF(btrim(COALESCE(o.salesman_name,'')),''), ''),
+       COALESCE(COALESCE(lk.id, o.salesman_id)::text, ''), COALESCE(st.name, NULLIF(btrim(COALESCE(o.salesman_name,'')),''), ''),
        rt.stars::int, rt.tags, rt.comment, rt.flag_fast, rt.flag_same_network,
        o.business_date::text, rt.created_at, count(*) OVER ()
   FROM order_ratings rt
   JOIN orders o ON o.id = rt.order_id
   JOIN outlets ou ON ou.id = o.outlet_id
+  LEFT JOIN sales_staff lk ON lk.user_id = o.salesman_id
+  LEFT JOIN sales_staff st ON st.id = COALESCE(lk.id, o.salesman_id)
   %s
  ORDER BY rt.created_at DESC, rt.id DESC
  LIMIT $%d OFFSET $%d`, where, n-1, n), args...)
@@ -243,7 +252,7 @@ SELECT rt.id::text, o.id::text, o.order_number, o.outlet_id::text, ou.name,
 		// Past the end: report the real count with an empty page.
 		var cnt int
 		cargs := args[:n-2]
-		if err := r.Pool.QueryRow(ctx, `SELECT count(*) FROM order_ratings rt JOIN orders o ON o.id = rt.order_id `+where, cargs...).Scan(&cnt); err == nil {
+		if err := r.Pool.QueryRow(ctx, `SELECT count(*) FROM order_ratings rt JOIN orders o ON o.id = rt.order_id LEFT JOIN sales_staff lk ON lk.user_id = o.salesman_id `+where, cargs...).Scan(&cnt); err == nil {
 			total = cnt
 		}
 	}
