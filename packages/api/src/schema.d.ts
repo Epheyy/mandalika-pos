@@ -6272,6 +6272,7 @@ export interface components {
             updatedAt: string;
         };
         SalesStaffInput: {
+            /** @description 1-60 characters, checked after trimming. */
             name: string;
             active: boolean;
             outletIds: string[];
@@ -12395,7 +12396,7 @@ export interface operations {
         parameters: {
             query?: {
                 outletId?: string;
-                active?: "true" | "false";
+                active?: boolean;
                 /** @description Name search. */
                 q?: string;
             };
@@ -12491,26 +12492,7 @@ export interface operations {
                     "application/json": components["schemas"]["LinkableUsersResponse"];
                 };
             };
-            /** @description invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
             403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            /** @description conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
         };
     };
     updateSalesStaff: {

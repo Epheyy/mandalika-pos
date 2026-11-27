@@ -3092,7 +3092,7 @@ components:
       type: object
       required: [name, active, outletIds]
       properties:
-        name: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1, maxLength: 60, description: '1-60 characters, checked after trimming.' }
         active: { type: boolean }
         outletIds: { type: array, minItems: 1, items: { type: string, format: uuid } }
         userId: { type: string, format: uuid, nullable: true, description: 'Linked user; absent or null means unlinked.' }
@@ -7046,7 +7046,7 @@ paths:
       summary: List sales staff (Tim Sales) within the caller outlet scope
       parameters:
         - { name: outletId, in: query, required: false, schema: { type: string, format: uuid } }
-        - { name: active, in: query, required: false, schema: { type: string, enum: ['true', 'false'] } }
+        - { name: active, in: query, required: false, schema: { type: boolean } }
         - { name: q, in: query, required: false, schema: { type: string, maxLength: 100 }, description: 'Name search.' }
       responses:
         '200':
@@ -7088,10 +7088,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/LinkableUsersResponse' }
-        '400': { description: "invalid request", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: "conflict", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/sales-staff/{id}:
     parameters:
       - name: id
