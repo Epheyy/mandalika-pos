@@ -44,8 +44,8 @@ var tiers = map[string]tier{
 var allowed = map[string][]string{
 	"db":              {},
 	"ledger":          {"db"},
-	"read":            {"db", "ledger", "bundles"},
-	"write":           {"db", "ledger", "coverage"},
+	"read":            {"db", "ledger", "bundles", "coverage"},
+	"write":           {"db", "ledger", "coverage", "read"},
 	"service":         {"db", "ledger", "bundles"},
 	"integration/erp": {"db", "ledger"},
 	"sync":            {"db", "ledger", "read", "write", "service", "integration/erp", "auth", "cache", "coverage"},

@@ -1,9 +1,18 @@
 package handlers
 
 import (
+	"errors"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
+
+	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/coverage"
+	"github.com/mandalika/pos-backend/internal/read"
+	"github.com/mandalika/pos-backend/internal/write"
 )
 
 // migrationDataBlock returns the re-runnable data statements of migration 0104 (between the
@@ -123,4 +132,228 @@ func TestSalesStaffPostgres(t *testing.T) {
 			}
 		}
 	})
+	// Repository subtests use their own outlets and users (fresh ids) and assert deltas only:
+	// the migration subtest above leaves rows, grants and bumped versions in this cluster.
+	const (
+		pBSD, pLWB, pMKS = "00000000-0000-4000-8f89-000000000201", "00000000-0000-4000-8f89-000000000202", "00000000-0000-4000-8f89-000000000203"
+		rAdmin           = "00000000-0000-4000-8f89-000000000211"
+		rAll             = "00000000-0000-4000-8f89-000000000212"
+		rBSDCash         = "00000000-0000-4000-8f89-000000000213"
+		rExtra           = "00000000-0000-4000-8f89-000000000214"
+		rLWBCash         = "00000000-0000-4000-8f89-000000000215"
+		rNoHome          = "00000000-0000-4000-8f89-000000000216"
+		rBSDMgr          = "00000000-0000-4000-8f89-000000000217"
+		rLWBLink         = "00000000-0000-4000-8f89-000000000218"
+	)
+	exec(`INSERT INTO outlets(id,name,erp_slug,erp_code) VALUES($1,'SS BSD','ss-bsd','SSB'),($2,'SS LWB','ss-lwb','SSL'),($3,'SS MKS','ss-mks','SSM')`, pBSD, pLWB, pMKS)
+	for _, u := range []struct{ id, role, name, home string }{
+		{rAdmin, "admin", "R Admin", ""}, {rAll, "manager", "R All", ""}, {rBSDCash, "cashier", "R BSD cashier", pBSD},
+		{rExtra, "manager", "R Extra", pMKS}, {rLWBCash, "cashier", "R LWB cashier", pLWB},
+		{rNoHome, "manager", "R NoHome", ""}, {rBSDMgr, "manager", "R BSD manager", pBSD}, {rLWBLink, "cashier", "R LWB link", pLWB},
+	} {
+		exec(`INSERT INTO users(id,email,password_hash,display_name,role,outlet_id,all_outlets)
+		      VALUES($1,$2,'x',$3,$4,NULLIF($5,'')::uuid,$6)`, u.id, u.id+"@example.invalid", u.name, u.role, u.home, u.id == rAll)
+	}
+	exec(`INSERT INTO user_outlets(user_id,outlet_id) VALUES($1,$2),($3,$2)`, rExtra, pBSD, rNoHome)
+	repo := write.New(pool)
+	rd := read.New(pool)
+	admin := write.SalesStaffCaller{UserID: rAdmin, Admin: true}
+	bsdMgr := write.SalesStaffCaller{UserID: rBSDMgr, Cov: coverage.Coverage{OutletIDs: []string{pBSD}}}
+	inTx := func(fn func(tx pgx.Tx) error) error {
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := fn(tx); err != nil {
+			_ = tx.Rollback(ctx)
+			return err
+		}
+		return tx.Commit(ctx)
+	}
+	create := func(c write.SalesStaffCaller, in write.SalesStaffInput) (id string, err error) {
+		err = inTx(func(tx pgx.Tx) (e error) { id, e = repo.CreateSalesStaffTx(ctx, tx, c, in); return })
+		return
+	}
+	update := func(c write.SalesStaffCaller, id string, in write.SalesStaffInput) error {
+		return inTx(func(tx pgx.Tx) error { return repo.UpdateSalesStaffTx(ctx, tx, c, id, in) })
+	}
+	must := func(id string, err error) string {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	version := func(outlet string) int {
+		return count(`SELECT COALESCE((SELECT version FROM content_versions WHERE outlet_id=$1),0)`, outlet)
+	}
+	find := func(list []api.SalesStaff, id string) *api.SalesStaff {
+		for i := range list {
+			if list[i].Id.String() == id {
+				return &list[i]
+			}
+		}
+		return nil
+	}
+	outletsOf := func(id string) []string {
+		rows, err := pool.Query(ctx, `SELECT outlet_id::text FROM sales_staff_outlets WHERE staff_id=$1 ORDER BY outlet_id`, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+
+	t.Run("create_and_list", func(t *testing.T) {
+		id := must(create(admin, write.SalesStaffInput{Name: "  Rina List ", Active: true, OutletIDs: []string{pBSD, pLWB}}))
+		list, err := rd.SalesStaffList(ctx, bsdMgr, read.SalesStaffFilter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := find(list, id)
+		if s == nil || s.Name != "Rina List" || s.HiddenOutletCount != 1 || s.CanEditDetails ||
+			len(s.OutletIds) != 1 || s.OutletIds[0].String() != pBSD {
+			t.Fatalf("BSD manager view = %+v", s)
+		}
+		all, _ := rd.SalesStaffList(ctx, admin, read.SalesStaffFilter{})
+		if a := find(all, id); a == nil || len(a.OutletIds) != 2 || a.HiddenOutletCount != 0 || !a.CanEditDetails {
+			t.Fatalf("admin view = %+v", a)
+		}
+		if _, err := create(bsdMgr, write.SalesStaffInput{Name: "Wide", Active: true, OutletIDs: []string{pBSD, pLWB}}); !errors.Is(err, write.ErrSalesStaffForbidden) {
+			t.Fatalf("manager creating beyond coverage: %v", err)
+		}
+		if _, err := create(admin, write.SalesStaffInput{Name: strings.Repeat("n", 61), Active: true, OutletIDs: []string{pBSD}}); !errors.Is(err, write.ErrSalesStaffInvalid) {
+			t.Fatalf("61-char name: %v", err)
+		}
+		if _, err := create(admin, write.SalesStaffInput{Name: "Ghost outlet", Active: true, OutletIDs: []string{ghost}}); !errors.Is(err, write.ErrSalesStaffInvalid) {
+			t.Fatalf("unknown outlet: %v", err)
+		}
+		if one, err := rd.SalesStaffByID(ctx, pool, bsdMgr, id); err != nil || one.Name != "Rina List" {
+			t.Fatalf("ByID: %v %+v", err, one)
+		}
+		other := must(create(admin, write.SalesStaffInput{Name: "Only LWB", Active: true, OutletIDs: []string{pLWB}}))
+		if _, err := rd.SalesStaffByID(ctx, pool, bsdMgr, other); !errors.Is(err, read.ErrNotFound) {
+			t.Fatalf("invisible ByID: %v", err)
+		}
+	})
+
+	t.Run("partial_manager", func(t *testing.T) {
+		id := must(create(admin, write.SalesStaffInput{Name: "Rina Partial", Active: true, OutletIDs: []string{pBSD, pLWB}}))
+		if err := update(bsdMgr, id, write.SalesStaffInput{Name: "Rini", Active: true, OutletIDs: []string{pBSD, pLWB}}); !errors.Is(err, write.ErrSalesStaffForbidden) {
+			t.Fatalf("rename: %v", err)
+		}
+		if err := update(bsdMgr, id, write.SalesStaffInput{Name: "Rina Partial", Active: true, OutletIDs: []string{pBSD, pLWB, pMKS}}); !errors.Is(err, write.ErrSalesStaffForbidden) {
+			t.Fatalf("add uncovered outlet: %v", err)
+		}
+		if err := update(bsdMgr, id, write.SalesStaffInput{Name: "Rina Partial", Active: false, OutletIDs: []string{pBSD, pLWB}}); err != nil {
+			t.Fatal(err)
+		}
+		if got := outletsOf(id); !reflect.DeepEqual(got, []string{pLWB}) {
+			t.Fatalf("outlets after Nonaktif = %v", got)
+		}
+		if n := count(`SELECT count(*) FROM sales_staff WHERE id=$1 AND active`, id); n != 1 {
+			t.Fatal("active must stay true for the LWB side")
+		}
+		if err := update(bsdMgr, id, write.SalesStaffInput{Name: "Rina Partial", Active: true, OutletIDs: []string{pBSD}}); !errors.Is(err, write.ErrSalesStaffNotFound) {
+			t.Fatalf("manager without coverage: %v", err)
+		}
+		id2 := must(create(admin, write.SalesStaffInput{Name: "Rina Keep", Active: true, OutletIDs: []string{pBSD, pLWB}}))
+		if err := update(bsdMgr, id2, write.SalesStaffInput{Name: "Rina Keep", Active: true, OutletIDs: []string{}}); err != nil {
+			t.Fatal(err)
+		}
+		if got := outletsOf(id2); !reflect.DeepEqual(got, []string{pLWB}) {
+			t.Fatalf("outlets after unticking BSD = %v", got)
+		}
+	})
+
+	t.Run("duplicate_name", func(t *testing.T) {
+		must(create(admin, write.SalesStaffInput{Name: "Dewi Dup", Active: true, OutletIDs: []string{pBSD}}))
+		if _, err := create(admin, write.SalesStaffInput{Name: "dewi dup ", Active: true, OutletIDs: []string{pBSD, pMKS}}); !errors.Is(err, write.ErrSalesStaffDuplicateName) {
+			t.Fatalf("same outlet duplicate: %v", err)
+		}
+		must(create(admin, write.SalesStaffInput{Name: "dewi dup", Active: true, OutletIDs: []string{pMKS}}))
+		must(create(admin, write.SalesStaffInput{Name: "dewi dup", Active: false, OutletIDs: []string{pBSD}}))
+	})
+
+	t.Run("user_link", func(t *testing.T) {
+		id := must(create(admin, write.SalesStaffInput{Name: "Link One", Active: true, OutletIDs: []string{pBSD}, UserID: ptr(rBSDCash)}))
+		if _, err := create(admin, write.SalesStaffInput{Name: "Link Two", Active: true, OutletIDs: []string{pBSD}, UserID: ptr(rBSDCash)}); !errors.Is(err, write.ErrSalesStaffUserTaken) {
+			t.Fatalf("second link: %v", err)
+		}
+		if s, _ := rd.SalesStaffByID(ctx, pool, admin, id); s.User == nil || s.User.Id.String() != rBSDCash {
+			t.Fatalf("linked user not shown: %+v", s.User)
+		}
+		if _, err := create(bsdMgr, write.SalesStaffInput{Name: "Link Out", Active: true, OutletIDs: []string{pBSD}, UserID: ptr(rLWBLink)}); !errors.Is(err, write.ErrSalesStaffForbidden) {
+			t.Fatalf("manager linking outside coverage: %v", err)
+		}
+		if _, err := create(admin, write.SalesStaffInput{Name: "Link Ghost", Active: true, OutletIDs: []string{pBSD}, UserID: ptr(ghost)}); !errors.Is(err, write.ErrSalesStaffInvalid) {
+			t.Fatalf("unknown user: %v", err)
+		}
+		lk, err := rd.LinkableUsers(ctx, bsdMgr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, u := range lk {
+			if u.Id.String() == rBSDCash || u.Id.String() == rLWBLink {
+				t.Fatalf("linkable list must hide linked and out-of-coverage users: %v", u)
+			}
+		}
+	})
+
+	t.Run("version_bump", func(t *testing.T) {
+		id := must(create(admin, write.SalesStaffInput{Name: "Version V", Active: true, OutletIDs: []string{pBSD, pLWB}}))
+		b0, l0, m0 := version(pBSD), version(pLWB), version(pMKS)
+		if err := update(admin, id, write.SalesStaffInput{Name: "Version V", Active: true, OutletIDs: []string{pBSD}}); err != nil {
+			t.Fatal(err)
+		}
+		if version(pBSD) <= b0 || version(pLWB) <= l0 {
+			t.Fatal("removing LWB must move the content version of BSD and LWB")
+		}
+		if version(pMKS) != m0 {
+			t.Fatal("an unrelated outlet must not move")
+		}
+	})
+
+	t.Run("pull_lists", func(t *testing.T) {
+		must(create(admin, write.SalesStaffInput{Name: "zed pull", Active: true, OutletIDs: []string{pBSD}}))
+		must(create(admin, write.SalesStaffInput{Name: "Abe Pull", Active: true, OutletIDs: []string{pBSD}}))
+		must(create(admin, write.SalesStaffInput{Name: "Off Pull", Active: false, OutletIDs: []string{pBSD}}))
+		must(create(admin, write.SalesStaffInput{Name: "Elsewhere Pull", Active: true, OutletIDs: []string{pLWB}}))
+		picks, err := rd.SalesStaffForOutlet(ctx, pBSD)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var names []string
+		for _, p := range picks {
+			if strings.HasSuffix(p.Name, " Pull") || strings.HasSuffix(p.Name, " pull") {
+				names = append(names, p.Name)
+			}
+		}
+		if !reflect.DeepEqual(names, []string{"Abe Pull", "zed pull"}) {
+			t.Fatalf("picks = %v", names)
+		}
+		users, err := rd.UsersForOutlet(ctx, pBSD)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := map[string]bool{}
+		for _, u := range users {
+			got[u.Id.String()] = true
+		}
+		for _, want := range []string{rAdmin, rAll, rBSDCash, rExtra, rBSDMgr} {
+			if !got[want] {
+				t.Fatalf("UsersForOutlet(BSD) misses %s", want)
+			}
+		}
+		for _, no := range []string{rLWBCash, rNoHome} {
+			if got[no] {
+				t.Fatalf("UsersForOutlet(BSD) must exclude %s", no)
+			}
+		}
+	})
 }
+
+func ptr(s string) *string { return &s }
