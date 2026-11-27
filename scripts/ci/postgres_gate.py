@@ -80,6 +80,7 @@ GATES = (
     ("XO", "TestCrossOutletRefundPostgres", 26486, "xo"),
     ("XL", "TestCrossOutletLookupGuardPostgres", 26487, "xl"),
     ("CR", "TestCustomerRatingPostgres", 26488, "cr"),
+    ("SS", "TestSalesStaffPostgres", 26489, "ss"),
 )
 # Fixture ports must stay below Linux's default ephemeral range (32768-60999): an earlier test's client socket can
 # be assigned a fixed port in that range and stay busy (open or TIME-WAIT) and fail the next fixture start with
