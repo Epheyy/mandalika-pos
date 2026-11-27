@@ -47,24 +47,30 @@ func salesStaffOnErr(r *http.Request) func(http.ResponseWriter, error) bool {
 		if st == 0 {
 			return false
 		}
+		if errors.Is(err, read.ErrNotFound) {
+			httpx.Err(w, st, "Sales tidak ditemukan.")
+			return true
+		}
 		httpx.Err(w, st, safeDomainText(r, st, err))
 		return true
 	}
 }
 
 // salesStaffInput converts the request body; userId absent and null both mean unlinked.
-func salesStaffInput(body api.SalesStaffInput) write.SalesStaffInput {
+func salesStaffInput(body api.SalesStaffInput) (write.SalesStaffInput, error) {
 	in := write.SalesStaffInput{Name: body.Name, Active: body.Active, OutletIDs: make([]string, 0, len(body.OutletIds))}
 	for _, o := range body.OutletIds {
 		in.OutletIDs = append(in.OutletIDs, o.String())
 	}
 	if body.UserId.IsSpecified() && !body.UserId.IsNull() {
-		if u, err := body.UserId.Get(); err == nil {
-			s := u.String()
-			in.UserID = &s
+		u, err := body.UserId.Get()
+		if err != nil {
+			return in, err
 		}
+		s := u.String()
+		in.UserID = &s
 	}
-	return in
+	return in, nil
 }
 
 // ListSalesStaff answers the Tim Sales list as the caller may see it.
@@ -98,8 +104,8 @@ func (h *Handlers) ListSalesStaff(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": list})
 }
 
-// ListSalesStaffLinkableUsers answers the unlinked users the caller may attach to a person.
-func (h *Handlers) ListSalesStaffLinkableUsers(w http.ResponseWriter, r *http.Request) {
+// ListLinkableSalesStaffUsers answers the unlinked users the caller may attach to a person.
+func (h *Handlers) ListLinkableSalesStaffUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := h.Repo.LinkableUsers(r.Context(), salesStaffCaller(r))
 	if err != nil {
 		writeErr(w, r, http.StatusInternalServerError, err)
@@ -119,7 +125,11 @@ func (h *Handlers) CreateSalesStaff(w http.ResponseWriter, r *http.Request) {
 		writeDecodeErr(w, err)
 		return
 	}
-	in := salesStaffInput(body)
+	in, err := salesStaffInput(body)
+	if err != nil {
+		httpx.Err(w, http.StatusBadRequest, "userId tidak valid")
+		return
+	}
 	caller := salesStaffCaller(r)
 	var id string
 	h.keyedMutated(w, r, keyedWrite{
@@ -141,16 +151,22 @@ func (h *Handlers) CreateSalesStaff(w http.ResponseWriter, r *http.Request) {
 // UpdateSalesStaff edits a person. Idempotency-Key is optional.
 func (h *Handlers) UpdateSalesStaff(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	if _, err := uuid.Parse(id); err != nil {
+	pid, err := uuid.Parse(id)
+	if err != nil {
 		httpx.Err(w, http.StatusBadRequest, "id tidak valid")
 		return
 	}
+	id = pid.String() // canonical lower case: the repo compares ids as text
 	var body api.SalesStaffInput
 	if err := httpx.DecodeLoose(r, &body); err != nil {
 		writeDecodeErr(w, err)
 		return
 	}
-	in := salesStaffInput(body)
+	in, err := salesStaffInput(body)
+	if err != nil {
+		httpx.Err(w, http.StatusBadRequest, "userId tidak valid")
+		return
+	}
 	caller := salesStaffCaller(r)
 	h.keyedMutated(w, r, keyedWrite{
 		OpType:  "bo.sales_staff.update",

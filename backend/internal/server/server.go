@@ -468,7 +468,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Use(mw.RequirePermission("manage_sales_staff"))
 				r.Get("/sales-staff", h.ListSalesStaff)
 				r.Post("/sales-staff", h.CreateSalesStaff)
-				r.Get("/sales-staff/linkable-users", h.ListSalesStaffLinkableUsers)
+				r.Get("/sales-staff/linkable-users", h.ListLinkableSalesStaffUsers)
 				r.Put("/sales-staff/{id}", h.UpdateSalesStaff)
 			})
 

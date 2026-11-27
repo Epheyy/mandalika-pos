@@ -375,7 +375,7 @@ func TestSalesStaffPostgres(t *testing.T) {
 		r.Use(mw.RequirePermission("manage_sales_staff"))
 		r.Get("/sales-staff", h.ListSalesStaff)
 		r.Post("/sales-staff", h.CreateSalesStaff)
-		r.Get("/sales-staff/linkable-users", h.ListSalesStaffLinkableUsers)
+		r.Get("/sales-staff/linkable-users", h.ListLinkableSalesStaffUsers)
 		r.Put("/sales-staff/{id}", h.UpdateSalesStaff)
 	})
 	token := func(uid, role, outlet string, perms []string) string {
@@ -417,6 +417,14 @@ func TestSalesStaffPostgres(t *testing.T) {
 		}
 		return r.Data
 	}
+	mk := func(key, name string, outlets []string) string {
+		t.Helper()
+		code, body := do(adminTok, "POST", "/sales-staff", key, map[string]any{"name": name, "active": true, "outletIds": outlets})
+		if code != http.StatusCreated {
+			t.Fatalf("POST %s = %d %s", name, code, body)
+		}
+		return person(body).Id.String()
+	}
 
 	t.Run("http_permissions", func(t *testing.T) {
 		someID := "00000000-0000-4000-8f89-0000000009ff"
@@ -424,7 +432,11 @@ func TestSalesStaffPostgres(t *testing.T) {
 		for _, c := range []struct{ method, path string }{
 			{"GET", "/sales-staff"}, {"POST", "/sales-staff"}, {"GET", "/sales-staff/linkable-users"}, {"PUT", "/sales-staff/" + someID},
 		} {
-			if code, body := do(cashTok, c.method, c.path, "ss-perm-"+c.method, in); code != http.StatusForbidden {
+			var payload any
+			if c.method != "GET" {
+				payload = in
+			}
+			if code, body := do(cashTok, c.method, c.path, "ss-perm-"+c.method, payload); code != http.StatusForbidden {
 				t.Fatalf("cashier %s %s = %d %s, want 403", c.method, c.path, code, body)
 			}
 		}
@@ -518,6 +530,64 @@ func TestSalesStaffPostgres(t *testing.T) {
 		s := find(list.Data, id)
 		if s == nil || !s.Active || len(s.OutletIds) != 1 || s.OutletIds[0].String() != pLWB {
 			t.Fatalf("admin view after partial Nonaktif = %+v", s)
+		}
+	})
+
+	t.Run("http_cashier_with_permission", func(t *testing.T) {
+		// A cashier granted manage_sales_staff (custom role) sees only people at the home outlet.
+		cashPerm := token(rBSDCash, "cashier", pBSD, perm)
+		both := mk("ss-http-cp-both", "Http CP Both", []string{pBSD, pLWB})
+		lwbOnly := mk("ss-http-cp-lwb", "Http CP LWB", []string{pLWB})
+		code, body := do(cashPerm, "GET", "/sales-staff", "", nil)
+		var list struct {
+			Data []api.SalesStaff `json:"data"`
+		}
+		if err := json.Unmarshal(body, &list); err != nil || code != http.StatusOK {
+			t.Fatalf("list = %d %v %s", code, err, body)
+		}
+		if find(list.Data, lwbOnly) != nil {
+			t.Fatal("cashier must not see a person who works only at another outlet")
+		}
+		if s := find(list.Data, both); s == nil || s.HiddenOutletCount != 1 || len(s.OutletIds) != 1 || s.OutletIds[0].String() != pBSD {
+			t.Fatalf("cashier view of BSD+LWB person = %+v", s)
+		}
+		for _, s := range list.Data {
+			for _, o := range s.OutletIds {
+				if o.String() != pBSD {
+					t.Fatalf("cashier sees outlet %s of %s", o, s.Name)
+				}
+			}
+		}
+	})
+
+	t.Run("http_key_reuse_other_body", func(t *testing.T) {
+		in := map[string]any{"name": "Http Reuse A", "active": true, "outletIds": []string{pBSD}}
+		if code, body := do(adminTok, "POST", "/sales-staff", "ss-http-reuse", in); code != http.StatusCreated {
+			t.Fatalf("first POST = %d %s", code, body)
+		}
+		in["name"] = "Http Reuse B"
+		if code, body := do(adminTok, "POST", "/sales-staff", "ss-http-reuse", in); code != http.StatusConflict {
+			t.Fatalf("same key, other body = %d %s, want 409", code, body)
+		}
+		if n := count(`SELECT count(*) FROM sales_staff WHERE name='Http Reuse B'`); n != 0 {
+			t.Fatal("the conflicting body must not be applied")
+		}
+	})
+
+	t.Run("http_uncovered_outlet_filter", func(t *testing.T) {
+		// A manager gets the same answer for an outlet they do not cover and one that does not exist.
+		c1, b1 := do(mgrTok, "GET", "/sales-staff?outletId="+pLWB, "", nil)
+		c2, b2 := do(mgrTok, "GET", "/sales-staff?outletId=00000000-0000-4000-8f89-0000000009fd", "", nil)
+		if c1 != http.StatusForbidden || c2 != http.StatusForbidden || !bytes.Equal(b1, b2) {
+			t.Fatalf("uncovered = %d %s, nonexistent = %d %s", c1, b1, c2, b2)
+		}
+	})
+
+	t.Run("http_id_case", func(t *testing.T) {
+		id := mk("ss-http-case", "Http Case", []string{pBSD})
+		code, body := do(adminTok, "PUT", "/sales-staff/"+strings.ToUpper(id), "", map[string]any{"name": "Http Case", "active": true, "outletIds": []string{pBSD}})
+		if code != http.StatusOK {
+			t.Fatalf("PUT with upper-case id = %d %s, want 200", code, body)
 		}
 	})
 
