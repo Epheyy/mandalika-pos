@@ -22,7 +22,20 @@ describe('PermissionPicker', () => {
   it('cashier role pre-selects void_own_shift', () => {
     expect(permissionsForRole('cashier', [])).toEqual(['void_own_shift'])
     expect(permissionsForRole('cashier', ['view_reports'])).toEqual(['view_reports'])
-    expect(permissionsForRole('manager', [])).toEqual([])
+    expect(permissionsForRole('admin', [])).toEqual([])
+  })
+
+  it('manager role pre-selects manage_sales_staff only on an empty selection', () => {
+    expect(permissionsForRole('manager', [])).toEqual(['manage_sales_staff'])
+    expect(permissionsForRole('manager', ['view_reports'])).toEqual(['view_reports'])
+    expect(permissionsForRole('cashier', ['manage_sales_staff'], 'manager')).toEqual([])
+    expect(permissionsForRole('cashier', ['manage_sales_staff', 'view_reports'], 'manager')).toEqual(['manage_sales_staff', 'view_reports'])
+  })
+
+  it('offers Kelola Sales', () => {
+    for (const compact of [false, true]) {
+      expect(renderToStaticMarkup(<PermissionPicker selected={[]} onToggle={() => {}} compact={compact} />)).toContain('Kelola Sales')
+    }
   })
 
   it('leaving cashier drops only the auto-ticked void_own_shift', () => {

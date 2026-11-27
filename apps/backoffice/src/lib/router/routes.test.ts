@@ -41,7 +41,7 @@ describe('sections', () => {
       ['Penjualan', ['dashboard', 'reports']],
       ['Pelanggan', ['customers', 'promotions']],
       ['Produk & Stok', ['products', 'warehouses', 'approvals', 'requisitions']],
-      ['Operasional', ['users', 'syncReview', 'settings']],
+      ['Operasional', ['users', 'salesStaff', 'syncReview', 'settings']],
       ['Sistem', ['erpOutbox', 'errors', 'crossLookups']],
     ])
   })

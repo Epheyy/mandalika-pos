@@ -33,6 +33,11 @@ describe('canSeeNav', () => {
     expect(canSeeNav('users', 'manage_users', null)).toBe(false)
   })
 
+  it('shows Tim Sales to a manager only with manage_sales_staff', () => {
+    expect(canSeeNav('salesStaff', 'manage_sales_staff', { role: 'manager', permissions: ['manage_sales_staff'] })).toBe(true)
+    expect(canSeeNav('salesStaff', 'manage_sales_staff', { role: 'manager', permissions: ['view_reports'] })).toBe(false)
+  })
+
   it('lets only the admin, or the outlet owner, edit an outlet', () => {
     expect(canEditOutlet({ role: 'admin', outletId: null }, 'o-b')).toBe(true)
     expect(canEditOutlet({ role: 'admin', outletId: 'o-a' }, 'o-b')).toBe(true)

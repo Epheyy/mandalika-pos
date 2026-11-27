@@ -162,6 +162,9 @@ export type WaReceiptTemplate = S['WaReceiptTemplate']
 export type SalesPerformanceReport = S['SalesPerformanceReport']
 export type SalesPerformanceRow = S['SalesPerformanceRow']
 export type SalesRating = S['SalesRating']
+export type SalesStaff = S['SalesStaff']
+export type SalesStaffInput = S['SalesStaffInput']
+export type PullUser = S['PullUser']
 export type VoidOrderRequest = S['VoidOrderRequest']
 export type CrossOutletOrder = S['CrossOutletOrder']
 export type CrossOutletRefundRequest = S['CrossOutletRefundRequest']
@@ -495,6 +498,12 @@ export interface Api {
   getSalesPerformance: (o: { dateFrom: string; dateTo: string; outletId?: string }) => Promise<SalesPerformanceReport>
   /** Ratings behind Performa Sales (view_reports); `salesmanId` is a user uuid or `none`. */
   listSalesRatings: (p?: Record<string, string | number | boolean>) => Promise<ListResult<SalesRating>>
+  /** Tim Sales: per-outlet sales staff list (manage_sales_staff). */
+  listSalesStaff: (params?: { outletId?: string; active?: boolean; q?: string }) => Promise<SalesStaff[]>
+  createSalesStaff: (input: SalesStaffInput, idempotencyKey: string) => Promise<SalesStaff>
+  updateSalesStaff: (id: string, input: SalesStaffInput, idempotencyKey?: string) => Promise<SalesStaff>
+  /** Users that can still be linked to a sales staff entry. */
+  listSalesStaffLinkableUsers: () => Promise<PullUser[]>
   /** A18: online-only refund of another outlet's sale, paid from the ACTIVE outlet's open shift. Idempotent on
    *  (deviceId, clientRefundUuid): resend the SAME body after a timeout; `replayed` is true when it was already applied. */
   refundCrossOutlet: (orderId: string, body: CrossOutletRefundRequest) => Promise<CrossOutletRefundResult>
@@ -1081,6 +1090,12 @@ export function createClient(opts: ClientOptions): Api {
         `${API}/reports/sales-ratings`,
         p && Object.fromEntries(Object.entries(p).map(([k, v]) => [k, typeof v === 'boolean' ? String(v) : v])),
       ),
+    listSalesStaff: (params) => data<SalesStaff[]>('GET', `${API}/sales-staff` + qsMulti(params ?? {})),
+    createSalesStaff: (input, idempotencyKey) =>
+      data<SalesStaff>('POST', `${API}/sales-staff`, input, idemRequired(idempotencyKey)),
+    updateSalesStaff: (id, input, idempotencyKey) =>
+      data<SalesStaff>('PUT', `${API}/sales-staff/${id}`, input, idem(idempotencyKey)),
+    listSalesStaffLinkableUsers: () => data<PullUser[]>('GET', `${API}/sales-staff/linkable-users`),
     refundCrossOutlet: (orderId, body) =>
       data<CrossOutletRefundResult>('POST', `${API}/orders/${orderId}/cross-outlet-refund`, body),
     getVoidPreview: (id) => data<S['VoidPreview']>('GET', `${API}/orders/${id}/void-preview`),
