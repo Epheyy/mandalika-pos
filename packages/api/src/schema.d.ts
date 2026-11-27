@@ -2245,6 +2245,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sales-staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List sales staff (Tim Sales) within the caller outlet scope */
+        get: operations["listSalesStaff"];
+        put?: never;
+        /** Create a sales person */
+        post: operations["createSalesStaff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales-staff/linkable-users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Users that can still be linked to a sales person */
+        get: operations["listLinkableSalesStaffUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales-staff/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace a sales person (name, active, outlets, user link) */
+        put: operations["updateSalesStaff"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/receipt-links": {
         parameters: {
             query?: never;
@@ -6192,6 +6246,50 @@ export interface components {
         SyncVersionResponse: {
             data: components["schemas"]["SyncVersion"];
         };
+        PullUser: {
+            /** Format: uuid */
+            id: string;
+            displayName: string;
+        };
+        SalesStaffPick: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        SalesStaff: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            active: boolean;
+            /** @description Outlets of this person that the caller may see. */
+            outletIds: string[];
+            /** @description Outlets of this person outside the caller scope (counted, never named). */
+            hiddenOutletCount: number;
+            user?: components["schemas"]["PullUser"];
+            /** @description False when the person also works at an outlet outside the caller scope; name, outlets and link are then read-only for the caller. */
+            canEditDetails: boolean;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        SalesStaffInput: {
+            name: string;
+            active: boolean;
+            outletIds: string[];
+            /**
+             * Format: uuid
+             * @description Linked user; absent or null means unlinked.
+             */
+            userId?: string | null;
+        };
+        SalesStaffResponse: {
+            data: components["schemas"]["SalesStaff"];
+        };
+        SalesStaffListResponse: {
+            data: components["schemas"]["SalesStaff"][];
+        };
+        LinkableUsersResponse: {
+            data: components["schemas"]["PullUser"][];
+        };
         SyncPullBundle: {
             /** Format: int64 */
             version: number;
@@ -6234,7 +6332,8 @@ export interface components {
             loyaltySettings?: components["schemas"]["LoyaltySettings"];
             appSettings?: components["schemas"]["AppSettings"];
             bundleCatalog?: components["schemas"]["BundleCatalog"];
-            users?: components["schemas"]["User"][];
+            users?: components["schemas"]["PullUser"][];
+            salesStaff?: components["schemas"]["SalesStaffPick"][];
             /** @description Always empty since A08 (kept so older bundles still parse). Approvers come from GET /sync/receive-approvers and no PIN hash is shipped. */
             receiveApprovers?: components["schemas"]["ReceiveApprover"][];
         };
@@ -12290,6 +12389,174 @@ export interface operations {
                 content?: never;
             };
             403: components["responses"]["Forbidden"];
+        };
+    };
+    listSalesStaff: {
+        parameters: {
+            query?: {
+                outletId?: string;
+                active?: "true" | "false";
+                /** @description Name search. */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description sales staff */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SalesStaffListResponse"];
+                };
+            };
+            /** @description invalid outletId or active */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createSalesStaff: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description One uuid per form submit, reused on retry; the same key with the same body replays the stored response, with a different body returns 409. Required because a double-submit would create or apply a second document. */
+                "Idempotency-Key": components["parameters"]["RequiredWriteIdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SalesStaffInput"];
+            };
+        };
+        responses: {
+            /** @description created (a replay of the same Idempotency-Key answers the stored response) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SalesStaffResponse"];
+                };
+            };
+            /** @description invalid name, outlets or user */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description duplicate name at an outlet, user already linked, or Idempotency-Key reused with a different request */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listLinkableSalesStaffUsers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description linkable users */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkableUsersResponse"];
+                };
+            };
+            /** @description invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updateSalesStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SalesStaffInput"];
+            };
+        };
+        responses: {
+            /** @description updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SalesStaffResponse"];
+                };
+            };
+            /** @description invalid id, name, outlets or user */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description duplicate name at an outlet, user already linked, or details read-only for this caller */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     createReceiptLink: {
