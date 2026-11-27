@@ -54,7 +54,12 @@ type Handlers struct {
 	xoWindow time.Duration
 	// xoLog replaces the PostgreSQL lookup-log insert (tests only).
 	xoLog xoLogFunc
+	// linkBase is the origin of customer receipt links (config PUBLIC_LINK_BASE_URL; empty = default).
+	linkBase string
 }
+
+// SetReceiptLinkBase sets the origin the customer receipt/rating links are built on.
+func (h *Handlers) SetReceiptLinkBase(s string) { h.linkBase = s }
 
 func New(repo *read.Repo, c *cache.Cache, store *auth.Store, wr *write.Repo,
 	os *service.OrderService, sy *syncpkg.Engine, signer *uploads.Signer) *Handlers {

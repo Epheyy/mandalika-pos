@@ -73,6 +73,11 @@ type Config struct {
 	XOLookupLimit  int
 	XOLookupWindow time.Duration
 	xoLookupBad    string
+	// PublicLinkBaseURL is the origin of the customer receipt/rating links (env PUBLIC_LINK_BASE_URL,
+	// default DefaultPublicLinkBaseURL): https only (http only for localhost outside production),
+	// host required, no query or fragment, no trailing slash. Never derived from the Host header.
+	PublicLinkBaseURL string
+	publicLinkBad     string
 	// ERPIntegrationEnabled is the ERP_INTEGRATION_ENABLED kill switch (true only for
 	// "true"/"1", any case): the catalog pull, stock reads and outbox relay stay off
 	// unless it is set. Default false.
@@ -204,6 +209,33 @@ func parseXOLookup(limitV, windowV string) (limit int, window time.Duration, bad
 	return limit, window, ""
 }
 
+// DefaultPublicLinkBaseURL is the link origin when PUBLIC_LINK_BASE_URL is unset (the Cloud Run
+// run.app URL; a custom domain later only changes this variable).
+const DefaultPublicLinkBaseURL = "https://mandalika-pos-538849926142.asia-southeast2.run.app"
+
+// parsePublicLinkBase validates PUBLIC_LINK_BASE_URL. Blank uses the default. https only; plain http
+// is accepted for localhost outside production (local smoke). The result has no trailing slash.
+// bad names the problem ("" when fine).
+func parsePublicLinkBase(raw string, prod bool) (base, bad string) {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return DefaultPublicLinkBaseURL, ""
+	}
+	const msg = "PUBLIC_LINK_BASE_URL must be an https URL with a host, no query or fragment"
+	u, err := url.Parse(v)
+	if err != nil || u.Host == "" || u.Hostname() == "" || u.RawQuery != "" || u.Fragment != "" || u.ForceQuery || u.User != nil {
+		return DefaultPublicLinkBaseURL, msg
+	}
+	local := u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1" || u.Hostname() == "::1"
+	switch {
+	case u.Scheme == "https":
+	case u.Scheme == "http" && local && !prod:
+	default:
+		return DefaultPublicLinkBaseURL, msg
+	}
+	return strings.TrimRight(u.Scheme+"://"+u.Host+u.EscapedPath(), "/"), ""
+}
+
 // parseLegacyUntil parses SYNC_LEGACY_ENVELOPE_UNTIL: blank = unset (zero time),
 // otherwise RFC 3339 or a bare YYYY-MM-DD, which means 00:00 UTC of that day, i.e.
 // 07:00 WIB: write an explicit offset (e.g. 2026-11-01T00:00:00+07:00) for a WIB midnight.
@@ -227,36 +259,40 @@ func Load() *Config {
 	legacyUntil, legacyOK := parseLegacyUntil(os.Getenv("SYNC_LEGACY_ENVELOPE_UNTIL"))
 	dbMaxConns, dbMaxConnsOK := parseDBMaxConns(os.Getenv("DB_MAX_CONNS"))
 	xoLimit, xoWindow, xoBad := parseXOLookup(os.Getenv("XO_LOOKUP_LIMIT"), os.Getenv("XO_LOOKUP_WINDOW_SECONDS"))
+	envName := getenv("ENV", "development")
+	linkBase, linkBad := parsePublicLinkBase(os.Getenv("PUBLIC_LINK_BASE_URL"), strings.EqualFold(envName, "production"))
 	erpEnabled, erpEnabledOK := parseERPEnabled(os.Getenv("ERP_INTEGRATION_ENABLED"))
 	erpPush, erpPushOK := parseERPEnabled(os.Getenv("ERP_OUTLET_PUSH_ENABLED"))
 	return &Config{
-		DBMaxConns:       dbMaxConns,
-		dbMaxConnsBad:    !dbMaxConnsOK,
-		XOLookupLimit:    xoLimit,
-		XOLookupWindow:   xoWindow,
-		xoLookupBad:      xoBad,
-		Port:             getenv("PORT", "8080"),
-		Env:              getenv("ENV", "development"),
-		CORSOrigins:      splitTrim(getenv("CORS_ORIGINS", "http://localhost:5173")),
-		DatabaseURL:      getenv("DATABASE_URL", "postgres://mandalika:mandalika@localhost:5432/mandalika_pos?sslmode=disable"),
-		RedisURL:         redisURL(),
-		redisURLUnset:    redisURLUnset(),
-		RedisDialTimeout: time.Duration(atoi("REDIS_DIAL_TIMEOUT_MS", 1000)) * time.Millisecond,
-		RedisOpTimeout:   time.Duration(atoi("REDIS_OP_TIMEOUT_MS", 500)) * time.Millisecond,
-		AccessSecret:     []byte(getenv("JWT_ACCESS_SECRET", "dev-access")),
-		RefreshSecret:    []byte(getenv("JWT_REFRESH_SECRET", "dev-refresh")),
-		AccessTTL:        time.Duration(atoi("JWT_ACCESS_TTL_MIN", 15)) * time.Minute,
-		RefreshTTL:       time.Duration(atoi("JWT_REFRESH_TTL_HOURS", 168)) * time.Hour,
-		SeedAdminEmail:   getenv("SEED_ADMIN_EMAIL", "admin@mandalika.local"),
-		SeedAdminPass:    getenv("SEED_ADMIN_PASSWORD", ""),
-		SeedAdminName:    getenv("SEED_ADMIN_NAME", "Administrator"),
-		CloudinaryName:   getenv("CLOUDINARY_CLOUD_NAME", ""),
-		CloudinaryKey:    getenv("CLOUDINARY_API_KEY", ""),
-		CloudinarySecret: getenv("CLOUDINARY_API_SECRET", ""),
-		SentryDSN:        getenv("SENTRY_DSN", ""),
-		RateLimitRPS:     atoi("RATE_LIMIT_RPS", 20),
-		RateLimitBurst:   atoi("RATE_LIMIT_BURST", 40),
-		TrustedProxyHops: parseHops(os.Getenv("TRUSTED_PROXY_HOPS")),
+		DBMaxConns:        dbMaxConns,
+		dbMaxConnsBad:     !dbMaxConnsOK,
+		XOLookupLimit:     xoLimit,
+		XOLookupWindow:    xoWindow,
+		xoLookupBad:       xoBad,
+		PublicLinkBaseURL: linkBase,
+		publicLinkBad:     linkBad,
+		Port:              getenv("PORT", "8080"),
+		Env:               getenv("ENV", "development"),
+		CORSOrigins:       splitTrim(getenv("CORS_ORIGINS", "http://localhost:5173")),
+		DatabaseURL:       getenv("DATABASE_URL", "postgres://mandalika:mandalika@localhost:5432/mandalika_pos?sslmode=disable"),
+		RedisURL:          redisURL(),
+		redisURLUnset:     redisURLUnset(),
+		RedisDialTimeout:  time.Duration(atoi("REDIS_DIAL_TIMEOUT_MS", 1000)) * time.Millisecond,
+		RedisOpTimeout:    time.Duration(atoi("REDIS_OP_TIMEOUT_MS", 500)) * time.Millisecond,
+		AccessSecret:      []byte(getenv("JWT_ACCESS_SECRET", "dev-access")),
+		RefreshSecret:     []byte(getenv("JWT_REFRESH_SECRET", "dev-refresh")),
+		AccessTTL:         time.Duration(atoi("JWT_ACCESS_TTL_MIN", 15)) * time.Minute,
+		RefreshTTL:        time.Duration(atoi("JWT_REFRESH_TTL_HOURS", 168)) * time.Hour,
+		SeedAdminEmail:    getenv("SEED_ADMIN_EMAIL", "admin@mandalika.local"),
+		SeedAdminPass:     getenv("SEED_ADMIN_PASSWORD", ""),
+		SeedAdminName:     getenv("SEED_ADMIN_NAME", "Administrator"),
+		CloudinaryName:    getenv("CLOUDINARY_CLOUD_NAME", ""),
+		CloudinaryKey:     getenv("CLOUDINARY_API_KEY", ""),
+		CloudinarySecret:  getenv("CLOUDINARY_API_SECRET", ""),
+		SentryDSN:         getenv("SENTRY_DSN", ""),
+		RateLimitRPS:      atoi("RATE_LIMIT_RPS", 20),
+		RateLimitBurst:    atoi("RATE_LIMIT_BURST", 40),
+		TrustedProxyHops:  parseHops(os.Getenv("TRUSTED_PROXY_HOPS")),
 
 		SyncLegacyEnvelopeUntil: legacyUntil,
 		syncLegacyUntilBad:      !legacyOK,
@@ -323,6 +359,9 @@ func (c *Config) Validate() error {
 	}
 	if c.xoLookupBad != "" {
 		return errors.New("invalid config: " + c.xoLookupBad)
+	}
+	if c.publicLinkBad != "" {
+		return errors.New("invalid config: " + c.publicLinkBad)
 	}
 	if err := c.validateERP(); err != nil {
 		return err

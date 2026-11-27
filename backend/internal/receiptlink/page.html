@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Struk digital {{.Brand}}</title>
+{{template "style"}}
+</head>
+<body>
+<main class="wrap">
+<header>
+<h1 class="brand">{{.Brand}}</h1>
+<hr class="rule">
+{{if .FirstName}}<p class="hello">Halo, {{.FirstName}}</p>{{end}}
+</header>
+
+<section class="card receipt" aria-labelledby="struk-h">
+<h2 id="struk-h">Struk digital</h2>
+<p class="meta"><b>{{.Outlet}}</b><br>{{.When}}<br>Pesanan {{.OrderNumber}}</p>
+<table>
+<tbody>
+{{range .Lines}}<tr><td class="n">{{.Qty}}&times;</td><td>{{.Name}}{{if .Variant}}<span class="var">{{.Variant}}</span>{{end}}</td><td class="p">{{.Subtotal}}</td></tr>
+{{end}}
+<tr class="sum first"><td></td><td>Subtotal</td><td class="p">{{.Subtotal}}</td></tr>
+{{if .Discount}}<tr class="sum"><td></td><td>Diskon</td><td class="p">{{.Discount}}</td></tr>{{end}}
+{{if .Tax}}<tr class="sum"><td></td><td>Pajak</td><td class="p">{{.Tax}}</td></tr>{{end}}
+{{range .Extras}}<tr class="sum"><td></td><td>{{.Label}}</td><td class="p">{{.Amount}}</td></tr>{{end}}
+<tr class="total"><td></td><td>Total</td><td class="p">{{.Total}}</td></tr>
+</tbody>
+</table>
+{{if .Payment}}<p class="pay">Pembayaran: {{.Payment}}</p>{{end}}
+</section>
+
+{{if .Rated}}
+<section class="card" aria-labelledby="terima-h">
+<div class="thanks"><span class="check" aria-hidden="true">&#10003;</span><strong id="terima-h">Terima kasih, penilaian sudah diterima</strong></div>
+<div class="static" role="img" aria-label="{{.RatedStars}} dari 5 bintang">{{range .RatedStarRow}}{{if .}}<span class="on">&#9733;</span>{{else}}&#9733;{{end}}{{end}}</div>
+{{if .RatedTags}}<ul class="chips">{{range .RatedTags}}<li>{{.}}</li>{{end}}</ul>{{end}}
+{{if .RatedComment}}<p class="quote">{{.RatedComment}}</p>{{end}}
+</section>
+{{else}}
+<section class="card" aria-labelledby="nilai-h">
+<h2 id="nilai-h">{{.PromptTitle}}</h2>
+{{if .Error}}<p class="err" role="alert">{{.Error}}</p>{{end}}
+<form method="post" autocomplete="off">
+<fieldset>
+<legend>Beri bintang</legend>
+<div class="stars">
+{{range .Stars}}<input type="radio" name="stars" id="s{{.Value}}" value="{{.Value}}" required{{if .Checked}} checked{{end}}><label for="s{{.Value}}"><span class="sr">{{.Value}} bintang</span><i aria-hidden="true">&#9733;</i></label>
+{{end}}
+</div>
+</fieldset>
+<fieldset>
+<legend>Apa yang berkesan? (boleh dikosongkan)</legend>
+<div class="tags">
+{{range .TagChoices}}<span class="tagrow"><input type="checkbox" name="tags" id="t-{{.Code}}" value="{{.Code}}"{{if .Checked}} checked{{end}}><label for="t-{{.Code}}">{{.Label}}</label></span>
+{{end}}
+</div>
+</fieldset>
+<label class="field"><span>Komentar (boleh dikosongkan)</span>
+<textarea name="comment" maxlength="500" rows="4">{{.Comment}}</textarea></label>
+<button type="submit">Kirim penilaian</button>
+</form>
+</section>
+{{end}}
+
+<p class="foot">Tautan ini khusus untuk pesanan Anda.</p>
+</main>
+</body>
+</html>

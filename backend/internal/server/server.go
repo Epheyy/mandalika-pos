@@ -119,6 +119,7 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	h.SetErpCatalogRunner(handlers.NewErpCatalogRunner(cfg, database.Pool, slog.Default()))
 	h.SetErpIntegrationEnabled(cfg.ERPIntegrationEnabled)
 	h.SetCrossOutletLookupLimit(cfg.XOLookupLimit, cfg.XOLookupWindow)
+	h.SetReceiptLinkBase(cfg.PublicLinkBaseURL)
 
 	// Cloud Run reserves /healthz (Google answers 404 before the app sees it), so
 	// the same deep check is also served at /livez. No auth, no secrets, no PII.
@@ -130,6 +131,13 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 	// touch dependencies so a transient DB blip doesn't kill the instance.
 	r.Get("/readyz", func(w http.ResponseWriter, _ *http.Request) {
 		httpx.JSON(w, http.StatusOK, map[string]string{"status": "ready"})
+	})
+
+	// Public customer receipt + rating page (no auth, no JavaScript, HTML). Outside /api/v1; own
+	// per-IP buckets keyed by clientip only. The token in the path is the only credential.
+	r.Group(func(r chi.Router) {
+		r.With(mw.RateLimit(c, "receipt-view", 60, time.Minute)).Get("/r/{token}", h.ReceiptPage)
+		r.With(mw.RateLimit(c, "receipt-rate", 10, time.Minute)).Post("/r/{token}", h.SubmitReceiptRating)
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
@@ -202,6 +210,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 
 			// ── Sales writes (POS; cashier authenticated, outlet from JWT) ──
 			r.Post("/orders", h.CreateOrder)
+			// Customer receipt link + WhatsApp message (any role, like POST /orders).
+			r.With(mw.RateLimit(c, "wa-link", 30, time.Minute)).Post("/receipt-links", h.CreateReceiptLink)
 			r.With(mw.RequirePermission("process_refund")).
 				Post("/orders/{id}/refund", h.RefundOrder)
 			// A18: online-only return of another outlet's sale, paid from this outlet's open shift.
@@ -405,6 +415,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Use(mw.RequirePermission("manage_settings"))
 				r.Put("/settings/app", h.UpdateAppSettings)
 				r.Put("/settings/loyalty", h.UpdateLoyaltySettings)
+				r.Get("/settings/wa-receipt-template", h.GetWaReceiptTemplate)
+				r.Put("/settings/wa-receipt-template", h.UpdateWaReceiptTemplate)
 				r.Get("/receipt-templates", h.ListReceiptTemplates)
 				r.Post("/receipt-templates", h.CreateReceiptTemplate)
 				r.Put("/receipt-templates/assign", h.AssignReceiptTemplate)
@@ -458,6 +470,8 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Get("/bundle-report", h.BundleReport)
 				r.Get("/refund-report", h.RefundReport)
 				r.Get("/void-report", h.VoidReport)
+				r.Get("/reports/sales-performance", h.SalesPerformance)
+				r.Get("/reports/sales-ratings", h.SalesRatings)
 				r.Get("/oversell-report", h.OversellReport)
 				r.Get("/oversell-report/open-count", h.OversellOpenCount)
 			})
