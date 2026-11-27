@@ -43,7 +43,7 @@ require (
 	github.com/oapi-codegen/oapi-codegen/v2 v2.7.2
 	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
 	golang.org/x/mod v0.40.0 // test-only dependency regressions; also required by codegen
-	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sync v0.22.0
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
