@@ -59,6 +59,7 @@ import type { HistoryFocus } from './OrderHistoryPanel'
 import { withSaleLineData } from './saleLineData'
 import { REFUND_DONE, REFUND_QUEUED, REFUND_VOIDED, orderReceiptTenders, planRefundSubmit, refundGateProps, type LocalSaleRef } from './refundView'
 import { OrderHistoryPanel } from './OrderHistoryPanel'
+import { WaReceiptSheet } from './waReceipt/WaReceiptSheet'
 import { LocalReceiptsPanel } from './LocalReceiptsPanel'
 import { localReceiptOrder, localSaleRef, newestReprintable, reprintReceiptData } from './localReceipts'
 import { ShiftRecapPanel } from './ShiftRecapPanel'
@@ -268,6 +269,8 @@ export default function CashierScreen() {
   // ShiftBar open-shift modal (selling without a shift is not allowed).
   const [shiftPrompt, setShiftPrompt] = useState(false)
   const printer = usePrinter()
+  /** Kirim struk WA: the sale and customer phone are captured when the button is pressed, so the sheet outlives the cart reset. */
+  const [waSheet, setWaSheet] = useState<null | { orderUuid: string; phone: string }>(null)
   const lastReceipt = useRef<ReceiptData | null>(null)
   /** What the success view shows of the payment (ORDER_SUCCESS clears the split lines, and the single-mode inputs are re-derived on a new sale). */
   const lastPayment = useRef<{ paymentMethod: string; amountPaid: number; change: number } | null>(null)
@@ -1705,7 +1708,23 @@ export default function CashierScreen() {
         onReprint={handleReprint}
         onClose={() => dispatch({ type: 'CLOSE_SUCCESS' })}
         onNewSale={() => dispatch({ type: 'RESET_SALE' })}
+        onSendWa={state.lastOrderId ? () => setWaSheet({ orderUuid: state.lastOrderId as string, phone: state.selectedCustomer?.phone ?? '' }) : undefined}
       />
+
+      {waSheet && (
+        <WaReceiptSheet
+          key={waSheet.orderUuid}
+          open
+          onClose={() => setWaSheet(null)}
+          target={{ orderUuid: waSheet.orderUuid }}
+          initialPhone={waSheet.phone}
+          allowEmptyPhone={false}
+          isOnline={offlineData.isOnline}
+          isSynced={orderStateFor(engine.localReceipts(), waSheet.orderUuid) === 'synced'}
+          flush={offlineData.flush}
+          deviceId={engine.deviceId}
+        />
+      )}
 
       <HeldOrdersSheet
         open={heldOrders.open} onClose={() => heldOrders.setOpen(false)} held={heldOrders.held}
@@ -1777,6 +1796,7 @@ export default function CashierScreen() {
         onClose={() => setShowHistory(false)}
         onRefund={(o) => { if (voidDraftNames(state.voidDraft, [o.id])) { showToast(VOID_BLOCKED_DRAFT); return }; setShowHistory(false); setRefundSale(null); setRefundOrder(o) }}
         isOnline={offlineData.isOnline}
+        flush={offlineData.flush}
         onRefundCrossOutlet={(row) => { setShowHistory(false); setRefundSale(null); setRefundError(null); setRefundOrder(crossRefund.begin(row)) }}
         onReprint={reprintOrder}
         canReprint={printer.isPaired}

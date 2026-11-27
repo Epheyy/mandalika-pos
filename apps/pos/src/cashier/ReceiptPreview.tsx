@@ -50,6 +50,8 @@ interface ReceiptPreviewProps {
   onReprint: () => void
   onClose: () => void
   onNewSale: () => void
+  /** Opens the WhatsApp receipt sheet for this sale; the button shows only when given. */
+  onSendWa?: () => void
   /** Opens Pengaturan Cetakan; when absent the no-printer line shows without a Pasangkan button. */
   onPairPrinter?: () => void
 }
@@ -79,6 +81,7 @@ export const ReceiptPreview = memo(function ReceiptPreview({
   onReprint,
   onClose,
   onNewSale,
+  onSendWa,
   onPairPrinter,
 }: ReceiptPreviewProps) {
   const [printerLineDismissed, setPrinterLineDismissed] = useState(false)
@@ -265,6 +268,13 @@ export const ReceiptPreview = memo(function ReceiptPreview({
           <div className="px-5 pb-2 flex-shrink-0">
             <Button variant="secondary" fullWidth onClick={onReprint} leading={<IconPrinter size={14} />}>
               Cetak Ulang Struk
+            </Button>
+          </div>
+        )}
+        {onSendWa && (
+          <div className="px-5 pb-2 flex-shrink-0">
+            <Button variant="secondary" fullWidth onClick={onSendWa}>
+              Kirim struk WA
             </Button>
           </div>
         )}

@@ -22,6 +22,7 @@ import { IconPrinter } from '../components/ui/icons'
 import { orderAdjustmentRows } from './receiptRows'
 import { VoidAction } from './void/VoidAction'
 import { CrossOutletSearch } from './crossOutlet/CrossOutletSearch'
+import { WaReceiptSheet } from './waReceipt/WaReceiptSheet'
 import { VOID_REASONS, parkedVoidNote, voidAvailability, type VoidAvailabilityInput } from './void/voidRules'
 
 type Order = components['schemas']['Order']
@@ -81,6 +82,8 @@ interface OrderHistoryPanelProps {
   onCreateReplacement?: (order: Order) => void
   /** A18: this tablet is online. Absent with onRefundCrossOutlet = the "Outlet lain" tab is not offered. */
   isOnline?: boolean
+  /** The engine's public flush; the WhatsApp receipt sheet is the only user here. */
+  flush?: () => void
   /** A18: refund a sale made at another outlet, from the "Outlet lain" tab (online only). */
   onRefundCrossOutlet?: (row: CrossOutletOrder) => void
 }
@@ -132,7 +135,10 @@ function VoidDetails({ order, onOpenOrder }: { order: Order; onOpenOrder: (order
   )
 }
 
-export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, voidedOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, paymentMethods, timezone, shiftOpenedAt, voidGate, parkedVoids, onVoid, onCreateReplacement, isOnline, onRefundCrossOutlet, deviceId }: OrderHistoryPanelProps) {
+const noopFlush = () => {}
+
+export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint, canReprint, canRefund, hasOpenShift, shiftUnsynced, queuedRefundOrderIds, syncedRefundOrderIds, voidedOrderIds, queuedSaleUuids, serverIdToSaleUuid, refundCache, paymentMethods, timezone, shiftOpenedAt, voidGate, parkedVoids, onVoid, onCreateReplacement, isOnline, onRefundCrossOutlet, deviceId, flush }: OrderHistoryPanelProps) {
+  const [waOrder, setWaOrder] = useState<Order | null>(null)
   const [scope, setScope] = useState<'here' | 'other'>('here')
   const [from, setFrom] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).from : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
   const [to, setTo] = useState(() => focus ? historyWindowFor(focus.capturedAt, new Date(), timezone).to : defaultHistoryDay(new Date(), timezone, shiftOpenedAt))
@@ -231,6 +237,7 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
+    <>
     <Sheet open variant="center" maxWidth="max-w-2xl" panelClassName="max-h-[90vh] flex flex-col" title="Riwayat Transaksi" header onClose={onClose}>
         {onRefundCrossOutlet && (
           <div role="group" aria-label="Asal transaksi" className="mx-5 mt-3 grid grid-cols-2 gap-1 p-1 rounded-control bg-paper-1 flex-shrink-0">
@@ -434,6 +441,11 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
                       >
                         Cetak Ulang
                       </Button>
+                      {isOnline && (o.status === 'completed' || o.status === 'partially_refunded') && !o.void && !queuedSaleUuids?.has(serverIdToSaleUuid?.get(o.id) ?? '') && (
+                        <Button variant="secondary" fullWidth className="mt-2" onClick={() => setWaOrder(o)} data-testid="history-send-wa">
+                          Kirim struk WA
+                        </Button>
+                      )}
                       {parkedVoids && parkedVoidNote(parkedVoids, [o.id]) !== null && (
                         <p className="text-xs font-semibold text-warn-strong mt-2" data-testid="history-parked-void">Pembatalan ditahan: {parkedVoidNote(parkedVoids, [o.id])}</p>
                       )}
@@ -483,5 +495,20 @@ export function OrderHistoryPanel({ isOpen, focus, onClose, onRefund, onReprint,
         </>
         )}
     </Sheet>
+    {waOrder && (
+      <WaReceiptSheet
+        key={waOrder.id}
+        open
+        onClose={() => setWaOrder(null)}
+        target={{ orderId: waOrder.id }}
+        initialPhone=""
+        allowEmptyPhone={!!waOrder.customerId}
+        isOnline={isOnline ?? false}
+        isSynced
+        flush={flush ?? noopFlush}
+        deviceId={deviceId}
+      />
+    )}
+    </>
   )
 }
