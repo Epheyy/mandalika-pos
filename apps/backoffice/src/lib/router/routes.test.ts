@@ -107,7 +107,7 @@ describe('screen tabs', () => {
   })
 
   it('keeps the Laporan and Inventori tab keys the browser scenarios click', () => {
-    expect(tabsOf('reports').map((t) => t.key)).toEqual(['orders', 'export', 'shifts', 'grants', 'codeReport', 'refund', 'bundles', 'voids', 'oversell'])
+    expect(tabsOf('reports').map((t) => t.key)).toEqual(['orders', 'export', 'shifts', 'grants', 'codeReport', 'refund', 'bundles', 'voids', 'sales', 'oversell'])
     expect(tabsOf('warehouses').map((t) => t.key)).toEqual(['stok', 'transfer', 'barangMasuk', 'bahan', 'opname'])
     expect(tabsOf('settings').map((t) => t.key)).toEqual(['locations', 'transaksi', 'struk', 'operasional', 'recipe'])
   })

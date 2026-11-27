@@ -16,6 +16,7 @@ import { SettingsCard } from './settings/SettingsCard'
 import { SettingRow } from './settings/SettingRow'
 import { TransaksiSection } from './settings/TransaksiSection'
 import { StrukSection } from './settings/struk/StrukSection'
+import { WaTemplateCard } from './settings/WaTemplateCard'
 import { Switch } from '../ui/Switch'
 import { SAVED_MESSAGE, useSettingsDraft } from './settings/useSettingsDraft'
 import { CARD_TITLE, changeAt, type TabId } from './settings/settingsDiff'
@@ -107,7 +108,12 @@ export default function SettingsScreen() {
       )}
 
       {/* ── Struk: the receipt designer (own save and leave guard, not the settings save bar) ── */}
-      {section === 'struk' && <StrukSection receiptSettings={s.receipt} brandLogoUrl={s.documents?.logoUrl || undefined} />}
+      {section === 'struk' && (
+        <>
+          <StrukSection receiptSettings={s.receipt} brandLogoUrl={s.documents?.logoUrl || undefined} />
+          <WaTemplateCard />
+        </>
+      )}
 
       {/* ── Operasional: Shift · Persetujuan Transfer · Dokumen ── */}
       {section === 'operasional' && (

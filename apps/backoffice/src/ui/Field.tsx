@@ -2,6 +2,7 @@ import { useId } from 'react'
 import type {
   InputHTMLAttributes,
   ReactNode,
+  Ref,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react'
@@ -89,7 +90,7 @@ export function Textarea({
   className,
   rows = 3,
   ...rest
-}: TextareaHTMLAttributes<HTMLTextAreaElement> & FieldExtras) {
+}: TextareaHTMLAttributes<HTMLTextAreaElement> & FieldExtras & { ref?: Ref<HTMLTextAreaElement> }) {
   const { controlId, attrs } = useControlA11y(rest.id, error, hint, rest['aria-describedby'], rest['aria-invalid'])
   return (
     <Field htmlFor={controlId} label={label} hint={hint} error={error}>
