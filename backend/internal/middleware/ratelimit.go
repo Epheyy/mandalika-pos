@@ -17,6 +17,17 @@ import (
 // limit can be up to N times higher during an outage. `max` requests are
 // allowed per `window`.
 func RateLimit(c *cache.Cache, prefix string, max int, window time.Duration) func(http.Handler) http.Handler {
+	return RateLimitWith(c, prefix, max, window, jsonLimited)
+}
+
+// jsonLimited is the API refusal body: 429 with the JSON error envelope.
+func jsonLimited(w http.ResponseWriter, _ *http.Request) {
+	httpx.Err(w, http.StatusTooManyRequests, "rate limit exceeded")
+}
+
+// RateLimitWith is RateLimit with its own refusal writer (the public HTML pages answer in HTML).
+// Counting and the Retry-After header are identical; limited must write the 429 status and body.
+func RateLimitWith(c *cache.Cache, prefix string, max int, window time.Duration, limited func(http.ResponseWriter, *http.Request)) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ip := clientip.ClientIPBucket(r)
@@ -26,7 +37,7 @@ func RateLimit(c *cache.Cache, prefix string, max int, window time.Duration) fun
 
 			if c.IncrWindow(r.Context(), key, window) > int64(max) {
 				w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds(now, window)))
-				httpx.Err(w, http.StatusTooManyRequests, "rate limit exceeded")
+				limited(w, r)
 				return
 			}
 			next.ServeHTTP(w, r)

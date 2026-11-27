@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -93,5 +94,38 @@ func TestRateLimitRedisCommandVolume(t *testing.T) {
 	}
 	if got := mr.CommandCount() - before; got != 5 {
 		t.Fatalf("5 later hits in one window used %d redis commands, want 5 (one INCR each)", got)
+	}
+}
+
+func TestRateLimitWithCustomWriter(t *testing.T) {
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) })
+	custom := func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte("<p>pelan</p>"))
+	}
+	h := RateLimitWith(disabledCache(t), "html", 1, time.Minute, custom)(ok)
+	if code := hit(h, "198.51.100.20"); code != 200 {
+		t.Fatalf("first: %d", code)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/r/x", nil)
+	req.RemoteAddr = "198.51.100.20:1"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 429 || rec.Body.String() != "<p>pelan</p>" || rec.Header().Get("Retry-After") == "" {
+		t.Errorf("custom refusal: %d %q retry=%q", rec.Code, rec.Body.String(), rec.Header().Get("Retry-After"))
+	}
+}
+
+func TestRateLimitKeepsJSONRefusal(t *testing.T) {
+	h := limited(disabledCache(t))
+	for i := 0; i < 10; i++ {
+		hit(h, "198.51.100.30")
+	}
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
+	req.RemoteAddr = "198.51.100.30:1"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 429 || !strings.Contains(rec.Header().Get("Content-Type"), "application/json") || !strings.Contains(rec.Body.String(), "rate limit exceeded") {
+		t.Errorf("json refusal: %d %q %q", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
 	}
 }
