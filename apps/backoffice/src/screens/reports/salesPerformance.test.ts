@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { createClient } from '@mandalika/api'
 import {
   RATINGS_PAGE_SIZE, avgText, monthOfDay, monthRange, percentText, ratingFlags, ratingTagLabel, ratingsParams,
   ratingsSalesmanFilter, salesmanLabel, starShares,
@@ -48,5 +49,35 @@ describe('salesPerformance helpers', () => {
     expect(ratingTagLabel('zzz')).toBe('zzz')
     expect(ratingFlags({ flagFast: true, flagSameNetwork: true })).toHaveLength(2)
     expect(ratingFlags({ flagFast: false, flagSameNetwork: false })).toEqual([])
+  })
+})
+
+describe('getSalesPerformance request (real client)', () => {
+  const ok = () => new Response(JSON.stringify({ data: [], totals: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+  it('sends no outletId on "Semua outlet" (the tab passes outletId: undefined)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok())
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const api = createClient({ baseUrl: 'http://x', getToken: () => 't' })
+      await api.getSalesPerformance({ dateFrom: '2026-11-23', dateTo: '2026-11-27', outletId: undefined })
+      const url = new URL(String(fetchMock.mock.calls[0][0]))
+      expect(url.searchParams.has('outletId')).toBe(false)
+      expect(url.search).not.toContain('undefined')
+      expect(url.searchParams.get('dateFrom')).toBe('2026-11-23')
+      expect(url.searchParams.get('dateTo')).toBe('2026-11-27')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+  it('keeps a picked outlet', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok())
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const api = createClient({ baseUrl: 'http://x', getToken: () => 't' })
+      await api.getSalesPerformance({ dateFrom: '2026-11-01', dateTo: '2026-11-30', outletId: 'o-1' })
+      expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('outletId')).toBe('o-1')
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

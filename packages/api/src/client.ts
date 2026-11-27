@@ -1074,7 +1074,8 @@ export function createClient(opts: ClientOptions): Api {
     createReceiptLink: (b) => data<ReceiptLink>('POST', `${API}/receipt-links`, b),
     getWaReceiptTemplate: () => data<WaReceiptTemplate>('GET', `${API}/settings/wa-receipt-template`),
     updateWaReceiptTemplate: (template) => data<WaReceiptTemplate>('PUT', `${API}/settings/wa-receipt-template`, { template }),
-    getSalesPerformance: (o) => request<SalesPerformanceReport>('GET', `${API}/reports/sales-performance` + qs(o)),
+    // qsMulti drops an undefined outletId ("Semua outlet"); qs would send the text "undefined".
+    getSalesPerformance: (o) => request<SalesPerformanceReport>('GET', `${API}/reports/sales-performance` + qsMulti(o)),
     listSalesRatings: (p) =>
       list<SalesRating>(
         `${API}/reports/sales-ratings`,
