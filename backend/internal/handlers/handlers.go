@@ -21,6 +21,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/cache"
 	"github.com/mandalika/pos-backend/internal/httpx"
 	"github.com/mandalika/pos-backend/internal/read"
+	"github.com/mandalika/pos-backend/internal/receiptlink"
 	"github.com/mandalika/pos-backend/internal/service"
 	syncpkg "github.com/mandalika/pos-backend/internal/sync"
 	"github.com/mandalika/pos-backend/internal/uploads"
@@ -56,10 +57,15 @@ type Handlers struct {
 	xoLog xoLogFunc
 	// linkBase is the origin of customer receipt links (config PUBLIC_LINK_BASE_URL; empty = default).
 	linkBase string
+	// receiptLogo serves the brand logo of the public receipt page (nil = no logo).
+	receiptLogo *receiptlink.LogoCache
 }
 
 // SetReceiptLinkBase sets the origin the customer receipt/rating links are built on.
 func (h *Handlers) SetReceiptLinkBase(s string) { h.linkBase = s }
+
+// SetReceiptLogo sets the brand-logo cache of the public receipt page.
+func (h *Handlers) SetReceiptLogo(c *receiptlink.LogoCache) { h.receiptLogo = c }
 
 func New(repo *read.Repo, c *cache.Cache, store *auth.Store, wr *write.Repo,
 	os *service.OrderService, sy *syncpkg.Engine, signer *uploads.Signer) *Handlers {

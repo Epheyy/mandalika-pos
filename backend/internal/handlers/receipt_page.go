@@ -42,17 +42,17 @@ type ratingForm struct {
 func (h *Handlers) receiptLinkFor(w http.ResponseWriter, r *http.Request) (read.ReceiptLinkInfo, bool) {
 	hash, ok := receiptlink.HashToken(chi.URLParam(r, "token"))
 	if !ok {
-		receiptlink.RenderGone(w)
+		receiptlink.RenderGone(w, h.receiptLogo.Peek())
 		return read.ReceiptLinkInfo{}, false
 	}
 	link, err := h.Repo.ReceiptLinkByHash(r.Context(), hash)
 	if errors.Is(err, read.ErrNotFound) {
-		receiptlink.RenderGone(w)
+		receiptlink.RenderGone(w, h.receiptLogo.Peek())
 		return link, false
 	}
 	if err != nil {
 		slog.Error("receipt link lookup failed", "err", err)
-		receiptlink.RenderUnavailable(w)
+		receiptlink.RenderUnavailable(w, h.receiptLogo.Peek())
 		return link, false
 	}
 	return link, true
@@ -148,10 +148,17 @@ func (h *Handlers) writeReceiptPage(w http.ResponseWriter, r *http.Request, link
 	d, err := h.Repo.ReceiptPage(r.Context(), link.OrderID)
 	if err != nil {
 		slog.Error("receipt page read failed", "err", err)
-		receiptlink.RenderUnavailable(w)
+		receiptlink.RenderUnavailable(w, h.receiptLogo.Peek())
 		return
 	}
-	receiptlink.RenderReceipt(w, status, buildReceiptPage(d, link, form))
+	page := buildReceiptPage(d, link, form)
+	page.Logo = h.receiptLogo.DataURI(r.Context(), d.LogoURL)
+	receiptlink.RenderReceipt(w, status, page)
+}
+
+// ReceiptRateLimited is the 429 refusal of the public receipt routes. No database, no fetch.
+func (h *Handlers) ReceiptRateLimited(w http.ResponseWriter, _ *http.Request) {
+	receiptlink.RenderRateLimited(w, h.receiptLogo.Peek())
 }
 
 // buildReceiptPage turns the stored order into the public page: first name only, money formatted,

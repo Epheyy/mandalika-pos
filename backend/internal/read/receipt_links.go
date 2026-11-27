@@ -120,6 +120,8 @@ type ReceiptPageData struct {
 	Surcharge, PointsRedeemed       float64
 	Payment                         string
 	CustomerFirstName, SalesmanName string
+	// LogoURL is the brand logo source (Pengaturan > Dokumen); "" = none.
+	LogoURL string
 }
 
 // ReceiptPage reads what the public receipt page shows for an order.
@@ -133,7 +135,8 @@ func (r *Repo) ReceiptPage(ctx context.Context, orderID string) (ReceiptPageData
 		        o.subtotal::float8, o.discount_amount::float8, o.tax_amount::float8, o.total::float8,
 		        o.surcharge_amount::float8, COALESCE(o.points_redemption_amount,0)::float8,
 		        o.payment_method, COALESCE(a.payment_methods,'[]'::jsonb),
-		        COALESCE(NULLIF(btrim(COALESCE(o.customer_name,'')),''), c.name, ''), COALESCE(o.salesman_name,'')
+		        COALESCE(NULLIF(btrim(COALESCE(o.customer_name,'')),''), c.name, ''), COALESCE(o.salesman_name,''),
+		        COALESCE(btrim(a.documents_logo_url),'')
 		   FROM orders o
 		   JOIN outlets ou ON ou.id = o.outlet_id
 		   LEFT JOIN app_settings a ON a.id = 1
@@ -141,7 +144,7 @@ func (r *Repo) ReceiptPage(ctx context.Context, orderID string) (ReceiptPageData
 		  WHERE o.id = $1::uuid`, orderID).
 		Scan(&brand, &d.OutletName, &d.OrderNumber, &d.CreatedAt, &d.Zone,
 			&d.Subtotal, &d.Discount, &d.Tax, &d.Total, &d.Surcharge, &d.PointsRedeemed,
-			&method, &pm, &customer, &d.SalesmanName)
+			&method, &pm, &customer, &d.SalesmanName, &d.LogoURL)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return d, ErrNotFound
 	}

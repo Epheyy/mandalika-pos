@@ -19,6 +19,7 @@ import (
 	"github.com/mandalika/pos-backend/internal/config"
 	mw "github.com/mandalika/pos-backend/internal/middleware"
 	"github.com/mandalika/pos-backend/internal/read"
+	"github.com/mandalika/pos-backend/internal/receiptlink"
 	"github.com/mandalika/pos-backend/internal/service"
 	syncpkg "github.com/mandalika/pos-backend/internal/sync"
 	"github.com/mandalika/pos-backend/internal/write"
@@ -230,6 +231,13 @@ func TestCustomerRatingPostgres(t *testing.T) {
 	if w.Header().Get("Content-Security-Policy") == "" || w.Header().Get("Cache-Control") != "no-store" {
 		t.Error("public headers missing")
 	}
+	// A logo source on a foreign host is rejected: the page still renders (200) with no logo.
+	h.SetReceiptLogo(receiptlink.NewLogoCache("demo"))
+	exec(`UPDATE app_settings SET documents_logo_url = 'https://evil.example/demo/image/upload/x.png' WHERE id = 1`)
+	if w = do(http.MethodGet, "/r/"+tok1, "", "", "", nil); w.Code != 200 || strings.Contains(w.Body.String(), "<img") {
+		t.Errorf("rejected logo host: status %d, img present %v", w.Code, strings.Contains(w.Body.String(), "<img"))
+	}
+	exec(`UPDATE app_settings SET documents_logo_url = NULL WHERE id = 1`)
 
 	// 4. The rating: 303, one row with the order's business date; same IP and fast, so both flagged.
 	form := url.Values{"stars": {"5"}, "tags": {"ramah", "bogus", "ramah", "cepat"}, "comment": {"  Bagus <b>sekali</b>\x00\x07 "}}.Encode()
