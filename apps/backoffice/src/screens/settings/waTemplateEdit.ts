@@ -19,16 +19,36 @@ export interface InsertResult {
 }
 
 /** Insert a token over the selection [start, end) (clamped); the caret lands after it. */
-export function insertAtCursor(text: string, start: number, end: number, token: string): InsertResult {
+export function insertAtCursor(input: unknown, start: number, end: number, token: string): InsertResult {
+  const text = typeof input === 'string' ? input : ''
   const s = Math.min(Math.max(0, start), text.length)
   const e = Math.min(Math.max(s, end), text.length)
   return { text: text.slice(0, s) + token + text.slice(e), caret: s + token.length }
 }
 
 /** Characters the way the server counts them (runes). */
-export const templateLength = (tpl: string): number => [...tpl].length
+export const templateLength = (tpl: unknown): number => (typeof tpl === 'string' ? [...tpl].length : 0)
+
+/** validateWaTemplate that never throws: a non-string is reported as empty. */
+export const templateError = (tpl: unknown): string | null =>
+  validateWaTemplate(typeof tpl === 'string' ? tpl : '')
+
+/** Template payload as the card needs it; null when the response has the wrong shape. */
+export interface WaTemplateInfo {
+  template: string
+  defaultTemplate: string
+  placeholders: string[]
+}
+
+export function parseWaTemplate(raw: unknown): WaTemplateInfo | null {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null
+  const r = raw as Record<string, unknown>
+  if (typeof r.template !== 'string' || typeof r.defaultTemplate !== 'string') return null
+  if (!Array.isArray(r.placeholders) || !r.placeholders.every((p) => typeof p === 'string')) return null
+  return { template: r.template, defaultTemplate: r.defaultTemplate, placeholders: r.placeholders as string[] }
+}
 
 /** Save is allowed only for a valid template that differs from the saved one. */
-export function canSaveTemplate(draft: string, saved: string): boolean {
-  return draft !== saved && validateWaTemplate(draft) === null
+export function canSaveTemplate(draft: unknown, saved: unknown): boolean {
+  return typeof draft === 'string' && draft !== saved && validateWaTemplate(draft) === null
 }

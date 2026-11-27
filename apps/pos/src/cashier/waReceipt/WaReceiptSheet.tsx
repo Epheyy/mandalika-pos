@@ -65,7 +65,7 @@ export function WaReceiptSheet({ open, onClose, target, initialPhone, allowEmpty
             placeholder="0812 3456 7890"
             onChange={(e) => { setPhone(e.target.value); setLink(null); setOpened(false); setError(null) }}
             className="w-full min-h-11 surface-card rounded-control px-3 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-strong disabled:opacity-50" />
-          {allowEmptyPhone && <p className="text-xs text-ink-500 mt-1">Kosongkan untuk memakai nomor pelanggan</p>}
+          {allowEmptyPhone && <p className="text-xs text-ink-500 mt-1">Kosongkan untuk memakai nomor pelanggan (pesanan 7 hari terakhir)</p>}
         </div>
 
         {showError && <p className="text-sm font-semibold text-warn-strong bg-warn-bg rounded-control px-3 py-2" role="alert">{showError}</p>}

@@ -42,6 +42,11 @@ describe('createWaLink', () => {
     const api = { createReceiptLink: vi.fn().mockRejectedValue(new ApiError(409, 'Order belum tersinkron')) }
     expect(await createWaLink(api, { orderUuid: 'u1' }, base)).toEqual({ ok: false, error: WA_NOT_SYNCED, notSynced: true })
   })
+  it('any other 409 shows the server message and is not retryable', async () => {
+    const msg = 'Struk digital hanya untuk pesanan yang selesai.'
+    const api = { createReceiptLink: vi.fn().mockRejectedValue(new ApiError(409, msg)) }
+    expect(await createWaLink(api, { orderId: 'o1' }, base)).toEqual({ ok: false, error: msg, notSynced: false })
+  })
 })
 
 describe('waErrorMessage', () => {

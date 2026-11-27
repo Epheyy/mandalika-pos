@@ -33,4 +33,13 @@ describe('WaTemplateCardView', () => {
     const out = html({ draft: 'Halo {tautan}' })
     expect(out).not.toMatch(/<button[^>]*disabled=""[^>]*>Simpan/)
   })
+  it('shows a card-level error with a retry button when the template failed to load', () => {
+    const out = html({ loadError: 'boom', loading: false, draft: '', saved: '' })
+    expect(out).toContain('Template WhatsApp gagal dimuat.')
+    expect(out).toContain('Coba lagi')
+    expect(out).not.toContain('Isi pesan')
+  })
+  it('renders without throwing even if the draft is not a string', () => {
+    expect(() => html({ draft: undefined as unknown as string, saved: undefined as unknown as string })).not.toThrow()
+  })
 })

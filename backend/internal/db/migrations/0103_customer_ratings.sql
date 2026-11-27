@@ -26,7 +26,7 @@ CREATE INDEX idx_receipt_links_order ON receipt_links (order_id);
 CREATE TABLE order_ratings (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id          uuid NOT NULL UNIQUE REFERENCES orders(id) ON DELETE CASCADE,
-  link_id           uuid NOT NULL REFERENCES receipt_links(id) ON DELETE CASCADE,
+  link_id           uuid REFERENCES receipt_links(id) ON DELETE SET NULL,
   outlet_id         uuid NOT NULL,
   salesman_id       uuid,
   salesman_name     text,

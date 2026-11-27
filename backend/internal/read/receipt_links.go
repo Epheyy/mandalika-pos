@@ -17,7 +17,9 @@ type ReceiptOrder struct {
 	ID, OrderNumber, OutletID, OutletName string
 	CustomerName, CustomerPhone           string
 	SalesmanName, Status                  string
-	Total                                 float64
+	// BusinessDate is the sale's business day (YYYY-MM-DD, outlet zone), Zone the outlet timezone.
+	BusinessDate, Zone string
+	Total              float64
 }
 
 // ReceiptLinkOrder finds the order a link is being made for, inside the caller's outlet scope
@@ -38,13 +40,13 @@ func (r *Repo) ReceiptLinkOrder(ctx context.Context, sc Scope, byUUID bool, id s
 	err := r.Pool.QueryRow(ctx,
 		`SELECT o.id::text, o.order_number, o.outlet_id::text, ou.name,
 		        COALESCE(NULLIF(btrim(COALESCE(o.customer_name,'')),''), c.name, ''), COALESCE(c.phone,''),
-		        COALESCE(o.salesman_name,''), o.status, o.total::float8
+		        COALESCE(o.salesman_name,''), o.status, COALESCE(o.business_date::text,''), ou.timezone, o.total::float8
 		   FROM orders o
 		   JOIN outlets ou ON ou.id = o.outlet_id
 		   LEFT JOIN customers c ON c.id = o.customer_id
 		  WHERE `+col+` = $1::uuid`+cond, args...).
 		Scan(&o.ID, &o.OrderNumber, &o.OutletID, &o.OutletName, &o.CustomerName, &o.CustomerPhone,
-			&o.SalesmanName, &o.Status, &o.Total)
+			&o.SalesmanName, &o.Status, &o.BusinessDate, &o.Zone, &o.Total)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return o, ErrNotFound
 	}

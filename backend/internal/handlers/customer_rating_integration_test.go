@@ -172,8 +172,8 @@ func TestCustomerRatingPostgres(t *testing.T) {
 	if w, _ := create(kasirX, `{"orderUuid":"`+orders[0].id+`","phone":"123"}`); w.Code != 400 {
 		t.Fatalf("bad typed phone = %d", w.Code)
 	}
-	if w, _ := create(kasirX, `{"orderUuid":"`+orders[3].id+`"}`); w.Code != 400 || !strings.Contains(w.Body.String(), "wajib diisi") {
-		t.Fatalf("no phone at all = %d %s", w.Code, w.Body)
+	if w, _ := create(kasirX, `{"orderUuid":"`+orders[3].id+`"}`); w.Code != 400 || !strings.Contains(w.Body.String(), "Ketik nomor WhatsApp pelanggan.") {
+		t.Fatalf("old order, no phone = %d %s", w.Code, w.Body)
 	}
 	if w := do(http.MethodPost, "/receipt-links", "", `{}`, "", nil); w.Code != 401 {
 		t.Fatalf("no auth = %d", w.Code)
@@ -182,8 +182,8 @@ func TestCustomerRatingPostgres(t *testing.T) {
 		t.Fatalf("rejected requests left %d links", n)
 	}
 
-	// 2. A link for the Rina sale, phone taken from the customer.
-	w, link1 := create(kasirX, `{"orderUuid":"`+orders[0].id+`","deviceId":"tab-1"}`)
+	// 2. A link for the Rina sale (a typed number: the sale is older than the stored-phone window).
+	w, link1 := create(kasirX, `{"orderUuid":"`+orders[0].id+`","phone":"0812-3456-7890","deviceId":"tab-1"}`)
 	if w.Code != 201 {
 		t.Fatalf("create = %d %s", w.Code, w.Body)
 	}
@@ -196,7 +196,7 @@ func TestCustomerRatingPostgres(t *testing.T) {
 		t.Fatalf("message = %q wa = %q", link1.Message, link1.WaUrl)
 	}
 	sum := sha256.Sum256([]byte(tok1))
-	if n := count(`SELECT count(*) FROM receipt_links WHERE token_hash = $1 AND recipient_masked = '****7890' AND recipient_source = 'customer'
+	if n := count(`SELECT count(*) FROM receipt_links WHERE token_hash = $1 AND recipient_masked = '****7890' AND recipient_source = 'typed'
 	      AND device_id = 'tab-1' AND expires_at > now() + interval '6 days'`, sum[:]); n != 1 {
 		t.Fatalf("stored link rows = %d", n)
 	}
@@ -439,5 +439,26 @@ func TestCustomerRatingPostgres(t *testing.T) {
 	}
 	if n := count(`SELECT count(*) FROM app_settings WHERE id = 1 AND wa_receipt_template IS NULL`); n != 1 {
 		t.Fatal("reset must store NULL")
+	}
+	// 7. Stored-phone fallback (A30): only a sale of the active outlet from the last 7 business days.
+	recent := "00000000-0000-4000-8f88-0000000001b1"
+	exec(`INSERT INTO orders(id,order_uuid,order_number,idempotency_key,outlet_id,cashier_id,cashier_name,salesman_id,salesman_name,
+	        customer_id,customer_name,subtotal,discount_amount,total,payment_method,status,created_at)
+	      VALUES($1,$1,'CR-R1','CR-R1',$2,$3,'CR cashier',$4,'Rina',$5,'Budi Santoso',60000,0,60000,'cash','completed',now())`,
+		recent, outX, kX, sRina, cust)
+	if w, _ := create(kasirX, `{"orderUuid":"`+orders[0].id+`"}`); w.Code != 400 || !strings.Contains(w.Body.String(), "Ketik nomor WhatsApp pelanggan.") {
+		t.Fatalf("old order, blank phone = %d %s", w.Code, w.Body)
+	}
+	if w, _ := create(kasirX, `{"orderUuid":"`+orders[0].id+`","phone":"   "}`); w.Code != 400 {
+		t.Fatalf("old order, whitespace phone = %d", w.Code)
+	}
+	if w, _ := create(kasirY, `{"orderUuid":"`+recent+`"}`); w.Code != 409 {
+		t.Fatalf("recent order from another outlet = %d", w.Code)
+	}
+	if w, l := create(kasirX, `{"orderUuid":"`+recent+`"}`); w.Code != 201 || l.PhoneMasked != "****7890" {
+		t.Fatalf("recent order, blank phone = %d %s", w.Code, w.Body)
+	}
+	if n := count(`SELECT count(*) FROM receipt_links WHERE order_id = $1 AND recipient_source = 'customer' AND created_by = $2`, recent, kX); n != 1 {
+		t.Fatalf("audit row (created_by) for the stored-phone send = %d", n)
 	}
 }

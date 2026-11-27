@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import type { WaReceiptTemplate } from '@mandalika/api'
-import { WA_SAMPLE_VALUES, renderWaTemplate, validateWaTemplate } from '@mandalika/types'
+import { WA_SAMPLE_VALUES, renderWaTemplate } from '@mandalika/types'
 import { api } from '../../api'
 import { Button } from '../../ui/Button'
 import { Textarea } from '../../ui/Field'
 import { useToast } from '../../ui/Toast'
 import { SettingsCard } from './SettingsCard'
 import {
-  WA_PLACEHOLDER_HINTS, WA_TEMPLATE_MAX_RUNES, canSaveTemplate, insertAtCursor, templateLength,
+  WA_PLACEHOLDER_HINTS, WA_TEMPLATE_MAX_RUNES, canSaveTemplate, insertAtCursor, parseWaTemplate, templateError,
+  templateLength, type WaTemplateInfo,
 } from './waTemplateEdit'
 
 interface ViewProps {
@@ -22,18 +22,27 @@ interface ViewProps {
   onInsert: (token: string) => void
   onReset: () => void
   onSave: () => void
+  /** Reload the template after a failed load. */
+  onRetry?: () => void
   ref?: React.Ref<HTMLTextAreaElement>
 }
 
 /** Presentational card: editor, chips, WhatsApp-style preview, actions. */
 export function WaTemplateCardView({ ref, ...p }: ViewProps) {
-  const error = validateWaTemplate(p.draft)
+  const error = templateError(p.draft)
   const count = templateLength(p.draft)
   const canSave = !p.loading && !p.saving && canSaveTemplate(p.draft, p.saved)
+  if (p.loadError) {
+    return (
+      <SettingsCard changed={false} title="Template WhatsApp Struk" className="max-w-4xl space-y-3 p-6">
+        <p role="alert" className="text-sm font-bold text-danger">Template WhatsApp gagal dimuat.</p>
+        <Button variant="secondary" onClick={p.onRetry} disabled={!p.onRetry}>Coba lagi</Button>
+      </SettingsCard>
+    )
+  }
   return (
     <SettingsCard changed={!p.loading && p.draft !== p.saved} title="Template WhatsApp Struk" className="max-w-4xl space-y-4 p-6">
       <p className="text-xs text-ink-700">Pesan yang dibuka di WhatsApp kasir setelah penjualan. {'{tautan}'} wajib ada.</p>
-      {p.loadError && <p role="alert" className="text-sm font-bold text-danger">Gagal memuat template: {p.loadError}</p>}
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="space-y-3">
           <Textarea
@@ -68,7 +77,7 @@ export function WaTemplateCardView({ ref, ...p }: ViewProps) {
           <p className="mb-1.5 text-[13px] font-bold text-ink-700">Pratinjau</p>
           <div className="rounded-2xl bg-[#e7ddd3] p-4">
             <div className="ml-auto max-w-sm rounded-2xl rounded-tr-sm bg-[#d9fdd3] px-3 py-2 text-sm text-ink-900 shadow-sm">
-              <p data-testid="wa-preview" className="whitespace-pre-wrap break-words">{renderWaTemplate(p.draft, WA_SAMPLE_VALUES)}</p>
+              <p data-testid="wa-preview" className="whitespace-pre-wrap break-words">{renderWaTemplate(typeof p.draft === 'string' ? p.draft : '', WA_SAMPLE_VALUES)}</p>
             </div>
           </div>
           <p className="mt-1 text-xs text-ink-500">Contoh nilai: pelanggan Budi Santoso, sales Rina, Mandalika BSD.</p>
@@ -86,7 +95,7 @@ export function WaTemplateCardView({ ref, ...p }: ViewProps) {
 /** Pengaturan > Struk: the WhatsApp receipt message. Own load/save (not the settings draft). */
 export function WaTemplateCard() {
   const toast = useToast()
-  const [info, setInfo] = useState<WaReceiptTemplate | null>(null)
+  const [info, setInfo] = useState<WaTemplateInfo | null>(null)
   const [draft, setDraft] = useState('')
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -94,14 +103,24 @@ export function WaTemplateCard() {
   const caret = useRef<number | null>(null)
   const area = useRef<HTMLTextAreaElement | null>(null)
 
+  const [attempt, setAttempt] = useState(0)
+
   useEffect(() => {
     let live = true
     api.getWaReceiptTemplate().then(
-      (t) => { if (live) { setInfo(t); setDraft(t.template) } },
+      (raw) => {
+        if (!live) return
+        const t = parseWaTemplate(raw)
+        if (t === null) { setLoadError('Format respons tidak valid'); return }
+        setInfo(t)
+        setDraft(t.template)
+      },
       (e: unknown) => { if (live) setLoadError(e instanceof Error ? e.message : 'Gagal memuat') },
     )
     return () => { live = false }
-  }, [])
+  }, [attempt])
+
+  const retry = () => { setLoadError(null); setInfo(null); setAttempt((n) => n + 1) }
 
   // Put the caret after an inserted chip once React has rendered the new value.
   useEffect(() => {
@@ -122,7 +141,8 @@ export function WaTemplateCard() {
     setSaving(true)
     setSaveError(null)
     try {
-      const t = await api.updateWaReceiptTemplate(draft)
+      const t = parseWaTemplate(await api.updateWaReceiptTemplate(draft))
+      if (t === null) throw new Error('Format respons tidak valid')
       setInfo(t)
       setDraft(t.template)
       toast({ message: 'Template WhatsApp disimpan.', tone: 'ok' })
@@ -145,6 +165,7 @@ export function WaTemplateCard() {
         onInsert={insert}
         onReset={() => setDraft(info?.defaultTemplate ?? draft)}
         onSave={() => void save()}
+        onRetry={retry}
         ref={area}
       />
   )

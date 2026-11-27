@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/bizday"
 	"github.com/mandalika/pos-backend/internal/clientip"
 	"github.com/mandalika/pos-backend/internal/config"
 	"github.com/mandalika/pos-backend/internal/httpx"
@@ -20,8 +21,32 @@ const receiptLinkTTL = 7 * 24 * time.Hour
 
 const (
 	rlMaxDeviceRunes = 128
-	msgRLUnsynced    = "Order belum tersinkron"
+	// msgRLUnsynced is also the POS discriminator for "order not synced yet" (the error envelope has
+	// no code field); keep it in step with apps/pos/src/cashier/waReceipt/sendWaReceipt.ts.
+	msgRLUnsynced = "Order belum tersinkron"
+	// rlStoredPhoneDays is how many business days (today included) a sale stays eligible for the
+	// stored-customer-phone fallback.
+	rlStoredPhoneDays = 7
+	msgRLTypePhone    = "Ketik nomor WhatsApp pelanggan."
 )
+
+// storedPhoneAllowed reports whether a send without a typed number may use the customer's stored
+// phone: only for a sale of the caller's active outlet within the last rlStoredPhoneDays business
+// days (today in the outlet zone back to today-6). This stops a cashier harvesting numbers by
+// looping over old order ids (A30); a typed number is allowed for any in-scope order.
+func storedPhoneAllowed(activeOutlet string, o read.ReceiptOrder, now time.Time) bool {
+	if activeOutlet == "" || activeOutlet != o.OutletID {
+		return false
+	}
+	day, err := time.Parse("2006-01-02", o.BusinessDate)
+	if err != nil {
+		return false
+	}
+	today := now.In(bizday.Zone(o.Zone))
+	todayDay := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
+	oldest := todayDay.AddDate(0, 0, -(rlStoredPhoneDays - 1))
+	return !day.Before(oldest) && !day.After(todayDay)
+}
 
 func (h *Handlers) receiptLinkBase() string {
 	if h.linkBase != "" {
@@ -74,6 +99,10 @@ func (h *Handlers) CreateReceiptLink(w http.ResponseWriter, r *http.Request) {
 	if in.Phone != nil && strings.TrimSpace(*in.Phone) != "" {
 		rawPhone, source = *in.Phone, "typed"
 	} else {
+		if !storedPhoneAllowed(scope(r).OutletID, order, time.Now()) {
+			httpx.Err(w, http.StatusBadRequest, msgRLTypePhone)
+			return
+		}
 		rawPhone = order.CustomerPhone
 	}
 	digits := receiptlink.WaDigits(rawPhone)

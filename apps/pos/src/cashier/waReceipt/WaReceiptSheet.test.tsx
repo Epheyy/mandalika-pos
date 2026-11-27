@@ -18,7 +18,7 @@ describe('WaReceiptSheet', () => {
     expect(html).toContain('value="0812 3456 789"')
     expect(html).toContain('Buat pesan')
     expect(html).not.toContain('Buka WhatsApp')
-    expect(html).not.toContain('Kosongkan untuk memakai nomor pelanggan')
+    expect(html).not.toContain('Kosongkan untuk memakai nomor pelanggan (pesanan 7 hari terakhir)')
   })
   it('offline: Butuh internet, input and button disabled, nothing sent', () => {
     const html = render({ isOnline: false })
@@ -28,7 +28,7 @@ describe('WaReceiptSheet', () => {
     expect(props.api.createReceiptLink).not.toHaveBeenCalled()
   })
   it('Riwayat order with a customer: the blank-phone hint', () => {
-    expect(render({ allowEmptyPhone: true, initialPhone: '' })).toContain('Kosongkan untuk memakai nomor pelanggan')
+    expect(render({ allowEmptyPhone: true, initialPhone: '' })).toContain('Kosongkan untuk memakai nomor pelanggan (pesanan 7 hari terakhir)')
   })
   it('closed sheet renders nothing', () => expect(render({ open: false })).toBe(''))
 })

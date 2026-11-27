@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_WA_TEMPLATE, WA_PLACEHOLDERS } from '@mandalika/types'
-import { WA_PLACEHOLDER_HINTS, canSaveTemplate, insertAtCursor, templateLength } from './waTemplateEdit'
+import { WA_PLACEHOLDER_HINTS, canSaveTemplate, insertAtCursor, parseWaTemplate, templateError, templateLength } from './waTemplateEdit'
 
 describe('waTemplateEdit', () => {
   it('inserts at the caret and over a selection', () => {
@@ -19,5 +19,18 @@ describe('waTemplateEdit', () => {
   })
   it('has a hint for every shared placeholder', () => {
     expect(WA_PLACEHOLDER_HINTS.map((h) => h.token)).toEqual([...WA_PLACEHOLDERS])
+  })
+  it('parses only a well-formed template payload', () => {
+    const ok = { template: 'Halo {tautan}', defaultTemplate: 'd {tautan}', placeholders: ['{tautan}'] }
+    expect(parseWaTemplate(ok)).toEqual(ok)
+    for (const bad of [[], null, undefined, 'x', {}, { ...ok, template: 1 }, { ...ok, defaultTemplate: undefined }, { ...ok, placeholders: 'x' }, { ...ok, placeholders: [1] }]) {
+      expect(parseWaTemplate(bad)).toBeNull()
+    }
+  })
+  it('helpers tolerate non-string input without throwing', () => {
+    expect(templateLength(undefined)).toBe(0)
+    expect(templateError(undefined)).toBe('Template tidak boleh kosong')
+    expect(canSaveTemplate(undefined, 'x')).toBe(false)
+    expect(insertAtCursor(undefined, 0, 0, '{tautan}')).toEqual({ text: '{tautan}', caret: 8 })
   })
 })

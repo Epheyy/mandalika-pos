@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"log/slog"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -181,6 +182,9 @@ func buildReceiptPage(d read.ReceiptPageData, link read.ReceiptLinkInfo, form ra
 	if d.PointsRedeemed > 0 {
 		p.Extras = append(p.Extras, receiptlink.AdjRow{Label: "Tukar poin", Amount: receiptlink.FormatRupiah(-d.PointsRedeemed)})
 	}
+	if row, ok := roundingRow(d); ok {
+		p.Extras = append(p.Extras, row)
+	}
 	if link.Rated {
 		p.Rated, p.RatedStars, p.RatedStarRow, p.RatedComment = true, link.Stars, receiptlink.StarRow(link.Stars), link.Comment
 		for _, t := range link.Tags {
@@ -192,4 +196,14 @@ func buildReceiptPage(d read.ReceiptPageData, link read.ReceiptLinkInfo, form ra
 	}
 	p.Stars, p.TagChoices = receiptlink.FormChoices(form.stars, form.tags)
 	return p
+}
+
+// roundingRow mirrors the POS Riwayat "Pembulatan" row (orderAdjustmentRows in receiptRows.ts): what
+// is left between the shown rows and the stored total, so the rows add up to Total.
+func roundingRow(d read.ReceiptPageData) (receiptlink.AdjRow, bool) {
+	residual := d.Subtotal - d.Discount + d.Surcharge + d.Tax - d.PointsRedeemed - d.Total
+	if math.Abs(residual) < 1 {
+		return receiptlink.AdjRow{}, false
+	}
+	return receiptlink.AdjRow{Label: "Pembulatan", Amount: receiptlink.FormatRupiah(-residual)}, true
 }

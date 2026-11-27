@@ -3,6 +3,9 @@ import { waDigits } from '@mandalika/types'
 
 export const WA_OFFLINE = 'Butuh internet'
 export const WA_NOT_SYNCED = 'Order belum tersinkron, coba lagi sebentar'
+/** The server's exact 409 text for a sale it has not received yet (backend msgRLUnsynced). The error envelope has
+ *  no code field, and the server also answers 409 for a sale that is not completed, so match the message. */
+export const WA_SERVER_NOT_SYNCED = 'Order belum tersinkron'
 export const WA_PHONE_BAD = 'Nomor WhatsApp tidak valid. Contoh: 0812 3456 7890'
 export const WA_PHONE_REQUIRED = 'Isi nomor WhatsApp pelanggan'
 
@@ -31,14 +34,20 @@ export async function createWaLink(
     const link = await api.createReceiptLink({ ...target, ...(phone ? { phone } : {}), ...(o.deviceId ? { deviceId: o.deviceId } : {}) })
     return { ok: true, link }
   } catch (e) {
-    return { ok: false, error: waErrorMessage(e), notSynced: e instanceof ApiError && e.status === 409 }
+    return { ok: false, error: waErrorMessage(e), notSynced: isNotSynced(e) }
   }
 }
 
-/** What the cashier sees when the link fails. 409 = the server has not seen the sale yet; 429 waits per Retry-After. */
+/** True only for the "server has not seen this sale yet" 409; other 409s (e.g. order not completed) are not retryable. */
+export function isNotSynced(e: unknown): boolean {
+  return e instanceof ApiError && e.status === 409 && e.message === WA_SERVER_NOT_SYNCED
+}
+
+/** What the cashier sees when the link fails. Unsynced 409 gets the retry copy; any other 409 shows the server's
+ *  own message; 429 waits per Retry-After. */
 export function waErrorMessage(e: unknown): string {
   if (e instanceof ApiError) {
-    if (e.status === 409) return WA_NOT_SYNCED
+    if (isNotSynced(e)) return WA_NOT_SYNCED
     if (e.status === 429) {
       if (!e.retryAfterMs) return 'Terlalu banyak permintaan. Coba lagi nanti.'
       return `Terlalu banyak permintaan. Coba lagi dalam ${Math.max(1, Math.ceil(e.retryAfterMs / 1000))} detik.`
