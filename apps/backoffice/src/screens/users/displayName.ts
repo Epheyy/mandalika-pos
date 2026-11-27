@@ -19,3 +19,8 @@ export function renamePayload(original: string, edited: string): { displayName?:
   const next = edited.trim()
   return next !== original.trim() ? { displayName: next } : {}
 }
+
+/** Validates only a changed name, so an untouched (even odd legacy) name never blocks a role, coverage or PIN edit. */
+export function renameError(original: string, edited: string): string | null {
+  return edited.trim() === original.trim() ? null : displayNameError(edited)
+}

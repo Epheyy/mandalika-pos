@@ -27,7 +27,7 @@ import { RolePicker } from './users/RolePicker'
 import { ROLE_LABEL, roleFormProblem, type Role } from './users/roles'
 import { userColumns } from './users/userColumns'
 import { errorText } from './users/formError'
-import { MAX_DISPLAY_NAME_LENGTH, displayNameError, renamePayload } from './users/displayName'
+import { renameError, renamePayload } from './users/displayName'
 import { OutletCoverageField } from './users/OutletCoverageField'
 import { EMPTY_COVERAGE, coverageError, coverageForRole, coverageFromUser, coveragePayload, outletLabel, type CoverageValue } from './users/coverage'
 
@@ -139,12 +139,12 @@ export default function Users() {
 
   const saveUser = async () => {
     if (!editingUser) return
-    const nameProblem = displayNameError(editName)
+    const rename = renamePayload(editingUser.displayName, editName)
+    const nameProblem = renameError(editingUser.displayName, editName)
     if (nameProblem) {
       setSaveError(nameProblem)
       return
     }
-    const rename = renamePayload(editingUser.displayName, editName)
     setBusy(true)
     setSaveError(null)
     try {
@@ -348,7 +348,7 @@ export default function Users() {
         footer={
           <SlideOver.Footer>
             <Button variant="secondary" onClick={() => dispatch({ type: 'CLOSE' })}>Batal</Button>
-            <Button loading={busy} disabled={!!coverageError(editRole, editCoverage) || !!displayNameError(editName)} onClick={saveUser}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
+            <Button loading={busy} disabled={!!coverageError(editRole, editCoverage) || !!renameError(editingUser?.displayName ?? '', editName)} onClick={saveUser}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
           </SlideOver.Footer>
         }
       >
@@ -359,7 +359,6 @@ export default function Users() {
               type="text"
               aria-label="Nama pengguna"
               autoComplete="off"
-              maxLength={MAX_DISPLAY_NAME_LENGTH}
               value={editName}
               onChange={(e) => dispatch({ type: 'SET_NAME', value: e.target.value })}
               className="w-full px-3 py-2.5 bg-paper-1 border border-paper-2 rounded-xl text-sm text-ink-900 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-brand-strong/40 focus:border-brand-strong transition"
