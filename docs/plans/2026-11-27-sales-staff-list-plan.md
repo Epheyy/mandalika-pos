@@ -57,7 +57,8 @@ gets a "Tim Sales" page; the POS picker reads `snapshot.salesStaff`.
 - [ ] **Step 1: Write the failing test** `TestSalesStaffPostgres/migration` using `gatePool(t, "SS", 26489)` (copy the fixture setup from `customer_rating_integration_test.go`). Because the fixture applies all migrations before the test, test the data-migration SQL by seeding first and then re-running the 0104 `INSERT … SELECT` statements through a helper that reads them from the file between `-- migrate:data-begin` / `-- migrate:data-end` markers. Seed: user A (display_name `''`), user B (display_name 80×"x"), user C (manager, never picked); orders: A at outlet O1, A at O2, B at O1, one order with a random `salesman_id` matching no user. Assert:
   - exactly 2 `sales_staff` rows; both `active=false`; A's name `'Sales'`, B's name 60×"x"; A has outlets {O1,O2}, B {O1};
   - re-running the data block inserts nothing new (idempotent: `ON CONFLICT DO NOTHING` / `NOT EXISTS`);
-  - `user_permissions` has `manage_sales_staff` for C (role manager) and not for a cashier.
+  - `user_permissions` has `manage_sales_staff` for C (role manager) and not for a cashier;
+  - `content_versions` has a row with `data_manifest->>'sales_staff'` ≥ 1 for every seeded outlet.
 - [ ] **Step 2: Run** `MANDALIKA_SS_TEST_DSN=... go test ./internal/handlers -run TestSalesStaffPostgres -count=1` (via `scripts/ci/postgres_gate.py` locally as the other gates do). Expected: FAIL (table missing).
 - [ ] **Step 3: Write `0104_sales_staff.sql`**: tables + CHECK `char_length(btrim(name)) BETWEEN 1 AND 60`; then the marked data block:
 
@@ -76,7 +77,10 @@ ON CONFLICT DO NOTHING;
 -- migrate:data-end
 ```
 
-  then grants mirroring `0092_order_voids.sql:117-124` (`users.role='manager'`; `custom_roles.name ~* '(manajer|manager)'`), no `perm_version` bump.
+  then a one-time content-version bump of resource `sales_staff` for **every** outlet (same upsert as
+  `bumpVersionOutlets` in `write/repo.go`, as `INSERT … SELECT id FROM outlets`). Tablets pull only when
+  their outlet's version moves (12 s version poll), so without this they keep the stored full `users`
+  list and the new OTA would fall back to it. Then grants mirroring `0092_order_voids.sql:117-124` (`users.role='manager'`; `custom_roles.name ~* '(manajer|manager)'`), no `perm_version` bump.
 - [ ] **Step 4: Run** the same test. Expected: PASS.
 - [ ] **Step 5: Commit** `feat: sales staff tables and migration (0104)`.
 
@@ -86,7 +90,7 @@ ON CONFLICT DO NOTHING;
 - Modify: `backend/api/openapi.yaml`; regenerate `backend/internal/api/api.gen.go` (`go run ./cmd/codegen`) and `packages/api/src/schema.d.ts` (`make gen-ts`).
 
 **Interfaces (Produces):**
-- Schemas: `SalesStaffPick {id: uuid, name: string}` (both required); `PullUser {id: uuid, displayName: string}` (both required); `SalesStaff {id, name, active, outletIds: uuid[], hiddenOutletCount: integer, user: PullUser|null (nullable), canEditDetails: boolean, updatedAt: date-time}`; `SalesStaffInput {name, active, outletIds (minItems 1), userId: uuid nullable}`.
+- Schemas: `SalesStaffPick {id: uuid, name: string}` (both required); `PullUser {id: uuid, displayName: string}` (both required); `SalesStaff {id, name, active, outletIds: uuid[], hiddenOutletCount: integer, user?: PullUser, canEditDetails: boolean, updatedAt: date-time}` — `user` is **optional and omitted when unlinked, never `nullable`** (openapi-typescript drops `nullable` on a `$ref`; TS sees `PullUser | undefined`); `SalesStaffInput {name, active, outletIds (minItems 1), userId: string(uuid), nullable}` (plain nullable string, not a `$ref`; absent = null = unlinked). `TestApprovedNullableFields` is a fixed list of older fields; it needs no entry.
 - `SyncPullBundle`: `users` items → `PullUser`; new `salesStaff: SalesStaffPick[]`.
 - Paths (tag `sales-staff`, security as other BO routes): `GET /sales-staff` (query `outletId`, `active` `true|false`, `q`) → `{data: SalesStaff[]}`; `POST /sales-staff` (header `Idempotency-Key` required) → 201 `{data: SalesStaff}`; `PUT /sales-staff/{id}` → `{data: SalesStaff}`; `GET /sales-staff/linkable-users` → `{data: PullUser[]}`. Errors 400/403/404/409 with the standard error body.
 
@@ -203,9 +207,9 @@ Change: join `LEFT JOIN sales_staff lk ON lk.user_id = o.salesman_id` and use `C
 - Create: `apps/backoffice/src/screens/SalesStaff.tsx` (page: header, filters, table) and `apps/backoffice/src/screens/salesStaff/SalesStaffDialog.tsx` (add/edit), `salesStaff/salesStaffForm.ts` (pure form state → `SalesStaffInput`, validation)
 - Test: `salesStaff/salesStaffForm.test.ts`, `salesStaff/SalesStaffDialog.test.tsx`
 
-Behaviour: table columns Nama, Outlet (chips of visible outlets + "+N outlet lain" when `hiddenOutletCount>0`), Akun tertaut, Status (Aktif/Nonaktif pill). Filters: outlet select (caller's covered outlets, from the existing outlets hook the Users/Reports screens use), status (Semua/Aktif/Nonaktif, default Aktif), search. Empty state: "Belum ada tim sales. Tambahkan sales agar muncul di pilihan Sales di kasir." "Tambah sales" opens the dialog: Nama (max 60), Outlet checklist (covered outlets only), Tautkan ke akun (select, "— Tidak ditautkan —" + `listSalesStaffLinkableUsers`; choosing one prefills Nama if empty), Aktif switch. When `canEditDetails=false`: Nama, akun and Aktif are disabled with the note "Sales ini juga bertugas di outlet lain. Anda hanya bisa mengatur outlet Anda; menonaktifkan hanya melepas outlet Anda." and the footer offers "Lepas dari outlet saya" (sends `active:false`, server removes covered outlets). Server 4xx text is shown in the dialog. Copy the dialog/table structure and tokens from an existing small Backoffice dialog (e.g. `screens/settings` cards / `CrossOutletLookups.tsx` table); no new dependencies.
+Behaviour: table columns Nama, Outlet (chips of visible outlets + "+N outlet lain" when `hiddenOutletCount>0`), Akun tertaut, Status (Aktif/Nonaktif pill). Filters: outlet select (caller's covered outlets, from the existing outlets hook the Users/Reports screens use), status (Semua/Aktif/Nonaktif, default Aktif), search. Empty state: "Belum ada tim sales. Tambahkan sales agar muncul di pilihan Sales di kasir." "Tambah sales" opens the dialog: Nama (max 60), Outlet checklist (covered outlets only), Tautkan ke akun (select, "— Tidak ditautkan —" + `listSalesStaffLinkableUsers`; choosing one prefills Nama if empty), Aktif switch. When `canEditDetails=false`: Nama, akun and Aktif are disabled with the note "Sales ini juga bertugas di outlet lain. Anda hanya bisa mengatur outlet Anda; menonaktifkan hanya melepas outlet Anda." and the footer offers "Lepas dari outlet saya" (sends `active:false`, server removes covered outlets). Server 4xx text is shown in the dialog. The "Tautkan ke akun" options always include the entry's current `user` (linkable-users excludes linked users, so without this an edit would silently unlink). Copy the dialog/table structure and tokens from an existing small Backoffice dialog (e.g. `screens/settings` cards / `CrossOutletLookups.tsx` table); no new dependencies.
 
-- [ ] **Step 1: Failing tests**: `salesStaffForm`: trims name, rejects empty/61 chars ("Nama wajib diisi" / "Nama maksimal 60 karakter"), requires ≥1 outlet ("Pilih minimal satu outlet"), maps "tidak ditautkan" to `userId: null`; dialog test: `canEditDetails=false` disables Nama/akun/Aktif and shows the note; prefill from linked user when Nama empty.
+- [ ] **Step 1: Failing tests**: `salesStaffForm`: trims name, rejects empty/61 chars ("Nama wajib diisi" / "Nama maksimal 60 karakter"), requires ≥1 outlet ("Pilih minimal satu outlet"), maps "tidak ditautkan" to `userId: null`; editing a linked entry and saving without touching the link keeps its `userId`; dialog test: `canEditDetails=false` disables Nama/akun/Aktif and shows the note; prefill from linked user when Nama empty.
 - [ ] **Step 2: Run**; FAIL. **Step 3: Implement**; PASS. **Step 4: Run** `corepack pnpm quality:ci` and `corepack pnpm browser:ci`; PASS.
 - [ ] **Step 5: Commit** `feat: Tim Sales page`.
 
@@ -219,16 +223,17 @@ Behaviour: table columns Nama, Outlet (chips of visible outlets + "+N outlet lai
 
 **Files:**
 - Create: `apps/pos/src/cashier/salesPicker.ts`, `apps/pos/src/cashier/salesPicker.test.ts`
-- Modify: `apps/pos/src/cashier/CashierScreen.tsx:353` (use the helper), `packages/sync/src/snapshot.salesStaff.test.ts` (new; persistence)
+- Modify: `apps/pos/src/cashier/CashierScreen.tsx:353` (use the helper); `packages/sync/src/snapshotPrivacy.ts` (`stripSnapshotPii` also maps `users` to `{id, displayName}` and `hasSnapshotPii` reports a stored `users` entry carrying any other key, so a snapshot stored before the OTA is cleaned on load)
+- Test: `packages/sync/src/snapshot.salesStaff.test.ts` (new), the existing `snapshotPrivacy` tests
 
 **Interfaces (Produces):**
 - `export function salesPickList(snapshot: { salesStaff?: readonly { id: string; name: string }[]; users?: readonly { id: string; displayName?: string }[] }, selected: { id: string; name: string } | null): { id: string; name: string }[]`
 
 Rules: `salesStaff` present (even empty) → use it; absent (old server) → `users` mapped to `{id, name: displayName ?? ''}`, dropping empty names. If `selected` is not in the list, append it (Review Focus 3). No sorting on the client (server order).
 
-- [ ] **Step 1: Failing tests**: staff list wins over users; `salesStaff: []` → `[]` (picker hidden) even when users exist; absent → users fallback; selected missing from list → appended last; selected present → no duplicate; snapshot test: `salesStaff` survives `Snapshot.replace` + reload.
+- [ ] **Step 1: Failing tests**: staff list wins over users; `salesStaff: []` → `[]` (picker hidden) even when users exist; absent → users fallback; selected missing from list → appended last; selected present → no duplicate; snapshot test: `salesStaff` survives `Snapshot.replace` + reload; `stripSnapshotPii` turns `users: [{id, displayName, email, role, permissions}]` into `[{id, displayName}]` and `stripSnapshotPiiJson` rewrites such a stored value.
 - [ ] **Step 2: Run** `corepack pnpm --filter pos test -- salesPicker` and `--filter @mandalika/sync test -- snapshot.salesStaff`; FAIL. **Step 3: Implement** and wire `CashierScreen` (`salesPickList(snapshot, state.selectedSalesman)`); PASS.
 - [ ] **Step 4: Run** `corepack pnpm quality:ci` and `browser:ci`; PASS.
 - [ ] **Step 5: Commit** `feat: POS sales picker uses the outlet sales staff list`.
 
-**Slice 3 close:** Opus review → `gate/sales-staff-pos` green → PR → HANDOFF note with the release order (backend 0104 → Backoffice → POS OTA, owner go-ahead; after deploy the owner switches the real salespeople on in Tim Sales before the next sale; old picker on non-OTA tablets = known gap). Final whole-branch Opus review across the three slices before asking for release.
+**Slice 3 close:** Opus review → `gate/sales-staff-pos` green → PR → HANDOFF note with the release order (backend 0104 → Backoffice → POS OTA, owner go-ahead; after deploy every picker is empty (migrated entries are inactive) until the owner switches the real salespeople on in Tim Sales; managers see Tim Sales only after their token refreshes or they sign in again (grant without `perm_version` bump); old picker on non-OTA tablets = known gap). Final whole-branch Opus review across the three slices before asking for release.

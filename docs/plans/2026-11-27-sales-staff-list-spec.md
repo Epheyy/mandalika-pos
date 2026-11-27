@@ -143,8 +143,9 @@ Under the authenticated group, `RequirePermission("manage_sales_staff")` (admin 
   Release order: backend → Backoffice → POS OTA.
 - Pull version: every staff write calls `bumpVersionOutlets` (`backend/internal/write/repo.go`,
   as giveaway and receipt templates do) for the union of the entry's old and new outlet sets, so a
-  tablet at a removed outlet also drops the person. The data migration bumps nothing (all migrated
-  entries are inactive).
+  tablet at a removed outlet also drops the person. The migration bumps `sales_staff` once for every
+  outlet, so every tablet re-pulls and replaces its stored full `users` list (tablets pull only when
+  their outlet's version moves). The POS also slims any stored `users` to `{id, displayName}` on load.
 
 ### POS
 
