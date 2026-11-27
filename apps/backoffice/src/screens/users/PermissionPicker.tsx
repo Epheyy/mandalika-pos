@@ -15,18 +15,20 @@ const PERMS: Record<string, { label: string; desc: string }> = {
   request_stock: { label: 'Ajukan Permintaan Barang', desc: 'Membuat dan mengirim permintaan barang dari outlet ke gudang' },
   resolve_sync_review: { label: 'Tinjauan Sinkron', desc: 'Melihat dan menyelesaikan item sinkron yang ditolak tablet (semua outlet)' },
   void_own_shift: { label: 'Batalkan Transaksi Shift Sendiri', desc: 'Membatalkan transaksi di shift yang sedang buka (POS)' },
-  manage_sales_staff: { label: 'Kelola Sales', desc: 'Kelola daftar tim sales per outlet' },
+  manage_sales_staff: { label: 'Kelola Sales', desc: 'Tambah dan atur tim sales outlet' },
   void_any: { label: 'Batalkan Transaksi', desc: 'Membatalkan transaksi outlet dalam batas waktu (Backoffice) dan membuat pengganti di POS' },
 }
 
-/** Permissions a new cashier or manager starts with: an empty selection gets the own-shift void (cashier) or Kelola Sales (manager), anything chosen stays.
- *  Leaving a role drops its default only while it is exactly that auto default; a deliberate selection is never removed. */
+const ROLE_DEFAULT_PERMS: Record<string, string> = { cashier: 'void_own_shift', manager: 'manage_sales_staff' }
+
+/** Permissions a role starts with: an empty selection gets that role's default (cashier: own-shift void, manager: Kelola Sales).
+ *  Switching role first strips the previous role's default, only while it is exactly that auto default, then applies the new role's default;
+ *  a deliberate selection is never changed. */
 export function permissionsForRole(role: string, current: readonly string[], prevRole?: string): string[] {
-  if (prevRole === 'cashier' && current.length === 1 && current[0] === 'void_own_shift') return []
-  if (prevRole === 'manager' && current.length === 1 && current[0] === 'manage_sales_staff') return []
-  if (role === 'cashier') return current.length === 0 ? ['void_own_shift'] : [...current]
-  if (role === 'manager') return current.length === 0 ? ['manage_sales_staff'] : [...current]
-  return [...current]
+  const prevDefault = prevRole ? ROLE_DEFAULT_PERMS[prevRole] : undefined
+  const kept = prevDefault && current.length === 1 && current[0] === prevDefault ? [] : [...current]
+  const roleDefault = ROLE_DEFAULT_PERMS[role]
+  return kept.length === 0 && roleDefault ? [roleDefault] : kept
 }
 
 interface PermissionPickerProps {

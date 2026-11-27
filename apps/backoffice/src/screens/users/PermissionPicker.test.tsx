@@ -28,18 +28,27 @@ describe('PermissionPicker', () => {
   it('manager role pre-selects manage_sales_staff only on an empty selection', () => {
     expect(permissionsForRole('manager', [])).toEqual(['manage_sales_staff'])
     expect(permissionsForRole('manager', ['view_reports'])).toEqual(['view_reports'])
-    expect(permissionsForRole('cashier', ['manage_sales_staff'], 'manager')).toEqual([])
+    expect(permissionsForRole('cashier', ['manage_sales_staff'], 'manager')).toEqual(['void_own_shift'])
     expect(permissionsForRole('cashier', ['manage_sales_staff', 'view_reports'], 'manager')).toEqual(['manage_sales_staff', 'view_reports'])
+  })
+
+  it('follows the real Add-user flow when the role changes', () => {
+    expect(permissionsForRole('manager', ['void_own_shift'], 'cashier')).toEqual(['manage_sales_staff'])
+    expect(permissionsForRole('cashier', ['manage_sales_staff'], 'manager')).toEqual(['void_own_shift'])
+    expect(permissionsForRole('cashier', ['manage_sales_staff', 'view_reports'], 'manager')).toEqual(['manage_sales_staff', 'view_reports'])
+    expect(permissionsForRole('admin', ['void_own_shift'], 'cashier')).toEqual([])
+    expect(permissionsForRole('admin', ['manage_sales_staff'], 'manager')).toEqual([])
   })
 
   it('offers Kelola Sales', () => {
     for (const compact of [false, true]) {
       expect(renderToStaticMarkup(<PermissionPicker selected={[]} onToggle={() => {}} compact={compact} />)).toContain('Kelola Sales')
+      expect(renderToStaticMarkup(<PermissionPicker selected={[]} onToggle={() => {}} compact={false} />)).toContain('Tambah dan atur tim sales outlet')
     }
   })
 
   it('leaving cashier drops only the auto-ticked void_own_shift', () => {
-    expect(permissionsForRole('manager', ['void_own_shift'], 'cashier')).toEqual([])
+    expect(permissionsForRole('manager', ['void_own_shift'], 'cashier')).toEqual(['manage_sales_staff'])
     expect(permissionsForRole('manager', ['void_own_shift', 'view_reports'], 'cashier')).toEqual(['void_own_shift', 'view_reports'])
     expect(permissionsForRole('manager', ['view_reports'], 'cashier')).toEqual(['view_reports'])
     expect(permissionsForRole('admin', ['void_own_shift'], 'manager')).toEqual(['void_own_shift'])
