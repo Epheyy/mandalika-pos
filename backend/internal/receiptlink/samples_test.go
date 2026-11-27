@@ -15,7 +15,7 @@ func mockData(logo template.URL) PageData {
 	stars, tags := FormChoices(0, nil)
 	return PageData{
 		Logo: logo, Brand: "MANDALIKA AEON BSD", Outlet: "MANDALIKA AEON BSD", FirstName: "Rina",
-		OrderNumber: "BSD-AA0004", When: "27 Nov 2026, 12:17",
+		OrderNumber: "BSD-AA0004", Salesman: "Anggun", When: "27 Nov 2026, 12:17",
 		Lines: []Line{
 			{Name: "Aurora Eau de Parfum", Variant: "50 ml", Qty: 1, Subtotal: "Rp 285.000"},
 			{Name: "Sakura Body Mist", Variant: "100 ml", Qty: 2, Subtotal: "Rp 150.000"},
@@ -44,6 +44,9 @@ func TestWriteSamplePages(t *testing.T) {
 	}
 	write("1-form.html", receipt(200, mockData(samplePNG)))
 	write("1b-form-nologo.html", receipt(200, mockData("")))
+	noSales := mockData(samplePNG)
+	noSales.Salesman = ""
+	write("1c-form-nosales.html", receipt(200, noSales))
 
 	bad := mockData(samplePNG)
 	bad.Stars, bad.TagChoices = FormChoices(0, []string{"ramah", "paham_produk"})

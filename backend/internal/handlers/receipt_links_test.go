@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -51,5 +52,36 @@ func TestRoundingRow(t *testing.T) {
 	}
 	if _, ok = roundingRow(read.ReceiptPageData{Subtotal: 100000, Total: 99999.6}); ok {
 		t.Fatal("residual below 1 must not show")
+	}
+}
+
+// The Sales row shows the name snapshot stored on the order, trimmed; a blank one hides the row.
+func TestBuildReceiptPageSalesman(t *testing.T) {
+	d := read.ReceiptPageData{Zone: "Asia/Jakarta", SalesmanName: "  Rina  "}
+	if got := buildReceiptPage(d, read.ReceiptLinkInfo{SalesmanName: "Rina"}, ratingForm{}).Salesman; got != "Rina" {
+		t.Errorf("Salesman = %q, want Rina", got)
+	}
+	d.SalesmanName = "   "
+	if got := buildReceiptPage(d, read.ReceiptLinkInfo{}, ratingForm{}).Salesman; got != "" {
+		t.Errorf("blank salesman must hide the row, got %q", got)
+	}
+}
+
+func TestCleanDisplayName(t *testing.T) {
+	str := func(s string) *string { return &s }
+	if got, err := cleanDisplayName(nil); got != nil || err != nil {
+		t.Errorf("omitted name must stay omitted, got %v %v", got, err)
+	}
+	if got, err := cleanDisplayName(str("  Rina  ")); err != nil || *got != "Rina" {
+		t.Errorf("trim: %v %v", got, err)
+	}
+	if _, err := cleanDisplayName(str("   ")); err == nil {
+		t.Error("blank must be refused")
+	}
+	if _, err := cleanDisplayName(str(strings.Repeat("a", 101))); err == nil {
+		t.Error("101 runes must be refused")
+	}
+	if _, err := cleanDisplayName(str(strings.Repeat("é", 100))); err != nil {
+		t.Errorf("100 runes must pass: %v", err)
 	}
 }

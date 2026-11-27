@@ -27,11 +27,13 @@ import { RolePicker } from './users/RolePicker'
 import { ROLE_LABEL, roleFormProblem, type Role } from './users/roles'
 import { userColumns } from './users/userColumns'
 import { errorText } from './users/formError'
+import { MAX_DISPLAY_NAME_LENGTH, displayNameError, renamePayload } from './users/displayName'
 import { OutletCoverageField } from './users/OutletCoverageField'
 import { EMPTY_COVERAGE, coverageError, coverageForRole, coverageFromUser, coveragePayload, outletLabel, type CoverageValue } from './users/coverage'
 
 type EditUserState = {
   editingUser: User | null
+  editName: string
   editRole: Role
   editPerms: string[]
   editCoverage: CoverageValue
@@ -41,6 +43,7 @@ type EditUserState = {
 
 type EditUserAction =
   | { type: 'OPEN_EDIT'; user: User }
+  | { type: 'SET_NAME'; value: string }
   | { type: 'SET_ROLE'; value: Role }
   | { type: 'SET_PERMS'; value: string[] }
   | { type: 'TOGGLE_PERM'; perm: string }
@@ -54,6 +57,7 @@ const originalAdminHome = (u: User | null): string => (u?.role === 'admin' ? (u.
 
 const initialEditUser: EditUserState = {
   editingUser: null,
+  editName: '',
   editRole: 'cashier',
   editPerms: [],
   editCoverage: EMPTY_COVERAGE,
@@ -66,12 +70,15 @@ const editUserReducer = (state: EditUserState, action: EditUserAction): EditUser
     case 'OPEN_EDIT':
       return {
         editingUser: action.user,
+        editName: action.user.displayName,
         editRole: action.user.role as Role,
         editPerms: action.user.permissions || [],
         editCoverage: coverageFromUser(action.user),
         pin: '',
         clearPin: false,
       }
+    case 'SET_NAME':
+      return { ...state, editName: action.value }
     case 'SET_ROLE':
       return { ...state, editRole: action.value, editCoverage: coverageForRole(state.editRole, action.value, state.editCoverage, originalAdminHome(state.editingUser)) }
     case 'SET_PERMS':
@@ -110,7 +117,7 @@ export default function Users() {
   const tab = routedTab ?? 'users'
 
   const [editUser, dispatch] = useReducer(editUserReducer, initialEditUser)
-  const { editingUser, editRole, editPerms, editCoverage, pin, clearPin } = editUser
+  const { editingUser, editName, editRole, editPerms, editCoverage, pin, clearPin } = editUser
   const [busy, setBusy] = useState(false)
   const [resetTarget, setResetTarget] = useState<User | null>(null)
   const [resetNotice, setResetNotice] = useState<string | null>(null)
@@ -132,20 +139,29 @@ export default function Users() {
 
   const saveUser = async () => {
     if (!editingUser) return
+    const nameProblem = displayNameError(editName)
+    if (nameProblem) {
+      setSaveError(nameProblem)
+      return
+    }
+    const rename = renamePayload(editingUser.displayName, editName)
     setBusy(true)
     setSaveError(null)
     try {
-      await api.updateUser(editingUser.id, { role: editRole, permissions: editPerms, ...coveragePayload(editRole, editCoverage) })
+      await api.updateUser(editingUser.id, { ...rename, role: editRole, permissions: editPerms, ...coveragePayload(editRole, editCoverage) })
       if (clearPin) {
         await api.setUserReceivePin(editingUser.id, { clear: true })
       } else if (pin) {
         await api.setUserReceivePin(editingUser.id, { pin })
       }
       dispatch({ type: 'CLOSE' })
-      toast({ message: `Akses ${editingUser.displayName} disimpan`, tone: 'ok' })
+      toast({
+        message: rename.displayName ? `Nama diubah menjadi ${rename.displayName}; akses disimpan` : `Akses ${editingUser.displayName} disimpan`,
+        tone: 'ok',
+      })
       await uq.refetch()
     } catch (e: unknown) {
-      setSaveError(errorText(e, 'Gagal menyimpan akses. Coba lagi.'))
+      setSaveError(errorText(e, 'Gagal menyimpan. Coba lagi.'))
     } finally {
       setBusy(false)
     }
@@ -332,12 +348,24 @@ export default function Users() {
         footer={
           <SlideOver.Footer>
             <Button variant="secondary" onClick={() => dispatch({ type: 'CLOSE' })}>Batal</Button>
-            <Button loading={busy} disabled={!!coverageError(editRole, editCoverage)} onClick={saveUser}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
+            <Button loading={busy} disabled={!!coverageError(editRole, editCoverage) || !!displayNameError(editName)} onClick={saveUser}>{busy ? 'Menyimpan...' : 'Simpan'}</Button>
           </SlideOver.Footer>
         }
       >
         <div className="space-y-5">
           {saveError && <p role="alert" className="text-sm text-danger">{saveError}</p>}
+          <Field label="Nama">
+            <input
+              type="text"
+              aria-label="Nama pengguna"
+              autoComplete="off"
+              maxLength={MAX_DISPLAY_NAME_LENGTH}
+              value={editName}
+              onChange={(e) => dispatch({ type: 'SET_NAME', value: e.target.value })}
+              className="w-full px-3 py-2.5 bg-paper-1 border border-paper-2 rounded-xl text-sm text-ink-900 placeholder-ink-500 focus:outline-none focus:ring-2 focus:ring-brand-strong/40 focus:border-brand-strong transition"
+            />
+            <p className="mt-1 text-[11px] text-ink-700">Pesanan lama tetap memakai nama saat penjualan terjadi.</p>
+          </Field>
           <Field label="Role">
             <RolePicker value={editRole} onChange={(r) => dispatch({ type: 'SET_ROLE', value: r })} />
           </Field>

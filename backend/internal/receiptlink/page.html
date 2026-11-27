@@ -17,7 +17,7 @@
 </header>
 <hr class="cut">
 <h2 id="struk-h">Struk digital</h2>
-<dl class="meta"><dt>Outlet</dt><dd>{{.Outlet}}</dd><dt>Waktu</dt><dd>{{.When}}</dd><dt>Pesanan</dt><dd>{{.OrderNumber}}</dd></dl>
+<dl class="meta"><dt>Outlet</dt><dd>{{.Outlet}}</dd><dt>Waktu</dt><dd>{{.When}}</dd><dt>Pesanan</dt><dd>{{.OrderNumber}}</dd>{{if .Salesman}}<dt>Sales</dt><dd>{{.Salesman}}</dd>{{end}}</dl>
 <table>
 <tbody>
 {{range .Lines}}<tr class="line"><td class="n"><span class="qty">{{.Qty}}&times;</span></td><td><span class="name">{{.Name}}</span>{{if .Variant}}<span class="var">{{.Variant}}</span>{{end}}</td><td class="p">{{.Subtotal}}</td></tr>

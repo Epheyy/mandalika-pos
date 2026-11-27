@@ -57,6 +57,7 @@ type PageData struct {
 	Brand, Outlet string
 	FirstName     string // greeting; "" = no greeting
 	OrderNumber   string
+	Salesman      string // name stored on the order; "" = no Sales row
 	When          string
 	Lines         []Line
 	Subtotal      string

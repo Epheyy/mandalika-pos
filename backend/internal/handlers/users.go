@@ -3,6 +3,8 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/nullable"
@@ -88,6 +90,11 @@ func (h *Handlers) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		writeDecodeErr(w, err)
 		return
 	}
+	name, err := cleanDisplayName(req.DisplayName)
+	if err != nil {
+		httpx.Err(w, http.StatusBadRequest, "displayName must be 1-100 characters")
+		return
+	}
 	var role *string
 	if req.Role != nil {
 		s := string(*req.Role)
@@ -114,7 +121,7 @@ func (h *Handlers) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		ids := uuidStrings(*req.OutletIds)
 		outletIDs = &ids
 	}
-	if err := h.Store.UpdateUser(r.Context(), id, req.DisplayName, role, outlet,
+	if err := h.Store.UpdateUser(r.Context(), id, name, role, outlet,
 		photo, req.Permissions, outletIDs, req.AllOutlets); err != nil {
 		if errors.Is(err, auth.ErrNotFound) {
 			httpx.Err(w, http.StatusNotFound, "not found")
@@ -212,4 +219,22 @@ func uuidStrings(ids []openapi_types.UUID) []string {
 		out[i] = id.String()
 	}
 	return out
+}
+
+// maxDisplayNameRunes caps a renamed user's name (the Backoffice form uses the same number).
+const maxDisplayNameRunes = 100
+
+// cleanDisplayName trims an update's display name; nil (field omitted) is kept, blank or too long is refused.
+func cleanDisplayName(in *string) (*string, error) {
+	if in == nil {
+		return nil, nil
+	}
+	n := strings.TrimSpace(*in)
+	if n == "" {
+		return nil, errors.New("displayName must not be blank")
+	}
+	if utf8.RuneCountInString(n) > maxDisplayNameRunes {
+		return nil, errors.New("displayName is too long")
+	}
+	return &n, nil
 }

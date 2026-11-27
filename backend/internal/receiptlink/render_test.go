@@ -86,3 +86,26 @@ func TestStatePages(t *testing.T) {
 		}
 	}
 }
+
+func TestSalesRow(t *testing.T) {
+	render := func(salesman string) string {
+		d := sampleData()
+		d.Salesman = salesman
+		rec := httptest.NewRecorder()
+		RenderReceipt(rec, 200, d)
+		return rec.Body.String()
+	}
+	body := render("Rina Putri")
+	if !strings.Contains(body, "<dt>Sales</dt><dd>Rina Putri</dd>") {
+		t.Error("Sales row missing")
+	}
+	if strings.Index(body, "<dt>Pesanan</dt>") > strings.Index(body, "<dt>Sales</dt>") {
+		t.Error("Sales row must come after Pesanan")
+	}
+	if esc := render(`<i>x</i>`); strings.Contains(esc, "<i>x</i>") || !strings.Contains(esc, "&lt;i&gt;x&lt;/i&gt;") {
+		t.Error("salesman must be escaped")
+	}
+	if strings.Contains(render(""), "<dt>Sales</dt>") {
+		t.Error("no salesperson, no Sales row")
+	}
+}
