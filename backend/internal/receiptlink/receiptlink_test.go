@@ -199,37 +199,12 @@ func TestRatedStateAndNoSales(t *testing.T) {
 
 func TestGoneBodyIdentical(t *testing.T) {
 	a, b := httptest.NewRecorder(), httptest.NewRecorder()
-	RenderGone(a)
-	RenderGone(b)
+	RenderGone(a, "")
+	RenderGone(b, "")
 	if a.Code != 404 || a.Body.String() != b.Body.String() || !strings.Contains(a.Body.String(), "Tautan tidak berlaku atau sudah kedaluwarsa") {
 		t.Error("gone page")
 	}
 	if strings.Contains(strings.ToLower(a.Body.String()), "<script") {
 		t.Error("gone page has script")
 	}
-}
-
-// TestWriteSamplePages writes the three pages with sample data into $RECEIPT_PAGE_OUT for a visual
-// check (skipped when the variable is unset).
-func TestWriteSamplePages(t *testing.T) {
-	dir := os.Getenv("RECEIPT_PAGE_OUT")
-	if dir == "" {
-		t.Skip("RECEIPT_PAGE_OUT not set")
-	}
-	write := func(name string, rec *httptest.ResponseRecorder) {
-		if err := os.WriteFile(dir+"/"+name, rec.Body.Bytes(), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	open := httptest.NewRecorder()
-	RenderReceipt(open, 200, sampleData())
-	write("receipt-page.html", open)
-	d := sampleData()
-	d.Rated, d.RatedStars, d.RatedStarRow, d.RatedTags, d.RatedComment = true, 4, StarRow(4), []string{"Ramah", "Cepat"}, "Pelayanannya ramah sekali."
-	rated := httptest.NewRecorder()
-	RenderReceipt(rated, 200, d)
-	write("receipt-page-rated.html", rated)
-	gone := httptest.NewRecorder()
-	RenderGone(gone)
-	write("receipt-gone.html", gone)
 }

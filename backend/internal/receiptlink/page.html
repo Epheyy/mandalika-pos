@@ -9,40 +9,40 @@
 </head>
 <body>
 <main class="wrap">
-<header>
+<section class="panel receipt" aria-labelledby="struk-h">
+<header class="mast">
+{{if .Logo}}<img class="logo" src="{{.Logo}}" alt="">{{end}}
 <h1 class="brand">{{.Brand}}</h1>
-<hr class="rule">
 {{if .FirstName}}<p class="hello">Halo, {{.FirstName}}</p>{{end}}
 </header>
-
-<section class="card receipt" aria-labelledby="struk-h">
+<hr class="cut">
 <h2 id="struk-h">Struk digital</h2>
-<p class="meta"><b>{{.Outlet}}</b><br>{{.When}}<br>Pesanan {{.OrderNumber}}</p>
+<dl class="meta"><dt>Outlet</dt><dd>{{.Outlet}}</dd><dt>Waktu</dt><dd>{{.When}}</dd><dt>Pesanan</dt><dd>{{.OrderNumber}}</dd></dl>
 <table>
 <tbody>
-{{range .Lines}}<tr><td class="n">{{.Qty}}&times;</td><td>{{.Name}}{{if .Variant}}<span class="var">{{.Variant}}</span>{{end}}</td><td class="p">{{.Subtotal}}</td></tr>
+{{range .Lines}}<tr class="line"><td class="n"><span class="qty">{{.Qty}}&times;</span></td><td><span class="name">{{.Name}}</span>{{if .Variant}}<span class="var">{{.Variant}}</span>{{end}}</td><td class="p">{{.Subtotal}}</td></tr>
 {{end}}
 <tr class="sum first"><td></td><td>Subtotal</td><td class="p">{{.Subtotal}}</td></tr>
 {{if .Discount}}<tr class="sum"><td></td><td>Diskon</td><td class="p">{{.Discount}}</td></tr>{{end}}
 {{if .Tax}}<tr class="sum"><td></td><td>Pajak</td><td class="p">{{.Tax}}</td></tr>{{end}}
 {{range .Extras}}<tr class="sum"><td></td><td>{{.Label}}</td><td class="p">{{.Amount}}</td></tr>{{end}}
-<tr class="total"><td></td><td>Total</td><td class="p">{{.Total}}</td></tr>
 </tbody>
 </table>
-{{if .Payment}}<p class="pay">Pembayaran: {{.Payment}}</p>{{end}}
+<div class="total"><span>Total</span><strong>{{.Total}}</strong></div>
+{{if .Payment}}<p class="pay">Pembayaran: <b>{{.Payment}}</b></p>{{end}}
 </section>
 
 {{if .Rated}}
-<section class="card" aria-labelledby="terima-h">
+<section class="panel" aria-labelledby="terima-h">
 <div class="thanks"><span class="check" aria-hidden="true">&#10003;</span><strong id="terima-h">Terima kasih, penilaian sudah diterima</strong></div>
 <div class="static" role="img" aria-label="{{.RatedStars}} dari 5 bintang">{{range .RatedStarRow}}{{if .}}<span class="on">&#9733;</span>{{else}}&#9733;{{end}}{{end}}</div>
 {{if .RatedTags}}<ul class="chips">{{range .RatedTags}}<li>{{.}}</li>{{end}}</ul>{{end}}
 {{if .RatedComment}}<p class="quote">{{.RatedComment}}</p>{{end}}
 </section>
 {{else}}
-<section class="card" aria-labelledby="nilai-h">
+<section class="panel rate" aria-labelledby="nilai-h">
 <h2 id="nilai-h">{{.PromptTitle}}</h2>
-{{if .Error}}<p class="err" role="alert">{{.Error}}</p>{{end}}
+{{if .Error}}<p class="err" role="alert"><i aria-hidden="true">!</i>{{.Error}}</p>{{end}}
 <form method="post" autocomplete="off">
 <fieldset>
 <legend>Beri bintang</legend>

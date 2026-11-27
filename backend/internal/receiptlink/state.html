@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{{.Title}}</title>
+{{template "style"}}
+</head>
+<body>
+<main class="wrap">
+<section class="panel state">
+{{if .Logo}}<img class="logo" src="{{.Logo}}" alt="">{{end}}
+<div class="badge" aria-hidden="true">{{.Mark}}</div>
+<h1>{{.Heading}}</h1>
+<p>{{.Body}}</p>
+{{if .Action}}<p><a class="btn" href="">{{.Action}}</a></p>{{end}}
+</section>
+</main>
+</body>
+</html>

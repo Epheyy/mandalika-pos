@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-//go:embed page.html gone.html style.html
+//go:embed page.html state.html style.html
 var pageFS embed.FS
 
 // Tags are the rating tags, in display order: stored code and label.
@@ -53,6 +53,7 @@ type StarChoice struct {
 // PageData is everything the receipt page shows. It carries the first name only, never a phone
 // number or a full customer name. Money fields are pre-formatted ("Rp 150.000").
 type PageData struct {
+	Logo          template.URL // brand logo as a data: URI; "" = none
 	Brand, Outlet string
 	FirstName     string // greeting; "" = no greeting
 	OrderNumber   string
@@ -78,7 +79,7 @@ type PageData struct {
 	Comment     string
 }
 
-var tmpl = template.Must(template.ParseFS(pageFS, "page.html", "gone.html", "style.html"))
+var tmpl = template.Must(template.ParseFS(pageFS, "page.html", "state.html", "style.html"))
 
 var idMonths = [...]string{"Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"}
 
@@ -155,16 +156,42 @@ func RenderReceipt(w http.ResponseWriter, status int, d PageData) {
 	render(w, status, "page.html", d)
 }
 
-// RenderGone writes the one body used for an unknown, expired or malformed link (404).
-func RenderGone(w http.ResponseWriter) {
-	render(w, http.StatusNotFound, "gone.html", nil)
+// StateData is the shared one-panel page of the 404, 429 and 503 states.
+type StateData struct {
+	Logo                               template.URL
+	Title, Mark, Heading, Body, Action string
+}
+
+func renderState(w http.ResponseWriter, status int, d StateData) {
+	render(w, status, "state.html", d)
+}
+
+// RenderGone writes the one body used for an unknown, expired or malformed link (404). The body
+// depends only on logo, never on why the link is gone.
+func RenderGone(w http.ResponseWriter, logo template.URL) {
+	renderState(w, http.StatusNotFound, StateData{
+		Logo: logo, Title: "Tautan tidak berlaku", Mark: "!",
+		Heading: "Tautan tidak berlaku atau sudah kedaluwarsa",
+		Body:    "Silakan hubungi outlet tempat Anda berbelanja untuk meminta tautan baru.",
+	})
+}
+
+// RenderRateLimited writes the 429 page of the public routes.
+func RenderRateLimited(w http.ResponseWriter, logo template.URL) {
+	renderState(w, http.StatusTooManyRequests, StateData{
+		Logo: logo, Title: "Terlalu banyak permintaan", Mark: "⌛",
+		Heading: "Terlalu banyak permintaan",
+		Body:    "Tunggu sekitar satu menit, lalu buka lagi halaman ini.", Action: "Muat ulang",
+	})
 }
 
 // RenderUnavailable writes a plain 503 page for a database failure on the public routes, so the
 // page never leaks an error text.
-func RenderUnavailable(w http.ResponseWriter) {
-	SetPublicHeaders(w)
+func RenderUnavailable(w http.ResponseWriter, logo template.URL) {
 	w.Header().Set("Retry-After", "5")
-	w.WriteHeader(http.StatusServiceUnavailable)
-	_, _ = w.Write([]byte("<!doctype html><html lang=\"id\"><meta charset=\"utf-8\"><title>Coba lagi</title><p>Halaman belum dapat ditampilkan. Coba lagi sebentar lagi.</p></html>"))
+	renderState(w, http.StatusServiceUnavailable, StateData{
+		Logo: logo, Title: "Coba lagi", Mark: "↻",
+		Heading: "Halaman belum dapat ditampilkan",
+		Body:    "Coba lagi sebentar lagi.", Action: "Muat ulang",
+	})
 }
