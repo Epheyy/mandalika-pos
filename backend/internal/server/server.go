@@ -463,6 +463,15 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Post("/oversell-records/acknowledge", h.AcknowledgeOversell)
 			})
 
+			// Tim Sales: the per-outlet sales staff list (admin passes; coverage rules live in the repo).
+			r.Group(func(r chi.Router) {
+				r.Use(mw.RequirePermission("manage_sales_staff"))
+				r.Get("/sales-staff", h.ListSalesStaff)
+				r.Post("/sales-staff", h.CreateSalesStaff)
+				r.Get("/sales-staff/linkable-users", h.ListSalesStaffLinkableUsers)
+				r.Put("/sales-staff/{id}", h.UpdateSalesStaff)
+			})
+
 			// Reports — permission-gated.
 			r.Group(func(r chi.Router) {
 				r.Use(mw.RequirePermission("view_reports"))

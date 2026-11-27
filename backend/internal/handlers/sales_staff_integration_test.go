@@ -1,16 +1,25 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/mandalika/pos-backend/internal/api"
+	"github.com/mandalika/pos-backend/internal/auth"
+	"github.com/mandalika/pos-backend/internal/config"
 	"github.com/mandalika/pos-backend/internal/coverage"
+	mw "github.com/mandalika/pos-backend/internal/middleware"
 	"github.com/mandalika/pos-backend/internal/read"
 	"github.com/mandalika/pos-backend/internal/write"
 )
@@ -354,6 +363,161 @@ func TestSalesStaffPostgres(t *testing.T) {
 		}
 		if version(pMKS) != m0 {
 			t.Fatal("an unrelated outlet must not move")
+		}
+	})
+
+	// HTTP layer: the real handlers behind RequireAuth and the manage_sales_staff gate.
+	secret := []byte("SS-SYNTHETIC-TEST-KEY")
+	h := New(rd, nil, nil, repo, nil, nil, nil)
+	router := chi.NewRouter()
+	router.Use(mw.RequireAuth(&config.Config{AccessSecret: secret}))
+	router.Group(func(r chi.Router) {
+		r.Use(mw.RequirePermission("manage_sales_staff"))
+		r.Get("/sales-staff", h.ListSalesStaff)
+		r.Post("/sales-staff", h.CreateSalesStaff)
+		r.Get("/sales-staff/linkable-users", h.ListSalesStaffLinkableUsers)
+		r.Put("/sales-staff/{id}", h.UpdateSalesStaff)
+	})
+	token := func(uid, role, outlet string, perms []string) string {
+		tok, err := auth.IssueAccess(secret, time.Hour, uid, role, outlet, perms)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tok
+	}
+	perm := []string{"manage_sales_staff"}
+	adminTok := token(rAdmin, "admin", "", nil)
+	mgrTok := token(rBSDMgr, "manager", pBSD, perm)
+	cashTok := token(rBSDCash, "cashier", pBSD, nil)
+	do := func(tok, method, path, key string, body any) (int, []byte) {
+		t.Helper()
+		var buf bytes.Buffer
+		if body != nil {
+			if err := json.NewEncoder(&buf).Encode(body); err != nil {
+				t.Fatal(err)
+			}
+		}
+		req := httptest.NewRequest(method, path, &buf)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		req.Header.Set("Content-Type", "application/json")
+		if key != "" {
+			req.Header.Set("Idempotency-Key", key)
+		}
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		return w.Code, w.Body.Bytes()
+	}
+	person := func(raw []byte) api.SalesStaff {
+		t.Helper()
+		var r struct {
+			Data api.SalesStaff `json:"data"`
+		}
+		if err := json.Unmarshal(raw, &r); err != nil {
+			t.Fatalf("%v: %s", err, raw)
+		}
+		return r.Data
+	}
+
+	t.Run("http_permissions", func(t *testing.T) {
+		someID := "00000000-0000-4000-8f89-0000000009ff"
+		in := map[string]any{"name": "Perm Probe", "active": true, "outletIds": []string{pBSD}}
+		for _, c := range []struct{ method, path string }{
+			{"GET", "/sales-staff"}, {"POST", "/sales-staff"}, {"GET", "/sales-staff/linkable-users"}, {"PUT", "/sales-staff/" + someID},
+		} {
+			if code, body := do(cashTok, c.method, c.path, "ss-perm-"+c.method, in); code != http.StatusForbidden {
+				t.Fatalf("cashier %s %s = %d %s, want 403", c.method, c.path, code, body)
+			}
+		}
+		for name, tok := range map[string]string{"manager": mgrTok, "admin": adminTok} {
+			if code, body := do(tok, "GET", "/sales-staff", "", nil); code != http.StatusOK {
+				t.Fatalf("%s list = %d %s", name, code, body)
+			}
+			if code, body := do(tok, "GET", "/sales-staff/linkable-users", "", nil); code != http.StatusOK {
+				t.Fatalf("%s linkable = %d %s", name, code, body)
+			}
+		}
+		if code, _ := do(adminTok, "GET", "/sales-staff?outletId=not-a-uuid", "", nil); code != http.StatusBadRequest {
+			t.Fatalf("bad outletId = %d, want 400", code)
+		}
+		if code, _ := do(adminTok, "GET", "/sales-staff?active=maybe", "", nil); code != http.StatusBadRequest {
+			t.Fatalf("bad active = %d, want 400", code)
+		}
+		if code, body := do(adminTok, "GET", "/sales-staff?active=true&q=zzz-no-such-person", "", nil); code != http.StatusOK || !strings.Contains(string(body), `"data":[]`) {
+			t.Fatalf("empty filtered list = %d %s", code, body)
+		}
+	})
+
+	t.Run("http_create_update", func(t *testing.T) {
+		in := map[string]any{"name": "Http Hana", "active": true, "outletIds": []string{pBSD, pLWB}}
+		if code, body := do(adminTok, "POST", "/sales-staff", "", in); code != http.StatusBadRequest || !strings.Contains(string(body), "Idempotency-Key wajib") {
+			t.Fatalf("POST without key = %d %s", code, body)
+		}
+		code, first := do(adminTok, "POST", "/sales-staff", "ss-http-key-a", in)
+		if code != http.StatusCreated {
+			t.Fatalf("POST = %d %s", code, first)
+		}
+		created := person(first)
+		if created.Name != "Http Hana" || len(created.OutletIds) != 2 {
+			t.Fatalf("created = %+v", created)
+		}
+		code, replay := do(adminTok, "POST", "/sales-staff", "ss-http-key-a", in)
+		if code != http.StatusCreated || !bytes.Equal(first, replay) {
+			t.Fatalf("replay = %d %s, want the first body %s", code, replay, first)
+		}
+		if n := count(`SELECT count(*) FROM sales_staff WHERE name='Http Hana'`); n != 1 {
+			t.Fatalf("replay created %d rows, want 1", n)
+		}
+		id := created.Id.String()
+
+		if code, body := do(mgrTok, "PUT", "/sales-staff/"+id, "", map[string]any{"name": "Http Hani", "active": true, "outletIds": []string{pBSD, pLWB}}); code != http.StatusForbidden || !strings.Contains(string(body), "outlet yang Anda kelola") {
+			t.Fatalf("partial manager rename = %d %s", code, body)
+		}
+		if code, body := do(adminTok, "POST", "/sales-staff", "ss-http-key-b", map[string]any{"name": "Http Dup", "active": true, "outletIds": []string{pBSD}}); code != http.StatusCreated {
+			t.Fatalf("dup seed = %d %s", code, body)
+		}
+		if code, body := do(adminTok, "PUT", "/sales-staff/"+id, "", map[string]any{"name": "http dup", "active": true, "outletIds": []string{pBSD}}); code != http.StatusConflict {
+			t.Fatalf("duplicate rename = %d %s", code, body)
+		}
+		if code, _ := do(adminTok, "PUT", "/sales-staff/not-a-uuid", "", in); code != http.StatusBadRequest {
+			t.Fatalf("bad path id = %d, want 400", code)
+		}
+		if code, _ := do(adminTok, "PUT", "/sales-staff/00000000-0000-4000-8f89-0000000009fe", "", in); code != http.StatusNotFound {
+			t.Fatalf("unknown id = %d, want 404", code)
+		}
+		if code, _ := do(adminTok, "POST", "/sales-staff", "ss-http-bad-user", map[string]any{"name": "Http Bad", "active": true, "outletIds": []string{pBSD}, "userId": "not-a-uuid"}); code != http.StatusBadRequest {
+			t.Fatalf("non-uuid userId = %d, want 400", code)
+		}
+		if code, body := do(adminTok, "POST", "/sales-staff", "ss-http-key-c", map[string]any{"name": "Http Null", "active": true, "outletIds": []string{pBSD}, "userId": nil}); code != http.StatusCreated || person(body).User != nil {
+			t.Fatalf("userId null = %d %s", code, body)
+		}
+		if code, body := do(mgrTok, "POST", "/sales-staff", "ss-http-ghost-user", map[string]any{"name": "Http Probe", "active": true, "outletIds": []string{pBSD}, "userId": ghost}); code != http.StatusForbidden {
+			t.Fatalf("manager linking unknown user = %d %s, want 403", code, body)
+		}
+	})
+
+	t.Run("http_partial_manager_deactivate", func(t *testing.T) {
+		code, body := do(adminTok, "POST", "/sales-staff", "ss-http-partial", map[string]any{"name": "Http Partial", "active": true, "outletIds": []string{pBSD, pLWB}})
+		if code != http.StatusCreated {
+			t.Fatalf("POST = %d %s", code, body)
+		}
+		id := person(body).Id.String()
+		code, body = do(mgrTok, "PUT", "/sales-staff/"+id, "", map[string]any{"name": "Http Partial", "active": false, "outletIds": []string{pBSD, pLWB}})
+		if code != http.StatusOK {
+			t.Fatalf("manager Nonaktif = %d %s", code, body)
+		}
+		if got := person(body); len(got.OutletIds) != 0 || got.HiddenOutletCount != 1 {
+			t.Fatalf("reduced shape = %+v", got)
+		}
+		code, body = do(adminTok, "GET", "/sales-staff?outletId="+pLWB+"&q=Http+Partial", "", nil)
+		var list struct {
+			Data []api.SalesStaff `json:"data"`
+		}
+		if err := json.Unmarshal(body, &list); err != nil || code != http.StatusOK {
+			t.Fatalf("admin list = %d %v %s", code, err, body)
+		}
+		s := find(list.Data, id)
+		if s == nil || !s.Active || len(s.OutletIds) != 1 || s.OutletIds[0].String() != pLWB {
+			t.Fatalf("admin view after partial Nonaktif = %+v", s)
 		}
 	})
 
