@@ -71,12 +71,8 @@ func TestBundlesPostgres(t *testing.T) {
 	router.Get("/settings/bundles", h.GetBundleSettings)
 	router.Get("/bundles/catalog", h.GetBundleCatalog)
 	router.Group(func(r chi.Router) {
-		r.Use(mw.RequirePermission("manage_products"))
+		r.Use(RequireBundleAdmin())
 		r.Put("/settings/bundles", h.UpdateBundleSettings)
-	})
-	// Task 9 swaps RequireRole for RequireBundleAdmin.
-	router.Group(func(r chi.Router) {
-		r.Use(mw.RequireRole("admin"))
 		r.Post("/price-groups", h.CreatePriceGroup)
 		r.Put("/price-groups/{id}", h.RenamePriceGroup)
 		r.Delete("/price-groups/{id}", h.DeletePriceGroup)
