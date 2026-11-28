@@ -3,6 +3,8 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/httpx"
 	"github.com/mandalika/pos-backend/internal/read"
@@ -73,4 +75,30 @@ func (h *Handlers) UpdateBundleSettings(w http.ResponseWriter, r *http.Request) 
 	}
 	h.invalidate(r)
 	writeJSON(w, http.StatusOK, api.BundleSettingsSaveResponse{Data: api.BundleSettingsSaved{Revision: rev}})
+}
+
+// CreatePriceGroup adds a price group (admin only).
+func (h *Handlers) CreatePriceGroup(w http.ResponseWriter, r *http.Request) {
+	var body api.PriceGroupInput
+	if err := httpx.DecodeLoose(r, &body); err != nil {
+		writeDecodeErr(w, err)
+		return
+	}
+	id, err := h.Write.CreatePriceGroup(r.Context(), body.Name)
+	h.created(w, r, id, err)
+}
+
+// RenamePriceGroup renames a price group (admin only).
+func (h *Handlers) RenamePriceGroup(w http.ResponseWriter, r *http.Request) {
+	var body api.PriceGroupInput
+	if err := httpx.DecodeLoose(r, &body); err != nil {
+		writeDecodeErr(w, err)
+		return
+	}
+	h.mutated(w, r, h.Write.RenamePriceGroup(r.Context(), chi.URLParam(r, "id"), body.Name))
+}
+
+// DeletePriceGroup deletes a price group that has no outlets (admin only).
+func (h *Handlers) DeletePriceGroup(w http.ResponseWriter, r *http.Request) {
+	h.mutated(w, r, h.Write.DeletePriceGroup(r.Context(), chi.URLParam(r, "id")))
 }

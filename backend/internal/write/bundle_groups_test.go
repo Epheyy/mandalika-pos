@@ -1,6 +1,9 @@
 package write
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestValidateBundleGroups(t *testing.T) {
 	std := func(name string, sizes ...string) bundleGroupState {
@@ -79,5 +82,24 @@ func TestBundlePriceRowsChanged(t *testing.T) {
 		if got := bundlePriceRowsChanged(a, c.after); got != c.want {
 			t.Errorf("%s: = %v, want %v", c.name, got, c.want)
 		}
+	}
+}
+
+func TestNormalizePriceGroupName(t *testing.T) {
+	got, err := normalizePriceGroupName("  VIP ")
+	if err != nil || got != "VIP" {
+		t.Fatalf("normalizePriceGroupName(\"  VIP \") = %q, %v, want VIP", got, err)
+	}
+	for _, in := range []string{"", "   "} {
+		if _, err := normalizePriceGroupName(in); err == nil || err.Error() != "Nama kelompok wajib diisi" {
+			t.Errorf("normalizePriceGroupName(%q) err = %v, want the wajib error", in, err)
+		}
+	}
+	if _, err := normalizePriceGroupName(strings.Repeat("a", 41)); err == nil || err.Error() != "Nama kelompok maksimal 40 karakter" {
+		t.Errorf("41 runes err = %v, want the maksimal error", err)
+	}
+	multi := strings.Repeat("é", 40)
+	if got, err := normalizePriceGroupName(multi); err != nil || got != multi {
+		t.Errorf("40 multi-byte runes = %q, %v, want OK", got, err)
 	}
 }

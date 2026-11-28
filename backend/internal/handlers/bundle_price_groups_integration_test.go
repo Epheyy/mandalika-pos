@@ -36,6 +36,7 @@ func bundlePriceGroupSubtests(t *testing.T, e bundleEnv) {
 	effectivePricesByOutletSubtest(t, e)
 	settingsGetGroupsSubtest(t, e)
 	settingsPutGroupsSubtests(t, e)
+	priceGroupCrudSubtest(t, e)
 }
 
 func effectivePricesByOutletSubtest(t *testing.T, e bundleEnv) {

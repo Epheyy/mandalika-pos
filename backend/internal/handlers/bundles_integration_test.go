@@ -74,6 +74,13 @@ func TestBundlesPostgres(t *testing.T) {
 		r.Use(mw.RequirePermission("manage_products"))
 		r.Put("/settings/bundles", h.UpdateBundleSettings)
 	})
+	// Task 9 swaps RequireRole for RequireBundleAdmin.
+	router.Group(func(r chi.Router) {
+		r.Use(mw.RequireRole("admin"))
+		r.Post("/price-groups", h.CreatePriceGroup)
+		r.Put("/price-groups/{id}", h.RenamePriceGroup)
+		r.Delete("/price-groups/{id}", h.DeletePriceGroup)
+	})
 	do := func(tok, method, path string, body any) (int, map[string]any) {
 		t.Helper()
 		var buf bytes.Buffer
