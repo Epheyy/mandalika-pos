@@ -413,7 +413,7 @@ Component tests in this app use `renderToStaticMarkup` (see `apps/backoffice/src
 
 ### Task 11: API client methods + TS effective-price twin
 
-Reviewer: **Haiku** (display-only helper; the server decides prices). An Opus re-check of the golden parity is part of the slice review.
+Reviewer: **Opus** (display-only helper, but it must match the server rule; the golden parity is checked here and again in the slice review).
 
 **Files:**
 - Modify: `packages/api/src/client.ts`
@@ -530,7 +530,7 @@ Reviewer: **Opus** (stale-save flow in the screen, admin gating).
 
 ### Task 14: Kelompok harga card, group dialogs, Outlet per kelompok list
 
-Reviewer: **Haiku** (UI on top of Task 12 helpers; no new rule).
+Reviewer: **Opus** (UI on top of Task 12 helpers; owner asked for an Opus review on every task).
 
 **Files:**
 - Create: `apps/backoffice/src/screens/products/PriceGroupsCard.tsx`, `apps/backoffice/src/screens/products/PriceGroupDialog.tsx`, `apps/backoffice/src/screens/products/OutletGroupsList.tsx`, `apps/backoffice/src/screens/products/outletGroupsList.ts` + `.test.ts` (pure filter/sort)
