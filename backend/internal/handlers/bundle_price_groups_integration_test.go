@@ -50,9 +50,19 @@ func effectivePricesByOutletSubtest(t *testing.T, e bundleEnv) {
 			}
 		}
 		t.Cleanup(func() {
-			_, _ = e.pool.Exec(e.ctx, `UPDATE outlets SET price_group_id = NULL`)
-			_, _ = e.pool.Exec(e.ctx, `DELETE FROM bundle_prices WHERE group_id = $1`, premiumID)
-			_, _ = e.pool.Exec(e.ctx, `DELETE FROM outlets WHERE id = $1`, outlet2)
+			// This cleanup is what later price-group subtests rely on: report a failure loudly.
+			for _, q := range []struct {
+				sql  string
+				args []any
+			}{
+				{`UPDATE outlets SET price_group_id = NULL`, nil},
+				{`DELETE FROM bundle_prices WHERE group_id = $1`, []any{premiumID}},
+				{`DELETE FROM outlets WHERE id = $1`, []any{outlet2}},
+			} {
+				if _, err := e.pool.Exec(e.ctx, q.sql, q.args...); err != nil {
+					t.Errorf("cleanup %q: %v", q.sql, err)
+				}
+			}
 		})
 		exec(`INSERT INTO outlets(id,name) VALUES($1,'BN Outlet 3')`, outlet2)
 		// Standar rows (default group): the same values earlier subtests saved.
