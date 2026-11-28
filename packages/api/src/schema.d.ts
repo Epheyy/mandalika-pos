@@ -282,7 +282,7 @@ export interface paths {
         };
         /** Bundle price settings */
         get: operations["getBundleSettings"];
-        /** Replace the bundle price settings (manage_products) */
+        /** Replace the bundle price settings (admin only) */
         put: operations["updateBundleSettings"];
         post?: never;
         delete?: never;
@@ -300,7 +300,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a price group (manage_products) */
+        /** Create a price group (admin only) */
         post: operations["createPriceGroup"];
         delete?: never;
         options?: never;
@@ -316,10 +316,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Rename a price group (manage_products) */
+        /** Rename a price group (admin only) */
         put: operations["renamePriceGroup"];
         post?: never;
-        /** Delete a price group (manage_products) */
+        /** Delete a price group (admin only) */
         delete: operations["deletePriceGroup"];
         options?: never;
         head?: never;

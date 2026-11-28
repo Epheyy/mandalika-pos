@@ -4688,7 +4688,7 @@ paths:
     put:
       operationId: updateBundleSettings
       tags: [settings]
-      summary: Replace the bundle price settings (manage_products)
+      summary: Replace the bundle price settings (admin only)
       requestBody:
         required: true
         content:
@@ -4707,7 +4707,7 @@ paths:
     post:
       operationId: createPriceGroup
       tags: [settings]
-      summary: Create a price group (manage_products)
+      summary: Create a price group (admin only)
       requestBody:
         required: true
         content:
@@ -4726,7 +4726,7 @@ paths:
     put:
       operationId: renamePriceGroup
       tags: [settings]
-      summary: Rename a price group (manage_products)
+      summary: Rename a price group (admin only)
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       requestBody:
@@ -4747,7 +4747,7 @@ paths:
     delete:
       operationId: deletePriceGroup
       tags: [settings]
-      summary: Delete a price group (manage_products)
+      summary: Delete a price group (admin only)
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
