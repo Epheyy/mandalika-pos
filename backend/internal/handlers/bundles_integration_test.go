@@ -104,6 +104,8 @@ func TestBundlesPostgres(t *testing.T) {
 		return v
 	}
 
+	bundlePriceGroupMigrationSubtest(t, pool, ctx)
+
 	t.Run("lines_before_any_price", func(t *testing.T) {
 		// A fresh install has no bundle price yet: its ERP lines must still be listed so they can be priced.
 		code, body := do(tokFor([]string{"manage_products"}), http.MethodGet, "/settings/bundles", nil)
