@@ -1582,19 +1582,72 @@ components:
         line: { type: string }
         label: { type: string }
         short: { type: string }
-    BundleSettings:
+    BundlePriceGroup:
       type: object
-      required: [standard, linePrices, lines]
+      required: [id, name, isDefault, outletCount, standard, linePrices]
       properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        isDefault: { type: boolean }
+        outletCount: { type: integer }
         standard: { type: array, items: { $ref: '#/components/schemas/BundlePriceEntry' } }
         linePrices: { type: array, items: { $ref: '#/components/schemas/BundleLinePriceEntry' } }
+    BundleOutletGroup:
+      type: object
+      required: [outletId, name, code, isActive, groupId]
+      properties:
+        outletId: { type: string, format: uuid }
+        name: { type: string }
+        code: { type: string, description: 'Empty when the outlet has no code.' }
+        isActive: { type: boolean }
+        groupId: { type: string, format: uuid, description: 'The default group id when the outlet has no group set.' }
+    BundleSettings:
+      type: object
+      required: [revision, standard, linePrices, lines, groups, outlets]
+      properties:
+        revision: { type: integer, format: int64, description: 'Settings revision; send it back on save to detect concurrent edits.' }
+        standard: { type: array, items: { $ref: '#/components/schemas/BundlePriceEntry' }, description: 'Prices of the default group (Standar).' }
+        linePrices: { type: array, items: { $ref: '#/components/schemas/BundleLinePriceEntry' }, description: 'Line prices of the default group (Standar).' }
         lines: { type: array, items: { $ref: '#/components/schemas/BundleLine' } }
+        groups: { type: array, items: { $ref: '#/components/schemas/BundlePriceGroup' }, description: 'All price groups in sort order, default first.' }
+        outlets: { type: array, items: { $ref: '#/components/schemas/BundleOutletGroup' }, description: 'Outlets with their group, active first, then by name.' }
+    BundleGroupPricesInput:
+      type: object
+      required: [groupId, standard, linePrices]
+      properties:
+        groupId: { type: string, format: uuid }
+        standard: { type: array, items: { $ref: '#/components/schemas/BundlePriceEntry' } }
+        linePrices: { type: array, items: { $ref: '#/components/schemas/BundleLinePriceEntry' } }
+    BundleOutletGroupInput:
+      type: object
+      required: [outletId, groupId]
+      properties:
+        outletId: { type: string, format: uuid }
+        groupId: { type: string, format: uuid }
     BundleSettingsInput:
       type: object
       required: [standard, linePrices]
       properties:
-        standard: { type: array, items: { $ref: '#/components/schemas/BundlePriceEntry' } }
-        linePrices: { type: array, items: { $ref: '#/components/schemas/BundleLinePriceEntry' } }
+        standard: { type: array, items: { $ref: '#/components/schemas/BundlePriceEntry' }, description: 'Prices of the default group (Standar).' }
+        linePrices: { type: array, items: { $ref: '#/components/schemas/BundleLinePriceEntry' }, description: 'Line prices of the default group (Standar).' }
+        revision: { type: integer, format: int64, description: 'Revision the edit started from. Omit for the old body shape (Standar only, no revision check); when present, a stale revision is rejected with 409.' }
+        groups: { type: array, items: { $ref: '#/components/schemas/BundleGroupPricesInput' }, description: 'Prices of the non-default groups only. Omit to leave the other groups untouched.' }
+        outletGroups: { type: array, items: { $ref: '#/components/schemas/BundleOutletGroupInput' }, description: 'Outlet to group assignments. Omit to leave assignments untouched.' }
+    BundleSettingsSaved:
+      type: object
+      required: [revision]
+      properties:
+        revision: { type: integer, format: int64 }
+    BundleSettingsSaveResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/BundleSettingsSaved' }
+    PriceGroupInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
     BundleSettingsResponse:
       type: object
       required: [data]
@@ -4646,8 +4699,66 @@ paths:
           description: ok
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/OkResponse' }
+              schema: { $ref: '#/components/schemas/BundleSettingsSaveResponse' }
         '400': { description: 'invalid bundle prices', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: 'revision conflict (the settings changed since they were loaded)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/price-groups:
+    post:
+      operationId: createPriceGroup
+      tags: [settings]
+      summary: Create a price group (manage_products)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PriceGroupInput' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdResponse' }
+        '400': { description: 'invalid price group name', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: 'a price group with this name already exists', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/price-groups/{id}:
+    put:
+      operationId: renamePriceGroup
+      tags: [settings]
+      summary: Rename a price group (manage_products)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PriceGroupInput' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '400': { description: 'invalid price group name', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'a price group with this name already exists', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      operationId: deletePriceGroup
+      tags: [settings]
+      summary: Delete a price group (manage_products)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'the default group cannot be deleted', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/receipt-templates:
     get:
       operationId: listReceiptTemplates

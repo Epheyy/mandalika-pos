@@ -10,6 +10,9 @@ const lines = [
 ]
 
 const champion: BundleSettings = {
+  revision: 1,
+  groups: [],
+  outlets: [],
   standard: [
     { size: '100ml', price: 650000 },
     { size: '110ml', price: 725000 },
