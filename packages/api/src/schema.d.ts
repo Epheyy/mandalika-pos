@@ -4778,7 +4778,7 @@ export interface components {
             lines: components["schemas"]["BundleLine"][];
             /** @description All price groups in sort order, default first. */
             groups: components["schemas"]["BundlePriceGroup"][];
-            /** @description Outlets with their group, active first, then by name. */
+            /** @description Outlets with their group, ordered active first, then lower(name), then id. */
             outlets: components["schemas"]["BundleOutletGroup"][];
         };
         BundleGroupPricesInput: {
@@ -4800,7 +4800,7 @@ export interface components {
             linePrices: components["schemas"]["BundleLinePriceEntry"][];
             /**
              * Format: int64
-             * @description Revision the edit started from. Omit for the old body shape (Standar only, no revision check); when present, a stale revision is rejected with 409.
+             * @description Revision the edit started from. Required when groups or outletGroups is sent (400 otherwise). Omit for the old body shape (Standar only, no revision check); when present, a stale revision is rejected with 409.
              */
             revision?: number;
             /** @description Prices of the non-default groups only. Omit to leave the other groups untouched. */
@@ -8197,7 +8197,7 @@ export interface operations {
                     "application/json": components["schemas"]["BundleSettingsSaveResponse"];
                 };
             };
-            /** @description invalid bundle prices */
+            /** @description invalid bundle prices, a missing revision for the new body shape (groups or outletGroups), an unknown group or outlet, or a duplicate group or outlet */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8250,7 +8250,7 @@ export interface operations {
                 };
             };
             403: components["responses"]["Forbidden"];
-            /** @description a price group with this name already exists */
+            /** @description a price group with this name already exists (Nama kelompok sudah dipakai), or there are already 5 groups (Maksimal 5 kelompok harga) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8329,7 +8329,7 @@ export interface operations {
             };
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            /** @description the default group cannot be deleted */
+            /** @description the default group cannot be deleted (Kelompok default tidak bisa dihapus), or the group is still used by outlets (Kelompok ... masih dipakai ... outlet) */
             409: {
                 headers: {
                     [name: string]: unknown;

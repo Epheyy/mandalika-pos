@@ -1610,7 +1610,7 @@ components:
         linePrices: { type: array, items: { $ref: '#/components/schemas/BundleLinePriceEntry' }, description: 'Line prices of the default group (Standar).' }
         lines: { type: array, items: { $ref: '#/components/schemas/BundleLine' } }
         groups: { type: array, items: { $ref: '#/components/schemas/BundlePriceGroup' }, description: 'All price groups in sort order, default first.' }
-        outlets: { type: array, items: { $ref: '#/components/schemas/BundleOutletGroup' }, description: 'Outlets with their group, active first, then by name.' }
+        outlets: { type: array, items: { $ref: '#/components/schemas/BundleOutletGroup' }, description: 'Outlets with their group, ordered active first, then lower(name), then id.' }
     BundleGroupPricesInput:
       type: object
       required: [groupId, standard, linePrices]
@@ -1630,7 +1630,7 @@ components:
       properties:
         standard: { type: array, items: { $ref: '#/components/schemas/BundlePriceEntry' }, description: 'Prices of the default group (Standar).' }
         linePrices: { type: array, items: { $ref: '#/components/schemas/BundleLinePriceEntry' }, description: 'Line prices of the default group (Standar).' }
-        revision: { type: integer, format: int64, description: 'Revision the edit started from. Omit for the old body shape (Standar only, no revision check); when present, a stale revision is rejected with 409.' }
+        revision: { type: integer, format: int64, description: 'Revision the edit started from. Required when groups or outletGroups is sent (400 otherwise). Omit for the old body shape (Standar only, no revision check); when present, a stale revision is rejected with 409.' }
         groups: { type: array, items: { $ref: '#/components/schemas/BundleGroupPricesInput' }, description: 'Prices of the non-default groups only. Omit to leave the other groups untouched.' }
         outletGroups: { type: array, items: { $ref: '#/components/schemas/BundleOutletGroupInput' }, description: 'Outlet to group assignments. Omit to leave assignments untouched.' }
     BundleSettingsSaved:
@@ -4700,7 +4700,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/BundleSettingsSaveResponse' }
-        '400': { description: 'invalid bundle prices', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '400': { description: 'invalid bundle prices, a missing revision for the new body shape (groups or outletGroups), an unknown group or outlet, or a duplicate group or outlet', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { description: 'revision conflict (the settings changed since they were loaded)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/price-groups:
@@ -4721,7 +4721,7 @@ paths:
               schema: { $ref: '#/components/schemas/IdResponse' }
         '400': { description: 'invalid price group name', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { description: 'a price group with this name already exists', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 'a price group with this name already exists (Nama kelompok sudah dipakai), or there are already 5 groups (Maksimal 5 kelompok harga)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/price-groups/{id}:
     put:
       operationId: renamePriceGroup
@@ -4758,7 +4758,7 @@ paths:
               schema: { $ref: '#/components/schemas/OkResponse' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: 'the default group cannot be deleted', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 'the default group cannot be deleted (Kelompok default tidak bisa dihapus), or the group is still used by outlets (Kelompok ... masih dipakai ... outlet)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/receipt-templates:
     get:
       operationId: listReceiptTemplates
