@@ -35,7 +35,7 @@ func (h *Handlers) GetBundleCatalog(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateBundleSettings saves the bundle prices, group prices and outlet assignments
-// (manage_products) and answers with the new revision.
+// (admin only) and answers with the new revision.
 func (h *Handlers) UpdateBundleSettings(w http.ResponseWriter, r *http.Request) {
 	var body api.BundleSettingsInput
 	if err := httpx.DecodeLoose(r, &body); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -16,6 +17,11 @@ type Querier interface {
 // the outlet's own group (Effective). An empty, unknown or non-UUID outletID, and an outlet
 // with no group, resolve to the default group. Line ” is the standard price per size.
 func LoadPrices(ctx context.Context, q Querier, outletID string) (Prices, error) {
+	// The sync path passes the envelope's outlet id as sent; canonicalise case, braces and
+	// no-hyphen spellings so a Premium outlet never falls back to the default group.
+	if u, err := uuid.Parse(outletID); err == nil {
+		outletID = u.String()
+	}
 	// o.id::text avoids a uuid cast error on a non-UUID outletID. A group row can only match
 	// when the outlet has a non-default group, so the default group is never read twice.
 	rows, err := q.Query(ctx, `

@@ -337,6 +337,7 @@ func bundleSaleSubtests(t *testing.T, pool *pgxpool.Pool, ctx context.Context, r
 		// a tablet that has not synced the new catalog still sells at the Standar price
 		stalePayload := sale(bundleItems(champ, 250000, 850000), 850000)
 		premiumPayload := sale(bundleItems(champ, 250000, 950000), 950000)
+		premiumOnline := sale(bundleItems(champ, 250000, 950000), 950000)
 		exec(`INSERT INTO bundle_prices(group_id,line,size,price) VALUES($1,'','120ml',950000)`, premiumID)
 		exec(`UPDATE outlets SET price_group_id = $1 WHERE id = $2`, premiumID, outlet)
 
@@ -348,6 +349,18 @@ func bundleSaleSubtests(t *testing.T, pool *pgxpool.Pool, ctx context.Context, r
 			}
 			if n := str(`SELECT count(*)::text FROM orders WHERE order_uuid=$1`, p["orderUuid"].(string)); n != "0" {
 				t.Errorf("a refused sale left %s order rows", n)
+			}
+		})
+
+		t.Run("premium_online_at_premium_price_is_201", func(t *testing.T) {
+			p := premiumOnline
+			code, _, raw := call("POST", "/orders", map[string]string{"Idempotency-Key": "bn-premium-ok-" + p["orderUuid"].(string)}, p)
+			if code != 201 {
+				t.Fatalf("got %d %s", code, raw)
+			}
+			oid := orderID(p)
+			if got := str(`SELECT sum(price)::text FROM order_items WHERE order_id=$1`, oid); got != "950000.00" {
+				t.Errorf("pieces add up to %s, want 950000", got)
 			}
 		})
 

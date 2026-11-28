@@ -94,6 +94,14 @@ func effectivePricesByOutletSubtest(t *testing.T, e bundleEnv) {
 		if got := price(e.outlet, "PARFUM INTENSE", "120ml"); got != 950000 {
 			t.Errorf("Premium outlet PI 120ml = %v, want 950000", got)
 		}
+		// the sync path hands LoadPrices the envelope's outlet id as sent: another spelling of a
+		// Premium outlet's id must still resolve Premium, never fall back to Standar.
+		bare := strings.ReplaceAll(e.outlet, "-", "")
+		for name, id := range map[string]string{"upper": strings.ToUpper(e.outlet), "braces": "{" + e.outlet + "}", "no-hyphens": bare} {
+			if got := price(id, "EXTRAIT DE PARFUM", "120ml"); got != 950000 {
+				t.Errorf("%s spelling of the Premium outlet: EXT 120ml = %v, want 950000", name, got)
+			}
+		}
 		for name, id := range map[string]string{"outlet2": outlet2, "empty": "", "NoOutlet": read.NoOutlet, "unknown": stranger, "non-uuid": "not-a-uuid"} {
 			if got := price(id, "EXTRAIT DE PARFUM", "120ml"); got != 850000 {
 				t.Errorf("%s: EXT 120ml = %v, want Standar 850000", name, got)

@@ -180,9 +180,13 @@ func isPgCode(err error, code, constraint string) bool {
 
 // priceGroupNameTaken reports whether another group already has this name (ignoring case).
 func priceGroupNameTaken(ctx context.Context, t pgx.Tx, name, exceptID string) (bool, error) {
+	var except any // nil = no exception
+	if exceptID != "" {
+		except = exceptID
+	}
 	var taken bool
 	err := t.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM price_groups
-		WHERE lower(name) = lower($1) AND ($2 = '' OR id <> $2::uuid))`, name, exceptID).Scan(&taken)
+		WHERE lower(name) = lower($1) AND ($2::uuid IS NULL OR id <> $2::uuid))`, name, except).Scan(&taken)
 	return taken, err
 }
 
