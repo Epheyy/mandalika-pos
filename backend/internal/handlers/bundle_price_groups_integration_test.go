@@ -131,7 +131,8 @@ func settingsGetGroupsSubtest(t *testing.T, e bundleEnv) {
 			standarID = "5ad7a12d-0000-4000-8000-000000000001"
 			premiumID = "5ad7a12d-0000-4000-8000-000000000002"
 			reportOut = "00000000-0000-4000-8f00-0000000000e2" // 'BN Outlet 2', left by the report subtests
-			outlet2   = "00000000-0000-4000-8f00-0000000000e4"
+			outlet2   = "00000000-0000-4000-8f00-0000000000e4" // inactive, named to sort first by name
+			lowerOut  = "00000000-0000-4000-8f00-0000000000e5" // active, lowercase name
 		)
 		exec := func(q string, args ...any) {
 			t.Helper()
@@ -146,14 +147,15 @@ func settingsGetGroupsSubtest(t *testing.T, e bundleEnv) {
 			}{
 				{`UPDATE outlets SET price_group_id = NULL`, nil},
 				{`DELETE FROM bundle_prices WHERE group_id = $1`, []any{premiumID}},
-				{`DELETE FROM outlets WHERE id = $1`, []any{outlet2}},
+				{`DELETE FROM outlets WHERE id = ANY($1)`, []any{[]string{outlet2, lowerOut}}},
 			} {
 				if _, err := e.pool.Exec(e.ctx, q.sql, q.args...); err != nil {
 					t.Errorf("cleanup %q: %v", q.sql, err)
 				}
 			}
 		})
-		exec(`INSERT INTO outlets(id,name,is_active) VALUES($1,'BN Outlet 4',false)`, outlet2)
+		exec(`INSERT INTO outlets(id,name,is_active) VALUES($1,'AA Outlet',false)`, outlet2)
+		exec(`INSERT INTO outlets(id,name) VALUES($1,'bn lower')`, lowerOut)
 		exec(`INSERT INTO bundle_prices(line,size,price) VALUES('','120ml',795000)
 		      ON CONFLICT (group_id,line,size) DO UPDATE SET price = EXCLUDED.price`)
 		exec(`INSERT INTO bundle_prices(group_id,line,size,price) VALUES($1,'','120ml',950000)`, premiumID)
@@ -193,15 +195,16 @@ func settingsGetGroupsSubtest(t *testing.T, e bundleEnv) {
 		if got.Revision < 1 {
 			t.Errorf("revision = %d, want >= 1", got.Revision)
 		}
-		// The fixture holds three outlets: BN Outlet (moved to Premium), BN Outlet 2 (left by the report
-		// subtests, no group) and the inactive BN Outlet 4 (no group): Premium 1, Standar 2.
+		// The fixture holds four outlets: BN Outlet (moved to Premium), BN Outlet 2 (left by the report
+		// subtests), the lowercase 'bn lower' and the inactive 'AA Outlet' (all no group): Premium 1, Standar 3.
+		// Order: active first, then lower(name): bn lower, BN Outlet, BN Outlet 2, then AA Outlet.
 		if len(got.Groups) != 2 {
 			t.Fatalf("groups = %d, want 2 (%s)", len(got.Groups), raw)
 		}
 		std, prem := got.Groups[0], got.Groups[1]
-		if std.ID != standarID || !std.IsDefault || std.OutletCount != 2 ||
+		if std.ID != standarID || !std.IsDefault || std.OutletCount != 3 ||
 			len(std.Standard) != 1 || std.Standard[0].Size != "120ml" || std.Standard[0].Price != 795000 {
-			t.Errorf("groups[0] = %+v, want Standar default, 2 outlets, [120ml 795000]", std)
+			t.Errorf("groups[0] = %+v, want Standar default, 3 outlets, [120ml 795000]", std)
 		}
 		if prem.ID != premiumID || prem.IsDefault || prem.OutletCount != 1 ||
 			len(prem.Standard) != 1 || prem.Standard[0].Size != "120ml" || prem.Standard[0].Price != 950000 {
@@ -210,18 +213,21 @@ func settingsGetGroupsSubtest(t *testing.T, e bundleEnv) {
 		if prem.LinePrices == nil || len(prem.LinePrices) != 0 {
 			t.Errorf("Premium linePrices = %v, want empty array", prem.LinePrices)
 		}
-		if len(got.Outlets) != 3 {
-			t.Fatalf("outlets = %d, want 3 (%s)", len(got.Outlets), raw)
+		if len(got.Outlets) != 4 {
+			t.Fatalf("outlets = %d, want 4 (%s)", len(got.Outlets), raw)
 		}
-		o1, o1b, o2 := got.Outlets[0], got.Outlets[1], got.Outlets[2]
+		oLow, o1, o1b, o2 := got.Outlets[0], got.Outlets[1], got.Outlets[2], got.Outlets[3]
+		if oLow.OutletID != lowerOut || !oLow.IsActive || oLow.GroupID != standarID {
+			t.Errorf("outlets[0] = %+v, want the active lowercase 'bn lower' first (lower(name) order)", oLow)
+		}
 		if o1b.OutletID != reportOut || !o1b.IsActive || o1b.GroupID != standarID {
-			t.Errorf("outlets[1] = %+v, want the active no-group BN Outlet 2 in Standar", o1b)
+			t.Errorf("outlets[2] = %+v, want the active no-group BN Outlet 2 in Standar", o1b)
 		}
 		if o1.OutletID != e.outlet || !o1.IsActive || o1.GroupID != premiumID || o1.Code != "" {
-			t.Errorf("outlets[0] = %+v, want the active Premium outlet with empty code", o1)
+			t.Errorf("outlets[1] = %+v, want the active Premium outlet with empty code", o1)
 		}
 		if o2.OutletID != outlet2 || o2.IsActive || o2.GroupID != standarID || o2.Code != "" {
-			t.Errorf("outlets[2] = %+v, want inactive outlet in Standar (stored NULL)", o2)
+			t.Errorf("outlets[3] = %+v, want inactive (last despite sorting first by name) outlet in Standar (stored NULL)", o2)
 		}
 		if len(got.Standard) != 1 || got.Standard[0].Size != "120ml" || got.Standard[0].Price != 795000 {
 			t.Errorf("top-level standard = %+v, want only [120ml 795000]", got.Standard)

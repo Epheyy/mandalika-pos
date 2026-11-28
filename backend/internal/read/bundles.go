@@ -148,7 +148,7 @@ func (r *Repo) loadBundleSnapshot(ctx context.Context) (bundleSnapshot, error) {
 	rows, err = tx.Query(ctx, `
 		SELECT o.id, o.name, COALESCE(o.code, ''), o.is_active,
 		       COALESCE(o.price_group_id, (SELECT id FROM price_groups WHERE is_default))
-		FROM outlets o ORDER BY o.is_active DESC, o.name, o.id`)
+		FROM outlets o ORDER BY o.is_active DESC, lower(o.name), o.id`)
 	if err != nil {
 		return bundleSnapshot{}, fmt.Errorf("bundle outlets: %w", err)
 	}
