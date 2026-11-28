@@ -1,0 +1,367 @@
+[
+  {
+    "name": "owner_example",
+    "standar": {
+      "standard": {
+        "120ml": 1200000
+      },
+      "lines": {
+        "EXTRAIT DE PARFUM": {
+          "120ml": 1500000
+        }
+      }
+    },
+    "group": {
+      "standard": {
+        "120ml": 1400000
+      },
+      "lines": {}
+    },
+    "expected": {
+      "standard": {
+        "120ml": 1400000
+      },
+      "lines": {}
+    },
+    "priceFor": [
+      {
+        "line": "EXTRAIT DE PARFUM",
+        "size": "120ml",
+        "price": 1400000,
+        "ok": true
+      },
+      {
+        "line": "PARFUM INTENSE",
+        "size": "120ml",
+        "price": 1400000,
+        "ok": true
+      }
+    ]
+  },
+  {
+    "name": "owner_example_group_without_size",
+    "standar": {
+      "standard": {
+        "120ml": 1200000
+      },
+      "lines": {
+        "EXTRAIT DE PARFUM": {
+          "120ml": 1500000
+        }
+      }
+    },
+    "group": {
+      "standard": {},
+      "lines": {}
+    },
+    "expected": {
+      "standard": {
+        "120ml": 1200000
+      },
+      "lines": {
+        "EXTRAIT DE PARFUM": {
+          "120ml": 1500000
+        }
+      }
+    },
+    "priceFor": [
+      {
+        "line": "EXTRAIT DE PARFUM",
+        "size": "120ml",
+        "price": 1500000,
+        "ok": true
+      },
+      {
+        "line": "PARFUM INTENSE",
+        "size": "120ml",
+        "price": 1200000,
+        "ok": true
+      }
+    ]
+  },
+  {
+    "name": "default_group",
+    "standar": {
+      "standard": {
+        "100ml": 1050000,
+        "110ml": 1150000,
+        "120ml": 1200000
+      },
+      "lines": {
+        "EXTRAIT DE PARFUM": {
+          "120ml": 1500000
+        }
+      }
+    },
+    "group": null,
+    "expected": {
+      "standard": {
+        "100ml": 1050000,
+        "110ml": 1150000,
+        "120ml": 1200000
+      },
+      "lines": {
+        "EXTRAIT DE PARFUM": {
+          "120ml": 1500000
+        }
+      }
+    },
+    "priceFor": [
+      {
+        "line": "EXTRAIT DE PARFUM",
+        "size": "120ml",
+        "price": 1500000,
+        "ok": true
+      }
+    ]
+  },
+  {
+    "name": "partial_sizes",
+    "standar": {
+      "standard": {
+        "100ml": 1050000,
+        "110ml": 1150000,
+        "120ml": 1200000
+      },
+      "lines": {
+        "PARFUM INTENSE": {
+          "120ml": 1300000
+        }
+      }
+    },
+    "group": {
+      "standard": {
+        "110ml": 1250000
+      },
+      "lines": {}
+    },
+    "expected": {
+      "standard": {
+        "100ml": 1050000,
+        "110ml": 1250000,
+        "120ml": 1200000
+      },
+      "lines": {
+        "PARFUM INTENSE": {
+          "120ml": 1300000
+        }
+      }
+    },
+    "priceFor": [
+      {
+        "line": "PARFUM INTENSE",
+        "size": "100ml",
+        "price": 1050000,
+        "ok": true
+      },
+      {
+        "line": "PARFUM INTENSE",
+        "size": "110ml",
+        "price": 1250000,
+        "ok": true
+      },
+      {
+        "line": "PARFUM INTENSE",
+        "size": "120ml",
+        "price": 1300000,
+        "ok": true
+      }
+    ]
+  },
+  {
+    "name": "line_overrides_both_sides",
+    "standar": {
+      "standard": {
+        "110ml": 1150000
+      },
+      "lines": {
+        "EXTRAIT DE PARFUM": {
+          "110ml": 1300000
+        }
+      }
+    },
+    "group": {
+      "standard": {
+        "110ml": 1250000
+      },
+      "lines": {
+        "PARFUM INTENSE": {
+          "110ml": 1350000
+        }
+      }
+    },
+    "expected": {
+      "standard": {
+        "110ml": 1250000
+      },
+      "lines": {
+        "PARFUM INTENSE": {
+          "110ml": 1350000
+        }
+      }
+    },
+    "priceFor": [
+      {
+        "line": "EXTRAIT DE PARFUM",
+        "size": "110ml",
+        "price": 1250000,
+        "ok": true
+      },
+      {
+        "line": "PARFUM INTENSE",
+        "size": "110ml",
+        "price": 1350000,
+        "ok": true
+      }
+    ]
+  },
+  {
+    "name": "mock_screen",
+    "standar": {
+      "standard": {
+        "100ml": 1050000,
+        "110ml": 1150000,
+        "120ml": 1200000
+      },
+      "lines": {
+        "EXTRAIT DE PARFUM": {
+          "120ml": 1500000
+        }
+      }
+    },
+    "group": {
+      "standard": {
+        "110ml": 1250000,
+        "120ml": 1400000
+      },
+      "lines": {
+        "PARFUM INTENSE": {
+          "120ml": 1450000
+        }
+      }
+    },
+    "expected": {
+      "standard": {
+        "100ml": 1050000,
+        "110ml": 1250000,
+        "120ml": 1400000
+      },
+      "lines": {
+        "PARFUM INTENSE": {
+          "120ml": 1450000
+        }
+      }
+    },
+    "priceFor": [
+      {
+        "line": "EXTRAIT DE PARFUM",
+        "size": "100ml",
+        "price": 1050000,
+        "ok": true
+      },
+      {
+        "line": "EXTRAIT DE PARFUM",
+        "size": "110ml",
+        "price": 1250000,
+        "ok": true
+      },
+      {
+        "line": "EXTRAIT DE PARFUM",
+        "size": "120ml",
+        "price": 1400000,
+        "ok": true
+      },
+      {
+        "line": "PARFUM INTENSE",
+        "size": "100ml",
+        "price": 1050000,
+        "ok": true
+      },
+      {
+        "line": "PARFUM INTENSE",
+        "size": "110ml",
+        "price": 1250000,
+        "ok": true
+      },
+      {
+        "line": "PARFUM INTENSE",
+        "size": "120ml",
+        "price": 1450000,
+        "ok": true
+      }
+    ]
+  },
+  {
+    "name": "group_size_not_in_standar_ignored",
+    "standar": {
+      "standard": {
+        "120ml": 1200000
+      },
+      "lines": {}
+    },
+    "group": {
+      "standard": {
+        "120ml": 1400000,
+        "130ml": 1600000
+      },
+      "lines": {}
+    },
+    "expected": {
+      "standard": {
+        "120ml": 1400000
+      },
+      "lines": {}
+    },
+    "priceFor": [
+      {
+        "line": "EXTRAIT DE PARFUM",
+        "size": "130ml",
+        "price": 0,
+        "ok": false
+      }
+    ]
+  },
+  {
+    "name": "group_line_without_group_size_ignored",
+    "standar": {
+      "standard": {
+        "100ml": 1050000,
+        "120ml": 1200000
+      },
+      "lines": {
+        "EXTRAIT DE PARFUM": {
+          "100ml": 1100000
+        }
+      }
+    },
+    "group": {
+      "standard": {
+        "120ml": 1400000
+      },
+      "lines": {
+        "EXTRAIT DE PARFUM": {
+          "100ml": 999000
+        }
+      }
+    },
+    "expected": {
+      "standard": {
+        "100ml": 1050000,
+        "120ml": 1400000
+      },
+      "lines": {
+        "EXTRAIT DE PARFUM": {
+          "100ml": 1100000
+        }
+      }
+    },
+    "priceFor": [
+      {
+        "line": "EXTRAIT DE PARFUM",
+        "size": "100ml",
+        "price": 1100000,
+        "ok": true
+      }
+    ]
+  }
+]

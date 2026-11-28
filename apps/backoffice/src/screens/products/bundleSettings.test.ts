@@ -10,6 +10,9 @@ const lines = [
 ]
 
 const champion: BundleSettings = {
+  revision: 1,
+  groups: [],
+  outlets: [],
   standard: [
     { size: '100ml', price: 650000 },
     { size: '110ml', price: 725000 },
@@ -66,13 +69,13 @@ describe('bundle settings form', () => {
   })
 
   it('settingsToForm of empty settings shows 100ml, 110ml and 120ml standard fields, empty', () => {
-    const f = settingsToForm({ standard: [], linePrices: [], lines: [] })
+    const f = settingsToForm({ revision: 1, standard: [], linePrices: [], lines: [], groups: [], outlets: [] })
     expect(f.standard).toEqual({ '100ml': '', '110ml': '', '120ml': '' })
     expect(formToInput(f)).toEqual({ standard: [], linePrices: [] })
   })
 
   it('settingsToForm keeps a stored 130ml standard price after the three defaults', () => {
-    const f = settingsToForm({ standard: [{ size: '130ml', price: 900000 }], linePrices: [], lines })
+    const f = settingsToForm({ revision: 1, standard: [{ size: '130ml', price: 900000 }], linePrices: [], lines, groups: [], outlets: [] })
     expect(Object.keys(f.standard)).toEqual(['100ml', '110ml', '120ml', '130ml'])
     expect(f.standard['130ml']).toBe('900000')
     expect(Object.keys(f.lines[EXT])).toEqual(['100ml', '110ml', '120ml', '130ml'])

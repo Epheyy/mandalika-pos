@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/jackc/pgx/v5"
+	openapi_types "github.com/oapi-codegen/runtime/types"
+
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/bundles"
 )
@@ -19,12 +22,15 @@ func bundleLines(lines []string) []api.BundleLine {
 }
 
 // BundleSettings is the stored bundle price settings plus the lines the catalog has large
-// bottles for (so the Backoffice knows which line columns to show).
+// bottles for (so the Backoffice knows which line columns to show). Every group's prices, the
+// outlets' groups and the save revision are read in one snapshot, so the revision is never newer
+// than the prices sent with it; the top-level standard/linePrices are the default group's.
 func (r *Repo) BundleSettings(ctx context.Context) (api.BundleSettings, error) {
-	p, err := bundles.LoadPrices(ctx, r.Pool)
+	snap, err := r.loadBundleSnapshot(ctx)
 	if err != nil {
 		return api.BundleSettings{}, err
 	}
+	p := snap.defaultPrices()
 	// The lines to price are those of every large-size candidate, so a fresh install (no standard
 	// price yet) still shows its ERP lines: price the default sizes at 1 for this lookup only.
 	lookup := bundles.Prices{Standard: map[string]float64{}}
@@ -39,13 +45,135 @@ func (r *Repo) BundleSettings(ctx context.Context) (api.BundleSettings, error) {
 		return api.BundleSettings{}, err
 	}
 	out := api.BundleSettings{
-		Standard:   []api.BundlePriceEntry{},
-		LinePrices: []api.BundleLinePriceEntry{},
-		Lines:      bundleLines(withStoredLines(cat.Lines, p)),
+		Revision: snap.revision,
+		Groups:   snap.groups,
+		Outlets:  snap.outlets,
+		Lines:    bundleLines(withStoredLines(cat.Lines, p)),
 	}
+	out.Standard, out.LinePrices = priceEntries(p)
+	return out, nil
+}
+
+// bundleSnapshot is the group-related bundle settings read from one transaction.
+type bundleSnapshot struct {
+	revision int64
+	groups   []api.BundlePriceGroup
+	outlets  []api.BundleOutletGroup
+	prices   map[openapi_types.UUID]bundles.Prices // each group's own rows, not overlaid
+}
+
+func (s bundleSnapshot) defaultPrices() bundles.Prices {
+	for _, g := range s.groups {
+		if g.IsDefault {
+			return s.prices[g.Id]
+		}
+	}
+	return bundles.Prices{Standard: map[string]float64{}, Lines: map[string]map[string]float64{}}
+}
+
+// loadBundleSnapshot reads revision, groups, their price rows and the outlets in one read-only
+// repeatable-read transaction.
+func (r *Repo) loadBundleSnapshot(ctx context.Context) (bundleSnapshot, error) {
+	tx, err := r.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return bundleSnapshot{}, fmt.Errorf("bundle settings snapshot: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // read-only; nothing to undo
+	snap := bundleSnapshot{
+		groups:  []api.BundlePriceGroup{},
+		outlets: []api.BundleOutletGroup{},
+		prices:  map[openapi_types.UUID]bundles.Prices{},
+	}
+	if err := tx.QueryRow(ctx, `SELECT revision FROM bundle_price_revision`).Scan(&snap.revision); err != nil {
+		return bundleSnapshot{}, fmt.Errorf("bundle revision: %w", err)
+	}
+
+	// outletCount counts inactive outlets too; an outlet without a group is in the default one.
+	rows, err := tx.Query(ctx, `
+		SELECT g.id, g.name, g.is_default,
+		       (SELECT count(*) FROM outlets o
+		         WHERE COALESCE(o.price_group_id, (SELECT id FROM price_groups WHERE is_default)) = g.id)::int
+		FROM price_groups g ORDER BY g.sort_order, g.name`)
+	if err != nil {
+		return bundleSnapshot{}, fmt.Errorf("bundle groups: %w", err)
+	}
+	for rows.Next() {
+		var g api.BundlePriceGroup
+		if err := rows.Scan(&g.Id, &g.Name, &g.IsDefault, &g.OutletCount); err != nil {
+			rows.Close()
+			return bundleSnapshot{}, fmt.Errorf("bundle groups scan: %w", err)
+		}
+		snap.prices[g.Id] = bundles.Prices{Standard: map[string]float64{}, Lines: map[string]map[string]float64{}}
+		snap.groups = append(snap.groups, g)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return bundleSnapshot{}, err
+	}
+
+	rows, err = tx.Query(ctx, `SELECT group_id, line, size, price::float8 FROM bundle_prices`)
+	if err != nil {
+		return bundleSnapshot{}, fmt.Errorf("bundle prices: %w", err)
+	}
+	for rows.Next() {
+		var gid openapi_types.UUID
+		var line, size string
+		var price float64
+		if err := rows.Scan(&gid, &line, &size, &price); err != nil {
+			rows.Close()
+			return bundleSnapshot{}, fmt.Errorf("bundle prices scan: %w", err)
+		}
+		p, ok := snap.prices[gid]
+		if !ok {
+			continue
+		}
+		if line == "" {
+			p.Standard[size] = price
+			continue
+		}
+		if p.Lines[line] == nil {
+			p.Lines[line] = map[string]float64{}
+		}
+		p.Lines[line][size] = price
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return bundleSnapshot{}, err
+	}
+	for i := range snap.groups {
+		g := &snap.groups[i]
+		g.Standard, g.LinePrices = priceEntries(snap.prices[g.Id])
+	}
+
+	rows, err = tx.Query(ctx, `
+		SELECT o.id, o.name, COALESCE(o.code, ''), o.is_active,
+		       COALESCE(o.price_group_id, (SELECT id FROM price_groups WHERE is_default))
+		FROM outlets o ORDER BY o.is_active DESC, lower(o.name), o.id`)
+	if err != nil {
+		return bundleSnapshot{}, fmt.Errorf("bundle outlets: %w", err)
+	}
+	for rows.Next() {
+		var o api.BundleOutletGroup
+		if err := rows.Scan(&o.OutletId, &o.Name, &o.Code, &o.IsActive, &o.GroupId); err != nil {
+			rows.Close()
+			return bundleSnapshot{}, fmt.Errorf("bundle outlets scan: %w", err)
+		}
+		snap.outlets = append(snap.outlets, o)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return bundleSnapshot{}, err
+	}
+	return snap, nil
+}
+
+// priceEntries lists a group's standard prices (by size) and line prices (by line, then size).
+func priceEntries(p bundles.Prices) ([]api.BundlePriceEntry, []api.BundleLinePriceEntry) {
+	standard := []api.BundlePriceEntry{}
 	for _, size := range p.LargeSizes() {
-		out.Standard = append(out.Standard, api.BundlePriceEntry{Size: size, Price: p.Standard[size]})
+		standard = append(standard, api.BundlePriceEntry{Size: size, Price: p.Standard[size]})
 	}
+	linePrices := []api.BundleLinePriceEntry{}
 	lineNames := make([]string, 0, len(p.Lines))
 	for l := range p.Lines {
 		lineNames = append(lineNames, l)
@@ -58,10 +186,10 @@ func (r *Repo) BundleSettings(ctx context.Context) (api.BundleSettings, error) {
 		}
 		sort.Slice(sizes, func(i, j int) bool { return sizeKey(sizes[i]) < sizeKey(sizes[j]) })
 		for _, s := range sizes {
-			out.LinePrices = append(out.LinePrices, api.BundleLinePriceEntry{Line: l, Size: s, Price: p.Lines[l][s]})
+			linePrices = append(linePrices, api.BundleLinePriceEntry{Line: l, Size: s, Price: p.Lines[l][s]})
 		}
 	}
-	return out, nil
+	return standard, linePrices
 }
 
 func sizeKey(size string) int {
@@ -78,7 +206,11 @@ func sizeKey(size string) int {
 // BundleCatalog is the derived bundle catalog for the scope: tablets get it inside the sync
 // pull (sc.SellableOnly, one outlet), the Backoffice gets every product.
 func (r *Repo) BundleCatalog(ctx context.Context, sc Scope) (api.BundleCatalog, error) {
-	p, err := bundles.LoadPrices(ctx, r.Pool)
+	outlet := ""
+	if !sc.CrossAll {
+		outlet = sc.OutletID
+	}
+	p, err := bundles.LoadPrices(ctx, r.Pool, outlet)
 	if err != nil {
 		return api.BundleCatalog{}, err
 	}

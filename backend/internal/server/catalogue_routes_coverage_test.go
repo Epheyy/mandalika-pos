@@ -48,7 +48,6 @@ func TestCatalogueRoutesFollowCoverage(t *testing.T) {
 		{http.MethodPost, "/api/v1/categories"},
 		{http.MethodPut, "/api/v1/categories/" + id},
 		{http.MethodDelete, "/api/v1/categories/" + id},
-		{http.MethodPut, "/api/v1/settings/bundles"},
 	}
 	for _, r := range gated {
 		if code, msg := errorOf(r.method, r.path, covered); code != http.StatusForbidden || msg != catalogueMsg {

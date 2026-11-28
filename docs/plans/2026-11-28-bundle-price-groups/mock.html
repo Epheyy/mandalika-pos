@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mock: Produk › Bundle with price groups</title>
+<style>
+  /* Values copied from packages/ui-tokens/tokens.css (2026-11-28) so the mock renders standalone. */
+  :root {
+    --color-paper-0: #fbf9f5; --color-paper-1: #f3efe7; --color-paper-2: #e9e3d8;
+    --color-ink-900: #1a1008; --color-ink-700: #4a3f33; --color-ink-500: #7a6f62;
+    --color-brand: #b07d18; --color-brand-strong: #8f6412;
+    --color-ok: #1f7a4d; --color-ok-bg: #e3f3ea; --color-warn: #b45309; --color-warn-bg: #fdf0df;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--color-paper-0); color: var(--color-ink-900);
+         font: 14px/1.4 'Roboto Variable', Roboto, system-ui, sans-serif; }
+  .page { max-width: 1120px; margin: 0 auto; padding: 24px 24px 96px; }
+  h1 { font-size: 22px; margin: 0 0 12px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tab { padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 13px; color: var(--color-ink-700); }
+  .tab.on { background: var(--color-ink-900); color: #fff; }
+  .stack > * + * { margin-top: 12px; }
+  .card { background: #fff; border: 1px solid var(--color-paper-2); border-radius: 16px; padding: 16px; }
+  .card h2 { margin: 0; font-size: 14px; font-weight: 700; }
+  .sub { margin: 2px 0 0; font-size: 12px; color: var(--color-ink-500); }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .between { justify-content: space-between; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--color-paper-2);
+          border-radius: 12px; padding: 8px 10px; background: var(--color-paper-0); }
+  .chip b { font-size: 13px; }
+  .muted { color: var(--color-ink-500); font-size: 12px; }
+  .badge { font-size: 11px; font-weight: 700; border-radius: 6px; padding: 1px 6px; }
+  .b-def { background: var(--color-paper-1); color: var(--color-ink-700); }
+  .b-off { background: var(--color-warn-bg); color: var(--color-warn); }
+  .b-ok { background: var(--color-ok-bg); color: var(--color-ok); }
+  .link { background: none; border: 0; padding: 0; font: inherit; font-size: 12px; font-weight: 700;
+          color: var(--color-brand-strong); cursor: pointer; }
+  .link[disabled] { color: var(--color-ink-500); opacity: .6; cursor: not-allowed; }
+  .btn { border-radius: 10px; padding: 7px 12px; font: inherit; font-size: 13px; font-weight: 700;
+         border: 1px solid var(--color-paper-2); background: #fff; color: var(--color-ink-900); }
+  .btn.primary { background: var(--color-brand-strong); border-color: var(--color-brand-strong); color: #fff; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { text-align: left; padding: 7px 12px 7px 0; vertical-align: middle; }
+  thead th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--color-ink-500); }
+  tbody tr { border-top: 1px solid var(--color-paper-2); }
+  tr.sec th { padding-top: 14px; font-size: 12px; color: var(--color-ink-700); border-top: 0; }
+  tr.sec { border-top: 0; }
+  .field { width: 100%; max-width: 200px; height: 34px; border: 1px solid var(--color-paper-2); border-radius: 10px;
+           padding: 0 10px; font: inherit; font-size: 13px; color: var(--color-ink-900); background: #fff; }
+  .field::placeholder { color: var(--color-ink-500); opacity: .75; }
+  .field[disabled] { background: var(--color-paper-1); cursor: not-allowed; }
+  .hint { display: block; font-size: 11px; color: var(--color-ink-500); margin-top: 2px; }
+  .colhead { display: flex; flex-direction: column; }
+  .colhead span { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  select.field { max-width: 180px; }
+  .changed td:first-child, .changed th:first-child { box-shadow: inset 3px 0 0 var(--color-brand); padding-left: 8px; }
+  .search { max-width: 260px; }
+  .seg { display: inline-flex; gap: 4px; }
+  .seg button { border: 0; border-radius: 6px; padding: 2px 8px; font: inherit; font-size: 11px; font-weight: 700;
+                background: var(--color-paper-1); color: var(--color-ink-700); }
+  .seg button.on { background: var(--color-ink-900); color: #fff; }
+  .savebar { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid var(--color-paper-2);
+             box-shadow: 0 -6px 20px rgb(26 16 8 / 8%); }
+  .savebar .inner { max-width: 1120px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .note { font-size: 12px; color: var(--color-ink-500); }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Produk</h1>
+  <div class="tabs"><span class="tab">Daftar produk</span><span class="tab">Kategori</span><span class="tab on">Bundle</span></div>
+
+  <div class="stack">
+    <!-- 1. Kelompok harga -->
+    <section class="card" aria-labelledby="kh">
+      <div class="row between">
+        <div>
+          <h2 id="kh">Kelompok harga</h2>
+          <p class="sub">Setiap outlet ikut satu kelompok. Outlet baru otomatis masuk kelompok default. Hanya harga bundle yang berbeda; harga satuan tetap per outlet.</p>
+        </div>
+        <button class="btn" type="button">+ Tambah kelompok</button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <div class="chip"><b>Standar</b><span class="badge b-def">Default</span><span class="muted">15 outlet</span><button class="link" type="button">Ubah nama</button></div>
+        <div class="chip"><b>Premium</b><span class="muted">12 outlet</span><button class="link" type="button">Ubah nama</button><button class="link" type="button" disabled title="Pindahkan 12 outlet dulu">Hapus</button></div>
+      </div>
+    </section>
+
+    <!-- 2. Harga bundle -->
+    <section class="card" aria-labelledby="hb">
+      <h2 id="hb">Harga bundle</h2>
+      <p class="sub">Isi bundle: 1 botol besar + atomizer 10ml + vial 2ml dari lini yang sama. Kolom kosong memakai harga yang tertulis samar. Kelompok tanpa harga untuk suatu ukuran memakai semua harga Standar ukuran itu.</p>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col" style="width:30%">Bundle</th>
+            <th scope="col"><div class="colhead">Standar<span>15 outlet</span></div></th>
+            <th scope="col"><div class="colhead">Premium<span>12 outlet</span></div></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="sec"><th colspan="3">Harga standar (semua lini)</th></tr>
+          <tr><th scope="row">100ml</th>
+            <td><input class="field" value="Rp 1.050.000" aria-label="Standar 100ml"></td>
+            <td><input class="field" placeholder="= Rp 1.050.000 (Standar)" aria-label="Premium 100ml"></td></tr>
+          <tr><th scope="row">110ml</th>
+            <td><input class="field" value="Rp 1.150.000" aria-label="Standar 110ml"></td>
+            <td><input class="field" value="Rp 1.250.000" aria-label="Premium 110ml"></td></tr>
+          <tr class="changed"><th scope="row">120ml</th>
+            <td><input class="field" value="Rp 1.200.000" aria-label="Standar 120ml"></td>
+            <td><input class="field" value="Rp 1.400.000" aria-label="Premium 120ml"></td></tr>
+
+          <tr class="sec"><th colspan="3">Extrait <span class="muted">(lini ERP)</span></th></tr>
+          <tr><th scope="row">Extrait 100ml</th>
+            <td><input class="field" placeholder="= Rp 1.050.000" aria-label="Standar Extrait 100ml"></td>
+            <td><input class="field" disabled placeholder="= Rp 1.050.000 (Standar)" aria-label="Premium Extrait 100ml"><span class="hint">Isi harga Premium 100ml dulu</span></td></tr>
+          <tr><th scope="row">Extrait 110ml</th>
+            <td><input class="field" placeholder="= Rp 1.150.000" aria-label="Standar Extrait 110ml"></td>
+            <td><input class="field" placeholder="= Rp 1.250.000" aria-label="Premium Extrait 110ml"></td></tr>
+          <tr><th scope="row">Extrait 120ml</th>
+            <td><input class="field" value="Rp 1.500.000" aria-label="Standar Extrait 120ml"></td>
+            <td><input class="field" placeholder="= Rp 1.400.000" aria-label="Premium Extrait 120ml"></td></tr>
+
+          <tr class="sec"><th colspan="3">Parfum Intense <span class="muted">(lini ERP)</span></th></tr>
+          <tr><th scope="row">Parfum Intense 100ml</th>
+            <td><input class="field" placeholder="= Rp 1.050.000" aria-label="Standar PI 100ml"></td>
+            <td><input class="field" disabled placeholder="= Rp 1.050.000 (Standar)" aria-label="Premium PI 100ml"><span class="hint">Isi harga Premium 100ml dulu</span></td></tr>
+          <tr><th scope="row">Parfum Intense 110ml</th>
+            <td><input class="field" placeholder="= Rp 1.150.000" aria-label="Standar PI 110ml"></td>
+            <td><input class="field" placeholder="= Rp 1.250.000" aria-label="Premium PI 110ml"></td></tr>
+          <tr><th scope="row">Parfum Intense 120ml</th>
+            <td><input class="field" placeholder="= Rp 1.200.000" aria-label="Standar PI 120ml"></td>
+            <td><input class="field" value="Rp 1.450.000" aria-label="Premium PI 120ml"></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 3. Outlet per kelompok -->
+    <section class="card" aria-labelledby="ok">
+      <div class="row between">
+        <div>
+          <h2 id="ok">Outlet per kelompok</h2>
+          <p class="sub">Tablet outlet yang dipindah memakai harga barunya setelah sinkron berikutnya.</p>
+        </div>
+        <div class="row">
+          <input class="field search" placeholder="Cari outlet atau kode" aria-label="Cari outlet">
+          <span class="seg" aria-label="Filter kelompok"><button class="on" type="button">Semua 27</button><button type="button">Standar 15</button><button type="button">Premium 12</button></span>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th scope="col">Outlet</th><th scope="col">Kode</th><th scope="col">Kelompok harga</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">MANDALIKA AEON BSD</th><td class="muted">BSD</td><td><select class="field" aria-label="Kelompok MANDALIKA AEON BSD"><option>Standar</option><option selected>Premium</option></select></td></tr>
+          <tr><th scope="row">MANDALIKA AEON DELTAMAS</th><td class="muted">DELTAMAS</td><td><select class="field"><option selected>Standar</option><option>Premium</option></select></td></tr>
+          <tr class="changed"><th scope="row">MANDALIKA BOTANI SQUARE</th><td class="muted">BOTANI</td><td><select class="field"><option>Standar</option><option selected>Premium</option></select></td></tr>
+          <tr><th scope="row">MANDALIKA CENTRAL PARK</th><td class="muted">CCM</td><td><select class="field"><option>Standar</option><option selected>Premium</option></select></td></tr>
+          <tr><th scope="row">MANDALIKA LW BALI</th><td class="muted">LWB</td><td><select class="field"><option selected>Standar</option><option>Premium</option></select></td></tr>
+          <tr><th scope="row">MANDALIKA MAKASSAR <span class="badge b-off">Nonaktif</span></th><td class="muted">MKS</td><td><select class="field"><option selected>Standar</option><option>Premium</option></select></td></tr>
+          <tr><th scope="row">MANDALIKA TSM CIBUBUR</th><td class="muted">TSM</td><td><select class="field"><option>Standar</option><option selected>Premium</option></select></td></tr>
+          <tr><td colspan="3" class="muted">… 20 outlet lainnya</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 4. Aroma list (unchanged apart from the subtitle) -->
+    <section class="card" aria-labelledby="ar">
+      <h2 id="ar">Aroma yang punya bundle</h2>
+      <p class="sub">Otomatis dari katalog: satu bundle per lini dan ukuran besar, bila atomizer 10ml dan 2ml lini itu ada. Harga yang tertulis = harga Standar.</p>
+      <table>
+        <thead><tr><th scope="col">Aroma</th><th scope="col">Bundle</th><th scope="col">Catatan</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">24HOURS</th><td><span class="badge b-ok">EXT 120ml · Rp 1.500.000</span></td><td class="muted">—</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+</div>
+
+<div class="savebar"><div class="inner">
+  <span class="note"><b>2 perubahan:</b> Harga bundle, Kelompok outlet. Tablet memakainya setelah sinkron berikutnya.</span>
+  <span class="row"><button class="btn" type="button">Batalkan</button><button class="btn primary" type="button">Simpan</button></span>
+</div></div>
+</body>
+</html>

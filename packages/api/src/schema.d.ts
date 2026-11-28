@@ -282,10 +282,45 @@ export interface paths {
         };
         /** Bundle price settings */
         get: operations["getBundleSettings"];
-        /** Replace the bundle price settings (manage_products) */
+        /** Replace the bundle price settings (admin only) */
         put: operations["updateBundleSettings"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/price-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a price group (admin only) */
+        post: operations["createPriceGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/price-groups/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Rename a price group (admin only) */
+        put: operations["renamePriceGroup"];
+        post?: never;
+        /** Delete a price group (admin only) */
+        delete: operations["deletePriceGroup"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4708,14 +4743,80 @@ export interface components {
             label: string;
             short: string;
         };
-        BundleSettings: {
+        BundlePriceGroup: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            isDefault: boolean;
+            outletCount: number;
             standard: components["schemas"]["BundlePriceEntry"][];
+            linePrices: components["schemas"]["BundleLinePriceEntry"][];
+        };
+        BundleOutletGroup: {
+            /** Format: uuid */
+            outletId: string;
+            name: string;
+            /** @description Empty when the outlet has no code. */
+            code: string;
+            isActive: boolean;
+            /**
+             * Format: uuid
+             * @description The default group id when the outlet has no group set.
+             */
+            groupId: string;
+        };
+        BundleSettings: {
+            /**
+             * Format: int64
+             * @description Settings revision; send it back on save to detect concurrent edits.
+             */
+            revision: number;
+            /** @description Prices of the default group (Standar). */
+            standard: components["schemas"]["BundlePriceEntry"][];
+            /** @description Line prices of the default group (Standar). */
             linePrices: components["schemas"]["BundleLinePriceEntry"][];
             lines: components["schemas"]["BundleLine"][];
+            /** @description All price groups in sort order, default first. */
+            groups: components["schemas"]["BundlePriceGroup"][];
+            /** @description Outlets with their group, ordered active first, then lower(name), then id. */
+            outlets: components["schemas"]["BundleOutletGroup"][];
         };
-        BundleSettingsInput: {
+        BundleGroupPricesInput: {
+            /** Format: uuid */
+            groupId: string;
             standard: components["schemas"]["BundlePriceEntry"][];
             linePrices: components["schemas"]["BundleLinePriceEntry"][];
+        };
+        BundleOutletGroupInput: {
+            /** Format: uuid */
+            outletId: string;
+            /** Format: uuid */
+            groupId: string;
+        };
+        BundleSettingsInput: {
+            /** @description Prices of the default group (Standar). */
+            standard: components["schemas"]["BundlePriceEntry"][];
+            /** @description Line prices of the default group (Standar). */
+            linePrices: components["schemas"]["BundleLinePriceEntry"][];
+            /**
+             * Format: int64
+             * @description Revision the edit started from. Required when groups or outletGroups is sent (400 otherwise). Omit for the old body shape (Standar only, no revision check); when present, a stale revision is rejected with 409.
+             */
+            revision?: number;
+            /** @description Prices of the non-default groups only. Omit to leave the other groups untouched. */
+            groups?: components["schemas"]["BundleGroupPricesInput"][];
+            /** @description Outlet to group assignments. Omit to leave assignments untouched. */
+            outletGroups?: components["schemas"]["BundleOutletGroupInput"][];
+        };
+        BundleSettingsSaved: {
+            /** Format: int64 */
+            revision: number;
+        };
+        BundleSettingsSaveResponse: {
+            data: components["schemas"]["BundleSettingsSaved"];
+        };
+        PriceGroupInput: {
+            name: string;
         };
         BundleSettingsResponse: {
             data: components["schemas"]["BundleSettings"];
@@ -8093,11 +8194,143 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/json": components["schemas"]["BundleSettingsSaveResponse"];
+                };
+            };
+            /** @description invalid bundle prices, a missing revision for the new body shape (groups or outletGroups), an unknown group or outlet, or a duplicate group or outlet */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description revision conflict (the settings changed since they were loaded) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createPriceGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceGroupInput"];
+            };
+        };
+        responses: {
+            /** @description created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdResponse"];
+                };
+            };
+            /** @description invalid price group name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description a price group with this name already exists (Nama kelompok sudah dipakai), or there are already 5 groups (Maksimal 5 kelompok harga) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    renamePriceGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceGroupInput"];
+            };
+        };
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
                     "application/json": components["schemas"]["OkResponse"];
                 };
             };
-            /** @description invalid bundle prices */
+            /** @description invalid price group name */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description a price group with this name already exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    deletePriceGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ok */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description the default group cannot be deleted (Kelompok default tidak bisa dihapus), or the group is still used by outlets (Kelompok ... masih dipakai ... outlet) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

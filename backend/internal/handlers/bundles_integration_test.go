@@ -71,8 +71,11 @@ func TestBundlesPostgres(t *testing.T) {
 	router.Get("/settings/bundles", h.GetBundleSettings)
 	router.Get("/bundles/catalog", h.GetBundleCatalog)
 	router.Group(func(r chi.Router) {
-		r.Use(mw.RequirePermission("manage_products"))
+		r.Use(RequireBundleAdmin())
 		r.Put("/settings/bundles", h.UpdateBundleSettings)
+		r.Post("/price-groups", h.CreatePriceGroup)
+		r.Put("/price-groups/{id}", h.RenamePriceGroup)
+		r.Delete("/price-groups/{id}", h.DeletePriceGroup)
 	})
 	do := func(tok, method, path string, body any) (int, map[string]any) {
 		t.Helper()
@@ -103,6 +106,8 @@ func TestBundlesPostgres(t *testing.T) {
 		}
 		return v
 	}
+
+	bundlePriceGroupMigrationSubtest(t, pool, ctx)
 
 	t.Run("lines_before_any_price", func(t *testing.T) {
 		// A fresh install has no bundle price yet: its ERP lines must still be listed so they can be priced.
@@ -281,4 +286,6 @@ func TestBundlesPostgres(t *testing.T) {
 	})
 
 	bundleSaleSubtests(t, pool, ctx, rd, wr, outlet, champ, key)
+	bundlePriceGroupSubtests(t, bundleEnv{pool: pool, ctx: ctx, rd: rd, wr: wr, outlet: outlet, champ: champ,
+		do: do, tokFor: tokFor, tokForRole: tokForRole})
 }

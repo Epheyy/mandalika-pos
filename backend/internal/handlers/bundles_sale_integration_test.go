@@ -316,6 +316,93 @@ func bundleSaleSubtests(t *testing.T, pool *pgxpool.Pool, ctx context.Context, r
 		}
 	})
 
+	// The sale path prices a bundle at the selling outlet's group. Premium 120ml = 950000; EXT 120
+	// has no Premium line price, so it follows Premium's 120ml. Leaves the DB as the migration
+	// made it: outlet back on the default group, no Premium rows.
+	t.Run("premium_outlet_sales", func(t *testing.T) {
+		const premiumID = "5ad7a12d-0000-4000-8000-000000000002"
+		t.Cleanup(func() {
+			for _, q := range []struct {
+				sql  string
+				args []any
+			}{
+				{`UPDATE outlets SET price_group_id = NULL`, nil},
+				{`DELETE FROM bundle_prices WHERE group_id = $1`, []any{premiumID}},
+			} {
+				if _, err := pool.Exec(ctx, q.sql, q.args...); err != nil {
+					t.Errorf("cleanup %q: %v", q.sql, err)
+				}
+			}
+		})
+		// a tablet that has not synced the new catalog still sells at the Standar price
+		stalePayload := sale(bundleItems(champ, 250000, 850000), 850000)
+		premiumPayload := sale(bundleItems(champ, 250000, 950000), 950000)
+		premiumOnline := sale(bundleItems(champ, 250000, 950000), 950000)
+		exec(`INSERT INTO bundle_prices(group_id,line,size,price) VALUES($1,'','120ml',950000)`, premiumID)
+		exec(`UPDATE outlets SET price_group_id = $1 WHERE id = $2`, premiumID, outlet)
+
+		t.Run("premium_online_at_standar_price_is_422", func(t *testing.T) {
+			p := sale(bundleItems(champ, 250000, 850000), 850000)
+			code, _, raw := call("POST", "/orders", map[string]string{"Idempotency-Key": "bn-premium-" + p["orderUuid"].(string)}, p)
+			if code != 422 || !strings.Contains(raw, "Harga bundle sudah berubah. Tunggu katalog tersinkron lalu ulangi.") {
+				t.Fatalf("got %d %s", code, raw)
+			}
+			if n := str(`SELECT count(*)::text FROM orders WHERE order_uuid=$1`, p["orderUuid"].(string)); n != "0" {
+				t.Errorf("a refused sale left %s order rows", n)
+			}
+		})
+
+		t.Run("premium_online_at_premium_price_is_201", func(t *testing.T) {
+			p := premiumOnline
+			code, _, raw := call("POST", "/orders", map[string]string{"Idempotency-Key": "bn-premium-ok-" + p["orderUuid"].(string)}, p)
+			if code != 201 {
+				t.Fatalf("got %d %s", code, raw)
+			}
+			oid := orderID(p)
+			if got := str(`SELECT sum(price)::text FROM order_items WHERE order_id=$1`, oid); got != "950000.00" {
+				t.Errorf("pieces add up to %s, want 950000", got)
+			}
+		})
+
+		t.Run("premium_synced_at_standar_price_kept_and_flagged", func(t *testing.T) {
+			syncSale(stalePayload)
+			oid := orderID(stalePayload)
+			if got := str(`SELECT discount_warning::text FROM orders WHERE id=$1`, oid); got != "true" {
+				t.Errorf("discount_warning = %s", got)
+			}
+			if got := str(`SELECT discount_warning_reason FROM orders WHERE id=$1`, oid); !strings.Contains(got, "bundle_price_changed") {
+				t.Errorf("reason = %s", got)
+			}
+			if got := str(`SELECT sum(price)::text FROM order_items WHERE order_id=$1`, oid); got != "850000.00" {
+				t.Errorf("pieces add up to %s, want the tablet price 850000", got)
+			}
+		})
+
+		t.Run("premium_synced_at_premium_price_splits", func(t *testing.T) {
+			want := [3]int64{754968, 157284, 37748}
+			if got, _ := bundles.Split(950000, [3]int64{1200000, 250000, 60000}); got != want {
+				t.Fatalf("split twin drifted: %v", got)
+			}
+			syncSale(premiumPayload)
+			oid := orderID(premiumPayload)
+			if got := str(`SELECT COALESCE(discount_warning_reason,'') FROM orders WHERE id=$1`, oid); strings.Contains(got, "bundle_price_changed") {
+				t.Errorf("reason = %s, want no bundle_price_changed", got)
+			}
+			rows := itemRows(oid)
+			if len(rows) != 3 {
+				t.Fatalf("rows = %+v", rows)
+			}
+			for i, r := range rows {
+				if r.group2 != "set:1" || r.price != fmt.Sprintf("%d.00", want[i]) {
+					t.Errorf("row %d = %+v", i, r)
+				}
+			}
+			if got := str(`SELECT sum(price)::text FROM order_items WHERE order_id=$1`, oid); got != "950000.00" {
+				t.Errorf("pieces add up to %s, want 950000", got)
+			}
+		})
+	})
+
 	bundleDiscountSubtests(t, pool, ctx, wr, str, exec, bundleItems, sale, syncSale, orderID, champ, extFull)
 	bundleReportSubtests(t, pool, ctx, rd, h, secret, outlet, champ, swapP, call, bundleItems, sale, syncSale, orderID, exec)
 }

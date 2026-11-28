@@ -54,7 +54,7 @@ func writeDecodeErr(w http.ResponseWriter, err error) {
 }
 
 func (h *Handlers) created(w http.ResponseWriter, r *http.Request, id string, err error) {
-	if write.IsSkuTaken(err) {
+	if write.IsSkuTaken(err) || write.IsBundleConflict(err) {
 		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
 		return
 	}
@@ -66,43 +66,52 @@ func (h *Handlers) created(w http.ResponseWriter, r *http.Request, id string, er
 	writeJSON(w, http.StatusCreated, map[string]any{"data": map[string]string{"id": id}})
 }
 
+// mutated answers a write: the mapped failure, or cache invalidation and {ok:true}.
 func (h *Handlers) mutated(w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, write.ErrNotFound) {
-		httpx.Err(w, http.StatusNotFound, "not found")
-		return
-	}
-	if errors.Is(err, write.ErrBusy) {
-		// Lock conflict/deadlock: nothing was applied, safe to retry. Clean message only.
-		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
-		return
-	}
-	if isKeyConflict(err) {
-		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err)) // key already used for another operation
-		return
-	}
-	if write.IsSkuTaken(err) {
-		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
-		return
-	}
-	if write.IsErpOwned(err) {
-		// An ERP-owned field of an ERP-linked row (plan 4.5): the ERP owns it.
-		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
-		return
-	}
-	if write.IsProductHasHistory(err) || write.IsWarehouseHasHistory(err) {
-		// A zeroed product or warehouse that stock documents name: 409 naming that and deactivate.
-		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
-		return
-	}
-	if write.IsStockGuardRefusal(err) {
-		// A D13 refusal (stocked variant, or a rename onto leftover rows): 409 with its message.
-		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
-		return
-	}
-	if err != nil {
-		writeErr(w, r, http.StatusBadRequest, err)
+	if h.mutationFailed(w, r, err) {
 		return
 	}
 	h.invalidate(r)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// mutationFailed writes the error response for a failed write and reports whether err was set.
+func (h *Handlers) mutationFailed(w http.ResponseWriter, r *http.Request, err error) bool {
+	if errors.Is(err, write.ErrNotFound) {
+		httpx.Err(w, http.StatusNotFound, "not found")
+		return true
+	}
+	if errors.Is(err, write.ErrBusy) {
+		// Lock conflict/deadlock: nothing was applied, safe to retry. Clean message only.
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
+		return true
+	}
+	if isKeyConflict(err) {
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err)) // key already used for another operation
+		return true
+	}
+	if write.IsSkuTaken(err) || write.IsBundleConflict(err) {
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
+		return true
+	}
+	if write.IsErpOwned(err) {
+		// An ERP-owned field of an ERP-linked row (plan 4.5): the ERP owns it.
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
+		return true
+	}
+	if write.IsProductHasHistory(err) || write.IsWarehouseHasHistory(err) {
+		// A zeroed product or warehouse that stock documents name: 409 naming that and deactivate.
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
+		return true
+	}
+	if write.IsStockGuardRefusal(err) {
+		// A D13 refusal (stocked variant, or a rename onto leftover rows): 409 with its message.
+		httpx.Err(w, http.StatusConflict, safeDomainText(r, http.StatusConflict, err))
+		return true
+	}
+	if err != nil {
+		writeErr(w, r, http.StatusBadRequest, err)
+		return true
+	}
+	return false
 }

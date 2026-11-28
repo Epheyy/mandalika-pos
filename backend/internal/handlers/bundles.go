@@ -3,6 +3,8 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/mandalika/pos-backend/internal/api"
 	"github.com/mandalika/pos-backend/internal/httpx"
 	"github.com/mandalika/pos-backend/internal/read"
@@ -32,19 +34,71 @@ func (h *Handlers) GetBundleCatalog(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// UpdateBundleSettings replaces the bundle prices (manage_products).
+// UpdateBundleSettings saves the bundle prices, group prices and outlet assignments
+// (admin only) and answers with the new revision.
 func (h *Handlers) UpdateBundleSettings(w http.ResponseWriter, r *http.Request) {
 	var body api.BundleSettingsInput
 	if err := httpx.DecodeLoose(r, &body); err != nil {
 		writeDecodeErr(w, err)
 		return
 	}
-	in := write.BundleSettingsInput{}
+	in := write.BundleSettingsInput{
+		Revision: body.Revision,
+		NewShape: body.Groups != nil || body.OutletGroups != nil,
+	}
 	for _, s := range body.Standard {
 		in.Standard = append(in.Standard, write.BundlePriceIn{Size: s.Size, Price: s.Price})
 	}
 	for _, lp := range body.LinePrices {
 		in.LinePrices = append(in.LinePrices, write.BundleLinePriceIn{Line: lp.Line, Size: lp.Size, Price: lp.Price})
 	}
-	h.mutated(w, r, h.Write.UpdateBundleSettings(r.Context(), callerUserID(r), in))
+	if body.Groups != nil {
+		for _, g := range *body.Groups {
+			gp := write.BundleGroupPricesIn{GroupID: g.GroupId.String()}
+			for _, s := range g.Standard {
+				gp.Standard = append(gp.Standard, write.BundlePriceIn{Size: s.Size, Price: s.Price})
+			}
+			for _, lp := range g.LinePrices {
+				gp.LinePrices = append(gp.LinePrices, write.BundleLinePriceIn{Line: lp.Line, Size: lp.Size, Price: lp.Price})
+			}
+			in.Groups = append(in.Groups, gp)
+		}
+	}
+	if body.OutletGroups != nil {
+		for _, og := range *body.OutletGroups {
+			in.OutletGroups = append(in.OutletGroups, write.BundleOutletGroupIn{OutletID: og.OutletId.String(), GroupID: og.GroupId.String()})
+		}
+	}
+	rev, err := h.Write.UpdateBundleSettings(r.Context(), callerUserID(r), in)
+	if h.mutationFailed(w, r, err) {
+		return
+	}
+	h.invalidate(r)
+	writeJSON(w, http.StatusOK, api.BundleSettingsSaveResponse{Data: api.BundleSettingsSaved{Revision: rev}})
+}
+
+// CreatePriceGroup adds a price group (admin only).
+func (h *Handlers) CreatePriceGroup(w http.ResponseWriter, r *http.Request) {
+	var body api.PriceGroupInput
+	if err := httpx.DecodeLoose(r, &body); err != nil {
+		writeDecodeErr(w, err)
+		return
+	}
+	id, err := h.Write.CreatePriceGroup(r.Context(), body.Name)
+	h.created(w, r, id, err)
+}
+
+// RenamePriceGroup renames a price group (admin only).
+func (h *Handlers) RenamePriceGroup(w http.ResponseWriter, r *http.Request) {
+	var body api.PriceGroupInput
+	if err := httpx.DecodeLoose(r, &body); err != nil {
+		writeDecodeErr(w, err)
+		return
+	}
+	h.mutated(w, r, h.Write.RenamePriceGroup(r.Context(), chi.URLParam(r, "id"), body.Name))
+}
+
+// DeletePriceGroup deletes a price group that has no outlets (admin only).
+func (h *Handlers) DeletePriceGroup(w http.ResponseWriter, r *http.Request) {
+	h.mutated(w, r, h.Write.DeletePriceGroup(r.Context(), chi.URLParam(r, "id")))
 }

@@ -270,7 +270,14 @@ func New(cfg *config.Config, database *db.DB, c *cache.Cache, sentry *observabil
 				r.Post("/categories", h.CreateCategory)
 				r.Put("/categories/{id}", h.UpdateCategory)
 				r.Delete("/categories/{id}", h.DeleteCategory)
+			})
+			r.Group(func(r chi.Router) {
+				// Bundle prices, outlet price-group assignments and price groups: admin only (owner, 2026-11-28).
+				r.Use(handlers.RequireBundleAdmin())
 				r.Put("/settings/bundles", h.UpdateBundleSettings)
+				r.Post("/price-groups", h.CreatePriceGroup)
+				r.Put("/price-groups/{id}", h.RenamePriceGroup)
+				r.Delete("/price-groups/{id}", h.DeletePriceGroup)
 			})
 			r.Group(func(r chi.Router) {
 				// Per-outlet price/availability: a covered-only manager works within their own outlets
