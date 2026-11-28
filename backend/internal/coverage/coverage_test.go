@@ -61,8 +61,10 @@ func TestCallerMeets(t *testing.T) {
 		{"all-outlets manager meets anyone", Caller{Cov: Coverage{All: true}}, Coverage{}, true},
 		{"shared outlet", bsd, Coverage{OutletIDs: []string{"lwb", "BSD"}}, true},
 		{"disjoint outlets", bsd, Coverage{OutletIDs: []string{"lwb"}}, false},
-		{"all-outlets user meets a caller with an outlet", bsd, Coverage{All: true}, true},
-		{"all-outlets user does not meet an unassigned caller", Caller{Cov: Coverage{OutletIDs: []string{}}}, Coverage{All: true}, false},
+		{"all-outlets user is out of reach of a limited caller", bsd, Coverage{All: true}, false},
+		{"all-outlets user is out of reach of an unassigned caller", Caller{Cov: Coverage{OutletIDs: []string{}}}, Coverage{All: true}, false},
+		{"admin meets an all-outlets user", Caller{Admin: true}, Coverage{All: true}, true},
+		{"all-outlets manager meets an all-outlets user", Caller{Cov: Coverage{All: true}}, Coverage{All: true}, true},
 		{"user with no outlets", bsd, Coverage{OutletIDs: []string{}}, false},
 	}
 	for _, tc := range cases {

@@ -363,6 +363,18 @@ func TestSalesStaffPostgres(t *testing.T) {
 		if !linkable(admin)[rLWBLink] {
 			t.Fatal("LinkableUsers(admin) must contain the unlinked LWB cashier")
 		}
+		// A limited caller never links an account that covers every outlet.
+		for _, all := range []string{rAdmin, rAll} {
+			if mgr[all] {
+				t.Fatalf("LinkableUsers(bsdMgr) must hide the all-outlets account %s", all)
+			}
+			if !linkable(admin)[all] {
+				t.Fatalf("LinkableUsers(admin) must contain the all-outlets account %s", all)
+			}
+			if _, err := create(bsdMgr, write.SalesStaffInput{Name: "Link All " + all[len(all)-3:], Active: true, OutletIDs: []string{pBSD}, UserID: ptr(all)}); !errors.Is(err, write.ErrSalesStaffForbidden) {
+				t.Fatalf("limited manager linking all-outlets account %s must be Forbidden: %v", all, err)
+			}
+		}
 	})
 
 	t.Run("version_bump", func(t *testing.T) {
@@ -475,6 +487,41 @@ func TestSalesStaffPostgres(t *testing.T) {
 		}
 		if code, body := do(adminTok, "GET", "/sales-staff?active=true&q=zzz-no-such-person", "", nil); code != http.StatusOK || !strings.Contains(string(body), `"data":[]`) {
 			t.Fatalf("empty filtered list = %d %s", code, body)
+		}
+	})
+
+	t.Run("http_release_empty_outlets", func(t *testing.T) {
+		id := mk("ss-http-release", "Release Rani", []string{pBSD, pLWB})
+		code, body := do(mgrTok, "PUT", "/sales-staff/"+id, "", map[string]any{"name": "Release Rani", "active": false, "outletIds": []string{}, "userId": nil})
+		if code != http.StatusOK {
+			t.Fatalf("manager release with outletIds [] = %d %s, want 200", code, body)
+		}
+		if got := person(body); len(got.OutletIds) != 0 || got.HiddenOutletCount != 1 || got.CanEditDetails {
+			t.Fatalf("released view = %+v, want no visible outlets, 1 hidden", got)
+		}
+		code, body = do(adminTok, "GET", "/sales-staff?outletId="+pLWB+"&q=Release+Rani", "", nil)
+		if code != http.StatusOK {
+			t.Fatalf("admin GET = %d %s", code, body)
+		}
+		var list struct {
+			Data []api.SalesStaff `json:"data"`
+		}
+		if err := json.Unmarshal(body, &list); err != nil || len(list.Data) != 1 {
+			t.Fatalf("admin list = %v %s", err, body)
+		}
+		if got := list.Data[0]; len(got.OutletIds) != 1 || got.OutletIds[0].String() != pLWB {
+			t.Fatalf("admin sees outlets %v, want only LWB", got.OutletIds)
+		}
+		if got := outletsOf(id); !reflect.DeepEqual(got, []string{pLWB}) {
+			t.Fatalf("stored outlets = %v, want LWB only", got)
+		}
+		// An editor who covers every outlet of the person still must keep one.
+		solo := mk("ss-http-solo", "Release Solo", []string{pBSD})
+		if code, body := do(mgrTok, "PUT", "/sales-staff/"+solo, "", map[string]any{"name": "Release Solo", "active": true, "outletIds": []string{}}); code != http.StatusBadRequest {
+			t.Fatalf("full-cover manager with outletIds [] = %d %s, want 400", code, body)
+		}
+		if code, body := do(adminTok, "PUT", "/sales-staff/"+solo, "", map[string]any{"name": "Release Solo", "active": true, "outletIds": []string{}}); code != http.StatusBadRequest {
+			t.Fatalf("admin with outletIds [] = %d %s, want 400", code, body)
 		}
 	})
 

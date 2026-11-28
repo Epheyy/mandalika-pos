@@ -52,6 +52,7 @@ export const UserPermission = {
   VIEW_REPORTS: 'view_reports',
   MANAGE_SETTINGS: 'manage_settings',
   MANAGE_STOCK_COUNT: 'manage_stock_count',
+  MANAGE_SALES_STAFF: 'manage_sales_staff',
   RESOLVE_SYNC_REVIEW: 'resolve_sync_review',
   REQUEST_STOCK: 'request_stock',
   VOID_OWN_SHIFT: 'void_own_shift',

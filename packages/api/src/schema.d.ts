@@ -6275,6 +6275,7 @@ export interface components {
             /** @description 1-60 characters, checked after trimming. */
             name: string;
             active: boolean;
+            /** @description The caller's outlets for this person. At least one outlet must remain after the outlets the caller does not cover are kept; a manager releasing a shared person may send []. */
             outletIds: string[];
             /**
              * Format: uuid

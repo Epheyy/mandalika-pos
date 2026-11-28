@@ -496,7 +496,7 @@ export interface Api {
   updateWaReceiptTemplate: (template: string) => Promise<WaReceiptTemplate>
   /** Performa Sales report (view_reports). */
   getSalesPerformance: (o: { dateFrom: string; dateTo: string; outletId?: string }) => Promise<SalesPerformanceReport>
-  /** Ratings behind Performa Sales (view_reports); `salesmanId` is a user uuid or `none`. */
+  /** Ratings behind Performa Sales (view_reports); `salesmanId` is a sales staff id (also matches its linked user's orders), a user id, or `none`. */
   listSalesRatings: (p?: Record<string, string | number | boolean>) => Promise<ListResult<SalesRating>>
   /** Tim Sales: per-outlet sales staff list (manage_sales_staff). */
   listSalesStaff: (params?: { outletId?: string; active?: boolean; q?: string }) => Promise<SalesStaff[]>

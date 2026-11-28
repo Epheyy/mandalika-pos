@@ -135,14 +135,15 @@ func (c Caller) Sees(outletID string) bool { return c.Admin || c.Cov.Covers(outl
 // AllScope is true when the caller is not limited to a list of outlets.
 func (c Caller) AllScope() bool { return c.Admin || c.Cov.All }
 
-// Meets reports whether a user's coverage shares an outlet with the caller's; admin and
-// Semua Outlet callers meet everyone.
+// Meets reports whether a caller may link a user's account: admin and Semua Outlet callers
+// meet everyone; a limited caller meets only users whose explicit outlets share one with
+// theirs, never an account that covers every outlet (admin or Semua Outlet manager).
 func (c Caller) Meets(user Coverage) bool {
 	if c.AllScope() {
 		return true
 	}
 	if user.All {
-		return len(c.Cov.OutletIDs) > 0
+		return false
 	}
 	for _, o := range user.OutletIDs {
 		if c.Cov.Covers(o) {
