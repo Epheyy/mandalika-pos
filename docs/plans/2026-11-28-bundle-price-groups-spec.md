@@ -78,6 +78,12 @@ with no outlet dimension, so a premium outlet cannot sell a bundle at its own pr
   (ERP-pulled outlets start inactive and can be put in a group before they open).
 - **The "Aroma yang punya bundle" list** keeps showing Standar prices, and its subtitle says so.
 - **Renaming a group does not touch tablets** (tablets never see group names).
+- **Offline tablets:** a tablet that is offline when its outlet moves group (or a price changes)
+  keeps selling at its last pulled price until it syncs; the server keeps that sale and flags it,
+  the same as after a Standar price edit today. No "tablet not yet updated" warning in this slice.
+- **Stale saves:** two admins (or an old tab of the new Backoffice) must not silently overwrite each
+  other. The save carries the revision it was loaded from and a stale save is refused with
+  "Harga bundle sudah diubah orang lain. Muat ulang." (exact mechanism in the plan).
 
 ## Approaches
 
