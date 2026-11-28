@@ -20,6 +20,7 @@ func priceGroupCrudSubtest(t *testing.T, e bundleEnv) {
 				{`DELETE FROM price_groups WHERE id NOT IN ($1, $2)`, []any{putStandarID, putPremiumID}},
 				{`DELETE FROM bundle_prices WHERE group_id = $1`, []any{putPremiumID}},
 				{`UPDATE price_groups SET name = $2 WHERE id = $1`, []any{putPremiumID, premiumName}},
+				{`UPDATE price_groups SET name = $2 WHERE id = $1`, []any{putStandarID, "Standar"}},
 			} {
 				if _, err := e.pool.Exec(e.ctx, q.sql, q.args...); err != nil {
 					t.Errorf("cleanup %q: %v", q.sql, err)
