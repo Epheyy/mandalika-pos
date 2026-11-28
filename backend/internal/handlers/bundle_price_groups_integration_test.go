@@ -35,6 +35,7 @@ type bundleEnv struct {
 func bundlePriceGroupSubtests(t *testing.T, e bundleEnv) {
 	effectivePricesByOutletSubtest(t, e)
 	settingsGetGroupsSubtest(t, e)
+	settingsPutGroupsSubtests(t, e)
 }
 
 func effectivePricesByOutletSubtest(t *testing.T, e bundleEnv) {
