@@ -1,6 +1,6 @@
 # Bundle price groups ("Kelompok Harga") — design spec
 
-Date: 2026-11-28. Status: draft for owner approval. The four policy answers are the owner's
+Date: 2026-11-28. Status: APPROVED by the owner 2026-11-28 ("Approve spec"). The four policy answers are the owner's
 (2026-11-28, this session). Approach A was chosen by Claude under the owner's standing "follow my
 recommendation" preference. Mock: `docs/plans/2026-11-28-bundle-price-groups/mock.html`.
 
