@@ -31,5 +31,7 @@ describe('snapshot salesStaff and slim users', () => {
     const { kv } = controllableKV({ [SNAP_KEY]: JSON.stringify({ version: 1, users: fatUsers }) })
     expect(new Snapshot(kv).get().users).toEqual([{ id: 'u1', displayName: 'Admin' }])
     expect(kv.get(SNAP_KEY)).not.toContain('permissions')
+    expect(kv.get(SNAP_KEY)).not.toContain('email')
+    expect(kv.get(SNAP_KEY)).not.toContain('role')
   })
 })

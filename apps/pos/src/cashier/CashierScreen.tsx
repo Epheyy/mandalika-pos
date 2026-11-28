@@ -6,7 +6,7 @@
 import { use, useReducer, useRef, useState, useEffect, useLayoutEffect, useMemo } from 'react'
 import type { components } from '@mandalika/api'
 import { normalizePhone, uuid, type LocalReceipt } from '@mandalika/sync'
-import { salesPickList } from './salesPicker'
+import { resolveSelectedSalesman, salesPickList } from './salesPicker'
 import { canRefund, canRequestStock, isCashMethod, variantLabel } from '@mandalika/types'
 import type { ReceiptData } from '@mandalika/printer'
 import { SyncContext, SyncReceiveRejectedRefContext, SyncReceiveAcceptedRefContext } from './SyncProvider'
@@ -1020,7 +1020,7 @@ export default function CashierScreen() {
         await openCart.commitBeforeSale(saleUuid)
         // The ONE order payload builder: a plain sale queues it as an 'order', a void replacement nests it in a 'void'.
         const orderPayload = buildSaleOrderPayload({
-          orderNumber: orderNo, items: saleItems, plan, state, promotionMetadata, redeemedPoints: derived.redeemedPoints,
+          orderNumber: orderNo, items: saleItems, plan, state: { ...state, selectedSalesman: resolveSelectedSalesman(snapshot, state.selectedSalesman) }, promotionMetadata, redeemedPoints: derived.redeemedPoints,
           shiftId: shift.currentShift?.id || null, // '' = open not yet synced
           quote,
         })
