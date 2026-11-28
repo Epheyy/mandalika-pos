@@ -19,6 +19,9 @@ describe('snapshot salesStaff and slim users', () => {
     expect(hasSnapshotPii({ users: fatUsers })).toBe(true)
     expect(hasSnapshotPii({ users: [{ id: 'u1', displayName: 'Admin' }] })).toBe(false)
   })
+  it('a user without a displayName keeps just its id', () => {
+    expect(stripSnapshotPii({ users: [{ id: 'u2', email: 'b@example.invalid' }] }).users).toEqual([{ id: 'u2' }])
+  })
   it('stripSnapshotPiiJson rewrites a stored fat users value', () => {
     const out = stripSnapshotPiiJson(JSON.stringify({ version: 1, users: fatUsers }))
     expect(out).not.toContain('example.invalid')
