@@ -2,13 +2,149 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/mandalika/pos-backend/internal/bundles"
+	"github.com/mandalika/pos-backend/internal/read"
+	syncpkg "github.com/mandalika/pos-backend/internal/sync"
+	"github.com/mandalika/pos-backend/internal/write"
 )
+
+// bundleEnv is the fixture TestBundlesPostgres hands to the price-group subtests.
+type bundleEnv struct {
+	pool       *pgxpool.Pool
+	ctx        context.Context
+	rd         *read.Repo
+	wr         *write.Repo
+	outlet     string
+	champ      string
+	do         func(tok, method, path string, body any) (int, map[string]any)
+	tokFor     func(perms []string) string
+	tokForRole func(role string, perms []string) string
+}
+
+// bundlePriceGroupSubtests run after bundleSaleSubtests and share one database: each leaves
+// it as the migration made it (no Premium prices, every outlet in the default group).
+func bundlePriceGroupSubtests(t *testing.T, e bundleEnv) {
+	effectivePricesByOutletSubtest(t, e)
+}
+
+func effectivePricesByOutletSubtest(t *testing.T, e bundleEnv) {
+	t.Run("effective_prices_by_outlet", func(t *testing.T) {
+		const (
+			premiumID = "5ad7a12d-0000-4000-8000-000000000002"
+			outlet2   = "00000000-0000-4000-8f00-0000000000e3"
+			stranger  = "00000000-0000-4000-8f00-0000000000ff"
+		)
+		exec := func(q string, args ...any) {
+			t.Helper()
+			if _, err := e.pool.Exec(e.ctx, q, args...); err != nil {
+				t.Fatal(err)
+			}
+		}
+		t.Cleanup(func() {
+			_, _ = e.pool.Exec(e.ctx, `UPDATE outlets SET price_group_id = NULL`)
+			_, _ = e.pool.Exec(e.ctx, `DELETE FROM bundle_prices WHERE group_id = $1`, premiumID)
+			_, _ = e.pool.Exec(e.ctx, `DELETE FROM outlets WHERE id = $1`, outlet2)
+		})
+		exec(`INSERT INTO outlets(id,name) VALUES($1,'BN Outlet 3')`, outlet2)
+		// Standar rows (default group): the same values earlier subtests saved.
+		for _, r := range []struct {
+			line string
+			p    int
+		}{{"", 795000}, {"EXTRAIT DE PARFUM", 850000}} {
+			exec(`INSERT INTO bundle_prices(line,size,price) VALUES($1,'120ml',$2)
+			      ON CONFLICT (group_id,line,size) DO UPDATE SET price = EXCLUDED.price`, r.line, r.p)
+		}
+		exec(`INSERT INTO bundle_prices(group_id,line,size,price) VALUES($1,'','120ml',950000)`, premiumID)
+		exec(`UPDATE outlets SET price_group_id = $1 WHERE id = $2`, premiumID, e.outlet)
+
+		price := func(outletID, line, size string) float64 {
+			t.Helper()
+			p, err := bundles.LoadPrices(e.ctx, e.pool, outletID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			v, _ := p.PriceFor(line, size)
+			return v
+		}
+		if got := price(e.outlet, "EXTRAIT DE PARFUM", "120ml"); got != 950000 {
+			t.Errorf("Premium outlet EXT 120ml = %v, want 950000", got)
+		}
+		if got := price(e.outlet, "PARFUM INTENSE", "120ml"); got != 950000 {
+			t.Errorf("Premium outlet PI 120ml = %v, want 950000", got)
+		}
+		for name, id := range map[string]string{"outlet2": outlet2, "empty": "", "NoOutlet": read.NoOutlet, "unknown": stranger, "non-uuid": "not-a-uuid"} {
+			if got := price(id, "EXTRAIT DE PARFUM", "120ml"); got != 850000 {
+				t.Errorf("%s: EXT 120ml = %v, want Standar 850000", name, got)
+			}
+		}
+
+		pulled := func(outletID string) float64 {
+			t.Helper()
+			b, err := syncpkg.New(e.pool, e.rd, nil, e.wr).Pull(e.ctx, read.Scope{OutletID: outletID}, outletID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, _ := json.Marshal(b)
+			return champExtOffer(t, raw, e.champ)
+		}
+		if got := pulled(e.outlet); got != 950000 {
+			t.Errorf("Premium outlet pull offer = %v, want 950000", got)
+		}
+		if got := pulled(outlet2); got != 850000 {
+			t.Errorf("Standar outlet pull offer = %v, want 850000", got)
+		}
+
+		code, data := e.do(e.tokFor(nil), http.MethodGet, "/bundles/catalog", nil)
+		if code != http.StatusOK {
+			t.Fatalf("GET /bundles/catalog = %d", code)
+		}
+		raw, _ := json.Marshal(map[string]any{"bundleCatalog": data["data"]})
+		if got := champExtOffer(t, raw, e.champ); got != 850000 {
+			t.Errorf("CrossAll catalog offer = %v, want Standar 850000", got)
+		}
+	})
+}
+
+// champExtOffer finds CHAMPION's EXT 120ml offer price in a marshalled pull/catalog body.
+func champExtOffer(t *testing.T, raw []byte, champ string) float64 {
+	t.Helper()
+	var got struct {
+		BundleCatalog struct {
+			Products []struct {
+				ProductID string `json:"productId"`
+				Offers    []struct {
+					LineShort string  `json:"lineShort"`
+					Size      string  `json:"size"`
+					Price     float64 `json:"price"`
+				} `json:"offers"`
+			} `json:"products"`
+		} `json:"bundleCatalog"`
+	}
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range got.BundleCatalog.Products {
+		if p.ProductID != champ {
+			continue
+		}
+		for _, o := range p.Offers {
+			if o.LineShort == "EXT" && o.Size == "120ml" {
+				return o.Price
+			}
+		}
+	}
+	t.Fatalf("CHAMPION EXT 120ml offer missing in %s", raw)
+	return 0
+}
 
 // bundlePriceGroupMigrationSubtest pins the schema of migration 0105. It leaves the database
 // exactly as the migration made it: later price-group subtests share it.

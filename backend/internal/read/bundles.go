@@ -21,7 +21,7 @@ func bundleLines(lines []string) []api.BundleLine {
 // BundleSettings is the stored bundle price settings plus the lines the catalog has large
 // bottles for (so the Backoffice knows which line columns to show).
 func (r *Repo) BundleSettings(ctx context.Context) (api.BundleSettings, error) {
-	p, err := bundles.LoadPrices(ctx, r.Pool)
+	p, err := bundles.LoadPrices(ctx, r.Pool, "")
 	if err != nil {
 		return api.BundleSettings{}, err
 	}
@@ -78,7 +78,11 @@ func sizeKey(size string) int {
 // BundleCatalog is the derived bundle catalog for the scope: tablets get it inside the sync
 // pull (sc.SellableOnly, one outlet), the Backoffice gets every product.
 func (r *Repo) BundleCatalog(ctx context.Context, sc Scope) (api.BundleCatalog, error) {
-	p, err := bundles.LoadPrices(ctx, r.Pool)
+	outlet := ""
+	if !sc.CrossAll {
+		outlet = sc.OutletID
+	}
+	p, err := bundles.LoadPrices(ctx, r.Pool, outlet)
 	if err != nil {
 		return api.BundleCatalog{}, err
 	}

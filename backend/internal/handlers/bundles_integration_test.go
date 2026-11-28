@@ -283,4 +283,6 @@ func TestBundlesPostgres(t *testing.T) {
 	})
 
 	bundleSaleSubtests(t, pool, ctx, rd, wr, outlet, champ, key)
+	bundlePriceGroupSubtests(t, bundleEnv{pool: pool, ctx: ctx, rd: rd, wr: wr, outlet: outlet, champ: champ,
+		do: do, tokFor: tokFor, tokForRole: tokForRole})
 }

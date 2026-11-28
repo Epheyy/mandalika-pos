@@ -108,7 +108,7 @@ func (s *OrderService) resolveSetBundles(ctx context.Context, tx pgx.Tx, in *Cre
 	if !has {
 		return warnStripped, nil
 	}
-	prices, err := bundles.LoadPrices(ctx, tx)
+	prices, err := bundles.LoadPrices(ctx, tx, "")
 	if err != nil {
 		return "", err
 	}
