@@ -6,6 +6,7 @@
 import { use, useReducer, useRef, useState, useEffect, useLayoutEffect, useMemo } from 'react'
 import type { components } from '@mandalika/api'
 import { normalizePhone, uuid, type LocalReceipt } from '@mandalika/sync'
+import { salesPickList } from './salesPicker'
 import { canRefund, canRequestStock, isCashMethod, variantLabel } from '@mandalika/types'
 import type { ReceiptData } from '@mandalika/printer'
 import { SyncContext, SyncReceiveRejectedRefContext, SyncReceiveAcceptedRefContext } from './SyncProvider'
@@ -350,7 +351,7 @@ export default function CashierScreen() {
     lookupResults,
     localCustomers,
   )
-  const salesmen = (snapshot.users ?? []).map((u) => ({ id: u.id, name: u.displayName }))
+  const salesmen = salesPickList(snapshot, state.selectedSalesman)
   const promotions = snapshot.promotions ?? []
   const bundleCatalog = snapshot.bundleCatalog
   const discountCodes = snapshot.discountCodes ?? []
